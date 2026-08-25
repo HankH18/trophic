@@ -1,9 +1,14 @@
 /**
  * game/scenes/YearTurnScene.ts — the year turn as a played sequence (build-doc §15 C6).
  *
- * build-doc §4, runtime narrative step 5: "At gym victory or tick 16, the **year turn** runs:
- * festival, aging of every owned+boxed creature, retirement flow for expiring creatures, map variant
- * swap, town aging arcs, event scripts (Cullbrand raids)." build-doc §7.5 numbers the same six steps.
+ * build-doc §4, runtime narrative step 5 AS AMENDED (D-Q2-1/D-Q3-1): "At tick 16 — and at nothing
+ * else — the **year turn** runs: festival, aging of every owned+boxed creature, retirement flow for
+ * expiring creatures, map variant swap, town aging arcs." build-doc §7.5 numbers the same steps.
+ *
+ * TWO THINGS THAT USED TO BE HERE ARE NOT. A gym victory no longer ends a year, so the turn has ONE
+ * trigger; and the **event scripts (Cullbrand raids)** have moved off the calendar to ACT ENTRY —
+ * bible §9 says "scripted per act" — so a year turn emits no raid event, ever. {@link actEntryBeats}
+ * renders those, through the same beat vocabulary.
  *
  * THIS SCENE DRIVES core/lifecycle.ts — it does not reimplement it. Specifically:
  *   - aging, the J→A→E schedule, the metamorphic latch, the boxed-creature rule and the Ancient
@@ -211,9 +216,10 @@ export interface YearTurnDrive {
  * The year turn's trigger, read off one player action's clock events — or null if the year did not
  * end.
  *
- * build-doc §4 gives the turn two triggers ("At gym victory or tick 16") and `core/clock.ts` reports
- * both as `{t:"yearEnd"}`. Collapsing them HERE, once, is what stops a shell that watches for both
- * from firing two turns: there is one trigger per action because there is one call to this.
+ * build-doc §4 gave the turn two triggers ("At gym victory or tick 16") and `core/clock.ts` reported
+ * both as `{t:"yearEnd"}`. Collapsing them HERE, once, is what stopped a shell that watched for both
+ * from firing two turns. One trigger survives (D-Q2-1) and the collapse survives with it: there is
+ * one trigger per action because there is one call to this.
  */
 export interface YearTurnTrigger {
   /** The year that ended — hand this to {@link YearTurnDriveDeps.endedYear}. */

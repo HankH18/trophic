@@ -889,10 +889,11 @@ export class OverworldScene extends Phaser.Scene {
     this.mapView.setSeason(this.currentSeason());
 
     /*
-     * build-doc §4 step 5 — "At gym victory or tick 16, the year turn runs". ONE trigger per action:
-     * `yearTurnTrigger` collapses the clock's `yearEnd` events, so a shell watching for both of §4's
-     * triggers cannot fire two turns for one action. The turn itself is core/lifecycle.ts's and its
-     * UX is game/scenes/YearTurnScene.ts's; this scene only decides WHEN.
+     * build-doc §4 step 5 as amended — "At tick 16 the year turn runs", and at nothing else (D-Q2-1).
+     * ONE trigger per action: `yearTurnTrigger` collapses the clock's `yearEnd` events, which is what
+     * stopped a shell watching for §4's two triggers from firing two turns for one action. The turn
+     * itself is core/lifecycle.ts's and its UX is game/scenes/YearTurnScene.ts's; this scene only
+     * decides WHEN — and it never decides that the calendar has run out, because it cannot.
      */
     const trigger = yearTurnTrigger({ clock: this.clock(), events });
     if (trigger) this.beginYearTurn(trigger.endedYear, trigger.reason, tickBefore, trigger.carryTick);

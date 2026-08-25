@@ -513,6 +513,30 @@ describe("season tint — Hard Req 6 'season variation is a runtime tint; never 
     expect(yearDarkening(balance, balance.clock.startYear + balance.clock.yearsTotal - 1)).toBeLessThan(1);
   });
 
+  it("BINDS — the darkening SATURATES instead of going to black on an unbounded calendar (D-Q3-1)", () => {
+    /*
+     * The ramp was linear in years elapsed and clamped only at 0, which was invisible while the
+     * game ended at year 6 (1 − 0.08×5 = 0.60). With no cap it reaches ZERO — a fully black painted
+     * map — at year 13.5, for a player who is doing nothing wrong. It saturates at the expected
+     * pacing instead, the same rule build-doc §9.5 gives the year-variant ART.
+     */
+    const deepest = yearDarkening(balance, balance.clock.startYear + balance.clock.yearsTotal - 1);
+    expect(deepest).toBeGreaterThan(0);
+    for (const year of [7, 9, 14, 40, 999]) {
+      expect(yearDarkening(balance, year), `year ${String(year)}`).toBe(deepest);
+      // The whole reading matches the deepest one except for the `year` it reports.
+      const late = seasonTint(balance, "winter", year);
+      const deep = seasonTint(balance, "winter", balance.clock.startYear + balance.clock.yearsTotal - 1);
+      expect(late.scale).toBeGreaterThan(0);
+      expect({ ...late, year: 0 }).toEqual({ ...deep, year: 0 });
+    }
+    // Years 1..6 are byte-identical to the un-saturated ramp.
+    for (let i = 0; i < balance.clock.yearsTotal; i += 1) {
+      const year = balance.clock.startYear + i;
+      expect(yearDarkening(balance, year)).toBeCloseTo(1 - balance.audio.yearDarkenPerYear * i, 12);
+    }
+  });
+
   it("follows the clock, and every preset is flagged provisional while the hues are not in balance", () => {
     const clock = { year: balance.clock.startYear, tick: balance.clock.ticksPerSeason };
     const tint = seasonTintForClock(clock, balance);
@@ -727,12 +751,13 @@ describe("year turn — G10 / Hard Req 4: boxed creatures age, caught Ancients d
     expect(moved.length).toBeGreaterThan(0);
   });
 
-  it("BINDS — one player action fires ONE year turn, whichever of build-doc §4's triggers ended it", () => {
-    // build-doc §4: "At gym victory or tick 16, the year turn runs." Both triggers are reachable in
-    // the same action, and a shell that ran a turn per trigger burnt TWO of the six years on one
-    // action — two festivals, two aging passes, two season steps, two retirement rounds, two raid
-    // applications. `canRunYearTurn` cannot see it: it guards the year the turn will BEGIN, and by
-    // the time the second call arrives `save.year` has already moved on.
+  it("BINDS — one player action fires ONE year turn, however many times it is asked", () => {
+    // build-doc §4 USED TO SAY "At gym victory or tick 16, the year turn runs." Both triggers were
+    // reachable in the same action, and a shell that ran a turn per trigger burnt TWO years on one
+    // action — two festivals, two aging passes, two season steps, two retirement rounds. There is
+    // one trigger now (D-Q2-1); the guard stays because a reload, a double call or a replay can
+    // still ask twice, and `canRunYearTurn` cannot see it on its own: it guards the year the turn
+    // will BEGIN, and by the time the second call arrives `save.year` has already moved on.
     const save = boxedAndAncientSave();
     const drive = driveYearTurn(save, {
       content,

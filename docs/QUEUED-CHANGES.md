@@ -1,12 +1,15 @@
 # Queued changes — authorised, waiting on in-flight work
 
-## CURRENT STATE (loop tick, 05:38)
+## CURRENT STATE (loop tick, 06:38)
 
-**Build: GREEN.** `tsc` clean · **1829/1829 tests passing** (was 1613). All verifier scratch probes
-cleaned up by their authors. Committed `1e62b6ea`, remote verified.
+**Build: GREEN mid-flight.** `tsc` clean · **1915/1915 passing**. Lanes B+C finished fully (25/25
+agents, 0 errors) at `962d94b8`. The time-model workflow is actively writing `core/lifecycle.ts`,
+`game/scenes/YearTurnScene.ts`, `game/season-tint.ts`, `game/ui/SeasonMeter.ts`, `docs/build-doc.md`
+and `docs/content-bible.md` right now.
 
-Lanes B+C finished its repair and integration passes and released `game/`, which unblocked the
-largest queued item.
+**Nothing was dispatchable this tick** — Q1 needs `data/gyms.json` + `content-bible.md` +
+`transcription.test.ts`, all held by the running workflow; Q7 and Q3b need `game/`. Holding is the
+correct outcome, not a stall.
 
 > **`tools/harness/probe.ts` is a REAL MODULE** imported by `tools/harness/measure.ts`. NOT a scratch
 > file — deleting it breaks `tests/unit/harness.test.ts` at collection. Match `__*` under `game/` and
@@ -14,21 +17,22 @@ largest queued item.
 
 | Change | State |
 |---|---|
-| Q1 renames | **ready, next up** — files free, no collision with dialogue (verified: no move name appears in `data/dialogue.json`). Shares `data/gyms.json` + `transcription.test.ts` + bible with Q3, so it runs AFTER the time-model workflow. Replacements still need screening against **Digimon**. |
-| Q2 tick-only time | **IN FLIGHT** — time-model workflow |
-| Q3 act decoupling | **IN FLIGHT** — same workflow, own verification lenses |
-| Q3a 44 year-gated entries | **IN FLIGHT** — parallel stream, disjoint scope |
-| Q3b quest system | outstanding — pairs with Q7, both are the same missing layer (C7) |
-| Q4 backgroundTolerance | **DONE** `ab028db` |
-| Q5 shape-not-species | **DONE** `ab028db` |
-| Q6 r4 mid-collapse | **IN FLIGHT** — sequenced after Q3 in the same workflow, because act-triggered raids change the answer (decision: crash on arrival, not pre-crashed — one source of truth, and an early arriver watches it happen) |
-| Q7 wire dialogue into `game/` | outstanding — the biggest remaining build item |
-| Q8 dialogue-schema allowance | **DONE** |
+| Q1 renames | **next up, blocked** on the time-model workflow releasing `data/gyms.json` + `content-bible.md`. No collision with dialogue (verified: no move name appears there). Replacements still need screening against **Digimon**. |
+| Q2 / Q3 / Q3a / Q6 | **IN FLIGHT** — time-model workflow, two parallel streams + verification + integration |
+| Q4 / Q5 / Q8 | **DONE** |
+| Q3b quest system + Q7 dialogue wiring | outstanding — the same missing layer (build order C7), and the biggest remaining item. All ten quests have finished copy; all 12 turn-in flags are read by dialogue and written by nothing. |
+
+**Cross-lane blockers being recovered.** Several Lanes B+C repair agents found reproduced defects in
+files other agents held and correctly reported rather than edited them. Those live only in workflow
+transcripts. An extraction pass is writing `docs/BLOCKED-FINDINGS.md`, re-verifying each against the
+current tree first (some are likely already fixed; a stale blocker recorded as live wastes the next
+agent's time). Known live one: `tools/comfy/player-views.ts:411` hardcodes `tolerance: 12` — the same
+background-removal bug Q4 fixed elsewhere, plus a G11 literal.
 
 **Open for Hank — B-D38 gates the 154-sprite B3 batch.** Bogling, Puddlisk, Mirefin and Wispurr all
-render as the same chibi bipedal mascot regardless of subject; Gloomoth lost its six legs. Q5 already
-ruled out the prompts as the sole cause, which points at the §9.2-locked class skeleton overriding the
-subject. **Generate Fenmaw, Mirefin and Wispurr front views and LOOK before the other 148 are billed.**
+render as the same chibi bipedal mascot regardless of subject; Gloomoth lost its six legs. Q5 ruled
+out the prompts as sole cause, pointing at the §9.2-locked class skeleton. **Generate Fenmaw, Mirefin
+and Wispurr front views and LOOK before the other 148 are billed.**
 
 **Also awaiting Hank:** palette variant (class-equal recommended; Q4 landed so the swap is unblocked)
 · five borderline G7 lines in `docs/DIALOGUE-NOTES.md` · every rename in `docs/IP-SWEEP.md` (G15).

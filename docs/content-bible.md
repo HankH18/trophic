@@ -1,7 +1,9 @@
 # TROPHIC — Content Bible v0.1
 *Ideation artifact for review. Not a build doc.*
 
-Region: **Fallowmere**. Six acts = six years. Five gym towns + one boss site. All names are placeholders pending an IP sweep.
+Region: **Fallowmere**. **Six acts; the calendar runs independently.** Five gym towns + one boss site. All names are placeholders pending an IP sweep.
+
+> **AMENDED 2026-08-25** (`docs/DEVIATIONS.md` D-Q3-1, authorised by Hank). This line used to read *"Six acts = six years"*, and the whole document inherited that equation — towns listed by year, leaders by year, map variants indexed 2–6. Years and acts were never two things; they were one axis wearing two names, and the "year 6 gate" nobody designed came out of it. They are now **two independent clocks**: the CALENDAR (ticks → seasons → years) never waits and never ends, and drives ageing, retirement, the ecosim and the aged art; ACTS are driven by badges and quest flags, and drive town/route unlocks, story beats, Cullbrand raids, the rival and the finale. **Six remains the EXPECTED year count under normal pacing — a correlation, not a rule.** Everywhere below that a table column reads "Yr", read **act**; where a town's *ageing arc* is described, that stays on the calendar.
 
 ---
 
@@ -101,7 +103,7 @@ Populations, breeding rates, and starting counts live in one JSON per node — t
 
 ## 6. Region Map — Towns
 
-| Yr | Town | Biome | Unique feature | Aging arc |
+| Act | Town | Biome | Unique feature | Aging arc |
 |---|---|---|---|---|
 | 1 | Hearthollow | Meadow | Warden Maren's field station: starter choice, bait-crafting intro, tutorial forage | fields flourish or wither with Route 1 health |
 | 2 | Brackwater | Marsh | stilt town; ferry unlock; fishery economy visibly indexed to Fenmaw/Bogling populations | docks rot or get rebuilt |
@@ -110,11 +112,13 @@ Populations, breeding rates, and starting counts live in one JSON per node — t
 | 5 | Duskhollow | Dusk vale | observatory; star census (dex-completion rewards); Vellsire lore | dark encroaches as the Sanctum destabilizes |
 | 6 | The Sanctum Fallow | Sealed caldera | league + finale; no shops, one long approach | revealed in the state your ecology earned |
 
+> **The "Act" column was labelled "Yr" and is an ACT index (`docs/DEVIATIONS.md` D-Q3-1).** A town opens when the player reaches its act, whatever the calendar says — `balance.acts.gates` carries the row. The **Aging arc** column is the exception and stays on the CALENDAR: docks rot, canopy thins and vents flare with the world, not with the plot, so a player who rushes sees a younger town and that is correct.
+
 Routes: one primary route per biome (R1 Meadow Reach, R2 Brackmarsh, R3 Bowerdeep Wilds, R4 Cinder Steppe, R5 Duskhollow Vale) + the Sanctum Approach. 12 walkable maps total (6 towns/sites + 6 routes), vertical-slice priority: Hearthollow, R1, Brackwater, R2 fully walkable first; later nodes fall back to vignette cards if the week compresses.
 
 ## 7. Gym Leaders (fixed rosters)
 
-| Yr | Leader | Type | Team (age class) | Signature |
+| Act | Leader | Type | Team (age class) | Signature |
 |---|---|---|---|---|
 | 1 | Maribel | Beast | ~~Nibbin (A),~~ Bramblehog (A), Skir (A) — **AMENDED, see below** | "Old Nib" — Nibbin (E), Thick Pelt |
 | 2 | Odo | Water | Bogling (J), Reedrick (A), Mirefin (A) | Fenmaw (E) |
@@ -127,7 +131,9 @@ Routes: one primary route per biome (R1 Meadow Reach, R2 Brackmarsh, R3 Bowerdee
 >
 > **Roster sizes (signature included) are therefore 3 / 4 / 5 / 6 / 6 / 6**, not the 4 / 4 / 5 / 6 / 6 / 6 stated below.
 
-Roster sizes (signature included): 4 / 4 / 5 / 6 / 6 / 6 *(gym 1 amended to 3 — see the note above)*. Elder count ramps with the years — one Elder in early gyms, two-to-three by the endgame; Greaves fields harvested prime specimens, which is the point of him. Juvenile line-forms in gyms 2–3 (Bogling, Gloomgrub) quietly showcase the metamorphic lines before the player's own creatures reach them.
+> **The "Act" column was labelled "Yr" and is an ACT index (`docs/DEVIATIONS.md` D-Q3-1)**, shipped as `data/gyms.json` `act`. Odo is the act-2 leader whether the player reaches him in calendar year 2 or year 11. **Beating a leader no longer ends the year** (L8 as amended, D-Q2-1); it writes a badge flag, which is the act model's only numeric input.
+
+Roster sizes (signature included): 4 / 4 / 5 / 6 / 6 / 6 *(gym 1 amended to 3 — see the note above)*. Elder count ramps with the acts — one Elder in early gyms, two-to-three by the endgame; Greaves fields harvested prime specimens, which is the point of him. Juvenile line-forms in gyms 2–3 (Bogling, Gloomgrub) quietly showcase the metamorphic lines before the player's own creatures reach them.
 
 ## 8. Story Spine
 
@@ -151,7 +157,17 @@ Roster sizes (signature included): 4 / 4 / 5 / 6 / 6 / 6 *(gym 1 amended to 3 �
 | Duskhollow | *The Star Census* — dex milestones | painted dex art as collectible reward |
 | Duskhollow | *Vellsire's Trail* — follow ancient sign-cards | finale setup, Instinct checks |
 
-**Regional events:** Annual Festival (diegetic gym gate, closes the year); Great Migration (spring — Gloomoth flocks shift spawns region-wide); Cullbrand Harvest raids (scripted per act, populations visibly drop at a named node); Bloom Year (a route whose producers thrive gets bonus spawns — positive feedback made visible).
+**Regional events:** Annual Festival (the year's closing celebration); Great Migration (Gloomoth flocks shift spawns region-wide); Cullbrand Harvest raids (scripted per act, populations visibly drop at a named node); Bloom Year (a route whose producers thrive — positive feedback made visible).
+
+> **AMENDED 2026-08-25** (`docs/DEVIATIONS.md` D-Q2-1 / D-Q2-2, authorised by Hank).
+>
+> **The Annual Festival is no longer a "diegetic gym gate" and no longer "closes the year."** A gym victory does not end a year — only the full meter does (L8 as amended) — so the festival cannot gate on one and cannot close anything. It is the year's closing celebration: it spans the year's **final season** and ends when the meter fills.
+>
+> **All four events are SEASON-LONG WINDOWS**, on Hank's constraint: *"events like that last for a whole season and not just for one in-game day."* Each opens at a season boundary, stays open for `balance.clock.ticksPerSeason` ticks, and closes at the next — `core/regional-events.ts`. The Festival is the year's last season; the Migration is a migrant's own `seasonalWindow`; a **raid's** window is the season **its act was entered in**, not a year; a **Bloom Year** is a node whose flora clears `balance.regionalEvents.bloomFloraFraction` of the sim's ceiling at a season boundary.
+>
+> **Two halves of this sentence are deliberately NOT built, and are recorded rather than quietly dropped:** the Migration's "shift spawns region-wide" (the migrant window removes Gloomoth out of season; it does not raise them elsewhere in season) and the Bloom Year's "gets bonus spawns" (story-review decision D10, unruled — building an encounter-weight multiplier would be G3). The WINDOWS ship; those two effects do not.
+>
+> **Season note (unresolved, story-review D7):** §9 says the Migration is *spring*; §5 and every shipped row in `data/species.json` say **autumn**. The data wins in code; the discrepancy is Hank's to rule on.
 
 ## 10. NPCs
 

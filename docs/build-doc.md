@@ -4,7 +4,9 @@
 
 ## 1. Mission & Effort Allocation
 
-Trophic is a 2D Pokémon-Gold-style monster-catching RPG in which the region is a living ecosystem: catching decrements real per-node populations, over-catching cascades through a derived food web, and time advances across six in-game years that age every creature, map, and town.
+Trophic is a 2D Pokémon-Gold-style monster-catching RPG in which the region is a living ecosystem: catching decrements real per-node populations, over-catching cascades through a derived food web, and time advances on its own — ageing every creature, map, and town — whether or not the player is making progress.
+
+**Two clocks (see §3 L8 as amended, and `DEVIATIONS.md` D-Q3-1).** The **calendar** runs on ticks and is unbounded; **six in-game years** is the *expected* count under normal pacing (`balance.clock.yearsTotal`), a correlation and not a rule. **Acts** run on badges and quest flags and carry the story. A fast player reaches the Sanctum with young creatures; a slow player reaches the same content having buried two generations. Both see the whole story, and the difference is written in the ledger.
 
 **Judged output: demo video + AI interview.** There is no hidden rubric beyond these, so effort allocates to what the video shows and the interview probes:
 
@@ -20,12 +22,12 @@ Demo/UI polish is graded here (the video *is* the deliverable), so polish on the
 1. All gameplay art is AI-generated via the validated Comfy Cloud pipeline (§9.3); all code agent-built.
 2. Catching decrements the real population of that species at that node; the in-game ledger shows real numbers, never proxies.
 3. One JSON file per node is simultaneously: encounter table source, ecology-sim state, and bait lookup. No second table may exist (guardrail G3).
-4. Everything ages at year turns, including boxed creatures. Sole exception: caught Ancients.
+4. Everything ages at year turns, including boxed creatures. Sole exception: caught Ancients. *(The year turn fires on the full meter only — L8 as amended, `DEVIATIONS.md` D-Q2-1. Ageing is the CALENDAR's job and is untouched by the act model.)*
 5. Year-variant maps are img2img with layout frozen: **one collision mask per map survives all six years**, enforced by the overlay-diff acceptance test (§8.2).
 6. Season variation is a runtime tint shader; year variation is art. Never generate seasonal map art.
 7. Vellsire finale: catchable with honest costs — catch removes the keystone buff and the epilogue ledger shows the numbers; release = restoration ending. No moralizing text anywhere; the ledger is the moral.
 8. Battle content exactly per bible: 8 types + Predation rule, 5 stats, 28-move pool, 4 statuses, levels 1–40, damage formula §7.4, KO = faint only.
-9. Gym rosters fixed per bible §7 (sizes **3**/4/5/6/6/6 — **AMENDED 2026-08-25**, was 4/4/5/6/6/6); leader slots use the ghost-compatible schema (§7.7) but no ghost-team feature is built.
+9. Gym rosters fixed per bible §7 (sizes **3**/4/5/6/6/6 — **AMENDED 2026-08-25**, was 4/4/5/6/6/6); leader slots use the ghost-compatible schema (§7.7) but no ghost-team feature is built. The leftmost column of bible §7 (labelled "Yr") is an **ACT index** and ships as `data/gyms.json` `act` — renamed from `year` on 2026-08-25 so nothing re-conflates the two clocks (`DEVIATIONS.md` D-Q3-1). Beating a leader writes its badge flag and may advance the act; **it does not end the year.**
    *Gym 1 only.* Maribel fields three, not four: the duplicate Nibbin (A) slot is cut and she keeps Bramblehog (A), Skir (A) and the signature "Old Nib" Nibbin (E). Authorised by Hank on the balance-harness finding that gym 1 was the hardest fight in the game (26.0% measured against this doc's own §10.5 target of 80–95%, against the year-6 finale's 36.2%). Which creature to cut was decided by a 500-seed measurement of all three candidates, not by taste. The sizes are enforced by `core/schemas.ts` `GYM_ROSTER_SIZES` at boot as well as by `tests/unit/transcription.test.ts`. Full rationale, the measurements, and the gap that remains open: `docs/DEVIATIONS.md` rows D-A5-G1…G4.
 10. Seasonal spawns v1-lite: exactly 4 migrants (Pollywisp/Reedrick/Gloomoth/Wispurr); dex + sign cards flag them dormant/migrating out of season.
 11. Audio: single CC0 chiptune pack family curated against bible §12a; procedural SFX; DSP season presets + progressive year darkening. Retirement cue chosen first.
@@ -42,7 +44,7 @@ Demo/UI polish is graded here (the video *is* the deliverable), so polish on the
 | L5 | Walk cycle | **Comfy reference-guided (img2img) trial first**, acceptance bar §9.6; **procedural bob is the committed fallback** | User call: try it properly, bounded; bob is proven-acceptable. |
 | L6 | Player sprite | Green shirt, ranger cap w/ star badge, leather satchel, walking boots, **no cape**. Finalization gate (§15 B0) precedes all multi-version generation | Explicit review lock + user wants one more iteration pass first. |
 | L7 | Map structure | Node graph; each node a whole painted map + collision mask; no tilesets | Locked in ideation; vertical slice walkable, rest vignette-fallback. |
-| L8 | Time | 16-tick season meter; travel 1 / foray 1 / inn 2; year = gym victory or full meter | Locked. |
+| L8 | Time | 16-tick season meter; travel 1 / foray 1 / inn 2; **year = full meter**. The calendar is **unbounded** and independent of story progress. | Locked, then **AMENDED 2026-08-25 by Hank overriding his own lock** — see `DEVIATIONS.md` D-Q2-1 / D-Q3-1. Gym victory is no longer a year-end trigger, and there is no year cap or fail state. |
 | L9 | Aging/evolution | J3/A2/E1 lifespans; ×0.75/1.0/1.15; hybrid metamorphic model; heir-or-boon retirement | Locked. |
 | L10 | Sim | Deterministic, seeded; pure function of (initial state, action log) | Enables replay, tests, and the balance harness for free. |
 | L11 | Core code | Engine-agnostic pure TS in `/core`, zero Phaser imports | Balance harness and tests import the same module the game runs. |
@@ -94,7 +96,8 @@ graph TD
 2. Overworld renders the node's painted map image, plus its year variant if `year > 1` and the variant passed overlay-diff. Movement queries the collision mask grid (§7.6). Season tint shader applies from `clock.season`.
 3. A foray step rolls encounters: weights are **live population counts** from the node state (dead species literally stop appearing). Migrants filtered by season.
 4. Battle runs entirely in `core/battle.ts` off a serialized `BattleInput`; the Phaser scene is a renderer of its event log. Catch success moves one individual from node population to party/box.
-5. Ticks accrue (travel/foray/inn). At each season boundary (every 4 ticks) `ecosim.step()` runs the population update (§7.3). At gym victory or tick 16, the **year turn** runs: festival, aging of every owned+boxed creature, retirement flow for expiring creatures, map variant swap, town aging arcs, event scripts (Cullbrand raids).
+5. Ticks accrue (travel/foray/inn). At each season boundary (every 4 ticks) `ecosim.step()` runs the population update (§7.3). At tick 16 — **and at nothing else** — the **year turn** runs: festival, aging of every owned+boxed creature, retirement flow for expiring creatures, map variant swap, town aging arcs. The calendar never waits and never ends.
+5a. **The second clock (§3 L8 as amended, `core/acts.ts`).** ACTS are driven by badges and quest flags and never by time. An act advances when its `balance.acts.gates` row is satisfied; entering an act fires that act's **event scripts (Cullbrand raids)**, unlocks its towns and routes, and carries its story beats, rival encounter and — at the last act — the finale. The two clocks never read each other: the year turn moves no act, and no act moves a tick. There is no fail state, no time limit and no year cap.
 6. Ledger scene renders the node JSON's live numbers + the derived web graph. The epilogue reuses the same renderer over the final state — the ending is a ledger read.
 
 ## 5. Repo Layout
@@ -224,7 +227,11 @@ interface OwnedCreature {
   projectedRetirementYear: number;              // displayed on card (Hard Req from bible)
 }
 ```
-Year turn, numbered: (1) every owned + boxed non-Ancient creature: `yearsRemaining--`, age class advances J→A→E on its schedule; (2) metamorphic transitions apply name/type/role/stat-jump; (3) any creature at 0 → **retirement flow**: player chooses HEIR (new J of same line, level = floor(parent×0.5), inherits 1–2 randomly chosen parent traits + parent's relic slot unlocked) or BOON (chosen teammate gains permanent +10% to one stat, named after the retiree); (4) Ancients skipped; (5) node sims run their 4th season step + year events (Cullbrand raid scripts decrement scripted node populations); (6) map year-variant swap if present.
+Year turn, numbered: (1) every owned + boxed non-Ancient creature: `yearsRemaining--`, age class advances J→A→E on its schedule; (2) metamorphic transitions apply name/type/role/stat-jump; (3) any creature at 0 → **retirement flow**: player chooses HEIR (new J of same line, level = floor(parent×0.5), inherits 1–2 randomly chosen parent traits + parent's relic slot unlocked) or BOON (chosen teammate gains permanent +10% to one stat, named after the retiree); (4) Ancients skipped; (5) node sims run their 4th season step; (6) map year-variant swap if present.
+
+**AMENDED 2026-08-25 (`DEVIATIONS.md` D-Q3-1).** Step 5's second half — "*+ year events (Cullbrand raid scripts decrement scripted node populations)*" — has **moved off the calendar**. bible §9 says the raids are "scripted per **act**", and `balance.yearEvents.raids` is now keyed by `act`, applied by `core/lifecycle.ts` `enterPendingActs` on entry to that act. A year turn fires no raid, ever. Everything else in the numbered turn is unchanged.
+
+**Step 6 resolves through §9.5's fallback, not through an exact-year lookup.** `yearVariants` only ever holds keys 2–6 (§7.2) and the calendar is unbounded, so "the variant listed for exactly this year" answers nothing past year 6 and a year-9 node would fall back to the *base* map — younger than the year-6 art already on screen. §9.5 already settles it ("that year reuses the nearest passing variant"): `mapAssetForYear` resolves downward, and the turn reports a swap when the RESOLVED asset changes. A year-9 Hearthollow renders as year-6 Hearthollow.
 
 ### 7.6 Maps & Collision
 Virtual resolution 480×320, integer-scaled. Painted maps 1024×1024 native rendered 2× (2048² world). Collision mask: 1-bit PNG at map native res, sampled on a 16px grid (64×64 cells) into a packed bitfield at build time. Player logical sprite 32×48, tile step 32px, grid movement Gold-style. Props are entries in `props[]` with interaction radius, not baked into collision (they overlay the painted map).
@@ -232,8 +239,9 @@ Virtual resolution 480×320, integer-scaled. Painted maps 1024×1024 native rend
 ### 7.7 Gyms (`gyms.json`) — ghost-compatible schema
 ```ts
 interface GymTeamSlot { lineId:string; age:AgeClass; level:number; traits?:Trait[]; nickname?:string; }
-interface GymLeader { id:string; town:string; type:TypeName|"mixed"; slots:GymTeamSlot[]; signature:GymTeamSlot; source:"fixed"|"ghost"; }
+interface GymLeader { id:string; name:string; act:number; town:string; type:TypeName|"mixed"; slots:GymTeamSlot[]; signature:GymTeamSlot; source:"fixed"|"ghost"; }
 ```
+`act` is bible §7's leftmost column, which the bible labels "Yr". It is an **act index and not a calendar year** — renamed from `year` on 2026-08-25 (`DEVIATIONS.md` D-Q3-1) because it was never anything else: `tools/harness/player.ts` has always read it as "how far along the player is". `name` is additive (`DEVIATIONS.md` D5).
 All six shipped with `source:"fixed"`, rosters transcribed from bible §7. `"ghost"` is schema-only (Hard Req 9); building any ghost feature is guardrail G8.
 
 ### 7.8 Save

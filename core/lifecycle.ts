@@ -692,9 +692,11 @@ export interface YearTurnResult {
 /**
  * Where the year turn records the last year it completed.
  *
- * build-doc §4 gives the turn TWO triggers ("At gym victory or tick 16"), so firing it twice for one
- * year is reachable from the game shell, and the second firing would re-apply the scripted Cullbrand
- * raid, re-age everyone and re-retire. `questFlags` is the save's own extensible bag (build-doc
+ * build-doc §4 USED TO GIVE THE TURN TWO TRIGGERS ("At gym victory or tick 16") and firing it twice
+ * for one year was reachable from the game shell. There is one trigger now (D-Q2-1) and the raid has
+ * moved off the calendar entirely, but the flag stays: a reload, a double call or a replay can still
+ * ask for the same year twice, and that would re-age everyone and re-retire. `questFlags` is the
+ * save's own extensible bag (build-doc
  * §7.8) and is the only field this module may add to without editing core/types.ts. Namespaced so a
  * quest flag cannot collide with it. See docs/DEVIATIONS-lane-a4.md D-A4-17.
  */
@@ -715,8 +717,10 @@ export function canRunYearTurn(save: SaveFile): boolean {
 /**
  * Run one year turn. Pure: `save` is not mutated.
  *
- * The turn ENDS year N and BEGINS year N+1 (build-doc §4: "At gym victory or tick 16, the year turn
- * runs"), so the resulting save carries `year = N+1` and the tick meter resets.
+ * The turn ENDS year N and BEGINS year N+1 (build-doc §4 as amended: "At tick 16 — and at nothing
+ * else — the year turn runs"), so the resulting save carries `year = N+1` and the tick meter resets.
+ *
+ * There is no last year. `save.year` may be 11 or 40 and this runs identically (D-Q3-1).
  */
 export function runYearTurn(save: SaveFile, deps: YearTurnDeps): YearTurnResult {
   const { balance } = deps;

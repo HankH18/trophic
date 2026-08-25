@@ -1,7 +1,7 @@
 /**
  * game/ui/SeasonMeter.ts — the always-visible season meter (locked decision L8).
  *
- * L8, verbatim: "16-tick season meter; travel 1 / foray 1 / inn 2; year = gym victory or full
+ * L8 as amended (D-Q2-1/D-Q3-1): "16-tick season meter; travel 1 / foray 1 / inn 2; year = full
  * meter." bible §12 lists "map + season meter" as a screen, and build-doc §4 makes the meter the
  * thing the player reads the ecology's clock off — so it is HUD, not a menu: it is on screen while
  * the overworld is.

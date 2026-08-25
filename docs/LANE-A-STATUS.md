@@ -155,10 +155,20 @@ honestly.
 > `seasonBoundary` fires at ticks 4, 8 and 12 only. The year's **fourth** season step is run by
 > `runYearTurn` (build-doc §7.5 step 5), which reports it as `{t:"seasonStep", nodeId, season}`.
 > Run `ecosim` on `seasonBoundary`; run `runYearTurn` on `yearEnd`; **do not do both for the same
-> season**. `gymVictory` emits no `seasonBoundary` at all, for the same reason.
+> season**.
 
-The invariant to hold onto: over a six-year game there are exactly **24 season steps** — 18 clock
-boundaries plus 6 year turns.
+The invariant to hold onto: **four season steps per year, every year** — three clock boundaries plus
+the year turn. Over six years that is 24; over eleven it is 44.
+
+> **AMENDED 2026-08-25 — L8 and the calendar (`docs/DEVIATIONS.md` D-Q2-1 / D-Q3-1).** Two sentences
+> above used to say more than they can now. **`gymVictory` is gone**: a gym victory does not end a
+> year, `YearEndReason` has one member (`"meter"`), and there is no second year-end path for the
+> boundary rule to make an exception for. **"A six-year game" is not a thing either**: the calendar
+> is UNBOUNDED — `core/clock.ts` `isOver` and `game/year-events.ts` `finalYearOf` /
+> `yearTurnEndsRun` are all deleted along with the cap they enforced — so the 24 is 6 × 4 and the
+> per-year 4 is the invariant. Story progression is `core/acts.ts`, driven by badges and quest flags,
+> and it never reads the clock. `balance.clock.yearsTotal` survives as the EXPECTED year count under
+> normal pacing, quoted by the HUD and driven by the harness, and caps nothing.
 
 **Ledger / epilogue.** Read `save.nodeStates[nodeId].populations[lineId].count` directly (§8.3 says
 the ledger UI reads `nodeStates` objects, and no other module may restate the numbers).
@@ -274,6 +284,7 @@ pinned by a test that goes red when the fix is reverted (verified). Full write-u
 | | Defect | Measured |
 |---|---|---|
 | **I4** | **The fourth season ran twice a year.** `core/clock.ts` cued it (§4) and `core/lifecycle.ts` ran it (§7.5 step 5). A caller doing the documented thing ran 5 season steps a year, not 4. | +25% ecology on every six-year trajectory; ledgers demonstrably differ under the two accountings |
+| **I4-note** | *(2026-08-25)* The clause of I4 about a gym victory disagreeing with the year turn over WHICH season it was is now moot: `gymVictory` no longer exists (D-Q2-1). The seam itself — one cue per season, never two — is unchanged and is what the count above still gates. | — |
 | **I10** | **Adding a node moved every other node's trajectory** — `stepAll` cost the parent RNG one draw *per node*, so region size phase-shifted every stream from the next season on. INV-2 was false, and lane A2's comment claimed it was true. | Adding one node moved Hearthollow's bramblehog 6→9, loamunder 42→43, pollywisp 6→5 over two years, six graph hops away |
 | **I3** | **Two implementations of the population write.** `core/save.ts` restated §7.3 step 4's clamp without the upper bound, and `applyCatch` used a literal `0` where replay read `populationFloor`. | A replayed release at carrying capacity gave **22 against a cap of 21** (r1 bramblehog); L10's byte-identical-replay claim was false |
 | **I1/I2** | Three lanes' `balance.additions.*.json` merged and deleted; the duplicated `retirement.boonStatPct` removed. **No key collided** between lanes. | A retune of `stats.boonModPct` alone used to move lifecycle to 1.25 while battle stayed at 1.10 |

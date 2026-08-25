@@ -202,13 +202,22 @@ export function seasonBrightness(balance: Balance, season: Season): number {
 /**
  * bible §12a — "Year aging progressively darkens … so Hearthollow year 5 sounds like a memory of
  * year 1". Linear in the years elapsed since `balance.clock.startYear`, at
- * `balance.audio.yearDarkenPerYear` a year, clamped so a long game cannot invert the picture.
+ * `balance.audio.yearDarkenPerYear` a year.
  *
  * Year 1 is 1.0 by construction: the first year is the reference the later ones are read against.
+ *
+ * ⚠ IT SATURATES, AND IT HAS TO (D-Q3-1). The ramp was written against a six-year game and only ever
+ * needed to reach year 6 (1 − 0.08×5 = 0.60). The calendar is unbounded now, and a linear ramp
+ * clamped only at 0 reaches **pure black at year 13.5** — the painted maps would go out entirely for
+ * a player who takes their time, which is a supported way to play. So the ELAPSED term saturates at
+ * the expected pacing (`balance.clock.yearsTotal`), exactly as the year-variant art does under
+ * build-doc §9.5: a year-20 Hearthollow is lit like a year-6 Hearthollow, because year 6 is the
+ * oldest reading the ramp was ever given. Years 1–6 are byte-identical to before.
  */
 export function yearDarkening(balance: Balance, year: number): number {
   const elapsed = Math.max(0, year - balance.clock.startYear);
-  return clamp(1 - balance.audio.yearDarkenPerYear * elapsed, 0, 1);
+  const deepest = Math.max(0, balance.clock.yearsTotal - 1);
+  return clamp(1 - balance.audio.yearDarkenPerYear * Math.min(elapsed, deepest), 0, 1);
 }
 
 /**
