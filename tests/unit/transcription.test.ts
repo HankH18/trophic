@@ -545,6 +545,11 @@ describe("species roster — bible §4", () => {
  * Four names are the bible's own (Singe/Pyre, Dous/Riptide) plus the 5 role and 7 utility names it
  * lists; the twelve remaining type-move names are coined (DEVIATIONS D6) and are pinned here too,
  * because a "coined" name that drifts silently is still a content change nobody approved.
+ *
+ * Three utility names below are the AMENDED bible (D-Q1-1 … D-Q1-4): Harden, Screech and Snarl were
+ * real Pokémon moves, so §3 now reads Rootfast / Scoldcall / Baretooth, and the "Roost" alias on
+ * burrow-roost is gone. This list still transcribes the bible verbatim — the bible moved first.
+ * The `id`s deliberately did NOT move (D-Q1-5): they are opaque keys no player ever sees.
  * ────────────────────────────────────────────────────────────────────────── */
 const BIBLE_MOVE_NAMES: Array<[string, string]> = [
   ["gnaw", "Gnaw"],
@@ -568,14 +573,19 @@ const BIBLE_MOVE_NAMES: Array<[string, string]> = [
   ["ambush", "Ambush"],
   ["terrify", "Terrify"],
   ["scrounge", "Scrounge"],
-  ["harden", "Harden"],
+  ["harden", "Rootfast"],
   ["quicken", "Quicken"],
-  ["screech", "Screech"],
+  ["screech", "Scoldcall"],
   ["focus", "Focus"],
-  ["snarl", "Snarl"],
+  ["snarl", "Baretooth"],
   ["burrow-roost", "Burrow"],
   ["lure", "Lure"],
 ];
+
+/** docs/IP-SWEEP.md RED: every one of these is a real Pokémon move, and Harden and Screech were our
+ *  name AND our exact effect. They were renamed out of the pool (DEVIATIONS D-Q1-1 … D-Q1-4). This
+ *  list is the thing that must never come back — as a name, or as the `altName` alias Roost was. */
+const RENAMED_AWAY_POKEMON_MOVE_NAMES = ["Harden", "Screech", "Snarl", "Roost"];
 
 /** bible §3 names these verbatim; the rest of the 16 type moves are coined (D6). */
 const BIBLE_NAMED_MOVES = [
@@ -654,10 +664,16 @@ describe("move pool — bible §3", () => {
     expect(move("focus").effects[0]).toMatchObject({ target: "self", stat: "ins", direction: "up" });
     expect(move("snarl").effects[0]).toMatchObject({ target: "enemy", stat: "atk", direction: "down" });
     expect(move("burrow-roost").effects[0]).toMatchObject({ kind: "evade", skipTurn: true });
-    expect(move("burrow-roost").altName).toBe("Roost"); // bible §3 names it "Burrow/Roost"
+    // bible §3 used to name it "Burrow/Roost" and D8 shipped that as name + altName. Roost is a real
+    // Pokémon move (Flying/Status, recovers half max HP), so the amended §3 names it "Burrow" alone
+    // and the alias is deleted, not renamed (D-Q1-4). Asserting ABSENCE is the point: `altName` is
+    // still optional in core/schemas.ts, so nothing but this stops it drifting back in.
+    expect(move("burrow-roost").altName).toBeUndefined();
     expect(move("lure").effects).toEqual([{ kind: "catchOdds", multiplierKey: "lureMult" }]);
 
-    // Every named bible move exists under a bible name (never renamed, never flagged coined).
+    // Every named bible move carries the name bible §3 gives it and is never flagged coined. The
+    // three D-Q1 renames are still bible names — §3 was amended first, so Rootfast / Scoldcall /
+    // Baretooth are transcribed, not coined, and `coined` must stay off them.
     for (const id of BIBLE_NAMED_MOVES) {
       expect(move(id).coined, `${id} is a bible name, not a coined one`).toBeUndefined();
     }
@@ -672,6 +688,41 @@ describe("move pool — bible §3", () => {
       movesFile.moves.flatMap((m) => m.effects.filter((e) => e.kind === "inflictStatus").map((e) => e.status)),
     );
     expect([...used].sort()).toEqual(["Burn", "Daze", "Soak", "Toxin"]);
+  });
+
+  // G15 / docs/IP-SWEEP.md. The four RED move collisions are gone and must not return by any route:
+  // not as a `name`, not as the `altName` alias that carried Roost, and not on a move added later.
+  it("carries no name that is a real Pokémon move — the four RED collisions are gone", () => {
+    const surfaced = movesFile.moves.flatMap((m) => [m.name, m.altName].filter((n): n is string => !!n));
+    for (const banned of RENAMED_AWAY_POKEMON_MOVE_NAMES) {
+      expect(surfaced, `"${banned}" is a real Pokémon move — see docs/IP-SWEEP.md`).not.toContain(banned);
+    }
+    // …and the replacements are actually in place, so this test cannot pass by the pool being empty.
+    expect(surfaced).toContain("Rootfast");
+    expect(surfaced).toContain("Scoldcall");
+    expect(surfaced).toContain("Baretooth");
+    expect(surfaced).toContain("Burrow");
+    expect(surfaced.length).toBe(28); // 28 names, 0 aliases — every alias is gone, not just Roost's
+  });
+
+  // The rename changed NAMES only. Effects are content and G2 protects them, so the seven utility
+  // moves must still do exactly what bible §3's parentheses say they do, under their new names.
+  it("changed names only — every renamed utility move keeps its bible effect and text", () => {
+    expect(move("harden").name).toBe("Rootfast");
+    expect(move("harden").text).toBe("+Defense");
+    expect(move("harden").power).toBe(0);
+    expect(move("screech").name).toBe("Scoldcall");
+    expect(move("screech").text).toBe("−enemy Defense");
+    expect(move("screech").power).toBe(0);
+    expect(move("snarl").name).toBe("Baretooth");
+    expect(move("snarl").text).toBe("−enemy Attack");
+    expect(move("snarl").power).toBe(0);
+    expect(move("burrow-roost").name).toBe("Burrow");
+    expect(move("burrow-roost").text).toBe("skip turn, +evasion");
+    // All three renamed moves still key their magnitude off balance.json, never a literal (G11).
+    for (const id of ["harden", "screech", "snarl"]) {
+      expect(move(id).effects[0]).toMatchObject({ magnitudeKey: "utilityStatMod" });
+    }
   });
 });
 

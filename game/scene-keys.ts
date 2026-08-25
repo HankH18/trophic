@@ -32,6 +32,13 @@ export const SCENE_KEYS = {
   /** The team/creature card, which is where the projected retirement year is read
    * (game/scenes/SummaryScene.ts). */
   summary: "Summary",
+  /**
+   * build-doc §15 C7 — the Gold text box that plays `data/dialogue.json`
+   * (game/scenes/DialogueScene.ts). Declared here BEFORE anything routes to it, which is the point
+   * of this registry: `sceneRegistered(scene, SCENE_KEYS.dialogue)` is how the overworld asks
+   * whether the box exists before handing it a beat.
+   */
+  dialogue: "Dialogue",
   /** build-doc §15 C6 — the year turn as a played sequence (game/scenes/YearTurnScene.ts). */
   yearTurn: "YearTurn",
   /** build-doc §1's never-cut Legacy beat (game/scenes/RetirementScene.ts). */

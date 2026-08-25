@@ -2,6 +2,7 @@
   "_source": "docs/content-bible.md §3 (28-move pool) and §1 (type chart shape). Transcribed, never invented (G2).",
   "_split": "bible §1: 'Exact multipliers are tunable via the balance harness; the chart SHAPE is the content.' So the SHAPE (who is strong/weak vs whom) lives here and the VALUES (1.5 / 0.67 / 1.0, predation 1.25, Beast +10% base stats) live in data/balance.json under `types`. Likewise: numbers the bible states for a specific move (powers 40/70/50/60, Singe/Dous 20%, Regrow 30%, Trample +25, Terrify 2 turns) are CONTENT and live here; magnitudes the bible names without numbering ('+Defense', '+evasion') are tunables keyed by `magnitudeKey` into balance.moveEffects.magnitude (G11).",
   "_derivation": "Effectiveness is read off `typeChart` alone: attacker A vs defender D is superEffective when D ∈ strongVs[A]; resisted when A ∈ strongVs[D] (equivalently D ∈ weakVs... read as the exact dual: weakVs[X] lists the types X takes 1.5× FROM); neutral otherwise. Beast has an empty strongVs by design — bible §1: 'gets +10% base stats instead'.",
+  "_renamed": "G15 IP-sweep renames (docs/IP-SWEEP.md, authorised by Hank; logged as D-Q1-1..D-Q1-5 in docs/DEVIATIONS.md and amended into bible §3). Four names were real Pokémon moves: Harden→Rootfast, Screech→Scoldcall, Snarl→Baretooth, and the burrow-roost altName \"Roost\" deleted outright. ONLY the display name moved — every effect, power, text and magnitudeKey is untouched (G2: effects are content). The `id` values deliberately stay put: they are opaque keys read by data/species.json movePool, core/battle.ts and the unit tests, never shown to a player, and rotating them would edit files outside this change's scope for no IP gain. The residue is listed in DEVIATIONS D-Q1-5.",
   "_counts": { "typeMoves": 16, "roleMoves": 5, "utilityMoves": 7, "total": 28 },
   "_coined": "Twelve type-move names are coined by the agent in the bible's register because bible §3 names only the Fire and Water pair and says 'Same pattern all eight types': gnaw, maul, bramble, overgrow, sunder, upheave, harry, squall, blight, miasma, shade, eclipse. Each carries \"coined\": true and is logged in docs/DEVIATIONS.md (G15 IP sweep).",
   "typeChart": {
@@ -115,7 +116,7 @@
     },
 
     {
-      "id": "harden", "name": "Harden", "kind": "utility", "type": null, "power": 0,
+      "id": "harden", "name": "Rootfast", "kind": "utility", "type": null, "power": 0,
       "text": "+Defense",
       "effects": [{ "kind": "statMod", "target": "self", "stat": "def", "direction": "up", "magnitudeKey": "utilityStatMod" }]
     },
@@ -125,7 +126,7 @@
       "effects": [{ "kind": "statMod", "target": "self", "stat": "spd", "direction": "up", "magnitudeKey": "utilityStatMod" }]
     },
     {
-      "id": "screech", "name": "Screech", "kind": "utility", "type": null, "power": 0,
+      "id": "screech", "name": "Scoldcall", "kind": "utility", "type": null, "power": 0,
       "text": "−enemy Defense",
       "effects": [{ "kind": "statMod", "target": "enemy", "stat": "def", "direction": "down", "magnitudeKey": "utilityStatMod" }]
     },
@@ -135,12 +136,12 @@
       "effects": [{ "kind": "statMod", "target": "self", "stat": "ins", "direction": "up", "magnitudeKey": "utilityStatMod" }]
     },
     {
-      "id": "snarl", "name": "Snarl", "kind": "utility", "type": null, "power": 0,
+      "id": "snarl", "name": "Baretooth", "kind": "utility", "type": null, "power": 0,
       "text": "−enemy Attack",
       "effects": [{ "kind": "statMod", "target": "enemy", "stat": "atk", "direction": "down", "magnitudeKey": "utilityStatMod" }]
     },
     {
-      "id": "burrow-roost", "name": "Burrow", "altName": "Roost", "kind": "utility", "type": null, "power": 0,
+      "id": "burrow-roost", "name": "Burrow", "kind": "utility", "type": null, "power": 0,
       "text": "skip turn, +evasion",
       "effects": [{ "kind": "evade", "skipTurn": true, "magnitudeKey": "evasionBonus" }]
     },

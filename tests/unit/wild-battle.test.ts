@@ -32,6 +32,7 @@ import { AGE_CLASSES, type AgeClass, type Balance, type Content, type NodeFile }
 import {
   PROVISIONAL_STARTER_UID,
   applyCatchToSave,
+  applyWildBattleOutcome,
   battlerSpecOf,
   buildWildBattle,
   partySpecs,
@@ -305,6 +306,54 @@ describe("§3 applyCatchToSave moves the ledger the way replay would", () => {
     expect(toNodeState(applyCatch(node, lineId, balance)).populations[lineId]!.count).toBe(
       balance.ecosim.populationFloor,
     );
+  });
+
+  it("applyWildBattleOutcome — the entry point the SCENE calls, not just the inner writer", () => {
+    /*
+     * ⚠ THE STALE STAND-IN'S REPLACEMENT DID NOT GO ALL THE WAY DOWN THE WIRE.
+     *
+     * BF-3's fix tests `applyCatchToSave`, and `tests/integration/seams.test.ts` proves a production
+     * file CALLS the join — but what `OverworldScene.finishWildBattle` actually calls is
+     * `applyWildBattleOutcome`, and until now nothing in this file exercised it. Its whole body is
+     * one three-state decision — `opts.caught === undefined ? caughtIndividual(state, ctx) : caught`
+     * — and `undefined` and `null` mean OPPOSITE things there: `undefined` is "you read it for me",
+     * `null` is "I already looked and there was none". A scene passing the wrong one either
+     * re-reads a battle it has finished with or silently drops a catch the player made.
+     */
+    const save = saveWithStarter();
+    const before = save.nodeStates[NODE]!.populations[lineId]!.count;
+    const { state, ctx, caught } = catchOne(save);
+    expect(caught).not.toBeNull();
+
+    // (a) undefined ⇒ the outcome is re-read from the state, and lands where applyCatchToSave lands.
+    const reread = applyWildBattleOutcome({ save, content, state, ctx });
+    expect(reread, "a won catch produced no application").not.toBeNull();
+    expect(reread!.after).toBe(before - 1);
+    expect(reread!.gained?.uid).toBe(caught!.uid);
+    expect(reread!.save.nodeStates[NODE]!.populations[lineId]!.count).toBe(before - 1);
+
+    // (b) the scene's own report, passed in, gives the identical application — no second read.
+    const handed = applyWildBattleOutcome({ save, content, state, ctx, caught });
+    expect(handed!.save.nodeStates).toEqual(reread!.save.nodeStates);
+    expect(handed!.before).toBe(reread!.before);
+    expect(handed!.after).toBe(reread!.after);
+
+    // (c) an EXPLICIT null is "there was no catch" and must short-circuit — not fall back to a read
+    // that would find one. This is the branch that separates null from undefined.
+    expect(applyWildBattleOutcome({ save, content, state, ctx, caught: null })).toBeNull();
+
+    // (d) a fight nobody won reports nothing, and moves nothing.
+    const fresh = saveWithStarter();
+    const built = buildWildBattle({
+      content,
+      save: fresh,
+      encounter: encounterAt(lineId),
+      node: fromNodeState(nodeFile(NODE), fresh.nodeStates[NODE]!),
+    });
+    const opening = startBattle(built.input, built.ctx).state;
+    expect(opening.outcome).toBeNull();
+    expect(applyWildBattleOutcome({ save: fresh, content, state: opening, ctx: built.ctx })).toBeNull();
+    expect(fresh.nodeStates[NODE]!.populations[lineId]!.count).toBe(before);
   });
 
   it("says so rather than throwing when the catch names a node or line that is not there", () => {

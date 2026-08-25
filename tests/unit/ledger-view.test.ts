@@ -2052,12 +2052,22 @@ describe("guards driven directly, not by luck of the shipped data", () => {
 /* ════════════════════════════════════════════════════════════════════════════
  * 13. The three C4 scenes (build-doc §15 C4 / G14)
  *
- * The scenes value-import Phaser, which throws in the node environment, so — exactly as
- * tests/unit/battle-view.test.ts does for `BattleScene` — they are checked by reading their source.
- * That is a weaker instrument than calling them, and it is aimed at the one class of defect it can
- * actually catch: a renderer that imports something and never draws it. `LedgerScene` did precisely
- * that — it imported `renderWebEdge` for a method `redraw` never called, so the word "collapsed"
- * and its reason existed only for tests while the screen showed an unexplained dashed line.
+ * ⚠ THE REASON THIS SECTION GAVE FOR READING SOURCE INSTEAD OF RUNNING CODE WAS FALSE, AND A FALSE
+ * REASON IS HOW A WEAK INSTRUMENT SURVIVES. It said: "The scenes value-import Phaser, which throws
+ * in the node environment, so — exactly as tests/unit/battle-view.test.ts does for `BattleScene` —
+ * they are checked by reading their source." Both halves are wrong. `battle-view.test.ts` does NOT
+ * read `BattleScene`'s source: it `vi.mock`s Phaser and EXECUTES the scene. So does
+ * `tests/unit/overworld-scene.test.ts`, against the real `OverworldScene`. And `YearTurnScene` /
+ * `RetirementScene` are executed through exported `create*(P)` factories that take the namespace as
+ * an argument. Four of the ten scenes are driven; the value-import is not what stops these three.
+ * What stops them is that nobody has written the stub, which is BF-35 and is not this file's scope.
+ *
+ * So this section is source-reading BY DEFAULT, not by necessity, and it says so. It is aimed at
+ * the one class of defect it can actually catch: a renderer that imports something and never draws
+ * it. `LedgerScene` did precisely that — it imported `renderWebEdge` for a method `redraw` never
+ * called, so the word "collapsed" and its reason existed only for tests while the screen showed an
+ * unexplained dashed line. The dead-method census below is that class asserted directly rather than
+ * one instance of it re-checked by name.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 describe("C4 scenes — what the source proves", () => {
@@ -2088,6 +2098,49 @@ describe("C4 scenes — what the source proves", () => {
     }
     throw new Error(`${name} has no closing brace`);
   }
+
+  it("the dead-method census — no C4 scene grows a method nothing reaches, and two already are", () => {
+    /*
+     * THE DEFECT CLASS, ASSERTED DIRECTLY. `redraw` existed and nothing called it; the tests below
+     * now check `redraw` by name, which catches that one instance and no other. This enumerates
+     * every method each scene declares and asks whether anything reaches it — `this.name` anywhere
+     * in the file, or a Phaser lifecycle hook the engine calls.
+     *
+     * MEASURED, and this is a REAL DEFECT this sweep uncovered rather than a hypothetical:
+     * `LedgerScene.setStates` and `LedgerScene.webLines` are declared public for callers that do not
+     * exist — `grep -rn "setStates\|webLines" game/ core/ tests/` returns their declarations and
+     * nothing else. `webLines`'s own doc says it is "in a form a test can assert" and no test
+     * asserts it; it is also the only other caller of `renderWebEdge`, the symbol whose deadness
+     * this whole section was written about. Fixing that is a change to
+     * `game/scenes/LedgerScene.ts`, which this sweep does not own, so it is PINNED instead: a new
+     * dead method fails immediately, and wiring or deleting either of these two also fails and
+     * whoever does it shortens this list.
+     */
+    const LIFECYCLE = new Set(["init", "preload", "create", "update", "shutdown", "destroy", "render", "constructor"]);
+    const census = new Map<string, string[]>();
+    for (const [name, src] of ALL) {
+      const code = src.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/.*$/gm, "$1");
+      const declared = new Set(
+        [...code.matchAll(/^[ \t]{2}(?:(?:public|private|protected|static|override|async|readonly)[ \t]+)*([A-Za-z_$][\w$]*)[ \t]*\(/gmu)].map(
+          (m) => m[1] as string,
+        ),
+      );
+      expect(declared.size, `${name} declares no methods — the scan is looking in the wrong place`).toBeGreaterThan(3);
+      census.set(
+        name,
+        [...declared].filter((m) => !LIFECYCLE.has(m) && !new RegExp(`this\\s*\\.\\s*${m}\\b`, "u").test(code)).sort(),
+      );
+    }
+    expect(
+      Object.fromEntries(census),
+      "a C4 scene method is reached by nothing — either wire it or delete it. If one of the two " +
+        "named below now HAS a caller, that is the repair landing: shorten this list.",
+    ).toEqual({
+      "LedgerScene.ts": ["setStates", "webLines"],
+      "DexScene.ts": [],
+      "SummaryScene.ts": [],
+    });
+  });
 
   it("every drawing helper the ledger imports is CALLED from a method redraw reaches", () => {
     const drawWeb = methodBody(LEDGER, "private drawWeb");

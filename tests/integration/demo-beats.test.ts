@@ -364,14 +364,28 @@ describe("I3 — the starter retires and its heir is in the party at the league"
     expect(atLeague!.party.some((row) => row.includes(`${starterUid}-heir`))).toBe(true);
 
     /*
-     * HONEST GAP, asserted so it cannot be forgotten: the shipped `balance.age` schedule retires the
-     * starter three years EARLY. bible §4 wants it to "peak right before the league"; measured here
-     * it is gone by the year-3→4 turn. LANE-A-STATUS §6.4 (D-A4-9) records the same number from the
-     * lifecycle side; this is it on the played path. The beat survives — an heir does fight the
-     * finale — but the flavour does not, and fixing it is a `balance.age` retune (A5's call).
+     * HONEST GAP, and now BOUND rather than merely described: the shipped `balance.age` schedule
+     * retires the starter early. bible §4 wants it to "peak right before the league"; measured on
+     * this run it is gone at the year-3→4 turn. LANE-A-STATUS §6.4 (D-A4-9) records the same number
+     * from the lifecycle side; this is it on the played path. The beat survives — an heir does fight
+     * the finale — but the flavour does not, and fixing it is a `balance.age` retune (A5's call).
+     *
+     * ⚠ THIS USED TO ASSERT `< leagueYear`, WHICH THE FIX WOULD ALSO SATISFY. A schedule retuned so
+     * the starter peaks right before the league retires it in year 5 — still "before the league" —
+     * so the old assertion would have stayed green through the very change it was written to wait
+     * for, and the gap note would have gone on claiming a defect that had been repaired. A test
+     * documenting a known hole has to be the thing that says the hole is filled, so the MEASURED
+     * year is pinned: closing the gap turns this red, and whoever closes it rewrites the note above.
      */
+    const RETIRES_AT = 4; // MEASURED through this driver at seed 7, not derived from balance.age.
     const firstWithoutStarter = perYear.find((row) => !row.starterPresent);
     expect(firstWithoutStarter, "the starter never retires at all").toBeDefined();
     expect(firstWithoutStarter!.year).toBeLessThan(leagueYear);
+    expect(
+      firstWithoutStarter!.year,
+      `the balance.age schedule moved: the starter now retires in year ${String(firstWithoutStarter!.year)} ` +
+        `of a ${String(leagueYear)}-year nominal pace. If that is bible §4's "peaks right before the ` +
+        `league", the gap above is CLOSED — rewrite this to assert the law instead of the gap.`,
+    ).toBe(RETIRES_AT);
   });
 });

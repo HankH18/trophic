@@ -95,6 +95,28 @@ import { enterPendingActs } from "../../core/lifecycle";
 import { activeWindows, syncEventFlags } from "../../core/regional-events";
 import { buildGymBattle, gymAtNode, gymBattleProblem, gymBattleWon } from "../gym-battle";
 import {
+  DIALOGUE,
+  applyRunFlags,
+  autoplayEntryFor,
+  dialogueContext,
+  propDialogueFor,
+  runHeadless,
+  talkEntryFor,
+  transcript,
+  type DialogueRunState,
+} from "../dialogue-runner";
+import {
+  linesMetAt,
+  questReports,
+  recordLineMet,
+  releaseCandidate,
+  releaseIntoNode,
+  stillOwed,
+  syncQuestFlags,
+} from "../quests";
+import { propAt, propLabel, propsOf } from "../props";
+import { createDialogueScene, type DialogueSceneData } from "./DialogueScene";
+import {
   DEFAULT_SEASON_METER_STYLE,
   SeasonMeterHud,
   actionCosts,
@@ -257,12 +279,18 @@ export class OverworldScene extends Phaser.Scene {
   private yearTurnRunning = false;
   /** True while a wild battle has the screen. Same contract as `yearTurnRunning`. */
   private battleRunning = false;
+  /** True while the dialogue box has the screen. Same contract again. */
+  private dialogueRunning = false;
+  /** The last line a player actually read, for the HUD. Empty before anything has been said. */
+  private lastSpoken = "";
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private dirKeys: Array<{ dir: Direction; keys: Phaser.Input.Keyboard.Key[] }> = [];
   private overlayKey?: Phaser.Input.Keyboard.Key;
   private innKey?: Phaser.Input.Keyboard.Key;
   private gymKey?: Phaser.Input.Keyboard.Key;
+  private talkKey?: Phaser.Input.Keyboard.Key;
+  private releaseKey?: Phaser.Input.Keyboard.Key;
   private travelKeys: Phaser.Input.Keyboard.Key[] = [];
   /**
    * Directions held on the previous frame, so {@link chooseDirection} can tell a NEW press from a
@@ -285,6 +313,14 @@ export class OverworldScene extends Phaser.Scene {
   private viewNodeId: string | null = null;
   /** Non-null when the player is standing somewhere they should not be able to stand. Printed. */
   private spawnProblem: string | null = null;
+  /**
+   * Cutscenes {@link playPendingCutscene} has already fired this visit.
+   *
+   * The corpus closes each of its own cutscenes with a flag, so this only guards a corpus edit that
+   * ships one which does not — and against that the alternative is an overworld that plays the same
+   * beat every frame for ever.
+   */
+  private autoplayed = new Set<string>();
 
   constructor() {
     super(OVERWORLD_SCENE_KEY);
@@ -333,6 +369,8 @@ export class OverworldScene extends Phaser.Scene {
     this.travelling = false;
     this.yearTurnRunning = false;
     this.battleRunning = false;
+    this.dialogueRunning = false;
+    this.autoplayed = new Set<string>();
     this.heldLastFrame = new Set<Direction>();
   }
 
@@ -407,12 +445,48 @@ export class OverworldScene extends Phaser.Scene {
      * open windows, because a save can be loaded standing in the middle of one and the flags are a
      * projection of the clock, not state the save carries.
      */
+    this.ensureDialogueScene();
     this.advanceActs();
     this.syncEvents();
+    this.syncQuests();
 
     this.bindKeys();
     this.syncPlayerSprite();
     this.refreshHud();
+    // The cutscene the corpus has waiting for this node, played without being asked for — the
+    // opening beat is one, and a beat the player has to guess a key for is a beat that does not fire.
+    this.playPendingCutscene();
+  }
+
+  /**
+   * Register the dialogue box with the running game if the scene list has not.
+   *
+   * ⚠ WHY THIS IS HERE AND NOT IN `game/main.ts`. That file is the ONE place that names a scene
+   * class, and adding `createDialogueScene(Phaser)` to its `SCENES` array is the one-line change
+   * that makes this method dead code — it is not made here because `game/main.ts` and
+   * `game/boot.ts` belong to another stream in this wave (logged as **D-Q7-1** in
+   * docs/DEVIATIONS.md). Until then, the alternative was shipping the whole authored corpus behind
+   * a scene key nothing had registered, which is precisely the failure `game/main.ts`'s own header
+   * warns about: "a scene that is not in this list does not exist" — the year turn and the
+   * retirement card were built, tested and left unregistered, and the never-cut Legacy beat was
+   * reachable from the test suite and from nowhere else.
+   *
+   * `scene.add` is asked for rather than assumed: a headless rig stands up the slice of Phaser it
+   * needs, and a scene that crashed during `create` because the stub had no `add` would take the
+   * whole overworld with it. When it is absent the dialogue still plays — headlessly, out loud (see
+   * {@link playEntry}).
+   */
+  private ensureDialogueScene(): void {
+    if (sceneRegistered(this, SCENE_KEYS.dialogue)) return;
+    const manager = this.scene as unknown as {
+      add?: (key: string, scene: unknown, autoStart?: boolean) => unknown;
+    };
+    if (typeof manager.add !== "function") return;
+    try {
+      manager.add(SCENE_KEYS.dialogue, createDialogueScene(Phaser), false);
+    } catch (err) {
+      console.warn(`[overworld] could not register "${SCENE_KEYS.dialogue}": ${describe(err)}`);
+    }
   }
 
   /* ── node view ────────────────────────────────────────────────────────── */
@@ -520,6 +594,14 @@ export class OverworldScene extends Phaser.Scene {
     // badges and `winGym` had no caller in the whole repo, so every act above the prologue was
     // unreachable and the never-cut slice stopped at Route 1. See {@link challengeGym}.
     this.gymKey = keyboard.addKey(codes.G);
+    // [E] READS. It is the key the whole C7 layer hangs off: an NPC line, a quest offer, a turn-in,
+    // an antler stone. Before it existed, `data/dialogue.json` — 499 lines, 211 entries, 62
+    // speakers — had no route to a player at all.
+    this.talkKey = keyboard.addKey(codes.E);
+    // [X] RELEASES. bible §9's *Restock the Shallows* is the "release verb intro" and there was no
+    // release verb: `applyRelease` and the `{t:"release"}` replay arm shipped with no producer
+    // anywhere in `game/`. See `game/quests.ts` `releaseIntoNode`.
+    this.releaseKey = keyboard.addKey(codes.X);
   }
 
   private pressedDirections(): Direction[] {
@@ -541,6 +623,8 @@ export class OverworldScene extends Phaser.Scene {
     if (this.overlayKey && Phaser.Input.Keyboard.JustDown(this.overlayKey)) this.toggleOverlay();
     if (this.innKey && Phaser.Input.Keyboard.JustDown(this.innKey)) this.restAtInn();
     if (this.gymKey && Phaser.Input.Keyboard.JustDown(this.gymKey)) this.challengeGym();
+    if (this.talkKey && Phaser.Input.Keyboard.JustDown(this.talkKey)) this.interact();
+    if (this.releaseKey && Phaser.Input.Keyboard.JustDown(this.releaseKey)) this.releaseHere();
 
     this.travelKeys.forEach((key, i) => {
       if (Phaser.Input.Keyboard.JustDown(key)) {
@@ -617,6 +701,14 @@ export class OverworldScene extends Phaser.Scene {
       this.encountersMet += 1;
       this.lastEncounter = encounter;
       this.hudDirty = true;
+      /*
+       * THE SIGN CARD. bible §9's *First Signs* asks the player to "walk Meadow Reach and bring me
+       * three. Any three." — and a sign card is what you get "when you read a track, a scrape, a
+       * fresh cast of droppings", i.e. from the forage itself. Meeting a line at a node records it;
+       * `game/quests.ts` counts the DISTINCT ones. Recorded before the hand-off below, because a
+       * hand-off launches a scene and pauses this one.
+       */
+      this.save = recordLineMet(this.save, encounter.nodeId, encounter.lineId);
       this.flashBanner(
         `${encounter.lineId} ${encounter.age} L${encounter.level} — count ${this.countOf(encounter.lineId)}`,
       );
@@ -736,10 +828,216 @@ export class OverworldScene extends Phaser.Scene {
       this.flashBanner(`catch problem: ${applied.problem}`);
     }
     this.save = applied.save;
+    // A catch can close a quest — *Ferryman's Wager* is an Elder in the party and *Silk Shortage*
+    // is three adults off Bowerdeep Wilds — so the tracker is asked here, where the party moved.
+    this.syncQuests();
     this.hooks.onSaveChanged?.(this.save, this);
     this.refreshHud();
     this.flashBanner(
       `caught ${encounter.lineId} at ${encounter.nodeId} — ${applied.before} → ${applied.after}`,
+    );
+  }
+
+  /* ── C7: the corpus, played (build-doc §15 C7 / QUEUED-CHANGES Q7) ────────── */
+
+  /**
+   * The context every dialogue lookup on this screen resolves against.
+   *
+   * `game/dialogue-runner.ts` builds it from the save through the two clocks' own authorities —
+   * `core/acts.ts` for the act, `core/clock.ts` for the season — and through `liveNodeOf` for the
+   * populations, so a population clause in a line reads the same integer the HUD prints.
+   */
+  dialogueCtx(): ReturnType<typeof dialogueContext> {
+    return dialogueContext(this.save, this.content);
+  }
+
+  /** The prop the player is standing at, or null. Radii are `props[]`'s, never the collision grid. */
+  propUnderPlayer(): ReturnType<typeof propAt> {
+    return propAt(this.node, spriteWorldPosition(this.movement, this.movementCfg), this.balance);
+  }
+
+  /**
+   * [E] — READ WHAT IS HERE.
+   *
+   * A prop wins over a person: the player walked to the antler stone on purpose, and a room-wide
+   * greeting answering a deliberate approach to a standing stone is the wrong answer to the
+   * question they asked. Every refusal is SAID, on the same terms `challengeGym` refuses — a silent
+   * no-op here is indistinguishable from a key that is not bound.
+   */
+  interact(): void {
+    if (this.isHandedOver() || this.travelling) return;
+    // Turn-ins come due against the save, not against a moment — so the flags are brought up to
+    // date BEFORE the lookup, or the giver's `done` entry is not eligible on the press that earned
+    // it and the player has to walk away and come back.
+    this.syncQuests();
+
+    const prop = this.propUnderPlayer();
+    if (prop) {
+      const entry = this.tryDialogue(() => propDialogueFor(DIALOGUE, prop.id, this.node.id, this.dialogueCtx()));
+      if (entry) {
+        this.playEntry(entry.id, propLabel(prop));
+        return;
+      }
+      this.flashBanner(`${propLabel(prop)} — nothing more to read`);
+      return;
+    }
+
+    const talk = this.tryDialogue(() => talkEntryFor(DIALOGUE, this.node.id, this.dialogueCtx()));
+    if (talk) {
+      this.playEntry(talk.id, talk.speaker);
+      return;
+    }
+    this.flashBanner(`${this.node.id} — nobody has anything to say`);
+  }
+
+  /**
+   * Play whatever the corpus has queued for this node without being asked — the opening beat, the
+   * act arrivals, both Greaves cutscenes.
+   *
+   * The set of already-played entries is per scene VISIT, not per save: the corpus closes each of
+   * its own cutscenes with a flag, so this only guards against a corpus edit that ships one which
+   * does not, and against that the alternative is a locked game.
+   */
+  playPendingCutscene(): void {
+    if (this.isHandedOver() || this.travelling) return;
+    const entry = this.tryDialogue(() => autoplayEntryFor(DIALOGUE, this.node.id, this.dialogueCtx()));
+    if (!entry || this.autoplayed.has(entry.id)) return;
+    this.autoplayed.add(entry.id);
+    this.playEntry(entry.id, entry.speaker);
+  }
+
+  /**
+   * Hand an entry to the box — or, when there is no box, play it headlessly and say so.
+   *
+   * SAME DISCIPLINE AS THE YEAR TURN'S unregistered retirement card, and for the same reason: a
+   * beat that silently does not happen is worse than a degraded one, and the flags the corpus
+   * writes are the act ladder's and the quest system's inputs. The headless answer takes the FIRST
+   * option of every choice, which on the opening chain CHOOSES THE PLAYER'S STARTER — so it is
+   * reported on the banner and in the console rather than passed off as normal.
+   */
+  playEntry(entryId: string, who: string): void {
+    if (this.dialogueRunning) return;
+
+    const finish = (state: DialogueRunState): void => {
+      this.dialogueRunning = false;
+      this.finishDialogue(state, who);
+    };
+
+    if (!sceneRegistered(this, SCENE_KEYS.dialogue)) {
+      let state: DialogueRunState;
+      try {
+        state = runHeadless(DIALOGUE, entryId);
+      } catch (err) {
+        this.flashBanner(`dialogue refused: ${describe(err)}`);
+        return;
+      }
+      console.info(
+        `[overworld] "${SCENE_KEYS.dialogue}" is not registered — ${entryId} played headlessly, ` +
+          `${String(state.choicesTaken.length)} choice(s) answered with the first option`,
+      );
+      finish(state);
+      if (state.choicesTaken.length > 0) {
+        this.flashBanner(`${entryId} played headlessly · ${state.choicesTaken.map((c) => c.text).join(" / ")}`);
+      }
+      return;
+    }
+
+    const data: DialogueSceneData = {
+      entryId,
+      file: DIALOGUE,
+      onDone: (state) => {
+        this.scene.resume();
+        finish(state);
+      },
+    };
+    this.dialogueRunning = true;
+    this.scene.launch(SCENE_KEYS.dialogue, data);
+    this.scene.pause();
+  }
+
+  /**
+   * Back from the box: adopt what the corpus wrote, then re-ask every question those flags feed.
+   *
+   * `story.opening.done` opens act 1, a quest's `done` flag closes an offer, `chain.*.complete`
+   * takes an Ancient out of the sign-chain gate — so the act ladder, the event windows and the
+   * quest tracker are all re-run here rather than at the next tick, where the player would be
+   * standing in a region the flags say has already opened.
+   */
+  private finishDialogue(state: DialogueRunState, who: string): void {
+    this.scene.stop(SCENE_KEYS.dialogue);
+    this.save = applyRunFlags(this.save, state);
+    const said = transcript(DIALOGUE, state);
+    this.lastSpoken = said[said.length - 1] ?? "";
+    if (state.problem !== null) this.flashBanner(state.problem);
+    this.syncQuests();
+    this.advanceActs();
+    this.syncEvents();
+    this.hudDirty = true;
+    this.refreshHud();
+    this.hooks.onSaveChanged?.(this.save, this);
+    const wrote = Object.keys(state.flags);
+    if (wrote.length > 0) this.flashBanner(`${who} · ${wrote.join(" ")}`);
+    // A chain of cutscenes (the opening beat runs straight into the two tutorials) plays through
+    // rather than making the player press a key nothing tells them about.
+    this.playPendingCutscene();
+  }
+
+  /**
+   * Ask the corpus a question and answer `undefined` rather than crash the overworld.
+   *
+   * `conditionHolds` fails LOUD on a context off either clock — deliberately, because an act clause
+   * quietly evaluating false is how the finale stops firing with nothing going red — and
+   * `DIALOGUE` itself throws at load on a malformed corpus. Neither is a reason for a black screen
+   * mid-walk, so the throw is reported and the overworld carries on without the line. This is also
+   * the guard that keeps the prologue stand-in reachable if the corpus ever fails to resolve.
+   */
+  private tryDialogue<T>(ask: () => T | undefined): T | undefined {
+    try {
+      return ask();
+    } catch (err) {
+      this.flashBanner(`dialogue refused: ${describe(err)}`);
+      return undefined;
+    }
+  }
+
+  /**
+   * Write every quest flag that has come due — `game/quests.ts` `syncQuestFlags`.
+   *
+   * Asked from every place the save can move, exactly as {@link syncEvents} is, and for the same
+   * reason: a quest's completion is a standing fact about the save, not an edge somebody has to be
+   * watching for. Idempotent, so asking often costs nothing.
+   */
+  private syncQuests(): void {
+    const before = this.save;
+    this.save = syncQuestFlags(this.save, this.content);
+    if (this.save !== before) this.hudDirty = true;
+  }
+
+  /**
+   * [X] — PUT ONE BACK. bible §9's release verb, which had no verb.
+   *
+   * The count moves through `core/ecosim.ts` `applyRelease` and the move is taped, so a reload and
+   * a replay land on the same integer (L10). G7: the banner is the identifiers and two numbers.
+   */
+  releaseHere(): void {
+    if (this.isHandedOver() || this.travelling) return;
+    const candidate = releaseCandidate(this.save);
+    if (!candidate) {
+      this.flashBanner(`no release: the party would be empty`);
+      return;
+    }
+    const applied = releaseIntoNode(this.save, this.content, candidate.uid, this.node.id);
+    if (applied.problem !== null) {
+      this.flashBanner(`release problem: ${applied.problem}`);
+      return;
+    }
+    this.save = applied.save;
+    this.syncQuests();
+    this.hudDirty = true;
+    this.refreshHud();
+    this.hooks.onSaveChanged?.(this.save, this);
+    this.flashBanner(
+      `released ${candidate.lineId} at ${this.node.id} — ${String(applied.before)} → ${String(applied.after)}`,
     );
   }
 
@@ -760,18 +1058,49 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * Sign-chains the player has completed (bible §4 gates the Ancients behind them). C7 owns the
-   * chains; until then the set is empty, which is the correct year-1 state — and it means the
-   * finale legendary cannot roll as an ordinary wild encounter.
+   * Sign-chains the player has completed (bible §4 gates the Ancients behind them).
+   *
+   * ⚠ THIS USED TO READ A PREFIX NOTHING WROTE. It collected flags beginning `signChain:` — a
+   * spelling that appears in this file and in no other file, no data file and no test, so the set
+   * was empty for every save that could ever exist and the gate was passing by absence. The corpus
+   * does write the completions: `chain.vellsire.complete`, `chain.undermere.complete`,
+   * `chain.kilnback.complete`, each set by the last step of its chain.
+   *
+   * `core/foodweb.ts` keys the gate by LINE id (`unlocked?.has(lineId)`), not by chain id, so the
+   * two have to be joined. The join is the chain's own middle segment against the shipped species
+   * ids — `chain.vellsire.complete` → the gated line whose id starts `vellsire`. That coupling is a
+   * DEVIATION (**D-Q7-3**): the explicit form is a `signChain` field on `SpeciesLine`, which is a
+   * `core/types.ts` + `data/species.json` change this stream does not own. It is derived rather
+   * than typed — no species id appears here, which the species-name gate in
+   * tests/property/foodweb.test.ts requires and which also means a renamed line follows the data.
    */
   private unlockedSignChains(): ReadonlySet<string> {
+    const gatedTag = this.balance.encounter.signChainGatedHabitatTag;
+    const gatedLines = this.content.species.filter((s) => s.habitat.includes(gatedTag));
     const out = new Set<string>();
     for (const [flag, value] of Object.entries(this.save.questFlags)) {
-      if (value === true && flag.startsWith(SIGN_CHAIN_FLAG_PREFIX)) {
-        out.add(flag.slice(SIGN_CHAIN_FLAG_PREFIX.length));
+      if (value !== true || !flag.startsWith(CHAIN_FLAG_PREFIX) || !flag.endsWith(CHAIN_COMPLETE_SUFFIX)) {
+        continue;
+      }
+      const stem = flag.slice(CHAIN_FLAG_PREFIX.length, flag.length - CHAIN_COMPLETE_SUFFIX.length);
+      if (stem.length === 0) continue;
+      for (const line of gatedLines) {
+        if (line.id.startsWith(stem)) out.add(line.id);
       }
     }
     return out;
+  }
+
+  /** Every sign chain the save has completed, by CHAIN id — what the HUD reports. */
+  completedSignChains(): string[] {
+    const out: string[] = [];
+    for (const [flag, value] of Object.entries(this.save.questFlags)) {
+      if (value !== true || !flag.startsWith(CHAIN_FLAG_PREFIX) || !flag.endsWith(CHAIN_COMPLETE_SUFFIX)) {
+        continue;
+      }
+      out.push(flag.slice(CHAIN_FLAG_PREFIX.length, flag.length - CHAIN_COMPLETE_SUFFIX.length));
+    }
+    return out.sort();
   }
 
   /**
@@ -991,21 +1320,29 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * Open the prologue when nothing else will — the act ladder's first rung, and the one that had no
-   * writer in the shipped build.
+   * The act ladder's first rung — MAREN'S OPENING CHAIN, and a stand-in only when that chain cannot
+   * be resolved.
    *
-   * `balance.acts.gates` opens act 1 on `story.opening.done`, written only by `data/dialogue.json`,
-   * which nothing in `game/` reads (docs/QUEUED-CHANGES.md Q7). Measured through the real scene on
-   * a brand-new save: act 0, one unlocked node, `travelTo("r1")` refused — the act gate on travel
-   * had made build-doc §16's never-cut vertical slice unreachable by playing.
+   * `balance.acts.gates` opens act 1 on `story.opening.done`, and the only thing that writes it is
+   * `data/dialogue.json`'s `maren.starter.*` — the three branches of Maren's opening cutscene.
+   * Nothing in `game/` read that file (docs/QUEUED-CHANGES.md Q7), so measured through the real
+   * scene on a brand-new save: act 0, one unlocked node, `travelTo("r1")` refused. The act gate on
+   * travel had made build-doc §16's never-cut vertical slice unreachable by playing.
    *
-   * So the scene stands in, on the same terms `game/boot.ts` `startingParty` already stands in for
-   * the starter itself (docs/DEVIATIONS-lane-c2.md C2-D6): only when no lane has taken
-   * {@link OverworldHooks.onOpeningBeat}, only once the prologue's shipped content has actually
-   * been handed over (a creature is in the party — bible §6's Hearthollow is "starter choice,
-   * bait-crafting intro, tutorial forage"), never inventing a flag NAME (they are read out of
-   * `balance.acts.gates` by `prologueExitFlags`), and always out loud. When C7's opening chain
-   * lands it writes those flags itself and this is simply not reached.
+   * THE ORDER HERE IS THE WHOLE POINT, and it now reads: a lane that took the hook, then the
+   * CORPUS, then the stand-in.
+   *
+   *   1. `hooks.onOpeningBeat` still wins, unchanged — a lane that owns the beat owns it.
+   *   2. {@link openingBeatEntry} asks whether the corpus can actually deliver those flags from
+   *      here: an eligible cutscene at this node from which a `goto`/choice path reaches an entry
+   *      that writes one of them. When it can, this method writes NOTHING and says nothing — the
+   *      cutscene plays itself out of `create()` / {@link playPendingCutscene}, and the player
+   *      chooses their own starter. The "provisional" banner and the console line below are gone
+   *      from that path entirely, which is the visible difference.
+   *   3. Only if the corpus cannot answer — a resolution failure, an edited corpus, an act off the
+   *      ladder — does the stand-in run, on exactly the terms it always did, out loud. It is kept
+   *      deliberately: without it a corpus that fails to load is a game locked inside Hearthollow
+   *      for ever, and that is a worse failure than a declared stand-in.
    */
   private openPrologue(): void {
     // Asked only while the rung is actually unclimbed, so a lane owning the beat is not re-asked
@@ -1013,17 +1350,49 @@ export class OverworldScene extends Phaser.Scene {
     const flags = prologueExitFlags(this.balance).filter((f) => this.save.questFlags[f] !== true);
     if (flags.length === 0) return;
     if (this.hooks.onOpeningBeat?.(this) === true) return;
+    if (this.openingBeatEntry(flags) !== null) return;
     if (this.save.party.length === 0) {
       this.flashBanner(`act ${String(this.act())} · prologue open · ${flags.join(" ")} unwritten`);
       return;
     }
     this.save = setQuestFlags(this.save, flags);
     console.info(
-      `[overworld] no opening beat yet — granting ${flags.join(", ")} so the act ladder can be ` +
-        `climbed. Lane C7's opening chain replaces this by taking OverworldHooks.onOpeningBeat.`,
+      `[overworld] the corpus has no opening beat that writes ${flags.join(", ")} from ` +
+        `${this.node.id} — standing in so the act ladder can be climbed. This is the fallback; ` +
+        `data/dialogue.json's opening chain is the real path.`,
     );
     this.flashBanner(`opening beat stood in · ${flags.join(" ")} · act ${String(this.act())}`);
     this.hooks.onSaveChanged?.(this.save, this);
+  }
+
+  /**
+   * The corpus's opening beat for this node, or null.
+   *
+   * "Opening beat" is not a name this file knows — it is DERIVED: an autoplayable cutscene that is
+   * eligible right now and from which some `goto` or choice path reaches an entry writing one of
+   * the prologue's exit flags. That derivation is what makes the fallback in {@link openPrologue}
+   * honest rather than superstitious: it stands in only when the corpus provably cannot deliver.
+   */
+  private openingBeatEntry(flags: readonly string[]): string | null {
+    const start = this.tryDialogue(() => autoplayEntryFor(DIALOGUE, this.node.id, this.dialogueCtx()));
+    if (!start) return null;
+    const wanted = new Set(flags);
+    const seen = new Set<string>();
+    const queue = [start.id];
+    while (queue.length > 0) {
+      const id = queue.pop() as string;
+      if (seen.has(id)) continue;
+      seen.add(id);
+      const entry = DIALOGUE.entries.find((e) => e.id === id);
+      if (!entry) continue;
+      for (const key of Object.keys(entry.setFlags ?? {})) if (wanted.has(key)) return start.id;
+      for (const choice of entry.choices ?? []) {
+        for (const key of Object.keys(choice.setFlags ?? {})) if (wanted.has(key)) return start.id;
+        if (choice.goto !== undefined) queue.push(choice.goto);
+      }
+      if (entry.goto !== undefined) queue.push(entry.goto);
+    }
+    return null;
   }
 
   /**
@@ -1074,6 +1443,9 @@ export class OverworldScene extends Phaser.Scene {
     // only on the cue the clock happens to emit — see {@link syncEvents} for the 8-tick festival.
     // Before `onSaveChanged`, so what is persisted carries the flags the clock actually implies.
     this.syncEvents();
+    // …and so are quest completions: *The Fallow Field* closes when a YEAR turns, which is a thing
+    // the clock does and not a thing the player presses a key for.
+    this.syncQuests();
     this.hudDirty = true;
     this.hooks.onSaveChanged?.(this.save, this);
   }
@@ -1310,6 +1682,10 @@ export class OverworldScene extends Phaser.Scene {
     } finally {
       this.travelling = false;
     }
+    // A new node may have a cutscene waiting — the act arrivals and both Greaves beats are keyed on
+    // one. Outside the `finally` so it runs with `travelling` already false, and after the tick has
+    // been spent, so an arrival beat gated on a season reads the season the player arrived in.
+    this.playPendingCutscene();
   }
 
   /* ── streams ──────────────────────────────────────────────────────────── */
@@ -1414,6 +1790,35 @@ export class OverworldScene extends Phaser.Scene {
         `[G] challenge ${gym.name} (${gym.id}) · act ${String(gym.act)}${problem ? ` · ${problem}` : ""}`,
       );
     }
+    /*
+     * C7's readouts. Every one of these is a NUMBER or an IDENTIFIER (G7): what is in arm's reach,
+     * how many quests are open, how many sign cards this node has yielded, which chains are closed
+     * and how many of the corpus's owed flags are still owed. Nothing here says what any of it
+     * means; the ledger is the moral.
+     */
+    {
+      const prop = this.propUnderPlayer();
+      const props = propsOf(this.node);
+      lines.push(
+        `[E] ${prop ? `read ${propLabel(prop)}` : "talk"} · props ${String(props.length)} here` +
+          ` · cards ${String(new Set(linesMetAt(this.save, this.node.id)).size)}`,
+      );
+      const reports = questReports(this.save, this.content);
+      const open = reports.filter((r) => r.stage === "accepted" || r.stage === "open");
+      const done = reports.filter((r) => r.stage === "done").length;
+      lines.push(
+        `quests ${String(done)}/${String(reports.length)} closed` +
+          (open.length > 0 ? ` · open ${open.map((r) => `${r.id}${r.met ? "*" : ""}`).join(" ")}` : ""),
+      );
+      const chains = this.completedSignChains();
+      lines.push(
+        `chains ${chains.length > 0 ? chains.join(" ") : "none"}` +
+          ` · flags owed ${String(stillOwed(this.save).length)}`,
+      );
+      const candidate = releaseCandidate(this.save);
+      lines.push(candidate ? `[X] release ${candidate.lineId} here` : "[X] release · party would be empty");
+      if (this.lastSpoken.length > 0) lines.push(`said: ${this.lastSpoken}`);
+    }
     lines.push("[C] collision overlay · [R] inn");
     this.hud.setText(lines);
   }
@@ -1450,9 +1855,19 @@ export class OverworldScene extends Phaser.Scene {
     return this.stepsSinceTick;
   }
 
-  /** True while a wild battle or the year-turn sequence has the screen. */
+  /** True while a wild battle, the year-turn sequence or the dialogue box has the screen. */
   isHandedOver(): boolean {
-    return this.battleRunning || this.yearTurnRunning;
+    return this.battleRunning || this.yearTurnRunning || this.dialogueRunning;
+  }
+
+  /** True while the dialogue box has the screen. */
+  isSpeaking(): boolean {
+    return this.dialogueRunning;
+  }
+
+  /** The last line the player actually read, or "" before anything has been said. */
+  lastLineSpoken(): string {
+    return this.lastSpoken;
   }
 }
 
@@ -1470,8 +1885,18 @@ const BANNER_FADE_MS = 400;
  * count are all `game/ui/SeasonMeter.ts`'s read of `balance.clock` (G11).
  */
 const METER_STYLE: SeasonMeterStyle = { ...DEFAULT_SEASON_METER_STYLE, x: HUD_PAD, y: HUD_PAD };
-/** Quest-flag prefix a completed sign chain sets. C7 owns the chains; this reads them. */
-const SIGN_CHAIN_FLAG_PREFIX = "signChain:";
+/**
+ * The corpus's own spelling for a sign chain's completion — `chain.<id>.complete`, written by the
+ * last step of each of the three Ancient chains in `data/dialogue.json`. Flag-name grammar, not a
+ * gameplay constant (G11), and the same shape `balance.acts.badgeFlagPrefix` uses for badges.
+ */
+const CHAIN_FLAG_PREFIX = "chain.";
+const CHAIN_COMPLETE_SUFFIX = ".complete";
+
+/** An error's sentence, for a banner. */
+function describe(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 const HUD_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
   fontFamily: "ui-monospace, Menlo, Consolas, monospace",

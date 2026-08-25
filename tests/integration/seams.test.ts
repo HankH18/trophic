@@ -513,13 +513,36 @@ describe("SEAM — the fourth season runs exactly once (build-doc §7.5 step 5)"
  * ════════════════════════════════════════════════════════════════════════════ */
 
 describe("SEAM — every lane draws from core/rng.ts", () => {
-  it("core/rng.ts is the only generator: the other modules take one, they do not make one", () => {
+  it("core/rng.ts is the only generator: every OTHER core module takes one, it does not make one", () => {
+    /*
+     * ⚠ THIS WAS THE UNFIXED TWIN OF BF-3, IN THIS FILE, ONE BLOCK BELOW THE TEST BF-3 NAMED.
+     *
+     * It read `for (const m of ["battle","ecosim","lifecycle","save","clock","foodweb"])` — six
+     * `core/` modules named by hand. `core/` holds twelve: `acts.ts`, `regional-events.ts`,
+     * `dialogue-schema.ts`, `quests.ts`, `schemas.ts` and `types.ts` were never scanned, so a second
+     * xorshift landing in any of them was invisible to the one test that exists to forbid it. That
+     * is exactly the mechanism BF-3 describes — "a hand-written source list is the defect, not the
+     * regex it fed" — and the repair pass fixed the instance it was pointed at and left this one.
+     *
+     * So the modules are DISCOVERED. Measured across all twelve: `core/rng.ts` is the only file that
+     * shifts bits, so widening the scan does not move it off green — it moves it off blind.
+     */
     const fs = require("node:fs") as typeof import("node:fs");
-    for (const m of ["battle", "ecosim", "lifecycle", "save", "clock", "foodweb"]) {
-      const src = fs.readFileSync(`core/${m}.ts`, "utf8");
-      // No second implementation: an xorshift needs these shifts, and only core/rng.ts has them.
-      expect(/>>>\s*\d+/.test(src.replace(/\/\*[\s\S]*?\*\//g, "")), `core/${m}.ts looks like it shifts bits`).toBe(false);
-    }
+    const path = require("node:path") as typeof import("node:path");
+    const walk = (dir: string): string[] =>
+      fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) return walk(full);
+        return e.isFile() && full.endsWith(".ts") ? [full] : [];
+      });
+    const home = path.join("core", "rng.ts");
+    const modules = walk("core").filter((f) => f !== home);
+    expect(modules.length, "the walk found no core modules — it is looking in the wrong place").toBeGreaterThan(6);
+    // No second implementation: an xorshift needs these shifts, and only core/rng.ts has them.
+    const shifty = modules.filter((f) => />>>\s*\d+/.test(fs.readFileSync(f, "utf8").replace(/\/\*[\s\S]*?\*\//g, "")));
+    expect(shifty, "a core module other than core/rng.ts looks like it shifts bits").toEqual([]);
+    // …and the home of the generator really does, so the scan is not vacuously clean.
+    expect(/>>>\s*\d+/.test(fs.readFileSync(home, "utf8"))).toBe(true);
   });
 
   it("battle's RNG adapter accepts core/rng.ts's stream unchanged", () => {

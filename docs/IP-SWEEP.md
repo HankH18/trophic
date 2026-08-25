@@ -37,6 +37,8 @@ indie developer of the *Tallowmere* roguelikes, which sell on Steam and itch.io 
 storefronts we target. Fallowmere is also a commercial tabletop terrain range sold by Warbases
 in the UK. Those two are the names I would move first after the title decision.
 
+**Four of the eighteen REDs are now closed.** On 2026-08-25 Hank authorised the move renames and they shipped: **Harden → Rootfast**, **Screech → Scoldcall**, **Snarl → Baretooth**, and the `Roost` alias deleted outright. Evidence, corpora and caveats are in **"The Q1 move renames"** below; the changes are logged as `docs/DEVIATIONS.md` D-Q1-1 … D-Q1-6 and amended into `docs/content-bible.md` §3. Nothing else in this document has been acted on.
+
 After that, the concentrated damage is in two places. **Five of the 28 move names and two
 of the 15 trait names are literally Pokémon content** — `Harden`, `Screech`, `Snarl` and
 `Roost` are real Pokémon moves (Harden and Screech are the same name *and the same effect* as
@@ -136,7 +138,9 @@ knowledge of small indie games and trademark registers is stale and was treated 
 
 ---
 
-## 🔴 RED — recommend renaming (18)
+## 🔴 RED — recommend renaming (18 — **4 of them resolved 2026-08-25**)
+
+> **Status update.** The four RED *move* collisions — `Harden`, `Screech`, `Snarl`, `Roost` — were renamed on 2026-08-25 on Hank's authorisation and are struck through below. **The other fourteen REDs are untouched and still open**, including the title, `Fallowmere`, `Duskhollow`, the five RED creatures, `Overgrow`, and the two RED traits. The replacement screening is recorded in "The Q1 move renames" below.
 
 | Name | Category | What was found | Sources |
 |---|---|---|---|
@@ -150,10 +154,10 @@ knowledge of small indie games and trademark registers is stale and was treated 
 | **Umbrat** | Creature (Dark) | **Loomian Legacy — one of the largest monster-taming games by player count — has a Loomian named Umbrat.** Dark-type quadruped rodent; the wiki's own etymology is *"umbra, the Latin word for shadow, and rat."* That is our name character-for-character, our etymology, our typing and our species, in a shipping creature-collector. Page existence confirmed by direct MediaWiki query with controls. A separate Umbrat fakemon exists in *Pokémon Pisces*. Not a strong Umbreon homophone — the Loomian hit alone is the problem. | [Umbrat — Loomian Legacy Wiki](https://loomian-legacy.fandom.com/wiki/Umbrat) |
 | **Wispurr** | Creature (Dark/Beast) | Four collisions. (1) **Kādomon: Hyper Auto Battlers** (Steam app 2125540, Dino Rocket, 2025 — "Collect and battle over 200 unique creatures") has a creature named **Wispurr**, with a live Steam Community Market listing under that exact name — verified HTTP 200, page title "Wispurr - Steam Community Market". (2) Loomian Legacy has **Wispur**. (3) Monstronauts has a Wispurr. (4) Near-homophone of **Espurr**, a real Gen-6 cat Pokémon — same name space *and* same species. Trademarks: two US marks literally named WISPURR exist but **both are Ended**, in classes 10 and 5/42/44 — dead and unrelated, so trademarks are not the driver here. | [Steam Market: Wispurr](https://steamcommunity.com/market/listings/753/2125540-Wispurr) · [Kādomon on Steam](https://store.steampowered.com/app/2125540/) · [Wispur — Loomian Legacy](https://loomian-legacy.fandom.com/wiki/Wispur) |
 | **Bramblore** | Starter, Plant adult | Two compounding problems. Bramblin (#946) and Brambleghast (#947) are real Gen IX **Grass** Pokémon and the only species sharing a 5-character prefix. More tellingly, **two unconnected hobby monster-collector projects already use "Bramblore" for exactly this slot** — source confirmed as `{ id: 2, key: 'bramblore', name: 'Bramblore', types: ['Grass'] }`, the level-15 evolution of a Grass starter. Neither is commercial so neither blocks us legally, but two strangers independently landing on this word for this creature in this slot proves it is the *obvious* coinage, not a distinctive one. | [Brambleghast — Bulbapedia](https://bulbapedia.bulbagarden.net/wiki/Brambleghast_(Pok%C3%A9mon)) · [PocketMockster](https://github.com/KeigoShimadaCC/PocketMockster) |
-| **Harden** | Move (utility) | **A real Pokémon move.** Normal / Status / *"Raises the user's Defense by one stage."* Ours: `"+Defense"`. **Same name and same effect.** The worst single case in the move set. | [Harden — Pokémon DB](https://pokemondb.net/move/harden) |
-| **Screech** | Move (utility) | **A real Pokémon move.** Normal / Status / *"Lowers the target's Defense by two stages."* Ours: `"−enemy Defense"`. **Same name and same effect.** | [Screech — Pokémon DB](https://pokemondb.net/move/screech) |
-| **Snarl** | Move (utility) | **A real Pokémon move.** Dark / Special / 55 power / lowers the target's Sp. Atk. Ours: `"−enemy Attack"` — same name, closely analogous effect. | [Snarl — Pokémon DB](https://pokemondb.net/move/snarl) |
-| **Roost** | Move (`burrow-roost` altName) | **A real Pokémon move.** Flying / Status / recovers half max HP. Ours is the alternate display name on Burrow (*"skip turn, +evasion"*) — same name, different effect. **Cheapest fix in the entire sweep: delete the `altName` field and keep "Burrow".** | [Roost — Pokémon DB](https://pokemondb.net/move/roost) |
+| ~~**Harden**~~ → **Rootfast** ✅ | Move (utility) | **RESOLVED 2026-08-25 — renamed (DEVIATIONS D-Q1-1); see "The Q1 move renames" below.** **A real Pokémon move.** Normal / Status / *"Raises the user's Defense by one stage."* Ours: `"+Defense"`. **Same name and same effect.** The worst single case in the move set. | [Harden — Pokémon DB](https://pokemondb.net/move/harden) |
+| ~~**Screech**~~ → **Scoldcall** ✅ | Move (utility) | **RESOLVED 2026-08-25 — renamed (DEVIATIONS D-Q1-2).** **A real Pokémon move.** Normal / Status / *"Lowers the target's Defense by two stages."* Ours: `"−enemy Defense"`. **Same name and same effect.** | [Screech — Pokémon DB](https://pokemondb.net/move/screech) |
+| ~~**Snarl**~~ → **Baretooth** ✅ | Move (utility) | **RESOLVED 2026-08-25 — renamed (DEVIATIONS D-Q1-3).** **A real Pokémon move.** Dark / Special / 55 power / lowers the target's Sp. Atk. Ours: `"−enemy Attack"` — same name, closely analogous effect. | [Snarl — Pokémon DB](https://pokemondb.net/move/snarl) |
+| ~~**Roost**~~ → *deleted* ✅ | Move (`burrow-roost` altName) | **RESOLVED 2026-08-25 — the `altName` field is gone; the move is "Burrow" alone (DEVIATIONS D-Q1-4).** **A real Pokémon move.** Flying / Status / recovers half max HP. Ours is the alternate display name on Burrow (*"skip turn, +evasion"*) — same name, different effect. **Cheapest fix in the entire sweep: delete the `altName` field and keep "Burrow".** | [Roost — Pokémon DB](https://pokemondb.net/move/roost) |
 | **Overgrow** | Move (Plant, heavy) — `coined: true` | **A real Pokémon *Ability*** — the signature Ability of the **Grass starter line** (Bulbasaur and successors), *"Powers up Grass-type moves in a pinch."* Aggravating factor: TROPHIC also has a Plant starter line, so the collision lands in the same slot in the design. | [Overgrow — Pokémon DB](https://pokemondb.net/ability/overgrow) |
 | **Keen Eye** | Trait (`data/balance.json`) | **A real Pokémon Ability** (#51), *"Prevents other Pokémon from lowering accuracy."* Ours is a stat trait. Coined in DEVIATIONS D16 and explicitly flagged for this sweep. | [Keen Eye — Pokémon DB](https://pokemondb.net/ability/keen-eye) |
 | **Strong Jaw** | Trait (`data/balance.json`) | **A real Pokémon Ability** (#173), *"Boosts the power of biting moves."* Coined in DEVIATIONS D16. | [Strong Jaw — Pokémon DB](https://pokemondb.net/ability/strong-jaw) |
@@ -253,13 +257,13 @@ passing controls, and for the Digimon entries by reading the raw wiki source dir
 
 | Name | Finding |
 |---|---|
-| **Burrow** | Exists as a skill/technique in **Temtem, Coromon and Monster Sanctuary** — a triple hit, the most-used of our move names. |
+| **Burrow** *(still open after Q1 — deleting the Roost alias did not touch it)* | Exists as a skill/technique in **Temtem, Coromon and Monster Sanctuary** — a triple hit, the most-used of our move names. **Re-confirmed 2026-08-25** by exact title match against Temtem's 343-technique category, Monster Sanctuary's `Burrow (Active)` skill page, and Coromon's `Burrow` page. |
 | **Trample** | A **Temtem** technique — and specifically the **signature technique of Magmut**, not a generic filler entry. (Also a core MTG keyword, though that is generic combat vocabulary.) |
-| **Focus** | A **Cassette Beasts** move. Ours raises Instinct/crit — the same concept as Pokémon's *Focus Energy*, and *Focus Blast* / *Focus Punch* also exist, so the whole "Focus" space is Pokémon-adjacent even though "Focus" alone is not a Pokémon move. |
+| **Focus** *(re-verified 2026-08-25, unchanged — D-Q1-6)* | A **Cassette Beasts** move — re-read from the wiki's raw page source this pass: *"Raises the user's accuracy by 2 stages via Accuracy Up"*. Ours raises Instinct/crit — the same concept as Pokémon's *Focus Energy*, and *Focus Blast* / *Focus Punch* also exist, so the whole "Focus" space is Pokémon-adjacent even though "Focus" alone is not a Pokémon move. |
 | **Quicken** | A **Monster Sanctuary** entry. |
 | **Lure** | A **Temtem** *gear item*, not a technique (see below). |
-| **Miasma** | `coined: true`. Not a Pokémon move or ability — but **Ordinemon's attack in *Digimon Masters Online* is named exactly "Miasma"**. Confirmed in the raw wiki source: `*'''Miasma''': Spreads miasma from its wings, eventually ending all life in the World.` An exact bare-name match in a same-genre creature-collector. Trademarks: one exact US word mark ever, IC 028, abandoned 2016. |
-| **Shade** | `coined: true`. Not a Pokémon move (though *Night Shade* is). **Digimon Survive has an attack named exactly "Shade"** (人影 *Hitokage*, "Shadow Figure") — verified in source: `*{{nihongo|'''Shade'''|人影|Hitokage}}: Fires dark fog at the enemy.` **Same name and the same dark-fog function as our Dark move.** |
+| **Miasma** *(re-verified 2026-08-25, unchanged — D-Q1-6)* | `coined: true`. Not a Pokémon move or ability — but **Ordinemon's attack in *Digimon Masters Online* is named exactly "Miasma"**. Confirmed in the raw wiki source: `*'''Miasma''': Spreads miasma from its wings, eventually ending all life in the World.` An exact bare-name match in a same-genre creature-collector. Trademarks: one exact US word mark ever, IC 028, abandoned 2016. |
+| **Shade** *(re-verified 2026-08-25, unchanged — D-Q1-6; the exact line was re-found on the page `Miyuki (Kenzoku)`)* | `coined: true`. Not a Pokémon move (though *Night Shade* is). **Digimon Survive has an attack named exactly "Shade"** (人影 *Hitokage*, "Shadow Figure") — verified in source: `*{{nihongo|'''Shade'''|人影|Hitokage}}: Fires dark fog at the enemy.` **Same name and the same dark-fog function as our Dark move.** |
 | **Pyre** | Bible-verbatim (not coined), and clean as a move name in every game checked — but **Supergiant Games holds live registered trademarks in Nice class 9 ("video game software") and class 41**, verified in the US (Registered), the UK (two registrations) and WIPO (two registrations), for their game *Pyre*. A move named Pyre inside a battle UI is very unlikely to infringe — trademarks attach to source identifiers, and this use is descriptive of a fire effect — but **keep "Pyre" away from anything title-adjacent: the game title, a subtitle, the logo, or a Steam/itch listing headline.** |
 
 **Item vocabulary — AMBER (low), and I want to be careful not to oversell this.** Temtem has
@@ -343,10 +347,10 @@ register is short, plain, slightly archaic naturalist English.
 
 | Rename | Ours does | Candidates |
 |---|---|---|
-| **Harden** (utility, +Defense) | +Defense | **Stiffen**, **Callus**, **Hunker** |
-| **Screech** (utility, −enemy Defense) | −enemy Defense | **Shriek**, **Caterwaul**, **Gnash** |
-| **Snarl** (utility, −enemy Attack) | −enemy Attack | **Cow**, **Daunt**, **Menace** |
-| **Roost** (`burrow-roost` altName) | skip turn, +evasion | **Delete the `altName` outright** — "Burrow" alone already carries it. If a flier variant is wanted: **Hunker** or **Bristle**. (Note "Burrow" itself is AMBER — a Temtem/Coromon/Monster Sanctuary skill — so **Warren** or **Thicket** would clear both at once.) |
+| ~~**Harden**~~ ✅ **ADOPTED: Rootfast** | +Defense | Was: Stiffen, Callus, Hunker — all three are single common words, which is the failure mode this sweep documents. **`Rootfast` was adopted instead** (compound; attested English dialect for *rooted immovably*; `harden` is the Producer role's utility). |
+| ~~**Screech**~~ ✅ **ADOPTED: Scoldcall** | −enemy Defense | Was: Shriek, Caterwaul, Gnash. **Caterwaul is now disqualified** — it is an AD&D2e *Fiend Folio* monster, a NetHack monster, and TMview shows live **CATERWAUL marks in US class 41 (entertainment)**. **`Scoldcall` was adopted** (a *scold call* is the real ornithological term for a mobbing alarm cry; `screech` is the Scavenger role's utility and Carricrow is the only Scavenger). |
+| ~~**Snarl**~~ ✅ **ADOPTED: Baretooth** | −enemy Attack | Was: Cow, Daunt, Menace — three single common words. **`Baretooth` was adopted** (the threat display a snarl is; `snarl` is the Apex role's utility). Caveat recorded in D-Q1-3: one vowel from the band/mountains *Beartooth*. |
+| ~~**Roost**~~ ✅ **ADOPTED: deleted** | skip turn, +evasion | **Done — the field is gone and `tests/unit/transcription.test.ts` asserts its absence.** The original recommendation stands as written: **Delete the `altName` outright** — "Burrow" alone already carries it. If a flier variant is wanted: **Hunker** or **Bristle**. (Note "Burrow" itself is AMBER — a Temtem/Coromon/Monster Sanctuary skill — so **Warren** or **Thicket** would clear both at once.) |
 | **Overgrow** (Plant, heavy, 70) | 70 power Plant | **Verdure**, **Wither**, **Thicket** |
 | **Trample** (Grazer role, 50) | 50 power, +25 vs Producer | **Overrun**, **Tread**, **Bluster** |
 | **Focus** (utility, +Instinct/crit) | +Instinct/crit | **Keen**, **Mark**, **Steady** |
@@ -390,6 +394,79 @@ clean pass.
 
 **The 52 "clean" candidates are clean *as move names in four games*, not cleared outright.**
 
+### The Q1 move renames — what was actually screened, 2026-08-25
+
+*This is the evidence half of `docs/DEVIATIONS.md` D-Q1-1 … D-Q1-6. It supersedes the "Screening
+status of the move candidates" note above **for these three names only** — every other candidate in
+this document still carries that note's four caveats.*
+
+**The three adopted names: `Rootfast` (was Harden) · `Scoldcall` (was Screech) · `Baretooth` (was
+Snarl).** The `Roost` alias was deleted rather than replaced, so it needed no screen.
+
+**Corpora queried, each with a live positive control that fired in this session.** Every negative
+below is a negative from a source that had just proved it can produce a positive.
+
+| Source | Method | Size | Control that fired |
+|---|---|---|---|
+| Pokémon moves | PokeAPI full list, exact match | **937** | `harden`, `screech`, `snarl`, `roost`, `bite`, `growth` all present |
+| Pokémon abilities | PokeAPI full list, exact match | **373** | `overgrow`, `keen-eye`, `strong-jaw`, `thick-fat` all present |
+| Cassette Beasts | `wiki.cassettebeasts.com` `Category:Moves` + `Exclusive Moves` + `Archangel moves`, and every main-namespace page (1,067) | **362 moves** | `Undertow`, `Scorch`, `Focus`, `Bite` |
+| Temtem | `temtem.wiki.gg` `Category:Techniques` + every main-namespace page (5,030) | **343 techniques** | `Stampede`, `Brace`, `Rend`, `Burrow` |
+| Coromon | **every main-namespace page (1,082)**, not `Category:Skills` | 1,082 pages | `Stampede`, `Burrow`, `Toughen Up`, `Chomp` — **none of which is in `Category:Skills`**, which confirms this document's earlier warning that the category is badly incomplete |
+| Monster Sanctuary | `monster-sanctuary.fandom.com` `Category:Skill` + every main-namespace page (2,480) | **660 skills** | `Sprawl`, `Kindle`, `Stampede`, `Quicken`, `Burrow` |
+| Digimon | Wikimon **and** Digimon Fandom: page-title probe + full-text search, hits read from raw wikitext | 2 wikis | `Miasma` (Wikimon page + Ordinemon's DMO attack line) and `Shade` (the *Survive* attack line, re-found in source) |
+| Loomian Legacy · Nexomon · Palworld · Yo-kai Watch | per-title MediaWiki probe | 4 wikis | `Stampede` exists on Loomian Legacy |
+| 12 major game/fantasy wikis | per-title probe: WoW, Dota 2, Elder Scrolls, Forgotten Realms, RuneScape, Terraria, Monster Hunter, Elden Ring, D&D 5e, Final Fantasy, Warriors, Pokémon Fandom | 12 wikis | `Stampede` exists on WoW, Dota 2, Elder Scrolls and Final Fantasy |
+| MTG | Scryfall exact + name search | full corpus | validated on known cards |
+| Steam · itch.io | live store search, scraped | — | `Undertow` and `Stampede` both return real result sets |
+| TMview (≈75 offices incl. USPTO) | JSON API | — | `Stampede` 943 marks, `Undertow` 52 marks |
+| Wikipedia · Wikidata · OpenLibrary | search APIs | — | all three return results for `Stampede` and `Undertow` |
+| Fandom **cross-wiki** index | `services.fandom.com/unified-search` | ~all Fandom wikis | `Bristleback` returns Dota 2, Anthem, Horizon, Artifact |
+| GitHub code search | REST code search | all public code | **`Bramblore` reproduces this document's own PocketMockster finding** |
+
+**Result, per name.**
+
+| Name | Everything above | The only things found anywhere |
+|---|---|---|
+| **Rootfast** | zero exact hits | **TMview: exactly one record worldwide — `ROOTFAST`, GB, class 6, EXPIRED.** Live non-game use: *ATA Rootfast*, a hydroponics root stimulant (no mark on TMview), and a native-plants herbarium site. Steam 0, itch.io 0, Wikipedia 0, Wikidata 0, OpenLibrary 0, GitHub 0. |
+| **Scoldcall** | zero exact hits | **Nothing. Anywhere.** TMview 0 marks, Steam 0, itch.io 0, Scryfall 0, GitHub 0, Wikipedia 0, Wikidata 0, OpenLibrary 0, and the Fandom cross-wiki index returns an **empty result set** — the cleanest screen run in this document. |
+| **Baretooth** | zero exact hits | TMview 0 marks, Steam 0, itch.io 0, GitHub 0, Wikipedia 0, Wikidata 0, OpenLibrary 0. **Recorded honestly: it is one vowel from *Beartooth*** (a signed metalcore band; a Montana range/highway). Every "hit" the Fandom cross-wiki index returned was *Beartooth*, not *Baretooth* — a stem match, not a collision. |
+
+**Candidates that were screened and REJECTED — recorded so nobody re-suggests them.** All of these
+were on the shortlist and were dropped on evidence found in this pass:
+
+- **Caterwaul** — AD&D2e *Fiend Folio* monster, NetHack monster, and **live TMview marks in US class 41**.
+- **Carapace** — an exact Monster Sanctuary passive (`Carapace (Passive)`).
+- **Lipcurl** — **`LIPCURL`, US class 28 (games and playthings), REGISTERED.** The worst find of the batch.
+- **Gapejaw** — **Gapejaw Bog is a location in *Pokémon Legends: Arceus***.
+- **Overawe** — a WoW ability, plus a family of EverQuest 2 items.
+- **Gapemaw** — *Rahema Gapemaw* is a named hero/boss in **Titan Quest**.
+- **Coldstare** — *Cold Stare* is an ability in **Final Fantasy XI**.
+- **Setfast** — **`SETFAST` registered in US, India and Canada** (class 2), 14 marks on TMview.
+- **Hackles** — an itch.io game of that exact title.
+- **Bristleback** — a **Dota 2** hero (and in Anthem, Horizon and Artifact).
+- **Carrioncall** — **"Carrion Call" is a game on itch.io**, the storefront TROPHIC ships to.
+- **Toughen** — Coromon has the skill `Toughen Up`.
+- **Fangbare** — clean, but it is literally German for *"catchable"*, which is an unfortunate accident in a catching game.
+- **Rookcall / Crowcall** — clean in every corpus (TMview 0, Steam 0, itch.io 0) and usable as fallbacks, but both are established **Warriors** fan-wiki cat names, and "Rookcall" is also a chess app. `Scoldcall` beat them on cleanliness.
+
+**What this screen could NOT establish — do not read the table above as a clearance.**
+
+1. **General web search was unavailable.** The session's 200-call search budget was exhausted (the
+   same wall this document's original sweep hit), DuckDuckGo served a CAPTCHA, Mojeek returned 403
+   and every public SearXNG instance rate-limited. **Two of the three names got one working
+   DuckDuckGo pass before the block** (which is where *ATA Rootfast* and the Warriors cat names came
+   from); `Baretooth` and `Scoldcall` got none. The Fandom cross-wiki index and GitHub code search
+   are good substitutes for the *games* half of that gap; they are not substitutes for the open web.
+2. **In-game location and item names inside shipping titles** remain the systematic blind spot this
+   document already names. `Gapejaw Bog` was caught only because a wiki indexes it.
+3. **Common-law rights and non-English collisions**, as before.
+4. **Coromon** is materially better covered than in the original sweep — 1,082 pages instead of a
+   79-member category — but the wiki is still not the game files.
+5. **Fandom's own search is fuzzy in both directions.** It returned eight results for the nonsense
+   control string `Qzzxvwmtplop` and zero for the real term `Hitokage`. Every Fandom hit above was
+   opened and read; no Fandom *negative* was treated as proof on its own.
+
 ### If the title changes
 
 I am not recommending a title change — that is squarely Hank's call, and the trademark position
@@ -430,7 +507,14 @@ and **`.claude/CLAUDE.md`** (the vertical-slice never-cut list names it).
 `data/balance.json`, `game/scenes/YearTurnScene.ts`, `game/year-events.ts` and
 `tools/harness/full-run.ts` for the Cullbrand harvest raids.
 
-**A move rename is by far the cheapest — four files.** `overgrow` appears only in
+**A move rename is by far the cheapest — four files, and Q1 measured it at three.** The
+`Harden`/`Screech`/`Snarl`/`Roost` rename on 2026-08-25 touched **`data/moves.json`,
+`tests/unit/transcription.test.ts` and `docs/content-bible.md` §3** — and nothing else. It did NOT
+touch `data/species.json` (its `movePool` references are `id`s, and the ids did not move),
+`data/gyms.json` (which carries no move slots at all) or `data/dialogue.json` (which mentions no move
+by name — the only near-hits are the ordinary words "kiln-hardened" and "burrow"). The estimate below
+was made when a rename was assumed to move the `id` too; **renaming the display name alone is
+cheaper still**, and that is what shipped (D-Q1-5). `overgrow` appears only in
 `data/moves.json`, `data/species.json`, `fixtures/battle-scripts/gym-01-maribel.json` and
 `tests/unit/{battle,transcription}.test.ts`. A **trait** rename is cheaper still:
 `data/balance.json` plus `data/gyms.json` for the two traits attached to signatures.
@@ -504,7 +588,9 @@ These are for Hank or a lawyer. None of them is something more searching would r
 4. **Run the fan-forum fakemon check by hand.** r/fakemon, PokeCommunity, DeviantArt and Relic
    Castle all block automated access, and that is precisely where fakemon are posted. Manual
    searches for the surviving creature names would close the biggest remaining gap.
-5. **Screen the replacement names before adopting them — against Digimon above all.** They
+5. **Screen the replacement names before adopting them — against Digimon above all.**
+   *(Done for the three Q1 move names — see "The Q1 move renames". Still owed for every creature and
+   place candidate.)* They
    passed the Pokédex, Steam, itch.io, Scryfall and four creature-collector wikis. They have
    **not** been through TMview, the fantasy-wiki sweep, the fan forums, or Digimon — and Digimon
    was the source of the two latest exact hits in this sweep (Miasma, Shade), so it is the

@@ -439,6 +439,9 @@ import {
   type UiSwatchRole,
 } from "../../game/ui/Palette";
 import { assetId, placeholderKey } from "../../game/placeholder";
+import { indexSpecies, toEcoNode } from "../../core/foodweb";
+import { createRng } from "../../core/rng";
+import { rollEncounterAt, type ForayContext } from "../../game/encounters";
 import { damageNumberText, effectivenessRole } from "../../game/ui/BattleFx";
 import { NEVER } from "../../core/lifecycle";
 import { BattleScene, type BattleSceneData } from "../../game/scenes/BattleScene";
@@ -1285,6 +1288,31 @@ describe("game/scenes/BattleScene.ts is a renderer, not a rulebook", () => {
  * 6. G7 / Hard Req 8 — the copy.
  * ════════════════════════════════════════════════════════════════════════════ */
 
+/*
+ * ⚠ THIS WAS A HAND-WRITTEN LIST OF NINE FILES, AND THAT IS THE BF-3 DEFECT.
+ *
+ * `LANE_C3_FILES` named `game/battle-view.ts` … `game/ui/Palette.ts` and scanned exactly those.
+ * G7 — "no moralizing copy about catching, anywhere, in any string" — is a guardrail whose whole
+ * value is that it holds for code nobody has written yet, and a list cannot see a file it does not
+ * name. Measured while sweeping: G7 had NO repo-wide gate at all (`grep -n "G7" tests/gates/` →
+ * nothing), so the only enforcement anywhere was three hand-written lists, in this file, in
+ * `tests/unit/year-turn-ux.test.ts` and in `tests/unit/overworld-scene.test.ts` — 16 files out of
+ * every `.ts` under `game/` and `core/`. That is the same shape as the source list that let the
+ * catch→ledger stand-in stay green: right about what it looked at, silent about the rest.
+ *
+ * So the files are DISCOVERED. Measured across every `.ts` under `game/` and `core/`: zero
+ * moralizing literals, and exactly one death-word literal — `game/ledger-view.ts`'s
+ * `"recent deaths "`, which is the ecosim's own `recentDeaths` field printed as a real number
+ * (Hard Req 2). Hard Req 8 is a claim about BATTLE copy — "KO is a faint" — not a ban on the
+ * ecology reporting starvation, so that one literal is exempted BY ITS TEXT, not by its file: any
+ * other death word in `game/ledger-view.ts` still fails.
+ */
+/**
+ * The nine files lane C3 owns. Still a list, because the two structural checks that use it below
+ * are claims ABOUT THIS LANE — "no C3 file substitutes an image", "every path a C3 comment names
+ * exists" — and a list is the right instrument for a claim scoped to a lane. It is the WRONG
+ * instrument for a repo-wide guardrail, which is why G7 no longer uses it.
+ */
 const LANE_C3_FILES = [
   "game/battle-view.ts",
   "game/battle-input.ts",
@@ -1297,21 +1325,69 @@ const LANE_C3_FILES = [
   "game/ui/Palette.ts",
 ] as const;
 
+function walkSources(dir: string): string[] {
+  const fs = require("node:fs") as typeof import("node:fs");
+  return fs
+    .readdirSync(join(ROOT, dir), { withFileTypes: true })
+    .flatMap((e) => {
+      const rel = `${dir}/${e.name}`;
+      if (e.isDirectory()) return walkSources(rel);
+      return e.isFile() && rel.endsWith(".ts") ? [rel] : [];
+    })
+    .sort();
+}
+
+const SHIPPED_SOURCES = [...walkSources("game"), ...walkSources("core")];
+
 /** Hard Req 8 — KO is a faint. Nothing in a TROPHIC battle is killed. */
 const DEATH_WORDS = /\b(kill|kills|killed|killing|dead|death|deaths|die|dies|died|dying|slain|slay|corpse|perish)\b/i;
+
+/**
+ * The one death-word literal that is not battle copy: the ledger printing `recentDeaths`, the
+ * ecosim's own field, as a real number. Exempted by TEXT so the rest of that file stays scanned.
+ */
+const ECOLOGY_DEATH_READOUT = /^recent deaths /i;
 
 /** G7 — no moralizing copy about catching. The ledger is the moral; the screen prints numbers. */
 const MORALIZING = /\b(cruel|cruelty|guilt|guilty|shame|shameful|remorse|greed|greedy|selfish|wicked|evil|sin|deserve|deserved|should not have|shouldn't have|too many|senseless|needless|innocent|suffer|suffering|sorry)\b/i;
 
-describe("G7 and Hard Req 8 — the battle screen's copy is identifiers and numbers", () => {
-  for (const file of LANE_C3_FILES) {
-    it(`${file} carries no death copy and no moralizing copy in any string literal`, () => {
+describe("G7 and Hard Req 8 — the copy of every shipped source, discovered not listed", () => {
+  it("the walk found the whole of game/ and core/, not a subset", () => {
+    // Without this the two scans below could pass by looking at nothing.
+    expect(SHIPPED_SOURCES.length, "the source walk is looking in the wrong place").toBeGreaterThan(30);
+    for (const named of ["game/battle-view.ts", "game/scenes/BattleScene.ts", "game/ui/Palette.ts", "core/battle.ts"]) {
+      expect(SHIPPED_SOURCES, `${named} is not in the walk`).toContain(named);
+    }
+  });
+
+  it("G7 — not one string literal under game/ or core/ moralises about catching", () => {
+    // Positive control first: the instrument fires, so an empty offender list means something.
+    const poisoned = 'const line = "you caught too many of them and you should feel guilty";';
+    expect(stringLiterals(poisoned).filter((l) => MORALIZING.test(l))).toHaveLength(1);
+
+    const offenders: string[] = [];
+    for (const file of SHIPPED_SOURCES) {
       for (const literal of stringLiterals(read(file))) {
-        expect(DEATH_WORDS.test(literal), `${file}: "${literal}"`).toBe(false);
-        expect(MORALIZING.test(literal), `${file}: "${literal}"`).toBe(false);
+        if (MORALIZING.test(literal)) offenders.push(`${file}: ${JSON.stringify(literal)}`);
       }
-    });
-  }
+    }
+    expect(offenders, "G7 is a fail-the-task guardrail — the ledger is the moral, not the copy").toEqual([]);
+  });
+
+  it("Hard Req 8 — no death copy anywhere but the ecology's own recentDeaths readout", () => {
+    const offenders: string[] = [];
+    for (const file of SHIPPED_SOURCES) {
+      for (const literal of stringLiterals(read(file))) {
+        if (!DEATH_WORDS.test(literal)) continue;
+        if (ECOLOGY_DEATH_READOUT.test(literal)) continue;
+        offenders.push(`${file}: ${JSON.stringify(literal)}`);
+      }
+    }
+    expect(offenders, "a KO is a faint — nothing in a TROPHIC battle is killed").toEqual([]);
+    // …and the one exemption is real, so the carve-out is not quietly covering an empty case.
+    const ledger = stringLiterals(read("game/ledger-view.ts")).filter((l) => ECOLOGY_DEATH_READOUT.test(l));
+    expect(ledger, "the recentDeaths readout is gone — delete the exemption with it").not.toHaveLength(0);
+  });
 
   it("no caption produced by any recorded fixture breaks either rule", () => {
     let captions = 0;
@@ -1703,9 +1779,16 @@ describe("battle UI widget models", () => {
     );
     expect(manifestIds.size).toBe(150); // build-doc §9.7 as corrected by DEVIATIONS D2.
 
-    // The keys the RUNNING GAME can ask for: every (line, age) a battler can be built at, both
+    // The keys the manifest OWES: every (line, age) a battler is supposed to be built at, both
     // facings. Ancients are pinned to "E" by core/lifecycle.ts:346 (`line.ancient ? "E" : opts.age`),
     // which is the same rule tools/comfy/comfy-batch.ts::artFormsOf ships them under.
+    //
+    // ⚠ THIS IS THE INVARIANT, NOT THE CODE THAT UPHOLDS IT (BF-4). The line below RE-STATES
+    // `line.ancient ? ["E"] : AGE_CLASSES` rather than asking the encounter roll what it can
+    // actually produce — so it is green whatever `game/encounters.ts` does, and it is green today
+    // while `rollEncounterAt` fields Ancients at J and A. The set identity is still worth having
+    // (it is what caught the invented `battle/<line>/<AGE>/<facing>` key shape), so it stays; the
+    // blind spot it leaves is measured by the next test, which goes red when the clamp lands.
     const asked = new Set<string>();
     for (const line of content.species) {
       const ages: AgeClass[] = line.ancient ? ["E"] : [...AGE_CLASSES];
@@ -1738,6 +1821,66 @@ describe("battle UI widget models", () => {
     expect(manifestIds.has(invented("cindril-line", "J", "front"))).toBe(false);
     // …and the shape that IS shipped is in there, so the check is not vacuously false.
     expect(manifestIds.has(battleSpriteKey("cindril-line", "J", "front"))).toBe(true);
+  });
+
+  it("OPEN GAP (BF-4) — the ENCOUNTER ROLL asks for 12 keys the manifest has no row for", () => {
+    /*
+     * ⚠ THIS TEST ASSERTS A DEFECT, AND IT EXISTS TO GO RED WHEN THE DEFECT IS FIXED.
+     *
+     * The set identity above derives "what the game can ask for" from the invariant, so it cannot
+     * see a caller that breaks the invariant. This asks `game/encounters.ts` instead. It rolls the
+     * real `rollEncounterAt` at each Ancient's real host node with the sign chain unlocked, turns
+     * every (line, age) it actually produced into a battle sprite key, and subtracts the manifest.
+     *
+     * MEASURED: three Ancient lines × {J, A} × {front, back} = 12 keys with no row. `textureFor`
+     * substitutes a hatched box for each, silently (BF-7), so the large majority of unlocked-Ancient
+     * encounters would ship as placeholders with nothing reporting it.
+     *
+     * THE FIX IS IN `game/encounters.ts` (clamp the age, still consuming `rollAge`'s draw), not in
+     * the manifest — an Ancient below Elder contradicts core/lifecycle.ts as well as the art. When
+     * it lands, `missing` empties, this goes red, and the set identity above becomes the whole
+     * truth: delete this and derive `asked` from `rollEncounterAt`. See
+     * `tests/unit/encounters.test.ts` "OPEN GAP (BF-4)" for the same measurement on the roll itself.
+     */
+    const manifestIds = new Set(
+      (manifest.rows as ManifestRow[])
+        .filter((row) => row.class === "creature-battle")
+        .map((row) => assetId(row.finalFile)),
+    );
+    const speciesIndex = indexSpecies(content.species);
+    const missing = new Set<string>();
+    let ancientsMet = 0;
+    for (const line of content.species.filter((l) => l.ancient)) {
+      const host = content.nodes.find((n) => (n.populations[line.id]?.count ?? 0) > 0);
+      if (!host) continue;
+      const ctx: ForayContext = {
+        node: toEcoNode(host),
+        species: speciesIndex,
+        balance: content.balance,
+        season: "spring",
+        act: content.balance.acts.first + 1,
+        unlockedSignChains: new Set([line.id]),
+      };
+      for (let seed = 1; seed <= 4000; seed += 1) {
+        const met = rollEncounterAt(ctx, createRng(seed));
+        if (met?.lineId !== line.id) continue;
+        ancientsMet += 1;
+        for (const facing of ["front", "back"] as const) {
+          const key = battleSpriteKey(met.lineId, met.age, facing);
+          if (!manifestIds.has(key)) missing.add(key);
+        }
+      }
+    }
+    expect(ancientsMet, "no Ancient was ever met — the fixture is wrong, not the manifest").toBeGreaterThan(0);
+    expect(
+      [...missing].sort(),
+      "the encounter roll now asks only for keys lane B has committed — BF-4 IS FIXED. Delete this " +
+        "test and derive `asked` in the set-identity test above from rollEncounterAt.",
+    ).toHaveLength(12);
+    // Every one of them is an Ancient below Elder, and nothing else has leaked into the gap.
+    for (const key of missing) {
+      expect(key, `${key} is not an Ancient sprite key`).toMatch(/-(j|a)-(front|back)$/u);
+    }
   });
 
   it("the menu panel greys a row by painting it, and reports core's reason under the cursor", () => {

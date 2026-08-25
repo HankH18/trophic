@@ -11,7 +11,8 @@
  * lets the collision editor and the balance harness reuse them and what lets this file exist.
  */
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { validateContent } from "../../core/schemas";
@@ -467,6 +468,28 @@ describe("Hard Req 5 — ONE collision mask serves all six years", () => {
 });
 
 describe("no authored mask exists yet — the stand-in says so and cannot be mistaken for one", () => {
+  it("STATES THE GAP: not one node's declared mask is on disk, so the synthesised branch IS the game", () => {
+    /*
+     * ⚠ THE BLOCK TITLE USED TO BE THE ONLY RECORD OF THIS, AND A TITLE CANNOT FAIL.
+     *
+     * Every test below hands `loadCollision` a `null` pixel buffer or an ascii grid, so all of them
+     * drive the branch they name whatever the repo actually holds — the day someone authors a mask,
+     * they would all have gone on passing while the heading claimed none existed, and nobody would
+     * have gone back to check that the real pixels decode, that `firstWalkableTile` finds a legal
+     * spawn on them, or that a player is not sealed into a corner of a real map.
+     *
+     * Asserted the way `tests/unit/overlay-diff.test.ts` asserts the same fact: when a mask lands,
+     * this goes red and whoever authored it has to come and re-measure this block against it.
+     */
+    const onDisk = content.nodes.filter((n) => existsSync(resolve(ROOT, n.collisionMask)));
+    expect(content.nodes.length, "no nodes at all — the fixture is wrong").toBeGreaterThan(0);
+    expect(
+      onDisk.map((n) => `${n.id} → ${n.collisionMask}`),
+      "a collision mask now EXISTS. The synthesised stand-in is no longer what the game loads for " +
+        "this node: re-measure this block against the real pixels and rewrite the heading.",
+    ).toEqual([]);
+  });
+
   it("a node with no mask pixels gets a SYNTHESISED grid, flagged three ways", () => {
     const node = content.nodes.find((n) => n.id === "r1");
     expect(node).toBeDefined();

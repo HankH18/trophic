@@ -2887,6 +2887,78 @@ describe("this lane is reached by playing, not only by testing", () => {
   const root = fileURLToPath(new URL("../..", import.meta.url));
   const read = (file: string): string => readFileSync(`${root}${file}`, "utf8");
 
+  /*
+   * ⚠ WHY THESE TESTS NO LONGER ASK `source.includes("name(")`.
+   *
+   * That is the shape that let BF-2 read green. `OverworldScene.winGym` is the only writer of a
+   * badge flag; it had NO CALLER ANYWHERE IN THE REPO, so acts 2–6 were unreachable however long
+   * anyone played — and `expect(overworld).toContain("winGym")` was green throughout, because
+   * `winGym` is DECLARED in that file. A substring scan for a name cannot tell a call from the
+   * definition that satisfies it, so it certifies nothing about reachability at all.
+   *
+   * `callSites` strikes the declaration out first: a bare `name(` at the start of a line is a call
+   * when a statement follows the argument list and a declaration when a body does. A dead function
+   * therefore reads as dead. The self-test below is the positive control for exactly that.
+   */
+  const DECL_PREFIX =
+    /^[ \t]*(?:(?:export|default|declare|public|private|protected|static|override|abstract|readonly|async|function|get|set)[ \t]+)*\*?[ \t]*$/u;
+
+  function isDeclarationAt(code: string, at: number, name: string): boolean {
+    const lineStart = code.lastIndexOf("\n", at) + 1;
+    const before = code.slice(lineStart, at);
+    if (!DECL_PREFIX.test(before)) return false; // `x = name(`, `this.name(`, `if (name(` — a use.
+    if (/\bfunction[ \t]+\*?[ \t]*$/u.test(before)) return true;
+    // Read past the argument list: `name(…): T {` declares, `name(…);` calls.
+    let depth = 0;
+    let i = code.indexOf("(", at);
+    while (i >= 0 && i < code.length) {
+      const ch = code[i];
+      if (ch === "(") depth += 1;
+      else if (ch === ")") {
+        depth -= 1;
+        if (depth === 0) {
+          i += 1;
+          break;
+        }
+      }
+      i += 1;
+    }
+    return /^\s*(?::[^{;()]*)?\{/u.test(code.slice(i, i + 200));
+  }
+
+  /** Every line of `code` that CALLS `name`. Its own declaration is not a call. */
+  function callSites(code: string, name: string): string[] {
+    const stripped = stripComments(code);
+    const out: string[] = [];
+    const re = new RegExp(`\\b${name}\\s*(?:\\?\\.)?\\s*\\(`, "gu");
+    for (let m = re.exec(stripped); m !== null; m = re.exec(stripped)) {
+      if (isDeclarationAt(stripped, m.index, name)) continue;
+      const from = stripped.lastIndexOf("\n", m.index) + 1;
+      const to = stripped.indexOf("\n", m.index);
+      out.push(stripped.slice(from, to === -1 ? stripped.length : to).trim());
+    }
+    return out;
+  }
+
+  it("BINDS the instrument — a declaration is not a caller, which is the whole of BF-2", () => {
+    // The exact shape that shipped green: declared, and called by nobody.
+    const dead = ["class S {", "  winGym(gymId: string): void {", "    this.act = 1;", "  }", "}"].join("\n");
+    expect(callSites(dead, "winGym")).toEqual([]);
+    expect(dead.includes("winGym(")).toBe(true); // …and the old assertion passes on it.
+    // One call, and the declaration still does not count as a second.
+    const live = `${dead.slice(0, -1)}  go(): void {\n    this.winGym("g1");\n  }\n}`;
+    expect(callSites(live, "winGym")).toEqual(['this.winGym("g1");']);
+    // A free function, its declaration and one call.
+    const free = 'export function awardBadge(a: number): number {\n  return a;\n}\nconst x = awardBadge(1);';
+    expect(callSites(free, "awardBadge")).toEqual(["const x = awardBadge(1);"]);
+    // A bare statement call at the start of a line is a call, not a declaration.
+    expect(callSites("function f(): void {\n  setQuestFlags(save, flags);\n}", "setQuestFlags")).toEqual([
+      "setQuestFlags(save, flags);",
+    ]);
+    // …and an optional call through a hook is a call.
+    expect(callSites("f() {\n  this.hooks.onRunComplete?.(this.save, this);\n}", "onRunComplete")).toHaveLength(1);
+  });
+
   it("BINDS — every read-side function this lane publishes has a caller in a scene", () => {
     /*
      * Counted before this: previewAction 0 callers, actionCosts 0, seasonTintsForYear 0,
@@ -2935,11 +3007,13 @@ describe("this lane is reached by playing, not only by testing", () => {
       ["gymParty", "game/gym-battle.ts"],
       ["gymBattleProblem", "game/scenes/OverworldScene.ts"],
     ];
+    const dead: string[] = [];
     for (const [name, file] of callers) {
-      const source = stripComments(read(file));
-      expect(source.includes(`${name}(`), `${file} never calls ${name}()`).toBe(true);
+      if (callSites(read(file), name).length === 0) dead.push(`${file} never calls ${name}()`);
     }
-    expect(stripComments(read("game/year-events.ts")).includes("raidableActs(")).toBe(true);
+    // Named, not counted: a list of the dead is what tells the next reader which wire is cut.
+    expect(dead, "declared reachable and reached by nobody — this is the BF-2 shape").toEqual([]);
+    expect(callSites(read("game/year-events.ts"), "raidableActs")).not.toHaveLength(0);
     expect(raidCoverage(balance).scriptedActs.length).toBeGreaterThan(0);
     expect(raidPreviews({}, content.nodes, content.species, balance, balance.acts.first + 1)).toBeDefined();
   });
@@ -2957,11 +3031,20 @@ describe("this lane is reached by playing, not only by testing", () => {
      * question and must not be reachable from the two spenders.
      */
     const overworld = stripComments(read("game/scenes/OverworldScene.ts"));
-    expect(overworld).toContain("restAtInn");
+    /*
+     * ⚠ THESE FIVE WERE `expect(overworld).toContain("winGym")` AND FRIENDS.
+     * `restAtInn`, `winGym` and `onRunComplete` are all DECLARED in this file, so three of the five
+     * were satisfied by their own definitions and said nothing about whether a key press could ever
+     * reach them. That is the assertion BF-2 names as the reason "gyms award no badges" read green.
+     * They now require a CALL, and the two action-log tags stay a text check because a tag written
+     * into a record is a literal, not a callable.
+     */
+    const spender = (name: string): string[] => callSites(overworld, name);
+    expect(spender("restAtInn"), "nothing presses the inn").not.toHaveLength(0);
+    expect(spender("winGym"), "no code path awards a badge — acts 2..6 are unreachable").not.toHaveLength(0);
+    expect(spender("onRunComplete"), "the finale hook is never fired").not.toHaveLength(0);
     expect(overworld).toContain('t: "inn"');
-    expect(overworld).toContain("winGym");
     expect(overworld).toContain('t: "gymVictory"');
-    expect(overworld).toContain("onRunComplete");
     // The run's end is an act condition, asked of the save's flags and never of its year.
     expect(overworld).toMatch(
       /runIsOver\(\)[^{]*\{\s*return runIsComplete\(this\.save, this\.content\.gyms, this\.balance\);/u,

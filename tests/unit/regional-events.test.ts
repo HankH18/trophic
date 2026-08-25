@@ -12,6 +12,7 @@
  * tick by tick over a whole year rather than sampled at one moment.
  */
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { advance, absoluteTick, createClock, seasonAt, type ClockState } from "../../core/clock";
 import { enterPendingActs } from "../../core/lifecycle";
@@ -405,12 +406,40 @@ describe("bible §9 — a Bloom Year is a node whose producers are thriving", ()
   });
 
   it("does NOT weight an encounter — bible §9's bonus-spawn half is unbuilt and unclaimed (D10)", () => {
-    // G2/G3: the window ships, the multiplier does not, and no key for one exists in balance.json.
+    /*
+     * G2/G3: the window ships, the multiplier does not, and no key for one exists in balance.json.
+     *
+     * ⚠ THE KEY CHECK ALONE WAS TOO NARROW TO BE THE GAP GUARD IT CLAIMS TO BE. It forbids two
+     * SPELLINGS — `regionalEvents.bloomSpawnMultiplier` and `encounter.bloomMultiplier` — so the
+     * bonus-spawn half could be built under any third name and this would have gone on reporting it
+     * unbuilt. The structural half below closes that: the encounter roll's whole input surface is
+     * `ForayContext`, and while that carries no event, window or flag field, a bloom CANNOT reach a
+     * spawn weight by any spelling. Widening `ForayContext` — which is what building this feature
+     * must do — turns this red, which is the point.
+     */
     expect(Object.keys(balance.regionalEvents)).toEqual(
       expect.arrayContaining(["bloomFloraFraction", "windowFlagPrefix", "windowFlagSuffix"]),
     );
     expect(Object.keys(balance.regionalEvents)).not.toContain("bloomSpawnMultiplier");
     expect(Object.keys(balance.encounter)).not.toContain("bloomMultiplier");
+
+    const encounters = readFileSync(new URL("../../game/encounters.ts", import.meta.url), "utf8")
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const surface = /export interface ForayContext \{[\s\S]*?\n\}/u.exec(encounters)?.[0];
+    expect(surface, "ForayContext is gone — the encounter roll's input surface moved").toBeDefined();
+    const fields = [...(surface as string).matchAll(/^\s{2}([A-Za-z_$][\w$]*)\??:/gmu)].map((m) => m[1]);
+    expect(fields, "ForayContext declares no fields — the scan is looking in the wrong place").not.toHaveLength(0);
+    expect(
+      fields.sort(),
+      "ForayContext grew a field. If it carries a regional event, a window or an event flag, the " +
+        "bonus-spawn half is being built — bible §9 D10 is no longer unclaimed and this test must " +
+        "become an assertion of what the multiplier DOES.",
+    ).toEqual(["act", "balance", "node", "season", "species", "unlockedSignChains"]);
+    // …and no event vocabulary has appeared in the module either, under any key name.
+    expect(encounters, "game/encounters.ts now names a regional event").not.toMatch(
+      /\b(bloom|regionalEvent|activeWindow|windowFlag|festival|migrationWindow)\w*/iu,
+    );
   });
 });
 

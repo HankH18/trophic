@@ -623,6 +623,40 @@ export function conditionHolds(when: DialogueCondition | undefined, ctx: Dialogu
 }
 
 /**
+ * THE selection rule, in one place: of the entries a caller is willing to consider, the
+ * highest-priority ELIGIBLE one, ties broken by file order.
+ *
+ * Every other selector in the repo is this function under a narrower `match`. That is deliberate:
+ * `selectEntry` (speaker, node, kind) cannot answer a PROP question — two shell-kiln shrines stand
+ * in Cindershelf and both are read off the same `prop-shell-kiln-shrine` speaker in the same node
+ * with the same kind, so a (speaker, node, kind) lookup cannot tell the mine shrine from the deep
+ * one and would answer whichever the conditions happened to admit. The game layer needs that
+ * question answered and must NOT grow its own priority loop to answer it — a second implementation
+ * of "which entry wins" is the same class of defect a second act model was.
+ */
+export function selectEntryWhere(
+  file: DialogueFile,
+  ctx: DialogueContext,
+  match: (entry: DialogueEntry) => boolean,
+): DialogueEntry | undefined {
+  // Checked here as well as in conditionHolds: a request with no candidate entries at all never
+  // reaches conditionHolds, and "nothing to say" must not be how a bad act reports itself.
+  assertContext(ctx);
+  let best: DialogueEntry | undefined;
+  let bestPriority = -1;
+  for (const e of file.entries) {
+    if (!match(e)) continue;
+    if (!conditionHolds(e.when, ctx)) continue;
+    const p = e.priority ?? 0;
+    if (p > bestPriority) {
+      best = e;
+      bestPriority = p;
+    }
+  }
+  return best;
+}
+
+/**
  * The entry the game should play for a (speaker, node, kind) request: the highest-priority
  * eligible entry, ties broken by file order. Returns undefined when nothing is eligible.
  */
@@ -633,19 +667,71 @@ export function selectEntry(
   kind: DialogueKind,
   ctx: DialogueContext,
 ): DialogueEntry | undefined {
-  // Checked here as well as in conditionHolds: a (speaker, node, kind) with no entries at all never
-  // reaches conditionHolds, and "nothing to say" must not be how a bad act reports itself.
-  assertContext(ctx);
-  let best: DialogueEntry | undefined;
-  let bestPriority = -1;
+  return selectEntryWhere(
+    file,
+    ctx,
+    (e) => e.speaker === speaker && e.node === node && e.kind === kind,
+  );
+}
+
+/**
+ * The entry a PROP reads out right now — the one question `selectEntry` structurally cannot answer.
+ *
+ * `propId` is the discriminator, and the node is checked as well because `validateDialogueFile`
+ * already refuses an entry whose `propId` lives in another node: asking for both means a corpus that
+ * ever drifted would return nothing rather than the wrong prop's line.
+ */
+export function selectPropEntry(
+  file: DialogueFile,
+  propId: string,
+  node: string,
+  ctx: DialogueContext,
+): DialogueEntry | undefined {
+  return selectEntryWhere(file, ctx, (e) => e.propId === propId && e.node === node);
+}
+
+/** The entry with this id, or undefined. `goto` targets are validated, so this resolves them. */
+export function entryById(file: DialogueFile, id: string): DialogueEntry | undefined {
+  return file.entries.find((e) => e.id === id);
+}
+
+/** The speaker record behind an id — the name plate a dialogue box draws. */
+export function speakerById(file: DialogueFile, id: string): DialogueSpeaker | undefined {
+  return file.speakers.find((s) => s.id === id);
+}
+
+/* ── what the corpus asks the GAME for ───────────────────────────────────── */
+
+/** Every flag key the corpus reads, in a condition of any kind. */
+export function flagsRead(file: DialogueFile): ReadonlySet<string> {
+  const out = new Set<string>();
   for (const e of file.entries) {
-    if (e.speaker !== speaker || e.node !== node || e.kind !== kind) continue;
-    if (!conditionHolds(e.when, ctx)) continue;
-    const p = e.priority ?? 0;
-    if (p > bestPriority) {
-      best = e;
-      bestPriority = p;
-    }
+    for (const k of e.when?.flagsSet ?? []) out.add(k);
+    for (const k of e.when?.flagsUnset ?? []) out.add(k);
+    for (const fe of e.when?.flagEquals ?? []) out.add(fe.key);
   }
-  return best;
+  return out;
+}
+
+/** Every flag key the corpus writes, from an entry's `setFlags` or a choice's. */
+export function flagsWritten(file: DialogueFile): ReadonlySet<string> {
+  const out = new Set<string>();
+  for (const e of file.entries) {
+    for (const k of Object.keys(e.setFlags ?? {})) out.add(k);
+    for (const c of e.choices ?? []) for (const k of Object.keys(c.setFlags ?? {})) out.add(k);
+  }
+  return out;
+}
+
+/**
+ * The flags the corpus READS and never writes — the bill it hands the game layer.
+ *
+ * DERIVED, never listed. `docs/STORY-REVIEW.md` §3 enumerates twelve of these by hand and the hand
+ * list is already one pair short of the file (the two `story.vellsire.*` outcome flags, D-INT-4);
+ * a writer that ships against a hand list stops covering the corpus the moment the corpus moves.
+ * Sorted so callers and tests see one order.
+ */
+export function externallyGrantedFlags(file: DialogueFile): string[] {
+  const written = flagsWritten(file);
+  return [...flagsRead(file)].filter((k) => !written.has(k)).sort();
 }
