@@ -1,5 +1,57 @@
 # Queued changes — authorised, waiting on in-flight work
 
+## ⏸ PAUSE POINT — 09:18. READ THIS FIRST ON RESUME.
+
+**Build: GREEN.** `tsc` 0 errors · **39 files / 2012 tests passing** · `npm run build` clean.
+`599dbf83`, local and remote match. `.env` untracked, no real key in history.
+
+**A `trophic-quest-layer` workflow was running when we paused** — Q7 dialogue wiring + Q3b quest
+system · BF-3 false-gap test sweep · Q1 Pokémon move renames. It is session-scoped, so it died with
+the session. Nothing of its work was committed, and the state above is a clean green checkpoint, so
+nothing is lost. **Re-dispatch it on resume.**
+
+### What a player can actually do right now
+New game → starter → walk Hearthollow and R1 → encounter → battle → catch → the ledger shows the
+real decremented number → tick meter and seasons advance → year turn ages every creature (boxed
+included) → retirement flow with heir-or-boon → fight a gym, win, earn a badge → act 2 opens →
+Brackwater and R2 reachable, on through act 6. Art is labelled placeholders except the approved
+player sprite and five style trials.
+
+### What is NOT there
+- **No dialogue reaches a player.** 499 authored lines, 211 entries, zero displayed. The opening
+  beat is a DECLARED provisional stand-in that says so on screen. (Q7)
+- **No quest system.** Ten quests with finished copy; all 12 turn-in flags read by dialogue, written
+  by nothing. The three Ancient chains cannot be completed. (Q3b)
+- **9 test files certify an ABSENCE** and pass while doing so — the mechanism that let ~1900 green
+  tests certify a game you could not leave the first town of. (BF-3)
+- **154 creature sprites unbuilt**, gated on decision 2 below.
+- 36 confirmed findings in `docs/BLOCKED-FINDINGS.md`. **Land BF-7 before BF-4** — the silent
+  `textureFor` fallback is what makes BF-4's 12 missing sprite keys invisible.
+
+### FOUR DECISIONS WAITING ON HANK
+
+1. **Palette** — `assets/approved-trials/_palette-candidate/_DECISION-SHEET.png`.
+   **The earlier "class-equal" recommendation was too clean and has been corrected:** class-equal is
+   worse than the plain candidate on 7 of 12 creature images, materially on Puddlisk itself (6.59 vs
+   4.05; 33.1% of the sprite visibly wrong vs 5.1%). Frozen is still clearly wrong — Puddlisk ships
+   grey, Fenmaw and Duskstalk lose EVERY cool pixel. A genuine three-way trade between the player's
+   identity and the creature roster. `data/palette.json` untouched.
+2. **B-D38 — the one with a clock on it.** Bogling, Puddlisk, Mirefin and Wispurr all render as the
+   same chibi bipedal mascot regardless of subject; Gloomoth lost its six legs. Q5 rewrote those
+   prompts, ruling them out as sole cause and pointing at the §9.2-locked class skeleton.
+   **Three images (Fenmaw, Mirefin, Wispurr front) settle it before 154 sprites are billed.**
+3. **Five borderline G7 lines**, quoted in `docs/DIALOGUE-NOTES.md`. Read Maren's epilogue line
+   first — it is the only place anything leans on the scale.
+4. **The IP renames** in `docs/IP-SWEEP.md` — 18 RED, 37 AMBER. G15 makes it Hank's call; urgent
+   only before anything ships publicly.
+
+### Hard limits that survive any resume
+Never fire a ≥20-image batch without Hank's `--confirm` (G13, his credit pool) · never weaken a test
+to go green · **`tools/harness/probe.ts` is a REAL MODULE**, not a scratch file · **commit
+SELECTIVELY while workflows are live** — `add -A` sweeps their mid-run artifacts into your commit.
+
+---
+
 ## CURRENT STATE (INTEGRATOR tick — Q2 / Q3 / Q3a / Q6 landed)
 
 **Build: GREEN, measured after everything below was in place.** `npx tsc --noEmit` silent ·
