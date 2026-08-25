@@ -1,0 +1,90 @@
+{
+  "_source": "build-doc §7.4 flee — pFlee = 0.4 + 0.4 × (mySpd/theirSpd), clamp .1–.95.",
+  "_replay": "Same as gym-01-maribel.",
+  "_foodWeb": "Derived — see gym-01-maribel.",
+  "id": "flee-r2-fenmaw",
+  "description": "A fast Skir runs from a wild Fenmaw on Route 2.",
+  "seed": 77,
+  "rngScript": [
+    0.4173,
+    0.9012,
+    0.2586,
+    0.7731,
+    0.0498,
+    0.6205,
+    0.339,
+    0.8864,
+    0.1247,
+    0.5519,
+    0.9673,
+    0.2031,
+    0.7108,
+    0.4462,
+    0.8295,
+    0.0876,
+    0.664,
+    0.3157,
+    0.9438,
+    0.1782,
+    0.5063,
+    0.7924,
+    0.2349,
+    0.6781
+  ],
+  "foodWeb": {
+    "nodeId": "r2",
+    "edges": {
+      "carricrow-line": [],
+      "fenmaw-line": [
+        "mirefin-line",
+        "reedrick-line"
+      ],
+      "mirefin-line": [
+        "reedrick-line"
+      ],
+      "reedrick-line": [
+        "sporantle-line"
+      ],
+      "sporantle-line": [],
+      "undermere-line": []
+    },
+    "floraFeeders": [
+      "reedrick-line"
+    ]
+  },
+  "input": {
+    "seed": 77,
+    "kind": "wild",
+    "nodeId": "r2",
+    "playerParty": [
+      {
+        "uid": "p-skir",
+        "lineId": "skir-line",
+        "age": "A",
+        "level": 12,
+        "traits": []
+      }
+    ],
+    "enemyParty": [
+      {
+        "uid": "w-fenmaw",
+        "lineId": "fenmaw-line",
+        "age": "A",
+        "level": 16,
+        "traits": []
+      }
+    ],
+    "bag": {}
+  },
+  "actions": [
+    {
+      "kind": "flee"
+    }
+  ],
+  "expect": {
+    "outcome": "fled",
+    "turns": 1,
+    "events": 4,
+    "eventDigest": "0ae4d921"
+  }
+}

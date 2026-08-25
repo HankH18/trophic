@@ -1,0 +1,135 @@
+{
+  "_why": "build-doc §11 stress fixture — `fixtures/mega-node.json` (all lines, counts ×100) — and §12 perf budget: ecosim.step must stay inside balance.perf.ecosimStepBudgetMs × balance.perf.megaNodeMarginMultiplier on it. Synthetic, and DELIBERATELY NOT A LEGAL NODE: every non-starter line of species.json sits in one node at ×100, which no biome admits. That is the point of it now, and it is stated rather than assumed. (1) It stresses the per-line loop of ecosim.step at 24 lines. (2) It is the only node in the repo that can BIND bible §5's \"in its habitat\" clause: core/schemas.ts rejects any shipped node holding a line its biome excludes, so on shipped data the habitat filter in deriveFoodWeb is unreachable and deleting it left the whole suite green. tests/property/foodweb.test.ts::\"the habitat clause is LOAD-BEARING\" uses this fixture and fails if the filter goes. WHAT IT DOES NOT PROVE, measured rather than claimed: the O(n²) web derivation here runs over the 7 lines the Forest biome admits, not 24 — no single node on shipped content can host more, because bible §4's habitat column splits 27 lines across six biomes. build-doc §13's \"O(n²) web derivation fine at 27 lines\" is measured directly instead, by tests/property/ecosim.test.ts::\"measures the O(n²) derivation at the width build-doc §13 actually claims\", which widens every habitat and steps the full roster. See docs/DEVIATIONS-lane-a2.md A2-D9. The three bible §4 starters are left out (habitat \"starter\" — handed out by Warden Maren, never encountered), and the three Ancients keep count 1 because an Ancient is a single individual. breedRate is the shipped rate for that line's role; carryCap ×3 as in data/nodes/*.json.",
+  "id": "mega-node",
+  "name": "Mega Node",
+  "biome": "Forest",
+  "adjacency": [],
+  "walkable": false,
+  "mapAsset": "fixtures/mega-node.png",
+  "yearVariants": {},
+  "collisionMask": "fixtures/mega-node.mask.png",
+  "floraStock": 100,
+  "populations": {
+    "nibbin-line": {
+      "count": 100,
+      "breedRate": 0.06,
+      "carryCap": 300
+    },
+    "pollywisp-line": {
+      "count": 100,
+      "breedRate": 0.06,
+      "carryCap": 300
+    },
+    "bramblehog-line": {
+      "count": 100,
+      "breedRate": 0.06,
+      "carryCap": 300
+    },
+    "skir-line": {
+      "count": 100,
+      "breedRate": 0.045,
+      "carryCap": 300
+    },
+    "loamunder-line": {
+      "count": 100,
+      "breedRate": 0.09,
+      "carryCap": 300
+    },
+    "mirefin-line": {
+      "count": 100,
+      "breedRate": 0.045,
+      "carryCap": 300
+    },
+    "reedrick-line": {
+      "count": 100,
+      "breedRate": 0.06,
+      "carryCap": 300
+    },
+    "fenmaw-line": {
+      "count": 100,
+      "breedRate": 0.03,
+      "carryCap": 300
+    },
+    "sporantle-line": {
+      "count": 100,
+      "breedRate": 0.09,
+      "carryCap": 300
+    },
+    "mosslet-line": {
+      "count": 100,
+      "breedRate": 0.06,
+      "carryCap": 300
+    },
+    "webvern-line": {
+      "count": 100,
+      "breedRate": 0.045,
+      "carryCap": 300
+    },
+    "gloomoth-line": {
+      "count": 100,
+      "breedRate": 0.06,
+      "carryCap": 300
+    },
+    "duskstalk-line": {
+      "count": 100,
+      "breedRate": 0.03,
+      "carryCap": 300
+    },
+    "barkhide-line": {
+      "count": 100,
+      "breedRate": 0.06,
+      "carryCap": 300
+    },
+    "ashvole-line": {
+      "count": 100,
+      "breedRate": 0.06,
+      "carryCap": 300
+    },
+    "pyrelisk-line": {
+      "count": 100,
+      "breedRate": 0.045,
+      "carryCap": 300
+    },
+    "cragmar-line": {
+      "count": 100,
+      "breedRate": 0.06,
+      "carryCap": 300
+    },
+    "stonewing-line": {
+      "count": 100,
+      "breedRate": 0.03,
+      "carryCap": 300
+    },
+    "carricrow-line": {
+      "count": 100,
+      "breedRate": 0.05,
+      "carryCap": 300
+    },
+    "umbrat-line": {
+      "count": 100,
+      "breedRate": 0.06,
+      "carryCap": 300
+    },
+    "wispurr-line": {
+      "count": 100,
+      "breedRate": 0.045,
+      "carryCap": 300
+    },
+    "vellsire-line": {
+      "count": 1,
+      "breedRate": 0,
+      "carryCap": 1
+    },
+    "kilnback-line": {
+      "count": 1,
+      "breedRate": 0,
+      "carryCap": 1
+    },
+    "undermere-line": {
+      "count": 1,
+      "breedRate": 0,
+      "carryCap": 1
+    }
+  },
+  "props": []
+}

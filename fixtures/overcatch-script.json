@@ -1,0 +1,116 @@
+{
+  "_why": "build-doc §11 — \"fixtures/overcatch-script.json (the demo cascade as an action log — used by tests AND by the demo-recording flow)\", and build-doc §15 I2 \"cascade demo reproducible from overcatch-script.json in real play\". Nothing here is a forcing helper or a test-only shortcut: every entry is an action a player can take. The script over-catches ONE prey species — the apex's primary prey, build-doc §10.2's own wording — from 14 down to 1 (7%, inside §10.2's \"<10%\") across two seasons of forays, then stops and lets the sim run. What follows is scripted nowhere (G6): the apex starves out by season 3, and the tier below it, freed of the only thing that hunted it, climbs back from 1 to 3 by season 8. NODE CHOICE, stated rather than assumed: the beat's second half — \"a new apex risen\" (build-doc §1) — needs the over-catching to leave the mesopredator standing AND to leave its own food intact. On shipped content that holds only where the apex's primary prey IS the mesopredator and there are enough of them that 10% is still an animal: the Cinder Steppe (r4 — stonewing over pyrelisk, 14 individuals). At the vertical-slice marsh (brackwater / r2) the same protocol produces a two-tier COLLAPSE instead, because the mesopredator's only food is the same grazer that limits the apex — a real outcome of the same rules, measured and asserted in tests/property/ecosim.test.ts, but not this beat. See docs/DEVIATIONS-lane-a2.md A2-D10. SEED: 12 is a recorded seed, not a special case — the beat holds for a majority of low seeds; this one is chosen because the release is legible on video (1 → 3 rather than 1 → 1). Regenerate the trace, never the rule, if the sim's arithmetic changes.",
+  "_expected": {
+    "before": "r4 opens with pyrelisk 14, stonewing 3, ashvole 14, cragmar 10, carricrow 3",
+    "traceBySeason_pyrelisk_over_stonewing": "8/2 · 1/1 · 1/0 · 2/0 · 2/0 · 3/0 · 3/0 · 3/0",
+    "after": "the apex is gone, nothing at the node preys on pyrelisk any more, and pyrelisk has tripled off its floor"
+  },
+  "seed": 12,
+  "nodeId": "r4",
+  "year": 4,
+  "seasons": 8,
+  "actions": [
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "seasonStep",
+      "season": "spring"
+    },
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "catch",
+      "nodeId": "r4",
+      "lineId": "pyrelisk-line"
+    },
+    {
+      "t": "seasonStep",
+      "season": "summer"
+    },
+    {
+      "t": "seasonStep",
+      "season": "autumn"
+    },
+    {
+      "t": "seasonStep",
+      "season": "winter"
+    },
+    {
+      "t": "seasonStep",
+      "season": "spring"
+    },
+    {
+      "t": "seasonStep",
+      "season": "summer"
+    },
+    {
+      "t": "seasonStep",
+      "season": "autumn"
+    },
+    {
+      "t": "seasonStep",
+      "season": "winter"
+    }
+  ]
+}

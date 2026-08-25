@@ -1,0 +1,242 @@
+{
+  "_source": "docs/content-bible.md §7 gym 1 (Maribel, Beast) — enemy party transcribed from data/gyms.json at authoring time. build-doc §11: 'fixtures/battle-scripts/*.json (action logs incl. gym fights)'.",
+  "_replay": "Headless: startBattle(input, ctx) then step(state, actions[i], rng, ctx) in order. `rngScript` is the deterministic float source the recording used, cycled; when core/rng.ts lands, drive the same script from the seeded battle stream (`seed` below) and re-record.",
+  "_foodWeb": "Derived, not authored: deriveFoodWeb(toEcoNode(data/nodes/<id>.json), indexSpecies(species), balance) from core/foodweb.ts (G3 — battle.ts never derives an edge itself). It is recorded here so the fixture replays byte-identically; tests/unit/battle.test.ts re-derives it and fails if the EDGES ever drift. The comparison is by set, not by array order: predationOracleFromWebs folds both lists into Sets, so the order core/foodweb.ts emits them in changes no answer and is not part of the contract.",
+  "id": "gym-01-maribel",
+  "description": "Year-1 gym: a six-strong Meadow party (Skir, Nibbin, Bramblehog, Pollywisp, Loamunder and a juvenile Cindril) against Maribel's Nibbin/Bramblehog/Skir and the Elder signature 'Old Nib'.",
+  "seed": 20250824,
+  "rngScript": [
+    0.4173,
+    0.9012,
+    0.2586,
+    0.7731,
+    0.0498,
+    0.6205,
+    0.339,
+    0.8864,
+    0.1247,
+    0.5519,
+    0.9673,
+    0.2031,
+    0.7108,
+    0.4462,
+    0.8295,
+    0.0876,
+    0.664,
+    0.3157,
+    0.9438,
+    0.1782,
+    0.5063,
+    0.7924,
+    0.2349,
+    0.6781
+  ],
+  "foodWeb": {
+    "nodeId": "hearthollow",
+    "edges": {
+      "bramblehog-line": [
+        "loamunder-line"
+      ],
+      "carricrow-line": [],
+      "loamunder-line": [],
+      "nibbin-line": [
+        "loamunder-line"
+      ],
+      "pollywisp-line": [
+        "loamunder-line"
+      ],
+      "skir-line": [
+        "bramblehog-line",
+        "nibbin-line",
+        "pollywisp-line"
+      ]
+    },
+    "floraFeeders": [
+      "bramblehog-line",
+      "nibbin-line",
+      "pollywisp-line"
+    ]
+  },
+  "input": {
+    "seed": 20250824,
+    "kind": "gym",
+    "nodeId": "hearthollow",
+    "playerParty": [
+      {
+        "uid": "p-skir",
+        "lineId": "skir-line",
+        "age": "A",
+        "level": 15,
+        "traits": []
+      },
+      {
+        "uid": "p-nib",
+        "lineId": "nibbin-line",
+        "age": "A",
+        "level": 15,
+        "traits": []
+      },
+      {
+        "uid": "p-brambl",
+        "lineId": "bramblehog-line",
+        "age": "A",
+        "level": 15,
+        "traits": []
+      },
+      {
+        "uid": "p-polly",
+        "lineId": "pollywisp-line",
+        "age": "A",
+        "level": 15,
+        "traits": []
+      },
+      {
+        "uid": "p-loam",
+        "lineId": "loamunder-line",
+        "age": "A",
+        "level": 15,
+        "traits": []
+      },
+      {
+        "uid": "p-ember",
+        "lineId": "cindril-line",
+        "age": "J",
+        "level": 16,
+        "traits": [],
+        "nickname": "Ember"
+      }
+    ],
+    "enemyParty": [
+      {
+        "uid": "maribel-1",
+        "lineId": "nibbin-line",
+        "age": "A",
+        "level": 8,
+        "traits": []
+      },
+      {
+        "uid": "maribel-2",
+        "lineId": "bramblehog-line",
+        "age": "A",
+        "level": 8,
+        "traits": []
+      },
+      {
+        "uid": "maribel-3",
+        "lineId": "skir-line",
+        "age": "A",
+        "level": 8,
+        "traits": []
+      },
+      {
+        "uid": "maribel-4",
+        "lineId": "nibbin-line",
+        "age": "E",
+        "level": 10,
+        "traits": [
+          {
+            "id": "thick-pelt",
+            "name": "Thick Pelt",
+            "stat": "def",
+            "direction": "up",
+            "rarity": "common"
+          }
+        ],
+        "nickname": "Old Nib"
+      }
+    ],
+    "bag": {}
+  },
+  "actions": [
+    {
+      "kind": "move",
+      "moveId": "squall"
+    },
+    {
+      "kind": "switch",
+      "uid": "p-nib"
+    },
+    {
+      "kind": "move",
+      "moveId": "maul"
+    },
+    {
+      "kind": "move",
+      "moveId": "maul"
+    },
+    {
+      "kind": "move",
+      "moveId": "maul"
+    },
+    {
+      "kind": "move",
+      "moveId": "maul"
+    },
+    {
+      "kind": "move",
+      "moveId": "maul"
+    },
+    {
+      "kind": "switch",
+      "uid": "p-brambl"
+    },
+    {
+      "kind": "move",
+      "moveId": "overgrow"
+    },
+    {
+      "kind": "move",
+      "moveId": "overgrow"
+    },
+    {
+      "kind": "switch",
+      "uid": "p-polly"
+    },
+    {
+      "kind": "move",
+      "moveId": "overgrow"
+    },
+    {
+      "kind": "move",
+      "moveId": "overgrow"
+    },
+    {
+      "kind": "switch",
+      "uid": "p-loam"
+    },
+    {
+      "kind": "move",
+      "moveId": "overgrow"
+    },
+    {
+      "kind": "move",
+      "moveId": "overgrow"
+    },
+    {
+      "kind": "switch",
+      "uid": "p-ember"
+    },
+    {
+      "kind": "move",
+      "moveId": "pyre"
+    }
+  ],
+  "expect": {
+    "outcome": "win",
+    "turns": 13,
+    "events": 74,
+    "eventDigest": "9a8e0c8e",
+    "finalHp": {
+      "p-skir": 0,
+      "p-nib": 0,
+      "p-brambl": 0,
+      "p-polly": 0,
+      "p-loam": 0,
+      "p-ember": 59,
+      "maribel-1": 0,
+      "maribel-2": 0,
+      "maribel-3": 0,
+      "maribel-4": 0
+    }
+  }
+}

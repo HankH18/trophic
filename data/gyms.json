@@ -1,0 +1,110 @@
+{
+  "_source": "docs/content-bible.md §7 (fixed rosters). Transcribed verbatim, never invented (G2). Roster sizes including the signature are 4 / 4 / 5 / 6 / 6 / 6 — asserted in tests/unit/transcription.test.ts.",
+  "_schema": "build-doc §7.7 ghost-compatible: every leader ships source:\"fixed\". \"ghost\" is schema-only (Hard Req 9); building any ghost feature is guardrail G8.",
+  "_levels": "bible §7 gives no levels. Ramp assigned by rule: roster level = 8 + 6×(gym−1) → 8/14/20/26/32/38; the signature is +2 → 10/16/22/28/34/40, so the last signature sits exactly on the level cap 40 (build-doc §7.4).",
+  "_lineIds": "Juvenile line-forms are keyed by LINE id, not form name (build-doc §7.1): Bogling = mirefin-line age J, Gloomgrub = gloomoth-line age J.",
+  "gyms": [
+    {
+      "id": "maribel",
+      "name": "Maribel",
+      "year": 1,
+      "town": "hearthollow",
+      "type": "Beast",
+      "source": "fixed",
+      "slots": [
+        { "lineId": "nibbin-line", "age": "A", "level": 8 },
+        { "lineId": "bramblehog-line", "age": "A", "level": 8 },
+        { "lineId": "skir-line", "age": "A", "level": 8 }
+      ],
+      "signature": {
+        "lineId": "nibbin-line",
+        "age": "E",
+        "level": 10,
+        "nickname": "Old Nib",
+        "traits": [{ "id": "thick-pelt", "name": "Thick Pelt", "stat": "def", "direction": "up", "rarity": "common" }]
+      }
+    },
+    {
+      "id": "odo",
+      "name": "Odo",
+      "year": 2,
+      "town": "brackwater",
+      "type": "Water",
+      "source": "fixed",
+      "slots": [
+        { "lineId": "mirefin-line", "age": "J", "level": 14 },
+        { "lineId": "reedrick-line", "age": "A", "level": 14 },
+        { "lineId": "mirefin-line", "age": "A", "level": 14 }
+      ],
+      "signature": { "lineId": "fenmaw-line", "age": "E", "level": 16 }
+    },
+    {
+      "id": "vesper",
+      "name": "Vesper",
+      "year": 3,
+      "town": "bowerdeep",
+      "type": "Poison",
+      "source": "fixed",
+      "slots": [
+        { "lineId": "gloomoth-line", "age": "J", "level": 20 },
+        { "lineId": "sporantle-line", "age": "A", "level": 20 },
+        { "lineId": "mirefin-line", "age": "A", "level": 20 },
+        { "lineId": "webvern-line", "age": "A", "level": 20 }
+      ],
+      "signature": {
+        "lineId": "webvern-line",
+        "age": "E",
+        "level": 22,
+        "traits": [{ "id": "silk-spun", "name": "Silk-Spun", "stat": "spd", "direction": "up", "rarity": "rare" }]
+      }
+    },
+    {
+      "id": "sable",
+      "name": "Sable",
+      "year": 4,
+      "town": "cindershelf",
+      "type": "Fire",
+      "source": "fixed",
+      "slots": [
+        { "lineId": "ashvole-line", "age": "A", "level": 26 },
+        { "lineId": "cragmar-line", "age": "A", "level": 26 },
+        { "lineId": "ashvole-line", "age": "E", "level": 26 },
+        { "lineId": "stonewing-line", "age": "A", "level": 26 },
+        { "lineId": "pyrelisk-line", "age": "A", "level": 26 }
+      ],
+      "signature": { "lineId": "pyrelisk-line", "age": "E", "level": 28 }
+    },
+    {
+      "id": "noct",
+      "name": "Noct",
+      "year": 5,
+      "town": "duskhollow",
+      "type": "Dark",
+      "source": "fixed",
+      "slots": [
+        { "lineId": "gloomoth-line", "age": "A", "level": 32 },
+        { "lineId": "umbrat-line", "age": "A", "level": 32 },
+        { "lineId": "carricrow-line", "age": "A", "level": 32 },
+        { "lineId": "wispurr-line", "age": "A", "level": 32 },
+        { "lineId": "umbrat-line", "age": "E", "level": 32 }
+      ],
+      "signature": { "lineId": "duskstalk-line", "age": "E", "level": 34 }
+    },
+    {
+      "id": "greaves",
+      "name": "Magnate Greaves",
+      "year": 6,
+      "town": "sanctum",
+      "type": "mixed",
+      "source": "fixed",
+      "slots": [
+        { "lineId": "carricrow-line", "age": "A", "level": 38 },
+        { "lineId": "pyrelisk-line", "age": "A", "level": 38 },
+        { "lineId": "mirefin-line", "age": "A", "level": 38 },
+        { "lineId": "duskstalk-line", "age": "E", "level": 38 },
+        { "lineId": "fenmaw-line", "age": "E", "level": 38 }
+      ],
+      "signature": { "lineId": "stonewing-line", "age": "E", "level": 40 }
+    }
+  ]
+}

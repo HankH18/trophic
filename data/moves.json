@@ -1,0 +1,153 @@
+{
+  "_source": "docs/content-bible.md §3 (28-move pool) and §1 (type chart shape). Transcribed, never invented (G2).",
+  "_split": "bible §1: 'Exact multipliers are tunable via the balance harness; the chart SHAPE is the content.' So the SHAPE (who is strong/weak vs whom) lives here and the VALUES (1.5 / 0.67 / 1.0, predation 1.25, Beast +10% base stats) live in data/balance.json under `types`. Likewise: numbers the bible states for a specific move (powers 40/70/50/60, Singe/Dous 20%, Regrow 30%, Trample +25, Terrify 2 turns) are CONTENT and live here; magnitudes the bible names without numbering ('+Defense', '+evasion') are tunables keyed by `magnitudeKey` into balance.moveEffects.magnitude (G11).",
+  "_derivation": "Effectiveness is read off `typeChart` alone: attacker A vs defender D is superEffective when D ∈ strongVs[A]; resisted when A ∈ strongVs[D] (equivalently D ∈ weakVs... read as the exact dual: weakVs[X] lists the types X takes 1.5× FROM); neutral otherwise. Beast has an empty strongVs by design — bible §1: 'gets +10% base stats instead'.",
+  "_counts": { "typeMoves": 16, "roleMoves": 5, "utilityMoves": 7, "total": 28 },
+  "_coined": "Twelve type-move names are coined by the agent in the bible's register because bible §3 names only the Fire and Water pair and says 'Same pattern all eight types': gnaw, maul, bramble, overgrow, sunder, upheave, harry, squall, blight, miasma, shade, eclipse. Each carries \"coined\": true and is logged in docs/DEVIATIONS.md (G15 IP sweep).",
+  "typeChart": {
+    "Beast":  { "strongVs": [], "weakVs": ["Poison", "Dark"] },
+    "Fire":   { "strongVs": ["Plant", "Poison", "Dark"], "weakVs": ["Water", "Earth"] },
+    "Water":  { "strongVs": ["Fire", "Earth"], "weakVs": ["Plant", "Wind"] },
+    "Plant":  { "strongVs": ["Water", "Earth"], "weakVs": ["Fire", "Poison"] },
+    "Earth":  { "strongVs": ["Fire", "Wind"], "weakVs": ["Water", "Plant"] },
+    "Wind":   { "strongVs": ["Water", "Poison"], "weakVs": ["Earth", "Dark"] },
+    "Poison": { "strongVs": ["Plant", "Beast"], "weakVs": ["Fire", "Wind"] },
+    "Dark":   { "strongVs": ["Wind", "Beast"], "weakVs": ["Fire"] }
+  },
+  "moves": [
+    {
+      "id": "gnaw", "name": "Gnaw", "kind": "type", "type": "Beast", "weight": "light", "power": 40,
+      "text": "40, 20% chance to lower Attack", "coined": true,
+      "effects": [{ "kind": "statMod", "target": "enemy", "stat": "atk", "direction": "down", "magnitudeKey": "secondaryStatDrop", "chance": 0.2 }]
+    },
+    {
+      "id": "maul", "name": "Maul", "kind": "type", "type": "Beast", "weight": "heavy", "power": 70,
+      "text": "70", "coined": true, "effects": []
+    },
+    {
+      "id": "singe", "name": "Singe", "kind": "type", "type": "Fire", "weight": "light", "power": 40,
+      "text": "40, 20% Burn",
+      "effects": [{ "kind": "inflictStatus", "status": "Burn", "chance": 0.2 }]
+    },
+    {
+      "id": "pyre", "name": "Pyre", "kind": "type", "type": "Fire", "weight": "heavy", "power": 70,
+      "text": "70", "effects": []
+    },
+    {
+      "id": "dous", "name": "Dous", "kind": "type", "type": "Water", "weight": "light", "power": 40,
+      "text": "40, 20% Soak",
+      "effects": [{ "kind": "inflictStatus", "status": "Soak", "chance": 0.2 }]
+    },
+    {
+      "id": "riptide", "name": "Riptide", "kind": "type", "type": "Water", "weight": "heavy", "power": 70,
+      "text": "70", "effects": []
+    },
+    {
+      "id": "bramble", "name": "Bramble", "kind": "type", "type": "Plant", "weight": "light", "power": 40,
+      "text": "40, 20% chance to lower Speed", "coined": true,
+      "effects": [{ "kind": "statMod", "target": "enemy", "stat": "spd", "direction": "down", "magnitudeKey": "secondaryStatDrop", "chance": 0.2 }]
+    },
+    {
+      "id": "overgrow", "name": "Overgrow", "kind": "type", "type": "Plant", "weight": "heavy", "power": 70,
+      "text": "70", "coined": true, "effects": []
+    },
+    {
+      "id": "sunder", "name": "Sunder", "kind": "type", "type": "Earth", "weight": "light", "power": 40,
+      "text": "40, 20% chance to lower Defense", "coined": true,
+      "effects": [{ "kind": "statMod", "target": "enemy", "stat": "def", "direction": "down", "magnitudeKey": "secondaryStatDrop", "chance": 0.2 }]
+    },
+    {
+      "id": "upheave", "name": "Upheave", "kind": "type", "type": "Earth", "weight": "heavy", "power": 70,
+      "text": "70", "coined": true, "effects": []
+    },
+    {
+      "id": "harry", "name": "Harry", "kind": "type", "type": "Wind", "weight": "light", "power": 40,
+      "text": "40, 20% chance to lower Instinct", "coined": true,
+      "effects": [{ "kind": "statMod", "target": "enemy", "stat": "ins", "direction": "down", "magnitudeKey": "secondaryStatDrop", "chance": 0.2 }]
+    },
+    {
+      "id": "squall", "name": "Squall", "kind": "type", "type": "Wind", "weight": "heavy", "power": 70,
+      "text": "70", "coined": true, "effects": []
+    },
+    {
+      "id": "blight", "name": "Blight", "kind": "type", "type": "Poison", "weight": "light", "power": 40,
+      "text": "40, 20% Toxin", "coined": true,
+      "effects": [{ "kind": "inflictStatus", "status": "Toxin", "chance": 0.2 }]
+    },
+    {
+      "id": "miasma", "name": "Miasma", "kind": "type", "type": "Poison", "weight": "heavy", "power": 70,
+      "text": "70", "coined": true, "effects": []
+    },
+    {
+      "id": "shade", "name": "Shade", "kind": "type", "type": "Dark", "weight": "light", "power": 40,
+      "text": "40, 20% Daze", "coined": true,
+      "effects": [{ "kind": "inflictStatus", "status": "Daze", "chance": 0.2 }]
+    },
+    {
+      "id": "eclipse", "name": "Eclipse", "kind": "type", "type": "Dark", "weight": "heavy", "power": 70,
+      "text": "70", "coined": true, "effects": []
+    },
+
+    {
+      "id": "regrow", "name": "Regrow", "kind": "role", "type": null, "role": "Producer", "power": 0,
+      "text": "self-heal 30%",
+      "effects": [{ "kind": "heal", "mode": "fracMaxHp", "amount": 0.3 }]
+    },
+    {
+      "id": "trample", "name": "Trample", "kind": "role", "type": null, "role": "Grazer", "power": 50,
+      "text": "50 power, +25 vs Producer",
+      "effects": [{ "kind": "bonusVsRole", "role": "Producer", "bonusPower": 25 }]
+    },
+    {
+      "id": "ambush", "name": "Ambush", "kind": "role", "type": null, "role": "Mesopredator", "power": 60,
+      "text": "60 power, always first on entry turn",
+      "effects": [{ "kind": "priority", "scope": "entryTurn" }]
+    },
+    {
+      "id": "terrify", "name": "Terrify", "kind": "role", "type": null, "role": "Apex", "power": 0,
+      "text": "enemy −Attack 2 turns",
+      "effects": [{ "kind": "statMod", "target": "enemy", "stat": "atk", "direction": "down", "magnitudeKey": "utilityStatMod", "turns": 2 }]
+    },
+    {
+      "id": "scrounge", "name": "Scrounge", "kind": "role", "type": null, "role": "Scavenger", "power": 40,
+      "text": "40 power, heal for damage dealt",
+      "effects": [{ "kind": "heal", "mode": "damageDealt" }]
+    },
+
+    {
+      "id": "harden", "name": "Harden", "kind": "utility", "type": null, "power": 0,
+      "text": "+Defense",
+      "effects": [{ "kind": "statMod", "target": "self", "stat": "def", "direction": "up", "magnitudeKey": "utilityStatMod" }]
+    },
+    {
+      "id": "quicken", "name": "Quicken", "kind": "utility", "type": null, "power": 0,
+      "text": "+Speed",
+      "effects": [{ "kind": "statMod", "target": "self", "stat": "spd", "direction": "up", "magnitudeKey": "utilityStatMod" }]
+    },
+    {
+      "id": "screech", "name": "Screech", "kind": "utility", "type": null, "power": 0,
+      "text": "−enemy Defense",
+      "effects": [{ "kind": "statMod", "target": "enemy", "stat": "def", "direction": "down", "magnitudeKey": "utilityStatMod" }]
+    },
+    {
+      "id": "focus", "name": "Focus", "kind": "utility", "type": null, "power": 0,
+      "text": "+Instinct/crit",
+      "effects": [{ "kind": "statMod", "target": "self", "stat": "ins", "direction": "up", "magnitudeKey": "utilityStatMod" }]
+    },
+    {
+      "id": "snarl", "name": "Snarl", "kind": "utility", "type": null, "power": 0,
+      "text": "−enemy Attack",
+      "effects": [{ "kind": "statMod", "target": "enemy", "stat": "atk", "direction": "down", "magnitudeKey": "utilityStatMod" }]
+    },
+    {
+      "id": "burrow-roost", "name": "Burrow", "altName": "Roost", "kind": "utility", "type": null, "power": 0,
+      "text": "skip turn, +evasion",
+      "effects": [{ "kind": "evade", "skipTurn": true, "magnitudeKey": "evasionBonus" }]
+    },
+    {
+      "id": "lure", "name": "Lure", "kind": "utility", "type": null, "power": 0,
+      "text": "raise catch odds on this target this battle",
+      "effects": [{ "kind": "catchOdds", "multiplierKey": "lureMult" }]
+    }
+  ]
+}

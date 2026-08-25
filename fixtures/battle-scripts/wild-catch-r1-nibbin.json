@@ -1,0 +1,107 @@
+{
+  "_source": "build-doc \u00a77.4 catch + Hard Req 2 \u2014 a caught individual is what leaves the node population; battle.ts reports it via caughtIndividual() and the CALLER decrements data/nodes/r1.json.",
+  "_replay": "Same as gym-01-maribel.",
+  "_foodWeb": "Derived \u2014 see gym-01-maribel. The Producer role bait matches because the derived diet of nibbin-line contains loamunder-line, a Producer (build-doc \u00a77.2 bait lookup).",
+  "id": "wild-catch-r1-nibbin",
+  "description": "Route 1 wild Nibbin: Lure first, then weighted snares over Producer bait until one sticks. Under the \u00a77.4 damage formula a hit removes most of a juvenile's HP, so the honest catch play is to lure rather than to soften.",
+  "seed": 4242,
+  "rngScript": [
+    0.4173,
+    0.9012,
+    0.2586,
+    0.7731,
+    0.0498,
+    0.6205,
+    0.339,
+    0.8864,
+    0.1247,
+    0.5519,
+    0.9673,
+    0.2031,
+    0.7108,
+    0.4462,
+    0.8295,
+    0.0876,
+    0.664,
+    0.3157,
+    0.9438,
+    0.1782,
+    0.5063,
+    0.7924,
+    0.2349,
+    0.6781
+  ],
+  "foodWeb": {
+    "nodeId": "r1",
+    "edges": {
+      "bramblehog-line": [
+        "loamunder-line"
+      ],
+      "carricrow-line": [],
+      "loamunder-line": [],
+      "nibbin-line": [
+        "loamunder-line"
+      ],
+      "pollywisp-line": [
+        "loamunder-line"
+      ],
+      "skir-line": [
+        "bramblehog-line",
+        "nibbin-line",
+        "pollywisp-line"
+      ]
+    },
+    "floraFeeders": [
+      "bramblehog-line",
+      "nibbin-line",
+      "pollywisp-line"
+    ]
+  },
+  "input": {
+    "seed": 4242,
+    "kind": "wild",
+    "nodeId": "r1",
+    "playerParty": [
+      {
+        "uid": "p-ember",
+        "lineId": "cindril-line",
+        "age": "A",
+        "level": 18,
+        "traits": [],
+        "nickname": "Ember"
+      }
+    ],
+    "enemyParty": [
+      {
+        "uid": "w-nibbin",
+        "lineId": "nibbin-line",
+        "age": "J",
+        "level": 4,
+        "traits": []
+      }
+    ],
+    "bag": {
+      "weighted": 3,
+      "Producer": 2
+    }
+  },
+  "actions": [
+    {
+      "kind": "move",
+      "moveId": "lure"
+    },
+    {
+      "kind": "snare",
+      "tier": "weighted",
+      "baitId": "Producer"
+    }
+  ],
+  "expect": {
+    "outcome": "caught",
+    "turns": 2,
+    "events": 10,
+    "eventDigest": "44c4c897",
+    "caughtUid": "w-nibbin",
+    "_reRecordedAtIntegration": "events 9 -> 10 and eventDigest d90d55fd -> 44c4c897. The battle is UNCHANGED: outcome, turns, caughtUid and every HP are identical. The extra entry is a `lureChanged` event, added to the BattleEvent union at integration to clear a blocker lane A3 reported and could not fix (core/types.ts was another lane's file). bible \u00a73's Lure changes catch odds for the rest of the battle and nothing in the log said so, which build-doc \u00a74 needs \u2014 'the Phaser scene is a renderer of its event log'. Re-recorded, not loosened: the digest is still exact."
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "_why": "build-doc §11 — 'fixtures/mini-node.json (3 species, tiny counts — hand-checkable sim math)'. Real species from bible §4 (G2: nothing invented), one per trophic level of the Meadow: loamunder-line is the Producer, nibbin-line the Grazer, skir-line the Mesopredator. The counts and breed rates are chosen so that ONE full ecosim.step() lands on exact integers with no stochastic rounding at all — the arithmetic is checkable on paper, and the step consumes zero RNG draws. tests/property/ecosim.test.ts carries the hand computation term by term.",
+  "_handComputedStep": {
+    "floraUnits": "45 × balance.ecosim.floraPreyUnitsPerPoint (2.0) = 90",
+    "loamunder-line": "Producer → no live diet → foodFactor = noDietFoodFactor 1.0; births 10 × 0.12 × 1.0 = 1.2; predation from nibbin 2.0 × (10/100) = 0.2; 10 + 1.2 − 0.2 = 11.0",
+    "nibbin-line": "prey = loamunder 10 + flora 90 = 100; demand 20 × 3 = 60; ratio 1.667 → clamped to 1.25; births 20 × 0.04 × 1.25 = 1.0; predation from skir 1.0; 20 + 1.0 − 1.0 = 20.0",
+    "skir-line": "prey = nibbin 20; demand 10 × 2 = 20; ratio 1.0; births 10 × 0.10 × 1.0 = 1.0; no predator; 10 + 1.0 = 11.0",
+    "flora": "45 − (2.0 × 90/100)/2.0 = 45 − 0.9, + floraRegenPerSeason 8 = 52.1",
+    "recentDeaths": "0 × (1 − 0.5) + (0.2 + 1.0) = 1.2"
+  },
+  "id": "mini-node",
+  "name": "Mini Node",
+  "biome": "Meadow",
+  "adjacency": [],
+  "walkable": false,
+  "mapAsset": "fixtures/mini-node.png",
+  "yearVariants": {},
+  "collisionMask": "fixtures/mini-node.mask.png",
+  "floraStock": 45,
+  "populations": {
+    "loamunder-line": { "count": 10, "breedRate": 0.12, "carryCap": 40 },
+    "nibbin-line": { "count": 20, "breedRate": 0.04, "carryCap": 60 },
+    "skir-line": { "count": 10, "breedRate": 0.1, "carryCap": 30 }
+  },
+  "props": []
+}

@@ -1,0 +1,300 @@
+{
+  "_comment": "EVERY gameplay tunable in TROPHIC. Guardrail G11 / INV-4: no gameplay constant may be a literal in code — all read from this file. Retuning balance touches this file only (INV-3). Sources are cited per group; anything sourced 'build-doc addition' is explicitly tunable there.",
+  "_singleSource": "No number in this file may also be written somewhere else in data/. Numbers the bible states FOR A NAMED MOVE (powers 40/70/50/60, Singe/Dous 20%, Regrow 30%, Trample +25, Terrify 2 turns) are CONTENT and live only in data/moves.json; magnitudes the bible names without numbering live only here, referenced from moves.json by `magnitudeKey`. tests/unit/transcription.test.ts gates both directions.",
+  "types": {
+    "_source": "bible §1 — multiplier VALUES only; the chart SHAPE is content and lives in data/moves.json.",
+    "superEffective": 1.5,
+    "resisted": 0.67,
+    "neutral": 1.0,
+    "predation": 1.25,
+    "beastBaseStatBonus": 0.1
+  },
+  "age": {
+    "_source": "bible §2 age multiplier; bible §4 lifespan on catch; build-doc §3 L9 / §7.4 metamorphic jump.",
+    "multiplier": { "J": 0.75, "A": 1.0, "E": 1.15 },
+    "metamorphicJump": 1.15,
+    "lifespanYears": { "J": 3, "A": 2, "E": 1 },
+    "yearsInClass": { "J": 1, "A": 1, "E": 1 }
+  },
+  "stats": {
+    "_source": "bible §2 — effective stat = Base × AgeMult × (1 + 0.02 × Level) + trait modifiers; traits are flat ±10%.",
+    "levelCoefficient": 0.02,
+    "traitModPct": 0.1,
+    "boonModPct": 0.1,
+    "baseStatMin": 30,
+    "baseStatMax": 100
+  },
+  "traits": {
+    "_source": "bible §2 — 'Traits: flat ±10% modifiers with names (\"Thick Pelt: +10% Defense\"). 1 per wild creature, +1 slot via inheritance, Elders roll rare traits.' The MAGNITUDE is stats.traitModPct (never repeated per trait); the pool below carries only name/stat/direction/rarity. Rare traits are the Elder-only pool and are always beneficial — that is what makes an Elder roll worth having. Names other than 'Thick Pelt' (bible-verbatim) and 'Silk-Spun' (DEVIATIONS D7) are coined: DEVIATIONS D16, in scope for the G15 IP sweep.",
+    "slotsPerWildCreature": 1,
+    "inheritedSlotBonus": 1,
+    "maxSlots": 2,
+    "elderRareChance": 0.25,
+    "pool": [
+      { "id": "thick-pelt", "name": "Thick Pelt", "stat": "def", "direction": "up", "rarity": "common" },
+      { "id": "keen-eye", "name": "Keen Eye", "stat": "ins", "direction": "up", "rarity": "common" },
+      { "id": "fleet-step", "name": "Fleet Step", "stat": "spd", "direction": "up", "rarity": "common" },
+      { "id": "strong-jaw", "name": "Strong Jaw", "stat": "atk", "direction": "up", "rarity": "common" },
+      { "id": "deep-lungs", "name": "Deep Lungs", "stat": "hp", "direction": "up", "rarity": "common" },
+      { "id": "brittle-hide", "name": "Brittle Hide", "stat": "def", "direction": "down", "rarity": "common" },
+      { "id": "dulled-sense", "name": "Dulled Sense", "stat": "ins", "direction": "down", "rarity": "common" },
+      { "id": "heavy-footed", "name": "Heavy-Footed", "stat": "spd", "direction": "down", "rarity": "common" },
+      { "id": "soft-bite", "name": "Soft Bite", "stat": "atk", "direction": "down", "rarity": "common" },
+      { "id": "frail-frame", "name": "Frail Frame", "stat": "hp", "direction": "down", "rarity": "common" },
+      { "id": "stoneblood", "name": "Stoneblood", "stat": "def", "direction": "up", "rarity": "rare" },
+      { "id": "silk-spun", "name": "Silk-Spun", "stat": "spd", "direction": "up", "rarity": "rare" },
+      { "id": "ember-heart", "name": "Ember-Heart", "stat": "atk", "direction": "up", "rarity": "rare" },
+      { "id": "long-memory", "name": "Long Memory", "stat": "ins", "direction": "up", "rarity": "rare" },
+      { "id": "old-growth", "name": "Old Growth", "stat": "hp", "direction": "up", "rarity": "rare" }
+    ]
+  },
+  "damage": {
+    "_source": "build-doc §7.4 damage roll; crit is driven by Instinct (bible §2) and is a build-doc-addition tunable.",
+    "rollMin": 0.9,
+    "rollMax": 1.1,
+    "critMultiplier": 1.5,
+    "critChanceBase": 0.04,
+    "critChancePerInstinct": 0.0008,
+    "minDamage": 1
+  },
+  "status": {
+    "_source": "build-doc §7.4 — Burn 6%/turn chip; Toxin 4% ramping +2%/turn; Soak −30% Speed; Daze 25% skip. One status at a time, newest wins. NOTE: the light-type-move apply chance is NOT here — bible §3 states it per move ('Singe (40, 20% Burn)'), so it is content and lives once, in data/moves.json.",
+    "burnChipFracPerTurn": 0.06,
+    "toxinChipFracPerTurn": 0.04,
+    "toxinRampPerTurn": 0.02,
+    "toxinMaxFracPerTurn": 0.2,
+    "soakSpdMult": 0.7,
+    "dazeSkipChance": 0.25,
+    "persistUntilCured": true
+  },
+  "moves": {
+    "_source": "bible §3 — 'Each creature has exactly 4 move slots: 2 type moves + 1 role move + 1 utility, unlocked at levels 1/5/10/15'; build-doc §7.1 repeats the 1/5/10/15 in movePool slot order. Keyed by the movePool slot names so core/battle.ts can answer 'which moves does a level-7 creature know' from data alone (G11 / INV-4).",
+    "slotUnlockLevels": { "type1": 1, "type2": 5, "role": 10, "utility": 15 }
+  },
+  "moveEffects": {
+    "_source": "Magnitudes bible §3 names without numbering ('+Defense', '+evasion'). Moves reference these by magnitudeKey so no magnitude is a literal in code or duplicated in moves.json.",
+    "magnitude": {
+      "secondaryStatDrop": 0.15,
+      "utilityStatMod": 0.25,
+      "evasionBonus": 0.3
+    },
+    "defaultStatModTurns": 3
+  },
+  "battle": {
+    "_source": "MERGED AT INTEGRATION from data/balance.additions.A3.json (lane A3, core/battle.ts). bible §3 utility move Burrow/Roost — 'skip turn, +evasion'; build-doc §7.4 statuses + status.persistUntilCured.",
+    "evadeTurns": 1,
+    "statusWearOffTurns": 3,
+    "_why": "evadeTurns 1 = the evasion covers the turn the user spent skipping and no longer. (The evade also resolves BEFORE the opponent's attack — core/battle.ts `movePriority` — because an evade applied after the hit it is meant to duck mitigates nothing, which made the move strictly dominated for every creature slower than its opponent.) Any larger duration makes a 0-power utility move strictly better than attacking, which would break the §10.5 round-robin band. statusWearOffTurns is consulted ONLY when status.persistUntilCured is false: with the shipped `true` a status never wears off on its own (build-doc §7.4 names no expiry), so the number is inert at ship — it exists so that flipping the advertised flag in the balance harness actually changes behaviour instead of doing nothing."
+  },
+  "catch": {
+    "_source": "build-doc §7.4 catch formula (build-doc addition, tunable): p = baseCatch(age) × snareTier × baitMult × (2 − hpFrac)/2 × lureMult, clamped.",
+    "baseCatch": { "J": 0.5, "A": 0.3, "E": 0.15 },
+    "baseCatchAncient": 0.05,
+    "snareTier": { "base": 1.0, "weighted": 1.5, "master": 2.2 },
+    "baitMult": { "none": 1.0, "role": 1.5, "species": 2.0 },
+    "lureMult": 1.5,
+    "hpTermOffset": 2,
+    "hpTermDivisor": 2,
+    "clampMin": 0.02,
+    "clampMax": 0.95,
+    "shakes": 3
+  },
+  "medicine": {
+    "_source": "bible §11 — 'Medicines — salve (field heal), tonic (status cure), inn rest (full heal, 2 ticks).' The bible names the effects without numbering them, so the magnitudes are build-doc-addition tunables. Item ids live here too so BattleAction {kind:\"item\", itemId} resolves without a literal in code (G11). Inn tick cost is clock.innTicks.",
+    "salveItemId": "salve",
+    "salveHealFracMaxHp": 0.5,
+    "tonicItemId": "tonic",
+    "tonicClearsStatus": true,
+    "innRestFullHeal": true
+  },
+  "xp": {
+    "_source": "build-doc §7.4 (build-doc addition, tunable): xpGain = 12 + 4×enemyLevel × ageBonus(E:1.3); xpToNext(l) = 15 × l^1.4; cap 40.",
+    "base": 12,
+    "perEnemyLevel": 4,
+    "ageBonus": { "J": 1.0, "A": 1.0, "E": 1.3 },
+    "toNextCoefficient": 15,
+    "toNextExponent": 1.4,
+    "levelCap": 40,
+    "starterLevel": 5
+  },
+  "flee": {
+    "_source": "build-doc §7.4 — pFlee = 0.4 + 0.4 × (mySpd/theirSpd), clamp .1–.95.",
+    "base": 0.4,
+    "spdCoefficient": 0.4,
+    "clampMin": 0.1,
+    "clampMax": 0.95
+  },
+  "ecosim": {
+    "_source": "build-doc §7.3 numbered population step. presence multipliers per bible §4 Ancients.",
+    "_demand": "demand[s] = count[s] × demandPerIndividual[role of s] (role read at webRoleAgeClass). Per-ROLE because the pyramid is per-role: one global figure cannot make an Apex starve when its prey crash without starving every Mesopredator at the shipped state. A role whose value is 0 has NO live diet at all (bible §5: Producers photosynthesise, Scavengers 'eat nothing live', Ancients 'eat nothing') — for those the sim uses noDietFoodFactor and skips the §7.3 step-2 starvation check entirely, instead of dividing by zero or starving them to extinction. Values are calibrated against the shipped node counts so that (a) nothing starves at the shipped state and (b) any Apex whose derived prey pool falls to 10% crosses starveThreshold — build-doc §10.2 `cascade_emerges`. Both directions are gated by tests/unit/transcription.test.ts.",
+    "foodFactorClampMin": 0.25,
+    "foodFactorClampMax": 1.25,
+    "starveThreshold": 0.4,
+    "starveRate": 0.3,
+    "predationDraw": 0.1,
+    "keystoneBreedMult": 1.5,
+    "ventWarmthBreedMult": 1.25,
+    "waterTableBreedFloor": 0.15,
+    "presenceRadiusNodes": 1,
+    "recentDeathsDecayPerSeason": 0.5,
+    "webRoleAgeClass": "A",
+    "demandPerIndividual": {
+      "Producer": 0,
+      "Grazer": 3,
+      "Mesopredator": 2,
+      "Apex": 6,
+      "Scavenger": 0,
+      "AncientApex": 0
+    },
+    "noDietFoodFactor": 1.0,
+    "floraPreyUnitsPerPoint": 2.0,
+    "floraRegenPerSeason": 8,
+    "floraMin": 0,
+    "floraMax": 100,
+    "populationFloor": 0,
+    "_starveTermination": "MERGED AT INTEGRATION from data/balance.additions.A2.json. build-doc §7.3 steps 2 and 4 leave one gap between them: with `deaths = count × starveRate` alone, a starving population of 3 goes 2.1 → 1.47 → 1.03 → 0.72 and, under stochastic rounding, can sit at 1 individual indefinitely — so a crash never RESOLVES and `apex count → 0` (§10.2 `cascade_emerges`) is not a law, only a likelihood. These two keys make starvation terminal: a starving population loses at least one individual per season and does not breed while starving. Both are general rules over every species at every node (no species is named anywhere — G6); neither can fire at the shipped node states, where the lowest food ratio is 0.67 against a starveThreshold of 0.4.",
+    "starveMinDeathsPerSeason": 1,
+    "starveSuppressesBirths": true,
+    "_presenceEffects": "MERGED AT INTEGRATION from data/balance.additions.A2.json. bible §4 states what each Ancient's presence does — Vellsire 'buffs all breeding rates in adjacent nodes (keystone)', Kilnback 'keeps the steppe vents warm (Fire spawns active)', Undermere 'steadies the marsh water table (Water breeding)'. The MAGNITUDES are keystoneBreedMult / ventWarmthBreedMult / waterTableBreedFloor above, but nothing said which type an effect acts on or whether it multiplies or floors — so both had to be decided in core/ecosim.ts, where `if (effect === \"waterTable\")` was a bare code literal (G11) that, because data/species.json carries exactly ONE line per effect name, was in practice `if (this is Undermere)` (G6). Both halves now live here: `mode` selects the SHAPE of the effect from a structural vocabulary (PRESENCE_MODES) that any number of Ancients could share, `type` names what it acts on, and `magnitudeKey` points at the number above rather than repeating it (DEVIATIONS D19 — one number, one home). Adding a fourth Ancient with an existing shape is a data edit (INV-1), not a code edit.",
+    "presenceEffects": {
+      "keystoneBreed": { "mode": "breedMult", "magnitudeKey": "keystoneBreedMult" },
+      "ventWarmth": { "mode": "typeBreedMult", "type": "Fire", "magnitudeKey": "ventWarmthBreedMult" },
+      "waterTable": { "mode": "typeBreedFloor", "type": "Water", "magnitudeKey": "waterTableBreedFloor" }
+    }
+  },
+  "cascade": {
+    "_source": "MERGED AT INTEGRATION from data/balance.additions.A2.json. build-doc §10.2 states the `cascade_emerges` property in numbers — 'forcing its primary prey to <10% for 2 consecutive seasons yields apex count →0 and mesopredator count strictly rising within 4 seasons'. They are thresholds of the CLAIM, not of the sim, so they live here rather than as literals in tests/property/ecosim.test.ts. `mesoReleaseSeasons` is the window the release clause is measured over, counted from the season the apex reaches 0.",
+    "preyForcedFraction": 0.1,
+    "forcingSeasons": 2,
+    "apexCollapseSeasons": 4,
+    "mesoReleaseSeasons": 4,
+    "_coverage": "The two coverage floors below are the property test's own thresholds, kept out of the test body for the same reason as the four above: they are claims about the shipped content, and a reviewer must be able to see what strength was claimed without reading a test. `mesoSurvivesForcingMinFraction` is the fraction of seeds in which a mesopredator whose forced target is at least one individual is still alive when the apex reaches 0 (measured at r4: 0.66). `releaseCoverageMinFraction` is the fraction of generated cascades in which anything survived to be released (measured: ~0.4).",
+    "mesoSurvivesForcingMinFraction": 0.3,
+    "releaseCoverageMinFraction": 0.25
+  },
+  "clock": {
+    "_source": "build-doc §3 L8 — 16-tick season meter; travel 1 / foray 1 / inn 2; year = gym victory or full meter; 4 ticks per season.",
+    "ticksPerSeason": 4,
+    "ticksPerYear": 16,
+    "travelTicks": 1,
+    "forayTicks": 1,
+    "innTicks": 2,
+    "seasonOrder": ["spring", "summer", "autumn", "winter"],
+    "startYear": 1,
+    "startTick": 0,
+    "yearsTotal": 6
+  },
+  "encounter": {
+    "_source": "build-doc §7.2 derivations — weight = live population count, migrants filtered by season, Scavenger weight × (1 + recentDeaths/scavengerRecentDeathsDivisor). Rates are build-doc-addition tunables.",
+    "_throughput": "build-doc §4: 'A foray step rolls encounters' (plural) and §3 L8 charges a foray ONE tick — so a foray is an excursion of stepsPerForay encounter rolls, each at encounterChancePerStep, not a single roll. The pair is load-bearing: 16 ticks/year × stepsPerForay × encounterChancePerStep is the player's maximum encounters per year at one node, and the year-1 over-catch demo beat (build-doc §1, §15 I2) is only reachable if that budget beats the target populations' regrowth. Gated by tests/unit/transcription.test.ts.",
+    "stepsPerForay": 48,
+    "encounterChancePerStep": 0.18,
+    "outOfSeasonWeight": 0,
+    "scavengerRecentDeathsDivisor": 10,
+    "signChainGatedHabitatTag": "hidden",
+    "ageWeights": { "J": 0.5, "A": 0.4, "E": 0.1 },
+    "levelByYear": [4, 10, 16, 22, 28, 34],
+    "levelJitter": 2,
+    "minLevel": 2
+  },
+  "retirement": {
+    "_source": "build-doc §7.5 step 3 — HEIR (level = floor(parent×0.5), inherits 1–2 traits) or BOON (+10% to one stat).",
+    "_boonMagnitude": "The BOON's +10% is stats.boonModPct and lives ONLY there. A `retirement.boonStatPct` duplicate existed until integration and was deleted per this file's own _singleSource rule and DEVIATIONS D-A4-13: core/battle.ts read stats.boonModPct while core/lifecycle.ts read retirement.boonStatPct, so retuning either alone made the creature card and the battle disagree.",
+    "heirLevelFactor": 0.5,
+    "heirInheritedTraitsMin": 1,
+    "heirInheritedTraitsMax": 2,
+    "_heirLevelMin": "MERGED AT INTEGRATION from data/balance.additions.A4.json. build-doc §7.5 step 3: HEIR level = floor(parentLevel × heirLevelFactor), which gives 0 for a level-1 parent. bible §2 states 'Levels 1–40', so the minimum is 1. encounter.minLevel is NOT reusable here — that is the floor on WILD encounter levels (2), a different rule.",
+    "heirLevelMin": 1,
+    "_boonMaxStacks": "MERGED AT INTEGRATION from data/balance.additions.A4.json. build-doc §7.5 step 3 gives the BOON a size (+10% to one stat) but no count, so nothing bounded it: a full party of six Elders retiring on the same turn — which is exactly what happens to a party caught together in year 1 — could put six boons on one survivor for +60% to a single stat, and the save validated. The unit of the rule is the bible §2 trait modifier (±10%) and the trait system's own ceiling is traits.maxSlots = 2, so 2 is the matching ceiling here: any one stat can be lifted by at most +20% from legacies.",
+    "boonMaxStacksPerStat": 2
+  },
+  "yearEvents": {
+    "_source": "MERGED AT INTEGRATION from data/balance.additions.A4.json. build-doc §7.5 step 5: 'node sims run their 4th season step + year events (Cullbrand raid scripts decrement scripted node populations)'. bible §9 'Cullbrand Harvest raids (scripted per act, populations visibly drop at a named node)'. The raids are DATA, never code: the year turn only applies whatever this list says. G6 note — a raid may only decrement the harvested populations; it must never touch the predators above them. The predator collapse that makes Cindershelf's arrival read as 'mid-collapse' has to EMERGE from the build-doc §7.3 rules once the prey are gone, which is exactly why the numbers below stop at the two Grazer lines.",
+    "raids": [
+      {
+        "id": "cullbrand-strip-harvest-r4",
+        "year": 4,
+        "nodeId": "r4",
+        "_source": "bible §6 year 4, Cindershelf: 'arrival mid-collapse — Route 4's web already crashed by Cullbrand strip-harvest'. This is the only raid the bible pins to a named node and year; the remaining per-act raids are content another lane must author into this list, not numbers to invent here.",
+        "targets": [
+          { "lineId": "ashvole-line", "remove": 11 },
+          { "lineId": "cragmar-line", "remove": 8 }
+        ]
+      }
+    ]
+  },
+  "overlayDiff": {
+    "_source": "build-doc §8.2 / §9.5 — IoU ≥ 0.85 on dilated Sobel edges within walkable cells; denoise 0.35 stepping −0.05 to a 0.2 floor; ≤3 regen attempts.",
+    "iouThreshold": 0.85,
+    "sobelThreshold": 0.25,
+    "dilatePx": 2,
+    "denoiseStart": 0.35,
+    "denoiseStep": 0.05,
+    "denoiseFloor": 0.2,
+    "maxRegenAttempts": 3
+  },
+  "map": {
+    "_source": "build-doc §7.6 — virtual 480×320 integer-scaled; painted maps 1024² rendered 2×; mask sampled on a 16px grid (64×64 cells); player 32×48, tile step 32.",
+    "virtualWidth": 480,
+    "virtualHeight": 320,
+    "mapNativePx": 1024,
+    "mapRenderScale": 2,
+    "collisionCellPx": 16,
+    "collisionCols": 64,
+    "collisionRows": 64,
+    "playerSpriteW": 32,
+    "playerSpriteH": 48,
+    "tileStepPx": 32,
+    "propInteractionRadiusDefault": 48
+  },
+  "party": {
+    "_source": "build-doc §3 L12 / §7.8 — versioned JSON in localStorage, 3 slots.",
+    "maxPartySize": 6,
+    "maxBoxSize": 60,
+    "saveSlots": 3,
+    "saveVersion": 1
+  },
+  "economy": {
+    "_source": "bible §11 — snares ×3 tiers, baits role-generic vs species-specific, medicines, inn rest. Prices are build-doc-addition tunables; medicine EFFECTS are in `medicine`.",
+    "innCost": 40,
+    "snarePrice": { "base": 25, "weighted": 60, "master": 150 },
+    "baitPrice": { "none": 0, "role": 15, "species": 45 },
+    "salvePrice": 30,
+    "tonicPrice": 45,
+    "trainerPayoutPerLevel": 12
+  },
+  "audio": {
+    "_source": "bible §12a procedural treatments — season DSP presets and progressive year darkening.",
+    "seasonLowpassHz": { "spring": 20000, "summer": 20000, "autumn": 8000, "winter": 4500 },
+    "seasonBrightness": { "spring": 1.0, "summer": 1.15, "autumn": 0.9, "winter": 0.75 },
+    "yearDarkenPerYear": 0.08
+  },
+  "harness": {
+    "_source": "build-doc §10.5 — gym win-rate targets 80–95 / 60–80 / 45–65 by pair, round-robin flags outside 35–65%, 500 seeds.",
+    "seeds": 500,
+    "gymWinRateTargets": [[0.8, 0.95], [0.8, 0.95], [0.6, 0.8], [0.6, 0.8], [0.45, 0.65], [0.45, 0.65]],
+    "roundRobinMin": 0.35,
+    "roundRobinMax": 0.65,
+    "maxBattleTurns": 200,
+    "overcatch": {
+      "_source": "build-doc §1 demo beat 1 (never-cut) + §15 I2: 'cascade demo reproducible from overcatch-script.json in real play'. This group states the reference player the feasibility gate assumes — a determined player working ONE walkable node, using the snare tier and bait below and throwing at referenceHpFrac. The gate (tests/unit/transcription.test.ts) requires that this player can drive an Apex's derived prey pool under the starvation threshold within yearsBudget years DESPITE regrowth.",
+      "yearsBudget": 1,
+      "snareTier": "weighted",
+      "baitMatch": "species",
+      "referenceHpFrac": 0.5
+    }
+  },
+  "perf": {
+    "_source": "build-doc §12 — ecosim.step all 12 nodes < 5ms with ×4 margin on mega-node; battle reducer < 1ms/action; save serialize < 50ms; boot < 3s.",
+    "ecosimStepBudgetMs": 5,
+    "megaNodeMarginMultiplier": 4,
+    "battleActionBudgetMs": 1,
+    "saveSerializeBudgetMs": 50,
+    "bootBudgetMs": 3000
+  },
+  "rng": {
+    "_source": "build-doc §8.1 — one seeded xorshift128 stream per subsystem, seeds derived from save seed + subsystem tag. the seeded stream is the only source of randomness in the project (G11).",
+    "defaultSeed": 1337,
+    "subsystemTags": ["battle", "sim", "encounter"]
+  }
+}

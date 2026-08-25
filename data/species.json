@@ -1,0 +1,1290 @@
+{
+  "_source": "docs/content-bible.md §4 (roster table + metamorphic-line prose). Transcribed, never invented (G2).",
+  "_statRule": "bible §4 gives no per-species numbers, so baseStats are assigned by rule, not by taste. STEP 1 role template (by the line’s ADULT role; age multipliers and the metamorphic ×1.15 carry the juvenile/elder difference): Producer 85/40/80/35/60 · Grazer 80/55/70/45/50 · Grazer(large) 90/65/80/35/30 · Mesopredator 60/70/50/80/40 · Apex 75/90/65/40/30 · Scavenger 55/60/45/75/65 · AncientApex 95/95/85/70/55 (hp/atk/def/spd/ins). STEP 2 zero-sum ±5 tilt on the ADULT primary type: Beast +atk/-ins · Fire +spd/-def · Water +hp/-spd · Plant +def/-atk · Earth +def/-spd · Wind +spd/-hp · Poison +ins/-def · Dark +ins/-hp. Consequences: every stat lands inside bible §2’s 30–100 band; every aging line totals exactly 300 and every Ancient exactly 400, so no line is strictly dominant — only differently shaped. Beast’s +10% (bible §1) is applied at runtime from balance.json, NOT baked in here.",
+  "_movePoolRule": "bible §3: 2 type + 1 role + 1 utility. The unlock LEVELS are not repeated here — they live once, in balance.moves.slotUnlockLevels, keyed by these slot names (G11 / DEVIATIONS D21). type1 = LIGHT move of the adult primary type; type2 = HEAVY move of the adult secondary type (primary again when mono-type); role = the role move of the adult role (AncientApex fields the Apex move Terrify — bible §3 defines five role moves for six roles); utility = by role (Producer harden · Grazer burrow-roost · Mesopredator quicken · Apex snarl · Scavenger screech · AncientApex focus), overridden to lure on the three starters — the player’s own creature is the one that raises catch odds, and this puts all 7 utility moves in use.",
+  "_counts": {
+    "lines": 27,
+    "dexIdentities": 35
+  },
+  "species": [
+    {
+      "id": "cindril-line",
+      "dexIds": [
+        "Cindril",
+        "Vulkindle",
+        "Pyrevane"
+      ],
+      "formNames": {
+        "J": "Cindril",
+        "A": "Vulkindle",
+        "E": "Pyrevane"
+      },
+      "types": {
+        "J": [
+          "Fire"
+        ],
+        "A": [
+          "Fire"
+        ],
+        "E": [
+          "Fire"
+        ]
+      },
+      "role": {
+        "J": "Mesopredator",
+        "A": "Mesopredator",
+        "E": "Mesopredator"
+      },
+      "habitat": [
+        "starter"
+      ],
+      "baseStats": {
+        "hp": 60,
+        "atk": 70,
+        "def": 45,
+        "spd": 85,
+        "ins": 40
+      },
+      "metamorphic": true,
+      "ancient": false,
+      "movePool": {
+        "type1": "singe",
+        "type2": "pyre",
+        "role": "ambush",
+        "utility": "lure"
+      }
+    },
+    {
+      "id": "puddlisk-line",
+      "dexIds": [
+        "Puddlisk",
+        "Rillisk",
+        "Maelstrisk"
+      ],
+      "formNames": {
+        "J": "Puddlisk",
+        "A": "Rillisk",
+        "E": "Maelstrisk"
+      },
+      "types": {
+        "J": [
+          "Water"
+        ],
+        "A": [
+          "Water"
+        ],
+        "E": [
+          "Water"
+        ]
+      },
+      "role": {
+        "J": "Mesopredator",
+        "A": "Mesopredator",
+        "E": "Mesopredator"
+      },
+      "habitat": [
+        "starter"
+      ],
+      "baseStats": {
+        "hp": 65,
+        "atk": 70,
+        "def": 50,
+        "spd": 75,
+        "ins": 40
+      },
+      "metamorphic": true,
+      "ancient": false,
+      "movePool": {
+        "type1": "dous",
+        "type2": "riptide",
+        "role": "ambush",
+        "utility": "lure"
+      }
+    },
+    {
+      "id": "thornlet-line",
+      "dexIds": [
+        "Thornlet",
+        "Bramblore",
+        "Thornwald"
+      ],
+      "formNames": {
+        "J": "Thornlet",
+        "A": "Bramblore",
+        "E": "Thornwald"
+      },
+      "types": {
+        "J": [
+          "Plant"
+        ],
+        "A": [
+          "Plant"
+        ],
+        "E": [
+          "Plant"
+        ]
+      },
+      "role": {
+        "J": "Mesopredator",
+        "A": "Mesopredator",
+        "E": "Mesopredator"
+      },
+      "habitat": [
+        "starter"
+      ],
+      "baseStats": {
+        "hp": 60,
+        "atk": 65,
+        "def": 55,
+        "spd": 80,
+        "ins": 40
+      },
+      "metamorphic": true,
+      "ancient": false,
+      "movePool": {
+        "type1": "bramble",
+        "type2": "overgrow",
+        "role": "ambush",
+        "utility": "lure"
+      }
+    },
+    {
+      "id": "nibbin-line",
+      "dexIds": [
+        "Nibbin"
+      ],
+      "formNames": {
+        "J": "Nibbin",
+        "A": "Nibbin",
+        "E": "Nibbin"
+      },
+      "types": {
+        "J": [
+          "Beast"
+        ],
+        "A": [
+          "Beast"
+        ],
+        "E": [
+          "Beast"
+        ]
+      },
+      "role": {
+        "J": "Grazer",
+        "A": "Grazer",
+        "E": "Grazer"
+      },
+      "habitat": [
+        "Meadow"
+      ],
+      "baseStats": {
+        "hp": 80,
+        "atk": 60,
+        "def": 70,
+        "spd": 45,
+        "ins": 45
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "gnaw",
+        "type2": "maul",
+        "role": "trample",
+        "utility": "burrow-roost"
+      }
+    },
+    {
+      "id": "pollywisp-line",
+      "dexIds": [
+        "Pollywisp"
+      ],
+      "formNames": {
+        "J": "Pollywisp",
+        "A": "Pollywisp",
+        "E": "Pollywisp"
+      },
+      "types": {
+        "J": [
+          "Wind",
+          "Plant"
+        ],
+        "A": [
+          "Wind",
+          "Plant"
+        ],
+        "E": [
+          "Wind",
+          "Plant"
+        ]
+      },
+      "role": {
+        "J": "Grazer",
+        "A": "Grazer",
+        "E": "Grazer"
+      },
+      "habitat": [
+        "Meadow"
+      ],
+      "baseStats": {
+        "hp": 75,
+        "atk": 55,
+        "def": 70,
+        "spd": 50,
+        "ins": 50
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "harry",
+        "type2": "overgrow",
+        "role": "trample",
+        "utility": "burrow-roost"
+      },
+      "seasonalWindow": "spring"
+    },
+    {
+      "id": "bramblehog-line",
+      "dexIds": [
+        "Bramblehog"
+      ],
+      "formNames": {
+        "J": "Bramblehog",
+        "A": "Bramblehog",
+        "E": "Bramblehog"
+      },
+      "types": {
+        "J": [
+          "Plant"
+        ],
+        "A": [
+          "Plant"
+        ],
+        "E": [
+          "Plant"
+        ]
+      },
+      "role": {
+        "J": "Grazer",
+        "A": "Grazer",
+        "E": "Grazer"
+      },
+      "habitat": [
+        "Meadow"
+      ],
+      "baseStats": {
+        "hp": 80,
+        "atk": 50,
+        "def": 75,
+        "spd": 45,
+        "ins": 50
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "bramble",
+        "type2": "overgrow",
+        "role": "trample",
+        "utility": "burrow-roost"
+      }
+    },
+    {
+      "id": "skir-line",
+      "dexIds": [
+        "Skir"
+      ],
+      "formNames": {
+        "J": "Skir",
+        "A": "Skir",
+        "E": "Skir"
+      },
+      "types": {
+        "J": [
+          "Wind"
+        ],
+        "A": [
+          "Wind"
+        ],
+        "E": [
+          "Wind"
+        ]
+      },
+      "role": {
+        "J": "Mesopredator",
+        "A": "Mesopredator",
+        "E": "Mesopredator"
+      },
+      "habitat": [
+        "Meadow"
+      ],
+      "baseStats": {
+        "hp": 55,
+        "atk": 70,
+        "def": 50,
+        "spd": 85,
+        "ins": 40
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "harry",
+        "type2": "squall",
+        "role": "ambush",
+        "utility": "quicken"
+      }
+    },
+    {
+      "id": "loamunder-line",
+      "dexIds": [
+        "Loamunder"
+      ],
+      "formNames": {
+        "J": "Loamunder",
+        "A": "Loamunder",
+        "E": "Loamunder"
+      },
+      "types": {
+        "J": [
+          "Earth",
+          "Plant"
+        ],
+        "A": [
+          "Earth",
+          "Plant"
+        ],
+        "E": [
+          "Earth",
+          "Plant"
+        ]
+      },
+      "role": {
+        "J": "Producer",
+        "A": "Producer",
+        "E": "Producer"
+      },
+      "habitat": [
+        "Meadow"
+      ],
+      "baseStats": {
+        "hp": 85,
+        "atk": 40,
+        "def": 85,
+        "spd": 30,
+        "ins": 60
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "sunder",
+        "type2": "overgrow",
+        "role": "regrow",
+        "utility": "harden"
+      }
+    },
+    {
+      "id": "mirefin-line",
+      "dexIds": [
+        "Bogling",
+        "Mirefin"
+      ],
+      "formNames": {
+        "J": "Bogling",
+        "A": "Mirefin",
+        "E": "Mirefin"
+      },
+      "types": {
+        "J": [
+          "Water"
+        ],
+        "A": [
+          "Water",
+          "Poison"
+        ],
+        "E": [
+          "Water",
+          "Poison"
+        ]
+      },
+      "role": {
+        "J": "Grazer",
+        "A": "Mesopredator",
+        "E": "Mesopredator"
+      },
+      "habitat": [
+        "Marsh"
+      ],
+      "baseStats": {
+        "hp": 65,
+        "atk": 70,
+        "def": 50,
+        "spd": 75,
+        "ins": 40
+      },
+      "metamorphic": true,
+      "ancient": false,
+      "movePool": {
+        "type1": "dous",
+        "type2": "miasma",
+        "role": "ambush",
+        "utility": "quicken"
+      }
+    },
+    {
+      "id": "reedrick-line",
+      "dexIds": [
+        "Reedrick"
+      ],
+      "formNames": {
+        "J": "Reedrick",
+        "A": "Reedrick",
+        "E": "Reedrick"
+      },
+      "types": {
+        "J": [
+          "Plant",
+          "Wind"
+        ],
+        "A": [
+          "Plant",
+          "Wind"
+        ],
+        "E": [
+          "Plant",
+          "Wind"
+        ]
+      },
+      "role": {
+        "J": "Grazer",
+        "A": "Grazer",
+        "E": "Grazer"
+      },
+      "habitat": [
+        "Marsh"
+      ],
+      "baseStats": {
+        "hp": 80,
+        "atk": 50,
+        "def": 75,
+        "spd": 45,
+        "ins": 50
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "bramble",
+        "type2": "squall",
+        "role": "trample",
+        "utility": "burrow-roost"
+      },
+      "seasonalWindow": "summer"
+    },
+    {
+      "id": "fenmaw-line",
+      "dexIds": [
+        "Fenmaw"
+      ],
+      "formNames": {
+        "J": "Fenmaw",
+        "A": "Fenmaw",
+        "E": "Fenmaw"
+      },
+      "types": {
+        "J": [
+          "Water"
+        ],
+        "A": [
+          "Water"
+        ],
+        "E": [
+          "Water"
+        ]
+      },
+      "role": {
+        "J": "Apex",
+        "A": "Apex",
+        "E": "Apex"
+      },
+      "habitat": [
+        "Marsh"
+      ],
+      "baseStats": {
+        "hp": 80,
+        "atk": 90,
+        "def": 65,
+        "spd": 35,
+        "ins": 30
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "dous",
+        "type2": "riptide",
+        "role": "terrify",
+        "utility": "snarl"
+      },
+      "dietExceptions": [
+        "reedrick-line"
+      ]
+    },
+    {
+      "id": "sporantle-line",
+      "dexIds": [
+        "Sporantle"
+      ],
+      "formNames": {
+        "J": "Sporantle",
+        "A": "Sporantle",
+        "E": "Sporantle"
+      },
+      "types": {
+        "J": [
+          "Poison",
+          "Plant"
+        ],
+        "A": [
+          "Poison",
+          "Plant"
+        ],
+        "E": [
+          "Poison",
+          "Plant"
+        ]
+      },
+      "role": {
+        "J": "Producer",
+        "A": "Producer",
+        "E": "Producer"
+      },
+      "habitat": [
+        "Marsh",
+        "Forest"
+      ],
+      "baseStats": {
+        "hp": 85,
+        "atk": 40,
+        "def": 75,
+        "spd": 35,
+        "ins": 65
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "blight",
+        "type2": "overgrow",
+        "role": "regrow",
+        "utility": "harden"
+      }
+    },
+    {
+      "id": "mosslet-line",
+      "dexIds": [
+        "Mosslet"
+      ],
+      "formNames": {
+        "J": "Mosslet",
+        "A": "Mosslet",
+        "E": "Mosslet"
+      },
+      "types": {
+        "J": [
+          "Plant"
+        ],
+        "A": [
+          "Plant"
+        ],
+        "E": [
+          "Plant"
+        ]
+      },
+      "role": {
+        "J": "Grazer",
+        "A": "Grazer",
+        "E": "Grazer"
+      },
+      "habitat": [
+        "Forest"
+      ],
+      "baseStats": {
+        "hp": 80,
+        "atk": 50,
+        "def": 75,
+        "spd": 45,
+        "ins": 50
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "bramble",
+        "type2": "overgrow",
+        "role": "trample",
+        "utility": "burrow-roost"
+      }
+    },
+    {
+      "id": "webvern-line",
+      "dexIds": [
+        "Webvern"
+      ],
+      "formNames": {
+        "J": "Webvern",
+        "A": "Webvern",
+        "E": "Webvern"
+      },
+      "types": {
+        "J": [
+          "Poison"
+        ],
+        "A": [
+          "Poison"
+        ],
+        "E": [
+          "Poison"
+        ]
+      },
+      "role": {
+        "J": "Mesopredator",
+        "A": "Mesopredator",
+        "E": "Mesopredator"
+      },
+      "habitat": [
+        "Forest"
+      ],
+      "baseStats": {
+        "hp": 60,
+        "atk": 70,
+        "def": 45,
+        "spd": 80,
+        "ins": 45
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "blight",
+        "type2": "miasma",
+        "role": "ambush",
+        "utility": "quicken"
+      }
+    },
+    {
+      "id": "gloomoth-line",
+      "dexIds": [
+        "Gloomgrub",
+        "Gloomoth"
+      ],
+      "formNames": {
+        "J": "Gloomgrub",
+        "A": "Gloomoth",
+        "E": "Gloomoth"
+      },
+      "types": {
+        "J": [
+          "Poison",
+          "Plant"
+        ],
+        "A": [
+          "Dark",
+          "Wind"
+        ],
+        "E": [
+          "Dark",
+          "Wind"
+        ]
+      },
+      "role": {
+        "J": "Grazer",
+        "A": "Grazer",
+        "E": "Grazer"
+      },
+      "habitat": [
+        "Forest"
+      ],
+      "baseStats": {
+        "hp": 75,
+        "atk": 55,
+        "def": 70,
+        "spd": 45,
+        "ins": 55
+      },
+      "metamorphic": true,
+      "ancient": false,
+      "movePool": {
+        "type1": "shade",
+        "type2": "squall",
+        "role": "trample",
+        "utility": "burrow-roost"
+      },
+      "seasonalWindow": "autumn"
+    },
+    {
+      "id": "duskstalk-line",
+      "dexIds": [
+        "Duskstalk"
+      ],
+      "formNames": {
+        "J": "Duskstalk",
+        "A": "Duskstalk",
+        "E": "Duskstalk"
+      },
+      "types": {
+        "J": [
+          "Dark"
+        ],
+        "A": [
+          "Dark"
+        ],
+        "E": [
+          "Dark"
+        ]
+      },
+      "role": {
+        "J": "Apex",
+        "A": "Apex",
+        "E": "Apex"
+      },
+      "habitat": [
+        "Forest"
+      ],
+      "baseStats": {
+        "hp": 70,
+        "atk": 90,
+        "def": 65,
+        "spd": 40,
+        "ins": 35
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "shade",
+        "type2": "eclipse",
+        "role": "terrify",
+        "utility": "snarl"
+      }
+    },
+    {
+      "id": "barkhide-line",
+      "dexIds": [
+        "Barkhide"
+      ],
+      "formNames": {
+        "J": "Barkhide",
+        "A": "Barkhide",
+        "E": "Barkhide"
+      },
+      "types": {
+        "J": [
+          "Plant",
+          "Earth"
+        ],
+        "A": [
+          "Plant",
+          "Earth"
+        ],
+        "E": [
+          "Plant",
+          "Earth"
+        ]
+      },
+      "role": {
+        "J": "Grazer",
+        "A": "Grazer",
+        "E": "Grazer"
+      },
+      "habitat": [
+        "Forest"
+      ],
+      "baseStats": {
+        "hp": 90,
+        "atk": 60,
+        "def": 85,
+        "spd": 35,
+        "ins": 30
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "bramble",
+        "type2": "upheave",
+        "role": "trample",
+        "utility": "burrow-roost"
+      },
+      "sizeClass": "large"
+    },
+    {
+      "id": "ashvole-line",
+      "dexIds": [
+        "Ashvole"
+      ],
+      "formNames": {
+        "J": "Ashvole",
+        "A": "Ashvole",
+        "E": "Ashvole"
+      },
+      "types": {
+        "J": [
+          "Fire"
+        ],
+        "A": [
+          "Fire"
+        ],
+        "E": [
+          "Fire"
+        ]
+      },
+      "role": {
+        "J": "Grazer",
+        "A": "Grazer",
+        "E": "Grazer"
+      },
+      "habitat": [
+        "Steppe"
+      ],
+      "baseStats": {
+        "hp": 80,
+        "atk": 55,
+        "def": 65,
+        "spd": 50,
+        "ins": 50
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "singe",
+        "type2": "pyre",
+        "role": "trample",
+        "utility": "burrow-roost"
+      }
+    },
+    {
+      "id": "pyrelisk-line",
+      "dexIds": [
+        "Pyrelisk"
+      ],
+      "formNames": {
+        "J": "Pyrelisk",
+        "A": "Pyrelisk",
+        "E": "Pyrelisk"
+      },
+      "types": {
+        "J": [
+          "Fire",
+          "Earth"
+        ],
+        "A": [
+          "Fire",
+          "Earth"
+        ],
+        "E": [
+          "Fire",
+          "Earth"
+        ]
+      },
+      "role": {
+        "J": "Mesopredator",
+        "A": "Mesopredator",
+        "E": "Mesopredator"
+      },
+      "habitat": [
+        "Steppe"
+      ],
+      "baseStats": {
+        "hp": 60,
+        "atk": 70,
+        "def": 45,
+        "spd": 85,
+        "ins": 40
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "singe",
+        "type2": "upheave",
+        "role": "ambush",
+        "utility": "quicken"
+      }
+    },
+    {
+      "id": "cragmar-line",
+      "dexIds": [
+        "Cragmar"
+      ],
+      "formNames": {
+        "J": "Cragmar",
+        "A": "Cragmar",
+        "E": "Cragmar"
+      },
+      "types": {
+        "J": [
+          "Earth"
+        ],
+        "A": [
+          "Earth"
+        ],
+        "E": [
+          "Earth"
+        ]
+      },
+      "role": {
+        "J": "Grazer",
+        "A": "Grazer",
+        "E": "Grazer"
+      },
+      "habitat": [
+        "Steppe"
+      ],
+      "baseStats": {
+        "hp": 80,
+        "atk": 55,
+        "def": 75,
+        "spd": 40,
+        "ins": 50
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "sunder",
+        "type2": "upheave",
+        "role": "trample",
+        "utility": "burrow-roost"
+      }
+    },
+    {
+      "id": "stonewing-line",
+      "dexIds": [
+        "Stonewing"
+      ],
+      "formNames": {
+        "J": "Stonewing",
+        "A": "Stonewing",
+        "E": "Stonewing"
+      },
+      "types": {
+        "J": [
+          "Earth",
+          "Wind"
+        ],
+        "A": [
+          "Earth",
+          "Wind"
+        ],
+        "E": [
+          "Earth",
+          "Wind"
+        ]
+      },
+      "role": {
+        "J": "Apex",
+        "A": "Apex",
+        "E": "Apex"
+      },
+      "habitat": [
+        "Steppe"
+      ],
+      "baseStats": {
+        "hp": 75,
+        "atk": 90,
+        "def": 70,
+        "spd": 35,
+        "ins": 30
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "sunder",
+        "type2": "squall",
+        "role": "terrify",
+        "utility": "snarl"
+      }
+    },
+    {
+      "id": "carricrow-line",
+      "dexIds": [
+        "Carricrow"
+      ],
+      "formNames": {
+        "J": "Carricrow",
+        "A": "Carricrow",
+        "E": "Carricrow"
+      },
+      "types": {
+        "J": [
+          "Dark",
+          "Wind"
+        ],
+        "A": [
+          "Dark",
+          "Wind"
+        ],
+        "E": [
+          "Dark",
+          "Wind"
+        ]
+      },
+      "role": {
+        "J": "Scavenger",
+        "A": "Scavenger",
+        "E": "Scavenger"
+      },
+      "habitat": [
+        "roaming"
+      ],
+      "baseStats": {
+        "hp": 50,
+        "atk": 60,
+        "def": 45,
+        "spd": 75,
+        "ins": 70
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "shade",
+        "type2": "squall",
+        "role": "scrounge",
+        "utility": "screech"
+      }
+    },
+    {
+      "id": "umbrat-line",
+      "dexIds": [
+        "Umbrat"
+      ],
+      "formNames": {
+        "J": "Umbrat",
+        "A": "Umbrat",
+        "E": "Umbrat"
+      },
+      "types": {
+        "J": [
+          "Dark"
+        ],
+        "A": [
+          "Dark"
+        ],
+        "E": [
+          "Dark"
+        ]
+      },
+      "role": {
+        "J": "Grazer",
+        "A": "Grazer",
+        "E": "Grazer"
+      },
+      "habitat": [
+        "Vale"
+      ],
+      "baseStats": {
+        "hp": 75,
+        "atk": 55,
+        "def": 70,
+        "spd": 45,
+        "ins": 55
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "shade",
+        "type2": "eclipse",
+        "role": "trample",
+        "utility": "burrow-roost"
+      }
+    },
+    {
+      "id": "wispurr-line",
+      "dexIds": [
+        "Wispurr"
+      ],
+      "formNames": {
+        "J": "Wispurr",
+        "A": "Wispurr",
+        "E": "Wispurr"
+      },
+      "types": {
+        "J": [
+          "Dark",
+          "Beast"
+        ],
+        "A": [
+          "Dark",
+          "Beast"
+        ],
+        "E": [
+          "Dark",
+          "Beast"
+        ]
+      },
+      "role": {
+        "J": "Mesopredator",
+        "A": "Mesopredator",
+        "E": "Mesopredator"
+      },
+      "habitat": [
+        "Vale"
+      ],
+      "baseStats": {
+        "hp": 55,
+        "atk": 70,
+        "def": 50,
+        "spd": 80,
+        "ins": 45
+      },
+      "metamorphic": false,
+      "ancient": false,
+      "movePool": {
+        "type1": "shade",
+        "type2": "maul",
+        "role": "ambush",
+        "utility": "quicken"
+      },
+      "seasonalWindow": "winter"
+    },
+    {
+      "id": "vellsire-line",
+      "dexIds": [
+        "Vellsire"
+      ],
+      "formNames": {
+        "J": "Vellsire",
+        "A": "Vellsire",
+        "E": "Vellsire"
+      },
+      "types": {
+        "J": [
+          "Beast",
+          "Dark"
+        ],
+        "A": [
+          "Beast",
+          "Dark"
+        ],
+        "E": [
+          "Beast",
+          "Dark"
+        ]
+      },
+      "role": {
+        "J": "AncientApex",
+        "A": "AncientApex",
+        "E": "AncientApex"
+      },
+      "habitat": [
+        "Sanctum",
+        "hidden"
+      ],
+      "baseStats": {
+        "hp": 95,
+        "atk": 100,
+        "def": 85,
+        "spd": 70,
+        "ins": 50
+      },
+      "metamorphic": false,
+      "ancient": true,
+      "movePool": {
+        "type1": "gnaw",
+        "type2": "eclipse",
+        "role": "terrify",
+        "utility": "focus"
+      },
+      "presenceEffect": "keystoneBreed"
+    },
+    {
+      "id": "kilnback-line",
+      "dexIds": [
+        "Kilnback"
+      ],
+      "formNames": {
+        "J": "Kilnback",
+        "A": "Kilnback",
+        "E": "Kilnback"
+      },
+      "types": {
+        "J": [
+          "Fire",
+          "Earth"
+        ],
+        "A": [
+          "Fire",
+          "Earth"
+        ],
+        "E": [
+          "Fire",
+          "Earth"
+        ]
+      },
+      "role": {
+        "J": "AncientApex",
+        "A": "AncientApex",
+        "E": "AncientApex"
+      },
+      "habitat": [
+        "Steppe",
+        "hidden"
+      ],
+      "baseStats": {
+        "hp": 95,
+        "atk": 95,
+        "def": 80,
+        "spd": 75,
+        "ins": 55
+      },
+      "metamorphic": false,
+      "ancient": true,
+      "movePool": {
+        "type1": "singe",
+        "type2": "upheave",
+        "role": "terrify",
+        "utility": "focus"
+      },
+      "presenceEffect": "ventWarmth"
+    },
+    {
+      "id": "undermere-line",
+      "dexIds": [
+        "Undermere"
+      ],
+      "formNames": {
+        "J": "Undermere",
+        "A": "Undermere",
+        "E": "Undermere"
+      },
+      "types": {
+        "J": [
+          "Water",
+          "Dark"
+        ],
+        "A": [
+          "Water",
+          "Dark"
+        ],
+        "E": [
+          "Water",
+          "Dark"
+        ]
+      },
+      "role": {
+        "J": "AncientApex",
+        "A": "AncientApex",
+        "E": "AncientApex"
+      },
+      "habitat": [
+        "Marsh",
+        "hidden"
+      ],
+      "baseStats": {
+        "hp": 100,
+        "atk": 95,
+        "def": 85,
+        "spd": 65,
+        "ins": 55
+      },
+      "metamorphic": false,
+      "ancient": true,
+      "movePool": {
+        "type1": "dous",
+        "type2": "eclipse",
+        "role": "terrify",
+        "utility": "focus"
+      },
+      "presenceEffect": "waterTable"
+    }
+  ]
+}
