@@ -153,7 +153,7 @@ export function gridConsistencyProblem(balance: Balance): string | null {
 }
 
 /** Bytes a packed `cols × rows` bitfield occupies. */
-export function maskForYear(year: number): number { return year; }\nexport function packedByteLength(cols: number, rows: number): number {
+export function packedByteLength(cols: number, rows: number): number {
   return Math.ceil((cols * rows) / BITS_PER_BYTE);
 }
 

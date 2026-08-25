@@ -676,7 +676,7 @@ export interface RawContentBundle {
  * Gym 1 is 3, not the originally-shipped 4: build-doc Hard Req 9 and bible §7 both read 4/4/5/6/6/6
  * until Hank authorised reducing Maribel to three creatures on the strength of the balance harness
  * (gym 1 measured 26.0% against an 80–95% target — the hardest fight in the game). The amendment,
- * the authorisation and the measurements are logged in docs/DEVIATIONS.md (A5-D1). The ramp is
+ * the authorisation and the measurements are logged in docs/DEVIATIONS.md (D-A5-G1). The ramp is
  * otherwise untouched, so the array still says "the first gym is the smallest and they grow".
  *
  * The species count (27) and node count (12) are deliberately NOT here — §6 INV-1/INV-2 say adding
@@ -918,7 +918,7 @@ export function validateBundle(raw: RawContentBundle): Content {
 
   // ── gym cross-checks ────────────────────────────────────────────────────
   // Hard Req 9 — "Gym rosters fixed per bible §7", counting the signature, AS AMENDED to
-  // 3/4/5/6/6/6 by DEVIATIONS A5-D1 (Maribel reduced to three on Hank's authorisation). The sizes
+  // 3/4/5/6/6/6 by DEVIATIONS D-A5-G1 (Maribel reduced to three on Hank's authorisation). The sizes
   // were held only by tests/unit/transcription.test.ts, so the shipped tree was safe but the BOOT
   // validator was not: gym 6 grown to seven, or a seventh leader appearing, all parsed cleanly —
   // and boot is what stands between a live save and corrupt content. Gym 1 at 4 now fails here too,

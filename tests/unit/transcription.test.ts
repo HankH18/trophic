@@ -745,7 +745,7 @@ describe("type chart — bible §1", () => {
 /* ────────────────────────────────────────────────────────────────────────── */
 describe("gym rosters — bible §7", () => {
   it("ships six fixed leaders with roster sizes 3/4/5/6/6/6 including the signature", () => {
-    // 3, not the bible's 4, at gym 1 only: DEVIATIONS A5-D1, authorised by Hank on the harness
+    // 3, not the bible's 4, at gym 1 only: DEVIATIONS D-A5-G1, authorised by Hank on the harness
     // measurement that gym 1 was the hardest fight in the game (26.0% against an 80–95% target).
     // The same three numbers are pinned in core/schemas.ts GYM_ROSTER_SIZES, which now REJECTS a
     // four-creature Maribel at boot — so the amendment cannot be undone silently in either place.
@@ -761,7 +761,7 @@ describe("gym rosters — bible §7", () => {
   it("transcribes each roster line-for-line", () => {
     const roster = (g: GymLeader) => [...g.slots, g.signature].map((s) => `${s.lineId}:${s.age}`);
     // bible §7 reads "Nibbin (A), Bramblehog (A), Skir (A) | Old Nib — Nibbin (E)". The DUPLICATE
-    // Nibbin (A) is the slot cut by DEVIATIONS A5-D1; every other leader is still verbatim.
+    // Nibbin (A) is the slot cut by DEVIATIONS D-A5-G1; every other leader is still verbatim.
     expect(roster(gym("maribel"))).toEqual(["bramblehog-line:A", "skir-line:A", "nibbin-line:E"]);
     expect(roster(gym("odo"))).toEqual(["mirefin-line:J", "reedrick-line:A", "mirefin-line:A", "fenmaw-line:E"]);
     expect(roster(gym("vesper"))).toEqual(["gloomoth-line:J", "sporantle-line:A", "mirefin-line:A", "webvern-line:A", "webvern-line:E"]);
@@ -789,7 +789,7 @@ describe("gym rosters — bible §7", () => {
     // gyms.json `_levels`: "roster level = 8 + 6×(gym−1); the signature is +2". Checking only each
     // leader's maximum let any non-signature slot drift downward undetected (DEVIATIONS D9).
     //
-    // Gym 1's signature premium is +0, not +2 (DEVIATIONS A5-D2). The rank-and-file ramp is
+    // Gym 1's signature premium is +0, not +2 (DEVIATIONS D-A5-G2). The rank-and-file ramp is
     // untouched everywhere, including gym 1 — the exception is ONE number, and it is asserted here
     // as an exact value rather than as a range, so it cannot slide any further.
     const signaturePremium = (i: number) => (i === 0 ? 0 : 2);
@@ -804,7 +804,7 @@ describe("gym rosters — bible §7", () => {
     expect(gyms[gyms.length - 1]!.signature.level).toBe(balance.xp.levelCap); // build-doc §7.4 cap
   });
 
-  it("keeps the region's wild level ramp two levels under the gym it feeds (DEVIATIONS A5-D3)", () => {
+  it("keeps the region's wild level ramp two levels under the gym it feeds (DEVIATIONS D-A5-G3)", () => {
     // The UNTRAINED player model (docs/BALANCE-REPORT.md §1 clause 4) fields the level the grass
     // sits at. At [4,10,16,22,28,34] that was FOUR under every leader and gym 1 measured 0.2% over
     // 500 seeds. This binds the relationship rather than the array, so a future retune of either

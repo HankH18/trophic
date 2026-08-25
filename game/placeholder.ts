@@ -488,13 +488,29 @@ export function placeholderTexture(
     return key;
   }
 
-  // No canvas texture available (headless / a texture manager that refused). A flat rectangle is a
-  // worse placeholder than a labelled one, but it is still a placeholder and it still boots.
+  // No canvas texture available (headless / a texture manager that refused). `Graphics` cannot draw
+  // text, so this branch cannot name the asset — which makes it the one place a stand-in could pass
+  // for finished ground art. It therefore draws the label LATTICE instead: the same grid the plan
+  // computed, plus a full diagonal cross. Nothing painted looks like that, at any size or zoom.
   const g = scene.add.graphics();
   const rgb = parseHex(fill) ?? hashedFallback(hash32(id));
+  const inkHex = luminance(rgb) > 0.5 ? 0x101010 : 0xf0f0f0;
   g.fillStyle((rgb.r << 16) | (rgb.g << 8) | rgb.b, 1);
   g.fillRect(0, 0, w, h);
-  g.lineStyle(1, luminance(rgb) > 0.5 ? 0x101010 : 0xf0f0f0, 1);
+  // The lattice, drawn as thin filled rects rather than strokes so this branch uses only the four
+  // Graphics calls it always used — every caller and every test double already supports them.
+  g.fillStyle(inkHex, 0.4);
+  for (let x = plan.cellWidth; x < w - 0.5; x += plan.cellWidth) g.fillRect(Math.round(x), 0, 1, h);
+  for (let y = plan.cellHeight; y < h - 0.5; y += plan.cellHeight) g.fillRect(0, Math.round(y), w, 1);
+  // …and a corner block in every cell, so even a crop between two lattice lines carries a mark.
+  g.fillStyle(inkHex, 1);
+  const mark = Math.max(2, Math.round(Math.min(plan.cellWidth, plan.cellHeight) / 8));
+  for (let y = 0; y < h - 0.5; y += plan.cellHeight) {
+    for (let x = 0; x < w - 0.5; x += plan.cellWidth) {
+      g.fillRect(Math.round(x) + 1, Math.round(y) + 1, mark, mark);
+    }
+  }
+  g.lineStyle(1, inkHex, 1);
   g.strokeRect(0, 0, w, h);
   g.generateTexture(key, w, h);
   g.destroy();

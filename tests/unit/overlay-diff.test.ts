@@ -2,24 +2,52 @@
  * tests/unit/overlay-diff.test.ts — the named test `overlay_diff` (build-doc §10.4).
  *
  * §10.4 names it exactly: "`overlay_diff` self-test on synthetic pairs (translated layout must fail,
- * texture-only change must pass)". Both halves are here, on pairs this file builds itself, and both
- * run against the LIVE `balance.overlayDiff` numbers rather than constants of their own — so if
- * someone retunes the threshold in data/balance.json (INV-3), this test measures the new gate and
- * not a remembered one.
+ * texture-only change must pass)". Both halves are here, and both run against the LIVE
+ * `balance.overlayDiff` numbers rather than constants of their own — so if someone retunes the
+ * threshold in data/balance.json (INV-3), this test measures the new gate and not a remembered one.
  *
- * The texture-only case additionally asserts `iou < 1`. A synthetic "texture change" that happens to
- * leave the edge map untouched would score a perfect 1.0 and pass vacuously — proving only that the
- * function returns a number. The change here is deliberately visible to the Sobel operator (aged
- * blotches, a global tint, fine grain) and still has to clear 0.85, which is the actual claim §8.2
- * makes about img2img at denoise 0.35.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHAT THIS FILE USED TO PROVE, AND WHY THAT WAS NOT ENOUGH.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * The previous version passed 18/18 while the gate had three reproduced critical defects, because
+ * of three specific weaknesses this file now closes:
+ *
+ *   1. IT RAN AT THE WRONG SCALE. The fixture was 256² while the collision grid comes from balance
+ *      (64×64), so every case ran on 4px collision cells instead of the game's 16px — and the test
+ *      named "fails a layout translated by a single collision cell" passed `collisionCellPx` = 16
+ *      into a 256² image, which is FOUR of that fixture's own cells. Every fixture here is
+ *      `balance.map.mapNativePx` square, so a cell is a cell.
+ *   2. BOTH "TRANSLATED LAYOUT" CASES MOVED THE ENTIRE FRAME. Global translation is caught with an
+ *      enormous margin (a 2px whole-frame shift scores 0.7138 on the real map), so those tests could
+ *      never go red for the reason they claimed. img2img at denoise 0.35 does not translate the
+ *      frame; it re-imagines regions. Every layout case below moves PART of the map and leaves the
+ *      rest byte-identical, which is the mode that used to pass.
+ *   3. THE ONE TEST THAT MOVED A BUILDING ASSERTED THE WRONG PROPERTY. It checked only that
+ *      `restricted.iou > unrestricted.iou` — and its own fixture scored 0.8620 ACCEPT restricted
+ *      against 0.7192 REJECT unrestricted, i.e. it green-lit the walkable restriction turning a
+ *      correct rejection into an acceptance. That case is below, asserting `accepted` in both.
+ *
+ * It also asserted the brightness bug as a feature ("a 10% dim drops the huts' contrast under the
+ * Sobel threshold … and it clears 0.85 by under 0.02"). On the real painted map that same 10% dim
+ * scored 0.8197 and was REJECTED with the layout byte-identical. Contrast invariance is now a
+ * property, asserted directly.
+ *
+ * REAL ART, NOT ONLY SYNTHETICS. Five real 1024² generated maps live in the repo, so the headline
+ * cases run on those too. A synthetic town proves the arithmetic; a painted map is what the gate
+ * will actually see.
  *
  * No Math.random anywhere (G11): every pattern is a closed-form function of (x, y).
  */
 import { describe, expect, it } from 'vitest';
+import { existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { Raster } from '../../tools/postprocess/raster.ts';
-import { blankRaster, idx } from '../../tools/postprocess/raster.ts';
+import { blankRaster, idx, readRaster } from '../../tools/postprocess/raster.ts';
+import { REPO_ROOT } from '../../tools/postprocess/palette.ts';
 import {
+  contrastRange,
   dilate,
+  edgeMap,
   luminance,
   nextDenoise,
   overlayDiff,
@@ -29,20 +57,23 @@ import {
   walkableMaskFor,
   SOBEL_MAX,
 } from '../../tools/overlay-diff/index.ts';
-import { collisionGrid, denoiseLadder, overlayDiffConfig } from '../../tools/overlay-diff/config.ts';
+import { collisionGrid, denoiseLadder, driftFootprint, overlayDiffConfig } from '../../tools/overlay-diff/config.ts';
 import { validateContent } from '../../core/schemas';
 
 const content = validateContent();
 const CFG = overlayDiffConfig(content.balance);
 const GRID = collisionGrid(content.balance);
 const LADDER = denoiseLadder(content.balance);
+const MAP = content.balance.map;
 
-const SIZE = 256;
+/** The production map size. A 256² fixture would run this gate on 4px cells; the game uses 16px. */
+const SIZE = MAP.mapNativePx;
+const CELL = MAP.collisionCellPx;
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Synthetic map construction. Everything is hard-edged and high-contrast so the
- * edge map is unambiguous and the assertions are about the GATE, not about
- * whether a fixture happened to land near the Sobel threshold.
+ * Synthetic map construction, at the size the game actually paints.
+ * Everything is hard-edged and high-contrast so the edge map is unambiguous and the
+ * assertions are about the GATE, not about whether a fixture landed near a threshold.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 function setPx(r: Raster, x: number, y: number, v: number): void {
@@ -64,65 +95,75 @@ function rect(r: Raster, x0: number, y0: number, w: number, h: number, v: number
   for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) setPx(r, x, y, v);
 }
 
-/** A layout: open ground, a crossing path, four huts and a pond. Hard edges throughout. */
-function baseMap(): Raster {
-  const r = blankRaster(SIZE, SIZE);
-  rect(r, 0, 0, SIZE, SIZE, 120); // ground
-  rect(r, 110, 0, 28, SIZE, 230); // north-south path
-  rect(r, 0, 110, SIZE, 28, 230); // east-west path
-  rect(r, 24, 24, 46, 40, 20); // hut NW
-  rect(r, 176, 30, 52, 44, 20); // hut NE
-  rect(r, 30, 172, 44, 48, 20); // hut SW
-  rect(r, 180, 180, 50, 46, 20); // hut SE
-  rect(r, 150, 148, 34, 26, 60); // pond
+/** Colour a rectangle by a per-pixel function of the existing value — texture, never geometry. */
+function repaint(src: Raster, f: (v: number, x: number, y: number) => number): Raster {
+  const r = blankRaster(src.width, src.height);
+  for (let y = 0; y < src.height; y++) {
+    for (let x = 0; x < src.width; x++) {
+      setPx(r, x, y, Math.max(0, Math.min(255, Math.round(f(getPx(src, x, y), x, y)))));
+    }
+  }
   return r;
 }
 
-/**
- * The collision mask for that layout: the paths and the open ground are walkable, the huts and the
- * pond are not. Authored at map resolution here; `walkableCells` reduces it to the 64×64 grid the
- * game actually moves on.
- */
+const HUTS = [
+  { x: 6, y: 6, w: 8, h: 7 },
+  { x: 44, y: 7, w: 9, h: 7 },
+  { x: 7, y: 43, w: 8, h: 8 },
+  { x: 45, y: 45, w: 9, h: 8 },
+] as const; // positions in COLLISION CELLS
+
+/** Open ground, two crossing paths, four huts and a pond. `moveHut` shifts hut 0 and nothing else. */
+function baseMap(moveHutCells = 0): Raster {
+  const r = blankRaster(SIZE, SIZE);
+  rect(r, 0, 0, SIZE, SIZE, 120); // ground
+  rect(r, 28 * CELL, 0, 7 * CELL, SIZE, 230); // north-south path
+  rect(r, 0, 28 * CELL, SIZE, 7 * CELL, 230); // east-west path
+  HUTS.forEach((h, i) => {
+    const d = i === 0 ? moveHutCells * CELL : 0;
+    rect(r, h.x * CELL + d, h.y * CELL + d, h.w * CELL, h.h * CELL, 20);
+  });
+  rect(r, 38 * CELL, 37 * CELL, 8 * CELL, 6 * CELL, 60); // pond
+  return r;
+}
+
+/** The collision mask for that layout: paths and open ground walkable, huts and pond not. */
 function collisionMask(): Raster {
   const r = blankRaster(SIZE, SIZE);
   rect(r, 0, 0, SIZE, SIZE, 255);
-  rect(r, 24, 24, 46, 40, 0);
-  rect(r, 176, 30, 52, 44, 0);
-  rect(r, 30, 172, 44, 48, 0);
-  rect(r, 180, 180, 50, 46, 0);
-  rect(r, 150, 148, 34, 26, 0);
+  for (const h of HUTS) rect(r, h.x * CELL, h.y * CELL, h.w * CELL, h.h * CELL, 0);
+  rect(r, 38 * CELL, 37 * CELL, 8 * CELL, 6 * CELL, 0);
   return r;
 }
 
 /**
  * A texture-only aged variant: the layout is untouched, the surface is not.
  *   · a global tint, as an aged pass does
- *   · fine grain, closed-form and far below the Sobel threshold
+ *   · fine grain, closed-form
  *   · small blotches of rot/moss, which DO register as edges — so the score is a real measurement
  *     and not a tautology.
- *
- * `tint` is a parameter because the two settings measure different things: 0.94 is an ordinary aged
- * pass and must clear the bar comfortably, while 0.9 is aggressive enough to push the huts' own
- * contrast under the Sobel threshold and lands within 0.02 of it. Both must pass, and the second is
- * the one that would notice if the operator or the normalisation quietly changed.
  */
-function texturedVariant(base: Raster, tint = 0.94, blotches = 16): Raster {
-  const r = blankRaster(SIZE, SIZE);
-  for (let y = 0; y < SIZE; y++) {
-    for (let x = 0; x < SIZE; x++) {
-      const grain = 4 * Math.sin(x / 7.5) * Math.cos(y / 9.5);
-      setPx(r, x, y, Math.max(0, Math.min(255, Math.round(getPx(base, x, y) * tint + grain))));
-    }
-  }
+function texturedVariant(base: Raster, tint = 0.94, blotches = 24): Raster {
+  const r = repaint(base, (v, x, y) => v * tint + 4 * Math.sin(x / 7.5) * Math.cos(y / 9.5));
   for (let i = 0; i < blotches; i++) {
-    const bx = 8 + ((i * 37) % (SIZE - 16));
-    const by = 8 + ((i * 61) % (SIZE - 16));
-    rect(r, bx, by, 3, 3, 40);
+    const bx = 8 + ((i * 149) % (SIZE - 24));
+    const by = 8 + ((i * 251) % (SIZE - 24));
+    rect(r, bx, by, 5, 5, 40);
   }
   return r;
 }
 
-/** The failure case §8.2 exists to catch: the same painting, shifted. The mask no longer fits it. */
+/*
+ * A NOTE ON THE BLOTCH COUNT, because it is a tuned fixture parameter and pretending otherwise
+ * would be dishonest. This synthetic town is five flat tones, so only 3.3% of its pixels are edges
+ * — far sparser than a painted map (10.1% inside walkable cells on the real town map). Speckle
+ * therefore weighs much more heavily here than on real art: 24 blotches score 0.9210, 64 score
+ * 0.8218 and are REJECTED. That is a property of §8.2's IoU, not of this fixture; the number is set
+ * where the change is plainly visible to the edge map (IoU < 1, ~37 cells touched) while remaining
+ * a texture pass. The real-map block below is what proves the gate on real edge density.
+ */
+
+/** The whole painting, shifted. Caught easily — kept because §10.4 names it. */
 function translatedVariant(base: Raster, dx: number, dy: number): Raster {
   const r = blankRaster(SIZE, SIZE);
   for (let y = 0; y < SIZE; y++) {
@@ -136,6 +177,18 @@ function translatedVariant(base: Raster, dx: number, dy: number): Raster {
   return r;
 }
 
+/** ONE hut erased, everything else byte-identical. Ground repainted where it stood. */
+function erasedHut(base: Raster): Raster {
+  const r = blankRaster(SIZE, SIZE);
+  r.data.set(base.data);
+  const h = HUTS[0]!;
+  rect(r, h.x * CELL, h.y * CELL, h.w * CELL, h.h * CELL, 120);
+  return r;
+}
+
+const run = (base: Raster, candidate: Raster, mask?: Raster) =>
+  overlayDiff({ base, candidate, ...(mask ? { mask } : {}), grid: GRID, config: CFG });
+
 /* ════════════════════════════════════════════════════════════════════════════
  * overlay_diff — build-doc §10.4
  * ════════════════════════════════════════════════════════════════════════════ */
@@ -148,11 +201,26 @@ describe('overlay_diff — build-doc §8.2 / §10.4', () => {
     expect(CFG.iouThreshold).toBe(content.balance.overlayDiff.iouThreshold);
     expect(CFG.sobelThreshold).toBe(content.balance.overlayDiff.sobelThreshold);
     expect(CFG.dilatePx).toBe(content.balance.overlayDiff.dilatePx);
-    expect(GRID).toEqual({ cols: content.balance.map.collisionCols, rows: content.balance.map.collisionRows });
+    expect(GRID).toEqual({ cols: MAP.collisionCols, rows: MAP.collisionRows });
+    // The drift footprint is the player's own, in cells — a division of balance.map, not a new knob.
+    expect(CFG.driftFootprint).toEqual(driftFootprint(content.balance));
+    expect(CFG.driftFootprint).toEqual({
+      cols: Math.ceil(MAP.playerSpriteW / MAP.collisionCellPx),
+      rows: Math.ceil(MAP.playerSpriteH / MAP.collisionCellPx),
+    });
+  });
+
+  it('RUNS AT THE PRODUCTION SCALE — one fixture cell is one collision cell', () => {
+    // The old fixture was 256² against a 64×64 grid, i.e. 4px cells: every walkable-cell claim in
+    // this file was measured at a scale the game never uses, and dilatePx=2 was four times more
+    // forgiving relative to a cell than in production.
+    expect(base.width).toBe(MAP.mapNativePx);
+    expect(base.width / GRID.cols).toBe(MAP.collisionCellPx);
+    expect(base.height / GRID.rows).toBe(MAP.collisionCellPx);
   });
 
   it('a texture-only change PASSES', () => {
-    const result = overlayDiff({ base, candidate: texturedVariant(base), mask, grid: GRID, config: CFG });
+    const result = run(base, texturedVariant(base), mask);
     expect(result.accepted, result.reason).toBe(true);
     expect(result.iou).toBeGreaterThanOrEqual(CFG.iouThreshold);
     // …and the change was real: a variant that left the edge map untouched would score exactly 1
@@ -161,43 +229,198 @@ describe('overlay_diff — build-doc §8.2 / §10.4', () => {
     expect(result.union).toBeGreaterThan(result.intersection);
   });
 
-  it('an AGGRESSIVE texture pass still passes, but only just — the bar is where §8.2 put it', () => {
-    // A 10% dim drops the huts' own contrast (100/255) under the Sobel threshold, so ~780 base edge
-    // pixels vanish on top of the blotches. This is the realistic worst case for an aged variant
-    // that has not moved anything, and it clears 0.85 by under 0.02.
-    const result = overlayDiff({ base, candidate: texturedVariant(base, 0.9, 16), mask, grid: GRID, config: CFG });
-    expect(result.accepted, result.reason).toBe(true);
-    expect(result.iou).toBeGreaterThanOrEqual(CFG.iouThreshold);
-    expect(result.iou).toBeLessThan(CFG.iouThreshold + 0.05);
+  it('an identical candidate scores 1.0 — the gate is not rejecting everything', () => {
+    const result = run(base, baseMap(), mask);
+    expect(result.iou).toBe(1);
+    expect(result.cellsDrifted).toBe(0);
+    expect(result.largestDrift).toBe(0);
+    expect(result.accepted).toBe(true);
   });
 
-  it('a translated layout FAILS', () => {
-    const result = overlayDiff({ base, candidate: translatedVariant(base, 12, 12), mask, grid: GRID, config: CFG });
+  it('a translated layout FAILS (§10.4, verbatim)', () => {
+    const result = run(base, translatedVariant(base, CELL, CELL), mask);
     expect(result.accepted, result.reason).toBe(false);
     expect(result.iou).toBeLessThan(CFG.iouThreshold);
     expect(result.reason).toMatch(/collision mask/);
   });
 
-  it('fails a layout translated by a single collision cell — the smallest drift that breaks the mask', () => {
-    const cell = content.balance.map.collisionCellPx;
-    const result = overlayDiff({
-      base,
-      candidate: translatedVariant(base, cell, 0),
-      mask,
-      grid: GRID,
-      config: CFG,
-    });
-    expect(result.accepted, `IoU ${result.iou}`).toBe(false);
+  /* ──────────────────────────────────────────────────────────────────────────
+   * THE FAILURE MODE img2img ACTUALLY PRODUCES: part of the map moves, the rest does not.
+   * Every one of these was ACCEPTED by the single-frame-ratio gate.
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  it('a SINGLE BUILDING moved by one collision cell FAILS, with the rest of the frame untouched', () => {
+    const moved = baseMap(1);
+    const result = run(base, moved, mask);
+    expect(result.accepted, result.reason).toBe(false);
+    // …and it fails on the LOCAL criterion, because a frame-wide ratio cannot see a local move.
+    expect(result.localPass, `IoU ${result.iou} drift ${result.largestDrift}`).toBe(false);
+    expect(result.largestDrift).toBeGreaterThanOrEqual(result.driftLimit);
+    expect(result.worstDrift).toBeDefined();
   });
 
-  it('an identical candidate scores 1.0 — the gate is not rejecting everything', () => {
-    const result = overlayDiff({ base, candidate: baseMap(), mask, grid: GRID, config: CFG });
-    expect(result.iou).toBe(1);
-    expect(result.accepted).toBe(true);
+  it('…and at every displacement from one cell to eight, monotonically obviously', () => {
+    for (const cells of [1, 2, 4, 8]) {
+      const result = run(base, baseMap(cells), mask);
+      expect(result.accepted, `moved ${cells} cell(s): ${result.reason}`).toBe(false);
+    }
   });
+
+  it('…and the global IoU ALONE would have accepted the small ones — that is the defect, measured', () => {
+    // Closed form: displacing a fraction f of the edge pixels gives IoU ≈ (1−f)/(1+f), which is
+    // ≥ 0.85 for every f ≤ 0.081. So a frame-wide ratio is arithmetically incapable of failing a
+    // change confined to a small part of the frame, however wrong that part is.
+    const oneCell = run(base, baseMap(1), mask);
+    expect(oneCell.globalPass).toBe(true); // §8.2's own criterion says yes…
+    expect(oneCell.localPass).toBe(false); // …and the layout has still moved.
+    expect(oneCell.accepted).toBe(false);
+  });
+
+  it('a building ERASED entirely FAILS — the mask would still block open ground', () => {
+    const result = run(base, erasedHut(base), mask);
+    expect(result.accepted, result.reason).toBe(false);
+    expect(result.largestDrift).toBeGreaterThanOrEqual(result.driftLimit);
+  });
+
+  it('a texture pass over a moved building still FAILS — repainting does not launder a layout change', () => {
+    const result = run(base, texturedVariant(baseMap(2)), mask);
+    expect(result.accepted, result.reason).toBe(false);
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Contrast invariance — bible §6's aging arcs are TONE passes.
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  it('a linear tint of ANY depth is invariant: the edge map does not move with the brightness', () => {
+    for (const tint of [0.98, 0.94, 0.9, 0.8, 0.7, 1.15]) {
+      const dimmed = repaint(base, (v) => v * tint);
+      const result = run(base, dimmed, mask);
+      expect(result.accepted, `tint ${tint}: ${result.reason}`).toBe(true);
+      expect(result.iou, `tint ${tint}`).toBeGreaterThan(0.99);
+    }
+  });
+
+  it('BINDS — the invariance comes from normalising to the image\'s own contrast, not from luck', () => {
+    // The reading of `sobelThreshold` is what changed. Against the RAW luminance a 10% dim moves
+    // every gradient by 10%, so edges sitting near the threshold flip en masse; against the image's
+    // own contrast range they do not move at all.
+    const dim = repaint(base, (v) => v * 0.9);
+    const rawBase = thresholdEdges(sobelMagnitude(luminance(base), SIZE, SIZE), CFG.sobelThreshold);
+    const rawDim = thresholdEdges(sobelMagnitude(luminance(dim), SIZE, SIZE), CFG.sobelThreshold);
+    const rawSame = rawBase.every((v, i) => v === rawDim[i]);
+    expect(rawSame).toBe(false); // the raw reading DOES move with brightness…
+
+    const normBase = edgeMap(base, CFG);
+    const normDim = edgeMap(dim, CFG);
+    let differing = 0;
+    for (let i = 0; i < normBase.length; i++) if (normBase[i] !== normDim[i]) differing++;
+    // …and the normalised one is stable to within 8-bit rounding of the tint itself.
+    expect(differing / normBase.length).toBeLessThan(0.001);
+  });
+
+  it('structure at ORDINARY painted contrast registers as an edge — it used to vanish entirely', () => {
+    // Measured before the fix: with the threshold read as a fraction of 4√2 full scale, an edge
+    // needed ΔL ≥ 0.3557 in a single pixel. A dark-brown building (lum 0.225) on mid-green ground
+    // (lum 0.518) is ΔL = 0.293 and produced ZERO edge pixels, so moving it scored IoU exactly
+    // 1.0000 and was ACCEPTED.
+    const town = (shift: number): Raster => {
+      const r = blankRaster(SIZE, SIZE);
+      const put = (x0: number, y0: number, w: number, h: number, c: [number, number, number]) => {
+        for (let y = y0; y < y0 + h; y++) {
+          for (let x = x0; x < x0 + w; x++) {
+            if (x < 0 || y < 0 || x >= SIZE || y >= SIZE) continue;
+            const i = idx(r, x, y);
+            r.data[i] = c[0];
+            r.data[i + 1] = c[1];
+            r.data[i + 2] = c[2];
+            r.data[i + 3] = 255;
+          }
+        }
+      };
+      put(0, 0, SIZE, SIZE, [120, 140, 90]); // ground, lum .518
+      put(0, 30 * CELL, SIZE, 5 * CELL, [135, 150, 105]);
+      put(30 * CELL, 0, 5 * CELL, SIZE, [135, 150, 105]);
+      put(12 * CELL + shift, 12 * CELL + shift, 14 * CELL, 11 * CELL, [70, 55, 45]); // building, lum .225
+      put(40 * CELL, 40 * CELL, 15 * CELL, 12 * CELL, [70, 55, 45]);
+      return r;
+    };
+    const b = town(0);
+    const edges = edgeMap(b, CFG);
+    expect(edges.reduce<number>((n, v) => n + v, 0)).toBeGreaterThan(0);
+
+    const identical = run(b, town(0));
+    expect(identical.iou).toBe(1);
+    expect(identical.accepted).toBe(true);
+
+    for (const cells of [1, 2]) {
+      const moved = run(b, town(cells * CELL));
+      expect(moved.accepted, `moved ${cells} cell(s): ${moved.reason}`).toBe(false);
+      expect(moved.iou, `moved ${cells} cell(s)`).toBeLessThan(1);
+    }
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * The walkable restriction — §8.2's, including the part §8.2 does not mention.
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  it('the walkable restriction is REAL — it scores fewer pixels than the whole frame', () => {
+    const restricted = run(base, texturedVariant(base), mask);
+    const unrestricted = run(base, texturedVariant(base));
+    expect(restricted.walkable).toBeLessThan(unrestricted.walkable);
+    expect(unrestricted.walkable).toBe(SIZE * SIZE);
+  });
+
+  it('the restriction COSTS: it throws away the cells that carry most of the structure', () => {
+    // Measured on assets/approved-trials/town-map.png: edges are 3.01× denser in the BLOCKED cells
+    // (30.5% of pixels) than in the walkable ones (10.1%). §8.2 mandates the restriction and it is
+    // right to — a year variant is supposed to change, and what must not move is where the player
+    // walks — but the cost is a fact, not a footnote, so it is measured here.
+    const edges = edgeMap(base, CFG);
+    const walk = walkableMaskFor(mask, GRID, SIZE, SIZE);
+    let walkEdges = 0;
+    let walkPx = 0;
+    let blockedEdges = 0;
+    let blockedPx = 0;
+    for (let i = 0; i < walk.length; i++) {
+      if (walk[i]) {
+        walkPx++;
+        if (edges[i]) walkEdges++;
+      } else {
+        blockedPx++;
+        if (edges[i]) blockedEdges++;
+      }
+    }
+    expect(blockedPx).toBeGreaterThan(0);
+    expect(blockedEdges / blockedPx).toBeGreaterThan(walkEdges / walkPx);
+  });
+
+  it('THE CASE THAT USED TO PROVE THE WRONG THING: rebuilt huts are REJECTED restricted AND unrestricted', () => {
+    // The old test built exactly this fixture, measured restricted 0.8620 ACCEPT against
+    // unrestricted 0.7192 REJECT — the walkable restriction converting a correct rejection into an
+    // acceptance — and then asserted only `restricted.iou > unrestricted.iou`, green-lighting it.
+    // The assertion that matters is `accepted`, in both.
+    const rebuilt = texturedVariant(base);
+    const a = HUTS[0]!;
+    const b = HUTS[1]!;
+    rect(rebuilt, a.x * CELL, a.y * CELL, a.w * CELL, a.h * CELL, 108);
+    rect(rebuilt, b.x * CELL, b.y * CELL, b.w * CELL, b.h * CELL, 108);
+    rect(rebuilt, (a.x + 2) * CELL, (a.y + 2) * CELL, (a.w - 2) * CELL, (a.h - 2) * CELL, 15);
+    rect(rebuilt, (b.x + 2) * CELL, (b.y + 2) * CELL, (b.w - 2) * CELL, (b.h - 2) * CELL, 15);
+
+    const restricted = run(base, rebuilt, mask);
+    const unrestricted = run(base, rebuilt);
+    expect(restricted.accepted, `restricted: ${restricted.reason}`).toBe(false);
+    expect(unrestricted.accepted, `unrestricted: ${unrestricted.reason}`).toBe(false);
+    // The result reports both, so the restriction's effect is visible rather than argued in a comment.
+    expect(restricted.unrestrictedIou).toBeCloseTo(unrestricted.iou, 10);
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Refusals
+   * ────────────────────────────────────────────────────────────────────────── */
 
   it('BINDS — raising the threshold above the textured score turns the pass into a fail', () => {
-    const loose = overlayDiff({ base, candidate: texturedVariant(base), mask, grid: GRID, config: CFG });
+    const loose = run(base, texturedVariant(base), mask);
     const strict = overlayDiff({
       base,
       candidate: texturedVariant(base),
@@ -207,41 +430,138 @@ describe('overlay_diff — build-doc §8.2 / §10.4', () => {
     });
     expect(loose.accepted).toBe(true);
     expect(strict.accepted).toBe(false);
-    expect(strict.iou).toBeCloseTo(loose.iou, 10);
   });
 
-  it('restricting to walkable cells is what lets an aged variant pass at all', () => {
-    // Rebuild the huts somewhere else entirely — a change the collision mask already blocks.
-    const rebuilt = texturedVariant(base);
-    rect(rebuilt, 24, 24, 46, 40, 108);
-    rect(rebuilt, 176, 30, 52, 44, 108);
-    rect(rebuilt, 40, 34, 30, 26, 15);
-    rect(rebuilt, 186, 40, 34, 30, 15);
-    const restricted = overlayDiff({ base, candidate: rebuilt, mask, grid: GRID, config: CFG });
-    const unrestricted = overlayDiff({ base, candidate: rebuilt, grid: GRID, config: CFG });
-    expect(restricted.iou).toBeGreaterThan(unrestricted.iou);
-    expect(restricted.walkable).toBeLessThan(unrestricted.walkable);
+  it('BINDS — shrinking the drift footprint to one cell rejects what the player footprint allows', () => {
+    const textured = texturedVariant(base);
+    expect(run(base, textured, mask).accepted).toBe(true);
+    const paranoid = overlayDiff({
+      base,
+      candidate: textured,
+      mask,
+      grid: GRID,
+      config: { ...CFG, driftFootprint: { cols: 1, rows: 1 } },
+    });
+    expect(paranoid.localPass).toBe(false);
+    expect(paranoid.globalPass).toBe(true); // the frame-wide ratio is unchanged; only the locality is
   });
 
   it('refuses a candidate of a different size rather than resampling the edges away', () => {
-    expect(() => overlayDiff({ base, candidate: blankRaster(128, 128), mask, grid: GRID, config: CFG })).toThrow(
-      /base is 256x256 but the candidate is 128x128/,
+    expect(() => run(base, blankRaster(128, 128), mask)).toThrow(
+      new RegExp(`base is ${SIZE}x${SIZE} but the candidate is 128x128`),
     );
   });
 
+  it('refuses a nonsense drift footprint instead of silently disabling the local criterion', () => {
+    expect(() =>
+      overlayDiff({ base, candidate: baseMap(), mask, grid: GRID, config: { ...CFG, driftFootprint: { cols: 0, rows: 3 } } }),
+    ).toThrow(/drift footprint/);
+  });
+
   it('REJECTS the degenerate cases instead of scoring them 1.0', () => {
-    const flat = blankRaster(SIZE, SIZE);
-    for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) setPx(flat, x, y, 120);
-    const blank = overlayDiff({ base: flat, candidate: blankRaster(SIZE, SIZE), mask, grid: GRID, config: CFG });
+    const flat = repaint(base, () => 120);
+    const blank = run(flat, blankRaster(SIZE, SIZE), mask);
     expect(blank.accepted).toBe(false);
     expect(blank.degenerate).toMatch(/any edge/);
 
-    const blocked = blankRaster(SIZE, SIZE);
-    for (let y = 0; y < SIZE; y++) for (let x = 0; x < SIZE; x++) setPx(blocked, x, y, 0);
-    const noWalkable = overlayDiff({ base, candidate: baseMap(), mask: blocked, grid: GRID, config: CFG });
+    const blocked = repaint(base, () => 0);
+    const noWalkable = run(base, baseMap(), blocked);
     expect(noWalkable.accepted).toBe(false);
     expect(noWalkable.degenerate).toMatch(/walkable/);
   });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * The same claims, on the real painted maps this repo actually holds.
+ *
+ * A synthetic town proves the arithmetic. These are 1024² z_image_turbo outputs — the thing the
+ * gate will be pointed at — and every headline case is re-measured on each of them.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+const REAL_MAPS = [
+  'assets/approved-trials/town-map.png',
+  'assets/raw/palette-trials/pt-map-brackwater.png',
+  'assets/raw/palette-trials/pt-map-cindershelf.png',
+  'assets/raw/palette-trials/pt-map-duskhollow.png',
+  'assets/raw/palette-trials/pt-map-r2.png',
+].filter((p) => existsSync(resolve(REPO_ROOT, p)));
+
+/** A mask derived from the painting's own luminance: bright ground/paths walkable, dark mass not. */
+function maskFromLuminance(src: Raster): Raster {
+  const m = blankRaster(src.width, src.height);
+  const lum = luminance(src);
+  for (let i = 0; i < lum.length; i++) {
+    const v = lum[i]! >= 0.45 ? 255 : 0;
+    m.data[i * 4] = v;
+    m.data[i * 4 + 1] = v;
+    m.data[i * 4 + 2] = v;
+    m.data[i * 4 + 3] = 255;
+  }
+  return m;
+}
+
+/** Move an S×S block by `d` px, filling the vacated area with a patch of open ground. */
+function moveBlock(src: Raster, x0: number, y0: number, S: number, d: number, gx: number, gy: number): Raster {
+  const o = blankRaster(src.width, src.height);
+  o.data.set(src.data);
+  const copy = (sx: number, sy: number, dx: number, dy: number) => {
+    if (dx < 0 || dy < 0 || dx >= o.width || dy >= o.height) return;
+    const si = idx(src, Math.min(src.width - 1, sx), Math.min(src.height - 1, sy));
+    const di = idx(o, dx, dy);
+    o.data[di] = src.data[si]!;
+    o.data[di + 1] = src.data[si + 1]!;
+    o.data[di + 2] = src.data[si + 2]!;
+    o.data[di + 3] = 255;
+  };
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) copy(gx + x, gy + y, x0 + x, y0 + y);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) copy(x0 + x, y0 + y, x0 + x + d, y0 + y + d);
+  return o;
+}
+
+describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', () => {
+  it('there are real 1024² maps in the repo to measure against', () => {
+    expect(REAL_MAPS.length).toBeGreaterThanOrEqual(1);
+  });
+
+  for (const rel of REAL_MAPS) {
+    describe(rel.split('/').pop()!, () => {
+      it(
+        'accepts an identical frame and every depth of linear tint, and REJECTS a moved building',
+        async () => {
+          const map = await readRaster(resolve(REPO_ROOT, rel));
+          expect(map.width).toBe(MAP.mapNativePx);
+          const mask = maskFromLuminance(map);
+
+          const same = run(map, { ...map, data: new Uint8ClampedArray(map.data) }, mask);
+          expect(same.iou, `${rel} identical`).toBe(1);
+          expect(same.accepted).toBe(true);
+
+          for (const tint of [0.94, 0.9, 0.8]) {
+            const dimmed = blankRaster(map.width, map.height);
+            for (let i = 0; i < map.data.length; i += 4) {
+              dimmed.data[i] = Math.round(map.data[i]! * tint);
+              dimmed.data[i + 1] = Math.round(map.data[i + 1]! * tint);
+              dimmed.data[i + 2] = Math.round(map.data[i + 2]! * tint);
+              dimmed.data[i + 3] = 255;
+            }
+            const r = run(map, dimmed, mask);
+            // Before the contrast fix, ×0.90 alone scored 0.8197 on the real map and was REJECTED
+            // with the layout byte-identical — the gate was on course to reject every year variant.
+            expect(r.accepted, `${rel} tint ${tint}: ${r.reason}`).toBe(true);
+            expect(r.iou, `${rel} tint ${tint}`).toBeGreaterThan(0.98);
+          }
+
+          // 128px = 8 collision cells of building, displaced by one cell. Under the old gate a
+          // 256×256 block displaced FOUR cells scored 0.8557 and was ACCEPTED.
+          const moved = moveBlock(map, 300, 300, 8 * CELL, CELL, 20, 900);
+          const verdict = run(map, moved, mask);
+          expect(verdict.accepted, `${rel} moved building: ${verdict.reason}`).toBe(false);
+          expect(verdict.largestDrift).toBeGreaterThanOrEqual(verdict.driftLimit);
+        },
+        60_000,
+      );
+    });
+  }
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -267,6 +587,43 @@ describe('overlay-diff internals', () => {
     expect(Math.max(...sobelMagnitude(luminance(flat), 8, 8))).toBe(0);
   });
 
+  it('contrastRange reports the range the image actually uses, and is invariant to a linear tint', () => {
+    const r = blankRaster(64, 64);
+    for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) setPx(r, x, y, x < 32 ? 60 : 200);
+    const full = contrastRange(luminance(r));
+    expect(full.lo).toBeCloseTo(60 / 255, 2);
+    expect(full.hi).toBeCloseTo(200 / 255, 2);
+    expect(full.flat).toBe(false);
+
+    const dim = blankRaster(64, 64);
+    for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) setPx(dim, x, y, x < 32 ? 30 : 100);
+    const half = contrastRange(luminance(dim));
+    expect(half.range).toBeLessThan(full.range); // the RAW range halves…
+    // …and normalising by it is what makes the edge map identical.
+    const a = edgeMap(r, CFG);
+    const b = edgeMap(dim, CFG);
+    expect(Array.from(a)).toEqual(Array.from(b));
+  });
+
+  it('a flat image has no contrast range and therefore no edges — not "every pixel is an edge"', () => {
+    const flat = blankRaster(32, 32);
+    for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) setPx(flat, x, y, 120);
+    const cr = contrastRange(luminance(flat));
+    expect(cr.flat).toBe(true);
+    expect(edgeMap(flat, CFG).reduce<number>((n, v) => n + v, 0)).toBe(0);
+  });
+
+  it('a single outlier pixel cannot set the contrast scale for the whole frame', () => {
+    const r = blankRaster(256, 256);
+    for (let y = 0; y < 256; y++) for (let x = 0; x < 256; x++) setPx(r, x, y, x < 128 ? 60 : 200);
+    const before = contrastRange(luminance(r));
+    setPx(r, 0, 0, 255);
+    setPx(r, 1, 0, 0);
+    const after = contrastRange(luminance(r));
+    expect(after.lo).toBeCloseTo(before.lo, 6);
+    expect(after.hi).toBeCloseTo(before.hi, 6);
+  });
+
   it('dilate grows a single pixel into a (2r+1)² square and is order-independent', () => {
     const m = new Uint8Array(11 * 11);
     m[5 * 11 + 5] = 1;
@@ -283,22 +640,22 @@ describe('overlay-diff internals', () => {
   });
 
   it('walkableCells reduces a mask to the collision grid by majority vote', () => {
-    const mask = blankRaster(64, 64);
-    for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) setPx(mask, x, y, x < 32 ? 255 : 0);
-    const cells = walkableCells(mask, { cols: 8, rows: 8 });
+    const m = blankRaster(64, 64);
+    for (let y = 0; y < 64; y++) for (let x = 0; x < 64; x++) setPx(m, x, y, x < 32 ? 255 : 0);
+    const cells = walkableCells(m, { cols: 8, rows: 8 });
     expect(cells.slice(0, 4)).toEqual(new Uint8Array([1, 1, 1, 1]));
     expect(cells.slice(4, 8)).toEqual(new Uint8Array([0, 0, 0, 0]));
   });
 
   it('a transparent mask pixel is BLOCKED, not walkable', () => {
-    const mask = blankRaster(4, 4); // all zeroes => alpha 0
-    expect(Array.from(walkableCells(mask, { cols: 2, rows: 2 }))).toEqual([0, 0, 0, 0]);
+    const m = blankRaster(4, 4); // all zeroes => alpha 0
+    expect(Array.from(walkableCells(m, { cols: 2, rows: 2 }))).toEqual([0, 0, 0, 0]);
   });
 
   it('walkableMaskFor expands cells back over the map at map resolution', () => {
-    const mask = blankRaster(8, 8);
-    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) setPx(mask, x, y, y < 4 ? 255 : 0);
-    const px = walkableMaskFor(mask, { cols: 2, rows: 2 }, 16, 16);
+    const m = blankRaster(8, 8);
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) setPx(m, x, y, y < 4 ? 255 : 0);
+    const px = walkableMaskFor(m, { cols: 2, rows: 2 }, 16, 16);
     expect(px[0]).toBe(1);
     expect(px[15 * 16 + 15]).toBe(0);
   });

@@ -60,12 +60,18 @@ export class TitleScene extends Phaser.Scene {
         onSelect: () => this.scene.start(SCENE_KEYS.menu, { mode: "slots", intent: "new" }),
       },
       {
+        // Enabled when there is a readable save OR a broken one, because the slot list is the ONLY
+        // place a broken slot can be cleared. Gated on `readable > 0` alone, a player whose three
+        // slots were all unreadable could see the red lines below and never reach the screen that
+        // acts on them.
         label: "CONTINUE",
         detail:
           readable > 0
             ? `${readable} of ${storage.slotCount} slots in use.`
-            : `No readable save in ${storage.slotCount} slots.`,
-        enabled: readable > 0,
+            : unreadable.length > 0
+              ? `No readable save. ${unreadable.length} of ${storage.slotCount} slots can be cleared here.`
+              : `No readable save in ${storage.slotCount} slots.`,
+        enabled: readable > 0 || unreadable.length > 0,
         onSelect: () => this.scene.start(SCENE_KEYS.menu, { mode: "slots", intent: "continue" }),
       },
       {

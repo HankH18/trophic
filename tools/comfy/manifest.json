@@ -758,7 +758,7 @@
   "_versionsNote": "build-doc §8.4's licensed escape, persisted: 'any asset regenerated must reuse its manifest seed unless the manifest entry is versioned'. deriveRows() reads a row's version from here, so a bump survives `rebuild` and actually moves the seed. Bump either this map or the row's own `version` field and run `rebuild` — the rebuild promotes a row-level bump into this map, clears that row's recorded seed/file (the old art is superseded, not deleted) and sets it back to pending. An id absent from this map is version 1.",
   "_img2img": {
     "trialled": false,
-    "_source": "tools/comfy/README.md: the img2img workflow 'does not exist and cannot be retrieved; it was never trialled'. build-doc §9.5 (map year variants) and §9.6 (walk cycle) both call its first run a SUPERVISED gate.",
+    "_source": "tools/comfy/README.md: the img2img workflow 'does not exist and cannot be retrieved; it was never trialled'. The graph has since been EXECUTED (DEVIATIONS-lane-b B-D18 verified the upload endpoint, B-D19 ran a denoise sweep off the approved player static), but that sweep established a LIMIT rather than an approval — img2img on this model is for deltas within a view and cannot turn one. Neither of the two uses build-doc asks for, §9.5 map year variants and §9.6 walk frames, has been run and reviewed.",
     "_enforcement": "While this is false, comfy-batch's assertSupervised() refuses any batch containing more than ONE img2img row, with or without --confirm. Set it to true only after one image has been generated through tools/comfy/img2img.ts, reviewed by a human, and the result logged in docs/DEVIATIONS-lane-b.md."
   },
   "rows": [
@@ -5081,6 +5081,7 @@
       "finalFile": "assets/final/player/player-front.png",
       "status": "approved",
       "recordedSeed": 42,
+      "recordedVersion": 1,
       "timestamp": "2026-08-25",
       "file": "assets/approved-trials/player-APPROVED.png",
       "sha256": "ba2df07114ffa6d22055fdb0db4238ab0aed8780c68a2c45fe8c821a48f83140",

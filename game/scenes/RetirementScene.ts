@@ -1015,6 +1015,11 @@ export function createRetirementScene(
       return Math.max(1, Math.floor(px / this.style.charWidth));
     }
 
+    /** Characters a COLUMN's copy may use — {@link fit} less the one-character cursor gutter. */
+    private columnChars(px: number): number {
+      return Math.max(1, this.fit(px) - 1);
+    }
+
     private line(x: number, y: number, value: string, dim = false): void {
       const style = this.style;
       const text = this.add.text(x, y, value, {
@@ -1026,11 +1031,13 @@ export function createRetirementScene(
       this.drawn.push(text);
     }
 
-    /** Draw a column's copy, wrapped to its width and clamped to its height. Returns the rows drawn. */
+    /**
+     * Draw one column's copy, clamped to the rows that fit. Every row carries a one-character
+     * cursor gutter, so the caller wraps to {@link columnChars}, which already subtracts it.
+     */
     private column(
       x: number,
       top: number,
-      widthPx: number,
       heightPx: number,
       lines: readonly string[],
       dim: boolean,
@@ -1042,7 +1049,6 @@ export function createRetirementScene(
         const marked = markRow !== null && i === markRow;
         this.line(x, top + i * style.lineHeight, `${marked ? "▸" : " "}${row}`, dim);
       });
-      void widthPx;
       return rows;
     }
 
@@ -1111,9 +1117,8 @@ export function createRetirementScene(
       this.column(
         heirX,
         bodyTop,
-        heirWidth,
         columnHeight - style.lineHeight,
-        wrapLines(heirLines(offer), this.fit(heirWidth)),
+        wrapLines(heirLines(offer), this.columnChars(heirWidth)),
         offer.heir.problem !== null,
         null,
       );
@@ -1126,19 +1131,11 @@ export function createRetirementScene(
         const rows: string[] = [];
         let markRow: number | null = null;
         raw.forEach((row, i) => {
-          const wrapped = wrapLines([row], this.fit(boonWidth) - 1);
+          const wrapped = wrapLines([row], this.columnChars(boonWidth));
           if (stat.problem === null && i === this.selection.targetIndex) markRow = rows.length;
           rows.push(...wrapped);
         });
-        this.column(
-          boonX,
-          bodyTop,
-          boonWidth,
-          columnHeight - style.lineHeight,
-          rows,
-          stat.problem !== null,
-          markRow,
-        );
+        this.column(boonX, bodyTop, columnHeight - style.lineHeight, rows, stat.problem !== null, markRow);
       }
 
       if (offer.deadlocked) {

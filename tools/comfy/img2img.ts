@@ -2,11 +2,18 @@
  * tools/comfy/img2img.ts — the img2img graph (build-doc §9.5 map year variants, §9.6 walk cycle).
  *
  * ─────────────────────────────────────────────────────────────────────────────
- *  THIS GRAPH HAS NEVER BEEN RUN. Its first real execution is a SUPERVISED GATE.
+ *  NEITHER OF ITS TWO USES IS APPROVED. Both first runs are SUPERVISED GATES.
  * ─────────────────────────────────────────────────────────────────────────────
  *
- * tools/comfy/README.md is explicit: the img2img workflow "does not exist and cannot be retrieved;
- * it was never trialled". So this file is not a port of something known-good — it is the stock
+ * The graph itself has since been executed — B-D18 verified `POST /api/upload/image`, and B-D19 ran
+ * a full denoise sweep off the approved player static. What that sweep established is a LIMIT, not
+ * an approval: img2img on this model is for deltas within a view and cannot turn one. §9.5's map
+ * year variants and §9.6's walk frames are both still unreviewed uses, so `manifest._img2img.trialled`
+ * stays false and `comfy-batch`'s `assertSupervised` refuses to plan more than one img2img row.
+ *
+ * tools/comfy/README.md is explicit about where this came from: the img2img workflow "does not exist
+ * and cannot be retrieved; it was never trialled". So this file is not a port of something known-good
+ * — it is the stock
  * Comfy Cloud img2img shape (`LoadImage` → `VAEEncode` → KSampler.latent_image, denoise < 1)
  * grafted onto the VALIDATED txt2img graph so that every other parameter — the z_image_turbo UNET,
  * the qwen_3_4b lumina2 CLIP, the `ae` VAE, `ModelSamplingAuraFlow` shift 3, 8 steps, cfg 1.0,
@@ -23,13 +30,16 @@
  *   3. Whether the denoise ladder (§8.2: start 0.35, step −0.05, floor 0.2) actually holds map
  *      layout — that is what tools/overlay-diff measures, and it is the whole point of §9.5.
  *
- * `runSmoke()` is therefore ONE image. It refuses to run a batch (`SupervisedGateError`), so the
- * untrialed path cannot be pointed at 28 map variants by an agent in a hurry.
+ * `runSmoke()` is therefore ONE image. It refuses to run a batch (`SupervisedGateError`) — and that
+ * promise is now kept on the BATCH path too: `runBatch` never called `runSmoke`, it built img2img
+ * graphs directly, so `run --class=map-variant --confirm` planned 28 of them. `assertSupervised` in
+ * comfy-batch.ts is where that hole is closed.
  */
 import { readFile } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ComfyClient, ComfyError, loadEnv, type ComfyEnv, type Graph } from './client.ts';
+import { validateContent } from '../../core/schemas.ts';
 
 export class SupervisedGateError extends Error {}
 export class Img2ImgError extends Error {}
@@ -201,7 +211,7 @@ if (isEntrypoint()) {
     console.error(
       'img2img SUPERVISED smoke — one image, never a batch.\n\n' +
         '  npx tsx tools/comfy/img2img.ts --init=<png> --out=<png> \\\n' +
-        '      [--prompt="…"] [--negative="…"] [--seed=42] [--denoise=0.35]\n\n' +
+        '      [--prompt="…"] [--negative="…"] [--seed=42] [--denoise=<balance.overlayDiff.denoiseStart>]\n\n' +
         'The graph has never been executed. Review the output before anything else uses this path\n' +
         '(build-doc §9.5 map variants / §9.6 walk cycle), and log what you learn in\n' +
         'docs/DEVIATIONS-lane-b.md.',
@@ -226,7 +236,9 @@ if (isEntrypoint()) {
     positive: arg('prompt') ?? '',
     negative: arg('negative') ?? '',
     seed: numArg('seed', 42),
-    denoise: numArg('denoise', 0.35),
+    // G11: the ladder's first rung is a gameplay constant, so it is read from balance.json rather
+    // than repeated here. §8.2 / §9.5 own the number; this file owns none of them.
+    denoise: numArg('denoise', validateContent().balance.overlayDiff.denoiseStart),
     images: 1,
   });
   console.log(`\nimg2img smoke -> ${path}`);

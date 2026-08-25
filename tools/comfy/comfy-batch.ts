@@ -466,6 +466,18 @@ export function versionOf(m: ManifestFile, id: string, fallback?: number): numbe
 function finish(m: ManifestFile, d: SpecDraft): RowSpec {
   const spec = classOf(m, d.class);
   const version = versionOf(m, d.id, d.version);
+  if (d.seedPin !== undefined && version !== 1) {
+    // A pinned seed IS the operator's statement of the seed (the player rows pin the validated
+    // trial seed 42, DEVIATIONS-lane-b B-D1). Versioning cannot move it, so refusing is the only
+    // honest answer: silently returning the pinned seed under a bumped version is precisely the
+    // failure this whole mechanism exists to prevent — an operator believing they reseeded when the
+    // old seed came back.
+    throw new ManifestError(
+      `${d.id} has a PINNED seed (${d.seedPin}), so bumping its version to ${version} cannot reseed it — ` +
+        'versioning only moves a DERIVED seed. Change the pin itself (manifest._player.seedPin) and ' +
+        'record why in docs/DEVIATIONS-lane-b.md; that is the deliberate act §8.4 is asking for.',
+    );
+  }
   const w = d.targetW ?? spec.targetW;
   const h = d.targetH ?? spec.targetH;
   const negative = m.negatives[spec.negative];
@@ -1009,6 +1021,12 @@ export interface RunOptions {
   layoutGate?: LayoutGate | null;
   /** §9.5's ladder. Defaults to `balance.overlayDiff`. */
   ladder?: { denoiseStep: number; denoiseFloor: number; maxRegenAttempts: number };
+  /**
+   * How an img2img row's init image reaches the server. Defaults to `uploadInitImage`. Injectable so
+   * the img2img path can be exercised without the network — a test suite that can reach Comfy Cloud
+   * will eventually bill it (B-D8).
+   */
+  uploadInit?: (env: ComfyEnv, absPath: string) => Promise<string>;
 }
 
 export interface RunReport {
@@ -1051,9 +1069,14 @@ export async function runBatch(
     return report;
   }
 
+  // Built only when the batch actually contains gated rows: `overlayDiffGate` validates all of
+  // data/ and the ladder reads balance.json, and a 150-row sprite batch has no business paying for
+  // either. `layoutGate: null` is a TEST-ONLY escape; the CLI never passes it.
+  const upload = opts.uploadInit ?? uploadInitImage;
+  const needsGate = rows.some((r) => r.class === LAYOUT_GATED_CLASS);
   const gate: LayoutGate | null =
-    opts.layoutGate === undefined ? overlayDiffGate(validateContent()) : opts.layoutGate;
-  const ladder = opts.ladder ?? denoiseLadder();
+    opts.layoutGate !== undefined ? opts.layoutGate : needsGate ? overlayDiffGate(validateContent()) : null;
+  const ladder = opts.ladder ?? (gate === null ? null : denoiseLadder());
 
   const queue = [...rows];
   // A malformed --concurrency used to reach `Math.max(1, NaN)` = NaN, and `Array.from({length: NaN})`
@@ -1083,7 +1106,8 @@ export async function runBatch(
    */
   async function runRow(row: ManifestRow): Promise<void> {
     const gated = gate !== null && row.class === LAYOUT_GATED_CLASS;
-    const maxRegen = gated ? Math.max(1, ladder.maxRegenAttempts) : 1;
+    const rungs = ladder ?? denoiseLadder();
+    const maxRegen = gated ? Math.max(1, rungs.maxRegenAttempts) : 1;
     let denoise = row.denoise;
     let generations = 0;
 
@@ -1102,7 +1126,7 @@ export async function runBatch(
           let initName: string | undefined;
           if (row.mode === 'img2img') {
             if (!row.initImage) throw new ComfyError(`${row.id}: img2img row has no initImage`);
-            initName = await uploadInitImage(env, resolve(root, row.initImage));
+            initName = await upload(env, resolve(root, row.initImage));
           }
           const built = graphForRow(row, base, initName);
           seed = built.seed;
@@ -1151,7 +1175,7 @@ export async function runBatch(
 
       // ── §8.2 / G4: the layout gate. A candidate that fails it is NOT a completed row.
       let verdict: LayoutVerdict | null = null;
-      if (gate) {
+      if (gated && gate) {
         try {
           verdict = await gate(row, written, root);
         } catch (e) {
@@ -1160,7 +1184,7 @@ export async function runBatch(
         }
       }
       if (verdict && !verdict.accepted) {
-        const next = denoise === undefined ? null : nextDenoise(denoise, ladder);
+        const next = denoise === undefined ? null : nextDenoise(denoise, rungs);
         log(`  gate ${row.id.padEnd(33)} ${verdict.reason}`);
         if (regen >= maxRegen || next === null) {
           fail(

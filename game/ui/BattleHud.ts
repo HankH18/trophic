@@ -218,6 +218,8 @@ export class CombatantPanel {
   private readonly statusText: PhaserNS.GameObjects.Text;
   private readonly footer: PhaserNS.GameObjects.Text;
   private readonly style: CombatantCardStyle;
+  /** Kept so {@link destroy} can cancel every tween still pointed at this panel's objects. */
+  private readonly scene: PhaserNS.Scene;
   /** The in-flight HP tween, so it can be cancelled before the objects it writes to are destroyed. */
   private hpTween: Cancellable | null = null;
   private dead = false;
@@ -236,6 +238,7 @@ export class CombatantPanel {
   ) {
     const style = opts.style ?? DEFAULT_CARD_STYLE;
     this.style = style;
+    this.scene = scene;
     const model = combatantCardModel(opts.view, style.hpBarW, opts.projectedRetirementYear);
 
     // The ONE shared stand-in helper (game/placeholder.ts). Real art is drawn at its natural size
@@ -339,6 +342,12 @@ export class CombatantPanel {
     this.dead = true;
     this.hpTween?.remove();
     this.hpTween = null;
+    // SIBLING SWEEP. The HP tween is not the only one pointed at this panel: `game/ui/BattleFx.ts`
+    // aims the lunge, the hit shake, the faint fade, the flee dash and the snare shakes at
+    // `this.sprite`. Every one of them writes to the object about to be destroyed, so all of them
+    // go, not just the one that was observed throwing.
+    this.scene.tweens.killTweensOf(this.sprite);
+    this.scene.tweens.killTweensOf(this.hpFill);
     this.root.destroy();
     this.sprite.destroy();
   }

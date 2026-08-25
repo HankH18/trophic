@@ -71,6 +71,9 @@ export class ComfyClient {
       const t = setTimeout(() => rej(new ComfyError('WebSocket open timed out')), 30_000);
       ws.addEventListener('open', () => { clearTimeout(t); res(); }, { once: true });
       ws.addEventListener('error', () => { clearTimeout(t); rej(new ComfyError('WebSocket failed to open')); }, { once: true });
+      // A socket that closes without ever opening (a rejected upgrade, a bad token) fires 'close'
+      // and may not fire 'error'; without this the open promise waits out the full 30s.
+      ws.addEventListener('close', (ev: CloseEvent) => { clearTimeout(t); rej(new ComfyError(`WebSocket closed during connect (code ${ev.code})`)); }, { once: true });
     });
 
     try {

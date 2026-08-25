@@ -187,7 +187,7 @@ describe("corrupted gyms.json is rejected", () => {
 
   /*
    * Hard Req 9 — "Gym rosters fixed per bible §7", counting the signature, at sizes 3/4/5/6/6/6
-   * (gym 1 amended from 4 by DEVIATIONS A5-D1; the other five are the bible's).
+   * (gym 1 amended from 4 by DEVIATIONS D-A5-G1; the other five are the bible's).
    * tests/unit/transcription.test.ts caught every one of these against the SHIPPED tree, so the
    * repo was safe; validateBundle did not, and validateBundle is what runs at boot against whatever
    * content the build is actually carrying. A save loaded onto a five-slot gym 1 is the failure the

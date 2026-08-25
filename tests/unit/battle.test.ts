@@ -761,7 +761,8 @@ describe("fixtures/battle-scripts replay headlessly (build-doc §11)", () => {
       nickname: s.nickname ?? null,
     });
     expect(gym.input.enemyParty.map(shape)).toEqual(fromData.map(shape));
-    // …and the fixture's own uids stay distinct, since the roster has two Nibbins in it.
+    // …and the fixture's own uids stay distinct. The roster carried two Nibbins until DEVIATIONS
+    // D-A5-G1 cut the duplicate; the check stays, because a repeated line is legal in every roster.
     expect(new Set(gym.input.enemyParty.map((s) => s.uid)).size).toBe(gym.input.enemyParty.length);
   });
 
@@ -837,7 +838,10 @@ describe("fixtures/battle-scripts replay headlessly (build-doc §11)", () => {
     const gym = gymJson as unknown as BattleScript;
     const { state, events } = replay(gym);
     expect(gym.input.kind).toBe("gym");
-    expect(gym.input.enemyParty).toHaveLength(4); // bible §7 — gym 1 roster size, signature included
+    // bible §7 as amended by DEVIATIONS D-A5-G1 — gym 1 roster size, signature included. Read off
+    // gyms.json rather than retyped, so this asserts "the fixture fields the WHOLE roster" and
+    // cannot drift into asserting a stale number of its own.
+    expect(gym.input.enemyParty).toHaveLength(content.gyms.find((g) => g.id === "maribel")!.slots.length + 1);
     for (const spec of gym.input.enemyParty) {
       expect(state.battlers[spec.uid]?.fainted).toBe(true);
     }

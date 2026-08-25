@@ -510,16 +510,26 @@ export class MenuScene extends Phaser.Scene {
      * different facts and only the second one makes `scene.start` do anything (Phaser answers an
      * unknown key with a console warning and a silent no-op).
      */
-    const screen = (label: string, key: string, detail: string, data: () => object): MenuItem => {
+    const screen = (
+      label: string,
+      key: string,
+      detail: string,
+      data: (close: () => void) => object,
+    ): MenuItem => {
       if (!sceneRegistered(this, key)) {
         return { label, detail: `${key} is not registered in game/main.ts.`, enabled: false };
       }
-      return { label, detail, onSelect: () => this.scene.start(key, data()) };
+      // The closer STOPS the screen before reopening this menu. `ScenePlugin.start` shuts down the
+      // scene it belongs to — this one — so a callback that only started the menu left the screen it
+      // came from running and drawn (measured live: after ESC the ledger and the menu were both
+      // active). The menu opened it, so the menu closes it.
+      const close = (): void => {
+        this.scene.stop(key);
+        this.scene.start(SCENE_KEYS.menu, SESSION_REQUEST);
+      };
+      return { label, detail, onSelect: () => this.scene.start(key, data(close)) };
     };
 
-    const back = (): void => {
-      this.scene.start(SCENE_KEYS.menu, SESSION_REQUEST);
-    };
     const content = registry.content();
     const season = seasonOf(registry.clock(), content.balance);
 
@@ -546,7 +556,7 @@ export class MenuScene extends Phaser.Scene {
           "LEDGER",
           SCENE_KEYS.ledger,
           "Per-node populations and the derived web.",
-          (): LedgerSceneData => ({
+          (close): LedgerSceneData => ({
             content,
             // A FUNCTION, not the record: `stepRegionStates` returns a new object every season, so a
             // record captured here would be the numbers as they were when the menu was opened.
@@ -554,30 +564,30 @@ export class MenuScene extends Phaser.Scene {
             year: save.year,
             season,
             startNodeId: save.currentNode,
-            onClose: back,
+            onClose: close,
           }),
         ),
         screen(
           "DEX",
           SCENE_KEYS.dex,
           "Every line, with its seasonal flags and live count.",
-          (): DexSceneData => ({
+          (close): DexSceneData => ({
             content,
             season,
             states: registry.save().nodeStates,
-            onClose: back,
+            onClose: close,
           }),
         ),
         screen(
           "TEAM",
           SCENE_KEYS.summary,
           `Party ${save.party.length} · box ${save.box.length}. Shows the projected retirement year.`,
-          (): SummarySceneData => ({
+          (close): SummarySceneData => ({
             content,
             party: save.party,
             box: save.box,
             currentYear: save.year,
-            onClose: back,
+            onClose: close,
           }),
         ),
         unbuilt("BAG", "build-doc §15 C4"),

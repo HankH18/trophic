@@ -104,9 +104,20 @@ export function hitShake(scene: PhaserNS.Scene, target: PhaserNS.GameObjects.Gam
     yoyo: true,
     repeat: 2,
     onComplete: () => {
+      if (!alive(target)) return;
       (target as unknown as Positioned).x = at.x;
     },
   });
+}
+
+/**
+ * A game object Phaser has destroyed loses its `scene` back-reference. Every DEFERRED callback in
+ * this file checks it: a combatant panel can be rebuilt (and its sprite destroyed) between a
+ * tween's start and its resolution, and writing to a dead object is how the HP tween produced a
+ * `TypeError` inside Phaser's tween loop.
+ */
+function alive(target: PhaserNS.GameObjects.GameObject): boolean {
+  return (target as unknown as { scene?: unknown }).scene !== undefined;
 }
 
 /** A short full-screen-free tint pulse on one combatant — the effectiveness feedback. */
@@ -120,6 +131,7 @@ export function flash(
   if (typeof tintable.setTint !== "function") return;
   tintable.setTint(roleColor(role));
   scene.time.delayedCall(Math.max(1, Math.floor(duration / 2)), () => {
+    if (!alive(target)) return;
     tintable.clearTint?.();
   });
 }
@@ -183,6 +195,7 @@ export function snareShake(
       yoyo: true,
       repeat: Math.max(0, shakes - 1),
       onComplete: () => {
+        if (!alive(target)) return;
         (target as unknown as { angle: number }).angle = 0;
       },
     });

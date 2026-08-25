@@ -181,14 +181,19 @@ export async function sweep(views: string[], denoises: number[]): Promise<SweepR
  * not generated. Every colour is a swatch lifted from the front's own quantized pixels, so the
  * five defects Hank named are structurally impossible rather than merely unlikely:
  *   - the belt/boot/satchel/shirt swatches CANNOT drift — they are copied, not re-rendered;
- *   - the detail density CANNOT double — the pixel count is fixed at 32x48 by construction;
+ *   - no NEW swatch can appear at all: measured, the back's whole-sprite swatch set is the front's
+ *     minus `#f9db10` (the star) and nothing else, the side's is the front's minus `#765b4e` and
+ *     `#eec092` and nothing else. Both add zero. That is the whole guarantee, in one number;
  *   - the star badge is removed from the back by an explicit swatch filter, not by a prompt.
  *
  * Honesty about what each one is:
- *   BACK  — a pure transformation of the front: horizontal mirror (which is exactly what a
- *           back view is for everything that is not face-specific, and it puts the satchel on
- *           the correct shoulder/hip automatically), then face->hair, star removed, brim shaded
- *           away, buckle removed, neck narrowed. No authored geometry.
+ *   BACK  — a transformation of the front: horizontal mirror (which is exactly what a back view
+ *           is for everything that is not face-specific, and it puts the satchel on the correct
+ *           shoulder/hip automatically), then face->hair, star removed, brim shaded away, cap
+ *           band refilled, buckle removed, neck narrowed. Every edit is a RECOLOUR of pixels the
+ *           mirror already placed, EXCEPT two authored bits, named so they are not glossed over:
+ *           the neck's width taper (14/13/12 px, which clears pixels) and four 1px ear marks.
+ *           No new silhouette is drawn.
  *   SIDE  — the BODY is a transformation (a single global horizontal squeeze of the front, so
  *           vertical features stay contiguous); the HEAD is AUTHORED as a glyph map, because a
  *           profile skull is new geometry that no transformation of a frontal face produces.
@@ -241,7 +246,11 @@ const SKINS = [C.skin, C.skinHi, C.skinShade, C.cream];
 const isSkin = (p: Px) => SKINS.some((c) => eq(p, c));
 const isHair = (p: Px) => eq(p, C.hair) || eq(p, C.hairDark) || eq(p, C.hairHi);
 
-/** BACK = mirror(front) + six explicit edits. Pure transformation; no authored geometry. */
+/**
+ * BACK = mirror(front) + explicit edits. Transformation, not generation: every edit recolours a
+ * pixel the mirror already placed, with two named exceptions — the neck taper (which clears
+ * pixels) and four 1px ear marks. Nothing here draws a new silhouette.
+ */
 export function deriveBack(front: Raster): Raster {
   const b = mirrorH(front);
 
@@ -608,7 +617,13 @@ if (isEntrypoint()) {
     process.argv.find((a) => a.startsWith(`--${k}=`))?.slice(k.length + 3);
 
   if (cmd === 'emit-graph') {
-    const dest = await emitGraph(Number(arg('denoise') ?? 0.4));
+    const rawDenoise = arg('denoise');
+    const denoise = rawDenoise === undefined ? 0.4 : Number(rawDenoise);
+    if (!Number.isFinite(denoise)) {
+      console.error(`--denoise=${rawDenoise} is not a number`);
+      process.exit(2);
+    }
+    const dest = await emitGraph(denoise);
     console.log(`wrote ${dest}`);
   } else if (cmd === 'sweep') {
     const views = (arg('views') ?? 'back,side').split(',').filter(Boolean);

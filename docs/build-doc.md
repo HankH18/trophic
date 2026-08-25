@@ -25,7 +25,8 @@ Demo/UI polish is graded here (the video *is* the deliverable), so polish on the
 6. Season variation is a runtime tint shader; year variation is art. Never generate seasonal map art.
 7. Vellsire finale: catchable with honest costs — catch removes the keystone buff and the epilogue ledger shows the numbers; release = restoration ending. No moralizing text anywhere; the ledger is the moral.
 8. Battle content exactly per bible: 8 types + Predation rule, 5 stats, 28-move pool, 4 statuses, levels 1–40, damage formula §7.4, KO = faint only.
-9. Gym rosters fixed per bible §7 (sizes 4/4/5/6/6/6); leader slots use the ghost-compatible schema (§7.7) but no ghost-team feature is built.
+9. Gym rosters fixed per bible §7 (sizes **3**/4/5/6/6/6 — **AMENDED 2026-08-25**, was 4/4/5/6/6/6); leader slots use the ghost-compatible schema (§7.7) but no ghost-team feature is built.
+   *Gym 1 only.* Maribel fields three, not four: the duplicate Nibbin (A) slot is cut and she keeps Bramblehog (A), Skir (A) and the signature "Old Nib" Nibbin (E). Authorised by Hank on the balance-harness finding that gym 1 was the hardest fight in the game (26.0% measured against this doc's own §10.5 target of 80–95%, against the year-6 finale's 36.2%). Which creature to cut was decided by a 500-seed measurement of all three candidates, not by taste. The sizes are enforced by `core/schemas.ts` `GYM_ROSTER_SIZES` at boot as well as by `tests/unit/transcription.test.ts`. Full rationale, the measurements, and the gap that remains open: `docs/DEVIATIONS.md` rows D-A5-G1…G4.
 10. Seasonal spawns v1-lite: exactly 4 migrants (Pollywisp/Reedrick/Gloomoth/Wispurr); dex + sign cards flag them dormant/migrating out of season.
 11. Audio: single CC0 chiptune pack family curated against bible §12a; procedural SFX; DSP season presets + progressive year darkening. Retirement cue chosen first.
 12. Web-deployable build (static hosting) — the demo must run from a URL or `npm run preview`.

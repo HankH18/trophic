@@ -288,10 +288,12 @@ class FakeTextureManager {
 
 class FakeGraphics {
   static readonly generated: string[] = [];
+  static rects = 0;
   fillStyle(): this {
     return this;
   }
   fillRect(): this {
+    FakeGraphics.rects += 1;
     return this;
   }
   lineStyle(): this {
@@ -338,6 +340,25 @@ describe("textureFor / the real-art census", () => {
 
     textures.present.add("maps/r1");
     expect(textureFor(s, "assets/final/maps/r1.png", 64, 64)).toBe("maps/r1");
+  });
+
+  it("the no-canvas fallback still cannot pass for finished art", () => {
+    // `Graphics` cannot draw text, so this branch cannot name the asset. It draws the label lattice
+    // and a mark in every cell instead — a map-sized stand-in gets one per label cell, which is what
+    // keeps it unmistakable when the id cannot be written on it.
+    const { scene } = fakeScene();
+    const s = scene as unknown as Parameters<typeof placeholderTexture>[0];
+    const native = balance.map.mapNativePx;
+    const plan = placeholderPlan("maps/x", native, native);
+    const cols = Math.ceil(native / plan.cellWidth);
+    const rows = Math.ceil(native / plan.cellHeight);
+
+    FakeGraphics.rects = 0;
+    placeholderTexture(s, "maps/x", native, native);
+    expect(FakeGraphics.generated).toContain(placeholderKey("maps/x", native, native));
+    // The background, the lattice (cols-1 verticals + rows-1 horizontals), and one mark per cell.
+    expect(FakeGraphics.rects).toBe(1 + (cols - 1) + (rows - 1) + cols * rows);
+    expect(cols * rows).toBe(plan.labels.length);
   });
 
   it("placeholderTexture is idempotent — the second call does not redraw", () => {

@@ -40,7 +40,7 @@ import { appendYearTurn } from "@core/save";
 import type { AgeClass, Balance, Content, OwnedCreature, Role, Season, TypeName } from "@core/types";
 import type { FestivalBeat, RaidReport } from "@game/year-events";
 import { festivalBeat, ledgerNameOf, raidReportsFrom } from "@game/year-events";
-import { RetirementFlow } from "@game/scenes/RetirementScene";
+import { RetirementFlow, clampLines, wrapLines } from "@game/scenes/RetirementScene";
 import { fullMeter } from "@game/ui/SeasonMeter";
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -533,6 +533,8 @@ export interface YearTurnSceneStyle {
   height: number;
   pad: number;
   lineHeight: number;
+  /** Advance width of one character at `fontSize`, in px — what decides how many fit on a line. */
+  charWidth: number;
   bgColor: number;
   textColor: string;
   dimColor: string;
@@ -555,6 +557,7 @@ export function defaultYearTurnStyle(balance: Balance): YearTurnSceneStyle {
     height: balance.map.virtualHeight,
     pad: 12,
     lineHeight: 13,
+    charWidth: 6,
     bgColor: 0x101317,
     textColor: "#e8e4c9",
     dimColor: "#7d8478",
@@ -732,8 +735,17 @@ export function createYearTurnScene(
       title.setOrigin(0, 0);
       this.drawn.push(title);
 
-      let y = style.pad + style.lineHeight * 2;
-      for (const value of beatLines(beat)) {
+      /*
+       * SAME DISCIPLINE AS THE RETIREMENT CARD, for the same reason. An aging beat lists one row per
+       * owned creature — `balance.party.maxPartySize` + `maxBoxSize` of them, 66 on the shipped
+       * numbers — and a raid beat one per harvested line. Un-bounded, the rows run off the bottom of
+       * the canvas and the overflow is indistinguishable from "there was nothing more to say".
+       */
+      const top = style.pad + style.lineHeight * 2;
+      const room = Math.floor((style.height - top - style.pad * 2 - style.lineHeight) / style.lineHeight);
+      const width = Math.max(1, Math.floor((style.width - style.pad * 2) / style.charWidth));
+      let y = top;
+      for (const value of clampLines(wrapLines(beatLines(beat), width), room)) {
         const text = this.add.text(style.pad, y, value, {
           fontFamily: style.fontFamily,
           fontSize: style.fontSize,

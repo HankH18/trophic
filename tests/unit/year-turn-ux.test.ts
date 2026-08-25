@@ -105,6 +105,7 @@ import {
   yearTurnTrigger,
   YEAR_TURN_SCENE_KEY,
   YearTurnError,
+  type YearTurnBeat,
 } from "@game/scenes/YearTurnScene";
 
 const content: Content = validateContent();
@@ -1287,8 +1288,9 @@ describe("retirement flow — build-doc §7.5 step 3, HEIR or BOON", () => {
 
     const half = Math.floor(style.width / 2);
     const fit = (px: number): number => Math.max(1, Math.floor(px / style.charWidth));
-    const heirWidth = fit(half - style.pad - style.pad * 2);
-    const boonWidth = fit(style.width - style.pad - (half + style.pad));
+    // Each column row carries a one-character cursor gutter, so its copy gets `fit − 1`.
+    const heirWidth = fit(half - style.pad - style.pad * 2) - 1;
+    const boonWidth = fit(style.width - style.pad - (half + style.pad)) - 1;
     const parentWidth = fit(style.width - (style.pad + style.portrait + style.pad) - style.pad);
 
     // The un-wrapped stat line really is too wide — the defect is reproduced here, not assumed.
@@ -1301,7 +1303,7 @@ describe("retirement flow — build-doc §7.5 step 3, HEIR or BOON", () => {
     const columns: Array<[readonly string[], number]> = [
       [parentLines(offer), parentWidth],
       [heirLines(offer), heirWidth],
-      ...offer.boons.map((b) => [boonLines(b), boonWidth - 1] as [readonly string[], number]),
+      ...offer.boons.map((b) => [boonLines(b), boonWidth] as [readonly string[], number]),
     ];
     for (const [lines, width] of columns) {
       for (const line of wrapLines(lines, width)) {
@@ -1317,7 +1319,7 @@ describe("retirement flow — build-doc §7.5 step 3, HEIR or BOON", () => {
     const blockedOffer = turnFor(wiped).drive.flow.offer();
     if (!blockedOffer) throw new Error("no offer");
     for (const boon of blockedOffer.boons) {
-      for (const line of boonLines(boon)) expect(line.length).toBeLessThanOrEqual(boonWidth - 1);
+      for (const line of boonLines(boon)) expect(line.length).toBeLessThanOrEqual(boonWidth);
     }
 
     // Vertical overflow is COUNTED, never silently cut off at the panel edge.
@@ -1591,7 +1593,7 @@ describe("year-turn sequence — build-doc §4 'a renderer of its event log'", (
 
     const order = drive.beats.map((b) => b.t);
     expect(order[0]).toBe("festival");
-    const at = (t: string): number => order.indexOf(t);
+    const at = (t: YearTurnBeat["t"]): number => order.indexOf(t);
     expect(at("aging")).toBeGreaterThan(at("festival"));
     expect(at("retirements")).toBeGreaterThan(at("aging"));
     expect(at("raid")).toBeGreaterThan(at("retirements")); // §7.5 step 5 follows step 3
@@ -1668,6 +1670,54 @@ describe("year-turn sequence — build-doc §4 'a renderer of its event log'", (
     expect(stripComments("// 480\n/* 320 */").replace(/\s/gu, "")).toBe("");
   });
 
+  it("BINDS — a beat with more rows than the canvas has says how many it could not show", () => {
+    // Sibling of the retirement card's overflow. An aging beat lists one row per owned creature —
+    // `party.maxPartySize` + `maxBoxSize`, 66 on the shipped numbers — and the rows ran off the
+    // bottom of a 320px canvas with nothing to say they had.
+    const style = defaultYearTurnStyle(balance);
+    const top = style.pad + style.lineHeight * 2;
+    const room = Math.floor((style.height - top - style.pad * 2 - style.lineHeight) / style.lineHeight);
+    const width = Math.max(1, Math.floor((style.width - style.pad * 2) / style.charWidth));
+
+    const line = mortalLine();
+    const party = [creature({ uid: "p0", line, age: "J", level: 5 })];
+    const box: OwnedCreature[] = [];
+    for (let i = 0; i < balance.party.maxPartySize - 1; i += 1) {
+      party.push(creature({ uid: `p${String(i + 1)}`, line: mortalLine(i + 1), age: "J", level: 5 }));
+    }
+    for (let i = 0; i < 40; i += 1) {
+      box.push(creature({ uid: `b${String(i)}`, line: mortalLine(i), age: "J", level: 4, boxed: true }));
+    }
+    const save = saveWith(party, box);
+    const drive = driveYearTurn(save, {
+      content,
+      simRng: simRng(save.seed),
+      lifecycleRng: countingRng(save.seed).fn,
+      endedYear: save.year,
+    });
+    const aging = drive.beats.find((b) => b.t === "aging");
+    if (!aging) throw new Error("no aging beat");
+    const raw = beatLines(aging);
+    expect(raw.length).toBeGreaterThan(room); // the overflow is real, not assumed
+
+    const drawn = clampLines(wrapLines(raw, width), room);
+    expect(drawn).toHaveLength(room);
+    expect(drawn[drawn.length - 1]).toMatch(/^\+\d+ more$/u);
+    for (const row of drawn) expect(row.length).toBeLessThanOrEqual(width);
+
+    // …and the scene really draws that many rows and no more.
+    const { P } = stubEngine();
+    const Scene = createYearTurnScene(P as never) as unknown as SceneCtor;
+    const scene = new Scene();
+    scene.init({ drive, onDone: () => undefined, placeholder: () => undefined } as never);
+    scene.create();
+    const agingAt = drive.beats.findIndex((b) => b.t === "aging");
+    for (let i = 0; i < agingAt; i += 1) scene.stub.press("keydown-SPACE");
+    // [rect] background + title + rows + footer
+    expect(scene.stub.drawn.filter((d) => d !== "[rect]").length).toBeLessThanOrEqual(room + 2);
+    expect(scene.stub.drawn.some((d) => /^\+\d+ more$/u.test(d))).toBe(true);
+  });
+
   it("the two scene keys come from the ONE registry, in its own convention", () => {
     // They were `"year-turn"` and `"retirement"` — neither in `SCENE_KEYS` nor in its PascalCase
     // convention, so `sceneRegistered(scene, SCENE_KEYS.*)` could not reach either of them.
@@ -1704,6 +1754,7 @@ describe("year-turn sequence — build-doc §4 'a renderer of its event log'", (
     const files = [
       "game/season-tint.ts",
       "game/year-events.ts",
+      "game/scene-keys.ts",
       "game/ui/SeasonMeter.ts",
       "game/scenes/YearTurnScene.ts",
       "game/scenes/RetirementScene.ts",
@@ -1896,7 +1947,7 @@ describe("the scenes, driven for real", () => {
     expect(done).not.toBeNull();
     const applied = (done as unknown as AdvanceYearResultLike).choices[0];
     expect(applied?.kind).toBe("boon");
-    expect(heading.endsWith(applied && applied.kind === "boon" ? applied.stat : "")).toBe(true);
+    expect(heading.endsWith(applied?.stat ?? "")).toBe(true);
     expect(scene.stub.lifecycle).toContain("stop");
   });
 
@@ -2056,5 +2107,5 @@ describe("the scenes, driven for real", () => {
 
 /** Structural view of `AdvanceYearResult`, so this block needs no core type import of its own. */
 interface AdvanceYearResultLike {
-  choices: Array<{ kind: string; stat?: string }>;
+  choices: Array<{ kind: string; stat?: string | undefined }>;
 }

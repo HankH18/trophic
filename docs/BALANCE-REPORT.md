@@ -21,7 +21,7 @@ npm run harness
 | full-run seeds per profile | 32 |
 | over-catch seeds per node | 128 |
 | candidate parties drafted per seed | 8 |
-| wall-clock | gym 874ms · gym.mirror 269ms · gym.levelSweep 1593ms · gym.ageControl 1056ms · gym.partySizeControl 433ms · chart 378ms · run.profiles 367ms · run.fixture 1ms · run.overcatch 260ms · probes 594ms |
+| wall-clock | gym 845ms · gym.mirror 241ms · gym.levelSweep 1549ms · gym.ageControl 1037ms · gym.partySizeControl 413ms · chart 383ms · run.profiles 354ms · run.fixture 0ms · run.overcatch 254ms · probes 596ms |
 
 **MEASURED vs INFERRED.** Sections 2–4 are measurements: counts of battles and season steps that
 were actually run. Section 5 separates what those numbers say from what they merely suggest, and

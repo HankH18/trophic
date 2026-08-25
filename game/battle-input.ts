@@ -25,7 +25,13 @@
  * from the battler's own `moves[]`. Bait ids are whatever is in the bag that is neither a snare tier
  * nor a medicine — so a new bait is a data change and this file never learns its name.
  *
- * COPY (G7): labels are identifiers and numbers. No moralizing copy about catching, anywhere.
+ * COPY (G7): labels are identifiers and numbers. No moralizing copy about catching, anywhere. Item,
+ * snare and bait rows are labelled by TYPESETTING their id (`itemLabel`, game/battle-view.ts) — the
+ * first cut printed the raw ids — and a real name table overrides that through
+ * {@link BattleMenuLabels} the day `data/` has one. Move rows are named from content.
+ *
+ * `MenuEntry.reason` is core's `illegalActionReason` string. core/types.ts calls that a DIAGNOSTIC,
+ * not player-facing copy, so `game/scenes/BattleScene.ts` greys the row and does not print it.
  */
 
 import { SNARE_TIERS } from "../core/types";

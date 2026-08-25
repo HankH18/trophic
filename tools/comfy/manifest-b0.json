@@ -621,7 +621,7 @@
       "palette": "data/palette.json (frozen at B0) — no colour outside the approved front’s own swatch set",
       "evidence": "assets/approved-trials/_player-views/_acceptance.json + _CONTACT-SHEET.png",
       "_lock": "DERIVED, NOT GENERATED. No model produced this file. It is constructed at 32x48 from the quantized APPROVED FRONT by pixel-level transformation against the frozen data/palette.json. Every colour is a swatch the approved front already uses, so the shirt/cap green, skin, leather, belt and boot bands cannot drift by construction. Rebuild: `npx tsx tools/comfy/player-views.ts derive` (deterministic, byte-identical across runs, costs no credits).",
-      "derivation": "mirrorH(front) + 6 explicit edits — a pure transformation, no authored geometry",
+      "derivation": "mirrorH(front) + explicit edits. Every edit RECOLOURS a pixel the mirror already placed, with two named exceptions: the neck width taper (14/13/12 px, which clears pixels) and four 1px ear marks. No new silhouette is drawn — unlike the side, whose head is fully authored.",
       "edits": [
         "horizontal mirror (this is what a back view IS for everything not face-specific; it also puts the satchel strap and bag on the correct shoulder and hip)",
         "star badge swatches (#f9db10/#faec67/#f0c05f) removed from the cap rows -> crown green",

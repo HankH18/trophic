@@ -31,28 +31,96 @@ import {
   MANIFEST_PATH,
   REPO_ROOT,
   SeedReuseError,
+  SupervisedGateError,
   artFormsOf,
   assertBatchApproved,
   assertSeedReuse,
+  assertSupervised,
   deriveRows,
   deriveSeed,
   encounterableLines,
   graphForRow,
+  overlayDiffGate,
   planBatch,
   rebuildRows,
   runBatch,
   seedForSubmit,
   selectRows,
   specOf,
+  versionOf,
   workflowHash,
   type ManifestFile,
   type ManifestRow,
 } from '../../tools/comfy/comfy-batch.ts';
-import { buildImg2ImgGraph, Img2ImgError, SupervisedGateError, runSmoke } from '../../tools/comfy/img2img.ts';
-import type { Graph } from '../../tools/comfy/client.ts';
+import {
+  buildImg2ImgGraph,
+  Img2ImgError,
+  SupervisedGateError as SmokeGateError,
+  runSmoke,
+} from '../../tools/comfy/img2img.ts';
+import { positiveInt, type Graph } from '../../tools/comfy/client.ts';
+import { blankRaster, idx, writeRaster, type Raster } from '../../tools/postprocess/raster.ts';
 import { validateContent } from '../../core/schemas';
 import { PROP_KINDS } from '../../core/types';
 import { hashSeed } from '../../core/rng';
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * A painted-town fixture at the PRODUCTION map size, for the end-to-end layout-gate test.
+ * Hard-edged and high-contrast so the verdict is about the gate, not about a fixture that
+ * happened to land near a threshold. No Math.random (G11): every value is closed-form.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+function fill(r: Raster, x0: number, y0: number, w: number, h: number, v: number): void {
+  for (let y = y0; y < y0 + h; y++) {
+    if (y < 0 || y >= r.height) continue;
+    for (let x = x0; x < x0 + w; x++) {
+      if (x < 0 || x >= r.width) continue;
+      const i = idx(r, x, y);
+      r.data[i] = v;
+      r.data[i + 1] = v;
+      r.data[i + 2] = v;
+      r.data[i + 3] = 255;
+    }
+  }
+}
+
+/** Open ground, two crossing paths, four buildings. `shift` moves ONE building and nothing else. */
+function townFixture(size: number, shift: number): Raster {
+  const r = blankRaster(size, size);
+  const u = size / 16;
+  fill(r, 0, 0, size, size, 120);
+  fill(r, Math.round(7 * u), 0, Math.round(2 * u), size, 225);
+  fill(r, 0, Math.round(7 * u), size, Math.round(2 * u), 225);
+  fill(r, Math.round(2 * u) + shift, Math.round(2 * u) + shift, Math.round(3 * u), Math.round(2.5 * u), 25);
+  fill(r, Math.round(11 * u), Math.round(2 * u), Math.round(3 * u), Math.round(2.5 * u), 25);
+  fill(r, Math.round(2 * u), Math.round(11 * u), Math.round(3 * u), Math.round(3 * u), 25);
+  fill(r, Math.round(11 * u), Math.round(11 * u), Math.round(3 * u), Math.round(3 * u), 60);
+  return r;
+}
+
+/** The mask for that layout: the buildings and the pond are blocked, everything else walkable. */
+function townMask(size: number): Raster {
+  const r = blankRaster(size, size);
+  const u = size / 16;
+  fill(r, 0, 0, size, size, 255);
+  fill(r, Math.round(2 * u), Math.round(2 * u), Math.round(3 * u), Math.round(2.5 * u), 0);
+  fill(r, Math.round(11 * u), Math.round(2 * u), Math.round(3 * u), Math.round(2.5 * u), 0);
+  fill(r, Math.round(2 * u), Math.round(11 * u), Math.round(3 * u), Math.round(3 * u), 0);
+  fill(r, Math.round(11 * u), Math.round(11 * u), Math.round(3 * u), Math.round(3 * u), 0);
+  return r;
+}
+
+/** A repaint: the layout is untouched, the tone is not. */
+function dimmed(src: Raster, factor: number): Raster {
+  const out = blankRaster(src.width, src.height);
+  for (let i = 0; i < src.data.length; i += 4) {
+    out.data[i] = Math.round(src.data[i]! * factor);
+    out.data[i + 1] = Math.round(src.data[i + 1]! * factor);
+    out.data[i + 2] = Math.round(src.data[i + 2]! * factor);
+    out.data[i + 3] = 255;
+  }
+  return out;
+}
 
 const content = validateContent();
 const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8')) as ManifestFile;
@@ -82,9 +150,66 @@ describe('manifest seed-reuse enforcement (G5 / build-doc §8.4)', () => {
     expect(() => assertSeedReuse(row, 4069427169)).not.toThrow();
   });
 
-  it('the submit path uses the RECORDED seed, not whatever the row now derives', () => {
-    const row: ManifestRow = { ...byId.get('battle-fenmaw-e-front')!, status: 'raw', recordedSeed: 12345, seed: 999 };
-    expect(seedForSubmit(row)).toBe(12345);
+  /*
+   * WHY THIS TEST CHANGED (justify-test-edit, recorded at the assertion per that skill).
+   *
+   * It used to read:
+   *     const row = { ...row, status: 'raw', recordedSeed: 12345, seed: 999 };
+   *     expect(seedForSubmit(row)).toBe(12345);
+   * — i.e. it REQUIRED a silent override when a frozen seed and the row's own derived seed disagree
+   * at the same version. That is the exact state G5 exists to detect (a recorded asset whose
+   * derivation has moved: an id rename, an "improved" derivation), and the assertion made proceeding
+   * through it the contract. It is also what made `assertSeedReuse` structurally incapable of
+   * throwing on the submit path — `seedForSubmit` handed it the value it had just chosen, so the
+   * guard could only ever compare a value with itself, while the module header claimed "this is a
+   * thrown error on the submit path".
+   *
+   * build-doc §8.4: "Any asset regenerated must reuse its manifest seed unless the manifest entry is
+   * versioned." G5: "…(or versioning the row)". That is three branches, and all three are asserted
+   * below. Nothing here is weaker than what it replaced: the reuse claim the old test made is the
+   * first of them.
+   */
+  it('the submit path REUSES a recorded seed that still agrees with the derivation', () => {
+    const base = byId.get('battle-fenmaw-e-front')!;
+    const row: ManifestRow = { ...base, status: 'raw', recordedSeed: base.seed, recordedVersion: base.version };
+    expect(seedForSubmit(row)).toBe(base.seed);
+  });
+
+  it('…and REFUSES when the derivation has moved under a frozen seed — the refusal is live, not decorative', () => {
+    const row: ManifestRow = {
+      ...byId.get('battle-fenmaw-e-front')!,
+      status: 'raw',
+      recordedSeed: 12345,
+      recordedVersion: 1,
+      seed: 999,
+      version: 1,
+    };
+    expect(() => seedForSubmit(row)).toThrow(SeedReuseError);
+    expect(() => seedForSubmit(row)).toThrow(/reuse its manifest seed/);
+    // …and the same row goes through graphForRow, which is what the runner actually calls.
+    expect(() => graphForRow(row, baseGraph)).toThrow(SeedReuseError);
+  });
+
+  it('…and uses the NEW derived seed once the row has been versioned (§8.4\'s licensed escape)', () => {
+    const row: ManifestRow = {
+      ...byId.get('battle-fenmaw-e-front')!,
+      status: 'raw',
+      recordedSeed: deriveSeed('battle-fenmaw-e-front', 1),
+      recordedVersion: 1,
+      version: 2,
+      seed: deriveSeed('battle-fenmaw-e-front', 2),
+    };
+    expect(seedForSubmit(row)).toBe(deriveSeed('battle-fenmaw-e-front', 2));
+    expect(seedForSubmit(row)).not.toBe(row.recordedSeed);
+    expect(graphForRow(row, baseGraph).seed).toBe(deriveSeed('battle-fenmaw-e-front', 2));
+  });
+
+  it('a row recorded before recordedVersion existed is treated as version 1, not as exempt', () => {
+    // The live manifest's one generated row (player-front) has no recordedVersion. Defaulting it to
+    // "unknown, so skip the check" would be a free pass for every legacy row.
+    const legacy: ManifestRow = { ...byId.get('battle-fenmaw-e-front')!, status: 'raw', recordedSeed: 12345, seed: 999 };
+    expect(legacy.recordedVersion).toBeUndefined();
+    expect(() => seedForSubmit(legacy)).toThrow(SeedReuseError);
   });
 
   it('a pending row has nothing to reuse yet, so its derived seed is used', () => {
@@ -122,17 +247,96 @@ describe('manifest seed-reuse enforcement (G5 / build-doc §8.4)', () => {
     expect(() => rebuildRows(m, content)).not.toThrow();
   });
 
-  it('bumping the row version IS the licensed escape, and it produces a different seed', () => {
+  /*
+   * WHY THIS TEST CHANGED (justify-test-edit).
+   *
+   * It was titled "bumping the row version IS the licensed escape, and it produces a different seed"
+   * and then asserted the opposite:
+   *     expect(after.seed).toBe(deriveSeed(id, 1));
+   *     expect(after.seed).not.toBe(deriveSeed(id, 2));
+   * — that after bumping to version 2 the seed stays at the version-1 value. It also called
+   * `rebuildRows` on a row with a drifted recordedSeed WITHOUT expecting a throw, which encoded the
+   * `old.version === spec.version` bypass as intended behaviour. Both assertions contradict
+   * build-doc §8.4 ("unless the manifest entry is versioned") and G5 ("or versioning the row"), and
+   * together they are why the inoperative escape survived a green suite.
+   *
+   * The escape now works, so the test asserts that it works — and asserts what a reseed means for the
+   * record, which nothing asserted before.
+   */
+  it('bumping the row version IS the licensed escape: the bump persists and the seed actually moves', () => {
     const m = clone(manifest);
     const target = m.rows.find((r) => r.id === 'battle-fenmaw-e-front')!;
     target.status = 'approved';
-    target.recordedSeed = target.seed + 1;
+    target.recordedSeed = target.seed;
+    target.recordedVersion = 1;
+    target.file = 'assets/raw/creature-battle/battle-fenmaw-e-front.png';
     target.version = 2;
-    const rebuilt = rebuildRows(m, content);
+
+    const notes: string[] = [];
+    const rebuilt = rebuildRows(m, content, notes);
     const after = rebuilt.find((r) => r.id === 'battle-fenmaw-e-front')!;
-    expect(after.seed).toBe(deriveSeed('battle-fenmaw-e-front', 1));
-    expect(after.seed).not.toBe(deriveSeed('battle-fenmaw-e-front', 2));
-    expect(after.recordedSeed).toBe(target.recordedSeed);
+
+    expect(after.version).toBe(2);
+    expect(after.seed).toBe(deriveSeed('battle-fenmaw-e-front', 2));
+    expect(after.seed).not.toBe(deriveSeed('battle-fenmaw-e-front', 1));
+    // The bump is persisted where a rebuild can see it, so it does not evaporate next time.
+    expect(m._versions?.['battle-fenmaw-e-front']).toBe(2);
+    // A reseed supersedes the art the old seed made: the row stops claiming a file it no longer asks for.
+    expect(after.status).toBe('pending');
+    expect(after.recordedSeed).toBeUndefined();
+    expect(after.file).toBeUndefined();
+    expect(notes.join('\n')).toMatch(/version 1 -> 2/);
+
+    // …and a SECOND rebuild is a no-op, not a repeat reseed.
+    const again = rebuildRows(m, content).find((r) => r.id === 'battle-fenmaw-e-front')!;
+    expect(again.version).toBe(2);
+    expect(again.seed).toBe(after.seed);
+  });
+
+  it('versioning a row whose seed is PINNED refuses instead of pretending to reseed it', () => {
+    // Reproduced through the real CLI before this guard: bumping `player-front` to version 2 and
+    // running `rebuild` returned version=2 with seed STILL 42, because `finish()` prefers `seedPin`
+    // over the derived seed. The bump appeared to take effect and the seed never moved — the exact
+    // shape of failure the versioned escape is meant to prevent.
+    const m = clone(manifest);
+    m._versions = { ...(m._versions ?? {}), 'player-front': 2 };
+    expect(() => deriveRows(m, content)).toThrow(/PINNED seed/);
+    expect(() => deriveRows(m, content)).toThrow(/cannot reseed/);
+  });
+
+  it('and the escape DOES move the seed for a derived row — measured, not assumed', () => {
+    const m = clone(manifest);
+    m._versions = { 'battle-fenmaw-e-front': 3 };
+    const row = deriveRows(m, content).find((r) => r.id === 'battle-fenmaw-e-front')!;
+    expect(row.version).toBe(3);
+    expect(row.seed).toBe(deriveSeed('battle-fenmaw-e-front', 3));
+    expect(row.seed).not.toBe(deriveSeed('battle-fenmaw-e-front', 1));
+    // …and nothing else in the manifest moved with it.
+    const others = deriveRows(m, content).filter((r) => r.id !== 'battle-fenmaw-e-front');
+    expect(others).toEqual(rows.filter((r) => r.id !== 'battle-fenmaw-e-front').map(specOf));
+  });
+
+  it('a nonsense version is a refusal, not a silent 1', () => {
+    const m = clone(manifest);
+    m._versions = { 'battle-fenmaw-e-front': 0 };
+    expect(() => deriveRows(m, content)).toThrow(/integer/);
+    expect(() => versionOf({ ...m, _versions: { x: 2.5 } } as ManifestFile, 'x')).toThrow(/integer/);
+    expect(versionOf(manifest, 'battle-fenmaw-e-front')).toBe(1);
+  });
+
+  it('a version bump does NOT disarm the drift check for the version it lands on', () => {
+    // The old check read `old.version === spec.version`, so any row stored at version != 1 skipped it
+    // entirely — and the derivation then reset the version to 1, writing a row whose recordedSeed no
+    // longer matched its own seed. Verifier probe: "version bumped to 2, recordedSeed drifts: NO
+    // THROW -> version=1 seed=4013440965 recordedSeed=4013440966".
+    const m = clone(manifest);
+    const target = m.rows.find((r) => r.id === 'battle-fenmaw-e-front')!;
+    target.status = 'approved';
+    target.version = 2;
+    target.recordedVersion = 2;
+    target.recordedSeed = deriveSeed('battle-fenmaw-e-front', 2) + 1; // drift AT version 2
+    expect(() => rebuildRows(m, content)).toThrow(SeedReuseError);
+    expect(() => rebuildRows(m, content)).toThrow(/still at version 2/);
   });
 
   it('a rebuild preserves everything a run recorded', () => {
@@ -566,7 +770,7 @@ describe('graph injection', () => {
   it('the untrialed img2img path refuses to be pointed at a batch (SUPERVISED gate)', async () => {
     await expect(
       runSmoke({ initImagePath: 'x.png', outPath: 'y.png', positive: '', negative: '', seed: 1, denoise: 0.35, images: 28 }),
-    ).rejects.toThrow(SupervisedGateError);
+    ).rejects.toThrow(SmokeGateError);
   });
 });
 
@@ -670,17 +874,59 @@ describe('the runner (build-doc §9.1)', () => {
     expect(batch[0]!.reviewReason).toBeUndefined();
   });
 
-  it('a REGENERATION submits the recorded seed, not the derived one — G5 on the live path', async () => {
+  /*
+   * WHY THIS TEST CHANGED (justify-test-edit).
+   *
+   * It used to manufacture `recordedSeed = seed + 7` on a row still at version 1 — its own comment
+   * said "as if this asset had been generated before the row moved" — and then require the runner to
+   * submit that seed silently. "The row moved" IS the G5 event: the approved art has become
+   * unreproducible from the manifest, and §8.4 says the only way forward is versioning the row. The
+   * old assertion made walking past it the contract.
+   *
+   * Both halves are asserted now: a row whose record still agrees regenerates with its frozen seed
+   * (the reuse property, which is what the test was FOR), and a drifted row is refused on the live
+   * path instead of silently overridden.
+   */
+  it('a REGENERATION reuses the frozen seed — G5 on the live path', async () => {
     const { client } = stubClient(() => 'ok');
     const batch = pick(1);
-    const frozen = batch[0]!.seed + 7; // as if this asset had been generated before the row moved
-    batch[0]!.status = 'approved';
-    batch[0]!.recordedSeed = frozen;
-    await runBatch(manifest, batch, client as never, baseGraph, ENV, { confirmed: false, root, concurrency: 1, log: () => {} });
-    expect(batch[0]!.recordedSeed).toBe(frozen);
-    const submitted = graphForRow(batch[0]!, baseGraph);
-    expect(submitted.seed).toBe(frozen);
-    expect(submitted.seed).not.toBe(deriveSeed(batch[0]!.id, batch[0]!.version));
+    const row = batch[0]!;
+    const frozen = row.seed; // what this asset was actually generated with
+    row.status = 'approved';
+    row.recordedSeed = frozen;
+    row.recordedVersion = row.version;
+    await runBatch(manifest, batch, client as never, baseGraph, ENV, {
+      confirmed: false,
+      root,
+      concurrency: 1,
+      log: () => {},
+      layoutGate: null,
+    });
+    expect(row.status).toBe('raw');
+    expect(row.recordedSeed).toBe(frozen);
+    expect(graphForRow(row, baseGraph).seed).toBe(frozen);
+  });
+
+  it('a row whose derivation has MOVED is refused on the live path, not silently overridden', async () => {
+    const { client, calls } = stubClient(() => 'ok');
+    const batch = pick(1);
+    const row = batch[0]!;
+    row.status = 'approved';
+    row.recordedSeed = row.seed + 7; // the derivation moved out from under the frozen seed
+    row.recordedVersion = row.version;
+    await runBatch(manifest, batch, client as never, baseGraph, ENV, {
+      confirmed: false,
+      root,
+      concurrency: 1,
+      log: () => {},
+      layoutGate: null,
+    });
+    expect(row.status).toBe('failed');
+    expect(row.flaggedForReview).toBe(true);
+    expect(row.reviewReason).toMatch(/reuse its manifest seed/);
+    // G5 is not transient: it must not be retried, and nothing may be submitted.
+    expect(calls).toHaveLength(0);
+    expect(row.attempts).toBe(1);
   });
 
   it('G13 refuses BEFORE anything is submitted', async () => {
@@ -719,5 +965,427 @@ describe('the runner (build-doc §9.1)', () => {
     expect(report.succeeded).toBe(7);
     expect(calls).toHaveLength(7);
     expect(new Set(calls).size).toBe(7);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * The SUPERVISED gates — §9.4 / §9.5 / §9.6.
+ *
+ * `row.gate` and a class's `trialled: false` used to be strings nothing read. Measured before the
+ * fix, through the real CLI:
+ *   `run --class=map-variant --confirm --dry-run` printed "NOTE: untrialed class(es)…" and then
+ *   planned 28 img2img rows through a graph that has never been executed;
+ *   `run --class=player --dry-run` planned 8 rows including 6 img2img walk frames with NO --confirm
+ *   at all, because 8 sits under the 20-row credit gate.
+ * Both are refusals now, and these tests are what keeps them refusals.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe('supervised gates (build-doc §9.4 / §9.5 / §9.6)', () => {
+  const rowsFor = (cls: string) => clone(rowsOfClass(cls));
+
+  it('every map-variant row carries a gate, and the class is marked untrialed — the fields the gate reads', () => {
+    for (const r of rowsOfClass('map-variant')) expect(r.gate, r.id).toMatch(/overlay-diff/);
+    expect(manifest.classes['map-variant']!.trialled).toBe(false);
+    expect(manifest._img2img?.trialled).toBe(false);
+  });
+
+  it('REFUSES to point the untrialed img2img graph at a batch, with or without --confirm', () => {
+    const variants = rowsFor('map-variant');
+    expect(variants.length).toBeGreaterThan(1);
+    expect(() => assertSupervised(variants, manifest, true)).toThrow(SupervisedGateError);
+    expect(() => assertSupervised(variants, manifest, true)).toThrow(/never been executed/);
+    expect(() => assertSupervised(variants, manifest, false)).toThrow(SupervisedGateError);
+  });
+
+  it('…and that refusal covers the player walk frames too, which sit under the credit gate', () => {
+    // `run --class=player` is 8 rows: under CREDIT_GATE_ROWS, so G13 never fires. Six of them are
+    // §9.6 img2img walk frames on the same untrialed graph.
+    const player = rowsFor('player');
+    expect(player).toHaveLength(9); // 3 statics + 6 §9.6 walk frames
+    expect(player.filter((r) => r.mode === 'img2img').length).toBeGreaterThan(1);
+    expect(planBatch(player, manifest).requiresConfirm).toBe(false); // G13 alone would wave it through
+    expect(() => assertSupervised(player, manifest, false)).toThrow(SupervisedGateError);
+    expect(() => assertSupervised(player, manifest, true)).toThrow(/never been executed/);
+  });
+
+  it('lets exactly ONE img2img row through, and only with --confirm — the §9.5/§9.6 smoke', () => {
+    const one = [rowsFor('map-variant')[0]!];
+    expect(() => assertSupervised(one, manifest, false)).toThrow(SupervisedGateError);
+    expect(() => assertSupervised(one, manifest, true)).not.toThrow();
+  });
+
+  it('once the img2img graph is trialled, a batch of them needs --confirm but is no longer capped at one', () => {
+    const m = clone(manifest);
+    m._img2img = { trialled: true };
+    const variants = clone(m.rows.filter((r) => r.class === 'map-variant'));
+    expect(() => assertSupervised(variants, m, false)).toThrow(SupervisedGateError);
+    expect(() => assertSupervised(variants, m, false)).toThrow(/supervised gate/);
+    expect(() => assertSupervised(variants, m, true)).not.toThrow();
+  });
+
+  it('a gated row refuses without --confirm even when its class is trialled (the dex plates)', () => {
+    const dex = rowsFor('dex-painted').slice(0, 3);
+    for (const r of dex) expect(r.gate).toMatch(/§9.4/);
+    expect(() => assertSupervised(dex, manifest, false)).toThrow(SupervisedGateError);
+    expect(() => assertSupervised(dex, manifest, true)).not.toThrow();
+  });
+
+  it('an untrialed class with no per-row gate still refuses without --confirm (props, UI, map-route)', () => {
+    for (const cls of ['prop', 'ui-frame', 'map-route']) {
+      const rs = rowsFor(cls);
+      expect(rs.length, cls).toBeGreaterThan(0);
+      expect(rs.every((r) => r.gate === undefined), cls).toBe(true);
+      expect(() => assertSupervised(rs, manifest, false), cls).toThrow(SupervisedGateError);
+      expect(() => assertSupervised(rs, manifest, true), cls).not.toThrow();
+    }
+  });
+
+  it('a trialled, ungated, txt2img batch is not supervised — the gate is on the risky paths only', () => {
+    expect(() => assertSupervised(rowsFor('creature-battle').slice(0, 30), manifest, false)).not.toThrow();
+  });
+
+  it('BINDS — flipping a class to trialled changes the verdict, so the field is what is read', () => {
+    const m = clone(manifest);
+    const props = clone(m.rows.filter((r) => r.class === 'prop'));
+    expect(() => assertSupervised(props, m, false)).toThrow(SupervisedGateError);
+    m.classes['prop']!.trialled = true;
+    expect(() => assertSupervised(props, m, false)).not.toThrow();
+  });
+
+  it('runBatch refuses BEFORE anything is submitted, and --dry-run does not slip past it', async () => {
+    const { client, calls } = stubClient(() => 'ok');
+    const variants = rowsFor('map-variant');
+    await expect(
+      runBatch(manifest, variants, client as never, baseGraph, ENV, {
+        confirmed: true,
+        dryRun: true,
+        log: () => {},
+        layoutGate: null,
+      }),
+    ).rejects.toThrow(SupervisedGateError);
+    expect(calls).toHaveLength(0);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * G4 — the §8.2 layout gate on the live path.
+ *
+ * Before this, `overlayDiff()` had no caller anywhere in the pipeline: `grep -rn "overlayDiff("`
+ * found the definition, its CLI and its own test, and nothing else. A year-variant row could be
+ * generated and recorded `raw` without the gate ever running, and
+ * `balance.overlayDiff.maxRegenAttempts` was read by a console.log and by an assertion, never
+ * enforced.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe('the §8.2 layout gate runs on the live path (G4)', () => {
+  const variantRow = (): ManifestRow => clone(byId.get('map-r1-y2')!);
+  const trialled = (): ManifestFile => {
+    const m = clone(manifest);
+    m._img2img = { trialled: true };
+    return m;
+  };
+  const LADDER = { denoiseStep: 0.05, denoiseFloor: 0.2, maxRegenAttempts: 3 };
+  /** The init upload is the one network call on the img2img path; stub it, never reach the cloud. */
+  const fakeUpload = async (): Promise<string> => 'init.png';
+  let root: string;
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), 'trophic-gate-'));
+  });
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  /** A gate stub that reports a verdict per call, so the ladder is observable without generating art. */
+  function gateStub(verdicts: boolean[]) {
+    const seen: Array<number | undefined> = [];
+    let i = 0;
+    const gate = async (row: ManifestRow) => {
+      seen.push(row.denoise);
+      const ok = verdicts[Math.min(i++, verdicts.length - 1)]!;
+      return { accepted: ok, iou: ok ? 0.93 : 0.61, threshold: 0.85, largestDrift: ok ? 2 : 41, reason: ok ? 'ACCEPT' : 'REJECT' };
+    };
+    return { gate, seen };
+  }
+
+  it('records the gate verdict on a candidate that passes, and only then calls it raw', async () => {
+    const { client } = stubClient(() => 'ok');
+    const { gate, seen } = gateStub([true]);
+    const batch = [variantRow()];
+    const report = await runBatch(trialled(), batch, client as never, baseGraph, ENV, {
+      confirmed: true,
+      root,
+      concurrency: 1,
+      log: () => {},
+      layoutGate: gate,
+      ladder: LADDER,
+      uploadInit: fakeUpload,
+    });
+    expect(report.succeeded).toBe(1);
+    expect(batch[0]!.status).toBe('raw');
+    expect(batch[0]!.layoutGate).toMatchObject({ iou: 0.93, threshold: 0.85 });
+    expect(seen).toEqual([content.balance.overlayDiff.denoiseStart]);
+  });
+
+  it('walks the §9.5 denoise ladder on a rejection instead of accepting it', async () => {
+    const { client, calls } = stubClient(() => 'ok');
+    const { gate, seen } = gateStub([false, false, true]);
+    const batch = [variantRow()];
+    const report = await runBatch(trialled(), batch, client as never, baseGraph, ENV, {
+      confirmed: true,
+      root,
+      concurrency: 1,
+      log: () => {},
+      layoutGate: gate,
+      ladder: LADDER,
+      uploadInit: fakeUpload,
+    });
+    expect(report.succeeded).toBe(1);
+    expect(seen).toEqual([0.35, 0.3, 0.25]); // start, −step, −step (§8.2 / §9.5)
+    expect(calls).toHaveLength(3); // one generation per rung, not a blind retry
+    expect(batch[0]!.denoise).toBe(0.25);
+  });
+
+  it('gives up at maxRegenAttempts and FLAGS — it never accepts a failing variant (G4)', async () => {
+    const { client, calls } = stubClient(() => 'ok');
+    const { gate, seen } = gateStub([false]);
+    const batch = [variantRow()];
+    const report = await runBatch(trialled(), batch, client as never, baseGraph, ENV, {
+      confirmed: true,
+      root,
+      concurrency: 1,
+      log: () => {},
+      layoutGate: gate,
+      ladder: LADDER,
+      uploadInit: fakeUpload,
+    });
+    expect(report.succeeded).toBe(0);
+    expect(seen).toHaveLength(LADDER.maxRegenAttempts);
+    expect(calls).toHaveLength(LADDER.maxRegenAttempts);
+    expect(batch[0]!.status).toBe('failed');
+    expect(batch[0]!.flaggedForReview).toBe(true);
+    expect(batch[0]!.reviewReason).toMatch(/overlay-diff/);
+    expect(batch[0]!.reviewReason).toMatch(/nearest\s+passing variant/);
+    expect(batch[0]!.layoutGate).toBeUndefined();
+    expect(report.flagged).toHaveLength(1);
+  });
+
+  it('BINDS — maxRegenAttempts is read, not decorative', async () => {
+    const { client, calls } = stubClient(() => 'ok');
+    const { gate } = gateStub([false]);
+    await runBatch(trialled(), [variantRow()], client as never, baseGraph, ENV, {
+      confirmed: true,
+      root,
+      concurrency: 1,
+      log: () => {},
+      layoutGate: gate,
+      ladder: { ...LADDER, maxRegenAttempts: 1 },
+      uploadInit: fakeUpload,
+    });
+    expect(calls).toHaveLength(1);
+  });
+
+  it('a non-gated class is not gated — the gate never fires on a sprite', async () => {
+    const { client } = stubClient(() => 'ok');
+    let fired = 0;
+    const batch = clone(rowsOfClass('creature-battle').slice(0, 2));
+    await runBatch(manifest, batch, client as never, baseGraph, ENV, {
+      confirmed: false,
+      root,
+      concurrency: 1,
+      log: () => {},
+      layoutGate: async () => {
+        fired++;
+        return { accepted: false, iou: 0, threshold: 0.85, largestDrift: 99, reason: 'should not run' };
+      },
+    });
+    expect(fired).toBe(0);
+    expect(batch.every((r) => r.status === 'raw')).toBe(true);
+  });
+
+  it('THE REAL GATE refuses a variant when the node has no collision mask on disk — "no mask" is not a pass', async () => {
+    // The repo's true state today: no node has a base map or a mask on disk, so the honest verdict
+    // for every year variant is REFUSE. Falling back to "every pixel is walkable" would compare the
+    // whole frame and quietly turn a gate into decoration.
+    const node = content.nodes.find((n) => n.id === 'r1')!;
+    expect(existsSync(resolve(REPO_ROOT, node.mapAsset))).toBe(false);
+    expect(existsSync(resolve(REPO_ROOT, node.collisionMask))).toBe(false);
+
+    const maskless = await mkdtemp(join(tmpdir(), 'trophic-nomask-'));
+    try {
+      // Give it the base map so the ONLY thing missing is the mask — the claim under test.
+      const size = content.balance.map.mapNativePx;
+      await mkdir(dirname(resolve(maskless, node.mapAsset)), { recursive: true });
+      await writeRaster(resolve(maskless, node.mapAsset), townFixture(size, 0));
+      expect(existsSync(resolve(maskless, node.collisionMask))).toBe(false);
+
+      const { client } = stubClient(() => 'ok');
+      const batch = [variantRow()];
+      const report = await runBatch(trialled(), batch, client as never, baseGraph, ENV, {
+        confirmed: true,
+        root: maskless,
+        concurrency: 1,
+        log: () => {},
+        layoutGate: overlayDiffGate(content),
+        ladder: LADDER,
+        uploadInit: fakeUpload,
+      });
+      expect(report.succeeded).toBe(0);
+      expect(batch[0]!.status).toBe('failed');
+      expect(batch[0]!.reviewReason).toMatch(/collision mask/);
+      expect(batch[0]!.reviewReason).toMatch(/G4/);
+      expect(batch[0]!.layoutGate).toBeUndefined();
+    } finally {
+      await rm(maskless, { recursive: true, force: true });
+    }
+  }, 30_000);
+
+  it('THE REAL GATE, end to end: a moved building is REJECTED and a repaint is ACCEPTED', async () => {
+    // Real overlayDiff, real balance numbers, real runner — only the cloud is a stub. The node's
+    // base map and mask are written into a scratch root so the test never touches assets/.
+    const node = content.nodes.find((n) => n.id === 'r1')!;
+    const gateRoot = await mkdtemp(join(tmpdir(), 'trophic-realgate-'));
+    try {
+      const size = content.balance.map.mapNativePx;
+      const base = townFixture(size, 0);
+      await mkdir(dirname(resolve(gateRoot, node.mapAsset)), { recursive: true });
+      await writeRaster(resolve(gateRoot, node.mapAsset), base);
+      await writeRaster(resolve(gateRoot, node.collisionMask), townMask(size));
+
+      for (const [label, candidate, accepted] of [
+        ['repaint', dimmed(townFixture(size, 0), 0.88), true],
+        ['moved building', townFixture(size, content.balance.map.collisionCellPx * 3), false],
+      ] as const) {
+        const batch = [variantRow()];
+        const { client } = stubClient(() => 'ok');
+        // The stub "generates" by writing the candidate where the runner will look for it.
+        const writing = {
+          async run(g: Graph) {
+            return client.run(g);
+          },
+          async saveAll(_o: unknown, destFor: (img: { filename: string }, i: number) => string) {
+            const dest = destFor({ filename: 'out.png' }, 0);
+            await mkdir(dirname(dest), { recursive: true });
+            await writeRaster(dest, candidate);
+            return [dest];
+          },
+        };
+        const report = await runBatch(trialled(), batch, writing as never, baseGraph, ENV, {
+          confirmed: true,
+          root: gateRoot,
+          concurrency: 1,
+          log: () => {},
+          layoutGate: overlayDiffGate(content),
+          ladder: { ...LADDER, maxRegenAttempts: 1 },
+          uploadInit: fakeUpload,
+        });
+        expect(report.succeeded, `${label}: ${batch[0]!.reviewReason ?? batch[0]!.status}`).toBe(accepted ? 1 : 0);
+        expect(batch[0]!.status, label).toBe(accepted ? 'raw' : 'failed');
+        if (!accepted) expect(batch[0]!.reviewReason, label).toMatch(/overlay-diff/);
+      }
+    } finally {
+      await rm(gateRoot, { recursive: true, force: true });
+    }
+  }, 30_000);
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * Failure handling that costs credits if it is wrong
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe('the runner does not re-bill for post-generation failures (§9.1)', () => {
+  let root: string;
+  beforeAll(async () => {
+    root = await mkdtemp(join(tmpdir(), 'trophic-bill-'));
+  });
+  afterAll(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it('a download failure retries the DOWNLOAD, not the generation', async () => {
+    // Measured before the fix: a stub whose run() always succeeded and whose saveAll() threw
+    // "GET /api/view -> 404" produced 3 BILLED generations for one image, because the retry block
+    // wrapped generation and download together.
+    let generations = 0;
+    let downloads = 0;
+    const client = {
+      async run() {
+        generations++;
+        return { '9': { images: [{ filename: 'out.png' }] } };
+      },
+      async saveAll() {
+        downloads++;
+        throw new Error('GET /api/view -> 404 for out.png');
+      },
+    };
+    const batch = clone(rowsOfClass('creature-battle').slice(0, 1));
+    const report = await runBatch(manifest, batch, client as never, baseGraph, ENV, {
+      confirmed: false,
+      root,
+      concurrency: 1,
+      log: () => {},
+      layoutGate: null,
+    });
+    expect(generations).toBe(1);
+    expect(downloads).toBe(3);
+    expect(batch[0]!.status).toBe('failed');
+    expect(batch[0]!.reviewReason).toMatch(/NOT re-submitted/);
+    expect(report.flagged).toHaveLength(1);
+  });
+
+  it('a download that recovers on the second try still costs exactly one generation', async () => {
+    let generations = 0;
+    let downloads = 0;
+    const client = {
+      async run() {
+        generations++;
+        return { '9': { images: [{ filename: 'out.png' }] } };
+      },
+      async saveAll(_o: unknown, destFor: (img: { filename: string }, i: number) => string) {
+        downloads++;
+        if (downloads === 1) throw new Error('connection reset');
+        const dest = destFor({ filename: 'out.png' }, 0);
+        await mkdir(dirname(dest), { recursive: true });
+        await writeFile(dest, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+        return [dest];
+      },
+    };
+    const batch = clone(rowsOfClass('creature-battle').slice(0, 1));
+    await runBatch(manifest, batch, client as never, baseGraph, ENV, {
+      confirmed: false,
+      root,
+      concurrency: 1,
+      log: () => {},
+      layoutGate: null,
+    });
+    expect(generations).toBe(1);
+    expect(downloads).toBe(2);
+    expect(batch[0]!.status).toBe('raw');
+  });
+
+  it('a malformed --concurrency is a refusal, never a silent no-op batch', () => {
+    // Measured before the fix: `Math.max(1, NaN)` is NaN and `Array.from({length: NaN})` is empty,
+    // so the batch submitted 0 jobs, reported {"attempted":0,"succeeded":0} and exited 0.
+    expect(Math.max(1, Number('abc'))).toBeNaN();
+    expect(Array.from({ length: Number('abc') }, () => 1)).toHaveLength(0);
+    expect(() => positiveInt('abc', 'COMFY_MAX_CONCURRENCY', 1)).toThrow(/whole number/);
+    expect(() => positiveInt('0', 'COMFY_MAX_CONCURRENCY', 1)).toThrow();
+    expect(() => positiveInt('2.5', 'COMFY_MAX_CONCURRENCY', 1)).toThrow();
+    expect(positiveInt(undefined, 'COMFY_MAX_CONCURRENCY', 1)).toBe(1);
+    expect(positiveInt('4', 'COMFY_MAX_CONCURRENCY', 1)).toBe(4);
+  });
+
+  it('and a NaN concurrency reaching runBatch still runs every row', async () => {
+    const { client, calls } = stubClient(() => 'ok');
+    const batch = clone(rowsOfClass('creature-battle').slice(0, 3));
+    const report = await runBatch(manifest, batch, client as never, baseGraph, ENV, {
+      confirmed: false,
+      root,
+      concurrency: Number('abc'),
+      log: () => {},
+      layoutGate: null,
+    });
+    expect(report.attempted).toBe(3);
+    expect(report.succeeded).toBe(3);
+    expect(calls).toHaveLength(3);
   });
 });

@@ -73,7 +73,12 @@ interface FakeObject {
   texture: string;
   tint: number | null;
   destroyed: boolean;
+  scene: unknown;
+  /** The proxy handed to callers — what the display list actually holds. */
+  self?: FakeObject;
   list: FakeObject[];
+  /** How many times `setText` has been called — the message line's write count is a perform count. */
+  writes?: number;
   destroy(): void;
   [key: string]: unknown;
 }
@@ -100,9 +105,12 @@ interface FakeSceneParts {
 }
 
 vi.mock("phaser", () => {
-  const make = (kind: string, bag: FakeObject[]): FakeObject => {
+  const make = (kind: string, bag: FakeObject[], owner: unknown): FakeObject => {
     const o = {
       kind,
+      // Phaser clears a destroyed object's `scene` back-reference; game/ui/BattleFx.ts's deferred
+      // callbacks check exactly that before writing to a target that may already be gone.
+      scene: owner,
       x: 0,
       y: 0,
       w: 0,
@@ -153,6 +161,7 @@ vi.mock("phaser", () => {
       },
       setText(t: string): FakeObject {
         o.text = t;
+        o.writes = ((o.writes as number | undefined) ?? 0) + 1;
         return o;
       },
       setColor(c: string): FakeObject {
@@ -186,21 +195,37 @@ vi.mock("phaser", () => {
       destroy(): void {
         if (o.destroyed) return;
         o.destroyed = true;
+        o.scene = undefined;
         // Phaser's Container.destroy takes its children with it; the leak this suite exists to
         // catch is precisely a child that was never IN the container.
         for (const child of [...o.list]) child.destroy();
-        const at = bag.indexOf(o);
+        const at = bag.indexOf(o.self as FakeObject);
         if (at >= 0) bag.splice(at, 1);
       },
     } as unknown as FakeObject;
-    bag.push(o);
-    return o;
+    // Unknown methods are chainable no-ops. `game/placeholder.ts` is a SHARED file that other lanes
+    // extend (it grew a `lineBetween` call mid-build), and a stub that has to be chased every time
+    // someone adds a drawing call is a stub that will be deleted. What lane C3 asserts is what it
+    // RECORDS above; everything else is allowed to be a no-op.
+    const proxy: FakeObject = new Proxy(o, {
+      get(target, prop, receiver): unknown {
+        if (prop in target) return Reflect.get(target, prop, receiver);
+        if (typeof prop === "symbol" || prop === "then") return undefined;
+        return (): FakeObject => proxy;
+      },
+    });
+    o.self = proxy;
+    bag.push(proxy);
+    return proxy;
   };
 
   class Scene {
     readonly __fake: FakeSceneParts;
     readonly add: Record<string, (...args: never[]) => unknown>;
-    readonly tweens: { add(config: Record<string, unknown>): { remove(): void } };
+    readonly tweens: {
+      add(config: Record<string, unknown>): { remove(): void };
+      killTweensOf(target: unknown): void;
+    };
     readonly time: { delayedCall(ms: number, run: () => void): { remove(): void } };
     readonly input: { keyboard: { on(event: string, run: () => void): void } };
     readonly textures: {
@@ -217,7 +242,7 @@ vi.mock("phaser", () => {
 
       this.add = {
         rectangle: ((x: number, y: number, w: number, h: number, fill: number): FakeObject => {
-          const o = make("rect", objects);
+          const o = make("rect", objects, this);
           o.x = x;
           o.y = y;
           o.w = w;
@@ -226,28 +251,28 @@ vi.mock("phaser", () => {
           return o;
         }) as unknown as (...args: never[]) => unknown,
         text: ((x: number, y: number, value: string): FakeObject => {
-          const o = make("text", objects);
+          const o = make("text", objects, this);
           o.x = x;
           o.y = y;
           o.text = value;
           return o;
         }) as unknown as (...args: never[]) => unknown,
         image: ((x: number, y: number, key: string): FakeObject => {
-          const o = make("image", objects);
+          const o = make("image", objects, this);
           o.x = x;
           o.y = y;
           o.texture = key;
           return o;
         }) as unknown as (...args: never[]) => unknown,
         container: ((x: number, y: number, children: FakeObject[]): FakeObject => {
-          const o = make("container", objects);
+          const o = make("container", objects, this);
           o.x = x;
           o.y = y;
           o.list = [...children];
           return o;
         }) as unknown as (...args: never[]) => unknown,
         graphics: ((): FakeObject => {
-          const o = make("graphics", objects);
+          const o = make("graphics", objects, this);
           (o as unknown as { generateTexture(key: string): void }).generateTexture = (key: string): void => {
             textures.add(key);
           };
@@ -256,6 +281,9 @@ vi.mock("phaser", () => {
       };
 
       this.tweens = {
+        killTweensOf: (target: unknown): void => {
+          for (const t of tweens) if (t.config.targets === target) t.removed = true;
+        },
         add: (config: Record<string, unknown>): { remove(): void } => {
           const target = config.targets as Record<string, number> | undefined;
           const startValues: Record<string, number> = {};
@@ -369,6 +397,8 @@ import {
 import {
   BattleInput as BattleMenu,
   applyKey,
+  bagEntries,
+  baitEntries,
   baitIdsIn,
   moveEntries,
   rootEntries,
@@ -394,7 +424,10 @@ import { assetId, placeholderKey } from "../../game/placeholder";
 import { damageNumberText, effectivenessRole } from "../../game/ui/BattleFx";
 import { NEVER } from "../../core/lifecycle";
 import { BattleScene, type BattleSceneData } from "../../game/scenes/BattleScene";
+import { CombatantPanel } from "../../game/ui/BattleHud";
 import paletteFile from "../../data/palette.json";
+/** The STUB (see `vi.mock("phaser")` above) — the widgets take a `Phaser.Scene` and never touch the DOM. */
+import PhaserRuntime from "phaser";
 
 import gymJson from "../../fixtures/battle-scripts/gym-01-maribel.json";
 import wildJson from "../../fixtures/battle-scripts/wild-catch-r1-nibbin.json";
@@ -736,9 +769,17 @@ describe("every visual step carries the log's own numbers", () => {
     expect(enemy).toBe(finalState.activeEnemyUid);
 
     // The blow that knocks a battler out is attributed to the pair standing BEFORE the replacement.
+    //
+    // RE-ANCHORED, not loosened. This used to read `swapIndex = findIndex(switched)` and assert it
+    // came after the first faint — true of the fixture as first recorded, and false since lane A5
+    // re-recorded it (commit 7d9a322: 74 events → 65, and a COMMANDED switch now lands at index 7,
+    // before the first faint at 13). The claim under test was never "the first switch answers a
+    // faint"; it is "the faint and the switch that ANSWERS it are drawn on different pairs". So the
+    // answering switch is located properly instead of assumed to be the first one. Verified
+    // independent of lane C3: the indices come out of `events`, which is core + the fixture only.
     const faintIndex = events.findIndex((e) => e.t === "faint");
-    const swapIndex = events.findIndex((e) => e.t === "switched");
     expect(faintIndex).toBeGreaterThanOrEqual(0);
+    const swapIndex = events.findIndex((e, i) => i > faintIndex && e.t === "switched");
     expect(swapIndex).toBeGreaterThan(faintIndex);
     const faintStep = steps[faintIndex];
     const swapStep = steps[swapIndex];
@@ -1197,7 +1238,15 @@ describe("G7 and Hard Req 8 — the battle screen's copy is identifiers and numb
         expect(MORALIZING.test(s.caption), s.caption).toBe(false);
       }
     }
-    expect(captions).toBeGreaterThan(80);
+    // RE-ANCHORED, and stronger than what it replaces. This used to be `> 80`, a magic figure
+    // pinned to the fixtures as first recorded; lane A5 re-recorded them (commit 7d9a322, the D-A5-1
+    // catch-formula amendment) and the total is now 79, so the bound was measuring another lane's
+    // recording rather than this compiler. The claim is now an IDENTITY against the fixtures' own
+    // declared event counts — a compiler that silently dropped a caption cannot satisfy it at any
+    // fixture size, which the magnitude bound could not say — with the substantiality floor kept
+    // beside it so an empty fixture set still fails.
+    expect(captions).toBe(SCRIPTS.reduce((total, script) => total + script.expect.events, 0));
+    expect(captions).toBeGreaterThan(50);
   });
 
   it("a KO narrates as a faint", () => {
@@ -1361,6 +1410,55 @@ describe("game/battle-input.ts greys exactly what core/battle.ts refuses", () =>
     assertAgreesWithCore(teamEntries(downed, ctx), downed, ctx);
   });
 
+  it("a closed pane reports core's reason only when every child agrees on it", () => {
+    // WAS: `paneRow` took `children[0]?.reason`, so a Bag closed for two different reasons reported
+    // one of them as if it were the whole story — at full HP with no status, the row read "that
+    // battler is already at full HP", which is true of the salve and is not why the tonic was
+    // refused (core: "that battler has no status to cure").
+    const ctx = contextFor(GYM);
+    const med = ctx.balance.medicine;
+    const stocked: BattleInput = {
+      seed: 3,
+      kind: "wild",
+      nodeId: "hearthollow",
+      playerParty: [{ uid: "p1", lineId: "skir-line", age: "A", level: 20, traits: [] }],
+      enemyParty: [{ uid: "e1", lineId: "nibbin-line", age: "A", level: 6, traits: [] }],
+      bag: { [med.salveItemId]: 2, [med.tonicItemId]: 2 },
+    };
+    const state = startBattle(stocked, ctx).state;
+    const bag = bagEntries(state, ctx);
+    expect(bag.length).toBe(2);
+    expect(bag.every((row) => row.disabled), "a full-HP, status-free battler refuses both").toBe(true);
+    // The premise: core really does give two different reasons here.
+    expect(new Set(bag.map((row) => row.reason)).size).toBe(2);
+    const closed = rootEntries(state, ctx).find((row) => row.id === "bag");
+    expect(closed?.disabled).toBe(true);
+    expect(closed?.reason, "a pane with disagreeing children has no single reason").toBeNull();
+    assertAgreesWithCore(bag, state, ctx);
+
+    // …and where the children DO agree, core's own reason is still reported verbatim.
+    const { openingState: gymState } = replay(GYM);
+    const snares = snareEntries(gymState, ctx);
+    expect(new Set(snares.map((row) => row.reason)).size).toBe(1);
+    const snareRow = rootEntries(gymState, ctx).find((row) => row.id === "snares");
+    expect(snareRow?.reason).toBe(illegalActionReason(gymState, { kind: "snare", tier: "base" }, ctx));
+  });
+
+  it("bag, snare and bait rows are labelled, not raw ids", () => {
+    // WAS: `bagEntries`/`snareEntries`/`baitEntries` used the id as the label, so the snares pane
+    // read `base / weighted / master` and the bag read `salve / tonic`.
+    const { openingState, ctx } = replay(WILD);
+    for (const row of snareEntries(openingState, ctx)) {
+      expect(row.label).toBe(row.id.charAt(0).toUpperCase() + row.id.slice(1));
+      expect(row.label).not.toBe(row.id);
+    }
+    const bait = baitEntries(openingState, ctx, "weighted");
+    for (const row of bait) expect(row.label.length).toBeGreaterThan(0);
+    // A supplied name table always wins over the typeset id.
+    const named = snareEntries(openingState, ctx, { item: (id) => `${id} snare` });
+    expect(named[0]?.label).toBe("base snare");
+  });
+
   it("every action the menu can emit from the fixtures' opening states is legal", () => {
     for (const script of SCRIPTS) {
       const { openingState, ctx } = replay(script);
@@ -1486,7 +1584,7 @@ describe("battle-view regressions (each reproduces a defect that shipped)", () =
     const newMax = oldMax + 20;
     const log: BattleEvent[] = [
       { t: "levelUp", uid: playerUid, level: (opening.battlers[playerUid]?.level ?? 1) + 1 },
-      { t: "statusTick", uid: playerUid, status: "Poison", amount: 5 },
+      { t: "statusTick", uid: playerUid, status: "Toxin", amount: 5 },
     ];
     const { steps } = compileBattleEvents(log, opening, {}, { maxHp: () => newMax });
     const tick = steps[1];
@@ -1703,6 +1801,33 @@ describe("the battle screen's boxes are disjoint and its text fits its plates", 
     }
   });
 
+  it("the card is DERIVED from the menu's position, so the two cannot drift back together", () => {
+    // The historical collision was two independently-computed y values that happened to overlap:
+    // `menuY = height - messageH - 96` against `playerCardY = round(height * 0.44)`. The fix is
+    // structural — the message pins the menu and the menu pins the card — so moving one moves the
+    // other. This asserts the ordering that makes that true, at the shipped size and at others.
+    for (const [w, h] of [
+      [map.virtualWidth, map.virtualHeight],
+      [320, 240],
+      [512, 384],
+      [640, 480],
+      [960, 540],
+    ]) {
+      const l = battleScreenLayout(w ?? 0, h ?? 0);
+      expect(l.playerCard.y + l.playerCard.h, `card above menu @${String(w)}x${String(h)}`).toBeLessThanOrEqual(l.menu.y);
+      expect(l.menu.y + l.menu.h, `menu above message @${String(w)}x${String(h)}`).toBeLessThanOrEqual(l.message.y);
+      const panels = layoutPanels(l);
+      for (let i = 0; i < panels.length; i += 1) {
+        for (let j = i + 1; j < panels.length; j += 1) {
+          const a = panels[i];
+          const b = panels[j];
+          if (a === undefined || b === undefined) continue;
+          expect(rectsOverlap(a.rect, b.rect), `${a.name}/${b.name} @${String(w)}x${String(h)}`).toBe(false);
+        }
+      }
+    }
+  });
+
   it("every panel is inside the screen", () => {
     for (const { name, rect } of layoutPanels(layout)) {
       expect(rect.x, `${name} left`).toBeGreaterThanOrEqual(0);
@@ -1774,5 +1899,584 @@ describe("the battle screen's boxes are disjoint and its text fits its plates", 
       }
     }
     expect(checked).toBeGreaterThan(20);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * 11. THE SCENE, EXECUTED.
+ *
+ * Everything above this line proves things about the compiler and the menu
+ * machine. Every MAJOR defect an independent audit reproduced lived below it —
+ * in `game/scenes/BattleScene.ts` and in `CombatantPanel`'s Phaser half — in
+ * code that no test had ever run. These tests run it.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+interface FakeScene {
+  __fake: FakeSceneParts;
+}
+
+function fakeOf(scene: BattleScene): FakeSceneParts {
+  return (scene as unknown as FakeScene).__fake;
+}
+
+function contextFor(script: BattleScript): BattleContext {
+  return makeBattleContext(content, predationOracleFromWebs([script.foodWeb]));
+}
+
+/** Build and open a real BattleScene over a stub Phaser. `init` + `create`, exactly as Phaser calls them. */
+function openScene(
+  input: BattleInput,
+  ctx: BattleContext,
+  rng: { float(): number },
+  extra: Partial<BattleSceneData> = {},
+): { scene: BattleScene; fake: FakeSceneParts } {
+  const scene = new BattleScene();
+  const data: BattleSceneData = { ctx, input, rng, ...extra };
+  scene.init(data);
+  scene.create();
+  return { scene, fake: fakeOf(scene) };
+}
+
+/** Run exactly one queued step: finish whatever is animating, then fire the next timer. */
+function advance(fake: FakeSceneParts): boolean {
+  fake.completeTweens();
+  const next = fake.timers.find((t) => !t.fired);
+  if (next === undefined) return false;
+  next.fired = true;
+  next.run();
+  return true;
+}
+
+/** A panel's card children, through the stub's container. */
+function cardChildren(panel: CombatantPanel): FakeObject[] {
+  return (panel.root as unknown as FakeObject).list;
+}
+
+function readoutOf(panel: CombatantPanel): string {
+  const found = cardChildren(panel).find((c) => c.kind === "text" && /^\d+\/\d+$/.test(c.text));
+  return found?.text ?? "";
+}
+
+function barWidthOf(panel: CombatantPanel): number {
+  const bars = cardChildren(panel).filter((c) => c.kind === "rect" && c.h === DEFAULT_CARD_STYLE.hpBarH);
+  return bars[1]?.w ?? -1;
+}
+
+/** The (start, end) of every HP tween the scene has created, in order. */
+function hpTweens(fake: FakeSceneParts): Array<{ start: number; end: number }> {
+  return fake.tweens
+    .filter((t) => typeof t.config.hp === "number" && typeof t.startValues.hp === "number")
+    .map((t) => ({ start: t.startValues.hp as number, end: t.config.hp as number }));
+}
+
+
+/**
+ * A cursor over the steps the scene has actually PERFORMED.
+ *
+ * `perform` writes the caption exactly once per step, so the message label's write count is the
+ * perform count. Counting fired timers would be wrong twice over: a flash schedules one that
+ * performs nothing, a queue-drain fires one that performs nothing, and `commit()` performs a step
+ * synchronously with no timer at all. `next()` returns the instant a step has been performed and
+ * before anything else runs, which is the only moment a mid-animation assertion is meaningful.
+ */
+function stepper(scene: BattleScene, fake: FakeSceneParts): {
+  index(): number;
+  step(): ViewStep | undefined;
+  next(): boolean;
+  afterCommit(): void;
+} {
+  const label = fake.objects.filter((o) => o.kind === "text")[0];
+  if (label === undefined) throw new Error("the message label is the first text the scene creates");
+  let writes = label.writes ?? 0;
+  let index = 0;
+  return {
+    index: (): number => index,
+    step: (): ViewStep | undefined => scene.playedSteps()[index],
+    next: (): boolean => {
+      while (advance(fake)) {
+        const now = label.writes ?? 0;
+        if (now === writes) continue;
+        writes = now;
+        index += 1;
+        return true;
+      }
+      return false;
+    },
+    afterCommit: (): void => {
+      writes = label.writes ?? 0;
+      index += 1;
+    },
+  };
+}
+
+describe("BattleScene, executed: it renders the log and holds no rule", () => {
+  it("replays the whole recorded gym fight without throwing, and reaches the reducer's outcome", () => {
+    const ctx = contextFor(GYM);
+    const { scene, fake } = openScene(GYM.input, ctx, cyclic(GYM.rngScript));
+    fake.flush();
+    for (const action of GYM.actions) {
+      if (scene.battleState().outcome !== null) break;
+      scene.commit(action);
+      fake.flush();
+    }
+    expect(scene.battleState().outcome).toBe(GYM.expect.outcome);
+    expect(scene.playedSteps().length).toBe(GYM.expect.events);
+  });
+
+  it("the HP bar starts every animation at the log's OWN hpFrom, never at a full bar", () => {
+    // WAS: `tweenHp` seeded the tween with `hpBarModel(...).totalPx` — the bar's whole width — so a
+    // wounded creature's bar refilled to 100% at the start of every blow and drained again, and a
+    // heal played as the bar collapsing from full. `hpFrom` was on the step and the scene never read
+    // it. LIVE: pxTweens = [{start:108,end:16},{start:108,end:0}], both beginning at the full 108px.
+    const ctx = contextFor(GYM);
+    const { scene, fake } = openScene(GYM.input, ctx, cyclic(GYM.rngScript));
+    fake.flush();
+    for (const action of GYM.actions) {
+      if (scene.battleState().outcome !== null) break;
+      scene.commit(action);
+      fake.flush();
+    }
+    const expected = scene
+      .playedSteps()
+      .filter((s) => s.kind === "hit" || s.kind === "heal" || s.kind === "statusTick")
+      .map((s) => ({ start: s.hpFrom, end: s.hpTo }));
+    expect(expected.length).toBeGreaterThan(10);
+    expect(hpTweens(fake)).toEqual(expected);
+
+    // The test would pass vacuously if every tween happened to start from full, so prove it does not.
+    const woundedStarts = expected.filter((t, i) => {
+      const step = scene.playedSteps().filter((s) => s.kind === "hit" || s.kind === "heal" || s.kind === "statusTick")[i];
+      return step !== undefined && "maxHp" in step && t.start < step.maxHp;
+    });
+    expect(woundedStarts.length).toBeGreaterThan(0);
+  });
+
+  it("the number and the bar move together — one writer, never two", () => {
+    // WAS: `setHpFillPx` resized the rectangle only; `hpText` was written by `panel.update()`, which
+    // the scene never called on a hit. LIVE: the enemy bar drained 108 -> 0 while the card went on
+    // printing "71/71" for the whole step.
+    const ctx = contextFor(GYM);
+    const { scene, fake } = openScene(GYM.input, ctx, cyclic(GYM.rngScript));
+    fake.flush();
+    scene.commit(GYM.actions[0] as BattleAction);
+
+    let sawTween = 0;
+    for (;;) {
+      if (!advance(fake)) break;
+      for (const panel of Object.values(scene.panels())) {
+        const readout = readoutOf(panel);
+        const shownHp = Number.parseInt(readout.split("/")[0] ?? "-1", 10);
+        const shownMax = Number.parseInt(readout.split("/")[1] ?? "-1", 10);
+        const expectedPx = hpBarModel(shownHp, shownMax, DEFAULT_CARD_STYLE.hpBarW).fillPx;
+        expect(barWidthOf(panel), `bar ${String(barWidthOf(panel))} vs readout ${readout}`).toBe(expectedPx);
+      }
+      sawTween += fake.tweens.filter((t) => typeof t.config.hp === "number").length > 0 ? 1 : 0;
+    }
+    expect(sawTween).toBeGreaterThan(0);
+  });
+
+  it("both cards read the state of the step ON SCREEN, never the end of the turn", () => {
+    // WAS: `refreshPanels()` read `this.view.snapshot`, which `push(events, stateAfter)` had already
+    // advanced to the end of the whole reducer step. LIVE: `"Dart: spd↑ (3)" -> 0/77` — the player's
+    // HP emptied on their own buff, two steps before the blow that emptied it was drawn.
+    const ctx = contextFor(GYM);
+    const { scene, fake } = openScene(GYM.input, ctx, cyclic(GYM.rngScript));
+    const at = stepper(scene, fake);
+    const check = (): void => {
+      const step = at.step();
+      if (step === undefined) throw new Error(`no step at index ${String(at.index())}`);
+      const tweening =
+        step.kind === "hit" || step.kind === "heal" || step.kind === "statusTick" ? step.uid : null;
+      for (const [side, panel] of Object.entries(scene.panels())) {
+        const carried = side === "player" ? step.playerAt : step.enemyAt;
+        if (carried === null || carried === undefined) continue;
+        // The tween's target shows hpFrom until the tween runs; everything else shows the step.
+        const hp = tweening === carried.uid && "hpFrom" in step ? step.hpFrom : carried.curHp;
+        expect(readoutOf(panel), `${step.kind} @${String(at.index())} ${side}`).toBe(
+          `${String(hp)}/${String(carried.maxHp)}`,
+        );
+      }
+    };
+    check();
+    for (const action of GYM.actions) {
+      if (scene.battleState().outcome !== null) break;
+      while (at.next()) check();
+      scene.commit(action);
+      at.afterCommit();
+      check();
+    }
+    while (at.next()) check();
+    expect(at.index()).toBe(GYM.expect.events - 1);
+    expect(at.index()).toBeGreaterThan(50);
+  });
+
+  it("two combatants means two sprites — a rebuild takes the old sprite with it", () => {
+    // WAS: `CombatantPanel` adds its sprite to the SCENE (a card-relative child would be nowhere
+    // near the creature), and `rebuildPanels()` destroyed only `panel.root`. LIVE: the shipped gym
+    // fight ended with TWENTY combatant images for two combatants, the KO'd creature still drawn at
+    // full opacity beside its 0-HP card, and the count climbed 4,4,6,8,… with every switch.
+    const ctx = contextFor(GYM);
+    const { scene, fake } = openScene(GYM.input, ctx, cyclic(GYM.rngScript));
+    const census: number[] = [];
+    fake.flush();
+    census.push(fake.imagesOnScreen().length);
+    for (const action of GYM.actions) {
+      if (scene.battleState().outcome !== null) break;
+      scene.commit(action);
+      fake.flush();
+      census.push(fake.imagesOnScreen().length);
+    }
+    expect(scene.battleState().outcome).toBe("win");
+    // The fixture swaps seven times; every reading must still be exactly two.
+    expect(new Set(census)).toEqual(new Set([2]));
+    expect(census.length).toBeGreaterThan(5);
+  });
+
+  it("destroying a panel cancels the tween that writes to it", () => {
+    // WAS: no handle was kept, so an `onUpdate` closure went on calling `setHpFillPx` on a destroyed
+    // Rectangle. OBSERVED: `TypeError: Cannot read properties of null (reading 'setSize')` inside
+    // Phaser's tween loop.
+    const ctx = contextFor(GYM);
+    const { scene, fake } = openScene(GYM.input, ctx, cyclic(GYM.rngScript));
+    fake.flush();
+    scene.commit(GYM.actions[0] as BattleAction);
+    // Play up to the first hit, so a tween is in flight against a live panel.
+    let guard = 0;
+    while (fake.tweens.every((t) => typeof t.config.hp !== "number") && advance(fake)) {
+      guard += 1;
+      if (guard > 200) throw new Error("no HP tween appeared");
+    }
+    const live = fake.tweens.filter((t) => typeof t.config.hp === "number");
+    expect(live.length).toBeGreaterThan(0);
+    const panel = Object.values(scene.panels())[0];
+    if (panel === undefined) throw new Error("expected a panel");
+    panel.destroy();
+    expect(panel.destroyed).toBe(true);
+    // Whatever is still queued must not touch it, and running the loop anyway must not throw.
+    expect(() => {
+      fake.completeTweens();
+    }).not.toThrow();
+    // Destroying the panel destroyed its sprite too, not just its card.
+    expect((panel.sprite as unknown as FakeObject).destroyed).toBe(true);
+  });
+
+  it("SIBLING SWEEP — destroying a panel cancels EVERY tween aimed at it, not just the HP one", () => {
+    // The HP tween is the one that was observed throwing, but game/ui/BattleFx.ts aims the lunge,
+    // the hit shake, the faint fade, the flee dash and the snare shakes at the same sprite. Fixing
+    // only the one that was seen would have left five more of the same defect.
+    const ctx = contextFor(GYM);
+    const { scene, fake } = openScene(GYM.input, ctx, cyclic(GYM.rngScript));
+    fake.flush();
+    scene.commit(GYM.actions[0] as BattleAction);
+    let guard = 0;
+    while (fake.tweens.every((t) => typeof t.config.hp !== "number") && advance(fake)) {
+      guard += 1;
+      if (guard > 200) throw new Error("no HP tween appeared");
+    }
+    const panel = Object.values(scene.panels())[0];
+    if (panel === undefined) throw new Error("expected a panel");
+    const sprite = panel.sprite as unknown as FakeObject;
+    const aimed = fake.tweens.filter((t) => t.config.targets === sprite);
+    expect(aimed.length, "the fixture aims sprite tweens at this panel").toBeGreaterThan(0);
+    panel.destroy();
+    expect(aimed.every((t) => t.removed)).toBe(true);
+    // …and a deferred FX callback on the destroyed sprite is a no-op rather than a write.
+    expect(sprite.scene).toBeUndefined();
+    expect(() => {
+      fake.flush();
+    }).not.toThrow();
+  });
+
+  it("a successful flee does not play the KO animation", () => {
+    // WAS: `case "flee"` called `faintFade`, the same sink-and-fade Hard Req 8 reserves for a KO, so
+    // escaping and being knocked out were the same picture.
+    const ctx = contextFor(FLEE);
+    const { scene, fake } = openScene(FLEE.input, ctx, cyclic(FLEE.rngScript));
+    fake.flush();
+    for (const action of FLEE.actions) {
+      if (scene.battleState().outcome !== null) break;
+      scene.commit(action);
+      fake.flush();
+    }
+    expect(scene.battleState().outcome).toBe("fled");
+    const fx = stripComments(read("game/scenes/BattleScene.ts"));
+    const fleeCase = fx.slice(fx.indexOf('case "flee"'), fx.indexOf('case "xp"'));
+    expect(fleeCase).toContain("fleeDash");
+    expect(fleeCase).not.toContain("faintFade");
+    // The fleeing sprite travelled sideways as well as fading — a faint only sinks.
+    const moved = fake.tweens.filter((t) => typeof t.config.x === "number" && t.config.alpha === 0);
+    expect(moved.length).toBeGreaterThan(0);
+  });
+
+  it("the wild catch plays through the scene and reports the caught individual once", () => {
+    const ctx = contextFor(WILD);
+    let finished = 0;
+    let caughtLine: string | null = null;
+    const { scene, fake } = openScene(WILD.input, ctx, cyclic(WILD.rngScript), {
+      onFinished: (result): void => {
+        finished += 1;
+        caughtLine = result.caught?.lineId ?? null;
+      },
+    });
+    fake.flush();
+    for (const action of WILD.actions) {
+      if (scene.battleState().outcome !== null) break;
+      scene.commit(action);
+      fake.flush();
+    }
+    expect(scene.battleState().outcome).toBe("caught");
+    expect(finished).toBe(1);
+    expect(caughtLine).not.toBeNull();
+    expect(fake.imagesOnScreen().length).toBe(2);
+  });
+
+  it("core's refusal strings are never printed as the narration line", () => {
+    // WAS: `renderMenu()` and `handleKey()` pushed `illegalActionReason`'s string into the message
+    // box. core/types.ts calls it "a diagnostic, not player-facing copy". LIVE, on screen:
+    // "the active battler has fainted — only a switch is accepted".
+    const ctx = contextFor(GYM);
+    const { scene, fake } = openScene(GYM.input, ctx, cyclic(GYM.rngScript));
+    fake.flush();
+    const opening = scene.currentMessage();
+
+    // Flee is refused in a gym. Walk the cursor onto it and confirm.
+    const rows = rootEntries(scene.battleState(), ctx);
+    const fleeAt = rows.findIndex((r) => r.id === "flee");
+    expect(fleeAt).toBeGreaterThan(0);
+    for (let i = 0; i < fleeAt; i += 1) fake.press("keydown-DOWN");
+    fake.press("keydown-Z");
+
+    const refusal = illegalActionReason(scene.battleState(), { kind: "flee" }, ctx);
+    expect(refusal).not.toBeNull();
+    expect(scene.lastRefusal()).toBe(refusal);
+    expect(scene.currentMessage()).toBe(opening);
+    expect(scene.currentMessage()).not.toBe(refusal);
+
+    // …and moving back onto a legal row does not leave a stale refusal on screen either.
+    fake.press("keydown-UP");
+    expect(scene.currentMessage()).toBe(opening);
+  });
+
+  it("the scene commits only actions core accepts, and a refused one is not committed", () => {
+    const ctx = contextFor(GYM);
+    const { scene, fake } = openScene(GYM.input, ctx, cyclic(GYM.rngScript));
+    fake.flush();
+    const turnBefore = scene.battleState().turn;
+    const rows = rootEntries(scene.battleState(), ctx);
+    const fleeAt = rows.findIndex((r) => r.id === "flee");
+    for (let i = 0; i < fleeAt; i += 1) fake.press("keydown-DOWN");
+    fake.press("keydown-Z");
+    fake.flush();
+    expect(scene.battleState().turn).toBe(turnBefore);
+    expect(scene.playedSteps().every((s) => s.kind !== "rejected")).toBe(true);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * 11b. A hand-built fight for the beats no recorded fixture contains.
+ *
+ * The three shipped fixtures produce eight of the twenty-two event kinds between
+ * them (see docs/DEVIATIONS-lane-c3.md C3-G6). A self-buff, an item, a heal and a
+ * refusal are all reachable through the real reducer with a hand-built input, so
+ * the scene's branches for them are executed here rather than assumed.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("BattleScene, executed: the beats the fixtures do not contain", () => {
+  const buffCtx = contextFor(GYM);
+  const SALVE = buffCtx.balance.medicine.salveItemId;
+
+  const buffInput: BattleInput = {
+    seed: 1,
+    kind: "wild",
+    nodeId: "hearthollow",
+    playerParty: [
+      { uid: "p1", lineId: "skir-line", age: "A", level: 20, traits: [], moves: ["quicken", "gnaw"] },
+      { uid: "p2", lineId: "nibbin-line", age: "A", level: 20, traits: [] },
+    ],
+    enemyParty: [{ uid: "e1", lineId: "nibbin-line", age: "A", level: 6, traits: [] }],
+    bag: { [SALVE]: 2 },
+  };
+
+  it("a self-buff step paints the card with the HP it has AT THAT MOMENT", () => {
+    // This is the auditor's own reproduction, run through the real scene: the player uses a shipped
+    // self-buff, and the enemy's reply lands LATER in the same reducer step. Under the defect the
+    // buff step painted the post-reply HP.
+    const { scene, fake } = openScene(buffInput, buffCtx, cyclic([0.5, 0.5, 0.5, 0.5, 0.5]));
+    fake.flush();
+    const before = scene.battleState().battlers.p1?.curHp ?? 0;
+    scene.commit({ kind: "move", moveId: "quicken" });
+
+    const at = stepper(scene, fake);
+    at.afterCommit();
+    let sawStatMod = false;
+    for (;;) {
+      const step = at.step();
+      if (step?.kind === "statMod") {
+        sawStatMod = true;
+        const panel = scene.panels().player;
+        if (panel === undefined) throw new Error("expected a player panel");
+        expect(step.playerAt?.curHp).toBe(before);
+        expect(readoutOf(panel)).toBe(`${String(before)}/${String(step.playerAt?.maxHp ?? 0)}`);
+        // …and the buff's arrow is on the card the moment the buff happens.
+        expect(step.playerAt?.statArrows.spd).toBe("up");
+      }
+      if (!at.next()) break;
+    }
+    expect(sawStatMod, "the fight produced no statChanged event").toBe(true);
+    // The point of the test: the turn really did move the player's HP afterwards.
+    expect(scene.battleState().battlers.p1?.curHp).toBeLessThan(before);
+  });
+
+  it("an item and the heal it causes both render, and the bar climbs from the wounded value", () => {
+    const { scene, fake } = openScene(buffInput, buffCtx, cyclic([0.5, 0.5, 0.5, 0.5, 0.5]));
+    fake.flush();
+    // Take a hit first, or the salve is refused (core: "already at full HP").
+    scene.commit({ kind: "move", moveId: "quicken" });
+    fake.flush();
+    const wounded = scene.battleState().battlers.p1?.curHp ?? 0;
+    const max = scene.battleState().battlers.p1?.maxHp ?? 0;
+    expect(wounded).toBeLessThan(max);
+
+    const before = fake.tweens.length;
+    scene.commit({ kind: "item", itemId: SALVE });
+    fake.flush();
+    const kinds = scene.playedSteps().map((s) => s.kind);
+    expect(kinds).toContain("item");
+    expect(kinds).toContain("heal");
+    const healTween = hpTweens(fake).slice(0);
+    const climbed = healTween.filter((t) => t.end > t.start);
+    expect(climbed.length, "a heal must tween upwards").toBeGreaterThan(0);
+    expect(fake.tweens.length).toBeGreaterThan(before);
+    // The item row's label is typeset, not the raw id.
+    const shown = scene.playedSteps().find((s) => s.kind === "item");
+    if (shown?.kind !== "item") throw new Error("expected an item step");
+    expect(shown.itemName).toBe(shown.itemId.charAt(0).toUpperCase() + shown.itemId.slice(1));
+  });
+
+  it("a refused action reaches the scene as a `rejected` step and is drawn as a diagnostic", () => {
+    const { scene, fake } = openScene(buffInput, buffCtx, cyclic([0.5, 0.5, 0.5, 0.5, 0.5]));
+    fake.flush();
+    // `commit` is the integration seam: hand the reducer something it refuses and it logs why.
+    scene.commit({ kind: "item", itemId: SALVE });
+    fake.flush();
+    const rejected = scene.playedSteps().find((s) => s.kind === "rejected");
+    if (rejected?.kind !== "rejected") throw new Error("expected the reducer to refuse a full-HP salve");
+    expect(rejected.diagnostic).toBe(true);
+    expect(scene.currentMessage()).toBe(rejected.caption);
+  });
+
+  it("the scene has executed every step kind these fights can produce, and the gap is declared", () => {
+    // The honest census. A kind that STOPS being covered fails this; a kind that starts being
+    // covered fails it too, which is the prompt to move it out of the declared gap.
+    const covered = new Set<ViewStepKind>();
+    const runs: Array<{ input: BattleInput; ctx: BattleContext; rng: number[]; actions: BattleAction[] }> = [
+      { input: GYM.input, ctx: contextFor(GYM), rng: GYM.rngScript, actions: GYM.actions },
+      { input: WILD.input, ctx: contextFor(WILD), rng: WILD.rngScript, actions: WILD.actions },
+      { input: FLEE.input, ctx: contextFor(FLEE), rng: FLEE.rngScript, actions: FLEE.actions },
+      {
+        input: buffInput,
+        ctx: buffCtx,
+        rng: [0.5, 0.5, 0.5, 0.5, 0.5],
+        actions: [
+          { kind: "move", moveId: "quicken" },
+          { kind: "item", itemId: SALVE },
+          { kind: "item", itemId: SALVE },
+        ],
+      },
+    ];
+    for (const run of runs) {
+      const { scene, fake } = openScene(run.input, run.ctx, cyclic(run.rng));
+      fake.flush();
+      for (const action of run.actions) {
+        if (scene.battleState().outcome !== null) break;
+        scene.commit(action);
+        fake.flush();
+      }
+      for (const step of scene.playedSteps()) covered.add(step.kind);
+    }
+
+    const uncovered = VIEW_STEP_KINDS.filter((kind) => !covered.has(kind));
+    // Declared, not silent: these are the branches no reachable fight in this suite reaches.
+    // They are covered by `compileBattleEvents` tests only. docs/DEVIATIONS-lane-c3.md C3-G6.
+    expect([...uncovered].sort()).toEqual(
+      ["evade", "levelUp", "statusApply", "statusClear", "statusSkip", "statusTick"].sort(),
+    );
+    expect(covered.size).toBeGreaterThan(14);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * 11c. The widgets, executed. Same stub Phaser, one object at a time.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("CombatantPanel, executed", () => {
+  const { openingState } = replay(WILD);
+  const opening = snapshotOf(openingState);
+  const someone = opening.battlers[openingState.activePlayerUid];
+
+  function panelScene(): { scene: PhaserRuntime.Scene; fake: FakeSceneParts } {
+    const scene = new PhaserRuntime.Scene();
+    return { scene, fake: (scene as unknown as FakeScene).__fake };
+  }
+
+  it("owns its sprite: destroy() takes the card AND the sprite", () => {
+    if (someone === undefined) throw new Error("fixture has a player");
+    const { scene, fake } = panelScene();
+    const panel = new CombatantPanel(scene, {
+      x: 10,
+      y: 20,
+      cardX: 0,
+      cardY: 0,
+      view: someone,
+    });
+    expect(fake.imagesOnScreen().length).toBe(1);
+    // The sprite is NOT a child of the card container — that is why destroying only the container
+    // leaked it. It must still go away.
+    expect(cardChildren(panel)).not.toContain(panel.sprite as unknown as FakeObject);
+    panel.destroy();
+    expect(fake.imagesOnScreen().length).toBe(0);
+    expect((panel.root as unknown as FakeObject).destroyed).toBe(true);
+    expect(panel.destroyed).toBe(true);
+    // Idempotent — a double destroy must not throw.
+    expect(() => {
+      panel.destroy();
+    }).not.toThrow();
+  });
+
+  it("setHp writes the bar and the number together, and refuses to write after destroy", () => {
+    if (someone === undefined) throw new Error("fixture has a player");
+    const { scene } = panelScene();
+    const panel = new CombatantPanel(scene, { x: 0, y: 0, cardX: 0, cardY: 0, view: someone });
+    for (const hp of [someone.maxHp, Math.floor(someone.maxHp / 2), 1, 0]) {
+      panel.setHp(hp, someone.maxHp);
+      expect(readoutOf(panel)).toBe(`${String(hp)}/${String(someone.maxHp)}`);
+      expect(barWidthOf(panel)).toBe(hpBarModel(hp, someone.maxHp, DEFAULT_CARD_STYLE.hpBarW).fillPx);
+    }
+    const last = readoutOf(panel);
+    panel.destroy();
+    panel.setHp(999, 999);
+    expect(readoutOf(panel)).toBe(last);
+  });
+
+  it("owning a second HP tween cancels the first", () => {
+    if (someone === undefined) throw new Error("fixture has a player");
+    const { scene } = panelScene();
+    const panel = new CombatantPanel(scene, { x: 0, y: 0, cardX: 0, cardY: 0, view: someone });
+    let firstRemoved = 0;
+    let secondRemoved = 0;
+    panel.ownHpTween({
+      remove: (): void => {
+        firstRemoved += 1;
+      },
+    });
+    panel.ownHpTween({
+      remove: (): void => {
+        secondRemoved += 1;
+      },
+    });
+    expect(firstRemoved).toBe(1);
+    expect(secondRemoved).toBe(0);
+    panel.destroy();
+    expect(secondRemoved).toBe(1);
   });
 });

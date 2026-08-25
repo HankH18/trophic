@@ -297,7 +297,7 @@ const MAGIC_NUMBER_ALLOWANCE: Record<string, { values: readonly number[]; why: s
       "zod SHAPE bounds and CONTENT CARDINALITIES, never read by a formula: at most 2 types per age " +
       "form, seasonOrder length 4, a 2-digit zero-padded palette swatch id, MOVE_POOL_SIZE 28 " +
       "(Hard Req 8), SEASONAL_MIGRANT_COUNT 4 (Hard Req 10), GYM_ROSTER_SIZES 3/4/5/6/6/6 (Hard Req 9 " +
-      "as amended by DEVIATIONS A5-D1, signature included) and PALETTE_SWATCH_COUNT 32 " +
+      "as amended by DEVIATIONS D-A5-G1, signature included) and PALETTE_SWATCH_COUNT 32 " +
       "(build-doc §8.4) — these assert what the " +
       "CONTENT must contain, which is the opposite of hiding a tunable in code. Retuning balance.json " +
       "cannot change any of them, which is the INV-4 test: a gameplay constant is one a retune moves",
@@ -309,6 +309,16 @@ const MAGIC_NUMBER_ALLOWANCE: Record<string, { values: readonly number[]; why: s
   "core/battle.ts": {
     values: [2],
     why: "the divisor of a midpoint between two balance values ((rollMin + rollMax) / 2) — structural, both operands are tunables",
+  },
+  "core/dialogue-schema.ts": {
+    values: [4, 8, 120, 400],
+    why:
+      "zod SHAPE bounds on the dialogue TEXT surface, never read by a formula: a line body is at " +
+      "most 400 characters and a choice prompt 120 (both must fit the 480x320 dialogue box), an " +
+      "entry is at most 8 lines and a choice list at most 4 options. The two values here that ARE " +
+      "gameplay constants — the 1..6 year range and the 0..100 flora ceiling — are read from " +
+      "balance.json (clock.yearsTotal, ecosim.floraMax), so no retune can move anything left here. " +
+      "That distinction is the INV-4 test: a gameplay constant is one a retune moves",
   },
 };
 

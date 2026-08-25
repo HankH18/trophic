@@ -30,7 +30,7 @@ Identity drift starts *before* view rotation does. Raw sweep images and run logs
 
 | View | Body | Head |
 |---|---|---|
-| **back** | horizontal mirror of the front — which is exactly what a back view is for everything that is not face-specific, and it puts the satchel strap and bag on the correct shoulder and hip for free | transformation: star removed, peak shaded away, cap band refilled over rows 12–15 (the mirror drags the front's temple hair and ear into it), face → nape band, neck narrowed, buckle removed, ears added |
+| **back** | horizontal mirror of the front — which is exactly what a back view is for everything that is not face-specific, and it puts the satchel strap and bag on the correct shoulder and hip for free. Every edit below **recolours** a pixel the mirror already placed, with two exceptions worth naming: the neck's width taper (which clears pixels) and four 1px ear marks. No new silhouette is drawn. | transformation: star removed, peak shaded away, cap band refilled over rows 12–15 (the mirror drags the front's temple hair and ear into it), face → nape band, neck narrowed, buckle removed, ears added |
 | **side** | transformation: one global horizontal squeeze (21/32) so vertical features stay contiguous, far arm dropped, buckle moved to the leading edge | **authored** as a glyph map (`SIDE_HEAD` in `tools/comfy/player-views.ts`). A profile skull is geometry no transformation of a frontal face yields. Colours are still all front swatches. |
 
 The side's head is the one place the word "derived" is doing work. It is called out here, in the

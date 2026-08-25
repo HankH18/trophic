@@ -116,14 +116,18 @@ Routes: one primary route per biome (R1 Meadow Reach, R2 Brackmarsh, R3 Bowerdee
 
 | Yr | Leader | Type | Team (age class) | Signature |
 |---|---|---|---|---|
-| 1 | Maribel | Beast | Nibbin (A), Bramblehog (A), Skir (A) | "Old Nib" — Nibbin (E), Thick Pelt |
+| 1 | Maribel | Beast | ~~Nibbin (A),~~ Bramblehog (A), Skir (A) — **AMENDED, see below** | "Old Nib" — Nibbin (E), Thick Pelt |
 | 2 | Odo | Water | Bogling (J), Reedrick (A), Mirefin (A) | Fenmaw (E) |
 | 3 | Vesper | Poison | Gloomgrub (J), Sporantle (A), Mirefin (A), Webvern (A) | Webvern (E), rare trait |
 | 4 | Sable | Fire | Ashvole (A), Cragmar (A), Ashvole (E), Stonewing (A), Pyrelisk (A) | Pyrelisk (E) |
 | 5 | Noct | Dark | Gloomoth (A), Umbrat (A), Carricrow (A), Wispurr (A), Umbrat (E) | Duskstalk (E) |
 | 6 | Magnate Greaves | mixed/industrial | Carricrow (A), Pyrelisk (A), Mirefin (A), Duskstalk (E), Fenmaw (E) | Stonewing (E) |
 
-Roster sizes (signature included): 4 / 4 / 5 / 6 / 6 / 6. Elder count ramps with the years — one Elder in early gyms, two-to-three by the endgame; Greaves fields harvested prime specimens, which is the point of him. Juvenile line-forms in gyms 2–3 (Bogling, Gloomgrub) quietly showcase the metamorphic lines before the player's own creatures reach them.
+> **AMENDED 2026-08-25 — gym 1 only (`docs/DEVIATIONS.md` D-A5-G1, authorised by Hank).** Maribel fields **three**, not four: the duplicate Nibbin (A) is cut and she keeps Bramblehog (A), Skir (A) and the signature. The balance harness measured this fight at **26.0%** against build-doc §10.5's 80–95% target for gym 1 — the hardest fight in the game, against a year-6 finale at 36.2%. All three possible cuts were measured over 500 seeds and Nibbin (A) won on every axis; cutting it also removes the roster's only repeated line, and the Nibbin she keeps is the named signature. Her Beast identity therefore rides on "Old Nib" alone, which is the stated cost of the change. Her signature also drops its assigned +2 level premium (D-A5-G2). The rows for gyms 2–6 are untouched.
+>
+> **Roster sizes (signature included) are therefore 3 / 4 / 5 / 6 / 6 / 6**, not the 4 / 4 / 5 / 6 / 6 / 6 stated below.
+
+Roster sizes (signature included): 4 / 4 / 5 / 6 / 6 / 6 *(gym 1 amended to 3 — see the note above)*. Elder count ramps with the years — one Elder in early gyms, two-to-three by the endgame; Greaves fields harvested prime specimens, which is the point of him. Juvenile line-forms in gyms 2–3 (Bogling, Gloomgrub) quietly showcase the metamorphic lines before the player's own creatures reach them.
 
 ## 8. Story Spine
 

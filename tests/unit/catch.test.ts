@@ -672,11 +672,16 @@ describe("snare throws (build-doc §7.4 / Hard Req 2)", () => {
     // being told about it.
     const thrown = step(lured.state, { kind: "snare", tier: "base" }, scripted([0.1, 0.1, 0.1]), CTX);
     const event = thrown.events.find((e) => e.t === "snareThrown");
-    expect(event?.t === "snareThrown" ? event.chance : 0).toBeCloseTo(0.2139504, 7);
+    // (Written to the last bit the IEEE-754 chain lands on, so the assertion stays as tight as the
+    //  0.225 it replaces — the tolerance is unchanged at 10 decimal places.)
+    expect(event?.t === "snareThrown" ? event.chance : 0).toBeCloseTo(0.21395044543429845, 10);
     // …which is exactly the un-lured chance for the SAME catcher times balance.catch.lureMult.
-    const catcher = lured.state.battlers["p"];
-    if (!catcher) throw new Error("no catcher");
-    expect(catchChance(target("mirefin-line", "A", 6), "base", undefined, false, CTX, "r2", catcher) * B.catch.lureMult).toBeCloseTo(0.2139504, 7);
+    const thrower = lured.state.battlers["p"];
+    if (!thrower) throw new Error("no catcher");
+    expect(catchChance(target("mirefin-line", "A", 6), "base", undefined, false, CTX, "r2", thrower) * B.catch.lureMult).toBeCloseTo(
+      0.21395044543429845,
+      10,
+    );
   });
 });
 
