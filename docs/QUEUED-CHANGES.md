@@ -1,41 +1,40 @@
 # Queued changes — authorised, waiting on in-flight work
 
-## CURRENT STATE (loop tick, 04:39)
+## CURRENT STATE (loop tick, 05:38)
 
-**Build: RED, transiently.** `tsc` 2 errors, suite 22 failed / 1648 passed. **All of it is in-flight
-work, not settled defects** — verified by mtime: the failing tests were authored at 02:37, while the
-`game/ui/` source they exercise is being edited right now (a repair agent is mid-way through adding a
-`panelInner` palette token that is not yet in the type). The `no_shadow_tables` failure is the live
-`game/__c4probe.ts`. **Do not "fix" any of this** — the Lanes B+C integrator owns it and interfering
-mid-repair costs more than it saves.
+**Build: GREEN.** `tsc` clean · **1829/1829 tests passing** (was 1613). All verifier scratch probes
+cleaned up by their authors. Committed `1e62b6ea`, remote verified.
+
+Lanes B+C finished its repair and integration passes and released `game/`, which unblocked the
+largest queued item.
 
 > **`tools/harness/probe.ts` is a REAL MODULE** imported by `tools/harness/measure.ts`. NOT a scratch
-> file. Deleting it breaks `tests/unit/harness.test.ts` at collection. This already happened once.
-> Match `__*` under `game/` and `tests/unit/` only — never a bare `*probe*` across `tools/`.
+> file — deleting it breaks `tests/unit/harness.test.ts` at collection. Match `__*` under `game/` and
+> `tests/unit/` only; never a bare `*probe*` across `tools/`.
 
 | Change | State |
 |---|---|
-| Q1 renames | **ready, deliberately held** — files are free, but landing a data change into a red mid-repair build destroys attribution. Dispatch on a green base. Needs replacements screened against **Digimon** (the sweep's own flagged gap). |
-| Q2 tick-only time | blocked — Lanes B+C holds `game/` |
-| Q3 act decoupling (+ Q3a 44 year-gated entries, Q3b no quest system) | blocked — needs `game/`; largest item, own verification pass |
-| Q4 backgroundTolerance | **DONE** `ab028db` — reproduced first, fixed, invariant test proved to bite both ways |
-| Q5 shape-not-species | **DONE** `ab028db` — 8 subjects rewritten on measured evidence, Pyrelisk deliberately left (G2) |
-| Q6 r4 mid-collapse | **held with Q3** — the raid that crashes r4 becomes act-triggered under Q3, so the "ships pre-crashed vs crashed on arrival" decision belongs to that change |
-| Q7 wire dialogue into `game/` | blocked — Lanes B+C holds `game/` |
+| Q1 renames | **ready, next up** — files free, no collision with dialogue (verified: no move name appears in `data/dialogue.json`). Shares `data/gyms.json` + `transcription.test.ts` + bible with Q3, so it runs AFTER the time-model workflow. Replacements still need screening against **Digimon**. |
+| Q2 tick-only time | **IN FLIGHT** — time-model workflow |
+| Q3 act decoupling | **IN FLIGHT** — same workflow, own verification lenses |
+| Q3a 44 year-gated entries | **IN FLIGHT** — parallel stream, disjoint scope |
+| Q3b quest system | outstanding — pairs with Q7, both are the same missing layer (C7) |
+| Q4 backgroundTolerance | **DONE** `ab028db` |
+| Q5 shape-not-species | **DONE** `ab028db` |
+| Q6 r4 mid-collapse | **IN FLIGHT** — sequenced after Q3 in the same workflow, because act-triggered raids change the answer (decision: crash on arrival, not pre-crashed — one source of truth, and an early arriver watches it happen) |
+| Q7 wire dialogue into `game/` | outstanding — the biggest remaining build item |
 | Q8 dialogue-schema allowance | **DONE** |
 
-**Open for Hank — B-D38, gates the 154-sprite B3 batch.** Bogling, Puddlisk, Mirefin and Wispurr all
-render as the same chibi bipedal mascot regardless of subject; Gloomoth lost its six legs. That looks
-like the §9.2-locked class skeleton overriding the subject, not a prompt fault. **Generate Fenmaw,
-Mirefin and Wispurr front views and LOOK before the other 148 rows are billed** — three images to
-de-risk the largest batch in the build.
+**Open for Hank — B-D38 gates the 154-sprite B3 batch.** Bogling, Puddlisk, Mirefin and Wispurr all
+render as the same chibi bipedal mascot regardless of subject; Gloomoth lost its six legs. Q5 already
+ruled out the prompts as the sole cause, which points at the §9.2-locked class skeleton overriding the
+subject. **Generate Fenmaw, Mirefin and Wispurr front views and LOOK before the other 148 are billed.**
 
-**Also awaiting Hank:** palette variant (recommendation class-equal; Q4 is now landed so the swap is
-unblocked) · the five borderline G7 lines in `docs/DIALOGUE-NOTES.md` · every rename in
-`docs/IP-SWEEP.md` (G15).
+**Also awaiting Hank:** palette variant (class-equal recommended; Q4 landed so the swap is unblocked)
+· five borderline G7 lines in `docs/DIALOGUE-NOTES.md` · every rename in `docs/IP-SWEEP.md` (G15).
 
-**Never:** fire a >=20-image batch (G13) · swap `data/palette.json` without Q4 (now done) · weaken a
-test to go green.
+**Never:** fire a >=20-image batch (G13) · swap `data/palette.json` without Q4 (done) · weaken a test
+to go green.
 
 ---
 
