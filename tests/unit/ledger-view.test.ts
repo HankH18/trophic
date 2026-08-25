@@ -22,7 +22,8 @@
 
 import { describe, expect, it } from "vitest";
 import { validateContent, zNodeFile } from "../../core/schemas";
-import { newSave } from "../../core/save";
+import { newSave, openStreams } from "../../core/save";
+import { seasonAt } from "../../core/clock";
 import { createRng } from "../../core/rng";
 import { derivePresence, ecoConstants, fromNodeState, stepRegionStates } from "../../core/ecosim";
 import {
@@ -38,6 +39,7 @@ import {
   DEX_ART_BOX,
   NOT_IN_ENCOUNTER_POOL,
   NO_PRESENCE,
+  NO_VALUE,
   SCREEN_TEXT,
   SUMMARY_ART_BOX,
   buildDexEntries,
@@ -56,6 +58,8 @@ import {
   renderLedgerPresence,
   renderLedgerRow,
   renderNumber,
+  renderRate,
+  renderSeasonalNote,
   renderRetirementYear,
   renderSummaryCard,
   sampleNodeState,
@@ -64,10 +68,14 @@ import {
   type LedgerRegion,
   type LedgerSample,
 } from "../../game/ledger-view";
+import { ledgerHistory } from "../../game/ledger-history";
+import { registry } from "../../game/registry";
 import { SCENE_KEYS } from "../../game/scene-keys";
 import {
   buildWebPage,
   collapsedEdgeLabels,
+  labelBounds,
+  labelOverlap,
   layoutWebPage,
   renderWebEdge,
   renderWebPage,
@@ -192,10 +200,13 @@ describe("ledger — Hard Req 2: real integers from the save's nodeStates", () =
     expect(renderLedgerPage(page)).toEqual([
       "Mini Node — year 1 · spring",
       "flora 45/100 · recent deaths 0 · lines 3 · individuals 40 · at 0: 0",
-      // No Ancient is in range of the fixture, so every breed rate is the stored one and prints once.
+      // No Ancient is in range of the fixture, so `presence:` is empty — but the `breed` column is
+      // the rate the SIM uses (§7.3 step 1's whole product), and food moves it with no Ancient
+      // anywhere: Nibbin's foodFactor at the fixture is 1.25, so 0.040 → 0.050. The stored rate is
+      // still on the row beside it. Skir and Loamunder sit at foodFactor 1 and print once.
       "presence: none",
       "line          count  cap  breed  seasons",
-      "Nibbin           20   60  0.040  20  net —",
+      "Nibbin           20   60  0.040→0.050  20  net —",
       "Skir             10   30  0.100  10  net —",
       "Loamunder        10   40  0.120  10  net —",
     ]);
@@ -226,7 +237,7 @@ describe("ledger — Hard Req 2: real integers from the save's nodeStates", () =
     pop.count -= 1;
     const after = renderLedgerPage(ledgerPageForSave(save, MINI.id, miniContent));
     expect(after).not.toEqual(before);
-    expect(after[4]).toBe("Nibbin           19   60  0.040  19  net —");
+    expect(after[4]).toBe("Nibbin           19   60  0.040→0.050  19  net —");
     // …and the totals line moved with it, so nothing on the page is a stale copy.
     expect(after[1]).toBe("flora 45/100 · recent deaths 0 · lines 3 · individuals 39 · at 0: 0");
   });
@@ -852,6 +863,61 @@ describe("stepped states — what a fixture save can never catch", () => {
     expect(renderNumber(1.7724791058738372)).toBe("1.8");
   });
 
+  it("shortening a real value never invents a zero or a ceiling", () => {
+    // Both measured on the shipped path: `renderNumber(99.95)` printed "100.0" —
+    // `balance.ecosim.floraMax`, the cap the node had NOT reached — and `renderNumber(0.04)`
+    // printed "0.0", which is this screen's word for gone, for a `recentDeaths` that §7.2 makes the
+    // live Scavenger encounter multiplier. Neither is a rounding taste; both are a screen asserting
+    // a state the save does not hold.
+    expect(renderNumber(99.95)).toBe("99.9");
+    expect(Number(renderNumber(99.95))).toBeLessThan(balance.ecosim.floraMax);
+    expect(renderNumber(0.04)).toBe("0.04");
+    expect(renderNumber(-0.04)).toBe("-0.04");
+
+    // …and both hold as LAWS over the range, not just at the two measured points. Accuracy is not
+    // sacrificed to get them: shortening still rounds everywhere the carry does not cross an
+    // integer, so 43.099999999999994 reads 43.1 rather than 43.0.
+    expect(renderNumber(43.099999999999994)).toBe("43.1");
+    const samples: number[] = [];
+    for (let i = 1; i <= 4000; i += 1) {
+      samples.push(i / 41.7, balance.ecosim.floraMax - i / 4001, i / 97531);
+    }
+    for (const value of samples) {
+      const text = renderNumber(value);
+      const shown = Number(text);
+      expect(shown, `${value} rendered as ${text}`).toBeGreaterThan(0);
+      expect(Math.trunc(shown), `${value} rendered as ${text} crossed an integer`).toBe(
+        Math.trunc(value),
+      );
+      // Half a unit of the last place everywhere the carry does not cross an integer, one full
+      // unit where it does — that gap IS the trade: a stock 0.00025 below its cap reads 99.9
+      // rather than 100.0, because printing the cap is the worse of the two errors by far.
+      const crosses = Math.trunc(Number(value.toFixed(1))) !== Math.trunc(value);
+      expect(Math.abs(shown - value), `${value} rendered as ${text}`).toBeLessThan(
+        crosses ? 0.1 : 0.05,
+      );
+    }
+    // A value too small for any fixed number of decimals is printed as a number, never as 0.
+    expect(renderNumber(1e-9)).toBe("1.0e-9");
+    expect(Number(renderNumber(1e-9))).toBe(1e-9);
+  });
+
+  it("a rate that is small but not zero never borrows the spelling of a suppressed one", () => {
+    // `0.000` in the breed column is what a line whose births the sim SUPPRESSED reads, so a rate
+    // that merely rounds to it is a breeding line drawn as a dead one. `(0.0004).toFixed(3)` is
+    // "0.000". The shipped clamps keep rates above that today, which is exactly why it would have
+    // gone unnoticed after a retune.
+    expect(renderRate(0)).toBe("0.000");
+    expect(renderRate(0.0004)).toBe("0.0004");
+    expect(renderRate(0.045)).toBe("0.045");
+    expect(renderRate(0.049999999999999996)).toBe("0.050");
+    expect(Number(renderRate(1e-9))).toBeGreaterThan(0);
+    for (let i = 1; i <= 3000; i += 1) {
+      const rate = i / 3_000_000;
+      expect(Number(renderRate(rate)), `${rate} rendered as ${renderRate(rate)}`).toBeGreaterThan(0);
+    }
+  });
+
   it("the diagram's labels stay on the canvas, at the positions the scene draws them", () => {
     const run = steppedRegion(12, 4);
     const box = webDiagramBox(balance);
@@ -899,10 +965,33 @@ describe("breed rate — the number on the row is the number driving the sim", (
     return stepRegionStates(content.nodes, states, season, createRng(seed)).reports;
   }
 
-  it("matches core/ecosim.ts's own report for every line at every node, in every season", () => {
+  it("the rate on the row times the count IS the sim's own births, at every node and season", () => {
+    /*
+     * WHAT THIS ASSERTION USED TO BE, AND WHY IT CHANGED.
+     *
+     *   // §7.3 step 1: births = count × breedRate × foodFactor × presenceMult. The rate the line
+     *   // breeds at is the two factors that are not about food.
+     *   expect(row.breedRate).toBeCloseTo(species.breedRate * species.presenceMult, 12);
+     *
+     * It quoted core/ecosim.ts §7.3 step 1's four-factor product and then asserted a two-factor
+     * one, which is the defect it was written to catch, blessed as the contract. Measured against
+     * the UNTOUCHED shipped year-1 state: 34 rows across 10 nodes where the ledger's `breed` column
+     * was not the number the sim uses, in both directions (hearthollow nibbin 0.060 shown vs 0.075
+     * used; cindershelf stonewing 0.030 shown vs 0.020 used). During the cascade beat at r4 it
+     * printed a starving apex breeding at its RAISED rate (0.045→0.056) in the season the sim gave
+     * it zero births and 4.2 starvation deaths. `LedgerRow.breedRate` is documented as "the rate
+     * this line will actually breed at this season", and Hard Req 2 asks for the real number.
+     *
+     * What replaces it is stronger than the four-factor product, because it does not restate the
+     * formula at all: the row's rate times the row's count must BE the births core reports. That
+     * catches a dropped factor, a wrong factor, a missed starvation cut-off and a future fifth
+     * term, and it cannot be satisfied by copying whatever the renderer happens to compute.
+     */
     const save = newSave({ seed: 12, currentNode: "hearthollow", nodes: content.nodes }, balance);
     const region: LedgerRegion = regionOf(save);
     let lifted = 0;
+    let starved = 0;
+    let foodMoved = 0;
     for (const season of SEASONS) {
       const reports = reportsFor(save.nodeStates, season, 12);
       for (const report of reports) {
@@ -917,16 +1006,64 @@ describe("breed rate — the number on the row is the number driving the sim", (
         for (const species of report.species) {
           const row = page.rows.find((r) => r.lineId === species.lineId);
           if (!row) throw new Error(`the ledger dropped ${species.lineId} at ${report.nodeId}`);
-          // §7.3 step 1: births = count × breedRate × foodFactor × presenceMult. The rate the line
-          // breeds at is the two factors that are not about food.
-          expect(row.breedRate).toBeCloseTo(species.breedRate * species.presenceMult, 12);
-          if (row.breedRate !== row.baseBreedRate) lifted += 1;
+          const where = `${report.nodeId}/${species.lineId} in ${season}`;
+          expect(row.count * row.breedRate, `${where}: rate × count is not the sim's births`).toBeCloseTo(
+            species.births,
+            10,
+          );
+          // …and the three parts the row carries are core's own, not a re-derivation.
+          expect(row.foodFactor, where).toBe(species.foodFactor);
+          expect(row.starving, where).toBe(species.starving);
+          expect(row.presenceBreedRate, where).toBeCloseTo(
+            species.breedRate * species.presenceMult,
+            12,
+          );
+          // A starving line gets NO births, so the rate in force is 0 — not its highest ever.
+          if (species.starving && row.count > 0) {
+            starved += 1;
+            expect(row.breedRate, `${where}: starving line still shows a rate`).toBe(0);
+          }
+          if (row.presenceBreedRate !== row.baseBreedRate) lifted += 1;
+          if (row.breedRate !== row.presenceBreedRate) foodMoved += 1;
         }
       }
     }
-    // The shipped state really does have rows where the two differ — otherwise this test would pass
-    // just as well against the defect it exists to catch (11 rows per season, 6 nodes).
-    expect(lifted).toBe(11 * SEASONS.length);
+    // The shipped state really does exercise all three cases — otherwise this test would pass just
+    // as well against the defects it exists to catch.
+    expect(lifted).toBe(11 * SEASONS.length); // Ancients in range
+    expect(foodMoved).toBeGreaterThan(0); // food moving the rate with no Ancient involved
+    expect(starved).toBe(0); // …and the shipped year-1 state starves nothing (see the r4 test below)
+  });
+
+  it("BINDS — a starving line's rate is 0 on the row, in the season the sim suppresses its births", () => {
+    // The never-cut cascade beat, reproduced: catch r4's prey line to 0 and its predator starves.
+    // Before the fix this row read `0.045→0.056` — a RAISED rate — in the same season the sim gave
+    // it zero births and 4.2 starvation deaths.
+    const save = newSave({ seed: 12, currentNode: "r4", nodes: content.nodes }, balance);
+    const state = save.nodeStates["r4"] as NodeState;
+    (state.populations["ashvole-line"] as { count: number }).count = 0;
+
+    const report = reportsFor(save.nodeStates, "spring", 4).find((r) => r.nodeId === "r4");
+    const apex = report?.species.find((s) => s.lineId === "pyrelisk-line");
+    if (!apex) throw new Error("r4 no longer carries the cascade's apex line");
+    expect(apex.starving).toBe(true);
+    expect(apex.births).toBe(0);
+
+    const page = buildLedgerPage({
+      nodeId: "r4",
+      region: regionOf(save),
+      species: content.species,
+      balance,
+      year: 1,
+      season: "spring",
+    });
+    const row = page.rows.find((r) => r.lineId === "pyrelisk-line");
+    if (!row) throw new Error("the ledger dropped the apex line");
+    expect(row.count).toBeGreaterThan(0);
+    expect(row.starving).toBe(true);
+    expect(row.breedRate).toBe(0);
+    // …and it reaches the glyphs a player reads, as a number, falling.
+    expect(renderLedgerRow(row)).toContain(`${row.baseBreedRate.toFixed(3)}→0.000`);
   });
 
   it("the lifted rows are exactly the ones with an Ancient in range, and the row shows both numbers", () => {
@@ -945,13 +1082,20 @@ describe("breed rate — the number on the row is the number driving the sim", (
         season: "spring",
       });
       const hasAncientInRange = (presence[file.id]?.sources.length ?? 0) > 0;
-      const lifted = page.rows.filter((r) => r.breedRate !== r.baseBreedRate);
+      // WAS `r.breedRate !== r.baseBreedRate`. `breedRate` is now the rate the sim USES — food
+      // folded in — so it moves with no Ancient anywhere and that predicate no longer means "an
+      // Ancient is in range". `presenceBreedRate` is the field that does, and the claim being
+      // asserted (only an Ancient lifts the stored rate) is unchanged and still exact.
+      const lifted = page.rows.filter((r) => r.presenceBreedRate !== r.baseBreedRate);
       if (!hasAncientInRange) expect(lifted.length).toBe(0);
-      for (const row of lifted) {
+      for (const row of page.rows) {
         // Both numbers on the row: what it breeds at alone, and what it breeds at now.
-        expect(renderLedgerRow(row)).toContain(
-          `${row.baseBreedRate.toFixed(3)}→${row.breedRate.toFixed(3)}`,
-        );
+        const shown = renderLedgerRow(row);
+        if (row.breedRate.toFixed(3) === row.baseBreedRate.toFixed(3)) {
+          expect(shown, `${row.lineId} draws an arrow between one number and itself`).not.toContain("→");
+        } else {
+          expect(shown).toContain(`${row.baseBreedRate.toFixed(3)}→${row.breedRate.toFixed(3)}`);
+        }
       }
       // …and the page names who is doing it, from derivePresence's own `sources`.
       expect(page.presenceSources.length).toBe(presence[file.id]?.sources.length ?? 0);
@@ -974,7 +1118,7 @@ describe("breed rate — the number on the row is the number driving the sim", (
     };
     const before = buildLedgerPage(args);
     expect(before.presenceSources.length).toBeGreaterThan(0);
-    const liftedBefore = before.rows.filter((r) => r.breedRate !== r.baseBreedRate);
+    const liftedBefore = before.rows.filter((r) => r.presenceBreedRate !== r.baseBreedRate);
     expect(liftedBefore.length).toBeGreaterThan(0);
 
     // The Ancient's own count IS the switch (core/ecosim.ts derivePresence: "caught or gone — the
@@ -986,10 +1130,26 @@ describe("breed rate — the number on the row is the number driving the sim", (
     const after = buildLedgerPage(args);
     expect(after.presenceSources).toEqual([]);
     expect(renderLedgerPresence(after)).toBe(`presence: ${NO_PRESENCE}`);
+    // WAS `expect(row.breedRate).toBe(row.baseBreedRate)` + `not.toContain("→")`. The claim being
+    // asserted — the Ancient's lift is gone from every rate — is unchanged and still exact; it now
+    // names the field that carries the lift, because `breedRate` also carries the food term and
+    // brackwater's is not 1. The second half asserts the thing Hard Req 7 is actually about: the
+    // number on screen MOVED, and every row moved down.
     for (const row of after.rows) {
-      expect(row.breedRate).toBe(row.baseBreedRate);
-      expect(renderLedgerRow(row)).not.toContain("→");
+      expect(row.presenceBreedRate).toBe(row.baseBreedRate);
     }
+    let moved = 0;
+    for (const row of before.rows) {
+      const now = after.rows.find((r) => r.lineId === row.lineId);
+      if (!now) throw new Error(`the ledger dropped ${row.lineId} when the Ancient was caught`);
+      if (now.breedRate !== row.breedRate) {
+        moved += 1;
+        expect(now.breedRate, `${row.lineId} did not fall when the Ancient was caught`).toBeLessThan(
+          row.breedRate,
+        );
+      }
+    }
+    expect(moved).toBeGreaterThan(0);
   });
 
   it("the answer does not depend on the throwaway seed the projection is run with", () => {
@@ -1002,14 +1162,14 @@ describe("breed rate — the number on the row is the number driving the sim", (
     for (const file of content.nodes) {
       const a = effectiveRates({ ...base, nodeId: file.id });
       const b = effectiveRates({ ...base, nodeId: file.id });
-      expect([...a.breedRates.entries()]).toEqual([...b.breedRates.entries()]);
+      expect([...a.rates.entries()]).toEqual([...b.rates.entries()]);
       expect(a.presenceSources).toEqual(b.presenceSources);
     }
     // …and against a different balance seed, which is the value the projection is seeded from.
     const retuned = { ...balance, rng: { ...balance.rng, defaultSeed: balance.rng.defaultSeed + 1 } };
     const shipped = effectiveRates({ ...base, nodeId: "cindershelf" });
     const other = effectiveRates({ ...base, nodeId: "cindershelf", balance: retuned });
-    expect([...other.breedRates.entries()]).toEqual([...shipped.breedRates.entries()]);
+    expect([...other.rates.entries()]).toEqual([...shipped.rates.entries()]);
   });
 
   it("a page cannot be built from a state detached from its region", () => {
@@ -1114,6 +1274,102 @@ describe("trend — one reading per season, and the live one only once", () => {
     expect(skir?.delta).toBe((skir?.count ?? 0) - 9);
   });
 
+  /* ──────────────────────────────────────────────────────────────────────────
+   * …and the wiring that makes the column exist at all in the running game.
+   *
+   * The trend was DEAD on every screen: `recordSample` / `sampleNodeState` had no caller outside
+   * this file, and the one launcher that opens `LedgerScene` passed no `histories`, so every row in
+   * play and in the epilogue rendered one number and `net —` forever. Everything above this point
+   * was green throughout, because every test above hands the history in by hand. So these drive the
+   * REAL path: the store, the seam it hangs off, and the scene data the menu builds.
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  it("adopting a save takes a reading, once per season and not once per catch", () => {
+    registry.reset();
+    registry.setContent(content);
+    const save = newSave({ seed: 12, currentNode: "hearthollow", nodes: content.nodes }, balance);
+    registry.startSession({ slot: 1, save, streams: openStreams(save, balance) });
+
+    // The run's opening season is its first reading, so a trend starts the moment a game does.
+    expect(ledgerHistory.stamp()).toBe(`1/${seasonAt(save.tick, balance)}`);
+    const opening = ledgerHistory.historyFor("hearthollow");
+    expect(opening.length).toBe(1);
+    expect(opening[0]?.counts["nibbin-line"]).toBe(
+      save.nodeStates["hearthollow"]?.populations["nibbin-line"]?.count,
+    );
+
+    // A catch adopts a new save inside the same season. It must NOT add a reading — one reading per
+    // season is what the trend column's window means (`recordSample` keeps `seasonsPerYear`).
+    const caught = JSON.parse(JSON.stringify(save)) as typeof save;
+    (caught.nodeStates["hearthollow"]?.populations["nibbin-line"] as { count: number }).count -= 1;
+    registry.setSave(caught);
+    expect(ledgerHistory.historyFor("hearthollow").length).toBe(1);
+
+    // A season boundary does.
+    const seasons = balance.clock.seasonOrder;
+    const stepped = {
+      ...caught,
+      tick: balance.clock.ticksPerSeason,
+      nodeStates: stepRegionStates(content.nodes, caught.nodeStates, seasons[0] as Season, createRng(12))
+        .states,
+    };
+    registry.setSave(stepped);
+    const history = ledgerHistory.historyFor("hearthollow");
+    expect(history.length).toBe(2);
+    expect(history[0]?.season).toBe(seasons[0]);
+    expect(history[1]?.season).toBe(seasonAt(stepped.tick, balance));
+    // …and the second reading is the state AFTER the step, including the caught animal.
+    expect(history[1]?.counts["nibbin-line"]).toBe(
+      stepped.nodeStates["hearthollow"]?.populations["nibbin-line"]?.count,
+    );
+
+    // Which is a real trend on a real row: two numbers and a signed net, not `net —`.
+    const page = buildLedgerPage({
+      nodeId: "hearthollow",
+      region: { files: content.nodes, states: stepped.nodeStates },
+      species: content.species,
+      balance,
+      year: stepped.year,
+      season: seasonAt(stepped.tick, balance),
+      history,
+    });
+    for (const row of page.rows) {
+      expect(row.trend.length).toBe(2);
+      expect(row.delta).not.toBeNull();
+      expect(renderLedgerRow(row)).not.toContain(`net ${NO_VALUE}`);
+    }
+    registry.reset();
+  });
+
+  it("a new run does not inherit the last run's readings", () => {
+    registry.reset();
+    registry.setContent(content);
+    const first = newSave({ seed: 1, currentNode: "hearthollow", nodes: content.nodes }, balance);
+    registry.startSession({ slot: 1, save: first, streams: openStreams(first, balance) });
+    registry.setSave({ ...first, tick: balance.clock.ticksPerSeason });
+    expect(ledgerHistory.historyFor("hearthollow").length).toBe(2);
+
+    const second = newSave({ seed: 2, currentNode: "hearthollow", nodes: content.nodes }, balance);
+    registry.startSession({ slot: 2, save: second, streams: openStreams(second, balance) });
+    expect(ledgerHistory.historyFor("hearthollow").length).toBe(1);
+    registry.reset();
+    expect(ledgerHistory.historyFor("hearthollow")).toEqual([]);
+  });
+
+  it("the record handed to the scene is the LIVE one, not a copy taken when the menu opened", () => {
+    // `LedgerScene` reads `this.args.histories?.[nodeId]` on every redraw and Phaser does not re-run
+    // `init` on wake, so a copy would freeze the trend at whatever it held when the menu was opened.
+    registry.reset();
+    registry.setContent(content);
+    const save = newSave({ seed: 12, currentNode: "hearthollow", nodes: content.nodes }, balance);
+    registry.startSession({ slot: 1, save, streams: openStreams(save, balance) });
+    const handedOver = ledgerHistory.histories();
+    expect(handedOver["hearthollow"]?.length).toBe(1);
+    registry.setSave({ ...save, tick: balance.clock.ticksPerSeason });
+    expect(handedOver["hearthollow"]?.length).toBe(2);
+    registry.reset();
+  });
+
   it("the live count REPLACES the newest sample when it is the same reading", () => {
     const state = miniSave().nodeStates[MINI.id] as NodeState;
     const skirPop = state.populations["skir-line"] as { count: number };
@@ -1136,6 +1392,144 @@ describe("trend — one reading per season, and the live one only once", () => {
     const skir = page.rows.find((r) => r.lineId === "skir-line");
     expect(skir?.trend).toEqual([9, skirPop.count]);
     expect(skir?.delta).toBe(skirPop.count - 9);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * 9a. Hard Req 10, BOTH directions
+ *
+ * bible §5 closes one of them: "seasonal absence is never confusable with a population crash", so a
+ * migrant out of its window says `dormant` / `migrating` beside its real count. The reverse was
+ * open, and it is the one the demo depends on: a migrant caught to 0 rendered
+ * `Reedrick 0 72 0.060 0 net —  migrating`, and the seasonal word sat immediately after the 0 as
+ * its explanation. A count never moves for a seasonal reason, so beside a 0 that word can only be a
+ * false one — a crash the player caused, reading as the calendar.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("ledger — a seasonal word never stands in front of a real 0", () => {
+  const region = (states: Record<string, NodeState>): LedgerRegion => ({ files: content.nodes, states });
+  function rowFor(states: Record<string, NodeState>, nodeId: string, lineId: string, season: Season) {
+    const page = buildLedgerPage({
+      nodeId,
+      region: region(states),
+      species: content.species,
+      balance,
+      year: 1,
+      season,
+    });
+    const row = page.rows.find((r) => r.lineId === lineId);
+    if (!row) throw new Error(`the ledger dropped ${lineId} at ${nodeId}`);
+    return row;
+  }
+
+  /** Every node that carries one of the four migrants, with the line id. */
+  const migrantSites: Array<[string, string]> = [];
+  {
+    const save = newSave({ seed: 12, currentNode: "hearthollow", nodes: content.nodes }, balance);
+    for (const line of content.species) {
+      if (!line.seasonalWindow) continue;
+      for (const file of content.nodes) {
+        if (save.nodeStates[file.id]?.populations[line.id]) migrantSites.push([file.id, line.id]);
+      }
+    }
+  }
+
+  it("the shipped content really does put migrants where this can happen", () => {
+    expect(migrantSites.length).toBeGreaterThan(0);
+    expect(new Set(migrantSites.map(([, lineId]) => lineId)).size).toBe(
+      content.species.filter((s) => s.seasonalWindow).length,
+    );
+  });
+
+  it("a migrant with individuals still says dormant/migrating out of its window (Hard Req 10)", () => {
+    const save = newSave({ seed: 12, currentNode: "hearthollow", nodes: content.nodes }, balance);
+    let flagged = 0;
+    for (const [nodeId, lineId] of migrantSites) {
+      for (const season of SEASONS) {
+        const row = rowFor(save.nodeStates, nodeId, lineId, season);
+        if (row.count === 0) continue;
+        const status = migrantStatus(lineOf(lineId), season, balance);
+        if (status.active) {
+          expect(renderSeasonalNote(row)).toBe("");
+          continue;
+        }
+        flagged += 1;
+        expect(renderSeasonalNote(row)).toBe(status.dormantReason);
+        // …and the real count is still the integer on the row beside it, never a 0.
+        expect(renderLedgerRow(row).split(/\s+/)).toContain(String(row.count));
+        expect(row.count).toBeGreaterThan(0);
+      }
+    }
+    expect(flagged).toBeGreaterThan(0);
+  });
+
+  it("a migrant caught to 0 is never annotated with the word that would explain it away", () => {
+    const save = newSave({ seed: 12, currentNode: "hearthollow", nodes: content.nodes }, balance);
+    let checked = 0;
+    for (const [nodeId, lineId] of migrantSites) {
+      const states = JSON.parse(JSON.stringify(save.nodeStates)) as Record<string, NodeState>;
+      (states[nodeId]?.populations[lineId] as { count: number }).count = 0;
+      for (const season of SEASONS) {
+        const row = rowFor(states, nodeId, lineId, season);
+        expect(row.count).toBe(0);
+        const note = renderSeasonalNote(row);
+        checked += 1;
+        // Not the word that describes where a population is…
+        expect(note, `${nodeId}/${lineId} in ${season}`).not.toBe("dormant");
+        expect(note, `${nodeId}/${lineId} in ${season}`).not.toBe("migrating");
+        expect(renderLedgerRow(row)).not.toMatch(/\b(dormant|migrating)\b/);
+        // …but the calendar fact is still on the row, so the card and the ledger agree that this is
+        // a migrant and say when it is catchable.
+        expect(note).toBe(`window ${row.seasonalWindow as string}`);
+        expect(renderLedgerRow(row)).toContain(note);
+      }
+    }
+    expect(checked).toBe(migrantSites.length * SEASONS.length);
+  });
+
+  it("a non-migrant at 0 gets no note at all, in any season", () => {
+    const save = newSave({ seed: 12, currentNode: "hearthollow", nodes: content.nodes }, balance);
+    for (const file of content.nodes) {
+      const base = save.nodeStates[file.id];
+      if (!base) continue;
+      for (const lineId of Object.keys(base.populations)) {
+        if (lineOf(lineId).seasonalWindow) continue;
+        const states = JSON.parse(JSON.stringify(save.nodeStates)) as Record<string, NodeState>;
+        (states[file.id]?.populations[lineId] as { count: number }).count = 0;
+        for (const season of SEASONS) {
+          expect(renderSeasonalNote(rowFor(states, file.id, lineId, season))).toBe("");
+        }
+      }
+    }
+  });
+
+  it("every row the shipped content can produce still fits the canvas, note and all", () => {
+    // The note is the longest thing on a row, so it is the one that can push a line off a 480px
+    // screen. Driven over a full six-year run WITH a season of history, which is the widest state.
+    const cols = columnBudget(balance, SCREEN_TEXT.padPx);
+    const run = steppedRegion(12, 24);
+    const over: string[] = [];
+    for (const season of SEASONS) {
+      for (const file of content.nodes) {
+        if (!run.states[file.id]) continue;
+        const page = buildLedgerPage({
+          nodeId: file.id,
+          region: region(run.states),
+          species: content.species,
+          balance,
+          year: 6,
+          season,
+          history: run.histories[file.id] as LedgerSample[],
+        });
+        for (const row of page.rows) {
+          for (const variant of [row, { ...row, count: 0, extinct: true }]) {
+            const text = renderLedgerRow(variant);
+            if (text.length > cols) over.push(text);
+          }
+        }
+      }
+    }
+    expect(over, `rows wider than the ${cols}-column canvas:\n${over.join("\n")}`).toEqual([]);
   });
 });
 
@@ -1202,6 +1596,58 @@ describe("dex — agreement with the encounter roll, at every node and season", 
         if (entry.ancient) continue;
         expect(entry.encounterGated, `${entry.dexId} in ${season}`).toBe(false);
       }
+    }
+  });
+
+  it("a line that is BOTH gated and out of season keeps its gate flag", () => {
+    /*
+     * `encounterWeights` checks the sign-chain gate BEFORE the season and returns a bare
+     * `active: false` for either refusal, so the dex used to subtract the seasonal case afterwards
+     * — `return migrantStatus(line, season, balance).active` — and lost the gate flag in every
+     * season the line was out of its window. The card then said only `migrating`: the reason the
+     * player could wait out, instead of the one they cannot.
+     *
+     * No SHIPPED line is both (the three Ancients carry no `seasonalWindow` and the four migrants
+     * carry no gated habitat tag), so a sweep over the content cannot reach this and the guard
+     * would be free to rot. It is driven with a synthetic line instead — the shipped gated line
+     * with a window added, built here and never written to data/ (G2).
+     */
+    const vellsire = content.species.find((s) => s.id === "vellsire-line");
+    if (!vellsire) throw new Error("data/species.json no longer ships vellsire-line");
+    // It is gated as shipped, and it carries no window — which is why the two filters never met.
+    expect(vellsire.habitat).toContain(balance.encounter.signChainGatedHabitatTag);
+    expect(vellsire.seasonalWindow).toBeUndefined();
+    const bothFilters: SpeciesLine = { ...vellsire, seasonalWindow: SEASONS[0] as Season };
+
+    let gatedInEverySeason = 0;
+    for (const season of SEASONS) {
+      const entry = buildDexEntries([bothFilters], season, balance)[0];
+      if (!entry) throw new Error("the dex dropped the synthetic line");
+      expect(entry.encounterGated, `synthetic gated migrant in ${season}`).toBe(true);
+      const flags = renderDexFlags(entry);
+      expect(flags, `${season}: the card dropped the gate`).toContain(NOT_IN_ENCOUNTER_POOL);
+      // …and the seasonal flag is still there too. Both reasons, not whichever one was checked last.
+      expect(flags.some((f) => f.includes(`window ${SEASONS[0] as string}`))).toBe(true);
+      gatedInEverySeason += 1;
+    }
+    expect(gatedInEverySeason).toBe(SEASONS.length);
+
+    // …and unlocking the chain lifts it in every season, including the ones out of the window.
+    for (const season of SEASONS) {
+      const opened = buildDexEntries([bothFilters], season, balance, {
+        unlockedSignChains: new Set([bothFilters.id]),
+      })[0];
+      expect(opened?.encounterGated, `unlocked in ${season}`).toBe(false);
+    }
+
+    // BINDS — a synthetic line with a window and NO gate must not pick the flag up by accident.
+    const migrantOnly: SpeciesLine = {
+      ...vellsire,
+      seasonalWindow: SEASONS[0] as Season,
+      habitat: (content.species.find((s) => !s.ancient) as SpeciesLine).habitat,
+    };
+    for (const season of SEASONS) {
+      expect(buildDexEntries([migrantOnly], season, balance)[0]?.encounterGated).toBe(false);
     }
   });
 });
@@ -1336,6 +1782,130 @@ describe("web diagram — the reason a link broke is drawn, not just modelled", 
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
+ * 11a. No label on the diagram is drawn on top of another
+ *
+ * "Does the word reach the screen" was the only question section 11 asked, and the answer was yes
+ * while the word was ILLEGIBLE. Measured live at r2 with reedrick-line at 0: `[2] Mirefin 8/24` and
+ * `collapsed (prey)` rendered at the same 96×11px, as the smear `[2]lMirefinp8/24`. Both strings
+ * were destroyed, and one of them was the only thing on screen naming what the player had done.
+ *
+ * The cause was structural: `collapsedEdgeLabels` staggered by LIST INDEX and never saw the vertex
+ * labels at all, and vertex labels never saw each other (a tier of five 19-character labels does
+ * not fit across a 464px box). So the sweep below is over BOXES, not over strings — every label
+ * either set produces, in every state a player can make one node reach.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("web diagram — every label is legible, not merely present", () => {
+  /** Every label the scene draws for one state, with the box each one occupies. */
+  function drawnBoxes(file: NodeFile, state: NodeState) {
+    const page = buildWebPage({ file, state, species: content.species, balance, year: 1 });
+    const layout = layoutWebPage(page, webDiagramBox(balance));
+    const labels = [
+      ...webVertexLabels(page, layout, balance),
+      ...collapsedEdgeLabels(page, layout, balance),
+    ];
+    return labels.map((label) => ({ label, box: labelBounds(label) }));
+  }
+
+  /** Shipped, then every single line at 0, then every pair — what over-catching actually produces. */
+  function zeroSets(ids: string[]): string[][] {
+    const out: string[][] = [[]];
+    for (const a of ids) out.push([a]);
+    for (let i = 0; i < ids.length; i += 1) {
+      for (let j = i + 1; j < ids.length; j += 1) out.push([ids[i] as string, ids[j] as string]);
+    }
+    return out;
+  }
+
+  it("no two labels overlap, at any shipped node, with any line or pair of lines at 0", () => {
+    const save = newSave({ seed: 12, currentNode: "hearthollow", nodes: content.nodes }, balance);
+    const band = webDiagramBox(balance);
+    const failures: string[] = [];
+    let scenarios = 0;
+    let labelsChecked = 0;
+    for (const file of content.nodes) {
+      const base = save.nodeStates[file.id];
+      if (!base) continue;
+      for (const zero of zeroSets(Object.keys(base.populations))) {
+        scenarios += 1;
+        const state = JSON.parse(JSON.stringify(base)) as NodeState;
+        for (const id of zero) (state.populations[id] as { count: number }).count = 0;
+        const drawn = drawnBoxes(file, state);
+        labelsChecked += drawn.length;
+        const where = `${file.id} zero=[${zero.join(",")}]`;
+        for (let i = 0; i < drawn.length; i += 1) {
+          const a = drawn[i] as (typeof drawn)[number];
+          // On the canvas horizontally…
+          if (a.box.left < -1e-9 || a.box.right > balance.map.virtualWidth + 1e-9) {
+            failures.push(`${where}: "${a.label.text}" runs off the canvas`);
+          }
+          // …and inside the diagram's own band vertically, so nothing lands on the header or footer.
+          if (a.box.top < band.y - 1e-9 || a.box.bottom > band.y + band.height + 1e-9) {
+            failures.push(`${where}: "${a.label.text}" leaves the diagram box`);
+          }
+          for (let j = i + 1; j < drawn.length; j += 1) {
+            const b = drawn[j] as (typeof drawn)[number];
+            const area = labelOverlap(a.box, b.box);
+            if (area > 0) {
+              failures.push(`${where}: "${a.label.text}" over "${b.label.text}" (${area}px²)`);
+            }
+          }
+        }
+      }
+    }
+    // The sweep really did run over the states the defect was measured in.
+    expect(scenarios).toBeGreaterThan(150);
+    expect(labelsChecked).toBeGreaterThan(1000);
+    expect(failures.slice(0, 10), `${failures.length} label collisions`).toEqual([]);
+  });
+
+  it("BINDS — the measured case: r2 with its migrant at 0 puts the reason clear of the count", () => {
+    // The exact live reproduction. Before the fix both boxes were x192-288 / y≈133-144.
+    const save = newSave({ seed: 12, currentNode: "r2", nodes: content.nodes }, balance);
+    const state = save.nodeStates["r2"] as NodeState;
+    (state.populations["reedrick-line"] as { count: number }).count = 0;
+    const file = content.nodes.find((n) => n.id === "r2") as NodeFile;
+    const drawn = drawnBoxes(file, state);
+
+    const mirefin = drawn.find((d) => d.label.id === "mirefin-line");
+    const collapsed = drawn.filter((d) => d.label.text.startsWith("collapsed"));
+    expect(mirefin, "r2 no longer draws the vertex the reason word landed on").toBeDefined();
+    expect(collapsed.length).toBeGreaterThan(0);
+    for (const label of collapsed) {
+      expect(
+        labelOverlap((mirefin as (typeof drawn)[number]).box, label.box),
+        `"${label.label.text}" still prints through "${(mirefin as (typeof drawn)[number]).label.text}"`,
+      ).toBe(0);
+    }
+  });
+
+  it("BINDS — the sweep fails when a label is put back on top of another", () => {
+    // Without this the sweep could be green because `labelOverlap` never returns a positive number.
+    const a = { left: 192, right: 288, top: 132, bottom: 144 };
+    const b = { left: 192, right: 288, top: 133, bottom: 145 };
+    expect(labelOverlap(a, b)).toBe(96 * 11);
+    expect(labelOverlap(a, { left: 192, right: 288, top: 144, bottom: 156 })).toBe(0);
+  });
+
+  it("the box a label occupies is the box the scene anchors it with", () => {
+    // The placement above is only true of the drawn screen if the scene uses the origin the label
+    // carries. A vertex label hangs below its point (originY 0); a link label sits on it (0.5).
+    const state = miniSave().nodeStates[MINI.id] as NodeState;
+    (state.populations["nibbin-line"] as { count: number }).count = 0;
+    const page = buildWebPage({ file: MINI, state, species: content.species, balance, year: 1 });
+    const layout = layoutWebPage(page, webDiagramBox(balance));
+    for (const label of webVertexLabels(page, layout, balance)) {
+      expect(label.originY).toBe(0);
+      expect(labelBounds(label).top).toBe(label.y);
+    }
+    for (const label of collapsedEdgeLabels(page, layout, balance)) {
+      expect(label.originY).toBe(0.5);
+      expect(labelBounds(label).top).toBe(label.y - SCREEN_TEXT.lineHeight / 2);
+    }
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
  * 12. The two guards that a shipped-content sweep cannot exercise
  *
  * A sweep over the shipped data only proves what the shipped data happens to reach. Both defences
@@ -1426,7 +1996,7 @@ describe("guards driven directly, not by luck of the shipped data", () => {
           species: content.species,
           balance: { ...balance, rng: { ...balance.rng, defaultSeed: seed } },
           season: "spring",
-        }).breedRates.entries(),
+        }).rates.entries(),
       ];
     expect(rates(1)).toEqual(rates(987654321)); // …and the rate is not one of the things that move
   });
@@ -1489,6 +2059,39 @@ describe("C4 scenes — what the source proves", () => {
     expect(drawWeb.match(/this\.text\(label\.x, label\.y, label\.text/g)?.length).toBe(2);
     // …and redraw really does reach drawWeb, so the labels are on a path the player can open.
     expect(methodBody(LEDGER, "private redraw")).toContain("this.drawWeb()");
+  });
+
+  it("the ledger anchors each label with the origin the label carries", () => {
+    // game/web-view.ts places labels so their BOXES do not touch, and a box is only the box it
+    // computed if the scene anchors the text the same way. Two hard-coded `setOrigin(0.5, 0.5)` /
+    // `setOrigin(0.5, 0)` calls are a second copy of that assumption, free to drift out of step
+    // with the placement — which is exactly how the collapse labels came to print through the
+    // counts in the first place.
+    const drawWeb = methodBody(LEDGER, "private drawWeb");
+    expect(drawWeb.match(/setOrigin\(0\.5, label\.originY\)/g)?.length).toBe(2);
+    expect(drawWeb).not.toMatch(/setOrigin\(0\.5, (0|0\.5)\)/);
+  });
+
+  it("the menu hands the ledger its histories, so the trend column has something to draw", () => {
+    // The defect: nothing outside game/ledger-view.ts ever called `recordSample`, and the only
+    // caller that opens LedgerScene passed no `histories` — so every row of every screen, in play
+    // and in the epilogue, rendered one number and `net —` forever. The store is driven directly a
+    // few sections up; this is the half of the wiring that only the scene data can show.
+    const menu = require("node:fs").readFileSync(
+      new URL("../../game/scenes/MenuScene.ts", import.meta.url),
+      "utf8",
+    ) as string;
+    expect(menu).toContain("histories: ledgerHistory.histories()");
+    // …taken live from the store rather than copied, for the reason the scene re-reads it.
+    expect(menu).not.toMatch(/histories:\s*\{/);
+    // …and the reading is taken at the one place the running game adopts a save, so no scene has to
+    // remember to (game/registry.ts). Both season-stepping callers pass through it.
+    const reg = require("node:fs").readFileSync(
+      new URL("../../game/registry.ts", import.meta.url),
+      "utf8",
+    ) as string;
+    expect(reg).toContain("#observeForLedger(save)");
+    expect(reg).toContain("ledgerHistory.observe(save, balance)");
   });
 
   it("the ledger draws every line the renderer produces, in order", () => {
@@ -1560,31 +2163,50 @@ describe("C4 scene keys", () => {
   };
   const source = (rel: string): string =>
     require("node:fs").readFileSync(new URL(`../../game/scenes/${rel}`, import.meta.url), "utf8") as string;
-  const DEX_SCENE_KEY = JSON.parse(keyIn(source("DexScene.ts"), "DEX_SCENE_KEY")) as string;
-  const SUMMARY_SCENE_KEY = JSON.parse(keyIn(source("SummaryScene.ts"), "SUMMARY_SCENE_KEY")) as string;
 
-  it("the ledger's key IS the registry's, not a second copy of the string", () => {
+  it("every C4 scene's key IS the registry's, not a second copy of the string", () => {
     // Read from game/scene-keys.ts rather than spelled again — that registry exists precisely to
     // stop a scene answering to one spelling while a menu routes to another.
-    expect(keyIn(source("LedgerScene.ts"), "LEDGER_SCENE_KEY")).toBe("SCENE_KEYS.ledger");
+    //
+    // WHAT THIS ASSERTION USED TO BE, AND WHY IT CHANGED. It read the dex and summary keys as JSON
+    // string literals out of their sources and then compared them to the registry only `if
+    // (registry[field] !== undefined)`, on the stated grounds that "the registry has no
+    // dex/summary entry yet". game/scene-keys.ts:31,34 carries `dex: "Dex"` and
+    // `summary: "Summary"`, game/main.ts registers all three scenes and MenuScene routes to them,
+    // so that ground was false and the conditional made the check a no-op that could never fail
+    // while the literals stayed literals — which is the second spelling scene-keys.ts exists to
+    // prevent. The scenes now read the registry, so this asserts what LedgerScene's half always
+    // asserted, for all three, with nothing conditional left in it.
+    for (const [file, name, field] of [
+      ["LedgerScene.ts", "LEDGER_SCENE_KEY", "ledger"],
+      ["DexScene.ts", "DEX_SCENE_KEY", "dex"],
+      ["SummaryScene.ts", "SUMMARY_SCENE_KEY", "summary"],
+    ] as const) {
+      expect(keyIn(source(file), name), `${file} spells its own key`).toBe(`SCENE_KEYS.${field}`);
+    }
     expect(SCENE_KEYS.ledger).toBe("Ledger");
+    expect(SCENE_KEYS.dex).toBe("Dex");
+    expect(SCENE_KEYS.summary).toBe("Summary");
   });
 
-  it("the dex and summary keys are unique, and agree with the registry the moment it carries them", () => {
-    // The registry has no `dex`/`summary` entry yet (a blocker on this lane: the three C4 scenes
-    // are not registered or routed to by any menu). This test does not pin that gap in place — it
-    // passes now and keeps passing once the entries land, and fails only if the entry that lands
-    // spells the key differently from the scene that answers to it.
+  it("the three C4 keys are distinct, and no other scene answers to one of them", () => {
     const registry = SCENE_KEYS as Record<string, string>;
-    for (const [field, key] of [["dex", DEX_SCENE_KEY], ["summary", SUMMARY_SCENE_KEY]] as const) {
-      if (registry[field] !== undefined) expect(registry[field]).toBe(key);
-    }
-    const keys = [SCENE_KEYS.ledger, DEX_SCENE_KEY, SUMMARY_SCENE_KEY];
+    const keys: string[] = [SCENE_KEYS.ledger, SCENE_KEYS.dex, SCENE_KEYS.summary];
     expect(new Set(keys).size).toBe(keys.length);
-    // …and none of them collides with a scene that already exists under another name.
-    for (const key of [DEX_SCENE_KEY, SUMMARY_SCENE_KEY]) {
-      const clash = Object.entries(registry).find(([, value]) => value === key);
-      if (clash) expect(["dex", "summary"]).toContain(clash[0]);
+    for (const [field, key] of Object.entries(registry)) {
+      if (keys.includes(key)) expect(["ledger", "dex", "summary"]).toContain(field);
+    }
+  });
+
+  it("no C4 scene carries a scene key as a bare string literal", () => {
+    // The defect the registry exists to prevent, asserted directly: a literal here and an entry
+    // there is two spellings of one name, and the menu routes to the one the scene does not answer
+    // to. Every key in these three files must be a read of game/scene-keys.ts.
+    for (const file of ["LedgerScene.ts", "DexScene.ts", "SummaryScene.ts"]) {
+      const src = source(file);
+      for (const key of Object.values(SCENE_KEYS)) {
+        expect(src, `${file} spells "${key}" as a literal`).not.toContain(`"${key}"`);
+      }
     }
   });
 });

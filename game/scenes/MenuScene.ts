@@ -10,9 +10,10 @@
  * Guardrail G7 governs every string in this file: they state what is true, with numbers where there
  * are numbers. Nothing here has an opinion about catching.
  *
- * `ListMenu` and the UI colours live here rather than in a `game/ui/` module because Lane C1's file
- * scope is boot/menus and a shared UI module is not yet earned; TitleScene and BootScene import
- * them from here. When Lane C4 builds real UI screens, moving them is a rename.
+ * `ListMenu` lives here rather than in a `game/ui/` module because Lane C1's file scope is
+ * boot/menus and a shared UI module is not yet earned; TitleScene imports it from here. The UI
+ * COLOURS moved out to `game/menu-model.ts`: they are now palette swatch ids resolved through
+ * `game/ui/Palette.ts`, and a rule that lives in a scene is a rule no node test can import.
  */
 
 import Phaser from "phaser";
@@ -31,11 +32,13 @@ import {
 } from "../boot";
 import {
   DEFAULT_MENU_REQUEST,
+  UI,
   isMenuRequest,
   slotHeadline,
   slotSelectable,
   type MenuRequest,
 } from "../menu-model";
+import { ledgerHistory } from "../ledger-history";
 import { registry, TEXT_SPEEDS, type TextSpeed } from "../registry";
 import { SaveStorage, slotLabel, type SlotStatus } from "../storage";
 import type { DexSceneData } from "./DexScene";
@@ -46,14 +49,15 @@ import type { SummarySceneData } from "./SummaryScene";
  * Shared UI bits
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export const UI = {
-  bg: "#0d0f0c",
-  text: "#d8d8c8",
-  dim: "#6d7268",
-  accent: "#f2c14e",
-  danger: "#e05a4a",
-  ok: "#8fbf6f",
-} as const;
+/**
+ * The screen palette, re-exported so every existing importer (`TitleScene`) keeps working.
+ *
+ * It is DEFINED in `game/menu-model.ts` — the six values used to be hexes inlined here, none of them
+ * one of the 32 now-frozen swatches, and a rule that lives in a scene is a rule no node test can
+ * import and therefore no test can hold (C1-D4). `tests/unit/game-menu-model.test.ts` asserts every
+ * one of them is a real swatch id in `data/palette.json`.
+ */
+export { UI, UI_SWATCH_ID } from "../menu-model";
 
 /** Body text at the virtual resolution: 8px monospace, no smoothing (build-doc §7.6). */
 export function uiText(
@@ -561,6 +565,11 @@ export class MenuScene extends Phaser.Scene {
             // A FUNCTION, not the record: `stepRegionStates` returns a new object every season, so a
             // record captured here would be the numbers as they were when the menu was opened.
             states: () => registry.save().nodeStates,
+            // The `seasons` column's readings (game/ledger-history.ts). This is the LIVE record —
+            // the store replaces the arrays inside it rather than the object — so a ledger left open
+            // across a season boundary grows its trend instead of freezing it. Without this the
+            // column rendered one number and `net —` on every row of every screen.
+            histories: ledgerHistory.histories(),
             year: save.year,
             season,
             startNodeId: save.currentNode,

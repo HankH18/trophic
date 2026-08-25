@@ -173,6 +173,11 @@ export function queueInput(state: MovementState, dir: Direction | null): Movemen
  * `previous` (the direction already being held) wins a tie, so running along a wall while brushing
  * the perpendicular key does not stutter; otherwise the fixed order of {@link DIRECTIONS} decides,
  * which makes the answer deterministic and therefore testable.
+ *
+ * ⚠ THIS IS THE TIE-BREAK PRIMITIVE, NOT THE INPUT RULE. It knows nothing about walls, so on its own
+ * it deadlocks: hold a direction into a wall and its `previous` clause re-elects that direction
+ * every frame, and a second direction with an open path in front of it never gets a turn. The scene
+ * calls {@link chooseDirection}, which is the whole rule. See that function's header.
  */
 export function resolveInput(
   pressed: Iterable<Direction>,
@@ -183,6 +188,74 @@ export function resolveInput(
   if (previous && set.has(previous)) return previous;
   for (const dir of DIRECTIONS) if (set.has(dir)) return dir;
   return null;
+}
+
+/**
+ * Which of the currently-held directions the player actually goes, given what is in front of them.
+ *
+ * THE DEFECT THIS EXISTS TO FIX, measured in the running game: the player stood at (25,25) with
+ * (25,26) blocked and (26,25) wide open, held Down (bump, `queued` stays "down"), then ALSO held
+ * Right — and did not move for as long as both keys were down. {@link resolveInput}'s `previous`
+ * clause re-elected the blocked direction on every frame, and a bump never clears `queued`
+ * (`beginStep` returns `{...state, facing: dir}` and deliberately leaves the buffer alone). The
+ * player was frozen with an open path under their thumb. Pokémon Gold, which this module's header
+ * cites, resolves it the other way round: the most recent press wins.
+ *
+ * The rule, as an ordered candidate list — first candidate whose target tile is enterable wins:
+ *
+ *   1. **directions pressed THIS frame** (Gold's "most recent press wins"). Several in one frame is
+ *      a tie, broken by {@link DIRECTIONS} order so the answer stays a function of the inputs;
+ *   2. the direction already buffered, if it is still held — continuous walking, no stutter when a
+ *      perpendicular key is brushed;
+ *   3. everything else held, in {@link DIRECTIONS} order.
+ *
+ * If NO candidate is enterable the first one is returned anyway, so walking into a wall still turns
+ * you and still emits the bump: Gold's bump is a mechanic (it is how you face a sign), not a
+ * failure, and this function must not quietly swallow it.
+ *
+ * `canEnter` is asked about the tile the step would START from — the destination of a step already
+ * in flight, otherwise the current tile — so a direction buffered mid-step is judged against where
+ * the player will actually be when it is applied.
+ */
+export function chooseDirection(
+  pressed: Iterable<Direction>,
+  state: MovementState,
+  canEnter: TilePredicate,
+  justPressed: Iterable<Direction> = [],
+): Direction | null {
+  const held = new Set<Direction>(pressed);
+  if (held.size === 0) return null;
+
+  const fresh = new Set<Direction>();
+  for (const dir of justPressed) if (held.has(dir)) fresh.add(dir);
+
+  const candidates: Direction[] = [];
+  const push = (dir: Direction | null | undefined): void => {
+    if (dir && held.has(dir) && !candidates.includes(dir)) candidates.push(dir);
+  };
+  for (const dir of DIRECTIONS) if (fresh.has(dir)) push(dir);
+  push(state.queued);
+  for (const dir of DIRECTIONS) push(dir);
+
+  const origin = state.step ? state.step.to : state.tile;
+  for (const dir of candidates) if (canEnter(targetTile(origin, dir))) return dir;
+  return candidates[0] ?? null;
+}
+
+/**
+ * Directions held now that were not held on the previous frame.
+ *
+ * Kept here rather than in the scene because "most recent press wins" is a movement rule, and the
+ * scene's job is only to say which keys are down. Pure: hand it both frames' sets.
+ */
+export function newlyPressed(
+  pressed: Iterable<Direction>,
+  heldLastFrame: ReadonlySet<Direction>,
+): Direction[] {
+  const out: Direction[] = [];
+  const now = new Set<Direction>(pressed);
+  for (const dir of DIRECTIONS) if (now.has(dir) && !heldLastFrame.has(dir)) out.push(dir);
+  return out;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

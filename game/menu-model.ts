@@ -17,6 +17,49 @@
 
 import type { SlotStatus } from "./storage";
 import { slotLabel } from "./storage";
+import { swatchHex } from "./ui/Palette";
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The C1 screens' colours (build-doc §8.4)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The swatch each C1 screen role paints with, as palette IDS.
+ *
+ * WAS six hexes inlined in `game/scenes/MenuScene.ts` (`#0d0f0c`, `#d8d8c8`, …), none of which is
+ * one of the 32 frozen swatches — exactly what `game/ui/Palette.ts`'s header warns about: "a widget
+ * that inlines `0xe8e4c9` silently survives the freeze and then disagrees with every generated asset
+ * around it". `data/palette.json` is now `frozen: true`, so a menu painted outside it is a menu that
+ * will not match the art it sits next to.
+ *
+ * They live HERE rather than in the scene for the reason this whole file exists: a scene cannot be
+ * imported by a node test, so a palette rule inside one is a palette rule nothing can check.
+ *
+ * Chosen by measured contrast against the background swatch rather than by eye — a menu whose text
+ * the player cannot read is not palette compliance, it is a different defect. Against `c00`
+ * (#030202) these are 17.5 : 1 (text), 6.6 : 1 (dim), 12.3 : 1 (accent), 5.4 : 1 (danger) and
+ * 11.0 : 1 (ok). `game/ui/Palette.ts`'s `UI_SWATCH` is deliberately NOT reused: its roles are tuned
+ * for the battle HUD's panel plates, where `text: c07` (#765b4e, 3.3 : 1 on black) is read against a
+ * light panel fill rather than against the void.
+ */
+export const UI_SWATCH_ID = {
+  bg: "c00",
+  text: "c18",
+  dim: "c12",
+  accent: "c15",
+  danger: "c09",
+  ok: "c20",
+} as const;
+
+/** The same roles as `"#rrggbb"`, resolved through `data/palette.json`. */
+export const UI = {
+  bg: swatchHex(UI_SWATCH_ID.bg),
+  text: swatchHex(UI_SWATCH_ID.text),
+  dim: swatchHex(UI_SWATCH_ID.dim),
+  accent: swatchHex(UI_SWATCH_ID.accent),
+  danger: swatchHex(UI_SWATCH_ID.danger),
+  ok: swatchHex(UI_SWATCH_ID.ok),
+} as const;
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Bottom-anchored layout

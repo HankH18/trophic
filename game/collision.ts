@@ -56,10 +56,33 @@ export interface MaskPixels {
 /**
  * Which ink marks a cell impassable.
  *
- * THE MASK CONTRACT: a mask is a 1-bit image at map-native resolution where the **dark** pixels are
- * the walls. This is the polarity the collision editor must write and the polarity `sampleMask`
- * assumes unless told otherwise. Fully transparent pixels are treated as *unpainted*, i.e. walkable,
- * so a mask exported with an alpha channel and no background still reads correctly.
+ * ══ THE MASK CONTRACT — ONE DECLARATION, TWO READERS ══
+ *
+ * A collision mask is a 1-bit image at map-native resolution, **fully opaque**, where the **dark**
+ * pixels are the walls:
+ *
+ *     opaque dark  (luminance < ½)  ⇒ BLOCKED
+ *     opaque light (luminance ≥ ½)  ⇒ WALKABLE
+ *     any transparency              ⇒ NOT A CONFORMING MASK (refused, see {@link maskHealth})
+ *
+ * The opacity clause is load-bearing and was added after a measured defect. Two modules read the
+ * same mask file: this one, at runtime, and `tools/overlay-diff/mask.ts`, which restricts the
+ * Hard Req 5 / G4 acceptance IoU to "the walkable cells of the collision mask" (build-doc §8.2).
+ * On **opaque** rasters the two agree cell-for-cell — `tests/unit/collision.test.ts` proves it over
+ * random rasters rather than asserting it. On **transparent** pixels they cannot: this file reads an
+ * unpainted pixel as walkable (a sampler rule, so `sampleMask` never invents ink), while the gate
+ * counts it toward the cell's total and never toward its walkable half, i.e. blocked. A mask with an
+ * alpha background therefore played as an open field here and made every year variant fail the gate
+ * with "the collision mask marks no walkable cells at all".
+ *
+ * The fix is not to pick a winner for an input neither reader can honestly interpret. It is to
+ * declare that input out of contract, refuse it loudly at load ({@link collisionFromMask}), and make
+ * the one producer — `tools/collision-editor/` — write nothing but fully opaque black and white.
+ * Both readers then answer identically on every mask the project can actually contain.
+ *
+ * `sampleMask`'s own pixel rule is unchanged and still documented below: it is the pure sampler, and
+ * a caller that hands it a transparent pixel gets "unpainted, therefore walkable". Whether such a
+ * raster may be PLAYED is {@link maskHealth}'s question, not the sampler's.
  */
 export type MaskPolarity = "dark-blocks" | "light-blocks";
 
@@ -109,8 +132,130 @@ export interface LoadedCollision {
    * placeholder loud.
    */
   synthetic: boolean;
+  /**
+   * What the mask file turned out to BE, when there was one — `null` only when no pixels reached us
+   * at all. `source`/`synthetic` answer "did a file decode"; this answers "is it a usable mask",
+   * which is the question a fully transparent PNG and an all-black PNG both used to pass silently.
+   */
+  health: MaskHealth | null;
   /** One line a HUD or the debug overlay can print verbatim. */
   note: string;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Is this raster a mask we can play? — the contract, checked
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The verdict on one decoded mask raster.
+ *
+ * `problems` is written to be printed: every entry is a whole sentence naming the file's own
+ * numbers. `usable: false` means the game must NOT treat this as authored geometry — the loader
+ * falls back to the synthesised placeholder and says which problem sent it there.
+ */
+export interface MaskHealth {
+  /** false ⇒ out of contract; do not play it as authored geometry. */
+  usable: boolean;
+  /** Every departure from the contract, ready to print. Empty ⇒ conforming and unremarkable. */
+  problems: string[];
+  /** Pixels whose alpha is at or below half — the out-of-contract case (see {@link MaskPolarity}). */
+  transparentPixels: number;
+  totalPixels: number;
+  blockedCells: number;
+  walkableCells: number;
+}
+
+/** A mask raster read once: the grid it samples to, and the verdict on the file itself. */
+export interface MaskReading {
+  grid: CollisionGrid;
+  health: MaskHealth;
+}
+
+function countTransparent(pixels: MaskPixels): number {
+  const channels = channelsOf(pixels);
+  if (channels < 4) return 0;
+  const data = pixels.data;
+  const count = Math.max(0, Math.floor(pixels.width)) * Math.max(0, Math.floor(pixels.height));
+  let transparent = 0;
+  for (let i = 0; i < count; i += 1) {
+    const alpha = data[i * channels + 3] ?? CHANNEL_MAX;
+    if (alpha * 2 <= CHANNEL_MAX) transparent += 1;
+  }
+  return transparent;
+}
+
+/**
+ * Sample a mask AND judge it, in one pass over the file.
+ *
+ * The three verdicts, and why each is the one it is:
+ *
+ * • **Any transparency ⇒ unusable.** See {@link MaskPolarity}: this module and
+ *   `tools/overlay-diff/mask.ts` read opaque pixels identically and transparent pixels oppositely,
+ *   so a mask with an alpha channel is a file the game and the Hard Req 5 gate would disagree
+ *   about. Refusing it is the only reading that cannot be silently wrong.
+ * • **No walkable cell ⇒ unusable.** There is nowhere to stand. `firstWalkableTile` documents its
+ *   null as "a broken mask, not a spawn bug"; this is where that is caught, before a caller can
+ *   swallow the null and spawn the player inside a wall.
+ * • **No blocked cell ⇒ reported, not refused.** An open field is a legal map. It is still worth
+ *   printing, because it is exactly what a mask that failed to paint looks like.
+ */
+export function readMask(
+  nodeId: string,
+  pixels: MaskPixels,
+  balance: Balance,
+  opts: MaskSampleOptions = {},
+): MaskReading {
+  const grid = sampleMask(nodeId, pixels, balance, opts);
+  const cells = grid.cols * grid.rows;
+  const blocked = blockedCount(grid);
+  const walkable = cells - blocked;
+  const totalPixels = Math.max(0, Math.floor(pixels.width)) * Math.max(0, Math.floor(pixels.height));
+  const transparent = countTransparent(pixels);
+
+  const problems: string[] = [];
+  let usable = true;
+
+  if (totalPixels === 0) {
+    problems.push("the mask decoded to no pixels at all");
+    usable = false;
+  }
+  if (transparent > 0) {
+    problems.push(
+      `${transparent} of ${totalPixels} pixels are transparent — a collision mask must be fully ` +
+        `opaque, because game/collision.ts reads an unpainted pixel as walkable and ` +
+        `tools/overlay-diff/mask.ts reads it as blocked, so the game and the Hard Req 5 gate would ` +
+        `disagree about this file`,
+    );
+    usable = false;
+  }
+  if (walkable === 0) {
+    problems.push(`the mask marks all ${cells} cells blocked — there is nowhere to stand`);
+    usable = false;
+  }
+  if (blocked === 0) {
+    problems.push(`the mask marks 0 of ${cells} cells blocked — the whole map is open`);
+  }
+
+  return {
+    grid,
+    health: {
+      usable,
+      problems,
+      transparentPixels: transparent,
+      totalPixels,
+      blockedCells: blocked,
+      walkableCells: walkable,
+    },
+  };
+}
+
+/** {@link readMask}'s verdict alone — what the collision editor shows while you paint. */
+export function maskHealth(
+  pixels: MaskPixels,
+  balance: Balance,
+  opts: MaskSampleOptions = {},
+): MaskHealth {
+  return readMask("health-check", pixels, balance, opts).health;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -396,7 +541,17 @@ export function sampleMask(
  * Loading — authored, or honestly synthesised
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/** A real mask, sampled. The only path that may return `source: "authored"`. */
+/**
+ * A real mask, sampled AND judged. The only path that may return `source: "authored"` — and it only
+ * does so for a raster that satisfies the contract in {@link MaskPolarity}.
+ *
+ * A mask that decodes but cannot be played (transparent, empty, or every cell blocked) is REFUSED:
+ * the result is the synthesised placeholder, `source: "synthesised"`, and a note carrying the
+ * verdict verbatim. Before this check, a fully transparent PNG loaded as
+ * `source:"authored", synthetic:false, 0 blocked` — an entirely open map presented as authored
+ * geometry — and an all-black PNG loaded as authored with every cell blocked, which then spawned the
+ * player inside a wall.
+ */
 export function collisionFromMask(
   nodeId: string,
   maskPath: string,
@@ -404,13 +559,25 @@ export function collisionFromMask(
   balance: Balance,
   opts: MaskSampleOptions = {},
 ): LoadedCollision {
-  const grid = sampleMask(nodeId, pixels, balance, opts);
+  const { grid, health } = readMask(nodeId, pixels, balance, opts);
+  if (!health.usable) {
+    const fallback = synthesiseBorderCollision(nodeId, balance, maskPath, opts);
+    return {
+      ...fallback,
+      health,
+      note:
+        `REFUSED mask ${maskPath} — ${health.problems.join(" · ")}. ` +
+        `SYNTHESISED collision instead — walkable except the border; NOT an authored mask`,
+    };
+  }
+  const advisory = health.problems.length > 0 ? ` · ${health.problems.join(" · ")}` : "";
   return {
     grid,
     source: "authored",
     maskPath,
     synthetic: false,
-    note: `authored mask ${maskPath} — ${grid.cols}×${grid.rows} cells, ${blockedCount(grid)} blocked`,
+    health,
+    note: `authored mask ${maskPath} — ${grid.cols}×${grid.rows} cells, ${health.blockedCells} blocked${advisory}`,
   };
 }
 
@@ -446,6 +613,9 @@ export function synthesiseBorderCollision(
     source: "synthesised",
     maskPath,
     synthetic: true,
+    // No file reached us, so there is no file to have a verdict about. `collisionFromMask` overwrites
+    // this with the real verdict when it refuses a mask that DID decode.
+    health: null,
     note: `SYNTHESISED collision (${missing}) — walkable except the border; NOT an authored mask`,
   };
 }
@@ -491,6 +661,39 @@ export function firstWalkableTile(
     }
   }
   return null;
+}
+
+/** Where the player will stand, and — when that is nowhere legal — the sentence saying so. */
+export interface SpawnChoice {
+  tile: { col: number; row: number };
+  /**
+   * Null when `tile` is genuinely walkable. Otherwise a printable sentence: the tile is a
+   * last-resort placement inside geometry, and whatever put the player there has to be said out
+   * loud rather than looking like an ordinary spawn.
+   */
+  problem: string | null;
+}
+
+/**
+ * {@link firstWalkableTile} with its null made unswallowable.
+ *
+ * The defect this replaces: callers wrote `firstWalkableTile(grid, balance) ?? { col: 0, row: 0 }`,
+ * and (0,0) is blocked on any bordered grid — so a broken mask spawned the player inside a wall,
+ * unable to move, with nothing on screen saying why. A `??` cannot be written against this signature
+ * because the failure is not represented as a missing value; it is represented as a sentence the
+ * caller has to do something with.
+ */
+export function chooseSpawnTile(grid: CollisionGrid, balance: Balance): SpawnChoice {
+  const found = firstWalkableTile(grid, balance);
+  if (found) return { tile: found, problem: null };
+  const tiles = tileGridSize(balance);
+  return {
+    tile: { col: Math.floor(tiles.cols / 2), row: Math.floor(tiles.rows / 2) },
+    problem:
+      `NO WALKABLE TILE at "${grid.nodeId}" — all ${tiles.cols}×${tiles.rows} tiles are blocked by ` +
+      `the ${grid.cols}×${grid.rows}-cell mask (${blockedCount(grid)} cells blocked). The player is ` +
+      `standing in geometry and cannot move.`,
+  };
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

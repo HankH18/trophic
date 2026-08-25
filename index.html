@@ -5,13 +5,118 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>Trophic</title>
     <style>
-      html, body { margin: 0; padding: 0; background: #0d0f0c; height: 100%; overflow: hidden; }
+      /* Page ground behind the canvas. This is palette swatch c00 from data/palette.json, which
+         static HTML cannot read — so `tests/unit/game-boot.test.ts` asserts the two agree and the
+         hand-copy cannot drift through a palette re-freeze. */
+      html, body { margin: 0; padding: 0; background: #030202; height: 100%; overflow: hidden; }
       #game { width: 100vw; height: 100vh; display: grid; place-items: center; }
       canvas { image-rendering: pixelated; }
+      /* The watchdog panel below. Styled here rather than inline so the script stays readable. */
+      #boot-watchdog-panel {
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #f4e9e9; background: #2a1414; border: 2px solid #e05a4a; padding: 16px;
+        max-width: 900px; max-height: 80vh; overflow: auto; text-align: left; white-space: pre-wrap;
+      }
+      #boot-watchdog-panel strong { display: block; color: #ff8b7a; margin-bottom: 8px; }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <!--
+      THE PRE-MODULE WATCHDOG (Lane C1, DEVIATIONS C1-D9).
+
+      Everything else that reports a boot failure — the zod gate in game/scenes/BootScene.ts, and
+      game/boot.ts's renderFatalError — is INSIDE the module graph rooted at game/main.ts. A
+      SYNTAX error in any data/*.json breaks that graph before one line of it runs: data/*.json are
+      static imports (core/schemas.ts, game/boot.ts, game/placeholder.ts), so the failure precedes
+      every project statement. Reproduced on the real dev server by truncating data/nodes/r1.json:
+      an entirely blank page, no overlay, no [trophic] console line — Vite 8's own error overlay
+      crashed while rendering the error and printed nothing either.
+
+      A guard against that cannot live in the graph that failed to load. So it lives here, in plain
+      ES5, in its own classic script, and game/main.ts disarms it by setting window.__trophicBooted
+      at module top level. Keep it dependency-free: no imports, no optional chaining, nothing that a
+      transform could fail on.
+    -->
+    <script id="boot-watchdog">
+      (function () {
+        var SLOW_MS = 8000;
+        var FAST_MS = 1200;
+        var problems = [];
+        var timer = null;
+        var due = Infinity;
+        var finished = false;
+
+        function schedule(ms) {
+          if (ms >= due) return;
+          due = ms;
+          if (timer !== null) clearTimeout(timer);
+          timer = setTimeout(check, ms);
+        }
+
+        /**
+         * Record what the browser said, and decide how long to keep waiting.
+         *
+         * A failed IMAGE or stylesheet is not a dead boot — it fires here too (resource errors
+         * bubble to window in the capture phase), and shortening the wait on one would put this
+         * panel over a game that was about to start perfectly well. Only a script error, or a
+         * failure to load a <script>, brings the check forward.
+         */
+        function note(event) {
+          var target = (event && event.target) || null;
+          var tag = target && target !== window && target.tagName ? String(target.tagName) : "";
+          var message =
+            (event && event.message) ||
+            (event && event.reason && (event.reason.message || String(event.reason))) ||
+            (tag && target.src ? "failed to load " + tag.toLowerCase() + " " + target.src : "");
+          if (message && problems.indexOf(message) < 0) problems.push(message);
+          schedule(tag === "" || tag === "SCRIPT" ? FAST_MS : SLOW_MS);
+        }
+
+        function check() {
+          if (finished) return;
+          if (timer !== null) {
+            clearTimeout(timer);
+            timer = null;
+          }
+          if (window.__trophicBooted) {
+            finished = true;
+            return;
+          }
+          finished = true;
+          var lines = [
+            "The page loaded but game/main.ts never ran, so nothing in game/ or core/ could report",
+            "why. That means the module graph itself failed to load or parse.",
+            "",
+            "Most often: a SYNTAX error in a data/*.json file. They are static imports, so a stray",
+            "comma breaks the graph before the zod gate can say which file is wrong.",
+            "",
+            "Where to look: the terminal running `vite`, and this browser's console.",
+          ];
+          if (problems.length > 0) {
+            lines.push("", "The browser reported:");
+            for (var i = 0; i < problems.length; i += 1) lines.push("  • " + problems[i]);
+          }
+          var text = lines.join("\n");
+          console.error("[trophic] the module graph did not load\n" + text);
+
+          var host = document.getElementById("game") || document.body;
+          if (!host) return;
+          host.textContent = "";
+          var panel = document.createElement("div");
+          panel.id = "boot-watchdog-panel";
+          var head = document.createElement("strong");
+          head.textContent = "TROPHIC failed to start — the module graph did not load";
+          panel.appendChild(head);
+          panel.appendChild(document.createTextNode(text));
+          host.appendChild(panel);
+        }
+
+        window.addEventListener("error", note, true);
+        window.addEventListener("unhandledrejection", note);
+        schedule(SLOW_MS);
+      })();
+    </script>
     <script type="module" src="/game/main.ts"></script>
   </body>
 </html>

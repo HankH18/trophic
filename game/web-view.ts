@@ -335,12 +335,104 @@ export interface WebLabel {
   /** CENTRE of the text — the scene draws these with origin x 0.5. */
   x: number;
   y: number;
+  /**
+   * The scene's vertical origin for this label: 0 for a vertex label (it hangs BELOW its dot), 0.5
+   * for a link label (it sits ON the line). It is carried on the label rather than decided by the
+   * scene so that the box {@link labelBounds} computes — the box the placement below keeps clear,
+   * and the box the test measures — is the box `LedgerScene` actually draws.
+   */
+  originY: 0 | 0.5;
 }
 
 /** Gap between a vertex dot and the number under it. */
 const VERTEX_LABEL_OFFSET_PX = 5;
-/** How far apart consecutive collapsed labels are nudged so two short links do not overprint. */
-const LABEL_STAGGER_PX = 6;
+
+/**
+ * One clear row. A label pushed by this much cannot overlap the one it was pushed off, because it
+ * is exactly the height {@link labelBounds} gives every label.
+ */
+const LABEL_ROW_PX = SCREEN_TEXT.lineHeight;
+
+/** How many rows a label may be pushed down, then up, looking for space. */
+const LABEL_ROWS_DOWN = 8;
+const LABEL_ROWS_UP = 4;
+
+/** The pixels a drawn label occupies. */
+export interface LabelBox {
+  left: number;
+  right: number;
+  top: number;
+  bottom: number;
+}
+
+/**
+ * The box a label occupies on the canvas, from the same three numbers the scene draws it with: the
+ * monospace cell advance, the line height, and the origin the label carries.
+ */
+export function labelBounds(label: WebLabel): LabelBox {
+  const half = (label.text.length * SCREEN_TEXT.advancePx) / 2;
+  const top = label.y - SCREEN_TEXT.lineHeight * label.originY;
+  return {
+    left: label.x - half,
+    right: label.x + half,
+    top,
+    bottom: top + SCREEN_TEXT.lineHeight,
+  };
+}
+
+/** Overlapping area of two label boxes, in px². 0 when they do not touch. */
+export function labelOverlap(a: LabelBox, b: LabelBox): number {
+  const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+  const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+  return w > 0 && h > 0 ? w * h : 0;
+}
+
+/**
+ * Place one label at the first row near `label.y` where its box touches nothing already placed.
+ *
+ * **The defect this exists to close.** Both label sets used to be positioned by arithmetic that
+ * knew nothing about the other: vertex labels sat under their dots, and collapsed-link labels were
+ * staggered by their INDEX in the list. Whenever a link's midpoint landed on a vertex's own tier
+ * the two 12px strings printed on top of each other and destroyed both — measured live at r2 and
+ * Brackwater, where `[2] Mirefin 8/24` and `collapsed (prey)` rendered as the smear
+ * `[2]lMirefinp8/24`, and across a sweep of every shipped node with every line and every pair of
+ * lines at 0, in 97 of 198 states. A collapsed link is the one thing on this screen the player
+ * caused, so it is the worst possible label to lose.
+ *
+ * Rows are tried below first (a vertex label belongs under its dot), then above. If every candidate
+ * collides — a genuinely crowded node — the least-overlapping one wins, and an exact repeat of a
+ * position already taken is refused outright, so labels degrade to "crowded" and never to "one on
+ * top of another".
+ */
+function placeLabel(label: WebLabel, taken: LabelBox[], bounds: { min: number; max: number }): number {
+  const offsets: number[] = [0];
+  for (let i = 1; i <= LABEL_ROWS_DOWN; i += 1) offsets.push(i * LABEL_ROW_PX);
+  for (let i = 1; i <= LABEL_ROWS_UP; i += 1) offsets.push(-i * LABEL_ROW_PX);
+
+  const height = SCREEN_TEXT.lineHeight;
+  let bestY = label.y;
+  let bestCost = Number.POSITIVE_INFINITY;
+  for (const dy of offsets) {
+    const top = Math.min(
+      Math.max(label.y + dy - height * label.originY, bounds.min),
+      bounds.max - height,
+    );
+    const y = top + height * label.originY;
+    const box = labelBounds({ ...label, y });
+    let cost = 0;
+    for (const other of taken) {
+      cost += labelOverlap(box, other);
+      // An exact repeat of a taken box is never an acceptable answer, however crowded the node.
+      if (box.left === other.left && box.top === other.top) cost += Number.MAX_SAFE_INTEGER;
+    }
+    if (cost === 0) return y;
+    if (cost < bestCost) {
+      bestCost = cost;
+      bestY = y;
+    }
+  }
+  return bestY;
+}
 
 /**
  * The box the diagram is laid out in: the canvas less the two header lines above it and the footer
@@ -374,14 +466,38 @@ function clampToCanvas(x: number, text: string, balance: Balance): number {
   return Math.min(Math.max(x, half), width - half);
 }
 
-/** One label per vertex — its count, under its dot, never off the edge of the screen. */
+/** The rows a label may occupy: the diagram's own box, so nothing lands on a header or the footer. */
+function labelBand(balance: Balance): { min: number; max: number } {
+  const box = webDiagramBox(balance);
+  return { min: box.y, max: box.y + box.height };
+}
+
+/**
+ * One label per vertex — its count, under its dot, never off the edge of the screen and never on top
+ * of another label.
+ *
+ * A tier wide enough to hold five vertices is not wide enough to hold five of these strings
+ * (`[0] Loamunder 10/40` is 114px on a 480px canvas), so within-tier collisions are not a corner
+ * case — they are what a well-populated node does. See {@link placeLabel}.
+ */
 export function webVertexLabels(page: WebPage, layout: WebLayout, balance: Balance): WebLabel[] {
+  const band = labelBand(balance);
+  const taken: LabelBox[] = [];
   const out: WebLabel[] = [];
   for (const vertex of page.vertices) {
     const at = layout.positions.get(vertex.id);
     if (!at) continue;
     const text = renderWebVertex(page, vertex);
-    out.push({ id: vertex.id, text, x: clampToCanvas(at.x, text, balance), y: at.y + VERTEX_LABEL_OFFSET_PX });
+    const label: WebLabel = {
+      id: vertex.id,
+      text,
+      x: clampToCanvas(at.x, text, balance),
+      y: at.y + VERTEX_LABEL_OFFSET_PX,
+      originY: 0,
+    };
+    label.y = placeLabel(label, taken, band);
+    taken.push(labelBounds(label));
+    out.push(label);
   }
   return out;
 }
@@ -390,9 +506,14 @@ export function webVertexLabels(page: WebPage, layout: WebLayout, balance: Balan
  * One label per COLLAPSED link, at the midpoint of the line the scene draws for it.
  *
  * Live links get none: the diagram already says everything true about a working link with an arrow
- * between two numbers, and a word on every edge would bury the two or three that matter. Labels are
- * staggered by index because collapsed links often share an endpoint — a wiped prey line collapses
- * every arrow into it — and three labels at nearly the same midpoint would be one smear.
+ * between two numbers, and a word on every edge would bury the two or three that matter.
+ *
+ * **These are placed against the vertex labels, not only against each other.** Collapsed links
+ * often share an endpoint — a wiped prey line collapses every arrow into it — so their midpoints
+ * cluster, and a midpoint lands on a vertex's own tier whenever the two ends are one tier apart.
+ * The vertex labels are therefore laid out first and their boxes are what this searches around
+ * (see {@link placeLabel}); an index-based stagger, which is what used to be here, cannot see them
+ * and printed the reason word straight through a count.
  *
  * Pure geometry, so the scene draws exactly the positions the test asserts. Before this existed the
  * reason word reached the tests and never reached the screen: `LedgerScene` imported `renderWebEdge`
@@ -400,20 +521,26 @@ export function webVertexLabels(page: WebPage, layout: WebLayout, balance: Balan
  * explanation, while the comment beside the dashes claimed the words were there.
  */
 export function collapsedEdgeLabels(page: WebPage, layout: WebLayout, balance: Balance): WebLabel[] {
+  const band = labelBand(balance);
+  // The vertex labels are already on the screen when these are drawn, so they are already taken.
+  const taken: LabelBox[] = webVertexLabels(page, layout, balance).map(labelBounds);
   const out: WebLabel[] = [];
   for (const edge of page.edges) {
     if (!edge.collapsed) continue;
     const from = layout.positions.get(edge.prey);
     const to = layout.positions.get(edge.predator);
     if (!from || !to) continue;
-    const nudge = (out.length % 2 === 0 ? -1 : 1) * LABEL_STAGGER_PX * Math.ceil((out.length + 1) / 2);
     const text = renderWebCollapse(edge);
-    out.push({
+    const label: WebLabel = {
       id: `${edge.predator}→${edge.prey}`,
       text,
       x: clampToCanvas((from.x + to.x) / 2, text, balance),
-      y: (from.y + to.y) / 2 + nudge,
-    });
+      y: (from.y + to.y) / 2,
+      originY: 0.5,
+    };
+    label.y = placeLabel(label, taken, band);
+    taken.push(labelBounds(label));
+    out.push(label);
   }
   return out;
 }

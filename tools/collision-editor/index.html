@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>TROPHIC — collision editor</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --ink: #e8f0e0;
+        --dim: #8e9a86;
+        --bg: #14170f;
+        --panel: #1d2117;
+        --edge: #333a2b;
+        --warn: #ffb454;
+        --bad: #ff8b7a;
+        --good: #9fd67a;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 380px;
+        min-height: 100vh;
+      }
+      #stage { padding: 16px; overflow: auto; }
+      #side {
+        padding: 16px;
+        background: var(--panel);
+        border-left: 1px solid var(--edge);
+        overflow: auto;
+        max-height: 100vh;
+      }
+      h1 { font-size: 14px; margin: 0 0 4px; letter-spacing: 0.08em; text-transform: uppercase; }
+      h2 { font-size: 12px; margin: 18px 0 6px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; }
+      p, label { margin: 4px 0; }
+      canvas { display: block; image-rendering: pixelated; border: 1px solid var(--edge); cursor: crosshair; }
+      button, select, input[type="file"] { font: inherit; color: inherit; background: #262c1d; border: 1px solid var(--edge); padding: 4px 8px; }
+      button { cursor: pointer; }
+      button:hover { border-color: var(--good); }
+      .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+      .num { color: var(--good); }
+      .warn { color: var(--warn); }
+      .bad { color: var(--bad); }
+      .dim { color: var(--dim); }
+      ul { margin: 4px 0; padding-left: 18px; }
+      li { margin: 2px 0; }
+      pre { background: #10130c; border: 1px solid var(--edge); padding: 8px; overflow: auto; max-height: 220px; font-size: 10px; line-height: 1.1; }
+      #fatal { padding: 24px; color: var(--bad); white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <div id="stage"><div id="fatal">loading…</div></div>
+    <div id="side"></div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

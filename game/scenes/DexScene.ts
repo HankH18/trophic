@@ -34,16 +34,17 @@ import {
   type DexEntry,
 } from "../ledger-view";
 import { placeholderImage } from "../placeholder";
+import { SCENE_KEYS } from "../scene-keys";
 import type { Content, NodeState, Season } from "../../core/types";
 
 /**
- * Scene key, in `game/scene-keys.ts`'s capitalised convention (Boot/Title/Menu/…).
- *
- * ⚠ It is spelled HERE because the registry has no `dex` entry yet — see the blocker in this lane's
- * report. When one is added it must be `dex: "Dex"`, and this line becomes `SCENE_KEYS.dex`;
- * `tests/unit/ledger-view.test.ts` fails the moment the two spellings disagree.
+ * The scene key, READ from the registry rather than spelled again here (as `LedgerScene` does).
+ * `game/scene-keys.ts` is engine-free — `import type` only — so there is no reason for this file to
+ * hold a second copy of the string, and two spellings of one key is the exact failure that registry
+ * exists to prevent. It carried its own literal while the registry had no `dex` entry; the registry
+ * has one, `game/main.ts` registers this scene, and `game/scenes/MenuScene.ts` routes to it.
  */
-export const DEX_SCENE_KEY = "Dex";
+export const DEX_SCENE_KEY = SCENE_KEYS.dex;
 
 export interface DexSceneData {
   content: Content;

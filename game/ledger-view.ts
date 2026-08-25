@@ -91,20 +91,78 @@ const BREED_DECIMALS = 3;
  */
 const REAL_DECIMALS = 1;
 
+/**
+ * How many extra decimals a shortened value may grow to keep a non-zero number from printing as 0.
+ * Past this it is printed in exponent form instead, which is shorter than the zeros.
+ */
+const EXTRA_DECIMALS_MAX = 5;
+
 /** What a field reads when the answer is genuinely unknown — never what a COUNT reads. */
 export const NO_VALUE = "—";
 
+/** `value` cut — never rounded — to `decimals`, toward zero. */
+function truncateTo(value: number, decimals: number): string {
+  const scale = 10 ** decimals;
+  return (Math.trunc(value * scale) / scale).toFixed(decimals);
+}
+
 /**
- * A number as the screens print it: an integer verbatim, a real value at {@link REAL_DECIMALS}.
+ * A real number shortened to `decimals`, under the two rules that keep shortening from stating
+ * something the state does not hold. The shared half of {@link renderNumber} and {@link renderRate}.
  *
- * This is a WIDTH bound, not a rounding of anything the game decides. Every count on these screens
- * is an integer and passes through unchanged; only the two real-valued node accumulators are
- * shortened, and they are still printed as the numbers they are (Hard Req 2 — never a band word).
- * Use it for anything whose value comes out of `NodeState`, because two of those fields are floats
- * and the flora vertex on the web diagram is one of them.
+ *  1. **Rounding may never carry into the integer part.** `(99.95).toFixed(1)` is `"100.0"` — and
+ *     100 is `balance.ecosim.floraMax`, the ceiling the node had NOT reached. Where the carry would
+ *     cross an integer the value is cut instead, so an integer ceiling or floor is never printed by
+ *     a value that has not got there. Everywhere else it rounds, because rounding is the more
+ *     accurate answer and cutting would print 43.099999999999994 — a stock that is 43.1 — as 43.0.
+ *  2. **A non-zero value never reads as zero.** `(0.04).toFixed(1)` is `"0.0"`, and 0 is this
+ *     screen's word for gone. So the fraction widens until a significant digit appears, and past
+ *     {@link EXTRA_DECIMALS_MAX} the value goes to exponent form — still a number, still not 0.
+ */
+function shortenReal(value: number, decimals: number): string {
+  for (let d = decimals; d <= decimals + EXTRA_DECIMALS_MAX; d += 1) {
+    const rounded = value.toFixed(d);
+    const carried = Math.trunc(Number(rounded)) !== Math.trunc(value);
+    const text = carried ? truncateTo(value, d) : rounded;
+    if (Number(text) !== 0) return text;
+  }
+  return value.toExponential(1);
+}
+
+/**
+ * A number as the screens print it: an integer verbatim, a real value shortened to {@link
+ * REAL_DECIMALS}.
+ *
+ * This is a WIDTH bound, and it goes through {@link shortenReal} so that shortening can never state
+ * something the state does not hold — the two lies `value.toFixed(1)` told being a `floraStock` of
+ * 99.95 printed as `100.0` (the cap `balance.ecosim.floraMax` names, which the node had not
+ * reached) and a `recentDeaths` of 0.04 printed as `0.0` (which is this screen's word for gone, for
+ * a number §7.2 makes the live Scavenger encounter multiplier).
+ *
+ * Every count on these screens is an integer and passes through unchanged; only the two real-valued
+ * node accumulators are ever shortened. Use it for anything whose value comes out of `NodeState`,
+ * because two of those fields are floats and the flora vertex on the web diagram is one of them.
  */
 export function renderNumber(value: number): string {
-  return Number.isInteger(value) ? String(value) : value.toFixed(REAL_DECIMALS);
+  if (!Number.isFinite(value)) return String(value);
+  if (Number.isInteger(value)) return String(value);
+  return shortenReal(value, REAL_DECIMALS);
+}
+
+/**
+ * A breed rate as the `breed` column prints it — the same two rules as {@link renderNumber}, at
+ * {@link BREED_DECIMALS}, and always with its decimals so the column lines up.
+ *
+ * The second rule matters more here than anywhere else on the screen. `0.000` in this column is
+ * what a line whose births the sim has SUPPRESSED reads (a starving apex, mid-cascade), so a rate
+ * that is merely very small must never borrow that spelling: `toFixed(3)` printed 0.0004 as
+ * `0.000`, which is a line that is breeding, drawn as a line that is not. The shipped clamps keep
+ * rates well above that today (`ecosim.foodFactorClampMin` × the smallest stored rate), which is
+ * exactly why this would have gone unnoticed after a retune.
+ */
+export function renderRate(value: number): string {
+  if (value === 0) return (0).toFixed(BREED_DECIMALS);
+  return shortenReal(value, BREED_DECIMALS);
 }
 
 export function signed(n: number): string {
@@ -222,12 +280,25 @@ export interface LedgerRow {
   carryCap: number;
   /**
    * The rate this line will actually breed at this season — `core/ecosim.ts`'s own report of what
-   * it uses, NOT the rate stored in the state. See {@link effectiveRates}: the two differ wherever
-   * an Ancient is in range, which on the shipped year-1 state is 11 rows across 6 nodes.
+   * it multiplies the count by, NOT the rate stored in the state and NOT a partial product of it.
+   * See {@link effectiveRates}: on the shipped year-1 state it differs from the stored rate on 34
+   * rows across 10 nodes, in both directions, and it is 0 for a starving line.
+   *
+   * The binding that makes this checkable: `count × breedRate` IS the sim's own projected births.
    */
   breedRate: number;
-  /** `state.populations[lineId].breedRate` as stored — the rate with no Ancient in range. */
+  /** `state.populations[lineId].breedRate` as stored — no Ancient in range, food at parity. */
   baseBreedRate: number;
+  /**
+   * The stored rate after §7.3 step 1's Ancient presence effects and before food. It differs from
+   * `baseBreedRate` exactly when an Ancient is in range, which is what {@link LedgerPage.presenceSources}
+   * names and what Hard Req 7 turns off when the player catches one.
+   */
+  presenceBreedRate: number;
+  /** `core/ecosim.ts`'s own `foodFactor` for this line this season. */
+  foodFactor: number;
+  /** `core/ecosim.ts`'s own `starving` flag — when true the sim gives this line no births at all. */
+  starving: boolean;
   role: Role;
   /**
    * The retained readings, oldest first, at most {@link seasonsPerYear} of them, the live count
@@ -241,6 +312,8 @@ export interface LedgerRow {
   extinct: boolean;
   /** True for the four seasonal migrants (Hard Req 10). */
   seasonal: boolean;
+  /** The migrant's window, so the row can name it rather than describe the population. */
+  seasonalWindow?: Season;
   /** Set when a migrant is out of its window — so a seasonal 0 is never read as a crash. */
   dormantReason?: "dormant" | "migrating";
 }
@@ -297,24 +370,53 @@ export interface LedgerArgs {
 }
 
 /**
+ * What one line's breed rate is made of this season, as `core/ecosim.ts` reports it.
+ *
+ * Three numbers rather than one because they answer different questions and the ledger needs both
+ * of the first two: `presence` is what an Ancient in range is doing (Hard Req 7 — catch it and this
+ * falls back to the stored rate), `inForce` is what the sim will actually multiply the count by.
+ */
+export interface SpeciesRate {
+  /** `breedRate × presenceMult` — §7.3 step 1's Ancient effects, before food is considered. */
+  presence: number;
+  /** The multiplier the sim applies to the count this season. 0 when it suppresses births. */
+  inForce: number;
+  /** `core/ecosim.ts`'s own `foodFactor` — availablePrey/demand, clamped. */
+  foodFactor: number;
+  /** `core/ecosim.ts`'s own `starving` flag for this line this season. */
+  starving: boolean;
+}
+
+/**
  * The breed rate `core/ecosim.ts` will use for each line at this node this season, and the Ancients
  * responsible — both taken from core, neither recomputed here.
  *
- * **The defect this exists to close.** The stored `populations[line].breedRate` is only the rate
- * with nothing in range. §7.3 step 1 raises it by the Ancient presence effects before anything
- * breeds — `keystoneBreed ×1.5`, `ventWarmth ×1.25`, the water-table floor — so on the shipped
- * year-1 state the ledger's `breed` column disagreed with the sim on 11 rows at 6 nodes, Brackwater
- * and R2 among them. Hard Req 2 asks for the real number, and the real number is this one.
+ * **The two defects this exists to close.** The stored `populations[line].breedRate` is only the
+ * rate with nothing in range and food at parity. §7.3 step 1 is
+ * `births = count × breedRate × foodFactor × presenceMult`, and a starving line puts **nothing**
+ * into the next generation (`balance.ecosim.starveSuppressesBirths`):
+ *
+ *  1. The presence effects — `keystoneBreed ×1.5`, `ventWarmth ×1.25`, the water-table floor — lift
+ *     the stored rate before anything breeds.
+ *  2. `foodFactor` scales it again, in both directions. Dropping it put the ledger 34 rows out
+ *     across 10 nodes on the UNTOUCHED year-1 state, and during the cascade beat it printed a
+ *     starving apex breeding at its *highest* rate (`0.045→0.056`) in the same season the sim gave
+ *     it zero births and four starvation deaths.
+ *
+ * Hard Req 2 asks for the real number, and the real number is `inForce`.
  *
  * **Why it asks `step` instead of doing the arithmetic.** §7.3's rule has exactly one
  * implementation, in `core/ecosim.ts`; a second one here is how a screen and an engine come to
  * disagree after a retune (see the Lane A integration defect I3, where two implementations of the
- * population write differed in both directions). So the sim is asked, and it answers in
- * `SpeciesStepReport.breedRate × presenceMult` — the two factors it is about to multiply the count
- * by. **The step's projected counts are discarded**; nothing here advances anything.
+ * population write differed in both directions). So the sim is asked — and for a line that has
+ * individuals, `inForce` is read back as `births / count`, which is *by construction* whatever the
+ * sim multiplied by, with no rule about food or starvation restated here at all. Only an EMPTY line
+ * has to fall back to the product of the reported factors, because its births are 0 by arithmetic
+ * (`0 × anything`) rather than by rate, and 0/0 is not a rate. **The step's projected counts are
+ * discarded**; nothing here advances anything.
  *
- * The generator handed over is a throwaway seeded from `balance.rng.defaultSeed`: those two report
- * fields are computed before `step` touches it, so the answer cannot depend on the seed, and
+ * The generator handed over is a throwaway seeded from `balance.rng.defaultSeed`: the report fields
+ * read below are all computed before `step` touches it, so the answer cannot depend on the seed, and
  * `tests/unit/ledger-view.test.ts` runs it at two different seeds to keep that true.
  */
 export function effectiveRates(args: {
@@ -323,7 +425,7 @@ export function effectiveRates(args: {
   species: readonly SpeciesLine[];
   balance: Balance;
   season: Season;
-}): { breedRates: Map<string, number>; presenceSources: string[] } {
+}): { rates: Map<string, SpeciesRate>; presenceSources: string[] } {
   const { nodeId, region, balance, season } = args;
   const idx: SpeciesIndex = indexSpecies([...args.species]);
   const eco = ecoConstants(balance);
@@ -341,15 +443,25 @@ export function effectiveRates(args: {
   const ctx = makeContext(idx, balance, presence);
   const report = step(node, season, createRng(balance.rng.defaultSeed), ctx).report;
 
-  const breedRates = new Map<string, number>();
+  const rates = new Map<string, SpeciesRate>();
   for (const species of report.species) {
-    breedRates.set(species.lineId, species.breedRate * species.presenceMult);
+    rates.set(species.lineId, {
+      presence: species.breedRate * species.presenceMult,
+      // `before` is the count the sim multiplied. Asking it back this way is what keeps the
+      // starvation rule in core/ecosim.ts and out of this screen.
+      inForce:
+        species.before > 0
+          ? species.births / species.before
+          : species.breedRate * species.presenceMult * species.foodFactor,
+      foodFactor: species.foodFactor,
+      starving: species.starving,
+    });
   }
   const ageClass = webAgeClass(balance);
   const presenceSources = (presence[nodeId]?.sources ?? []).map(
     (lineId) => idx.byId.get(lineId)?.formNames[ageClass] ?? lineId,
   );
-  return { breedRates, presenceSources };
+  return { rates, presenceSources };
 }
 
 /**
@@ -370,7 +482,7 @@ export function buildLedgerPage(args: LedgerArgs): LedgerPage {
   const ageClass = webAgeClass(balance);
   const history = args.history ?? [];
   const keep = seasonsPerYear(balance);
-  const { breedRates, presenceSources } = effectiveRates({
+  const { rates, presenceSources } = effectiveRates({
     nodeId,
     region,
     species: args.species,
@@ -415,19 +527,27 @@ export function buildLedgerPage(args: LedgerArgs): LedgerPage {
     const delta = trend.length > 1 && typeof first === "number" ? count - first : null;
 
     const status = migrantStatus(line, season, balance);
+    // A line the sim did not report on (it cannot happen for a line that is in `populations`, but
+    // the map lookup is still a lookup) falls back to the stored rate with no food term — the
+    // honest "all we know" answer, never a guessed one.
+    const rate = rates.get(lineId);
     const row: LedgerRow = {
       lineId,
       label: line.formNames[ageClass],
       count,
       carryCap: pop.carryCap,
-      breedRate: breedRates.get(lineId) ?? pop.breedRate,
+      breedRate: rate?.inForce ?? pop.breedRate,
       baseBreedRate: pop.breedRate,
+      presenceBreedRate: rate?.presence ?? pop.breedRate,
+      foodFactor: rate?.foodFactor ?? 1,
+      starving: rate?.starving ?? false,
       role: webRole(line, balance),
       trend,
       delta,
       extinct: count === 0,
       seasonal: line.seasonalWindow !== undefined,
     };
+    if (line.seasonalWindow) row.seasonalWindow = line.seasonalWindow;
     if (status.dormantReason) row.dormantReason = status.dormantReason;
     rows.push(row);
   }
@@ -504,26 +624,50 @@ export function renderLedgerPresence(page: LedgerPage): string {
 }
 
 /**
- * One species row. Reads, for r1's nibbin line at the shipped state:
+ * The seasonal note at the end of a row, and the one place the two directions of Hard Req 10 are
+ * kept apart.
  *
- *     Nibbin           11   33  0.060  11  net —
+ *  - **A migrant out of its window, with individuals present** reads `dormant` / `migrating`. That
+ *    is Hard Req 10 as written (bible §5): a low seasonal count must not read as a crash.
+ *  - **A migrant at 0** reads `window <season>` instead — the calendar fact, with no word about
+ *    where the population is. `migrating` beside a real 0 was the open reverse of the same
+ *    requirement: nothing on the row separated "absent because of the calendar" from "0 because you
+ *    caught them all", and a count never moves for a seasonal reason, so the seasonal word can only
+ *    be a false explanation there. The window is still named, so the row still says this is a
+ *    migrant and when it is catchable.
  *
- * for a line whose rate an Ancient in range is lifting (stored → in force, both real):
+ * A line with no window gets no note at all — inventing one would make the flag mean nothing.
+ */
+export function renderSeasonalNote(row: LedgerRow): string {
+  if (row.extinct) return row.seasonalWindow ? `window ${row.seasonalWindow}` : "";
+  return row.dormantReason ?? "";
+}
+
+/**
+ * One species row. Reads, for r1's nibbin line at the shipped state (stored rate → the rate in
+ * force, which food and the Ancients move):
  *
- *     Mirefin           6   18  0.045→0.150  6  net —
+ *     Nibbin           11   33  0.060→0.075  11  net —
+ *
+ * for a starving line, whose births the sim suppresses outright:
+ *
+ *     Pyrelisk         14   42  0.045→0.000  14  net —
  *
  * and for a line that has been caught to zero, with a season of history behind it:
  *
  *     Skir              0   24  0.045  8 5 2 0  net -8
  */
 export function renderLedgerRow(row: LedgerRow): string {
-  const inForce = row.breedRate.toFixed(BREED_DECIMALS);
+  const inForce = renderRate(row.breedRate);
+  const stored = renderRate(row.baseBreedRate);
   // Both numbers, never just the one the player cannot act on: the left is what this line breeds at
-  // alone, the right is what it breeds at now. Identical rates print once.
-  const breed =
-    row.breedRate === row.baseBreedRate
-      ? inForce
-      : `${row.baseBreedRate.toFixed(BREED_DECIMALS)}→${inForce}`;
+  // alone, the right is what the sim multiplies its count by this season — food, Ancients and the
+  // starvation cut-off all folded in, because that is the number that decides the next generation.
+  //
+  // Compared as RENDERED, not as floats: `inForce` is a product of three reported factors, so a
+  // line whose factors are all 1 lands on 0.05000000000000001 and drew `0.050→0.050`, an arrow
+  // between one number and itself. Two rates the player cannot tell apart are one rate.
+  const breed = inForce === stored ? inForce : `${stored}→${inForce}`;
   const head =
     padLabel(row.label) +
     String(row.count).padStart(W_COUNT) +
@@ -531,10 +675,8 @@ export function renderLedgerRow(row: LedgerRow): string {
     `  ${breed}`;
   const trend = `  ${row.trend.join(" ")}`;
   const net = `  net ${row.delta === null ? NO_VALUE : signed(row.delta)}`;
-  // Hard Req 10 — a migrant out of its window says so on the ledger too, so a low seasonal count is
-  // never read as a crash. The count itself is still the real integer beside it.
-  const seasonal = row.dormantReason ? `  ${row.dormantReason}` : "";
-  return head + trend + net + seasonal;
+  const note = renderSeasonalNote(row);
+  return head + trend + net + (note ? `  ${note}` : "");
 }
 
 export function renderLedgerPage(page: LedgerPage): string[] {
@@ -624,6 +766,18 @@ const PROBE_INDIVIDUALS = 1;
  * of the rule in the UI. The probe node carries one individual of one line because the question is
  * which FILTER refuses it, not how many there are; the real count is read separately, straight out
  * of `nodeStates` ({@link regionalCount}).
+ *
+ * **Why the probe is run in the line's own window and not in `season`.** `encounterWeights` checks
+ * the gate BEFORE the season and returns a bare `active: false` with no `dormantReason`, so the two
+ * refusals are indistinguishable in its answer. Asking the caller's season and then subtracting the
+ * seasonal case afterwards lost the gate flag for any line that was BOTH gated and out of window:
+ * the card dropped "not in the wild encounter pool" in three seasons out of four and said only
+ * `migrating`, which is the reason the player could wait out. Asking in the window the line IS
+ * active in leaves the gate as the only refusal the probe can produce, so the answer is a fact
+ * about the line rather than about the calendar — which is what the flag claims to be. No shipped
+ * line is currently both (the three Ancients carry no `seasonalWindow`), so this is a trap set for
+ * the next piece of content, not a live defect; `tests/unit/ledger-view.test.ts` drives it with a
+ * synthetic line that is.
  */
 function encounterGatedFor(
   line: SpeciesLine,
@@ -641,13 +795,12 @@ function encounterGatedFor(
     },
     recentDeaths: 0,
   };
-  const opts: EncounterOptions = { season };
+  const opts: EncounterOptions = { season: line.seasonalWindow ?? season };
   if (unlockedSignChains) opts.unlockedSignChains = unlockedSignChains;
   const verdict = encounterWeights(probe, indexSpecies([line]), balance, opts)[0];
-  if (!verdict || verdict.active) return false;
-  // Out of season is the roll's OTHER refusal and has its own flag on the card; this one is
-  // "refused while in season", which is what the reader has no other way to find out.
-  return migrantStatus(line, season, balance).active;
+  // In its own window the seasonal filter passes and the probe carries an individual, so the only
+  // thing left that can refuse it is the gate.
+  return verdict !== undefined && !verdict.active;
 }
 
 export interface DexOptions {

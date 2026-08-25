@@ -1,0 +1,397 @@
+/**
+ * game/wild-battle.ts — the join between meeting a wild creature and the ledger moving.
+ *
+ * ══ WHAT WAS MISSING, AND WHY IT MATTERED MOST ══
+ * build-doc §1's first never-cut demo beat is: hammer a prey species in year 1, open year 2 with its
+ * predator gone. Every piece of that existed and none of them touched: `core/battle.ts` reported a
+ * catch through `caughtIndividual`, `core/ecosim.ts` could apply one through `applyCatch`, and
+ * `tests/integration/seams.test.ts` joined them BY HAND and proved the ledger goes 11 → 10. But
+ * nothing in the shipping game did: `OverworldScene` exposed an `onEncounter` seam that
+ * `game/boot.ts` never supplied, no file in `game/` started the battle scene, and no file in `game/`
+ * ever wrote a catch into `save.nodeStates`. Driven headlessly, the real overworld met 56 wild
+ * creatures across two in-game years and moved not one population; the ecology moved only on season
+ * boundaries. The catch→ledger loop was proven in core and reachable from nowhere.
+ *
+ * This module is that join, and it is the ONLY one. It is where an `Encounter` becomes a
+ * `BattleInput`, and where a `CaughtIndividual` becomes a decremented count and a creature in the
+ * player's party.
+ *
+ * ══ WHAT IT IS NOT ALLOWED TO BE ══
+ * • **No rules.** There is no damage, catch-probability, turn-order, XP or population arithmetic
+ *   here. The population write is `core/ecosim.ts` `applyCatch` — the same function
+ *   `core/save.ts`'s `replay` reaches through `adjustPopulation`, so the live path and the replay
+ *   path move the count identically, clamps included (integration defect I3 is what happens when
+ *   they do not). The creature the player gains is `core/lifecycle.ts` `newOwnedCreature`.
+ * • **No engine.** No Phaser import, so the whole hand-off is exercised in a node test with no DOM.
+ *   The scene supplies the launch; this decides what is launched and what is done with the result.
+ * • **No content invented (G2).** The starter line is read out of `data/species.json` by the
+ *   `"starter"` habitat sentinel core/types.ts already declares; no species id is written here.
+ * • **No moralising copy (G7).** Nothing in this file produces a player-facing string at all.
+ *
+ * ══ THE ONE RULE THAT SHOULD NOT LIVE HERE ══
+ * {@link rollWildTraits} implements bible §2's "1 per wild creature, Elders roll rare traits" from
+ * `balance.traits`. It belongs in `core/`, next to `core/lifecycle.ts`'s heir-trait roll, and
+ * `tools/harness/player.ts` already carries a private second copy of it — so the balance report
+ * describes a player whose creatures the game could not produce. `core/` is read-only to this lane;
+ * the duplication is reported as a blocker and logged in docs/DEVIATIONS-lane-c2.md (C2-D5). The two
+ * implementations are deliberately draw-for-draw identical so collapsing them onto one is a delete.
+ *
+ * NUMBERS (G11): `balance.traits`, `balance.xp.starterLevel`, `balance.party.maxPartySize`,
+ * `balance.economy`/`balance.snare` item ids through the save's own bag. No literal.
+ * RANDOMNESS (G11): the injected `core/rng.ts` stream. No `Math.random`.
+ */
+
+import {
+  caughtIndividual,
+  makeBattleContext,
+  predationOracleFromWebs,
+  type BattleContext,
+  type CaughtIndividual,
+} from "../core/battle";
+import { applyCatch, fromNodeState, toNodeState } from "../core/ecosim";
+import { deriveFoodWeb, indexSpecies, toEcoNode, type EcoNode } from "../core/foodweb";
+import { newOwnedCreature } from "../core/lifecycle";
+import type { Rng } from "../core/rng";
+import { appendAction, type SaveEnvelope } from "../core/save";
+import type {
+  AgeClass,
+  Balance,
+  BattleInput,
+  BattlerSpec,
+  BattleState,
+  Content,
+  NodeFile,
+  OwnedCreature,
+  SpeciesLine,
+  Trait,
+} from "../core/types";
+import type { Encounter } from "./encounters";
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The trait roll (see the header — this wants to be in core/)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * bible §2 — "Traits: flat ±10% modifiers with names. **1 per wild creature**, +1 slot via
+ * inheritance, **Elders roll rare traits**."
+ *
+ * `balance.traits.slotsPerWildCreature` picks from `balance.traits.pool`; an Elder rolls the rare
+ * half of that pool with probability `balance.traits.elderRareChance`. The common half includes the
+ * five NEGATIVE traits, which is deliberate: a wild-caught team carries its duds, and that is what
+ * makes an Elder's rare roll worth having.
+ *
+ * The magnitude of a trait is `balance.stats.traitModPct` and is applied by `core/battle.ts`
+ * `effectiveStats`; nothing here knows what ±10% is.
+ *
+ * DRAW ORDER, stated because a replay depends on it: `chance` is drawn only for an Elder (the `&&`
+ * short-circuits), then one `pick` per slot. This is draw-for-draw what `tools/harness/player.ts`
+ * does, so the harness's measured player and the game's wild creatures come off the same rule.
+ */
+export function rollWildTraits(balance: Balance, age: AgeClass, rng: Rng): Trait[] {
+  const out: Trait[] = [];
+  for (let slot = 0; slot < balance.traits.slotsPerWildCreature; slot += 1) {
+    const rare = age === "E" && rng.chance(balance.traits.elderRareChance);
+    const pool = balance.traits.pool.filter((t) => (t.rarity === "rare") === rare);
+    const picked = rng.pick(pool.length > 0 ? pool : balance.traits.pool);
+    if (picked) out.push({ ...picked });
+  }
+  return out;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Encounter → BattleInput
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** A party member as the reducer takes it. A field mapping — no rule, no derived number. */
+export function battlerSpecOf(creature: OwnedCreature): BattlerSpec {
+  const spec: BattlerSpec = {
+    uid: creature.uid,
+    lineId: creature.lineId,
+    age: creature.age,
+    level: creature.level,
+    traits: creature.traits.map((t) => ({ ...t })),
+  };
+  if (creature.boons && creature.boons.length > 0) spec.boons = creature.boons.map((b) => ({ ...b }));
+  if (creature.curHp !== undefined) spec.curHp = creature.curHp;
+  if (creature.nickname !== undefined) spec.nickname = creature.nickname;
+  if (creature.metamorphosed !== undefined) spec.metamorphosed = creature.metamorphosed;
+  return spec;
+}
+
+/** The wild creature met, as the reducer takes it. Its uid names the node and the line it came from. */
+export function wildBattlerSpec(encounter: Encounter): BattlerSpec {
+  return {
+    uid: wildUid(encounter),
+    lineId: encounter.lineId,
+    age: encounter.age,
+    level: encounter.level,
+    traits: encounter.traits.map((t) => ({ ...t })),
+  };
+}
+
+/**
+ * A stable, collision-free id for the individual met.
+ *
+ * It has to survive into `CaughtIndividual.uid` and out again as `OwnedCreature.uid`, and two
+ * animals of the same line caught at the same node in the same run must not share one — a save with
+ * two creatures at one uid loses one of them at the first retirement lookup. The action-log length
+ * is the run's own monotonic counter, so this is unique without a second counter to keep.
+ */
+export function wildUid(encounter: Encounter, seq = 0): string {
+  return `wild-${encounter.nodeId}-${encounter.lineId}-${String(seq)}`;
+}
+
+/** The player's fightable party, in order. Fainted-at-0-HP members are the reducer's problem, not ours. */
+export function partySpecs(save: SaveEnvelope): BattlerSpec[] {
+  return save.party.filter((c) => c.boxed !== true).map(battlerSpecOf);
+}
+
+/**
+ * Why a wild battle cannot start right now, or null when it can.
+ *
+ * Returned rather than thrown, and rather than being discovered inside the reducer: an overworld
+ * that silently drops the hand-off is exactly the state this lane was repaired out of. The scene
+ * prints this string.
+ */
+export function wildBattleProblem(save: SaveEnvelope): string | null {
+  if (partySpecs(save).length === 0) {
+    return "no creature in the party — nothing can be sent out";
+  }
+  return null;
+}
+
+export interface WildBattleBuild {
+  input: BattleInput;
+  ctx: BattleContext;
+}
+
+/**
+ * Everything `BattleScene` needs for one wild encounter.
+ *
+ * The `PredationOracle` is built from `deriveFoodWeb` at THIS node — §7.4's predation bonus is
+ * per-node and core/foodweb.ts is the only module allowed to compute a diet edge (G3/G6). The web is
+ * derived from the LIVE node, so a species the player has already removed from the node is absent
+ * from the web the fight is scored against, exactly as the ecology says it is.
+ */
+export function buildWildBattle(opts: {
+  content: Content;
+  save: SaveEnvelope;
+  encounter: Encounter;
+  /** The live node (`fromNodeState(file, save.nodeStates[id])`). */
+  node: EcoNode;
+  /** Unique-per-encounter counter; the save's action-log length is the natural one. */
+  seq?: number;
+}): WildBattleBuild {
+  const { content, save, encounter, node } = opts;
+  const idx = indexSpecies(content.species);
+  const web = deriveFoodWeb(node, idx, content.balance);
+  const ctx = makeBattleContext(content, predationOracleFromWebs([web]));
+
+  const input: BattleInput = {
+    seed: save.seed,
+    kind: "wild",
+    playerParty: partySpecs(save),
+    enemyParty: [{ ...wildBattlerSpec(encounter), uid: wildUid(encounter, opts.seq ?? save.actionLog.length) }],
+    nodeId: encounter.nodeId,
+    // The bag IS the save's items (build-doc §7.8). No snare is conjured for the fight: a player
+    // with no snares cannot catch anything, which is the honest state and the one the economy tunes.
+    bag: { ...save.items },
+  };
+  return { input, ctx };
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Battle outcome → the ledger (Hard Req 2)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export interface CatchApplication {
+  save: SaveEnvelope;
+  /** The line's count at that node BEFORE and AFTER. Hard Req 2's real numbers, for the HUD. */
+  before: number;
+  after: number;
+  /** The creature the player now owns, or null when the party and box were both full. */
+  gained: OwnedCreature | null;
+  /** Non-null when the catch could not be applied at all — printed, never swallowed. */
+  problem: string | null;
+}
+
+/**
+ * Apply one catch: move the real number, log the action, and add the creature.
+ *
+ * ORDER AND OWNERSHIP, because this is the seam that was proven by a hand-written test and by
+ * nothing in production:
+ *   1. `appendAction({t:"catch", nodeId, lineId, uid})` — the tape. `core/save.ts` `replay` reads
+ *      this entry and applies the very same decrement through `adjustPopulation`, so a replay of the
+ *      log reproduces this save (L10).
+ *   2. `applyCatch` (core/ecosim.ts) on the live node, written back through `toNodeState`. This is
+ *      the ONE population writer for the live path; §7.3 step 4's clamp lives inside it.
+ *   3. `newOwnedCreature` (core/lifecycle.ts) for the party side — which is where the Ancient
+ *      exemption (G10 / Hard Req 4) and the projected retirement year are decided, not here.
+ *
+ * A catch of a line that has no population at this node is a loud throw inside `applyCatch`; it is
+ * caught and returned as `problem` so the overworld can print it instead of dying mid-foray.
+ */
+export function applyCatchToSave(
+  save: SaveEnvelope,
+  caught: CaughtIndividual,
+  content: Content,
+): CatchApplication {
+  const nodeId = caught.nodeId;
+  if (nodeId === undefined) {
+    return {
+      save,
+      before: 0,
+      after: 0,
+      gained: null,
+      problem: `catch of "${caught.lineId}" carries no nodeId — nothing can be decremented (Hard Req 2)`,
+    };
+  }
+
+  const file = content.nodes.find((n) => n.id === nodeId);
+  if (!file) {
+    return { save, before: 0, after: 0, gained: null, problem: `no node "${nodeId}" in data/nodes/` };
+  }
+
+  const state = save.nodeStates[nodeId];
+  const live = state ? fromNodeState(file, state) : toEcoNode(file);
+  const before = live.populations[caught.lineId]?.count ?? 0;
+
+  let next: EcoNode;
+  try {
+    next = applyCatch(live, caught.lineId, content.balance);
+  } catch (err) {
+    return {
+      save,
+      before,
+      after: before,
+      gained: null,
+      problem: err instanceof Error ? err.message : String(err),
+    };
+  }
+
+  let after: SaveEnvelope = appendAction(save, {
+    t: "catch",
+    nodeId,
+    lineId: caught.lineId,
+    uid: caught.uid,
+  });
+  after = {
+    ...after,
+    nodeStates: { ...after.nodeStates, [nodeId]: toNodeState(next) },
+  };
+
+  const line = content.species.find((s) => s.id === caught.lineId);
+  let gained: OwnedCreature | null = null;
+  let problem: string | null = null;
+  if (!line) {
+    problem = `no species line "${caught.lineId}" in data/species.json — the count moved, the creature did not`;
+  } else {
+    gained = newOwnedCreature(
+      {
+        uid: caught.uid,
+        lineId: caught.lineId,
+        age: caught.age,
+        level: caught.level,
+        caughtYear: after.year,
+        traits: caught.traits,
+        metamorphosed: caught.metamorphosed,
+        // The party is capacity-limited (build-doc §7.8); a full party boxes the newcomer, and
+        // core/lifecycle.ts's year turn ages boxed creatures exactly as it ages party ones (G10).
+        boxed: after.party.length >= content.balance.party.maxPartySize,
+      },
+      line,
+      content.balance,
+    );
+    if (gained.boxed === true) {
+      if (after.box.length >= content.balance.party.maxBoxSize) {
+        gained = null;
+        problem = `party (${content.balance.party.maxPartySize}) and box (${content.balance.party.maxBoxSize}) are both full — the count moved, the creature was not kept`;
+      } else {
+        after = { ...after, box: [...after.box, gained] };
+      }
+    } else {
+      after = { ...after, party: [...after.party, gained] };
+    }
+  }
+
+  return {
+    save: after,
+    before,
+    after: next.populations[caught.lineId]?.count ?? 0,
+    gained,
+    problem,
+  };
+}
+
+/**
+ * The whole outcome of one wild battle, applied to the save.
+ *
+ * `caughtIndividual` is core/battle.ts's own reporter and is non-null exactly when the outcome is
+ * `"caught"` — this file does not decide whether a catch happened, it only carries out the one that
+ * did. A fled, won or lost battle changes no population, which is the correct reading of §7.2: the
+ * ledger counts what the player took, not what the player fought.
+ */
+export function applyWildBattleOutcome(opts: {
+  save: SaveEnvelope;
+  content: Content;
+  state: BattleState;
+  ctx: BattleContext;
+  /** Pass core/battle.ts's own report when the scene already has it; otherwise it is re-read here. */
+  caught?: CaughtIndividual | null;
+}): CatchApplication | null {
+  const caught = opts.caught === undefined ? caughtIndividual(opts.state, opts.ctx) : opts.caught;
+  if (!caught) return null;
+  return applyCatchToSave(opts.save, caught, opts.content);
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The provisional starter (see docs/DEVIATIONS-lane-c2.md C2-D6)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The uid the stand-in starter carries, so lane C7's opening beat can find and replace it, and so a
+ * test can tell a seeded starter from a caught creature.
+ */
+export const PROVISIONAL_STARTER_UID = "provisional-starter";
+
+/**
+ * bible §4 rows 1–3 — the three starter lines are "not wild-spawning; obtained from Warden Maren",
+ * and they carry the `"starter"` habitat sentinel core/types.ts declares. Read, never named (G2).
+ */
+export function starterLines(content: Content): SpeciesLine[] {
+  return content.species.filter((line) => line.habitat.includes("starter"));
+}
+
+/**
+ * A STAND-IN starter, for the state the game is actually in: lane C7 owns the opening beat where
+ * Warden Maren offers a choice of three, and until it lands `startNewGame` produced an EMPTY party —
+ * which meant a wild encounter could never become a battle, so build-doc §1's first never-cut beat
+ * was unreachable by playing the game at all.
+ *
+ * This is a placeholder in exactly the sense the flat coloured rectangles are: it keeps the vertical
+ * slice playable and it must never be mistaken for the opening beat. It is the FIRST starter line in
+ * data order (no choice is simulated), at `balance.xp.starterLevel`, age J, with no traits — the
+ * player is handed it, not caught in the grass — and it wears {@link PROVISIONAL_STARTER_UID}.
+ * `startNewGame` only reaches for it when its caller supplied no party, so the day C7 passes one
+ * this stops being used without a line changing.
+ */
+export function provisionalStarter(content: Content): OwnedCreature | null {
+  const line = starterLines(content)[0];
+  if (!line) return null;
+  return newOwnedCreature(
+    {
+      uid: PROVISIONAL_STARTER_UID,
+      lineId: line.id,
+      age: "J",
+      level: content.balance.xp.starterLevel,
+      caughtYear: content.balance.clock.startYear,
+    },
+    line,
+    content.balance,
+  );
+}
+
+/** The shipped node file for an id — the one lookup this module needs and does not want copied. */
+export function nodeFileOf(content: Content, id: string): NodeFile | undefined {
+  return content.nodes.find((n) => n.id === id);
+}

@@ -287,6 +287,18 @@ interface StepBase {
    */
   playerAt: BattlerView | null;
   enemyAt: BattlerView | null;
+  /**
+   * Is a Lure up against the fielded enemy AT THIS POINT IN THE LOG?
+   *
+   * bible §3 makes Lure per-target and per-battle, and it is the largest single lever the player has
+   * on catch odds — build-doc §7.2's `lureMult`. The compiler always tracked it (`lureChanged` moves
+   * it, `snapshotOf` reads it off `BattleState.lureActive`), but nothing on screen read the tracked
+   * value: the whole on-screen life of a Lure was one 260ms caption, and by the time the snare was
+   * thrown the only trace of the thing that raised its odds had scrolled away. Carrying it per STEP
+   * — for the same reason `playerAt`/`enemyAt` are carried — lets a card draw a persistent chip
+   * without ever reading `BattleView.snapshot` mid-playback.
+   */
+  lureActive: boolean;
 }
 
 export type ViewStep =
@@ -441,7 +453,10 @@ interface Ledger {
 type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
 
 /** A step as the walker writes it, before {@link compileBattleEvents} stamps the fielded pair on. */
-type StepDraft = DistributiveOmit<ViewStep, "activePlayerUid" | "activeEnemyUid" | "playerAt" | "enemyAt">;
+type StepDraft = DistributiveOmit<
+  ViewStep,
+  "activePlayerUid" | "activeEnemyUid" | "playerAt" | "enemyAt" | "lureActive"
+>;
 
 export interface CompileResult {
   steps: ViewStep[];
@@ -469,7 +484,22 @@ export function compileBattleEvents(
   let lureActive = snapshot.lureActive;
   let outcome = snapshot.outcome;
 
-  /** The battler whose action is currently resolving — narration bookkeeping, not turn order. */
+  /**
+   * The battler whose MOVE is currently resolving. Narration bookkeeping, not turn order.
+   *
+   * This is the ONE piece of information the view needs that the event log does not carry:
+   * `BattleEvent.damage` has no `attackerUid`, so `ViewStep.hit.attackerUid` is INFERRED from the
+   * `moveUsed` immediately before it. That inference is exact for every event core can emit today —
+   * `core/battle.ts` pushes `damage` from exactly one site (`dealDamage`), reached from exactly one
+   * caller (`performMove`), immediately after its own `moveUsed` — but it is an undeclared coupling,
+   * and a future damage with no preceding move (recoil, a reflected hit, an environmental tick)
+   * would have been attributed to whoever last swung.
+   *
+   * So the attribution is CONSUMED: cleared the moment it is spent, as well as at `turnStart` and
+   * `switched`. A second `damage` with no new `moveUsed` in front of it reports `attackerUid: null`,
+   * which is the honest answer, instead of naming the wrong combatant. Reported as the core gap
+   * C3-G7 in docs/DEVIATIONS-lane-c3.md; one field on the event closes it.
+   */
   let actorUid: string | null = null;
 
   const steps: ViewStep[] = [];
@@ -491,6 +521,7 @@ export function compileBattleEvents(
       // player is looking at while it is on screen.
       playerAt: ledgers.has(activePlayerUid) ? { ...ledgerOf(activePlayerUid).view } : null,
       enemyAt: ledgers.has(activeEnemyUid) ? { ...ledgerOf(activeEnemyUid).view } : null,
+      lureActive,
     } as ViewStep);
   };
 

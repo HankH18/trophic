@@ -30,7 +30,15 @@
 
 import { encounterWeights, rollEncounter, type EcoNode, type SpeciesIndex } from "../core/foodweb";
 import type { Rng } from "../core/rng";
-import { AGE_CLASSES, type AgeClass, type Balance, type EncounterWeight, type Season } from "../core/types";
+import {
+  AGE_CLASSES,
+  type AgeClass,
+  type Balance,
+  type EncounterWeight,
+  type Season,
+  type Trait,
+} from "../core/types";
+import { rollWildTraits } from "./wild-battle";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * The question an encounter roll is asked
@@ -49,12 +57,23 @@ export interface ForayContext {
   unlockedSignChains?: ReadonlySet<string>;
 }
 
-/** One wild creature, ready for `BattlerSpec` (core/types.ts) once the battle lane adds traits. */
+/**
+ * One wild creature, complete — every field `BattlerSpec` (core/types.ts) requires.
+ *
+ * `traits` used to be missing, and `BattlerSpec.traits` is not optional: the encounter could not be
+ * handed to a battle without someone inventing the trait roll at the hand-off. bible §2 puts one
+ * trait on every wild creature, so an encounter without traits is not an under-specified encounter,
+ * it is a wrong one — and the balance report already described a player fielding wild-rolled traits
+ * that the game had no way to produce. The roll is `rollWildTraits` (game/wild-battle.ts), off the
+ * same seeded stream, so a replay of the seed meets the same animal down to its traits.
+ */
 export interface Encounter {
   nodeId: string;
   lineId: string;
   age: AgeClass;
   level: number;
+  /** bible §2 — `balance.traits.slotsPerWildCreature` of them; Elders may roll the rare pool. */
+  traits: Trait[];
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -153,19 +172,24 @@ export function rollLevel(balance: Balance, year: number, rng: Rng): number {
 export function rollEncounterAt(ctx: ForayContext, rng: Rng): Encounter | null {
   const lineId = rollEncounter(encounterTable(ctx), rng);
   if (lineId === null) return null;
+  const age = rollAge(ctx.balance, rng);
+  const level = rollLevel(ctx.balance, ctx.year, rng);
   return {
     nodeId: ctx.node.id,
     lineId,
-    age: rollAge(ctx.balance, rng),
-    level: rollLevel(ctx.balance, ctx.year, rng),
+    age,
+    level,
+    // Last, so adding it did not renumber the draws that decide WHICH animal was met — the species,
+    // age and level of any given seed are the same as before traits existed.
+    traits: rollWildTraits(ctx.balance, age, rng),
   };
 }
 
 /**
  * One foray step: the per-step chance gate, then the derived roll.
  *
- * Draw order is fixed — chance, species, age, level — so a replay of the same seed meets the same
- * creatures (L10 / §8.1). The gate is evaluated first and short-circuits, so a step that meets
+ * Draw order is fixed — chance, species, age, level, traits — so a replay of the same seed meets the
+ * same creatures (L10 / §8.1). The gate is evaluated first and short-circuits, so a step that meets
  * nothing costs exactly one draw.
  */
 export function rollForayStep(ctx: ForayContext, rng: Rng): Encounter | null {
@@ -192,30 +216,65 @@ export function rollForay(ctx: ForayContext, rng: Rng): Encounter[] {
  * Legibility — Hard Req 10
  * ──────────────────────────────────────────────────────────────────────────── */
 
+/**
+ * WHY a line is not appearing — a closed set of four, because there are four ways core/foodweb.ts
+ * can hand back an inactive entry and Hard Req 10 needs them told apart.
+ *
+ * `"wiped"` and `"gated"` used to be the same word on screen. `AbsenceReason` could say
+ * "dormant" | "migrating" | null, and null was documented as "the line is simply gone" — so a
+ * sign-chain-gated Ancient (bible §4: not catchable until you have walked its chain) printed
+ * exactly what a species the player had caught to extinction printed, while its real count sat at 1.
+ * On `r2`, on the never-cut vertical slice, the HUD read `undermere-line: 1 (absent)`. bible §5 and
+ * Hard Req 10 require that a wiped line and an away line be distinguishable; a third state the
+ * vocabulary could not name broke that for the one species the finale hangs on.
+ */
+export type AbsenceCause =
+  /** count 0 at this node. The ledger's own number is the whole explanation (G7). */
+  | "wiped"
+  /** Out of its `seasonalWindow`, far side — core/foodweb.ts `migrantStatus`. */
+  | "dormant"
+  /** Out of its `seasonalWindow`, one season either side — on the move. */
+  | "migrating"
+  /** Present in real numbers, held out of the pool until its sign chain is unlocked (bible §4). */
+  | "gated";
+
 export interface AbsenceReason {
   lineId: string;
-  /** "migrating" / "dormant" from core/foodweb.ts, or null when the line is simply gone. */
-  seasonal: "dormant" | "migrating" | null;
+  cause: AbsenceCause;
   /** The live count — Hard Req 2 says the UI shows the real number, never a proxy. */
   count: number;
 }
 
 /**
- * Why is this line not appearing? Derived from the same table the roll uses, so seasonal absence is
- * never confusable with a population crash (bible §5 legibility requirement).
+ * Classify one inactive entry, from the entry and its live count alone.
  *
- * G7: numbers only. Nothing here is allowed to editorialise about what the player did — the count
- * is the whole statement.
+ * NOT a restatement of core/foodweb.ts's rules (G3/G6 — this file may not decide what is gated any
+ * more than it may decide what eats what). It reads the shape of what core returned:
+ * `encounterWeights` produces an inactive entry in exactly three ways — with a `dormantReason` (the
+ * migrant branch), or without one and with weight 0, which is either the gate branch or a count of
+ * 0. The count separates those last two, and it is the same number the ledger prints. The
+ * classification is proved against core rather than assumed: `tests/unit/encounters.test.ts` walks
+ * every shipped node in every season and checks that every line called `"gated"` becomes active when
+ * — and only when — its own chain is unlocked.
+ *
+ * G7: numbers only. Nothing here editorialises about what the player did; the count is the statement.
+ */
+export function absenceCauseOf(entry: EncounterWeight, count: number): AbsenceCause {
+  if (entry.dormantReason) return entry.dormantReason;
+  if (count <= 0) return "wiped";
+  return "gated";
+}
+
+/**
+ * Why is each absent line absent? Derived from the same table the roll uses, so seasonal absence is
+ * never confusable with a population crash, nor with a gate (bible §5 legibility requirement).
  */
 export function absentLines(ctx: ForayContext): AbsenceReason[] {
   const out: AbsenceReason[] = [];
   for (const entry of encounterTable(ctx)) {
     if (entry.active && entry.weight > 0) continue;
-    out.push({
-      lineId: entry.lineId,
-      seasonal: entry.dormantReason ?? null,
-      count: ctx.node.populations[entry.lineId]?.count ?? 0,
-    });
+    const count = ctx.node.populations[entry.lineId]?.count ?? 0;
+    out.push({ lineId: entry.lineId, cause: absenceCauseOf(entry, count), count });
   }
   return out;
 }

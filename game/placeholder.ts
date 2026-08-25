@@ -14,6 +14,10 @@
  * So: every placeholder is a flat colour + a hatch + a border + the asset id printed on it. It is
  * unmistakably unfinished, it names itself so a reviewer can say WHICH asset is missing, and the
  * colour is hashed from the id so one asset is always the same colour across scenes and runs.
+ * "Names itself" is a claim about the PIXELS, not about the plan object: the id is wrapped to lines
+ * that fit the cell at natural glyph width (see `wrapLabel`), because `fillText`'s maxWidth argument
+ * squeezes rather than clips and a 2.4×-compressed id is an unreadable smear that still passes any
+ * assertion made about `plan.labels[].lines`.
  * There is no randomness here at all — `Math.random` is banned repo-wide (G11) and would also make
  * the same asset change colour between frames.
  *
@@ -235,6 +239,14 @@ const MAX_FONT_PX = 16;
 const MONO_ADVANCE = 0.6;
 /** The word that has to survive any crop. */
 const BANNER = "PLACEHOLDER";
+/**
+ * Margin the label keeps from the cell edge. It is the SAME number `drawPlaceholder` hands to
+ * `fillText`'s maxWidth, and it has to stay that way: the plan promises a line fits, and the draw
+ * enforces it — if the two disagreed, the plan's promise would be about a width nothing measures.
+ */
+const LABEL_INSET_PX = 4;
+/** Characters that a wrapped line may end on, so a split id still reads as a path. */
+const BREAK_AFTER = new Set(["/", "-", "_", " "]);
 
 /**
  * How much of a texture one screenful can show, in TEXTURE pixels.
@@ -259,6 +271,90 @@ function textureCrop(): { width: number; height: number } {
   const s =
     typeof map?.mapRenderScale === "number" && map.mapRenderScale >= 1 ? map.mapRenderScale : 1;
   return { width: Math.max(1, Math.floor(w / s)), height: Math.max(1, Math.floor(h / s)) };
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Fitting the label to the cell
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Break `text` into lines that each fit `maxChars`, preferring to break just after a path separator
+ * or at a space so the pieces still read as the thing they came from.
+ *
+ * THE DEFECT THIS EXISTS TO PREVENT. `ctx.fillText(line, x, y, maxWidth)` SQUEEZES rather than
+ * clips: a 14-character id at 8px (67px of glyphs) handed a 28px maxWidth renders at 2.4× horizontal
+ * compression, which is an unreadable smear — measured live on the 32×48 overworld player, whose id
+ * row was illegible while `plan.labels[0].lines` still contained the id in full. A stand-in that
+ * cannot be read is a stand-in that does not name itself, which is the one property this whole file
+ * exists to provide. So the plan never emits a line the draw would have to squeeze.
+ *
+ * Only whitespace is ever dropped, so `wrapLabel(t, n).join("")` is `t` with its break-point spaces
+ * removed — which is what lets a test recover the id from the lines exactly.
+ */
+export function wrapLabel(text: string, maxChars: number): string[] {
+  const limit = Math.max(1, Math.floor(maxChars));
+  const out: string[] = [];
+  let rest = text;
+
+  while (rest.length > limit) {
+    // The last break opportunity inside the window; a hard cut at the window edge if there is none.
+    let cut = limit;
+    for (let i = limit; i >= 1; i -= 1) {
+      if (BREAK_AFTER.has(rest[i - 1] ?? "") || rest[i] === " ") {
+        cut = i;
+        break;
+      }
+    }
+    const line = rest.slice(0, cut).replace(/\s+$/, "");
+    if (line.length > 0) out.push(line);
+    rest = rest.slice(cut).replace(/^\s+/, "");
+  }
+  if (rest.length > 0) out.push(rest);
+  return out.length > 0 ? out : [text];
+}
+
+/** One font size's worth of label geometry, ranked against the others by {@link fitLabel}. */
+interface LabelFit {
+  fontPx: number;
+  lineHeightPx: number;
+  maxChars: number;
+  idLines: string[];
+  /** The lines every block carries: the banner (when it fits), the wrapped id, the size. */
+  lines: string[];
+}
+
+function fitAt(id: string, size: string, cellWidth: number, cellHeight: number, fontPx: number): LabelFit | null {
+  const maxChars = Math.floor((cellWidth - LABEL_INSET_PX) / (fontPx * MONO_ADVANCE));
+  if (maxChars < 1) return null;
+  const lineHeightPx = fontPx + 2;
+  const idLines = wrapLabel(id, maxChars);
+  // The id is the part a reviewer needs; a font at which it alone will not fit is no use.
+  if (idLines.length * lineHeightPx > cellHeight) return null;
+
+  const banner = BANNER.length <= maxChars ? [BANNER] : [];
+  const tail = size.length <= maxChars ? [size] : [];
+  let lines = [...banner, ...idLines, ...tail];
+  // Shed the optional rows rather than overflow the cell: the size first, then the banner.
+  if (lines.length * lineHeightPx > cellHeight) lines = [...banner, ...idLines];
+  if (lines.length * lineHeightPx > cellHeight) lines = [...idLines];
+  return { fontPx, lineHeightPx, maxChars, idLines, lines };
+}
+
+/**
+ * The best label geometry for a cell: **fewest id lines first, then the largest font**.
+ *
+ * Fewest-lines-first is deliberate. A bigger font that chops `battle/nibbin-line/J/front` into five
+ * fragments is harder to read than a slightly smaller one that splits it in two at its own
+ * separators, and the fragment count is what decides whether the id is still recognisable.
+ */
+function fitLabel(id: string, size: string, cellWidth: number, cellHeight: number, maxFontPx: number): LabelFit | null {
+  let best: LabelFit | null = null;
+  for (let fontPx = Math.max(MIN_FONT_PX, Math.floor(maxFontPx)); fontPx >= MIN_FONT_PX; fontPx -= 1) {
+    const fit = fitAt(id, size, cellWidth, cellHeight, fontPx);
+    if (!fit) continue;
+    if (!best || fit.idLines.length < best.idLines.length) best = fit;
+  }
+  return best;
 }
 
 /** One label block: where its centre sits in texture space, and what it says. */
@@ -287,6 +383,13 @@ export interface PlaceholderPlan {
   labels: PlaceholderLabel[];
   /** True when the texture is too small for any text at all and only a corner mark is drawn. */
   cornerMarkOnly: boolean;
+  /**
+   * The asset id as it is actually drawn — wrapped onto as many lines as the cell can hold at
+   * natural glyph width. `idLines.join("")` is the id, so a test can recover it exactly.
+   */
+  idLines: string[];
+  /** Characters that fit one line at `fontPx`. Every line the plan emits is within it. */
+  maxLabelChars: number;
 }
 
 /**
@@ -311,14 +414,13 @@ export function placeholderPlan(
   const h = Math.max(1, Math.round(height));
   const fill = placeholderHex(id, opts.palette);
   const rgb = parseHex(fill) ?? hashedFallback(hash32(id));
+  // The INK is deliberately not a palette swatch, unlike the fill. It is picked for maximum contrast
+  // against whatever the fill turned out to be, and it has to work when there is NO palette at all
+  // (the content-failure screen draws a stand-in before `validateContent()` has succeeded). A
+  // swatch-constrained label would be the one part of a stand-in that could become unreadable.
   const ink = luminance(rgb) > 0.5 ? "#101010" : "#f0f0f0";
 
-  const base: Omit<PlaceholderPlan, "labels" | "cornerMarkOnly" | "fontPx" | "lineHeightPx"> & {
-    labels: PlaceholderLabel[];
-    cornerMarkOnly: boolean;
-    fontPx: number;
-    lineHeightPx: number;
-  } = {
+  const base: PlaceholderPlan = {
     id,
     width: w,
     height: h,
@@ -331,6 +433,8 @@ export function placeholderPlan(
     cellHeight: h,
     labels: [],
     cornerMarkOnly: false,
+    idLines: [],
+    maxLabelChars: 0,
   };
 
   if (h < MIN_LABEL_HEIGHT_PX || w < MIN_LABEL_HEIGHT_PX) {
@@ -347,30 +451,38 @@ export function placeholderPlan(
   const cellWidth = w / cols;
   const cellHeight = h / rows;
 
-  const fontPx = fits
+  // The largest font the cell's SHAPE allows; `fitLabel` searches downward from it for the size at
+  // which the id wraps into the fewest pieces.
+  const maxFontPx = fits
     ? Math.max(MIN_FONT_PX, Math.min(10, Math.floor(h / 6)))
     : Math.max(
         MIN_FONT_PX,
         Math.min(MAX_FONT_PX, Math.floor(Math.min(cellHeight / 6, cellWidth / 10))),
       );
-  const lineHeightPx = fontPx + 2;
-  const charPx = fontPx * MONO_ADVANCE;
-  const roomFor = (text: string): boolean => text.length * charPx <= cellWidth;
 
   const size = `${w}x${h}`;
-  const common: string[] = [];
-  if (roomFor(BANNER)) common.push(BANNER);
-  common.push(id, size);
+  const fit = fitLabel(id, size, cellWidth, cellHeight, maxFontPx);
+  if (!fit) {
+    // No font down to MIN_FONT_PX can hold even the id inside this cell. Squeezing it in anyway is
+    // the smear this function exists to avoid, so the texture falls back to the corner mark — which
+    // still says "stand-in" and does not pretend to name an asset it cannot legibly name.
+    // Only reachable for a SINGLE-cell (sprite-sized) texture: a tiled map's cells are at least
+    // MIN_LABEL_PITCH_PX and always take a fit.
+    return { ...base, cornerMarkOnly: true };
+  }
+  const { fontPx, lineHeightPx } = fit;
+  const noteLines = opts.note ? wrapLabel(opts.note, fit.maxChars) : [];
+  const noteFits = (fit.lines.length + noteLines.length) * lineHeightPx <= cellHeight;
 
   const centreCol = Math.floor((cols - 1) / 2);
   const centreRow = Math.floor((rows - 1) / 2);
   const labels: PlaceholderLabel[] = [];
   for (let r = 0; r < rows; r += 1) {
     for (let c = 0; c < cols; c += 1) {
-      const lines = [...common];
+      const lines = [...fit.lines];
       // The note (which node, which year, which lane owes it) is long, so it rides on the middle
       // block only. The ID is on every block — that is the part a reviewer needs from any crop.
-      if (opts.note && r === centreRow && c === centreCol) lines.push(opts.note);
+      if (noteFits && noteLines.length > 0 && r === centreRow && c === centreCol) lines.push(...noteLines);
       labels.push({ x: (c + 0.5) * cellWidth, y: (r + 0.5) * cellHeight, lines });
     }
   }
@@ -379,6 +491,8 @@ export function placeholderPlan(
     ...base,
     fontPx,
     lineHeightPx,
+    idLines: fit.idLines,
+    maxLabelChars: fit.maxChars,
     hatchSpacingPx: fits
       ? HATCH_SPACING_PX
       : Math.max(HATCH_SPACING_PX, Math.round(Math.min(cellWidth, cellHeight) / 4)),
@@ -451,7 +565,9 @@ export function drawPlaceholder(ctx: CanvasRenderingContext2D, plan: Placeholder
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = `${plan.fontPx}px monospace`;
-  const maxWidth = Math.max(1, plan.cellWidth - 4);
+  // The same inset the plan fitted to, so maxWidth is a belt-and-braces clamp and never a squeeze:
+  // every line `placeholderPlan` emits is already within it at natural glyph width.
+  const maxWidth = Math.max(1, plan.cellWidth - LABEL_INSET_PX);
   for (const label of plan.labels) {
     const top = label.y - ((label.lines.length - 1) * plan.lineHeightPx) / 2;
     label.lines.forEach((line, i) => {

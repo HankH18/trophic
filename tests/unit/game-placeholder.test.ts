@@ -36,6 +36,7 @@ import {
   realAssetUrl,
   registerRealAsset,
   textureFor,
+  wrapLabel,
   type PlaceholderLabel,
   type PlaceholderPlan,
 } from "../../game/placeholder";
@@ -98,15 +99,33 @@ describe("placeholderHex — stable, and inside the project palette", () => {
  * The honesty property
  * ──────────────────────────────────────────────────────────────────────────── */
 
+/**
+ * The monospace advance and the label inset `game/placeholder.ts` fits to, restated here ON PURPOSE:
+ * these tests measure the DRAWN width against the same numbers the draw uses, so a plan that emits a
+ * line the draw would have to squeeze fails here rather than shipping as a smear.
+ */
+const MONO_ADVANCE = 0.6;
+const LABEL_INSET_PX = 4;
+
+/** The width `drawPlaceholder` clamps a line to (`fillText(line, x, y, maxWidth)`). */
+function drawMaxWidth(plan: PlaceholderPlan): number {
+  return Math.max(1, plan.cellWidth - LABEL_INSET_PX);
+}
+
+/** What a line of text is naturally, before `fillText`'s maxWidth squeezes it. */
+function naturalWidth(line: string, plan: PlaceholderPlan): number {
+  return line.length * plan.fontPx * MONO_ADVANCE;
+}
+
 /** What one label block actually occupies, in texture pixels, as `drawPlaceholder` draws it. */
 function labelBox(
   plan: PlaceholderPlan,
   label: PlaceholderLabel,
 ): { left: number; right: number; top: number; bottom: number } {
-  const maxWidth = Math.max(1, plan.cellWidth - 4);
+  const maxWidth = drawMaxWidth(plan);
   const longest = Math.max(...label.lines.map((l) => l.length));
   // `fillText`'s maxWidth argument squeezes rather than clips, so the drawn width never exceeds it.
-  const width = Math.min(longest * plan.fontPx * 0.6, maxWidth);
+  const width = Math.min(longest * plan.fontPx * MONO_ADVANCE, maxWidth);
   const height = label.lines.length * plan.lineHeightPx;
   return {
     left: label.x - width / 2,
@@ -114,6 +133,11 @@ function labelBox(
     top: label.y - height / 2,
     bottom: label.y + height / 2,
   };
+}
+
+/** Whitespace-free form — `wrapLabel` only ever drops whitespace at a break point. */
+function squash(s: string): string {
+  return s.replace(/\s+/g, "");
 }
 
 /** The texture region one screenful shows, from balance.json — never restated as a literal here. */
@@ -175,14 +199,27 @@ describe("a map-sized stand-in is labelled everywhere the camera can look", () =
 });
 
 describe("sprite-sized stand-ins keep their single centred label", () => {
-  it("the player sprite gets exactly one, carrying the id and the size", () => {
+  // WAS: `expect(plan.labels[0]?.lines).toContain("player/walk")`. That assertion is about the PLAN
+  // OBJECT and says nothing about the pixels, which is how the 32×48 overworld player shipped with
+  // an id row 2.4× horizontally compressed — 67.2px of glyphs handed a 28px maxWidth, which
+  // `fillText` squeezes rather than clips (measured live at /?dev, and again by the C1 verifier).
+  // The helper's whole claim is "it names itself so a reviewer can say WHICH asset is missing", so
+  // the assertion now binds the DRAWN form: the id is recoverable from the lines exactly, and every
+  // line fits the width the draw clamps to at natural glyph width.
+  it("the player sprite carries its id in a form the draw does not have to squeeze", () => {
     const plan = placeholderPlan("player/walk", balance.map.playerSpriteW, balance.map.playerSpriteH);
     expect(plan.labels).toHaveLength(1);
-    expect(plan.labels[0]?.lines).toContain("player/walk");
-    expect(plan.labels[0]?.lines).toContain(
-      `${balance.map.playerSpriteW}x${balance.map.playerSpriteH}`,
-    );
     expect(plan.cornerMarkOnly).toBe(false);
+    expect(plan.idLines.join("")).toBe("player/walk");
+    // Every id line is on the block, in order, and nothing was invented or dropped.
+    const lines = plan.labels[0]?.lines ?? [];
+    for (const idLine of plan.idLines) expect(lines).toContain(idLine);
+    for (const line of lines) {
+      expect(naturalWidth(line, plan), `"${line}" is squeezed`).toBeLessThanOrEqual(drawMaxWidth(plan));
+    }
+    // The size still rides along at the shipped sprite size; it is dropped only when the id needs
+    // the room, which at 32×48 it does not.
+    expect(lines).toContain(`${balance.map.playerSpriteW}x${balance.map.playerSpriteH}`);
   });
 
   it("a texture too small for any text still marks itself", () => {
@@ -191,12 +228,86 @@ describe("sprite-sized stand-ins keep their single centred label", () => {
     expect(plan.labels).toHaveLength(0);
   });
 
+  it("a cell that cannot hold a legible id draws the corner mark instead of a smear", () => {
+    // 14×14 clears the corner-mark threshold on size alone, but "ui/pip" cannot be wrapped into it
+    // at the smallest font. Squeezing it in is the failure mode; saying "stand-in" without naming
+    // the asset is honest, and is what happens now.
+    const plan = placeholderPlan("ui/pip", 14, 14);
+    expect(plan.cornerMarkOnly).toBe(true);
+    expect(plan.labels).toHaveLength(0);
+  });
+
   it("the note rides on the middle block only, and the id on all of them", () => {
     const native = balance.map.mapNativePx;
-    const plan = placeholderPlan("maps/x", native, native, { note: "a long note about the node" });
-    const withNote = plan.labels.filter((l) => l.lines.includes("a long note about the node"));
-    expect(withNote).toHaveLength(1);
+    const note = "a long note about the node";
+    const plan = placeholderPlan("maps/x", native, native, { note });
+    // The note wraps like everything else, so it is recovered from the lines it occupies rather
+    // than expected as one string — a note wider than the cell used to be squeezed too.
+    const noteBlocks = plan.labels.filter((l) => squash(l.lines.join("")).includes(squash(note)));
+    expect(noteBlocks).toHaveLength(1);
     expect(plan.labels.every((l) => l.lines.includes("maps/x"))).toBe(true);
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * No line is ever squeezed — the property the C1 verifier found false
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+describe("every label line fits the width the draw clamps it to", () => {
+  /**
+   * The real call-site sizes, from the shipped balance and the real callers. `battle/…` is the
+   * longest id in the game (`game/ui/BattleHud.ts` `battleSpriteKey`) and was the worst offender:
+   * 156px of glyphs into a 68px slot, 2.3× compression.
+   */
+  const CASES: ReadonlyArray<readonly [string, number, number]> = [
+    ["sprites/player", balance.map.playerSpriteW, balance.map.playerSpriteH],
+    ["battle/nibbin-line/J/front", 72, 72],
+    ["battle/nibbin-line/J/front", 96, 96],
+    ["ui/title-banner", 208, 48],
+    ["dex/pyrevane", 48, 48],
+    ["maps/bowerdeep", balance.map.mapNativePx, balance.map.mapNativePx],
+  ];
+
+  it.each(CASES)("%s at %ix%i", (id, w, h) => {
+    const plan = placeholderPlan(id, w, h, { note: "unbuilt" });
+    expect(plan.cornerMarkOnly).toBe(false);
+    expect(plan.idLines.join("")).toBe(id);
+    const max = drawMaxWidth(plan);
+    for (const label of plan.labels) {
+      for (const line of label.lines) {
+        expect(naturalWidth(line, plan), `"${line}" @${id} ${w}x${h}`).toBeLessThanOrEqual(max);
+      }
+      // The block also has to fit the cell vertically, or the wrap has just moved the problem.
+      expect(label.lines.length * plan.lineHeightPx).toBeLessThanOrEqual(plan.cellHeight);
+    }
+  });
+
+  it("BINDS — the width law catches the id it used to let through", () => {
+    // The shipped behaviour before the fix, reconstructed: one unwrapped line at the size-derived
+    // font. It violates the law, which is what makes the law worth having.
+    const plan = placeholderPlan("sprites/player", balance.map.playerSpriteW, balance.map.playerSpriteH);
+    expect(naturalWidth("sprites/player", { ...plan, fontPx: 8 })).toBeGreaterThan(drawMaxWidth(plan));
+  });
+});
+
+describe("wrapLabel", () => {
+  it("only ever drops whitespace, so the text is recoverable", () => {
+    for (const text of ["battle/nibbin-line/J/front", "sprites/player", "a long note about the node", "x"]) {
+      for (const n of [1, 2, 3, 5, 7, 11, 16, 40]) {
+        const lines = wrapLabel(text, n);
+        expect(squash(lines.join("")), `"${text}" @${n}`).toBe(squash(text));
+        for (const line of lines) expect(line.length, `"${line}" @${n}`).toBeLessThanOrEqual(Math.max(1, n));
+      }
+    }
+  });
+
+  it("breaks after a path separator when it can, so the pieces still read as a path", () => {
+    expect(wrapLabel("battle/nibbin-line/J/front", 14)).toEqual(["battle/nibbin-", "line/J/front"]);
+    expect(wrapLabel("sprites/player", 7)).toEqual(["sprites", "/player"]);
+  });
+
+  it("hard-splits a token with no break point rather than overflowing", () => {
+    expect(wrapLabel("abcdefgh", 3)).toEqual(["abc", "def", "gh"]);
   });
 });
 

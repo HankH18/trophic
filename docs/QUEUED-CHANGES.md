@@ -1,36 +1,41 @@
 # Queued changes — authorised, waiting on in-flight work
 
-## CURRENT STATE (loop tick, 03:38)
+## CURRENT STATE (loop tick, 04:39)
 
-**Build: GREEN.** `npx tsc --noEmit` silent · `npx vitest run` 32 files / 1613 tests, all passing.
-HEAD `88bf97d`, remote verified. No leftover scratch probes.
+**Build: RED, transiently.** `tsc` 2 errors, suite 22 failed / 1648 passed. **All of it is in-flight
+work, not settled defects** — verified by mtime: the failing tests were authored at 02:37, while the
+`game/ui/` source they exercise is being edited right now (a repair agent is mid-way through adding a
+`panelInner` palette token that is not yet in the type). The `no_shadow_tables` failure is the live
+`game/__c4probe.ts`. **Do not "fix" any of this** — the Lanes B+C integrator owns it and interfering
+mid-repair costs more than it saves.
 
-> **`tools/harness/probe.ts` is a REAL MODULE** that `tools/harness/measure.ts` imports. It is NOT a
-> leftover scratch file. Deleting it breaks `tests/unit/harness.test.ts` at collection time. This
-> already happened once during a probe sweep — match `__*` / `__c*probe*` under `game/` and
-> `tests/unit/` only, never a bare `*probe*` across `tools/`.
+> **`tools/harness/probe.ts` is a REAL MODULE** imported by `tools/harness/measure.ts`. NOT a scratch
+> file. Deleting it breaks `tests/unit/harness.test.ts` at collection. This already happened once.
+> Match `__*` under `game/` and `tests/unit/` only — never a bare `*probe*` across `tools/`.
 
 | Change | State |
 |---|---|
-| Q1 renames | not started — needs `tests/unit/transcription.test.ts` |
-| Q2 tick-only time | **blocked** — Lanes B+C holds `game/` |
-| Q3 act decoupling (+ Q3a, Q3b) | **blocked** — needs `game/`; largest item, needs its own verification pass |
-| Q4 backgroundTolerance | **DONE** — 12 → 24 on all 11 classes, reproduced first (0 pixels cleared under both candidates) and pinned by a per-palette invariant test that goes red at 12 *and* at 50. Evidence in the Q4 section below and `DEVIATIONS-lane-b` B-D33/B-D34. One sibling flagged, not fixed: `tools/comfy/player-views.ts:411` still hardcodes `tolerance: 12` (B-D35, out of that change's file scope) |
-| Q5 Fenmaw shape-not-species | **DONE** — 9 subjects rewritten via `_concepts` + `rebuild`, no seed moved. Only Fenmaw's fix is confirmed generatively; the other 8 have a MEASURED failure and a REASONED fix. B-D36/B-D37/B-D38 |
-| Q6 r4 mid-collapse | not started |
-| Q7 wire dialogue into `game/` | **blocked** — Lanes B+C holds `game/` |
-| Q8 dialogue-schema allowance | **DONE** — landed, verified legitimate (the two real gameplay constants read from `balance.json`) |
+| Q1 renames | **ready, deliberately held** — files are free, but landing a data change into a red mid-repair build destroys attribution. Dispatch on a green base. Needs replacements screened against **Digimon** (the sweep's own flagged gap). |
+| Q2 tick-only time | blocked — Lanes B+C holds `game/` |
+| Q3 act decoupling (+ Q3a 44 year-gated entries, Q3b no quest system) | blocked — needs `game/`; largest item, own verification pass |
+| Q4 backgroundTolerance | **DONE** `ab028db` — reproduced first, fixed, invariant test proved to bite both ways |
+| Q5 shape-not-species | **DONE** `ab028db` — 8 subjects rewritten on measured evidence, Pyrelisk deliberately left (G2) |
+| Q6 r4 mid-collapse | **held with Q3** — the raid that crashes r4 becomes act-triggered under Q3, so the "ships pre-crashed vs crashed on arrival" decision belongs to that change |
+| Q7 wire dialogue into `game/` | blocked — Lanes B+C holds `game/` |
+| Q8 dialogue-schema allowance | **DONE** |
 
-**Landed since the last snapshot:** Instinct now feeds bait success via the catcher's Instinct
-*share* of effective stats, pivoted at the roster median so a median-Instinct catcher is unchanged
-(build-doc §7.4 amended). Maribel reduced to 3 — measured **26.0% -> 38.6%** against an 80-95%
-target, so improved and NOT fixed; still -41.4pp.
+**Open for Hank — B-D38, gates the 154-sprite B3 batch.** Bogling, Puddlisk, Mirefin and Wispurr all
+render as the same chibi bipedal mascot regardless of subject; Gloomoth lost its six legs. That looks
+like the §9.2-locked class skeleton overriding the subject, not a prompt fault. **Generate Fenmaw,
+Mirefin and Wispurr front views and LOOK before the other 148 rows are billed** — three images to
+de-risk the largest batch in the build.
 
-**Awaiting Hank, do not decide unilaterally:** which palette variant (recommendation: class-equal);
-the five borderline G7 lines in `docs/DIALOGUE-NOTES.md`; every rename in `docs/IP-SWEEP.md` (G15).
+**Also awaiting Hank:** palette variant (recommendation class-equal; Q4 is now landed so the swap is
+unblocked) · the five borderline G7 lines in `docs/DIALOGUE-NOTES.md` · every rename in
+`docs/IP-SWEEP.md` (G15).
 
-**Never:** fire a >=20-image batch (G13, Hank's credits) · swap `data/palette.json` without Q4 in
-the same change · weaken a test to go green.
+**Never:** fire a >=20-image batch (G13) · swap `data/palette.json` without Q4 (now done) · weaken a
+test to go green.
 
 ---
 

@@ -275,9 +275,12 @@ export class LedgerScene extends Phaser.Scene {
 
     // …and the words for the broken ones. A dashed dark-red line is a picture of "something is
     // wrong here"; `collapsed (prey)` is which end emptied, which is the thing the player did.
+    // The origin comes off the label because game/web-view.ts placed the label so that its BOX
+    // touches nothing else on the diagram, and the box is only the box it drew if the scene anchors
+    // the text the same way it assumed.
     for (const label of collapsedEdgeLabels(web, layout, balance)) {
       const text = this.text(label.x, label.y, label.text, INK_COLLAPSED);
-      text.setOrigin(0.5, 0.5);
+      text.setOrigin(0.5, label.originY);
       this.layer.add(text);
     }
 
@@ -297,7 +300,7 @@ export class LedgerScene extends Phaser.Scene {
     for (const label of webVertexLabels(web, layout, balance)) {
       const extinct = web.vertices.find((v) => v.id === label.id)?.extinct === true;
       const text = this.text(label.x, label.y, label.text, extinct ? INK_DIM : INK);
-      text.setOrigin(0.5, 0);
+      text.setOrigin(0.5, label.originY);
       this.layer.add(text);
     }
   }

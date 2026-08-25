@@ -9,7 +9,7 @@
 
 import Phaser from "phaser";
 
-import { attachIntegerScale, createGameConfig, renderFatalError, viewport } from "./boot";
+import { attachCanvasScale, createGameConfig, renderFatalError, viewport } from "./boot";
 import { BattleScene } from "./scenes/BattleScene";
 import { BootScene } from "./scenes/BootScene";
 import { DexScene } from "./scenes/DexScene";
@@ -66,6 +66,21 @@ const SCENES: Phaser.Types.Scenes.SceneType[] = [
   createRetirementScene(Phaser),
 ];
 
+/**
+ * Tell the pre-module watchdog in index.html that project code is running.
+ *
+ * THE FAILURE THIS CLOSES. `data/*.json` are STATIC imports (core/schemas.ts, game/boot.ts,
+ * game/placeholder.ts), so a SYNTAX error in one of them breaks the module graph before a single
+ * line below executes: the zod gate cannot fire, `renderFatalError` is unreachable, and the page is
+ * silently, entirely black — reproduced on the real dev server, where Vite 8's own error overlay
+ * also crashed (`…split is not a function`) and printed nothing either. A guard against that cannot
+ * live in the module graph that failed to load, so it lives in `index.html` and this line is what
+ * disarms it. It must stay at MODULE TOP LEVEL and above `start()`: it is a statement about the
+ * graph having loaded, not about the game having started, and the two failures are reported
+ * differently (this one has no console line of its own; a failure inside `start()` does).
+ */
+(globalThis as { __trophicBooted?: boolean }).__trophicBooted = true;
+
 function start(): void {
   const config = createGameConfig(Phaser, SCENES);
   // createGameConfig has already rendered the reason into the page.
@@ -74,7 +89,7 @@ function start(): void {
   try {
     const game = new Phaser.Game(config);
     const view = viewport();
-    if (view) attachIntegerScale(game, view);
+    if (view) attachCanvasScale(game, view);
   } catch (err) {
     renderFatalError("the renderer could not start", [
       err instanceof Error ? err.message : String(err),

@@ -24,6 +24,8 @@ import { newSave, slotKey, type SaveEnvelope } from "../../core/save";
 import type { Balance, Content } from "../../core/types";
 import {
   DEFAULT_MENU_REQUEST,
+  UI,
+  UI_SWATCH_ID,
   isMenuRequest,
   slotHeadline,
   slotSelectable,
@@ -226,5 +228,52 @@ describe("isMenuRequest — Phaser hands `init` whatever the caller passed", () 
 
   it("the default request is itself valid", () => {
     expect(isMenuRequest(DEFAULT_MENU_REQUEST)).toBe(true);
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The screen palette (build-doc §8.4 / G-freeze)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+describe("UI colours come from data/palette.json, not from hexes typed into a scene", () => {
+  const byId = new Map(content.palette.colors.map((c) => [c.id, c.hex.toLowerCase()]));
+
+  it("every role names a real swatch, and resolves to that swatch's hex", () => {
+    // WAS: six hexes inlined in game/scenes/MenuScene.ts (#0d0f0c, #d8d8c8, #6d7268, #f2c14e,
+    // #e05a4a, #8fbf6f). NONE of them is one of the 32 swatches, and the palette is now
+    // `frozen: true` — so every C1 screen was painted in colours no generated asset will ever use.
+    for (const [role, id] of Object.entries(UI_SWATCH_ID)) {
+      expect(byId.has(id), `${role} names swatch "${id}"`).toBe(true);
+      expect(UI[role as keyof typeof UI].toLowerCase(), role).toBe(byId.get(id));
+    }
+  });
+
+  it("BINDS — none of the hexes it replaced is a swatch", () => {
+    const hexes = new Set([...byId.values()]);
+    for (const gone of ["#0d0f0c", "#d8d8c8", "#6d7268", "#f2c14e", "#e05a4a", "#8fbf6f"]) {
+      expect(hexes.has(gone), gone).toBe(false);
+    }
+  });
+
+  it("text, dim, accent, danger and ok are all legible on the bg swatch", () => {
+    // Palette compliance that made the menu unreadable would be a different defect, not a fix. The
+    // battle HUD's `UI_SWATCH.text` (c07, #765b4e) is 3.3 : 1 on c00 and is why that table is not
+    // reused here.
+    const rgb = (hex: string): [number, number, number] => [
+      Number.parseInt(hex.slice(1, 3), 16) / 255,
+      Number.parseInt(hex.slice(3, 5), 16) / 255,
+      Number.parseInt(hex.slice(5, 7), 16) / 255,
+    ];
+    const lum = (hex: string): number => {
+      const f = (c: number): number => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+      const [r, g, b] = rgb(hex);
+      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    };
+    const bg = lum(UI.bg);
+    for (const role of ["text", "dim", "accent", "danger", "ok"] as const) {
+      const l = lum(UI[role]);
+      const ratio = (Math.max(l, bg) + 0.05) / (Math.min(l, bg) + 0.05);
+      expect(ratio, `${role} contrast on bg`).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

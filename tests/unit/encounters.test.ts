@@ -160,7 +160,10 @@ describe("a species at count 0 produces exactly zero encounters", () => {
     // G7: the reason is a number, not a judgement. Wiped out reads as no seasonal reason at all.
     expect(entry!.dormantReason).toBeUndefined();
     const absence = absentLines(ctx).find((a) => a.lineId === "skir-line");
-    expect(absence).toEqual({ lineId: "skir-line", seasonal: null, count: 0 });
+    // `cause` replaced the old `seasonal: "dormant"|"migrating"|null`, whose null meant BOTH "wiped
+    // out" and "gated behind a sign chain" — see the AbsenceCause header. Still an exact-shape
+    // assertion, now naming which of the four this is.
+    expect(absence).toEqual({ lineId: "skir-line", cause: "wiped", count: 0 });
   });
 
   it("a node with every count at 0 rolls nothing, ever — there is no fallback table (G3)", () => {
@@ -218,7 +221,7 @@ describe("out-of-season migrants never roll, and say why", () => {
     const ctx = ctxFor("r1", { season: "winter" });
     const absence = absentLines(ctx).find((a) => a.lineId === "pollywisp-line");
     expect(absence).toBeDefined();
-    expect(absence!.seasonal === "dormant" || absence!.seasonal === "migrating").toBe(true);
+    expect(absence!.cause === "dormant" || absence!.cause === "migrating").toBe(true);
     // The real number is still there — the animal is away, not gone (Hard Req 2).
     expect(absence!.count).toBeGreaterThan(0);
   });

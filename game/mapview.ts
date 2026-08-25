@@ -145,7 +145,12 @@ export function readMaskPixels(scene: Phaser.Scene, maskKey: string): MaskPixels
   if (width <= 0 || height <= 0) return null;
 
   const scratchKey = `${maskKey}:scratch`;
-  scene.textures.remove(scratchKey);
+  // GUARDED, not unconditional: `TextureManager.remove` on a key that was never added logs
+  // `warning: No texture found matching key: …` to the console, once per mask read. The art lane is
+  // the audience for this console, and a spurious warning on the one operation they are watching is
+  // a warning they learn to ignore. The remove is still here for the failure path below, where a
+  // previous read threw after creating the canvas.
+  if (scene.textures.exists(scratchKey)) scene.textures.remove(scratchKey);
   const scratch = scene.textures.createCanvas(scratchKey, width, height);
   if (!scratch) return null;
   try {
@@ -157,7 +162,7 @@ export function readMaskPixels(scene: Phaser.Scene, maskKey: string): MaskPixels
     // concerned; the caller synthesises one and says so on screen.
     return null;
   } finally {
-    scene.textures.remove(scratchKey);
+    if (scene.textures.exists(scratchKey)) scene.textures.remove(scratchKey);
   }
 }
 

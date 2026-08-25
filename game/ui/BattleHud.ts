@@ -16,22 +16,48 @@ import { roleColor, roleHex, type UiSwatchRole } from "./Palette";
 import { placeholderImage } from "../placeholder";
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Asset keys — the convention Lane B's battle-sprite batch fills in.
+ * Asset keys — the rows Lane B's battle-sprite batch actually ships.
  *
  * build-doc §9.7 (corrected by DEVIATIONS D2) counts 150 battle sprites: 75 forms × front/back,
- * where a form is one (line, age class). The key is therefore exactly that tuple, built from data at
- * runtime — no species name is ever written in this file (build-doc §8.3 / G2).
+ * where a form is one (line, age class). The key is that tuple, built from data at runtime — no
+ * species name is ever written in this file (build-doc §8.3 / G2).
+ *
+ * WHAT WAS WRONG WITH THE FIRST CUT
+ * ─────────────────────────────────
+ * It ASSUMED a key shape (`battle/<lineId>/<age>/<facing>`) and logged "lane B must adopt this key"
+ * as an open question. The manifest was already committed and disagreed:
+ * `tools/comfy/manifest.json`'s 150 `creature-battle` rows are `battle-cindril-j-front` at
+ * `assets/final/creature-battle/`, and `game/placeholder.ts::assetId` turns that finalFile into the
+ * texture key `creature-battle/battle-cindril-j-front`. Measured intersection of the 162 keys this
+ * function used to produce with the manifest's 150 ids: **zero**. So when the art lands, every
+ * battle sprite would have gone on silently drawing a placeholder — `textureFor` falls back without
+ * a warning. The key below is the manifest's own id, derived by the manifest's own rule
+ * (`tools/comfy/comfy-batch.ts::deriveRows`, `shortId = lineId.replace(/-line$/, '')`), and
+ * `tests/unit/battle-view.test.ts` asserts SET EQUALITY against the committed rows rather than
+ * restating this function.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 export type Facing = "front" | "back";
+
+/** `tools/comfy/manifest.json` `classes["creature-battle"].finalDir`, minus `assets/final/`. */
+const BATTLE_SPRITE_DIR = "creature-battle";
+/** `comfy-batch.ts::shortId` — every id in `data/species.json` ends in this. */
+const LINE_ID_SUFFIX = "-line";
 
 /** The enemy is seen from the front; the player's own creature is seen from behind. */
 export function facingFor(side: "player" | "enemy"): Facing {
   return side === "player" ? "back" : "front";
 }
 
+/**
+ * The texture key for one battle sprite — identical to the manifest row's asset id.
+ *
+ * NOT tolerant of an unknown age: `age` is `Battler.age`, one of core/types.ts's `AGE_CLASSES`, and
+ * lower-casing it is the manifest's own `stage.toLowerCase()`.
+ */
 export function battleSpriteKey(lineId: string, age: string, facing: Facing): string {
-  return `battle/${lineId}/${age}/${facing}`;
+  const stem = lineId.endsWith(LINE_ID_SUFFIX) ? lineId.slice(0, -LINE_ID_SUFFIX.length) : lineId;
+  return `${BATTLE_SPRITE_DIR}/battle-${stem}-${age.toLowerCase()}-${facing}`;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

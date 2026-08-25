@@ -13,14 +13,46 @@
 
 import Phaser from "phaser";
 
-import { SCENE_KEYS, contentIssues, installStorage, loadContent } from "../boot";
+import { SCENE_KEYS, contentProblems, installStorage, loadContent } from "../boot";
 import { queueRealAssets } from "../placeholder";
 import { registry } from "../registry";
-import { UI, uiText } from "./MenuScene";
 
 const MARGIN_PX = 8;
 const SCROLL_STEP_PX = 24;
 const HINT_STRIP_PX = 16;
+
+/**
+ * The failure screen's own colours, deliberately NOT from `data/palette.json` and NOT from
+ * `MenuScene`'s `UI`.
+ *
+ * This is the screen that reports `data/` being broken, so it must not read `data/` to draw itself:
+ * `game/ui/Palette.ts` resolves swatches out of `palette.json` at module scope, and a `palette.json`
+ * that parses but has lost its `colors` array would throw while this scene's module graph loaded —
+ * turning the fail-loud screen into the silent black page it exists to replace. Not importing
+ * `MenuScene` also keeps the whole slot/settings graph off the failure path. Every other C1 screen
+ * paints from the palette (`MenuScene.UI`); this one is the documented exception (C1-D10).
+ */
+const FAIL = {
+  backdropHex: "#2a1414",
+  backdrop: 0x2a1414,
+  danger: "#e05a4a",
+  text: "#d8d8c8",
+  dim: "#6d7268",
+} as const;
+
+/** Body text at the virtual resolution, without importing the menu's helper (see FAIL above). */
+function failText(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  text: string,
+  color: string = FAIL.text,
+  size = 8,
+): Phaser.GameObjects.Text {
+  return scene.add
+    .text(x, y, text, { fontFamily: "monospace", fontSize: `${size}px`, color })
+    .setResolution(1);
+}
 
 export class BootScene extends Phaser.Scene {
   #storageWarning: string | null = null;
@@ -60,35 +92,39 @@ export class BootScene extends Phaser.Scene {
    * full — a truncated list hides the one issue that explains the other twelve.
    */
   #showContentFailure(error: Error): void {
-    const issues = contentIssues(error);
+    // One entry per PROBLEM, not per file. `core/schemas.ts` collects issues per file, so five bad
+    // values in species.json arrived here as one string carrying five ✖ lines — and the headline
+    // said "1 issue" above a list of five. `contentProblems` (game/boot.ts) splits them, so the
+    // number, the numbered list and the console line are the same count of the same things.
+    const problems = contentProblems(error);
+    const count = `${problems.length} issue${problems.length === 1 ? "" : "s"}`;
     console.error(
-      `[trophic] content validation failed (${issues.length} issue${issues.length === 1 ? "" : "s"}):\n` +
-        issues.map((i) => `  • ${i}`).join("\n"),
+      `[trophic] content validation failed (${count}):\n` +
+        problems.map((i) => `  • ${i}`).join("\n"),
     );
 
-    const BACKDROP = 0x2a1414;
-    this.cameras.main.setBackgroundColor("#2a1414");
+    const BACKDROP = FAIL.backdrop;
+    this.cameras.main.setBackgroundColor(FAIL.backdropHex);
     const width = this.scale.width;
     const height = this.scale.height;
 
-    const heading = uiText(this, MARGIN_PX, MARGIN_PX, "CONTENT VALIDATION FAILED", UI.danger, 10);
-    const sub = uiText(
+    const heading = failText(this, MARGIN_PX, MARGIN_PX, "CONTENT VALIDATION FAILED", FAIL.danger, 10);
+    const sub = failText(
       this,
       MARGIN_PX,
       MARGIN_PX + 14,
-      `data/*.json does not match core/schemas.ts — ${issues.length} issue${issues.length === 1 ? "" : "s"}. ` +
-        "Fix the data (or the schema) and reload.",
-      UI.text,
+      `data/*.json does not match core/schemas.ts — ${count}. Fix the data (or the schema) and reload.`,
+      FAIL.text,
     );
     sub.setWordWrapWidth(width - MARGIN_PX * 2);
 
     const bodyTop = MARGIN_PX + 14 + sub.height + 6;
-    const body = uiText(
+    const body = failText(
       this,
       MARGIN_PX,
       bodyTop,
-      issues.map((i, n) => `${n + 1}. ${i}`).join("\n\n"),
-      UI.text,
+      problems.map((i, n) => `${n + 1}. ${i}`).join("\n\n"),
+      FAIL.text,
     );
     body.setWordWrapWidth(width - MARGIN_PX * 2);
 
@@ -122,7 +158,7 @@ export class BootScene extends Phaser.Scene {
     if (maxScroll > 0) {
       const hintY = height - 12;
       this.add.rectangle(0, hintY - 2, width, 14, BACKDROP, 1).setOrigin(0, 0).setDepth(1);
-      uiText(this, width - 60, hintY, "↑↓ scroll", UI.dim).setDepth(2);
+      failText(this, width - 60, hintY, "↑↓ scroll", FAIL.dim).setDepth(2);
     }
   }
 }

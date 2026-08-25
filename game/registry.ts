@@ -20,6 +20,7 @@ import type { ClockState } from "@core/clock";
 import { indexSpecies, type SpeciesIndex } from "@core/lifecycle";
 import type { RngStreams, SaveEnvelope, StorageLike } from "@core/save";
 import type { Balance, Content, GymLeader, NodeFile, SpeciesLine } from "@core/types";
+import { ledgerHistory } from "./ledger-history";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Settings (bible §12 "Plumbing: save slots …, settings, text-speed")
@@ -161,10 +162,15 @@ class GameRegistry {
 
   startSession(session: Session): void {
     this.#session = { ...session };
+    // A different slot is a different ecology, so the ledger's readings start over with this run's
+    // opening season as its first one (game/ledger-history.ts).
+    ledgerHistory.clear();
+    this.#observeForLedger(session.save);
   }
 
   endSession(): void {
     this.#session = null;
+    ledgerHistory.clear();
   }
 
   sessionOrNull(): Session | null {
@@ -193,6 +199,23 @@ class GameRegistry {
    */
   setSave(save: SaveEnvelope): void {
     this.#session = { ...this.session(), save };
+    this.#observeForLedger(save);
+  }
+
+  /**
+   * Take the ledger's reading of this save, if its season is one no reading has been taken in.
+   *
+   * It hangs off `setSave` because `setSave` is the single place the running game adopts a save —
+   * which makes it the single place a season change can be noticed, whichever scene caused it (the
+   * overworld's season boundary and the year turn's fourth season step are two different callers,
+   * build-doc §7.5 step 5). Idempotent within a season, so ordinary saves cost nothing. The store
+   * holds no gameplay state: it is a record of readings the ledger's trend column draws, and a run
+   * with no readings yet draws one number and `net —` rather than a fabricated slope.
+   */
+  #observeForLedger(save: SaveEnvelope): void {
+    // `balance()` throws before BootScene has validated content; a reading is not worth a crash.
+    const balance = this.#content?.balance;
+    if (balance) ledgerHistory.observe(save, balance);
   }
 
   streams(): RngStreams {
@@ -207,6 +230,7 @@ class GameRegistry {
 
   /** Drop everything. Tests and "back to title" both need it; nothing else should call it. */
   reset(): void {
+    ledgerHistory.clear();
     this.#content = null;
     this.#storage = null;
     this.#settings = { ...DEFAULT_SETTINGS };

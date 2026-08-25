@@ -93,16 +93,25 @@ export interface ContrastRange {
 /**
  * The contrast an image actually uses, measured robustly. Percentiles rather than min/max: a single
  * blown-out pixel would otherwise set the scale for a million of its neighbours.
+ *
+ * `within` restricts the population the percentiles are read from — see `edgeMap`. Pixels outside it
+ * are still normalised by the resulting range; they simply do not get a vote on what the range is.
  */
-export function contrastRange(lum: Float32Array, tail: number = CONTRAST_TAIL): ContrastRange {
+export function contrastRange(
+  lum: Float32Array,
+  tail: number = CONTRAST_TAIL,
+  within?: Uint8Array,
+): ContrastRange {
   const hist = new Uint32Array(CONTRAST_BINS);
   const top = CONTRAST_BINS - 1;
+  let n = 0;
   for (let i = 0; i < lum.length; i++) {
+    if (within && !within[i]) continue;
+    n++;
     const v = lum[i]!;
     const b = v <= 0 ? 0 : v >= 1 ? top : Math.round(v * top);
     hist[b] = (hist[b] ?? 0) + 1;
   }
-  const n = lum.length;
   if (n === 0) return { lo: 0, hi: 0, range: 0, flat: true };
   const want = Math.min(n - 1, Math.floor(tail * n));
   let seen = 0;
@@ -129,15 +138,25 @@ export function contrastRange(lum: Float32Array, tail: number = CONTRAST_TAIL): 
   return { lo, hi, range, flat: range < LUMINANCE_STEP };
 }
 
-/** Stretch a luminance field onto its own contrast range, clamped to [0, 1]. */
+/**
+ * Stretch a luminance field onto a contrast range. NOT clamped, and that is load-bearing.
+ *
+ * The percentiles exist to set the SCALE robustly — so a handful of specular pixels cannot decide
+ * the gain for a million neighbours — not to delete the content outside them. Clamping did delete
+ * it, and with a mask-restricted range (see `edgeMap`) it deleted a lot: on the synthetic town the
+ * walkable range is ground .471 → path .902, so a hut at luminance .078 clamped to exactly the same
+ * 0 as the ground it stands on. Its outline vanished, and a hut MOVED BY ONE COLLISION CELL scored
+ * IoU 1.0000 and was ACCEPTED — the gate's headline failure mode, reintroduced by a clamp.
+ *
+ * Unclamped, a value below `lo` is simply negative and a value above `hi` is above 1; the Sobel
+ * magnitude that follows is a difference of neighbours, so it neither knows nor cares, and
+ * `sobelThreshold` keeps meaning "this fraction of the contrast the image actually uses".
+ */
 export function contrastNormalise(lum: Float32Array, cr: ContrastRange): Float32Array {
   const out = new Float32Array(lum.length);
   if (cr.flat) return out;
   const inv = 1 / cr.range;
-  for (let i = 0; i < lum.length; i++) {
-    const v = (lum[i]! - cr.lo) * inv;
-    out[i] = v <= 0 ? 0 : v >= 1 ? 1 : v;
-  }
+  for (let i = 0; i < lum.length; i++) out[i] = (lum[i]! - cr.lo) * inv;
   return out;
 }
 
@@ -233,10 +252,35 @@ export interface EdgeOptions {
  * A flat image returns an empty edge map rather than "every pixel is an edge": with no contrast
  * there is nothing for the normalisation to stretch, and diff.ts REJECTS an empty union rather than
  * scoring it 1.0, so a blank generation still fails loudly.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * `walkable` — WHY THE RANGE IS MEASURED OVER THE MASK, AND NOT OVER THE FRAME.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * The gain applied here is `1 / contrastRange(...).range`, and a gain is global: change any pixel
+ * enough to move the 1st/99th percentiles and EVERY gradient in the frame is rescaled. Measured on
+ * `assets/approved-trials/town-map.png`: a 64×64 pure-white patch — 4096 px, 0.39% of the frame,
+ * under the 1% CONTRAST_TAIL, so the percentiles do not reject it — moved `range` 0.7294 → 0.7961
+ * and changed 21 062 edge pixels OUTSIDE the patch (9.7% of the far field); a 128×128 patch changed
+ * 20.7% of the far field and dropped the whole-frame IoU to 0.7870.
+ *
+ * §8.2 restricts the COMPARISON to the walkable cells. If the statistic that calibrates the
+ * comparison is measured over the whole frame, the restriction does not restrict: a change confined
+ * entirely to BLOCKED cells — Cindershelf's "vents flare" (bible §6) is exactly that, vents and
+ * buildings are the blocked cells — moves the edge map inside the walkable cells and the variant is
+ * rejected with the layout byte-identical. Measured: a soft glow (radius 96, strength 0.30) inside a
+ * blocked corner, with every walkable pixel byte-identical, scored IoU 0.9535 and REJECTED.
+ *
+ * So the range is read from the same population the IoU is: when a mask is supplied, only walkable
+ * pixels vote. Blocked pixels are still normalised (and still Sobelled) with that range, because a
+ * building's OUTLINE is the boundary between blocked and walkable and it must keep registering — but
+ * repainting the inside of a building can no longer reach across the map. Tint invariance (B-D23) is
+ * untouched: a linear tint scales the walkable range exactly as it scales the whole-frame one.
+ *
+ * With no mask, `within` is undefined and this is the whole frame, exactly as before.
  */
-export function edgeMap(src: Raster, opts: EdgeOptions): Uint8Array {
+export function edgeMap(src: Raster, opts: EdgeOptions, walkable?: Uint8Array): Uint8Array {
   const lum = luminance(src);
-  const cr = contrastRange(lum);
+  const cr = contrastRange(lum, CONTRAST_TAIL, walkable);
   if (cr.flat) return new Uint8Array(src.width * src.height);
   const mag = sobelMagnitude(contrastNormalise(lum, cr), src.width, src.height);
   return dilate(thresholdEdges(mag, opts.sobelThreshold), src.width, src.height, opts.dilatePx);

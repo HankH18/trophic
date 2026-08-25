@@ -25,17 +25,18 @@ import {
   renderSummaryCard,
   type SummaryCard,
 } from "../ledger-view";
+import { SCENE_KEYS } from "../scene-keys";
 import { drawArtSlot } from "./DexScene";
 import type { Content, OwnedCreature } from "../../core/types";
 
 /**
- * Scene key, in `game/scene-keys.ts`'s capitalised convention (Boot/Title/Menu/…).
- *
- * ⚠ It is spelled HERE because the registry has no `summary` entry yet — see the blocker in this
- * lane's report. When one is added it must be `summary: "Summary"`, and this line becomes
- * `SCENE_KEYS.summary`; `tests/unit/ledger-view.test.ts` fails the moment the two disagree.
+ * The scene key, READ from the registry rather than spelled again here (as `LedgerScene` does).
+ * `game/scene-keys.ts` is engine-free — `import type` only — so there is no reason for this file to
+ * hold a second copy of the string, and two spellings of one key is the exact failure that registry
+ * exists to prevent. It carried its own literal while the registry had no `summary` entry; the
+ * registry has one, `game/main.ts` registers this scene, and `game/scenes/MenuScene.ts` routes to it.
  */
-export const SUMMARY_SCENE_KEY = "Summary";
+export const SUMMARY_SCENE_KEY = SCENE_KEYS.summary;
 
 export interface SummarySceneData {
   content: Content;

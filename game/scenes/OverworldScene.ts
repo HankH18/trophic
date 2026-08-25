@@ -50,7 +50,7 @@ import {
 import type { Balance, Content, GameAction, NodeFile, Season } from "../../core/types";
 import {
   cellTopLeftWorld,
-  firstWalkableTile,
+  chooseSpawnTile,
   gridConsistencyProblem,
   loadCollision,
   tileGridSize,
@@ -59,6 +59,7 @@ import {
   type MaskPixels,
 } from "../collision";
 import {
+  absenceCauseOf,
   rollForayStep,
   stepsPerForay,
   totalActiveWeight,
@@ -66,6 +67,11 @@ import {
   type Encounter,
   type ForayContext,
 } from "../encounters";
+import {
+  applyWildBattleOutcome,
+  buildWildBattle,
+  wildBattleProblem,
+} from "../wild-battle";
 import {
   MapView,
   drawCollisionOverlay,
@@ -92,17 +98,22 @@ import {
   type YearTurnSceneData,
 } from "./YearTurnScene";
 import {
+  chooseDirection,
   createMovement,
   movementConfig,
+  newlyPressed,
   placeAt,
   queueInput,
-  resolveInput,
   spriteWorldPosition,
   update as updateMovement,
   type Direction,
   type MovementConfig,
   type MovementState,
 } from "../movement";
+// TYPE ONLY. `game/scenes/BattleScene.ts` value-imports Phaser, and so does this file — but the
+// hand-off must stay a shape, not a module edge: importing the CLASS here would make the overworld
+// and the battle scene a cycle through `game/main.ts`'s scene list.
+import type { BattleSceneData } from "./BattleScene";
 
 export const OVERWORLD_SCENE_KEY = "Overworld";
 
@@ -114,6 +125,7 @@ export const OVERWORLD_SCENE_KEY = "Overworld";
  */
 const ENCOUNTER_STREAM = "encounter";
 const SIM_STREAM = "sim";
+const BATTLE_STREAM = "battle";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Seams
@@ -121,9 +133,15 @@ const SIM_STREAM = "sim";
 
 export interface OverworldHooks {
   /**
-   * C3. A wild creature was met. The scene has already spent nothing and changed no population —
-   * catching is the battle's outcome, and applying it to `save.nodeStates` is the caller's
-   * (LANE-A-STATUS §6.1: `caughtIndividual` → `appendAction({t:"catch"})` → the count moves).
+   * A wild creature was met. OVERRIDE, not the wiring: when this is absent the scene launches the
+   * battle itself ({@link OverworldScene.beginWildBattle}) and applies the catch through
+   * `game/wild-battle.ts`, so the catch→ledger loop is reachable by playing.
+   *
+   * It used to be the ONLY route, and nothing supplied it: `game/boot.ts` passed `onSaveChanged`
+   * and nothing else, so a wild encounter in the shipped game flashed a banner and ended there. Two
+   * in-game years of real play produced 56 encounters and moved zero populations. A seam is not a
+   * hand-off until something is on the other side of it, so the default is now the real thing and
+   * this hook is for a lane that wants to take it over.
    */
   onEncounter?: (encounter: Encounter, scene: OverworldScene) => void;
   /**
@@ -185,11 +203,19 @@ export class OverworldScene extends Phaser.Scene {
   private meterHud!: SeasonMeterHud;
   /** True while the year-turn sequence has the screen; this scene is paused and spends no ticks. */
   private yearTurnRunning = false;
+  /** True while a wild battle has the screen. Same contract as `yearTurnRunning`. */
+  private battleRunning = false;
 
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private dirKeys: Array<{ dir: Direction; keys: Phaser.Input.Keyboard.Key[] }> = [];
   private overlayKey?: Phaser.Input.Keyboard.Key;
   private travelKeys: Phaser.Input.Keyboard.Key[] = [];
+  /**
+   * Directions held on the previous frame, so {@link chooseDirection} can tell a NEW press from a
+   * held one — Gold's "most recent press wins", which is what stops a direction held into a wall
+   * from locking out a second direction with an open path in front of it.
+   */
+  private heldLastFrame: ReadonlySet<Direction> = new Set<Direction>();
 
   /** Movement steps since the last foray tick was charged (build-doc §7.2 / DEVIATIONS D18). */
   private stepsSinceTick = 0;
@@ -198,6 +224,13 @@ export class OverworldScene extends Phaser.Scene {
   private lastNote = "";
   private travelling = false;
   private hudDirty = true;
+  /**
+   * The node the CURRENT view was built for. `buildNodeView` respawns the player only when this
+   * changes — see its header for the teleport-on-every-ESC defect that made it necessary.
+   */
+  private viewNodeId: string | null = null;
+  /** Non-null when the player is standing somewhere they should not be able to stand. Printed. */
+  private spawnProblem: string | null = null;
 
   constructor() {
     super(OVERWORLD_SCENE_KEY);
@@ -234,6 +267,19 @@ export class OverworldScene extends Phaser.Scene {
 
     this.node = this.nodeFile(this.save.currentNode);
     this.movementCfg = movementConfig(this.balance, this.msPerTile);
+
+    /*
+     * A Phaser scene INSTANCE outlives a restart — `scene.start` shuts the scene down and re-runs
+     * `init`/`create` on the same object — so every field above survives a trip to the in-run menu.
+     * That is what lets the player's tile survive (see `buildNodeView`), and it is also what makes
+     * these two dangerous: a restart taken while another scene had the screen would come back with
+     * a latch still set and freeze the overworld's input or its clock forever. They are the
+     * "in flight" flags of a flight that no longer exists.
+     */
+    this.travelling = false;
+    this.yearTurnRunning = false;
+    this.battleRunning = false;
+    this.heldLastFrame = new Set<Direction>();
   }
 
   preload(): void {
@@ -248,7 +294,15 @@ export class OverworldScene extends Phaser.Scene {
       .setDisplaySize(this.balance.map.playerSpriteW, this.balance.map.playerSpriteH)
       .setDepth(20);
 
-    this.overlay = this.add.graphics().setDepth(10).setVisible(false);
+    /*
+     * The Graphics object is new on every `create`; `overlayVisible` is an instance field and is
+     * NOT. Building it hidden regardless left the two disagreeing after every trip to the in-run
+     * menu — the flag said the overlay was on, the object was off, and the next [C] press turned the
+     * flag off instead of the overlay on, so the player had to press it twice. The preference is the
+     * thing worth keeping across a restart; the object is the thing that has to be told.
+     */
+    this.overlay = this.add.graphics().setDepth(10).setVisible(this.overlayVisible);
+    if (this.overlayVisible) drawCollisionOverlay(this.overlay, this.collision.grid, this.balance);
 
     const camera = this.cameras.main;
     camera.setBounds(0, 0, this.mapView.worldWidth, this.mapView.worldHeight);
@@ -260,12 +314,22 @@ export class OverworldScene extends Phaser.Scene {
     // mounted nowhere in the game.
     this.meterHud = new SeasonMeterHud(phaserMeterSurface(this, METER_STYLE), METER_STYLE);
 
+    /*
+     * WRAPPED, and the width is the screen's. Without it the HUD text object sized itself to its
+     * longest line — measured at 1044px on a 480px virtual screen — so the provenance line, the one
+     * that distinguishes a placeholder from real art, was cut off mid-sentence at the right edge
+     * ("… SYNTHESISED co"), and the dark panel behind the text spanned the whole canvas including
+     * the player. TitleScene and BootScene both already wrap; this one did not.
+     */
+    const wrapWidth = Math.max(1, this.scale.width - HUD_PAD * 2);
     this.hud = this.add
       .text(HUD_PAD, METER_STYLE.y + METER_STYLE.cellH + METER_STYLE.cellGap + HUD_LINE_PX, "", HUD_STYLE)
+      .setWordWrapWidth(wrapWidth, true)
       .setScrollFactor(0)
       .setDepth(100);
     this.banner = this.add
       .text(HUD_PAD, this.scale.height - HUD_PAD, "", BANNER_STYLE)
+      .setWordWrapWidth(wrapWidth, true)
       .setOrigin(0, 1)
       .setScrollFactor(0)
       .setDepth(100);
@@ -290,7 +354,17 @@ export class OverworldScene extends Phaser.Scene {
     return node;
   }
 
-  /** The live node: the shipped file with the save's populations, flora and recentDeaths on it. */
+  /**
+   * The live node: the shipped file with the save's populations, flora and recentDeaths on it.
+   *
+   * ⚠ THE ONE PLACE THE POPULATION FALLBACK IS DECIDED. Every reader of a count on this screen goes
+   * through here — the encounter roll, the HUD's ledger lines, the encounter banner. It used to be
+   * two: this function fell back to the shipped file when a node had no `nodeStates` entry (the
+   * INV-2 "a save that predates this node" case), while `countOf` independently fell back to 0. The
+   * HUD then printed every line as `0` while creatures kept spawning at the shipped weights, and an
+   * encounter banner read `pollywisp-line J L8 — count 0`. That is build-doc §8.3's two answers to
+   * one number, on the number Hard Req 2 is about.
+   */
   liveNode(id: string = this.node.id): EcoNode {
     const file = this.nodeFile(id);
     const state = this.save.nodeStates[id];
@@ -303,6 +377,17 @@ export class OverworldScene extends Phaser.Scene {
   /**
    * Sample the mask (once) and build the map image. ONE mask serves all six years (Hard Req 5) — the
    * year only ever reaches `MapView`, never `loadCollision`.
+   *
+   * ⚠ IT RESPAWNS ONLY WHEN THE NODE CHANGED. This used to place the player at
+   * `firstWalkableTile(...) ?? {col:0,row:0}` unconditionally, and `create()` runs it on every scene
+   * start — so ESC into the in-run menu and back teleported the player from wherever they were to
+   * the middle of the map (measured: {40,41} → {32,32}) and threw away their partial foray progress
+   * with it. A Phaser scene instance survives a restart, so the tile is still on `this.movement`
+   * when we get here; the only question is whether it is still a legal tile in the view being built.
+   *
+   * The `?? {col:0,row:0}` is gone for the same reason: (0,0) is blocked on any bordered grid, so a
+   * broken mask spawned the player inside geometry with nothing on screen saying so.
+   * {@link chooseSpawnTile} returns the sentence instead, and the HUD prints it.
    */
   private buildNodeView(): void {
     const keys = nodeArtKeys(this.node, this.save.year, this.balance);
@@ -317,11 +402,21 @@ export class OverworldScene extends Phaser.Scene {
       balance: this.balance,
     });
 
-    const spawn = firstWalkableTile(this.collision.grid, this.balance) ?? { col: 0, row: 0 };
-    this.movement = this.movement
-      ? placeAt(this.movement, spawn)
-      : createMovement(spawn);
-    this.stepsSinceTick = 0;
+    const spawn = chooseSpawnTile(this.collision.grid, this.balance);
+    this.spawnProblem = spawn.problem;
+
+    const standing: MovementState | undefined = this.movement;
+    const sameNode = this.viewNodeId === this.node.id;
+    if (standing !== undefined && sameNode && this.canEnter(standing.tile)) {
+      // Same node, still a legal tile: keep the position and the foray progress. `placeAt` drops any
+      // step in flight, which is right — the tween belongs to a frame loop that has been torn down.
+      this.movement = placeAt(standing, standing.tile, standing.facing);
+    } else {
+      this.movement = standing !== undefined ? placeAt(standing, spawn.tile) : createMovement(spawn.tile);
+      this.stepsSinceTick = 0;
+    }
+    this.viewNodeId = this.node.id;
+
     this.lastNote = `${this.mapView.status.note} · ${this.collision.note}`;
     this.hudDirty = true;
   }
@@ -370,9 +465,21 @@ export class OverworldScene extends Phaser.Scene {
       }
     });
 
+    // Tracked BEFORE the travel guard, so keys held across a node transition are not mistaken for
+    // fresh presses on the first frame in the new node.
+    const pressed = this.pressedDirections();
+    const fresh = newlyPressed(pressed, this.heldLastFrame);
+    this.heldLastFrame = new Set<Direction>(pressed);
+
     if (this.travelling) return;
 
-    this.movement = queueInput(this.movement, resolveInput(this.pressedDirections(), this.movement.queued));
+    // `chooseDirection`, not `resolveInput`: the choice has to know what is in front of the player,
+    // or a direction held into a wall wins the tie every frame and locks out a direction with an
+    // open path. See game/movement.ts.
+    this.movement = queueInput(
+      this.movement,
+      chooseDirection(pressed, this.movement, (tile) => this.canEnter(tile), fresh),
+    );
     const result = updateMovement(this.movement, delta, (tile) => this.canEnter(tile), this.movementCfg);
     this.movement = result.state;
 
@@ -424,7 +531,9 @@ export class OverworldScene extends Phaser.Scene {
       this.flashBanner(
         `${encounter.lineId} ${encounter.age} L${encounter.level} — count ${this.countOf(encounter.lineId)}`,
       );
+      // The hook is an override; without one the scene fights it (see OverworldHooks.onEncounter).
       if (this.hooks.onEncounter) this.hooks.onEncounter(encounter, this);
+      else this.beginWildBattle(encounter);
     }
 
     this.stepsSinceTick += 1;
@@ -432,6 +541,107 @@ export class OverworldScene extends Phaser.Scene {
       this.stepsSinceTick = 0;
       this.spendTicks("foray", { t: "foray", nodeId: this.node.id });
     }
+  }
+
+  /* ── the wild battle (build-doc §1 beat 1's only route) ───────────────────── */
+
+  /**
+   * Hand the encounter to `core/battle.ts` through C3's scene, then apply what came back.
+   *
+   * THIS SCENE STILL KNOWS NO RULES. It builds a `BattleInput` and a `BattleContext` in
+   * `game/wild-battle.ts` (engine-free, testable headlessly), launches the renderer, and on the way
+   * back calls `applyWildBattleOutcome`, whose population write is `core/ecosim.ts` `applyCatch` —
+   * the same function `core/save.ts`'s replay reaches. There is no damage, catch-probability or
+   * population arithmetic in this file, and adding one here would be the defect L11 exists to stop.
+   *
+   * Every refusal is SAID. A battle that cannot start (an empty party, an unregistered scene) used
+   * to be indistinguishable from an encounter that was never routed anywhere at all.
+   */
+  beginWildBattle(encounter: Encounter): void {
+    if (this.battleRunning || this.yearTurnRunning) return;
+
+    const problem = wildBattleProblem(this.save);
+    if (problem) {
+      this.flashBanner(`${encounter.lineId} met — no battle: ${problem}`);
+      return;
+    }
+    if (!sceneRegistered(this, SCENE_KEYS.battle)) {
+      this.flashBanner(`${encounter.lineId} met — "${SCENE_KEYS.battle}" is not registered`);
+      return;
+    }
+
+    let build: ReturnType<typeof buildWildBattle>;
+    try {
+      build = buildWildBattle({
+        content: this.content,
+        save: this.save,
+        encounter,
+        node: this.liveNode(encounter.nodeId),
+      });
+    } catch (err) {
+      this.flashBanner(`battle refused: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+
+    const data: BattleSceneData = {
+      ctx: build.ctx,
+      input: build.input,
+      // build-doc §8.1 — the seeded battle stream, positioned where the save left it. Not a fresh
+      // one per fight: a new stream at draw zero would make every battle of a run replay the same
+      // numbers, and `streamFor` fails loudly rather than inventing a tag that is not declared.
+      rng: this.streamFor(BATTLE_STREAM),
+      projectedRetirementYears: this.projectedRetirementYears(),
+      onFinished: (result) => {
+        this.finishWildBattle(encounter, build.ctx, result);
+      },
+    };
+
+    this.battleRunning = true;
+    this.scene.launch(SCENE_KEYS.battle, data);
+    this.scene.pause();
+  }
+
+  /** `OwnedCreature.projectedRetirementYear` per uid — core/lifecycle.ts's number, not a new one. */
+  private projectedRetirementYears(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const creature of this.save.party) out[creature.uid] = creature.projectedRetirementYear;
+    return out;
+  }
+
+  /**
+   * Hard Req 2, on the live path: the count moves, the tape records it, and the HUD says both
+   * numbers. G7 — the banner is identifiers and arithmetic, and nothing else.
+   */
+  private finishWildBattle(
+    encounter: Encounter,
+    ctx: BattleSceneData["ctx"],
+    result: Parameters<NonNullable<BattleSceneData["onFinished"]>>[0],
+  ): void {
+    this.battleRunning = false;
+    this.scene.stop(SCENE_KEYS.battle);
+    this.scene.resume();
+    this.hudDirty = true;
+
+    const applied = applyWildBattleOutcome({
+      save: this.save,
+      content: this.content,
+      state: result.state,
+      ctx,
+      caught: result.caught,
+    });
+    if (!applied) {
+      this.flashBanner(`${encounter.lineId} — ${result.state.outcome ?? "unresolved"}`);
+      return;
+    }
+    if (applied.problem !== null) {
+      this.flashBanner(`catch problem: ${applied.problem}`);
+    }
+    this.save = applied.save;
+    this.hooks.onSaveChanged?.(this.save, this);
+    this.refreshHud();
+    this.flashBanner(
+      `caught ${encounter.lineId} at ${encounter.nodeId} — ${applied.before} → ${applied.after}`,
+    );
   }
 
   /** The question game/encounters.ts answers, built from live state only. */
@@ -463,9 +673,18 @@ export class OverworldScene extends Phaser.Scene {
     return out;
   }
 
-  /** Hard Req 2 — the real number, read straight off `save.nodeStates` (§8.3). */
-  countOf(lineId: string, nodeId: string = this.node.id): number {
-    return this.save.nodeStates[nodeId]?.populations[lineId]?.count ?? 0;
+  /**
+   * Hard Req 2 — the real number, read through {@link liveNode} so the HUD, the banner and the
+   * encounter roll can never disagree about it (build-doc §8.3). `liveNode` resolves
+   * `save.nodeStates` when there is a state and the shipped file when there is not; reading
+   * `save.nodeStates` directly here is what made those two numbers differ.
+   *
+   * Takes an optional already-resolved node so a caller printing every line pays for one resolution
+   * rather than one per line.
+   */
+  countOf(lineId: string, nodeId: string = this.node.id, resolved?: EcoNode): number {
+    const node = resolved ?? this.liveNode(nodeId);
+    return node.populations[lineId]?.count ?? 0;
   }
 
   /* ── the clock ────────────────────────────────────────────────────────── */
@@ -696,22 +915,29 @@ export class OverworldScene extends Phaser.Scene {
   private refreshHud(): void {
     // The meter IS the clock readout (L8). No second copy of the same three numbers in the text HUD.
     this.meterHud.render(seasonMeterModel(this.clock(), this.balance));
-    const table = encounterTable(this.forayContext());
+    // ONE resolution of the live node for the whole HUD: the table below and every count beside it
+    // are read off the same object the encounter roll is about to be handed (see `liveNode`).
+    const ctx = this.forayContext();
+    const table = encounterTable(ctx);
     const active = table.filter((e) => e.active && e.weight > 0);
     const lines: string[] = [
       `${this.node.name} (${this.node.id}) · ${this.node.biome}`,
       `foray ${this.stepsSinceTick}/${stepsPerForay(this.balance)} steps · encounters ${this.encountersMet}`,
       `tile ${this.movement.tile.col},${this.movement.tile.row} facing ${this.movement.facing}`,
+      `party ${this.save.party.length}/${this.balance.party.maxPartySize} · box ${this.save.box.length}`,
       `weight ${totalActiveWeight(table).toFixed(1)} over ${active.length}/${table.length} lines`,
     ];
     for (const entry of table) {
-      const count = this.countOf(entry.lineId);
-      const why = entry.active ? "" : ` (${entry.dormantReason ?? "absent"})`;
+      const count = this.countOf(entry.lineId, this.node.id, ctx.node);
+      // Four causes, not two. A gated Ancient sitting at a real count of 1 used to print the same
+      // word as a line the player had wiped out (Hard Req 10 / bible §5) — see game/encounters.ts.
+      const why = entry.active ? "" : ` (${absenceCauseOf(entry, count)})`;
       lines.push(`  ${entry.lineId}: ${count}${why}`);
     }
     if (this.lastEncounter) {
       lines.push(`last: ${this.lastEncounter.lineId} ${this.lastEncounter.age} L${this.lastEncounter.level}`);
     }
+    if (this.spawnProblem) lines.push(this.spawnProblem);
     // Hard Req 6 — the season reading is a runtime tint. `provisional` is on while its hues are a
     // placeholder rather than data (game/season-tint.ts), and it says so on screen for the same
     // reason the map placeholder does.

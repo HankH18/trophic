@@ -16,5 +16,5 @@ export type { EdgeOptions, ContrastRange } from './edges.ts';
 export { walkableCells, walkablePixels, walkableMaskFor, allWalkable, cellsToRaster, MaskError } from './mask.ts';
 export type { CellGrid } from './mask.ts';
 export { overlayDiff, nextDenoise, OverlayDiffError } from './diff.ts';
-export type { CellFootprint, OverlayDiffConfig, OverlayDiffInput, OverlayDiffResult } from './diff.ts';
+export type { CellFootprint, DriftRegion, OverlayDiffConfig, OverlayDiffInput, OverlayDiffResult } from './diff.ts';
 export { overlayDiffConfig, collisionGrid, denoiseLadder, driftFootprint } from './config.ts';
