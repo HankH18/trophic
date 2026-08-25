@@ -98,10 +98,24 @@ const worstImage = OPTIONS.map((o) => Math.max(...o.src.perImage.map((p) => p[o.
 const feature = (name, i) => OPTIONS[i].src.namedFeatures[name][OPTIONS[i].key].mean;
 const probe = (name, i) => OPTIONS[i].src.coolProbes.find((p) => p.probe === name)[OPTIONS[i].key].deltaE;
 
+/**
+ * A mean ΔE is an abstraction; "what fraction of this sprite would a person call the wrong colour"
+ * is not. ΔE 10 is comfortably past the point where two colours read as different colours, so this
+ * is the row that answers the decision without anyone having to calibrate their intuition for
+ * CIEDE2000. Measured per content pixel by tools/palette/decision-previews.mjs.
+ */
+const pctVisible = (i) => previews.images.map((im) => im.pctContentAtOrAboveDeltaE10[OPTIONS[i].name]);
+const meanPct = [0, 1, 2].map((i) => pctVisible(i).reduce((a, v) => a + v, 0) / previews.images.length);
+const worstPct = [0, 1, 2].map((i) => Math.max(...pctVisible(i)));
+const playerPct = [0, 1, 2].map((i) => previews.images.find((im) => im.id === 'player').pctContentAtOrAboveDeltaE10[OPTIONS[i].name]);
+
 const VERDICT_ROWS = [
   ['— OVERALL —', null],
   ['mean of per-image means', [0, 1, 2].map((i) => meanOfMeans[i])],
   ['worst per-image mean', [0, 1, 2].map((i) => worstImage[i])],
+  ['visibly wrong ΔE≥10 · mean', meanPct, '%'],
+  ['visibly wrong ΔE≥10 · worst img', worstPct, '%'],
+  ['visibly wrong ΔE≥10 · the PLAYER', playerPct, '%'],
   ['— THE PLAYER (L6 identity) —', null],
   ['star yellow', [0, 1, 2].map((i) => feature('star yellow', i))],
   ['shirt/cap green', [0, 1, 2].map((i) => feature('shirt/cap green', i))],
@@ -120,7 +134,7 @@ const VERDICT_ROWS = [
 const RH = 26, HDR = 96;
 const cardH = HDR + VERDICT_ROWS.length * RH + 128;
 {
-  const LBLW = 300;
+  const LBLW = 330;
   const colX = (i) => LBLW + i * Math.floor((W - LBLW - 24) / 3);
   const colW = Math.floor((W - LBLW - 24) / 3);
   let svg = `<svg width="${W}" height="${cardH}"><rect width="100%" height="100%" fill="#12140f"/>`;
@@ -133,7 +147,7 @@ const cardH = HDR + VERDICT_ROWS.length * RH + 128;
       + `<text x="${colX(i) + 14}" y="78" font-family="monospace" font-size="12" fill="#6f8a5f">${
         esc(o.path.length > 40 ? `…/${o.path.split('/').pop()}` : o.path)}</text>`;
   }
-  for (const [r, [label, vals]] of VERDICT_ROWS.entries()) {
+  for (const [r, [label, vals, unit = '']] of VERDICT_ROWS.entries()) {
     const ty = HDR + r * RH + 18;
     if (!vals) {
       svg += `<rect x="0" y="${HDR + r * RH}" width="${W}" height="${RH}" fill="#1b2018"/>`
@@ -146,7 +160,7 @@ const cardH = HDR + VERDICT_ROWS.length * RH + 128;
     for (const [i, v] of vals.entries()) {
       const isBest = Math.abs(v - best) < 0.005;
       svg += `<text x="${colX(i) + 14}" y="${ty}" font-family="monospace" font-size="16" fill="${isBest ? '#9fe08a' : v > best * 2 ? '#e8907a' : '#d9d2b4'}">`
-        + `${esc(fmt(v))}${isBest ? '  ◀ best' : ''}</text>`;
+        + `${esc(fmt(v) + unit)}${isBest ? '  ◀ best' : ''}</text>`;
     }
   }
   const foot = HDR + VERDICT_ROWS.length * RH;
