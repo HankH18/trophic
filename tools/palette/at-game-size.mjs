@@ -19,11 +19,16 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import sharp from 'sharp';
 import { loadPalette } from '../postprocess/palette.ts';
-import { trimBackground, nearestResample, quantize, removeFlatBackground, WHITE } from '../postprocess/steps.ts';
+import { trimBackground, nearestResample, quantize, removeFlatBackground } from '../postprocess/steps.ts';
+import { backgroundForClass } from '../postprocess/chain.ts';
 import { rgbToLab, deltaE2000, toHex } from './color.mjs';
 
 const OUT = 'assets/approved-trials/_palette-freeze/at-game-size';
-const TOLERANCE = 12;                 // per-channel, matches the downscale-check convention
+// The background key and its per-channel tolerance are read from `classes.player.postprocess` in
+// tools/comfy/manifest.json, not declared here (G11, B-D35). Step 3 runs after quantize, so the
+// tolerance has to admit the PALETTE'S IMAGE of white — and this file's whole job is to evaluate
+// palettes, so a local copy of the number is exactly the thing that would make it lie: at the old
+// literal 12 the removal below cleared nothing under either re-freeze candidate.
 const TARGETS = [
   { w: 32, h: 48, tag: '32x48', note: '§7.6 logical overworld sprite — the real game size' },
   { w: 64, h: 96, tag: '64x96', note: 'reference only: 2x, to separate "palette lost it" from "resolution lost it"' },
@@ -69,7 +74,7 @@ console.log(`palette: ${palette.length} colours from data/palette.json\n`);
 await mkdir(OUT, { recursive: true });
 
 const src = await toRaster('assets/approved-trials/player-APPROVED.png');
-const bgOpts = { key: WHITE, tolerance: TOLERANCE };
+const bgOpts = await backgroundForClass('player');   // §7.6's 32x48 overworld character class
 
 // §9.3 step 0/1 — trim the flat backdrop to the subject bbox, then nearest-neighbour downscale.
 const trimmed = trimBackground(src, bgOpts);

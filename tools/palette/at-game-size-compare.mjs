@@ -25,11 +25,16 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import sharp from 'sharp';
 import { loadPalette } from '../postprocess/palette.ts';
-import { trimBackground, nearestResample, quantize, removeFlatBackground, WHITE } from '../postprocess/steps.ts';
+import { trimBackground, nearestResample, quantize, removeFlatBackground } from '../postprocess/steps.ts';
+import { backgroundForClass } from '../postprocess/chain.ts';
 import { rgbToLab, deltaE2000, toHex } from './color.mjs';
 
 const OUT = 'assets/approved-trials/_palette-candidate/at-game-size';
-const TOLERANCE = 12;              // per-channel, the downscale-check convention
+// No local tolerance. Each subject names its §9.3 CLASS and the background key + tolerance are read
+// from that class's `postprocess` block in tools/comfy/manifest.json (G11, B-D35). This file scores
+// the palettes the freeze decision rests on, and step 3's tolerance is a property of the palette
+// being scored — a literal 12 here cleared nothing under both candidates, so every candidate strip
+// this file wrote was a solid rectangle while the frozen one was not.
 
 const PALETTES = [
   { name: 'FROZEN', path: 'data/palette.json' },
@@ -39,11 +44,11 @@ const PALETTES = [
 
 /** §9.3 targets. The player is the only overworld-character class; everything else here is battle. */
 const SUBJECTS = [
-  { id: 'player', file: 'assets/approved-trials/player-APPROVED.png', w: 32, h: 48, note: '§9.3 overworld char' },
-  { id: 'fox-cindril', file: 'assets/approved-trials/creature-fox.png', w: 96, h: 96, note: '§9.3 battle — warm control' },
-  { id: 'puddlisk', file: 'assets/raw/palette-trials/pt-puddlisk.png', w: 96, h: 96, note: '§9.3 battle — Water starter' },
-  { id: 'fenmaw', file: 'assets/raw/palette-trials/pt-fenmaw-b.png', w: 96, h: 96, note: '§9.3 battle — Water Apex' },
-  { id: 'duskstalk', file: 'assets/raw/palette-trials/pt-duskstalk.png', w: 96, h: 96, note: '§9.3 battle — Dark Apex' },
+  { id: 'player', cls: 'player', file: 'assets/approved-trials/player-APPROVED.png', w: 32, h: 48, note: '§9.3 overworld char' },
+  { id: 'fox-cindril', cls: 'creature-battle', file: 'assets/approved-trials/creature-fox.png', w: 96, h: 96, note: '§9.3 battle — warm control' },
+  { id: 'puddlisk', cls: 'creature-battle', file: 'assets/raw/palette-trials/pt-puddlisk.png', w: 96, h: 96, note: '§9.3 battle — Water starter' },
+  { id: 'fenmaw', cls: 'creature-battle', file: 'assets/raw/palette-trials/pt-fenmaw-b.png', w: 96, h: 96, note: '§9.3 battle — Water Apex' },
+  { id: 'duskstalk', cls: 'creature-battle', file: 'assets/raw/palette-trials/pt-duskstalk.png', w: 96, h: 96, note: '§9.3 battle — Dark Apex' },
 ];
 
 /** Same band definitions as validate.mjs / at-game-size.mjs, plus the cool regions. */
@@ -87,10 +92,10 @@ function census(r) {
 }
 
 await mkdir(OUT, { recursive: true });
-const bgOpts = { key: WHITE, tolerance: TOLERANCE };
 const report = { chain: '§9.3: trim → nearest-neighbour downscale → quantize → background removal', subjects: [] };
 
 for (const s of SUBJECTS) {
+  const bgOpts = await backgroundForClass(s.cls);
   const src = await toRaster(s.file);
   const trimmed = trimBackground(src, bgOpts);
   // ORDER IS LOAD-BEARING (§9.3): downscale FIRST, then quantize.

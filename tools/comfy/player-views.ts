@@ -49,8 +49,9 @@ import { fileURLToPath } from 'node:url';
 import sharp from 'sharp';
 import { ComfyClient, loadEnv, type Graph } from './client.ts';
 import { buildImg2ImgGraph, uploadInitImage } from './img2img.ts';
-import { loadPalette } from '../postprocess/palette.ts';
-import { trimBackground, nearestResample, quantize, removeFlatBackground, WHITE } from '../postprocess/steps.ts';
+import { loadPalette, type PaletteRgb } from '../postprocess/palette.ts';
+import { trimBackground, nearestResample, quantize, removeFlatBackground } from '../postprocess/steps.ts';
+import { backgroundForClass } from '../postprocess/chain.ts';
 
 export const REPO_ROOT = resolve(fileURLToPath(new URL('.', import.meta.url)), '../..');
 
@@ -408,13 +409,27 @@ export function deriveSide(front: Raster): Raster {
 /* ═══════════════════ pipeline + the measured acceptance bar ═══════════════════ */
 
 export const VIEWS_DIR = resolve(REPO_ROOT, 'assets/approved-trials/_player-views');
-const BG = { key: WHITE, tolerance: 12 };
 
-/** §9.3 order: trim -> nearest downscale to 32x48 -> quantize to the frozen palette -> bg removal. */
-export async function toSprite(path: string): Promise<Raster> {
+/**
+ * §9.3 order: trim -> nearest downscale to 32x48 -> quantize -> background removal.
+ *
+ * THE BACKGROUND OPTIONS COME FROM THE MANIFEST, not from a literal here (G11, B-D35). Step 3 runs
+ * AFTER quantize, so its tolerance is a property of the palette rather than of this file: it has to
+ * admit whatever the palette maps white to. This function used to carry `{ key: WHITE, tolerance:
+ * 12 }`, which passed only because `data/palette.json` happens to put white at deviation 4; both
+ * re-freeze candidates put it at 13 and 20, and at 12 removal then cleared ZERO pixels — the front
+ * sprite, and therefore `deriveBack`/`deriveSide` which are computed from it, shipped as a solid
+ * 32x48 off-white rectangle. `backgroundForClass` reads `classes.player.postprocess` from
+ * `tools/comfy/manifest.json`, the same values `tools/postprocess/chain.ts` runs the batch on.
+ *
+ * The palette is a parameter so the invariant test can drive this exact function under every
+ * palette on disk; it defaults to the live read of `data/palette.json`, which is what `derive` uses.
+ */
+export async function toSprite(path: string, palette: readonly PaletteRgb[] = loadPalette()): Promise<Raster> {
+  const bg = await backgroundForClass('player');
   const { data, info } = await sharp(path).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const src: Raster = { width: info.width, height: info.height, data: new Uint8ClampedArray(data) };
-  return removeFlatBackground(quantize(nearestResample(trimBackground(src, BG), W, H), loadPalette()), BG);
+  return removeFlatBackground(quantize(nearestResample(trimBackground(src, bg), W, H), palette), bg);
 }
 
 const writePng = (r: Raster, p: string) =>

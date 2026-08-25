@@ -16,11 +16,12 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import sharp from 'sharp';
 import { loadPalette } from '../postprocess/palette.ts';
-import { trimBackground, nearestResample, quantize, removeFlatBackground, WHITE } from '../postprocess/steps.ts';
+import { trimBackground, nearestResample, quantize, removeFlatBackground } from '../postprocess/steps.ts';
+import { backgroundForClass } from '../postprocess/chain.ts';
 import { rgbToLab, toHex } from './color.mjs';
 
 const OUT = 'assets/approved-trials/_palette-freeze/cross-view';
-const W = 32, H = 48, TOL = 12;
+const W = 32, H = 48;
 
 const VIEWS = [
   { id: 'front', file: 'assets/approved-trials/player-APPROVED.png' },
@@ -45,7 +46,11 @@ const writePng = (r, p) =>
     { raw: { width: r.width, height: r.height, channels: 4 } }).png().toFile(p);
 
 const palette = loadPalette();
-const bgOpts = { key: WHITE, tolerance: TOL };
+// Background key + tolerance from `classes.player.postprocess` in tools/comfy/manifest.json — never
+// a literal here (G11, B-D35). Step 3 runs after quantize, so the tolerance must admit the palette's
+// image of white; at the old local `TOL = 12` this file cleared nothing under either candidate
+// palette and would have reported three views that "agree" because all three were solid rectangles.
+const bgOpts = await backgroundForClass('player');
 await mkdir(OUT, { recursive: true });
 
 const results = [];

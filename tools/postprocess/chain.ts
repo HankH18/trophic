@@ -29,10 +29,11 @@ import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Raster } from './raster.ts';
 import { readRaster, writeRaster } from './raster.ts';
-import type { Rgb } from './steps.ts';
+import type { BackgroundOptions, Rgb } from './steps.ts';
 import { nearestResample, fitResample, quantize, removeFlatBackground, trimBackground } from './steps.ts';
 import { loadPalette, parseHex, REPO_ROOT, type PaletteRgb } from './palette.ts';
 import type { ClassSpec, ManifestFile, ManifestRow } from '../comfy/comfy-batch.ts';
+import { loadManifest } from '../comfy/comfy-batch.ts';
 
 export class ChainError extends Error {}
 
@@ -67,9 +68,36 @@ export function recipeFor(spec: ClassSpec, row?: ManifestRow): ChainRecipe {
   };
 }
 
+/**
+ * THE ONLY PLACE THE BACKGROUND KEY AND ITS TOLERANCE ARE PAIRED — steps 0 and 3 both key on this.
+ *
+ * The tolerance is not a property of the step, it is a property of the PALETTE: §9.3 runs removal
+ * after quantize, so what it must match is the palette's IMAGE of the declared key, and that colour
+ * moves on every re-fit (see steps.ts `removeFlatBackground` and B-D22/B-D33/B-D35). A caller that
+ * writes its own `{ key: WHITE, tolerance: 12 }` is not merely duplicating a number — it opts out of
+ * the manifest, out of G11, and out of the invariant in tests/unit/postprocess.test.ts that keeps
+ * the number honest across a palette freeze. `tools/comfy/player-views.ts` did exactly that and its
+ * sprites would have shipped inside an opaque off-white rectangle under either re-freeze candidate.
+ * So every call site goes through here, and the invariant test asserts that none has its own copy.
+ */
+export function backgroundOf(recipe: ChainRecipe): BackgroundOptions {
+  return { key: recipe.backgroundKey, tolerance: recipe.backgroundTolerance };
+}
+
+/**
+ * The same options for a caller that holds a class NAME rather than a recipe — the tools outside
+ * `tools/postprocess/` that run §9.3's chain by hand (`tools/comfy/player-views.ts`,
+ * `tools/palette/*.mjs`). Async because the manifest is read from disk, exactly as `run.ts` reads
+ * it: the manifest is the source of truth, not a constant that agrees with it today.
+ */
+export async function backgroundForClass(className: string, manifestPath?: string): Promise<BackgroundOptions> {
+  const m = await loadManifest(manifestPath);
+  return backgroundOf(recipeFor(classOf(m, className)));
+}
+
 /** The whole chain as one pure function of the raw raster. */
 export function processRaster(src: Raster, recipe: ChainRecipe, palette: readonly PaletteRgb[]): Raster {
-  const bg = { key: recipe.backgroundKey, tolerance: recipe.backgroundTolerance };
+  const bg = backgroundOf(recipe);
   let out = src;
   if (recipe.trim) out = trimBackground(out, bg);
   out = recipe.fit

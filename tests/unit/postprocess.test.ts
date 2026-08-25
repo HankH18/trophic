@@ -24,12 +24,12 @@
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, rm, readFile, writeFile, mkdir } from 'node:fs/promises';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import type { Raster } from '../../tools/postprocess/raster.ts';
 import { blankRaster, cloneRaster, idx, rastersEqual, readRaster, writeRaster } from '../../tools/postprocess/raster.ts';
-import type { Rgb } from '../../tools/postprocess/steps.ts';
+import type { BackgroundOptions, Rgb } from '../../tools/postprocess/steps.ts';
 import {
   WHITE,
   fitResample,
@@ -41,20 +41,36 @@ import {
 } from '../../tools/postprocess/steps.ts';
 import type { PaletteRgb } from '../../tools/postprocess/palette.ts';
 import { loadPalette, loadPaletteFile, parseHex, paletteIsFrozen, PALETTE_PATH, REPO_ROOT } from '../../tools/postprocess/palette.ts';
-import { classOf, finalPathOf, processRaster, processRow, rawPathOf, recipeFor } from '../../tools/postprocess/chain.ts';
+import {
+  backgroundForClass,
+  classOf,
+  finalPathOf,
+  processRaster,
+  processRow,
+  rawPathOf,
+  recipeFor,
+} from '../../tools/postprocess/chain.ts';
+import { toSprite } from '../../tools/comfy/player-views.ts';
 import { atlasDescriptor, packAtlas } from '../../tools/postprocess/atlas.ts';
 import { fontScale, makePlaceholder, wrapLabel } from '../../tools/postprocess/placeholder.ts';
 import { loadManifest, type ClassSpec, type ManifestFile, type ManifestRow } from '../../tools/comfy/comfy-batch.ts';
 
 const PALETTE = loadPalette();
-const BG = { key: WHITE, tolerance: 12 };
 
 let tmp: string;
 let manifest: ManifestFile;
+/**
+ * The background key + tolerance THIS FILE keys on, read from the manifest like every other call
+ * site (B-D35). Not `{ key: WHITE, tolerance: 12 }`: a test that carries its own copy of the number
+ * is one more place it can drift, and the whole point of the section at the bottom is that the
+ * number has exactly one home. Assigned in `beforeAll` because the manifest read is async.
+ */
+let BG: BackgroundOptions;
 
 beforeAll(async () => {
   tmp = await mkdtemp(join(tmpdir(), 'trophic-postprocess-'));
   manifest = await loadManifest();
+  BG = await backgroundForClass('player');
 });
 afterAll(async () => {
   await rm(tmp, { recursive: true, force: true });
@@ -247,7 +263,7 @@ describe('the chain is re-runnable from assets/raw/ (§9.3)', () => {
     const src = resolve(REPO_ROOT, row.file!);
     if (!existsSync(src)) return; // the approval lives in assets/approved-trials/; skip if absent
     const raw = await readRaster(src);
-    const trimmed = trimBackground(raw, { key: WHITE, tolerance: 12 });
+    const trimmed = trimBackground(raw, BG);
     const out = processRaster(raw, recipeFor(classOf(manifest, row.class), row), PALETTE);
     expect(`${out.width}x${out.height}`).toBe(row.targetSize);
 
@@ -424,6 +440,12 @@ describe('§9.3 step 3 survives a palette swap (B-D22)', () => {
     expect(removalClasses().map(([n]) => n)).toContain('creature-battle');
   });
 
+  it('every removing class declares the key the generator produces — `plain white background` (§9.2)', () => {
+    for (const [name, spec] of removalClasses()) {
+      expect(parseHex(spec.postprocess.backgroundKey), `${name} declares a key that is not white`).toEqual(WHITE);
+    }
+  });
+
   for (const { label, path } of palettes) {
     describe(label, () => {
       it('maps the background key INSIDE every removing class’s tolerance — or step 3 is a no-op', () => {
@@ -497,8 +519,163 @@ describe('§9.3 step 3 survives a palette swap (B-D22)', () => {
           expect(enclosedBackgroundKept, `${label}: ${name} enclosed highlight was punched out`).toBeGreaterThan(0);
         }
       });
+
+      /**
+       * The ship path itself, not a re-assembly of it. Everything above proves the invariant holds
+       * for the classes in the manifest and for `processRaster`; none of it looked at the OTHER
+       * program that runs §9.3's chain. `player-views.ts` did carry its own `tolerance: 12`, and so
+       * every test above was green while the player's front/back/side sprites came out as solid
+       * 32x48 rectangles under both re-freeze candidates (measured: 1536/1536 opaque, 0 cleared).
+       * This calls the real exported function.
+       */
+      it('tools/comfy/player-views.ts::toSprite clears the background under this palette too', async () => {
+        const src = resolve(REPO_ROOT, 'assets/approved-trials/player-APPROVED.png');
+        expect(existsSync(src), `${src} is the approved player static; it is tracked, not generated`).toBe(true);
+        const palette = loadPalette(path);
+        const out = await toSprite(src, palette);
+
+        const total = out.width * out.height;
+        let opaque = 0;
+        for (let i = 3; i < out.data.length; i += 4) if (out.data[i]! !== 0) opaque++;
+        expect(
+          opaque,
+          `${label}: player-views toSprite left all ${total} pixels opaque — background removal ` +
+            'cleared NOTHING, so the player would ship inside an off-white rectangle (BF-5 / B-D35).',
+        ).toBeLessThan(total);
+        expect(out.data[idx(out, 0, 0) + 3], `${label}: player-views toSprite left the corner opaque`).toBe(0);
+
+        // Not "something got cleared" — the border came away and the subject did not. The approved
+        // static is a centred figure, so a healthy cut takes a fifth of the frame at least.
+        expect(total - opaque, `${label}: only ${total - opaque}/${total} px cleared`).toBeGreaterThan(total / 5);
+        expect(opaque, `${label}: toSprite ate the subject`).toBeGreaterThan(total / 3);
+      });
     });
   }
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * …AND THE TOLERANCE HAS EXACTLY ONE HOME (BF-5 / B-D35)
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * WHY THE INVARIANT ABOVE WAS NOT ENOUGH.
+ *
+ * Everything above is parameterised over `manifest.classes.<c>.postprocess`, so it can only see the
+ * callers that READ that block. Four did not. `tools/comfy/player-views.ts` — the documented rebuild
+ * command for the player's back and side sprites — and the three `tools/palette/*.mjs` scripts that
+ * generate the at-game-size evidence the palette decision rests on each declared their own
+ * `{ key: WHITE, tolerance: 12 }`. The whole suite stayed green while the number they used was the
+ * broken one, because a test that reads the manifest cannot notice a caller that doesn't.
+ *
+ * So the property asserted here is structural rather than numeric: **no file that runs §9.3's
+ * background steps may name a tolerance of its own.** A number with five homes is only ever in sync
+ * by coincidence, and coincidence is exactly what shipped the defect — `data/palette.json` maps
+ * white to 4 off, which is inside 12 by luck.
+ *
+ * Two rules, and they close different holes:
+ *   1. no numeric tolerance literal anywhere under `tools/` — catches `tolerance: 12` and `TOL = 12`;
+ *   2. any file calling `trimBackground`/`removeFlatBackground` must get its options from
+ *      `backgroundForClass` — catches a caller that builds the object out of a differently-named
+ *      constant, which rule 1 would read straight past.
+ *
+ * What this does NOT catch, stated so nobody over-reads the green: a caller that imports
+ * `backgroundForClass` and then passes a hand-built object anyway. Rule 1 catches that only in its
+ * literal form.
+ */
+
+const TOOLS_ROOT = resolve(REPO_ROOT, 'tools');
+
+/** Source files under tools/, so the scan is over the shipping tools rather than a hand-written list. */
+function toolSources(): string[] {
+  const out: string[] = [];
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name !== 'node_modules') walk(full);
+      } else if (/\.(ts|mjs|tsx)$/.test(entry.name)) out.push(full);
+    }
+  };
+  walk(TOOLS_ROOT);
+  return out;
+}
+
+/**
+ * Comments removed before matching, so the PROSE explaining the defect — which necessarily quotes
+ * `tolerance: 12` — does not read as the defect. The `//` rule spares `://` so a URL in a string
+ * does not swallow the rest of its line.
+ */
+function stripComments(src: string): string {
+  return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
+describe('§9.3 step 3’s tolerance has ONE home — the manifest (BF-5 / B-D35, G11)', () => {
+  const sources = toolSources().map((file) => ({
+    file,
+    rel: file.slice(REPO_ROOT.length + 1),
+    code: stripComments(readFileSync(file, 'utf8')),
+  }));
+
+  it('finds the tools it is supposed to be scanning', () => {
+    const rels = sources.map((s) => s.rel);
+    expect(rels).toContain('tools/comfy/player-views.ts');
+    expect(rels).toContain('tools/palette/at-game-size.mjs');
+    expect(rels).toContain('tools/palette/at-game-size-compare.mjs');
+    expect(rels).toContain('tools/palette/cross-view.mjs');
+    expect(rels).toContain('tools/postprocess/chain.ts');
+  });
+
+  it('no tool declares a background tolerance of its own (G11)', () => {
+    const offenders: string[] = [];
+    for (const { rel, code } of sources) {
+      for (const [i, line] of code.split('\n').entries()) {
+        // `tolerance: 12` — an inline background-options object.
+        // `TOL = 12` / `const TOLERANCE = 12` — a module constant feeding one.
+        if (/\btolerance\s*:\s*\d/i.test(line) || /\b(?:TOL|TOLERANCE)\s*=\s*\d/i.test(line)) {
+          offenders.push(`${rel}:${i + 1}  ${line.trim()}`);
+        }
+      }
+    }
+    expect(
+      offenders,
+      'A background tolerance is a property of the PALETTE, not of the file using it: §9.3 runs\n' +
+        'removal after quantize, so the number has to admit whatever the palette maps white to, and\n' +
+        'that moves on every re-fit. Read it from `classes.<c>.postprocess.backgroundTolerance` via\n' +
+        '`backgroundForClass(<class>)` in tools/postprocess/chain.ts. A local copy is in sync only by\n' +
+        'coincidence — which is exactly how the player shipped inside an opaque box (BF-5).\n' +
+        `Offending line(s):\n  ${offenders.join('\n  ')}`,
+    ).toEqual([]);
+  });
+
+  it('every caller of the background steps resolves its options from the manifest', () => {
+    // chain.ts IS the resolver and steps.ts defines the steps; everything else must go through them.
+    const exempt = new Set(['tools/postprocess/chain.ts', 'tools/postprocess/steps.ts']);
+    const callers = sources.filter(
+      (s) => !exempt.has(s.rel) && /\b(?:trimBackground|removeFlatBackground)\s*\(/.test(s.code),
+    );
+    expect(
+      callers.length,
+      'no caller found outside tools/postprocess — the scan is looking in the wrong place',
+    ).toBeGreaterThan(0);
+
+    const unbound = callers.filter((s) => !/\bbackgroundForClass\b/.test(s.code)).map((s) => s.rel);
+    expect(
+      unbound,
+      'These run §9.3’s background steps without asking the manifest what key and tolerance to use.\n' +
+        'Import `backgroundForClass` from tools/postprocess/chain.ts and await it for the class the\n' +
+        'file is processing. Building the options any other way opts the file out of the palette\n' +
+        'invariant above, and that is the whole of BF-5.',
+    ).toEqual([]);
+  });
+
+  it('the resolver returns exactly what the manifest says, for every class', async () => {
+    for (const [name, spec] of Object.entries(manifest.classes)) {
+      const bg = await backgroundForClass(name);
+      expect(bg.tolerance, name).toBe(spec.postprocess.backgroundTolerance);
+      expect(bg.key, name).toEqual(parseHex(spec.postprocess.backgroundKey));
+    }
+    await expect(backgroundForClass('no-such-class')).rejects.toThrow(/no "no-such-class"/);
+  });
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
