@@ -1,0 +1,81 @@
+{
+  "palette": "assets/approved-trials/_palette-candidate/palette.candidate-classequal.json",
+  "label": "CLASS-EQ",
+  "source": "assets/approved-trials/player-APPROVED.png",
+  "targets": [
+    {
+      "size": "32x48",
+      "meanDeltaE": 4.046,
+      "maxDeltaE": 30.844,
+      "bands": {
+        "star yellow": {
+          "pixelsAt1024": 5422,
+          "pixelsPreQuantize": 15,
+          "pixelsPostQuantize": 16,
+          "coloursHeld": "#f8d80fx16"
+        },
+        "shirt/cap green": {
+          "pixelsAt1024": 117196,
+          "pixelsPreQuantize": 424,
+          "pixelsPostQuantize": 358,
+          "coloursHeld": "#49ae53x286 #2d6f38x72"
+        },
+        "skin": {
+          "pixelsAt1024": 22385,
+          "pixelsPreQuantize": 162,
+          "pixelsPostQuantize": 73,
+          "coloursHeld": "#f3a262x70 #f7c398x3"
+        },
+        "leather brown": {
+          "pixelsAt1024": 81508,
+          "pixelsPreQuantize": 222,
+          "pixelsPostQuantize": 227,
+          "coloursHeld": "#642c16x113 #8c5230x105 #aa7241x9"
+        },
+        "dark outline": {
+          "pixelsAt1024": 50987,
+          "pixelsPreQuantize": 225,
+          "pixelsPostQuantize": 147,
+          "coloursHeld": "#321410x111 #040308x35 #272940x1"
+        }
+      }
+    },
+    {
+      "size": "64x96",
+      "meanDeltaE": 4.047,
+      "maxDeltaE": 32.085,
+      "bands": {
+        "star yellow": {
+          "pixelsAt1024": 5422,
+          "pixelsPreQuantize": 55,
+          "pixelsPostQuantize": 65,
+          "coloursHeld": "#f8d80fx65"
+        },
+        "shirt/cap green": {
+          "pixelsAt1024": 117196,
+          "pixelsPreQuantize": 1642,
+          "pixelsPostQuantize": 1408,
+          "coloursHeld": "#49ae53x1123 #2d6f38x282 #6a9827x2 #37630fx1"
+        },
+        "skin": {
+          "pixelsAt1024": 22385,
+          "pixelsPreQuantize": 607,
+          "pixelsPostQuantize": 271,
+          "coloursHeld": "#f3a262x255 #ca9164x11 #f7c398x5"
+        },
+        "leather brown": {
+          "pixelsAt1024": 81508,
+          "pixelsPreQuantize": 946,
+          "pixelsPostQuantize": 949,
+          "coloursHeld": "#8c5230x464 #642c16x453 #aa7241x32"
+        },
+        "dark outline": {
+          "pixelsAt1024": 50987,
+          "pixelsPreQuantize": 948,
+          "pixelsPostQuantize": 622,
+          "coloursHeld": "#321410x478 #040308x139 #272940x5"
+        }
+      }
+    }
+  ]
+}

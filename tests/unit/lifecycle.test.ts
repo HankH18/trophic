@@ -933,7 +933,13 @@ describe("build-doc §7.5 step 3 — retirement: BOON", () => {
 
 describe("THE LEGACY BEAT (build-doc §1, never-cut) — starter retires before the league, heir fights the finale", () => {
   it("runs a six-year timeline and lands a legal heir at the year-6 finale", () => {
-    const leagueYear = balance.clock.yearsTotal; // bible §6 — year 6 is The Sanctum Fallow / the league.
+    /*
+     * bible §6 puts The Sanctum Fallow in year 6 — but under D-Q3-1 that is NOMINAL PACING, not a
+     * gate: the finale is an ACT condition and the calendar has no last year. This test measures the
+     * Legacy beat on a normally paced timeline; the same beat on the ACT axis (act 6 reached in
+     * calendar year 11) is measured by playing, in `tests/unit/overworld-scene.test.ts` §10.5.
+     */
+    const leagueYear = balance.clock.yearsTotal;
     const starterLine = line("cindril-line");
     const starter = newOwnedCreature(
       {

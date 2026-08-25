@@ -1,11 +1,12 @@
 {
   "palette": "data/palette.json",
+  "label": "FROZEN",
   "source": "assets/approved-trials/player-APPROVED.png",
   "targets": [
     {
       "size": "32x48",
-      "meanDeltaE": 2.901,
-      "maxDeltaE": 26.202,
+      "meanDeltaE": 2.871,
+      "maxDeltaE": 27.688,
       "bands": {
         "star yellow": {
           "pixelsAt1024": 5423,
@@ -15,64 +16,64 @@
         },
         "shirt/cap green": {
           "pixelsAt1024": 117742,
-          "pixelsPreQuantize": 412,
-          "pixelsPostQuantize": 353,
-          "coloursHeld": "#4bac53x268 #2a7a34x81 #1e4d35x3 #68c361x1"
+          "pixelsPreQuantize": 424,
+          "pixelsPostQuantize": 367,
+          "coloursHeld": "#4bac53x292 #2a7a34x69 #1e4d35x4 #2e6040x1 #68c361x1"
         },
         "skin": {
           "pixelsAt1024": 22463,
-          "pixelsPreQuantize": 146,
-          "pixelsPostQuantize": 73,
-          "coloursHeld": "#ec9a70x67 #eec092x6"
+          "pixelsPreQuantize": 162,
+          "pixelsPostQuantize": 74,
+          "coloursHeld": "#ec9a70x70 #eec092x4"
         },
         "leather brown": {
           "pixelsAt1024": 95332,
-          "pixelsPreQuantize": 218,
-          "pixelsPostQuantize": 255,
-          "coloursHeld": "#53210cx117 #8f5230x100 #6e3620x30 #b07037x8"
+          "pixelsPreQuantize": 222,
+          "pixelsPostQuantize": 261,
+          "coloursHeld": "#53210cx117 #8f5230x101 #6e3620x34 #b07037x9"
         },
         "dark outline": {
           "pixelsAt1024": 98597,
-          "pixelsPreQuantize": 219,
+          "pixelsPreQuantize": 225,
           "pixelsPostQuantize": 276,
-          "coloursHeld": "#53210cx117 #2a1212x78 #033309x49 #030202x32"
+          "coloursHeld": "#53210cx117 #2a1212x79 #033309x48 #030202x32"
         }
       }
     },
     {
       "size": "64x96",
-      "meanDeltaE": 2.847,
-      "maxDeltaE": 29.333,
+      "meanDeltaE": 2.835,
+      "maxDeltaE": 29.902,
       "bands": {
         "star yellow": {
           "pixelsAt1024": 5423,
-          "pixelsPreQuantize": 56,
-          "pixelsPostQuantize": 59,
-          "coloursHeld": "#f9db10x59"
+          "pixelsPreQuantize": 55,
+          "pixelsPostQuantize": 65,
+          "coloursHeld": "#f9db10x65"
         },
         "shirt/cap green": {
           "pixelsAt1024": 117742,
-          "pixelsPreQuantize": 1628,
-          "pixelsPostQuantize": 1415,
-          "coloursHeld": "#4bac53x1078 #2a7a34x306 #1e4d35x13 #90b633x7 #2e6040x6 #68c361x4 #688b2dx1"
+          "pixelsPreQuantize": 1642,
+          "pixelsPostQuantize": 1432,
+          "coloursHeld": "#4bac53x1133 #2a7a34x273 #1e4d35x18 #2e6040x3 #68c361x3 #688b2dx2"
         },
         "skin": {
           "pixelsAt1024": 22463,
-          "pixelsPreQuantize": 583,
-          "pixelsPostQuantize": 264,
-          "coloursHeld": "#ec9a70x251 #eec092x13"
+          "pixelsPreQuantize": 607,
+          "pixelsPostQuantize": 267,
+          "coloursHeld": "#ec9a70x257 #eec092x10"
         },
         "leather brown": {
           "pixelsAt1024": 95332,
-          "pixelsPreQuantize": 936,
-          "pixelsPostQuantize": 1115,
-          "coloursHeld": "#53210cx513 #8f5230x445 #6e3620x128 #b07037x29"
+          "pixelsPreQuantize": 946,
+          "pixelsPostQuantize": 1126,
+          "coloursHeld": "#53210cx513 #8f5230x446 #6e3620x137 #b07037x30"
         },
         "dark outline": {
           "pixelsAt1024": 98597,
-          "pixelsPreQuantize": 939,
-          "pixelsPostQuantize": 1178,
-          "coloursHeld": "#53210cx513 #2a1212x309 #033309x237 #030202x119"
+          "pixelsPreQuantize": 948,
+          "pixelsPostQuantize": 1179,
+          "coloursHeld": "#53210cx513 #2a1212x312 #033309x235 #030202x119"
         }
       }
     }

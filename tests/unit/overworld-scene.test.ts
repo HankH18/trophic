@@ -333,7 +333,9 @@ import { subsystemRng } from "@core/rng";
 import type { Balance, Content, NodeFile, NodeState } from "@core/types";
 import { OverworldScene, type OverworldSceneData } from "@game/scenes/OverworldScene";
 import type { BattleSceneData } from "@game/scenes/BattleScene";
-import { provisionalStarter } from "@game/wild-battle";
+import { SCENE_KEYS } from "@game/scene-keys";
+import { finishYearTurn, type YearTurnSceneData } from "@game/scenes/YearTurnScene";
+import { PROVISIONAL_STARTER_UID, provisionalStarter } from "@game/wild-battle";
 import { maskTextureKey } from "@game/mapview";
 import { encounterWeights, indexSpecies } from "@core/foodweb";
 
@@ -461,6 +463,44 @@ function walk(h: Harness, steps: number, stop?: () => boolean): number {
   }
   for (const dir of order) h.hold(dir, false);
   return taken;
+}
+
+/**
+ * Answer a launched year-turn sequence, so the overworld is handed BACK.
+ *
+ * ⚠ WITHOUT THIS THE RIG STOPS AT THE FIRST YEAR END. The stub registers `YearTurn`, so
+ * `beginYearTurn` takes the real branch: it launches the sequence, pauses the overworld and sets
+ * `yearTurnRunning`. Nothing in the stub ever runs YearTurnScene, so `onDone` is never called,
+ * `isHandedOver()` stays true for ever and `restAtInn` / `challengeGym` / `spendTicks` all return
+ * early. Measured: pressing [R] 5000 times from a fresh save left the save at Y2 tick 0 — one year
+ * of play out of ~600 attempted. Every claim this file made about behaviour "across the year turn"
+ * was therefore evidence about the tick BEFORE the turn, and the turn's own commit — the aging, the
+ * fourth season step and the `syncEvents` in `finish` — had never run here at all.
+ *
+ * What it does is what YearTurnScene itself does when the retirement card is not registered: take
+ * the rolled heir for every prompt (core's documented default for an unanswered prompt) and commit
+ * through the same `finishYearTurn` the scene commits through. No shortcut around the real turn.
+ */
+function settleYearTurn(h: Harness): void {
+  let guard = 0;
+  while (h.scene.isHandedOver()) {
+    guard += 1;
+    if (guard > 100) throw new Error("the year turn never handed the overworld back");
+    const launch = h.parts.launches.filter((l) => l.key === SCENE_KEYS.yearTurn).pop();
+    if (!launch) throw new Error("the scene is handed over with no year-turn sequence to answer");
+    const data = launch.data as YearTurnSceneData;
+    const { flow, tickBefore, carryTick } = data.drive;
+    while (!flow.done()) flow.chooseHeir();
+    h.parts.launches.splice(h.parts.launches.indexOf(launch), 1);
+    const result = flow.result();
+    data.onDone(finishYearTurn(result, tickBefore, carryTick), result);
+  }
+}
+
+/** One frame, and then whatever year turn that frame started is played out. */
+function frameAndSettle(h: Harness): void {
+  h.frame();
+  settleYearTurn(h);
 }
 
 beforeEach(() => {
@@ -1090,12 +1130,23 @@ describe("§10.2 create() builds before it reports", () => {
     const h = mount({ save, hooks: { onRunComplete: (s) => calls.push(s.year) } });
     expect(calls).toHaveLength(1);
 
-    // Spend a whole year through the inn — every year turn re-asks, and the latch answers.
-    for (let i = 0; i < balance.clock.ticksPerYear * 3; i += 1) {
+    /*
+     * Spend three whole years through the inn — every year turn re-asks, and the latch answers.
+     *
+     * ⚠ `frameAndSettle`, not `frame`: without it the rig stalled at the FIRST year turn (the stub
+     * registers `YearTurn` and nothing ever answered it), so this loop's 48 presses bought ONE year
+     * and `toBeGreaterThan(startYear)` passed for the wrong reason. Three year turns are the point —
+     * "once a year for ever" cannot be ruled out by a run that only ever turns one year.
+     */
+    const rests = balance.clock.ticksPerYear * 3;
+    for (let i = 0; i < rests; i += 1) {
       h.press(KEY_R);
-      h.frame();
+      frameAndSettle(h);
     }
-    expect(h.scene.save.year).toBeGreaterThan(balance.clock.startYear);
+    // Derived, so retuning the meter or the price of an inn moves the expectation with it (G11).
+    const yearsBought = (rests * balance.clock.innTicks) / balance.clock.ticksPerYear;
+    expect(yearsBought, "the loop must turn more than one year or it cannot see an annual replay").toBeGreaterThan(1);
+    expect(h.scene.save.year).toBe(balance.clock.startYear + yearsBought);
     expect(calls).toHaveLength(1);
 
     // …and a reload of the finished save does not replay it either: the latch is IN the save.
@@ -1144,7 +1195,9 @@ describe("§10.3 the published event flags follow the clock, including across th
         current = 0;
       }
       h.press(KEY_R);
-      h.frame();
+      // The year turn's own `finish` republishes the windows; without settling it, this loop stalled
+      // one tick BEFORE the turn and the retraction it claims to measure never ran.
+      frameAndSettle(h);
     }
     if (current > 0) runs.push(current);
 
@@ -1168,7 +1221,7 @@ describe("§10.3 the published event flags follow the clock, including across th
         .sort();
       expect(published, `Y${h.scene.save.year}t${h.scene.save.tick}`).toEqual(derived);
       h.press(KEY_R);
-      h.frame();
+      frameAndSettle(h);
     }
   });
 });
@@ -1222,9 +1275,13 @@ function restUntilYear(h: Harness, year: number): void {
   let guard = 0;
   while (h.scene.save.year < year) {
     guard += 1;
-    if (guard > 5000) throw new Error(`the inn never reached year ${String(year)}`);
+    if (guard > 5000)
+      throw new Error(
+        `the inn never reached year ${String(year)} — stuck at Y${String(h.scene.save.year)}` +
+          `t${String(h.scene.save.tick)}, handedOver=${String(h.scene.isHandedOver())}`,
+      );
     h.press(KEY_R);
-    h.frame();
+    frameAndSettle(h);
   }
 }
 
@@ -1388,6 +1445,78 @@ describe("§10.5 the two clocks meet only through the player", () => {
     for (const year of [balance.clock.startYear + balance.clock.yearsTotal - 1, 30]) {
       expect(walkTheEnding(h, year).ids, `year ${String(year)}`).toEqual(at11);
     }
+  });
+
+  it("nothing stops when the run completes — the calendar keeps running and ticks are still spent", () => {
+    /*
+     * The other half of "no fail state, no time limit, no year cap". `spendTicks` used to refuse
+     * once `core/clock.ts` `isOver` was true, so the game stopped accepting player actions when the
+     * calendar passed year 6. There is no year 6 and there is no end to the calendar (D-Q3-1).
+     */
+    const run = playSlowRun();
+    const h = mount({ save: run.save });
+    expect(h.scene.runIsOver()).toBe(true);
+    const before = h.scene.save.year;
+    const rests = balance.clock.ticksPerYear;
+    for (let i = 0; i < rests; i += 1) {
+      h.press(KEY_R);
+      frameAndSettle(h);
+    }
+    expect(h.scene.save.year).toBe(before + (rests * balance.clock.innTicks) / balance.clock.ticksPerYear);
+    // …and the act did not move with it, in either direction.
+    expect(h.scene.act()).toBe(balance.acts.last);
+  });
+
+  it("THE LEGACY BEAT survives the slow pace — the starter is long retired and an heir fights the finale", () => {
+    /*
+     * build-doc §1 beat 2, on the never-cut list: "the starter retires before the league; its heir
+     * fights the finale." The suite proved that on a SIX-year timeline (tests/unit/lifecycle.test.ts
+     * calls year 6 "the league year"), which under the old equation was the same thing as "at the
+     * finale". It is not the same thing any more — the finale is an ACT — so the beat needs proving
+     * on the axis that now decides it.
+     *
+     * Measured on this run: the creature standing in the Sanctum in year 11 is
+     * `provisional-starter-heir-y4-heir-y7-heir-y10` — the starter's great-grandchild, born in
+     * year 10. Three generations buried, against Hank's "having buried two".
+     */
+    const run = playSlowRun();
+    const retirements = run.save.actionLog.filter((e) => e.action.t === "retirement");
+    expect(retirements.length, "nobody retired across ten years of play").toBeGreaterThanOrEqual(2);
+    expect(run.save.party.length, "nobody is standing at the finale").toBeGreaterThan(0);
+    for (const creature of run.save.party) {
+      expect(creature.uid, "the STARTER is still in the party at the finale").not.toBe(PROVISIONAL_STARTER_UID);
+      expect(creature.caughtYear).toBeGreaterThan(balance.clock.startYear);
+    }
+  });
+
+  it("the act does not move when only the calendar does — asked of the SCENE, not of core", () => {
+    /*
+     * `core/acts.ts` `actOf` takes no year and there must never be one, and
+     * `tests/unit/dialogue.test.ts` binds that from the corpus side. This is the same claim asked of
+     * the thing the player actually talks to. Mid-session during this change, `actOf` was briefly
+     * seen on disk with `Math.max(act, Math.min(lastAct, save.year))` spliced into it — the calendar
+     * feeding the act model — and the act lane's own suite stayed green through it.
+     */
+    const run = playSlowRun();
+    const finished = new Set<number>();
+    for (const year of [balance.clock.startYear, 2, 6, FINALE_YEAR, 30]) {
+      finished.add(mount({ save: { ...run.save, year, tick: 0 } }).scene.act());
+    }
+    expect([...finished]).toEqual([balance.acts.last]);
+
+    const bare = new Set<number>();
+    for (const year of [balance.clock.startYear, 6, 30]) {
+      bare.add(mount({ save: { ...freshSave(), year, tick: 0 } }).scene.act());
+    }
+    expect(bare.size, "a badgeless save changed act because the calendar moved").toBe(1);
+    // Positive control: one badge DOES move it, so the assertion above is not vacuous.
+    const withBadge = mount({
+      save: {
+        ...freshSave(),
+        questFlags: { "story.opening.done": true, [`gym.${LADDER[0]!.id}.beaten`]: true },
+      },
+    });
+    expect(withBadge.scene.act()).toBeGreaterThan([...bare][0] as number);
   });
 
   it("no entry the ending walks carries a calendar clause", () => {

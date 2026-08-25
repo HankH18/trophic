@@ -20,7 +20,19 @@ import { trimBackground, nearestResample, quantize, removeFlatBackground } from 
 import { backgroundForClass } from '../postprocess/chain.ts';
 import { rgbToLab, toHex } from './color.mjs';
 
-const OUT = 'assets/approved-trials/_palette-freeze/cross-view';
+/* ── which palette ────────────────────────────────────────────────────────────
+ * Defaults to the frozen 32 and the gate-B0 directory, so the committed evidence is reproduced by
+ * `node tools/palette/cross-view.mjs` with no arguments. `--palette=` + `--label=` ask the same
+ * question of a re-freeze proposal — *does the character still read as one character across the
+ * three views?* — into a directory of its own, so no directory ever holds two palettes' sprites.
+ */
+const argOf = (n) => process.argv.find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
+const PALETTE_PATH = argOf('palette') ?? 'data/palette.json';
+const LABEL = argOf('label') ?? 'FROZEN';
+const OUT = argOf('out')
+  ?? (LABEL === 'FROZEN'
+    ? 'assets/approved-trials/_palette-freeze/cross-view'
+    : `assets/approved-trials/_palette-candidate/cross-view-${LABEL}`);
 const W = 32, H = 48;
 
 const VIEWS = [
@@ -45,7 +57,8 @@ const writePng = (r, p) =>
   sharp(Buffer.from(r.data.buffer, r.data.byteOffset, r.data.length),
     { raw: { width: r.width, height: r.height, channels: 4 } }).png().toFile(p);
 
-const palette = loadPalette();
+const palette = loadPalette(PALETTE_PATH);
+console.log(`palette: ${palette.length} colours from ${PALETTE_PATH}  [${LABEL}]  ->  ${OUT}\n`);
 // Background key + tolerance from `classes.player.postprocess` in tools/comfy/manifest.json — never
 // a literal here (G11, B-D35). Step 3 runs after quantize, so the tolerance must admit the palette's
 // image of white; at the old local `TOL = 12` this file cleared nothing under either candidate
@@ -80,7 +93,7 @@ for (const v of VIEWS) {
 }
 
 console.log('\n' + '═'.repeat(100));
-console.log('CROSS-VIEW SWATCH AGREEMENT AT 32x48 — do the three statics use the SAME frozen swatches?');
+console.log(`CROSS-VIEW SWATCH AGREEMENT AT 32x48 — do the three statics use the SAME ${LABEL} swatches?`);
 console.log('═'.repeat(100));
 const summary = {};
 for (const name of Object.keys(BANDS)) {
@@ -103,7 +116,7 @@ for (const name of Object.keys(BANDS)) {
 }
 
 await writeFile(`${OUT}/_cross-view.json`, JSON.stringify({
-  palette: 'data/palette.json', size: `${W}x${H}`,
+  palette: PALETTE_PATH, label: LABEL, size: `${W}x${H}`,
   pipeline: 'trim -> nearestResample -> quantize -> removeFlatBackground (tools/postprocess/steps.ts)',
   views: results.map((r) => ({ id: r.id, file: r.file, trimmed: r.trimmed, opaquePixels: r.opaque })),
   bands: summary,

@@ -145,6 +145,14 @@ for (const s of SUBJECTS) {
     row.palettes[pal.name] = {
       quantizeMeanDeltaE: +(sum / n).toFixed(3), quantizeMaxDeltaE: +worst.toFixed(3), worstPair,
       distinctColoursAfterQuantize: after.distinct.size,
+      // The proof that step 3 actually fired for THIS palette. Recorded per palette because the
+      // failure it guards against is silent and palette-specific: at the old local tolerance 12 the
+      // fill cleared nothing under either candidate, so `opaqueAfterBackgroundRemoval` equalled
+      // `framePixels` and the strip written beside it was a solid rectangle (B-D50/B-D51). Equality
+      // here is the defect; the three palettes converging a few hundred pixels below the frame is
+      // what a working chain looks like.
+      opaqueAfterBackgroundRemoval: census(cut).opaque,
+      framePixels: s.w * s.h,
       bands: Object.fromEntries(Object.entries(after.rows).map(([b, r]) => [b, {
         pixels: r.px,
         coloursHeld: [...r.colours.entries()].sort((a, c) => c[1] - a[1]).map(([hex, c]) => `${hex}x${c}`).join(' ') || null,
@@ -152,6 +160,11 @@ for (const s of SUBJECTS) {
     };
   }
   console.log('band pixels pre-quantize'.padEnd(40) + Object.keys(BANDS).map((b) => String(pre.rows[b].px).padStart(11)).join(''));
+  // Step 3 fired, per palette — the one line that separates a palette problem from a pipeline one.
+  console.log(`  opaque after background removal (frame ${s.w * s.h}): `
+    + pals.map((p) => `${p.name} ${row.palettes[p.name].opaqueAfterBackgroundRemoval}`).join('   ')
+    + (pals.some((p) => row.palettes[p.name].opaqueAfterBackgroundRemoval === s.w * s.h)
+      ? '   *** STILL A SOLID RECTANGLE — step 3 cleared nothing ***' : ''));
   for (const b of Object.keys(BANDS)) {
     if (pre.rows[b].px === 0) continue;
     const lost = pals.filter((p) => row.palettes[p.name].bands[b].pixels === 0).map((p) => p.name);

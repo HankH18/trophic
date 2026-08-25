@@ -330,7 +330,15 @@ describe("I3 — the starter retires and its heir is in the party at the league"
     const streams = openStreams(save, balance);
     const simContext = defaultContext();
     const starterUid = starter!.uid;
-    const leagueYear = balance.clock.startYear + balance.clock.yearsTotal - 1;
+    /*
+     * ⚠ NOT A GATE, AND NOT "THE LEAGUE YEAR" — there is no such thing (D-Q3-1). The finale is an ACT
+     * condition and the calendar never ends, so this is the year NOMINAL pacing reaches, and this
+     * test measures the Legacy beat at that pace. The beat on the axis that actually decides the
+     * finale is measured by playing, in `tests/unit/overworld-scene.test.ts` §10.5: a run that
+     * reaches act 6 in calendar year 11 arrives with the starter's great-grandchild.
+     */
+    const nominalLastYear = balance.clock.startYear + balance.clock.yearsTotal - 1;
+    const leagueYear = nominalLastYear;
 
     const perYear: Array<{ year: number; party: string[]; starterPresent: boolean }> = [];
     let guard = 0;

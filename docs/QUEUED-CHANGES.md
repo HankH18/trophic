@@ -1,46 +1,92 @@
 # Queued changes — authorised, waiting on in-flight work
 
-## CURRENT STATE (loop tick, 08:38)
+## CURRENT STATE (INTEGRATOR tick — Q2 / Q3 / Q3a / Q6 landed)
 
-**Build: GREEN.** `tsc` 0 errors · **2001/2001 tests passing**. Only `docs/BALANCE-REPORT.md` written
-recently — the time-model workflow is in its final measurement phase.
+**Build: GREEN, measured after everything below was in place.** `npx tsc --noEmit` silent ·
+`npx vitest run` **39 files, 2012/2012 passing** · `npm run build` clean · `npm run harness` re-run and
+`docs/BALANCE-REPORT.md` regenerated reproducibly. Baseline before this change was 1829/1829 at
+`1e62b6ea`.
 
-### Verified against the tree this tick, not taken on trust
+**The time model is now the two-clock model, and `docs/LANE-A-STATUS.md` §0 is the current statement
+of it.** Read that first, then `core/acts.ts`'s header. Every older doc that says "six acts = six
+years", "year 6", or treats `clock.yearsTotal` as a deadline is superseded.
 
-- **BF-2 FIXED.** `game/scenes/OverworldScene.ts:915` — `if (gymBattleWon(result.state))
-  this.winGym(gym.id)`. A badge is now earnable in real play, so acts 2-6 can open. The game is no
-  longer one node deep.
-- **BF-1 STILL OPEN.** Nothing in `game/` calls `selectEntry` or `conditionHolds`. Dialogue is still
-  never played, so the act-1 gate (`story.opening.done`) still cannot be written by play. **This is
-  Q7 and it is now the single largest remaining item.**
-- **BF-3 STILL OPEN, and larger than one test — 9 files** certify an absence:
-  `tests/integration/seams.test.ts:329`, `tests/unit/wild-battle.test.ts:5`,
-  `tests/integration/demo-beats.test.ts:241,359`, and five more.
+### Verified across the stream boundary this tick, by playing rather than by calling functions
 
-### BF-3 is a CLASS, and it is the mechanism that hid BF-2
+- **The act the SCENE publishes is the act the DIALOGUE reads.** `core/dialogue-schema.ts`
+  `actFromFlags` is a one-line delegation to `core/acts.ts` `actOf`, and a played run now asserts they
+  agree at every rung (`tests/unit/overworld-scene.test.ts` §10.5). **Sabotage-proven:** restoring the
+  old `1 + badgesBeaten` derivation turns exactly one test red, at the prologue.
+- **The user story works.** A slow run reaches **act 6 in calendar year 11** — badges in years
+  3/5/7/9/11/11, acts 2/3/4/5/6/6 — and the shipped corpus then resolves
+  `maren.finale → greaves.finale.pre → greaves.finale.post → sanctum.vellsire.approach` (two choices)
+  `→ maren.epilogue.caught`, identically at year 6, 11 and 30, once and not annually.
+- **The LEGACY beat holds on the act axis.** That run buried three generations; the creature standing
+  in the Sanctum is `provisional-starter-heir-y4-heir-y7-heir-y10`, born in year 10.
+- **Nothing reads `clock.yearsTotal` as a deadline.** Audited: every reader is a pacing readout, an
+  art/tint clamp, the harness's stated pacing model, or a test loop bound. No guard, no branch, no end
+  condition.
+- **`game/` never derives an act from a year.** `GameRegistry.act()` and `OverworldScene.act()` both
+  call `actOf`; `rollLevel` indexes the level band by act.
 
-A test named "HONEST GAP: nothing in production wires battle's catch to the ledger yet" still passes
-because its source list omits `game/wild-battle.ts`, where the wiring landed. **A green test asserting
-the negation of the truth.** Every such test is a place the suite keeps reporting green after the gap
-it describes has closed — which is exactly how ~1900 green tests certified a one-node game.
+### BF-1 / BF-2 / BF-3
 
-**Dispatch when `tests/` frees:** sweep all 9, check each against the current tree, and for each
-either delete it (the gap closed) or convert it into a test that fails when the gap closes rather
-than one that passes while it persists. Deliberately held this tick — the workflow may still touch
-`tests/` in its integration phase and a collision there costs more than the delay.
+- **BF-2 DONE** — `game/gym-battle.ts` exists and `OverworldScene` `[G]` fights the town's leader; a
+  win writes the badge. Verified through the real scene, six leaders in one played run.
+- **BF-3 DONE for the one that was false.** `tests/integration/seams.test.ts:329`'s "HONEST GAP:
+  nothing in production wires battle's catch to the ledger yet" was a **green test asserting the
+  negation of the truth** — its source list named ten files and the wiring landed in an eleventh
+  (`game/wild-battle.ts`). Replaced by two tests that RUN `applyCatchToSave` and walk every `core/`
+  and `game/` source (D-INT-1). `tests/unit/wild-battle.test.ts:5`'s stale note is corrected.
+  **The other seven were checked and are honest:** `demo-beats.test.ts:241` and `:359` both assert a
+  MEASURED content fact and both are written to go red when the gap closes ("the release is now a law
+  — rewrite this test to assert it"). They are not false-greens and were left alone.
+  **A NEW instance of the class was found while integrating and fixed (D-INT-2):** the overworld test
+  rig had never completed a single year turn — the stub registers `YearTurn`, nothing answered it, and
+  `isHandedOver()` stayed true for ever. Measured: 5000 `[R]` presses bought **one** year. Every §10.2 /
+  §10.3 claim about behaviour "across the year turn" was evidence about the tick before it.
+- **BF-1 STILL OPEN.** Nothing in `game/` calls `selectEntry` or `conditionHolds`. This is Q7.
 
 > **`tools/harness/probe.ts` is a REAL MODULE** imported by `measure.ts`. NOT a scratch file.
 
 | Change | State |
 |---|---|
-| Q1 renames | blocked — workflow holds `data/gyms.json`, `content-bible.md`, `transcription.test.ts`. Needs **Digimon** screening. |
-| Q2 / Q3 / Q3a / Q6 | in final phase |
-| Q4 / Q5 / Q8 / BF-5 | **DONE** |
-| BF-2 | **DONE** (verified this tick) |
-| BF-1 / Q7 dialogue wiring + Q3b quest system | **OPEN — largest remaining item.** Ten quests have finished copy; all 12 turn-in flags are read by dialogue and written by nothing. |
-| BF-3 false-gap tests (9 files) | **OPEN — dispatch first when `tests/` frees** |
-| Palette evidence regeneration | **IN FLIGHT** |
-| 36 blocked findings | `docs/BLOCKED-FINDINGS.md` §8. **Land BF-7 before BF-4** — the silent `textureFor` fallback is what makes BF-4's 12 missing sprite keys invisible. |
+| **Q2** ticks-only calendar | **DONE.** `YearEndReason` has one member; `gymVictory()` / `isOver()` gone and their absence asserted. Bible §9's four events are 4-tick windows, and the festival's window is 4 ticks *measured through the running scene* (it was 8). D-Q2-1 / D-Q2-2 / D-Q2-4. |
+| **Q3** story decoupled from the calendar | **DONE.** `core/acts.ts` is the second clock; raids fire on act entry; the run ends on an act condition; no cap, no fail state. Proven by playing to act 6 in year 11. D-Q3-1 … D-Q3-15, D-INT-3. |
+| **Q3a** the 44 year-gated entries | **DONE for the gates**, and cross-checked against the real act producer. Copy that states a run length the unbounded calendar can falsify is Hank's D19 ruling and was NOT rewritten (G2) — the list is below. |
+| **Q6** r4 crashed by the raid, not shipped crashed | **DONE**, and the defect was not the one Q6 describes: the authored `remove` values were priced against r4's SHIPPED counts, so by the time anyone arrived the raid was too small (apex reached 0 in 39/64 seeds at the shipped state, 1/64 after twelve seasons of world). The harvest now takes the standing stock. Harness re-run. D-Q6-1 … D-Q6-3. |
+| Q4 / Q5 / Q8 / BF-5 / BF-2 / BF-3 | **DONE** |
+| **Q1** renames | **OUTSTANDING and now dispatchable** — `tests/`, `data/gyms.json` and `docs/content-bible.md` are free. Needs **Digimon** screening. |
+| **Q7** dialogue wiring (C7) + **Q3b** quest system | **OUTSTANDING — the largest remaining item in the repo**, and three concrete consequences are named below. |
+| Palette evidence regeneration | unchanged by this wave |
+| 36 blocked findings | `docs/BLOCKED-FINDINGS.md` §8. **Land BF-7 before BF-4.** |
+
+### What Q7 owes, concretely — found by integrating, not by reading
+
+1. **`story.vellsire.resolved` and `story.vellsire.outcome` have NO WRITER ANYWHERE.** The Vellsire
+   choice writes `story.vellsire.attempt` (`"catch"` / `"release"`), which nothing reads; both
+   epilogues require `resolved` set and `outcome` equal to `"caught"` / `"released"`. This is a
+   declared seam — an Ancient can refuse the snare, so the ENCOUNTER owes the outcome — but until C7
+   exists **the epilogue cannot fire in a real session, however the player plays**. D-INT-4.
+2. **`story.opening.done` is written by a declared provisional stand-in** in `OverworldScene`
+   (`OverworldHooks.onOpeningBeat`), not by the corpus's opening chain. C7 removes it by TAKING the
+   hook, not by editing scene code.
+3. **All 12 quest turn-in flags and the three `chain.*.complete` flags are read and never written**
+   (Q3b). The three Ancient hunts cannot be completed.
+
+### Dialogue copy the amended L8 has made false — for whoever lands Q7
+
+Not fixed here: `data/dialogue.json` is the story lane's file and no copy was rewritten (G2 — copy
+rulings are Hank's). Named so they are not lost:
+
+- `maribel.post.win` (line 1658) and line 5053 still tell the player a badge can close the year
+  (*"the year closes whether the meter runs out or the badge comes in"*). Both false under the amended
+  L8; both already flagged in `docs/STORY-REVIEW.md` §828/§835.
+- `greaves.act4.steppe` and `wick.act4.pre` state a fixed calendar span for an act-driven event.
+- `maren.keystone.4` reads Cinder Steppe's flora as remarkable; measured, it is at the ceiling (100)
+  at every realistic arrival, and after D-Q6-1 the crash is in the four population numbers instead.
+- `gerta.quest.crash.offer` is a **restore candidate**: the line it replaced ("four of them low and
+  one of them high") is close to literally true again now that the raid takes the standing stock.
 
 **Open for Hank:** palette variant (class-equal recommended — evidence being regenerated now, since the
 old sheet showed candidates as solid rectangles at the pre-fix tolerance) · **B-D38: three images
@@ -51,16 +97,18 @@ old sheet showed candidates as solid rectangles at the pre-fix tolerance) · **B
 
 ---
 
-Both authorised by Hank 2026-08-25. Not started yet: each collides with a file a running
-workflow currently owns. Launching them now would corrupt concurrent edits, so they are
-specified here in full and dispatched the moment their blockers land.
+*The sections below are the SPECS, kept verbatim as they were authorised. Each one now carries a
+LANDED note where it landed; where there is no such note it is outstanding. The state table above is
+the summary — these are the details, and the "Blocked on" lines in them are historical.*
 
 ---
 
 ## Q1 — Rename the Pokémon move duplications
 
 **Authorised:** "go ahead and rename the Pokemon move duplications."
-**Blocked on:** the balance-fixes workflow, which owns `tests/unit/transcription.test.ts`.
+**Blocked on:** ~~the balance-fixes workflow, which owns `tests/unit/transcription.test.ts`.~~
+**UNBLOCKED 2026-08-25** — `tests/`, `data/gyms.json` and `docs/content-bible.md` are free. Still
+outstanding; still needs the Digimon screening the constraints below spell out.
 
 From `docs/IP-SWEEP.md`, rated RED — real Pokémon moves:
 
@@ -90,6 +138,13 @@ collision that forced it.
 ---
 
 ## Q2 — Time advances on ticks only; gym victory no longer ends the year
+
+> **LANDED 2026-08-25 — implemented as specified.** `YearEndReason = "meter"`; no `gymVictory` and
+> no `isOver` in `core/clock.ts`, absence asserted at `tests/unit/clock.test.ts:166,181`. The four
+> bible §9 events are season-long (4-tick) windows in `core/regional-events.ts`, and the festival's
+> window is measured at 4 ticks THROUGH THE RUNNING SCENE — it was 8, because the year-filling tick
+> emits no `seasonBoundary` and the flag survived into spring. Logged as an authorised L8 amendment
+> in `docs/DEVIATIONS.md` D-Q2-1 with Hank's quote, plus D-Q2-2 / D-Q2-4.
 
 **Authorised:** "I don't want the passage of time to be forced based on gyms or stages. I want it to
 move forward based on ticks or actions exclusively."
@@ -131,6 +186,15 @@ dissolves the question: **there is no year-6 gate.** See Q3.
 ---
 
 ## Q3 — Decouple story progression from the calendar entirely
+
+> **LANDED 2026-08-25.** Every consequence listed below is built: no cap and no fail state; the
+> year-variant clamp resolves the highest available variant (with a test recording that NO shipped
+> node has one, so the clamp's green is not mistaken for evidence about shipped art); raids fire on
+> act entry; town ageing stays on the calendar; `data/gyms.json`'s `year` field is now `act`.
+> **The one thing this spec did not anticipate:** the act gate on travel locked every new save inside
+> Hearthollow, because NEITHER of the ladder's inputs had a writer in `game/` — `story.opening.done`
+> is dialogue's (Q7) and `winGym` had no caller anywhere in the repo. Both writers exist now
+> (`game/gym-battle.ts` is new; `[G]` fights the town's leader). See D-Q3-11.
 
 **Authorised:** "Why is year six a hard gate in the first place? I feel like the game should progress
 based on the player going through the gyms and side events, not based on year progression. Simply
@@ -176,6 +240,16 @@ of it than a countdown.
   Six remains the *expected* year count under normal pacing — a correlation, not a rule.
 
 ### Q3a — 44 dialogue entries gate on an exact calendar year and Q3 breaks them
+
+> **LANDED 2026-08-25.** All 44 decided — story on the act axis, town-decay lines left on the
+> calendar. `core/dialogue-schema.ts` `actFromFlags` is now a one-line delegation to `core/acts.ts`
+> `actOf`; it used to be a second derivation (`1 + badgesBeaten`) that agreed at every rung EXCEPT the
+> prologue, which is the one rung the entire opening chain was gated on. The 18 rival entries and
+> `amb.r4-worker.arrival` moved from act EQUALITY to `actMin`. Both epilogues gained the `flagsUnset`
+> that stops them replaying for ever.
+> **Cross-checked at integration (D-INT-3):** the act the scene publishes equals the act the corpus
+> derives at every rung of a PLAYED run, and the whole ending resolves identically at year 6, 11 and
+> 30. **Still open:** the D19 copy ruling (Hank's), and the two Vellsire outcome flags nothing writes.
 
 Found by the story review, not by me. `data/dialogue.json` was authored BEFORE Q3, against the
 bible's "six acts = six years" equation. **44 of 211 entries gate on `years: [N]`** — an exact
@@ -347,6 +421,16 @@ the remaining 148 rows are billed.**
 ---
 
 ## Q6 — `data/nodes/r4.json` ships healthy, but the bible says Cindershelf is entered mid-collapse
+
+> **LANDED 2026-08-25 — and the defect was not the one this section describes.** The decision held
+> (r4 ships healthy; the act-4 raid crashes it), but measuring the mechanism instead of trusting it
+> showed it did not work: `targets[].remove` was priced against r4's SHIPPED counts while the ecosim
+> steps every node at every season boundary, so the node the player arrives into is not the file. At
+> the shipped state the tier above the harvest sat at a food ratio of 0.179 and the apex reached 0 in
+> 39/64 seeds; after twelve seasons of untouched world, 0.658 and 1/64. Fixed by taking the STANDING
+> STOCK (`balance.yearEvents.harvestFractionOfStanding: 0.8`, derived from the authored 11-of-14 and
+> 8-of-10 so the beat as authored does not move). `npm run harness` re-run, `docs/BALANCE-REPORT.md`
+> regenerated. G6 intact: nothing in `core/ecosim.ts` knows a raid happened. D-Q6-1 … D-Q6-3.
 
 Content-bible §6: Cindershelf is *"arrival mid-collapse — Route 4's web already crashed by Cullbrand
 strip-harvest."* The shipped node contradicts it: **Cragmar 10, Pyrelisk 14, Stonewing 3 — healthy

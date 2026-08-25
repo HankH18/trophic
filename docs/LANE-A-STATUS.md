@@ -10,12 +10,71 @@ Per build-doc §16 G12, nothing here is stated in human engineering-hours.
 
 ---
 
+## 0. READ THIS FIRST — the time model changed, and it is the largest change in the repo
+
+*Written by the INTEGRATOR of Q2 / Q3 / Q3a / Q6, 2026-08-25. Everything below §1 predates it; where
+an older section contradicts this one, this one is current.*
+
+**TROPHIC has two clocks and neither drives the other.** Locked decision L8 was amended by Hank in
+writing (quoted verbatim in `docs/DEVIATIONS.md` §"Q2 + Q3 — the two clocks", rows D-Q2-1 / D-Q3-1 / D-Q3A-8), so this is him overriding
+his own lock, not a lane relitigating it.
+
+| | drives | driven by | ends? |
+|---|---|---|---|
+| **The CALENDAR** (`core/clock.ts`) | creature aging and retirement, boxed-creature aging (G10), `ecosim.step()` at every season boundary, map year-variant art, season tint, town ageing arcs | ticks only — travel 1 / foray 1 / inn 2, 16 to the year | **never.** No cap, no fail state, no final year. Year 11 and year 40 are ordinary. |
+| **ACTS** (`core/acts.ts`) | town/route unlocks, story beats, the Cullbrand raid scripts, rival encounters, the finale | badges and quest flags only | it has a LAST act (6). Nothing expires when the calendar passes it. |
+
+**Rules that follow, and that the suite now binds:**
+
+- **A gym victory ends no year.** `YearEndReason` has one member, `"meter"`; `gymVictory()` and
+  `isOver()` are gone from `core/clock.ts` along with the six-year cap. `tests/unit/clock.test.ts`
+  asserts the exports are absent.
+- **Nothing may read `balance.clock.yearsTotal` to decide whether the run is over.** It survives as
+  the EXPECTED year count under normal pacing. Audited at integration: its only readers are pacing
+  readouts (`game/ui/SeasonMeter.ts` `pastExpectedPace`, `game/year-events.ts`, the retirement card's
+  "beyond year 6" note in `core/lifecycle.ts` / `game/ledger-view.ts`), one art/tint clamp
+  (`game/season-tint.ts`), the harness's stated pacing model, and test loop bounds. **No guard, no
+  branch, no end condition reads it.**
+- **`game/` never computes an act from a year.** `GameRegistry.act()` and `OverworldScene.act()` both
+  call `core/acts.ts` `actOf(save, gyms, balance)`; `game/encounters.ts` `rollLevel` indexes the level
+  band by the ACT (`balance.encounter.levelByYear` keeps its old key name — see D-Q3-10, renaming it is
+  a mechanical follow-up).
+- **The dialogue act axis is the same function.** `core/dialogue-schema.ts` `actFromFlags` is a
+  one-line delegation to `actOf` and must never grow a body. It is not a second opinion, and when it
+  was one the two agreed at every rung except the prologue — which cost the entire opening chain.
+
+**What is PROVEN end to end, by playing rather than by calling functions by hand**
+(`tests/unit/overworld-scene.test.ts` §10.5, `tests/integration/seams.test.ts`):
+
+- A slow player reaches **act 6 in calendar year 11**, five years past the year the old design ended
+  at. Badges land in years 3, 5, 7, 9, 11, 11; the acts the scene reports are 2, 3, 4, 5, 6, 6.
+- At that act and that year the shipped corpus resolves the whole ending —
+  `maren.finale → greaves.finale.pre → greaves.finale.post → sanctum.vellsire.approach` (two choices)
+  `→ maren.epilogue.caught` — and resolves **identically** at year 6 and year 30. The epilogue fires
+  once, not annually.
+- The **Legacy** beat holds on the act axis: that run buried three generations, and the creature
+  standing in the Sanctum is the starter's great-grandchild, born in year 10.
+- The run completes on an ACT condition, hands the ending over exactly once, and **nothing stops
+  afterwards** — ticks are still spent, years still turn, encounters still roll.
+
+**What is NOT proven, and is the last break in the ending:** `story.vellsire.resolved` and
+`story.vellsire.outcome` — the two flags both epilogues require — have **no writer anywhere in the
+repo**. The choice writes `story.vellsire.attempt`, which nothing reads. This is a declared seam
+(the encounter owes the outcome, because an Ancient can refuse the snare), it belongs to Q7/C7, and
+until C7 exists the epilogue cannot fire in a real session. §10.5 walks it with that one write done
+explicitly and labelled. See `docs/DEVIATIONS.md` D-INT-4.
+
+**If you are about to touch anything that says "year", read `core/acts.ts`'s header first.**
+
+---
+
 ## 1. Headline
 
 | | |
 |---|---|
-| `npx tsc --noEmit` | **silent** (exit 0) |
-| `npx vitest run` | **17 files, 788 tests, 788 passing, 0 failing, 0 skipped** |
+| `npx tsc --noEmit` | **silent** (exit 0) — re-verified 2026-08-25 after Q2/Q3/Q3a/Q6 |
+| `npx vitest run` | **39 files, 2012 tests, 2012 passing, 0 failing, 0 skipped** (2026-08-25). The 17-file / 788-test figure below is the Lane A merge snapshot and is kept for the history, not as a current count. |
+| `npm run build` / `npm run harness` | both clean; the harness report regenerates reproducibly (`docs/BALANCE-REPORT.md`) |
 | Core suite with **Phaser physically uninstalled** (`node_modules/phaser` moved aside) | **17 files, 788 tests passing**, `tsc --noEmit` also silent — locked decision L11 proven the strong way, not by grep |
 | `data/balance.additions.*.json` | **deleted**; every key merged into `data/balance.json` and declared in `Balance` + `zBalance` |
 | Gameplay constants as literals in `core/` | **none** (gated, with a per-file allowance list of 4 files / 19 values, each with a stated reason) |
@@ -181,7 +240,17 @@ projection, not a second sim.
 
 ## 6. Honest gaps — read this section before trusting anything above
 
-### 6.1 Nothing wires a battle catch to the ledger. (Lane C dependency, not a Lane A defect.)
+### 6.1 ~~Nothing wires a battle catch to the ledger.~~ CLOSED 2026-08-25 — it is production code now.
+
+> **AMENDED (`docs/DEVIATIONS.md` D-INT-1).** `game/wild-battle.ts` `applyCatchToSave` is the join,
+> and `game/scenes/OverworldScene.ts` calls it through `applyWildBattleOutcome`. The seams test that
+> asserted the absence was a **green test asserting the negation of the truth**: its source list was
+> nine `core/*.ts` files plus `game/main.ts`, and the wiring landed in an eleventh file it never
+> scanned. It has been replaced by two tests that RUN the join and that walk every `core/`/`game/`
+> source rather than a hand-written list. The paragraph below is kept as the record of what the gap
+> was; its last two sentences are no longer true.
+
+#### (historical) Nothing wires a battle catch to the ledger. (Lane C dependency, not a Lane A defect.)
 
 The pieces all exist and compose — `caughtIndividual` → `appendAction({t:"catch", nodeId, lineId})`
 → `replay` (or `applyCatch` for the live path) → the count moves. **It is proven end to end**, with
@@ -246,9 +315,16 @@ scope for the G15 IP sweep.
 
 ### 6.6 Stubs and things that are typed but not built.
 
-- `game/` is a `console.info` and an `export {}`. No scenes exist.
-- `tools/harness/`, `tools/overlay-diff/`, `tools/collision-editor/` are empty directories.
-- `data/dialogue.json` (build-doc §5) **does not exist**; no dialogue is written.
+- ~~`game/` is a `console.info` and an `export {}`. No scenes exist.~~ **Stale.** Lanes B+C landed:
+  the overworld, battle, year-turn and retirement scenes exist and are executed headlessly by
+  `tests/unit/overworld-scene.test.ts`, `battle-view.test.ts` and `year-turn-ux.test.ts`.
+- ~~`tools/harness/` … are empty directories.~~ **Stale for the harness** — `npm run harness` runs and
+  writes `docs/BALANCE-REPORT.md`. `tools/overlay-diff/` and `tools/collision-editor/` are still empty.
+- ~~`data/dialogue.json` (build-doc §5) **does not exist**~~ **Stale.** It exists: 211 entries, 62
+  speakers, re-gated onto the act axis by Q3a. **But nothing in `game/` reads it** — that is Q7/C7 and
+  it is the largest remaining item in the repo. Two of the shipped build's story flags are written by
+  provisional stand-ins in `OverworldScene` (`onOpeningBeat` for `story.opening.done`) rather than by
+  the corpus, and two more (`story.vellsire.resolved` / `.outcome`) are written by nobody at all.
 - `yearVariants` is `{}` on every node — no year-2..6 map art has passed overlay-diff, because
   overlay-diff does not exist.
 - `balance.yearEvents.raids` holds **one** raid, the bible-pinned year-4 R4 strip-harvest. The other

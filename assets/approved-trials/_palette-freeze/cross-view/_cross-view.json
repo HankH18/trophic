@@ -1,13 +1,14 @@
 {
   "palette": "data/palette.json",
+  "label": "FROZEN",
   "size": "32x48",
   "pipeline": "trim -> nearestResample -> quantize -> removeFlatBackground (tools/postprocess/steps.ts)",
   "views": [
     {
       "id": "front",
       "file": "assets/approved-trials/player-APPROVED.png",
-      "trimmed": "547x953",
-      "opaquePixels": 1152
+      "trimmed": "547x952",
+      "opaquePixels": 1166
     },
     {
       "id": "back",
@@ -18,7 +19,7 @@
     {
       "id": "side",
       "file": "assets/raw/player/b0-player-side-b.png",
-      "trimmed": "552x927",
+      "trimmed": "552x926",
       "opaquePixels": 968
     }
   ],
@@ -50,9 +51,10 @@
     "shirt/cap green": {
       "perView": {
         "front": {
-          "#2a7a34": 81,
-          "#4bac53": 268,
-          "#1e4d35": 3,
+          "#2e6040": 1,
+          "#4bac53": 292,
+          "#2a7a34": 69,
+          "#1e4d35": 4,
           "#68c361": 1
         },
         "back": {
@@ -72,8 +74,9 @@
         }
       },
       "shared": [
-        "#2a7a34",
+        "#2e6040",
         "#4bac53",
+        "#2a7a34",
         "#1e4d35",
         "#68c361"
       ],
@@ -87,16 +90,16 @@
     "skin": {
       "perView": {
         "front": {
-          "#ec9a70": 67,
-          "#eec092": 6
+          "#ec9a70": 70,
+          "#eec092": 4
         },
         "back": {
           "#eec092": 8,
           "#ec9a70": 39
         },
         "side": {
-          "#ec9a70": 44,
-          "#eec092": 5
+          "#ec9a70": 46,
+          "#eec092": 4
         }
       },
       "shared": [
@@ -113,10 +116,10 @@
     "leather brown": {
       "perView": {
         "front": {
-          "#6e3620": 30,
           "#53210c": 117,
-          "#8f5230": 100,
-          "#b07037": 8
+          "#8f5230": 101,
+          "#6e3620": 34,
+          "#b07037": 9
         },
         "back": {
           "#6e3620": 100,
@@ -125,16 +128,16 @@
           "#b07037": 16
         },
         "side": {
-          "#6e3620": 58,
-          "#53210c": 49,
-          "#8f5230": 99,
-          "#b07037": 15
+          "#6e3620": 56,
+          "#53210c": 52,
+          "#8f5230": 100,
+          "#b07037": 14
         }
       },
       "shared": [
-        "#6e3620",
         "#53210c",
         "#8f5230",
+        "#6e3620",
         "#b07037"
       ],
       "dominants": [
@@ -147,10 +150,10 @@
     "dark outline": {
       "perView": {
         "front": {
-          "#033309": 49,
+          "#033309": 48,
           "#030202": 32,
           "#53210c": 117,
-          "#2a1212": 78
+          "#2a1212": 79
         },
         "back": {
           "#030202": 124,
@@ -160,9 +163,9 @@
         },
         "side": {
           "#033309": 55,
-          "#53210c": 49,
-          "#030202": 108,
-          "#2a1212": 39
+          "#53210c": 52,
+          "#030202": 110,
+          "#2a1212": 37
         }
       },
       "shared": [

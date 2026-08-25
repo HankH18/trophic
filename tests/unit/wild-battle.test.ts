@@ -1,15 +1,16 @@
 /**
  * tests/unit/wild-battle.test.ts — the join, engine-free (build-doc §1 beat 1, Hard Req 2).
  *
- * `tests/integration/seams.test.ts` proves core's pieces compose, and asserts — in a test called
- * "HONEST GAP: nothing in production wires battle's catch to the ledger yet" — that no production
- * code did the join. `game/wild-battle.ts` is now that production code, and this file is the check of
- * the real thing the stand-in asked for.
+ * `tests/integration/seams.test.ts` proves core's pieces compose, and used to assert — in a test
+ * called "HONEST GAP: nothing in production wires battle's catch to the ledger yet" — that no
+ * production code did the join. `game/wild-battle.ts` is that production code, and this file is the
+ * check of the real thing the stand-in asked for.
  *
- * ⚠ THE STAND-IN IS NOW STALE AND CANNOT SEE THAT. Its source list is
+ * ⚠ THE STAND-IN WAS STALE AND COULD NOT SEE THAT, AND IT IS GONE (BF-3). Its source list was
  * `core/{battle,ecosim,lifecycle,save,clock,foodweb,rng,schemas,types}.ts` plus `game/main.ts`, so it
- * does not scan `game/wild-battle.ts` and stays green. Replacing it is Lane A's call, not this
- * lane's; it is reported rather than edited from here.
+ * never scanned `game/wild-battle.ts` and stayed green while asserting the opposite of the truth. It
+ * has been replaced by two tests that RUN `applyCatchToSave` and walk every `core/` and `game/`
+ * source rather than a hand-written list of ten files.
  *
  * What is proved below, each written to be able to fail:
  *   §1 the trait roll obeys bible §2 and is the SAME rule tools/harness/player.ts measured with;

@@ -328,6 +328,14 @@ const heatOf = (de) => {                                   // black → red → 
     Math.round(255 * Math.max(0, Math.min(1, t * 3 - 1))),
     Math.round(255 * Math.max(0, Math.min(1, t * 3 - 2)))];
 };
+/**
+ * The un-scored backdrop is drawn in a blue that cannot occur on the ramp above (every ramp colour
+ * has r ≥ b) — it used to be filled white, which is also the TOP of the ramp. That collision
+ * inverts the panel's meaning on exactly the images the decision turns on: the frozen palette
+ * misses Puddlisk's whole body by ΔE 15+, which painted a big white region a tired eye reads as
+ * CLEAN, beside a candidate heat map that is red and orange and reads as hot. See B-D51.
+ */
+const BACKDROP_HEAT = [0x33, 0x50, 0x6e];
 
 const previewFiles = [];
 for (const im of (TABLES_ONLY ? [] : loaded)) {
@@ -347,7 +355,12 @@ for (const im of (TABLES_ONLY ? [] : loaded)) {
     for (const [pi, pal] of PALS.entries()) {
       const c = pal.rgb[e[pi].k];
       outs[pal.name][i * 3] = c.r; outs[pal.name][i * 3 + 1] = c.g; outs[pal.name][i * 3 + 2] = c.b;
-      if (isBackground[i]) { heats[pal.name].fill(255, i * 3, i * 3 + 3); continue; }
+      if (isBackground[i]) {
+        heats[pal.name][i * 3] = BACKDROP_HEAT[0];
+        heats[pal.name][i * 3 + 1] = BACKDROP_HEAT[1];
+        heats[pal.name][i * 3 + 2] = BACKDROP_HEAT[2];
+        continue;
+      }
       const [hr, hg, hb] = heatOf(e[pi].de);
       heats[pal.name][i * 3] = hr; heats[pal.name][i * 3 + 1] = hg; heats[pal.name][i * 3 + 2] = hb;
     }
@@ -368,12 +381,15 @@ for (const im of (TABLES_ONLY ? [] : loaded)) {
       { input: await png(outs.FROZEN), left: G * 2 + w, top: G },
       { input: await png(outs.CANDIDATE), left: G * 3 + w * 2, top: G },
       { input: label('ORIGINAL', w), left: G, top: G + h },
-      { input: label('FROZEN  data/palette.json', w), left: G * 2 + w, top: G + h },
-      { input: label('CANDIDATE  data/palette.candidate.json', w), left: G * 3 + w * 2, top: G + h },
+      // The candidate's PATH, never the literal string `data/palette.candidate.json` — this script
+      // also scores the class-equal variant via `--candidate=`, and a panel that names the wrong
+      // file is the same defect as a panel that shows the wrong pipeline (B-D51).
+      { input: label(`FROZEN  ${FROZEN}`, w), left: G * 2 + w, top: G + h },
+      { input: label(`CANDIDATE  ${CANDIDATE}`, w), left: G * 3 + w * 2, top: G + h },
       { input: await png(heats.FROZEN), left: G * 2 + w, top: G * 2 + h + 30 },
       { input: await png(heats.CANDIDATE), left: G * 3 + w * 2, top: G * 2 + h + 30 },
-      { input: label('ΔE heatmap  (black 0 → white 15+)', w), left: G * 2 + w, top: G * 2 + h * 2 + 30 },
-      { input: label('ΔE heatmap  (black 0 → white 15+)', w), left: G * 3 + w * 2, top: G * 2 + h * 2 + 30 },
+      { input: label('FROZEN ΔE heatmap  (black 0 → WHITE-HOT 15+ · blue = backdrop)', w), left: G * 2 + w, top: G * 2 + h * 2 + 30 },
+      { input: label('CANDIDATE ΔE heatmap  (black 0 → WHITE-HOT 15+ · blue = backdrop)', w), left: G * 3 + w * 2, top: G * 2 + h * 2 + 30 },
     ]).png().toFile(file);
   previewFiles.push(file);
   process.stdout.write(`\r  ${im.id.padEnd(20)}`);

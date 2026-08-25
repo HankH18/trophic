@@ -1,0 +1,482 @@
+{
+  "assignment": "nearest in sRGB (tools/postprocess/steps.ts::quantize)",
+  "errorMetric": "CIEDE2000, content pixels only (border-connected white backdrop excluded)",
+  "palettes": [
+    {
+      "name": "FROZEN",
+      "path": "data/palette.json"
+    },
+    {
+      "name": "CANDIDATE",
+      "path": "data/palette.candidate.json"
+    },
+    {
+      "name": "CLASS-EQ",
+      "path": "assets/approved-trials/_palette-candidate/palette.candidate-classequal.json"
+    }
+  ],
+  "images": [
+    {
+      "id": "puddlisk",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/puddlisk-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-puddlisk.png",
+      "set": "cool-trial",
+      "contentPixels": 296794,
+      "mean": {
+        "FROZEN": 22.275,
+        "CANDIDATE": 4.051,
+        "CLASS-EQ": 6.595
+      },
+      "max": {
+        "FROZEN": 43.603,
+        "CANDIDATE": 30.978,
+        "CLASS-EQ": 30.613
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 80.02,
+        "CANDIDATE": 5.14,
+        "CLASS-EQ": 33.08
+      }
+    },
+    {
+      "id": "wispurr",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/wispurr-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-wispurr.png",
+      "set": "cool-trial",
+      "contentPixels": 302839,
+      "mean": {
+        "FROZEN": 20.825,
+        "CANDIDATE": 3.278,
+        "CLASS-EQ": 4.469
+      },
+      "max": {
+        "FROZEN": 36.898,
+        "CANDIDATE": 30.622,
+        "CLASS-EQ": 28.35
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 77.09,
+        "CANDIDATE": 5.39,
+        "CLASS-EQ": 6.88
+      }
+    },
+    {
+      "id": "fenmaw-3q",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/fenmaw-3q-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-fenmaw-c.png",
+      "set": "held-out",
+      "contentPixels": 231922,
+      "mean": {
+        "FROZEN": 17.494,
+        "CANDIDATE": 9.876,
+        "CLASS-EQ": 11.068
+      },
+      "max": {
+        "FROZEN": 41.939,
+        "CANDIDATE": 34.184,
+        "CLASS-EQ": 31.737
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 61.56,
+        "CANDIDATE": 31.87,
+        "CLASS-EQ": 47.56
+      }
+    },
+    {
+      "id": "gloomoth",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/gloomoth-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-gloomoth.png",
+      "set": "cool-trial",
+      "contentPixels": 357048,
+      "mean": {
+        "FROZEN": 16.355,
+        "CANDIDATE": 2.408,
+        "CLASS-EQ": 4.417
+      },
+      "max": {
+        "FROZEN": 32.438,
+        "CANDIDATE": 28.476,
+        "CLASS-EQ": 25.722
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 68.81,
+        "CANDIDATE": 0.81,
+        "CLASS-EQ": 3.37
+      }
+    },
+    {
+      "id": "webvern",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/webvern-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-webvern.png",
+      "set": "cool-trial",
+      "contentPixels": 190455,
+      "mean": {
+        "FROZEN": 15.383,
+        "CANDIDATE": 4.495,
+        "CLASS-EQ": 7.307
+      },
+      "max": {
+        "FROZEN": 39.671,
+        "CANDIDATE": 30.333,
+        "CLASS-EQ": 23.606
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 78.25,
+        "CANDIDATE": 3.77,
+        "CLASS-EQ": 20.06
+      }
+    },
+    {
+      "id": "undermere",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/undermere-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-undermere.png",
+      "set": "cool-trial",
+      "contentPixels": 278104,
+      "mean": {
+        "FROZEN": 14.967,
+        "CANDIDATE": 4.446,
+        "CLASS-EQ": 7.249
+      },
+      "max": {
+        "FROZEN": 33.229,
+        "CANDIDATE": 35.384,
+        "CLASS-EQ": 30.617
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 76.83,
+        "CANDIDATE": 10.32,
+        "CLASS-EQ": 31.82
+      }
+    },
+    {
+      "id": "bogling",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/bogling-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-bogling.png",
+      "set": "cool-trial",
+      "contentPixels": 324012,
+      "mean": {
+        "FROZEN": 12.011,
+        "CANDIDATE": 2.718,
+        "CLASS-EQ": 3.435
+      },
+      "max": {
+        "FROZEN": 30.901,
+        "CANDIDATE": 31.284,
+        "CLASS-EQ": 30.046
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 78.39,
+        "CANDIDATE": 2.16,
+        "CLASS-EQ": 2.54
+      }
+    },
+    {
+      "id": "mirefin",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/mirefin-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-mirefin.png",
+      "set": "cool-trial",
+      "contentPixels": 338422,
+      "mean": {
+        "FROZEN": 11.505,
+        "CANDIDATE": 2.56,
+        "CLASS-EQ": 4.245
+      },
+      "max": {
+        "FROZEN": 36.828,
+        "CANDIDATE": 33.919,
+        "CLASS-EQ": 31.332
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 45.88,
+        "CANDIDATE": 1.92,
+        "CLASS-EQ": 7.51
+      }
+    },
+    {
+      "id": "duskhollow",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/duskhollow-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-map-duskhollow.png",
+      "set": "cool-trial",
+      "contentPixels": 1048576,
+      "mean": {
+        "FROZEN": 10.579,
+        "CANDIDATE": 6.859,
+        "CLASS-EQ": 5.953
+      },
+      "max": {
+        "FROZEN": 46.402,
+        "CANDIDATE": 47.776,
+        "CLASS-EQ": 47.483
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 27.73,
+        "CANDIDATE": 22.44,
+        "CLASS-EQ": 16.51
+      }
+    },
+    {
+      "id": "brackwater",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/brackwater-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-map-brackwater.png",
+      "set": "cool-trial",
+      "contentPixels": 1048576,
+      "mean": {
+        "FROZEN": 9.483,
+        "CANDIDATE": 5.334,
+        "CLASS-EQ": 4.66
+      },
+      "max": {
+        "FROZEN": 42.046,
+        "CANDIDATE": 38.402,
+        "CLASS-EQ": 36.422
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 28.63,
+        "CANDIDATE": 15.86,
+        "CLASS-EQ": 13.64
+      }
+    },
+    {
+      "id": "fenmaw-GENERIC",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/fenmaw-GENERIC-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-fenmaw.png",
+      "set": "held-out",
+      "contentPixels": 364903,
+      "mean": {
+        "FROZEN": 9.285,
+        "CANDIDATE": 6.154,
+        "CLASS-EQ": 7.572
+      },
+      "max": {
+        "FROZEN": 31.006,
+        "CANDIDATE": 32.629,
+        "CLASS-EQ": 34.041
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 57.4,
+        "CANDIDATE": 18.71,
+        "CLASS-EQ": 20.87
+      }
+    },
+    {
+      "id": "fenmaw",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/fenmaw-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-fenmaw-b.png",
+      "set": "cool-trial",
+      "contentPixels": 332328,
+      "mean": {
+        "FROZEN": 8.592,
+        "CANDIDATE": 4.703,
+        "CLASS-EQ": 7.784
+      },
+      "max": {
+        "FROZEN": 32.23,
+        "CANDIDATE": 34.288,
+        "CLASS-EQ": 34.183
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 44.5,
+        "CANDIDATE": 11.8,
+        "CLASS-EQ": 21.36
+      }
+    },
+    {
+      "id": "duskstalk",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/duskstalk-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-duskstalk.png",
+      "set": "cool-trial",
+      "contentPixels": 282249,
+      "mean": {
+        "FROZEN": 8.057,
+        "CANDIDATE": 2.351,
+        "CLASS-EQ": 5.734
+      },
+      "max": {
+        "FROZEN": 36.539,
+        "CANDIDATE": 35.164,
+        "CLASS-EQ": 29.982
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 6.76,
+        "CANDIDATE": 0.91,
+        "CLASS-EQ": 0.58
+      }
+    },
+    {
+      "id": "r2-marsh",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/r2-marsh-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-map-r2.png",
+      "set": "cool-trial",
+      "contentPixels": 1048576,
+      "mean": {
+        "FROZEN": 7.699,
+        "CANDIDATE": 4.808,
+        "CLASS-EQ": 3.378
+      },
+      "max": {
+        "FROZEN": 47.726,
+        "CANDIDATE": 43.694,
+        "CLASS-EQ": 45.732
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 21.09,
+        "CANDIDATE": 10.38,
+        "CLASS-EQ": 5.23
+      }
+    },
+    {
+      "id": "sporantle",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/sporantle-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-sporantle.png",
+      "set": "cool-trial",
+      "contentPixels": 307060,
+      "mean": {
+        "FROZEN": 7.339,
+        "CANDIDATE": 6.068,
+        "CLASS-EQ": 6.264
+      },
+      "max": {
+        "FROZEN": 33.7,
+        "CANDIDATE": 33.331,
+        "CLASS-EQ": 32.736
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 30.17,
+        "CANDIDATE": 17.73,
+        "CLASS-EQ": 16.03
+      }
+    },
+    {
+      "id": "cindershelf",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/cindershelf-3WAY.png",
+      "source": "assets/raw/palette-trials/pt-map-cindershelf.png",
+      "set": "cool-trial",
+      "contentPixels": 1048576,
+      "mean": {
+        "FROZEN": 5.973,
+        "CANDIDATE": 4.563,
+        "CLASS-EQ": 4.845
+      },
+      "max": {
+        "FROZEN": 43.054,
+        "CANDIDATE": 41.185,
+        "CLASS-EQ": 45.472
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 17.88,
+        "CANDIDATE": 12.08,
+        "CLASS-EQ": 15.43
+      }
+    },
+    {
+      "id": "map",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/map-3WAY.png",
+      "source": "assets/approved-trials/town-map.png",
+      "set": "B0-approved",
+      "contentPixels": 1048576,
+      "mean": {
+        "FROZEN": 4.641,
+        "CANDIDATE": 5.867,
+        "CLASS-EQ": 6.062
+      },
+      "max": {
+        "FROZEN": 41.445,
+        "CANDIDATE": 38.307,
+        "CLASS-EQ": 35.861
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 10.8,
+        "CANDIDATE": 14.78,
+        "CLASS-EQ": 15.85
+      }
+    },
+    {
+      "id": "croc",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/croc-3WAY.png",
+      "source": "assets/approved-trials/creature-croc.png",
+      "set": "B0-approved",
+      "contentPixels": 464254,
+      "mean": {
+        "FROZEN": 4.46,
+        "CANDIDATE": 7.017,
+        "CLASS-EQ": 8.269
+      },
+      "max": {
+        "FROZEN": 31.698,
+        "CANDIDATE": 35.449,
+        "CLASS-EQ": 34.049
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 7.98,
+        "CANDIDATE": 17.59,
+        "CLASS-EQ": 26.74
+      }
+    },
+    {
+      "id": "trainer",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/trainer-3WAY.png",
+      "source": "assets/approved-trials/trainer-battle.png",
+      "set": "B0-approved",
+      "contentPixels": 359714,
+      "mean": {
+        "FROZEN": 4.158,
+        "CANDIDATE": 5.182,
+        "CLASS-EQ": 4.301
+      },
+      "max": {
+        "FROZEN": 33.939,
+        "CANDIDATE": 32.759,
+        "CLASS-EQ": 32.567
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 11.15,
+        "CANDIDATE": 9.98,
+        "CLASS-EQ": 5.32
+      }
+    },
+    {
+      "id": "player",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/player-3WAY.png",
+      "source": "assets/approved-trials/player-APPROVED.png",
+      "set": "B0-approved",
+      "contentPixels": 389252,
+      "mean": {
+        "FROZEN": 3.304,
+        "CANDIDATE": 7.429,
+        "CLASS-EQ": 3.509
+      },
+      "max": {
+        "FROZEN": 32.314,
+        "CANDIDATE": 36.01,
+        "CLASS-EQ": 33.984
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 1.3,
+        "CANDIDATE": 15.67,
+        "CLASS-EQ": 2.2
+      }
+    },
+    {
+      "id": "fox",
+      "file": "assets/approved-trials/_palette-candidate/decision-previews/fox-3WAY.png",
+      "source": "assets/approved-trials/creature-fox.png",
+      "set": "B0-approved",
+      "contentPixels": 342232,
+      "mean": {
+        "FROZEN": 2.27,
+        "CANDIDATE": 3.6,
+        "CLASS-EQ": 5.841
+      },
+      "max": {
+        "FROZEN": 31.575,
+        "CANDIDATE": 30.761,
+        "CLASS-EQ": 33.895
+      },
+      "pctContentAtOrAboveDeltaE10": {
+        "FROZEN": 1.64,
+        "CANDIDATE": 6.98,
+        "CLASS-EQ": 15.37
+      }
+    }
+  ]
+}

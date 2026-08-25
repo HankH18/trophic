@@ -49,6 +49,7 @@ import {
   step as battleStep,
 } from "../../core/battle";
 import { appendAction, newSave, replay, type SaveEnvelope } from "../../core/save";
+import { applyCatchToSave } from "../../game/wild-battle";
 import { runYearTurn } from "../../core/lifecycle";
 
 const content = validateContent();
@@ -326,31 +327,65 @@ describe("SEAM — Hard Req 2: a real battle catch moves a real number in the le
     expect(after?.active).toBe(false);
   });
 
-  it("HONEST GAP: nothing in production wires battle's catch to the ledger yet", () => {
+  it("the join is PRODUCTION code now, and the tape it writes replays to the same number (L10)", () => {
     /*
-     * The pieces above all exist and compose, but the join — "battle ends caught, so log the action
-     * and move the count" — has no home in core/ or game/ today. The test above IS that join,
-     * written out by hand. It is a Lane C dependency (build-doc §15 C2/C3), not a defect in Lane A,
-     * and it is asserted here so the day someone adds it, this test is the reference for what it
-     * must do. If this assertion ever fails, the wiring arrived and this test should become a
-     * check of the real thing instead of a stand-in.
+     * THIS REPLACED A GREEN TEST THAT ASSERTED THE NEGATION OF THE TRUTH (BF-3).
+     *
+     * It read `it("HONEST GAP: nothing in production wires battle's catch to the ledger yet")` and
+     * asserted `callsBoth === false` over a source list of nine `core/*.ts` files plus
+     * `game/main.ts`. The wiring landed in `game/wild-battle.ts` — a file that list does not name —
+     * so the scan could not see it and the assertion stayed green while stating the opposite of what
+     * the repo does. Its own comment said what to do when the wiring arrived ("replace this stand-in
+     * with a test of the real thing"); it was never able to say it, because it could not fail.
+     *
+     * So: the real thing, executed. `applyCatchToSave` is the production join and it is Phaser-free,
+     * which is why an integration test can run it rather than grep for it.
      */
-    const sources = [
-      ...["battle", "ecosim", "lifecycle", "save", "clock", "foodweb", "rng", "schemas", "types"].map(
-        (m) => `core/${m}.ts`,
-      ),
-      "game/main.ts",
-    ];
-    const fs = require("node:fs") as typeof import("node:fs");
-    const joined = sources.map((p) => fs.readFileSync(p, "utf8")).join("\n");
-    // A production join would have to call both of these in one place.
-    const callsBoth = /caughtIndividual\s*\([^)]*\)[\s\S]{0,800}?(applyCatch|adjustPopulation|t:\s*"catch")/.test(
-      joined,
+    const save = newSave({ seed: 4242, currentNode: "r1", nodes: content.nodes }, balance);
+    const before = save.nodeStates["r1"]?.populations["nibbin-line"]?.count as number;
+    expect(before).toBeGreaterThan(0);
+
+    const { caught } = catchOne(save, "nibbin-line");
+    if (!caught) throw new Error("the reducer reported no catch");
+
+    const applied = applyCatchToSave(save, caught, content);
+    expect(applied.problem).toBeNull();
+    expect(applied.before).toBe(before);
+    expect(applied.after).toBe(before - 1);
+    expect(applied.save.nodeStates["r1"]?.populations["nibbin-line"]?.count).toBe(before - 1);
+    expect(applied.gained?.lineId).toBe("nibbin-line");
+
+    // The tape entry, and the replay of it — the two halves the stand-in described by hand.
+    const logged = applied.save.actionLog.at(-1);
+    expect(logged?.action).toEqual({ t: "catch", nodeId: "r1", lineId: "nibbin-line", uid: caught.uid });
+    const replayed = replay(
+      { ...applied.save, actionLog: [], nodeStates: save.nodeStates },
+      applied.save.actionLog,
+      { species: content.species, gyms: content.gyms, balance },
     );
-    expect(
-      callsBoth,
-      "battle→ledger wiring now exists in production code — replace this stand-in with a test of it",
-    ).toBe(false);
+    expect(replayed.nodeStates["r1"]?.populations["nibbin-line"]?.count).toBe(before - 1);
+  });
+
+  it("the join has a PRODUCTION caller — which is the half the stale scan could not see", () => {
+    const fs = require("node:fs") as typeof import("node:fs");
+    const path = require("node:path") as typeof import("node:path");
+    const walk = (dir: string): string[] =>
+      fs.readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+        const full = path.join(dir, e.name);
+        if (e.isDirectory()) return walk(full);
+        return e.isFile() && full.endsWith(".ts") ? [full] : [];
+      });
+    // EVERY core/ and game/ source, discovered rather than listed. The stand-in named ten files by
+    // hand and the wiring landed in an eleventh; a hand-written source list is the defect, not the
+    // regex it fed.
+    const sources = [...walk("core"), ...walk("game")];
+    expect(sources.length, "the walk found no sources — it is looking in the wrong place").toBeGreaterThan(10);
+    const callers = sources.filter(
+      (f) =>
+        f !== path.join("game", "wild-battle.ts") &&
+        /applyWildBattleOutcome\s*\(|applyCatchToSave\s*\(/.test(fs.readFileSync(f, "utf8")),
+    );
+    expect(callers, "no production file calls the battle-to-ledger join").not.toHaveLength(0);
   });
 });
 

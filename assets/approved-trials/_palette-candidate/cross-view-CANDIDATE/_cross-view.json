@@ -1,0 +1,170 @@
+{
+  "palette": "data/palette.candidate.json",
+  "label": "CANDIDATE",
+  "size": "32x48",
+  "pipeline": "trim -> nearestResample -> quantize -> removeFlatBackground (tools/postprocess/steps.ts)",
+  "views": [
+    {
+      "id": "front",
+      "file": "assets/approved-trials/player-APPROVED.png",
+      "trimmed": "547x952",
+      "opaquePixels": 1166
+    },
+    {
+      "id": "back",
+      "file": "assets/raw/player/b0-player-back-e.png",
+      "trimmed": "577x963",
+      "opaquePixels": 1082
+    },
+    {
+      "id": "side",
+      "file": "assets/raw/player/b0-player-side-b.png",
+      "trimmed": "552x926",
+      "opaquePixels": 968
+    }
+  ],
+  "bands": {
+    "star yellow": {
+      "perView": {
+        "front": {
+          "#f7d92c": 16
+        },
+        "back": {
+          "#f7d92c": 10
+        },
+        "side": {
+          "#f7d92c": 11
+        }
+      },
+      "shared": [
+        "#f7d92c"
+      ],
+      "dominants": [
+        "#f7d92c",
+        "#f7d92c",
+        "#f7d92c"
+      ],
+      "dominantAgrees": true
+    },
+    "shirt/cap green": {
+      "perView": {
+        "front": {
+          "#567e2e": 3,
+          "#489b7d": 14,
+          "#53bb5c": 282,
+          "#205c39": 140
+        },
+        "back": {
+          "#53bb5c": 267,
+          "#205c39": 114,
+          "#567e2e": 15,
+          "#489b7d": 2
+        },
+        "side": {
+          "#53bb5c": 202,
+          "#205c39": 82,
+          "#87b333": 1,
+          "#567e2e": 1
+        }
+      },
+      "shared": [
+        "#567e2e",
+        "#53bb5c",
+        "#205c39"
+      ],
+      "dominants": [
+        "#53bb5c",
+        "#53bb5c",
+        "#53bb5c"
+      ],
+      "dominantAgrees": true
+    },
+    "skin": {
+      "perView": {
+        "front": {
+          "#dd9c74": 69
+        },
+        "back": {
+          "#dd9c74": 36
+        },
+        "side": {
+          "#dd9c74": 35
+        }
+      },
+      "shared": [
+        "#dd9c74"
+      ],
+      "dominants": [
+        "#dd9c74",
+        "#dd9c74",
+        "#dd9c74"
+      ],
+      "dominantAgrees": true
+    },
+    "leather brown": {
+      "perView": {
+        "front": {
+          "#6d3421": 46,
+          "#8d543b": 100,
+          "#ac7e53": 9
+        },
+        "back": {
+          "#6d3421": 112,
+          "#ac7e53": 11,
+          "#8d543b": 154
+        },
+        "side": {
+          "#6d3421": 57,
+          "#ac7e53": 11,
+          "#8d543b": 112
+        }
+      },
+      "shared": [
+        "#6d3421",
+        "#8d543b",
+        "#ac7e53"
+      ],
+      "dominants": [
+        "#8d543b",
+        "#8d543b",
+        "#8d543b"
+      ],
+      "dominantAgrees": true
+    },
+    "dark outline": {
+      "perView": {
+        "front": {
+          "#0a0819": 45,
+          "#020203": 63,
+          "#222538": 6,
+          "#47180d": 154
+        },
+        "back": {
+          "#020203": 127,
+          "#222538": 3,
+          "#0a0819": 18,
+          "#47180d": 116,
+          "#2c3151": 1
+        },
+        "side": {
+          "#0a0819": 41,
+          "#222538": 1,
+          "#020203": 129,
+          "#47180d": 83
+        }
+      },
+      "shared": [
+        "#0a0819",
+        "#020203",
+        "#222538",
+        "#47180d"
+      ],
+      "dominants": [
+        "#47180d",
+        "#020203",
+        "#020203"
+      ],
+      "dominantAgrees": false
+    }
+  }
+}

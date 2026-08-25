@@ -21,7 +21,7 @@ npm run harness
 | full-run seeds per profile | 32 |
 | over-catch seeds per node | 128 |
 | candidate parties drafted per seed | 8 |
-| wall-clock | gym 835ms · gym.mirror 250ms · gym.levelSweep 1562ms · gym.ageControl 1050ms · gym.partySizeControl 404ms · chart 395ms · run.profiles 384ms · run.fixture 1ms · run.overcatch 264ms · probes 594ms |
+| wall-clock | gym 854ms · gym.mirror 250ms · gym.levelSweep 1550ms · gym.ageControl 1050ms · gym.partySizeControl 409ms · chart 404ms · run.profiles 417ms · run.fixture 0ms · run.overcatch 276ms · probes 596ms |
 
 **TWO CLOCKS (D-Q3-1).** The calendar (ticks → seasons → years) and the ACT (badges and quest flags)
 are independent, so a harness has to CHOOSE a pacing model rather than inherit one. Mode (c) drives

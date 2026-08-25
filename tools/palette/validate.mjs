@@ -226,9 +226,13 @@ for (const im of images) {
     }
     const c = fz.pal.rgb[e.k];
     out[i * 3] = c.r; out[i * 3 + 1] = c.g; out[i * 3 + 2] = c.b;
-    if (isBackground[i]) { heat[i * 3] = heat[i * 3 + 1] = heat[i * 3 + 2] = 255; continue; }
+    // The un-scored backdrop is a blue that cannot occur on the ramp below (every ramp colour has
+    // r ≥ b). It used to be filled white, which is also the TOP of the ramp — so "no error here"
+    // and "the error is off the scale" were the same pixel value, and the images the palette is
+    // worst on rendered as the cleanest-looking heat maps. See B-D51.
+    if (isBackground[i]) { heat[i * 3] = 0x33; heat[i * 3 + 1] = 0x50; heat[i * 3 + 2] = 0x6e; continue; }
     sum += e.de; n++;
-    // heat map: black → red → yellow → white across ΔE 0 → 15+
+    // heat map: black → red → yellow → WHITE-HOT across ΔE 0 → 15+
     const t = Math.min(1, e.de / 15);
     heat[i * 3] = Math.round(255 * Math.min(1, t * 3));
     heat[i * 3 + 1] = Math.round(255 * Math.max(0, Math.min(1, t * 3 - 1)));

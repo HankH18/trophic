@@ -23,7 +23,20 @@ import { trimBackground, nearestResample, quantize, removeFlatBackground } from 
 import { backgroundForClass } from '../postprocess/chain.ts';
 import { rgbToLab, deltaE2000, toHex } from './color.mjs';
 
-const OUT = 'assets/approved-trials/_palette-freeze/at-game-size';
+/* ── which palette ────────────────────────────────────────────────────────────
+ * Defaults to the frozen 32 and the gate-B0 output directory, so the committed evidence is
+ * reproduced by `node tools/palette/at-game-size.mjs` with no arguments. `--palette=` + `--label=`
+ * run the SAME acceptance against a re-freeze proposal, into its own directory — never mixed with
+ * the frozen one, because a directory holding two palettes' sprites is exactly how a viewer ends up
+ * comparing a palette problem with a pipeline problem (B-D51).
+ */
+const argOf = (n) => process.argv.find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
+const PALETTE_PATH = argOf('palette') ?? 'data/palette.json';
+const LABEL = argOf('label') ?? 'FROZEN';
+const OUT = argOf('out')
+  ?? (LABEL === 'FROZEN'
+    ? 'assets/approved-trials/_palette-freeze/at-game-size'
+    : `assets/approved-trials/_palette-candidate/at-game-size-${LABEL}`);
 // The background key and its per-channel tolerance are read from `classes.player.postprocess` in
 // tools/comfy/manifest.json, not declared here (G11, B-D35). Step 3 runs after quantize, so the
 // tolerance has to admit the PALETTE'S IMAGE of white — and this file's whole job is to evaluate
@@ -69,8 +82,8 @@ function bandCensus(r) {
   return { rows, opaque };
 }
 
-const palette = loadPalette();
-console.log(`palette: ${palette.length} colours from data/palette.json\n`);
+const palette = loadPalette(PALETTE_PATH);
+console.log(`palette: ${palette.length} colours from ${PALETTE_PATH}  [${LABEL}]  ->  ${OUT}\n`);
 await mkdir(OUT, { recursive: true });
 
 const src = await toRaster('assets/approved-trials/player-APPROVED.png');
@@ -84,7 +97,7 @@ console.log(`trim: ${src.width}x${src.height} -> ${trimmed.width}x${trimmed.heig
 const refQ = quantize(trimmed, palette);
 const ref = bandCensus(refQ);
 
-const report = { palette: 'data/palette.json', source: 'assets/approved-trials/player-APPROVED.png', targets: [] };
+const report = { palette: PALETTE_PATH, label: LABEL, source: 'assets/approved-trials/player-APPROVED.png', targets: [] };
 
 for (const t of TARGETS) {
   // ORDER IS LOAD-BEARING (§9.3): downscale, THEN quantize, THEN background removal.
@@ -146,5 +159,49 @@ function colourKeys(r) {
   return out;
 }
 
+/* ── the eye check: one strip, 1024² beside every target, pre- and post-quantize ───────────────
+ * `_COMPARE.png` existed in this directory with NO producer in the tree — an artifact nobody could
+ * regenerate, and therefore one nobody could tell was stale. It was: it had been written before the
+ * background tolerance was fixed (B-D50), so its trim was a row taller than the chain now produces.
+ * A committed image that no script writes is a claim with no way to check it, so the producer is
+ * restored here rather than the image being left orphaned.
+ */
+{
+  // The 1024² reference is the TRIMMED subject, not the raw square — it is what the downscale
+  // actually sees, so the strip compares like with like rather than sprite-against-letterbox.
+  const cells = [{
+    input: sharp(Buffer.from(trimmed.data.buffer, trimmed.data.byteOffset, trimmed.data.length),
+      { raw: { width: trimmed.width, height: trimmed.height, channels: 4 } }),
+    label: `approved 1024² trimmed ${trimmed.width}x${trimmed.height}`,
+  }];
+  for (const t of TARGETS) {
+    cells.push({ input: sharp(`${OUT}/player-${t.tag}-UNQUANTIZED-x12.png`), label: `${t.tag} pre-quant` });
+    cells.push({ input: sharp(`${OUT}/player-${t.tag}-x12.png`), label: `${t.tag} QUANTIZED` });
+  }
+  const G = 6, LABH = 26;
+  const bufs = [];
+  for (const c of cells) {
+    const buf = await c.input
+      .resize({ height: 48 * 12, fit: 'inside', kernel: 'nearest' })
+      .flatten({ background: '#fdfdfb' }).png().toBuffer();
+    bufs.push({ ...c, buf, meta: await sharp(buf).metadata() });
+  }
+  const H = Math.max(...bufs.map((b) => b.meta.height));
+  const stripW = bufs.reduce((a, b) => a + b.meta.width + G, G);
+  const comp = [];
+  let x = G;
+  for (const b of bufs) {
+    comp.push({ input: b.buf, left: x, top: G });
+    comp.push({
+      input: Buffer.from(`<svg width="${b.meta.width}" height="${LABH}"><rect width="100%" height="100%" fill="#12140f"/>`
+        + `<text x="${b.meta.width / 2}" y="18" font-family="monospace" font-size="14" fill="#cfe3c0" text-anchor="middle">${b.label}</text></svg>`),
+      left: x, top: G + H,
+    });
+    x += b.meta.width + G;
+  }
+  await sharp({ create: { width: stripW, height: H + LABH + G * 2, channels: 3, background: '#1a1a1a' } })
+    .composite(comp).png().toFile(`${OUT}/_COMPARE.png`);
+}
+
 await writeFile(`${OUT}/_at-game-size.json`, JSON.stringify(report, null, 2) + '\n');
-console.log(`\nwrote ${OUT}/  (x12 nearest upscales are the ones to look at by eye)`);
+console.log(`\nwrote ${OUT}/  (x12 nearest upscales are the ones to look at by eye; _COMPARE.png is the strip)`);
