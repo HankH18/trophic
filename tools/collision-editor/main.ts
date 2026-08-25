@@ -41,6 +41,7 @@ import {
   gridDimensions,
   gridToAscii,
   isBlocked,
+  maskRasterFrom,
   readMask,
   setBlocked,
   worldSizePx,
@@ -50,8 +51,6 @@ import {
 } from '@game/collision';
 import { realAssetUrl } from '@game/placeholder';
 
-/** Fully opaque. The whole point of the export — see the header. */
-const OPAQUE = 255;
 /** The mask is drawn at cell resolution and scaled up for the eye; a fact about the screen. */
 const DISPLAY_PX = 12;
 
@@ -288,33 +287,22 @@ function wireCanvas(canvas: HTMLCanvasElement, state: EditorState, render: () =>
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
- * The grid as a mask raster at `balance.map.mapNativePx`: black where blocked, white where walkable,
- * **alpha 255 everywhere**.
+ * The grid as a conforming mask raster — `game/collision.ts` `maskRasterFrom`, wrapped in the one
+ * DOM type it cannot construct itself.
  *
- * Exported (not inlined into the download handler) so a test can assert the bytes: round-tripping
- * this through `readMask` must reproduce the grid it came from, and the raster must contain no
- * transparent pixel at all.
+ * The encoder is NOT here on purpose: it is the exact inverse of the sampler the runtime uses, so it
+ * lives beside it and the round trip is asserted in tests/unit/collision.test.ts. An editor with its
+ * own opinion about the file format is how the two readings drifted apart in the first place.
  */
-export function maskRasterFrom(grid: CollisionGrid, balance: Balance): ImageData {
-  const side = balance.map.mapNativePx;
-  const image = new ImageData(side, side);
-  for (let y = 0; y < side; y += 1) {
-    const row = Math.min(grid.rows - 1, Math.floor((y * grid.rows) / side));
-    for (let x = 0; x < side; x += 1) {
-      const col = Math.min(grid.cols - 1, Math.floor((x * grid.cols) / side));
-      const ink = isBlocked(grid, col, row) ? 0 : OPAQUE;
-      const at = (y * side + x) * 4;
-      image.data[at] = ink;
-      image.data[at + 1] = ink;
-      image.data[at + 2] = ink;
-      image.data[at + 3] = OPAQUE;
-    }
-  }
+function maskImageData(state: EditorState): ImageData {
+  const raster = maskRasterFrom(state.grid, state.balance);
+  const image = new ImageData(raster.width, raster.height);
+  image.data.set(raster.data as ArrayLike<number>);
   return image;
 }
 
 function download(state: EditorState): void {
-  const image = maskRasterFrom(state.grid, state.balance);
+  const image = maskImageData(state);
   const canvas = document.createElement('canvas');
   canvas.width = image.width;
   canvas.height = image.height;

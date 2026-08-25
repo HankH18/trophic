@@ -13,7 +13,7 @@ export {
   CONTRAST_BINS,
 } from './edges.ts';
 export type { EdgeOptions, ContrastRange } from './edges.ts';
-export { walkableCells, walkablePixels, walkableMaskFor, allWalkable, cellsToRaster, MaskError } from './mask.ts';
+export { walkableCells, walkablePixels, walkableMaskFor, allWalkable, cellsToRaster, MASK_ENCODING, MaskError } from './mask.ts';
 export type { CellGrid } from './mask.ts';
 export { overlayDiff, nextDenoise, OverlayDiffError } from './diff.ts';
 export type { CellFootprint, DriftRegion, OverlayDiffConfig, OverlayDiffInput, OverlayDiffResult } from './diff.ts';

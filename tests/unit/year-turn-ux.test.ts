@@ -24,7 +24,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { advanceAction, createClock, gymVictory, isOver, seasonsOfYear } from "@core/clock";
+import { advanceAction, createClock, gymVictory, isOver, meter, seasonsOfYear } from "@core/clock";
 import { effectiveStats } from "@core/battle";
 import { defaultContext, stepRegionStates } from "@core/ecosim";
 import {
@@ -37,10 +37,19 @@ import {
   type RaidScript,
   type YearTurnEvent,
 } from "@core/lifecycle";
-import { newSave, type SaveEnvelope } from "@core/save";
+import { appendAction, newSave, replay, type SaveEnvelope } from "@core/save";
 import { subsystemRng } from "@core/rng";
 import { validateContent, zOwnedCreature } from "@core/schemas";
-import type { Balance, Content, OwnedCreature, SpeciesLine, Trait } from "@core/types";
+import type {
+  ActionLogEntry,
+  Balance,
+  Content,
+  NodeState,
+  OwnedCreature,
+  Season,
+  SpeciesLine,
+  Trait,
+} from "@core/types";
 import { STAT_KEYS } from "@core/types";
 
 import {
@@ -63,10 +72,13 @@ import {
   seasonTintForClock,
   seasonTintsForYear,
   SeasonTintError,
+  unreachableSeasonPresets,
   yearDarkening,
 } from "@game/season-tint";
+import { clockFromLog, replayRegionHooks, withClockFromLog } from "@game/year-replay";
 import {
   festivalBeat,
+  finalYearOf,
   hasRaids,
   raidCoverage,
   raidLedgerLines,
@@ -74,6 +86,7 @@ import {
   raidReportsFrom,
   raidableYears,
   raidsForYear,
+  yearTurnEndsRun,
 } from "@game/year-events";
 import {
   RetirementFlow,
@@ -94,6 +107,8 @@ import {
   type RetirementSelection,
 } from "@game/scenes/RetirementScene";
 import { SCENE_KEYS, sceneRegistered } from "@game/scene-keys";
+import { dexArtId } from "@game/ledger-view";
+import { assetId } from "@game/placeholder";
 import {
   beatLines,
   beatsAfterRetirement,
@@ -414,18 +429,44 @@ describe("season tint — Hard Req 6 'season variation is a runtime tint; never 
     expect(readings.map((r) => r.season)).toEqual(balance.clock.seasonOrder);
   });
 
-  it("BINDS — a table missing a season, or carrying one the clock never asks for, fails loudly", () => {
+  it("BINDS — a table MISSING a season fails loudly; an unreachable extra is reported, not fatal", () => {
     const missing = { ...PROVISIONAL_SEASON_TINTS } as Record<string, unknown>;
     const first = balance.clock.seasonOrder[0] as string;
     delete missing[first];
     expect(() =>
       assertCoversSeasonOrder(missing as typeof PROVISIONAL_SEASON_TINTS, balance),
     ).toThrow(SeasonTintError);
+    expect(() =>
+      seasonTint(balance, first as Season, balance.clock.startYear, missing as typeof PROVISIONAL_SEASON_TINTS),
+    ).toThrow(SeasonTintError);
 
+    /*
+     * The asymmetry is the fix for a defect, not laxity. A preset the clock never asks for changes
+     * no pixel; throwing on it made a BALANCE-ONLY retune fatal, and `game/mapview.ts` calls
+     * `seasonTint` from `MapView`'s constructor — so shrinking `clock.seasonOrder` (a tunable, INV-3)
+     * left the overworld unconstructible while the season meter followed the retune correctly.
+     * Reproduced below with exactly that retune.
+     */
     const extra = { ...PROVISIONAL_SEASON_TINTS, notASeason: PROVISIONAL_SEASON_TINTS.spring };
     expect(() =>
       assertCoversSeasonOrder(extra as unknown as typeof PROVISIONAL_SEASON_TINTS, balance),
-    ).toThrow(SeasonTintError);
+    ).not.toThrow();
+    expect(unreachableSeasonPresets(extra as unknown as typeof PROVISIONAL_SEASON_TINTS, balance)).toEqual([
+      "notASeason",
+    ]);
+    expect(unreachableSeasonPresets(PROVISIONAL_SEASON_TINTS, balance)).toEqual([]);
+
+    const shrunk = clone(balance);
+    shrunk.clock.seasonOrder = balance.clock.seasonOrder.slice(0, -1);
+    shrunk.clock.ticksPerYear = shrunk.clock.seasonOrder.length * balance.clock.ticksPerSeason;
+    const dropped = balance.clock.seasonOrder[balance.clock.seasonOrder.length - 1] as string;
+    expect(unreachableSeasonPresets(PROVISIONAL_SEASON_TINTS, shrunk)).toEqual([dropped]);
+    // Every season the retuned clock CAN ask for still reads, and the meter follows the same retune.
+    for (const season of shrunk.clock.seasonOrder) {
+      expect(() => seasonTint(shrunk, season, shrunk.clock.startYear)).not.toThrow();
+    }
+    expect(() => seasonTintForClock(createClock(shrunk), shrunk)).not.toThrow();
+    expect(seasonMeterModel(createClock(shrunk), shrunk).cells).toHaveLength(shrunk.clock.ticksPerYear);
   });
 
   it("reads its magnitudes from balance.json — brightness per season, darkening per year", () => {
@@ -530,22 +571,31 @@ describe("season tint — Hard Req 6 'season variation is a runtime tint; never 
 
   it("BINDS — the LIVE path checks the table covers seasonOrder, not just the preview path", () => {
     // `seasonTintsForYear` (a preview screen) checked; `seasonTint`/`seasonTintForClock` — the calls
-    // game/mapview.ts actually makes on every season change — did not.
-    const extra = {
-      ...PROVISIONAL_SEASON_TINTS,
-      notASeason: PROVISIONAL_SEASON_TINTS.spring,
-    } as unknown as typeof PROVISIONAL_SEASON_TINTS;
+    // game/mapview.ts actually makes on every season change — did not. A MISSING preset is the one
+    // worth failing on: it would render the map untinted with nothing on screen saying so.
     const season = balance.clock.seasonOrder[0] as (typeof balance.clock.seasonOrder)[number];
-    expect(() => seasonTint(balance, season, balance.clock.startYear, extra)).toThrow(SeasonTintError);
-    expect(() =>
-      seasonTintForClock(createClock(balance), balance, extra),
-    ).toThrow(SeasonTintError);
-    // A MISSING preset still throws too.
     const missing = { ...PROVISIONAL_SEASON_TINTS } as Record<string, unknown>;
     delete missing[season];
     expect(() =>
       seasonTint(balance, season, balance.clock.startYear, missing as typeof PROVISIONAL_SEASON_TINTS),
     ).toThrow(SeasonTintError);
+    expect(() =>
+      seasonTintForClock(createClock(balance), balance, missing as typeof PROVISIONAL_SEASON_TINTS),
+    ).toThrow(SeasonTintError);
+    expect(() =>
+      seasonTintsForYear(balance, balance.clock.startYear, missing as typeof PROVISIONAL_SEASON_TINTS),
+    ).toThrow(SeasonTintError);
+
+    // An UNREACHABLE extra reads normally on all three paths and is reported instead (see above).
+    const extra = {
+      ...PROVISIONAL_SEASON_TINTS,
+      notASeason: PROVISIONAL_SEASON_TINTS.spring,
+    } as unknown as typeof PROVISIONAL_SEASON_TINTS;
+    expect(seasonTint(balance, season, balance.clock.startYear, extra).season).toBe(season);
+    expect(seasonTintForClock(createClock(balance), balance, extra).provisional).toBe(true);
+    expect(seasonTintsForYear(balance, balance.clock.startYear, extra)).toHaveLength(
+      balance.clock.seasonOrder.length,
+    );
   });
 });
 
@@ -1219,9 +1269,10 @@ describe("retirement flow — build-doc §7.5 step 3, HEIR or BOON", () => {
       retuned,
     );
 
+    const rng = countingRng(3);
     const flow = new RetirementFlow(
       runYearTurn(save, { species: content.species, balance: retuned, nodes: content.nodes }),
-      { content: { ...content, balance: retuned }, rng: countingRng(3).fn },
+      { content: { ...content, balance: retuned }, rng: rng.fn },
     );
     const offer = flow.offer();
     if (!offer) throw new Error("no offer");
@@ -1236,6 +1287,18 @@ describe("retirement flow — build-doc §7.5 step 3, HEIR or BOON", () => {
     expect(result.rejected).toHaveLength(2); // the offer, and the fallback that could not apply either
     expect(result.choices).toHaveLength(0); // nothing was applied, and the turn still completed
     expect(result.save.party.some((c) => c.uid === "elder")).toBe(false);
+
+    /*
+     * AND IT SPENT NO DRAW. A skipped prompt writes no `retirement` entry to the action log, and
+     * `core/save.ts` `replay` draws `rollHeirChoice` only inside its `retirement` case — so a flow
+     * that rolled an heir here left the lifecycle stream one draw ahead of its own replay and every
+     * later heir roll in the run differed (build-doc §8.1 / L10). Measured before the fix: 2 draws
+     * for a prompt that produced no entry. The identity is still shown, from the line, with no
+     * inherited traits because none were rolled.
+     */
+    expect(rng.draws()).toBe(0);
+    expect(offer.heir.inheritedTraitIds).toEqual([]);
+    expect(offer.heir.formName).not.toBe("");
   });
 
   it("BINDS — an unavailable HEIR publishes no numbers at all, not zeroed ones", () => {
@@ -1712,7 +1775,7 @@ describe("year-turn sequence — build-doc §4 'a renderer of its event log'", (
     scene.init({ drive, onDone: () => undefined, placeholder: () => undefined } as never);
     scene.create();
     const agingAt = drive.beats.findIndex((b) => b.t === "aging");
-    for (let i = 0; i < agingAt; i += 1) scene.stub.press("keydown-SPACE");
+    for (let i = 0; i < agingAt; i += 1) tap(scene, "keydown-SPACE");
     // [rect] background + title + rows + footer
     expect(scene.stub.drawn.filter((d) => d !== "[rect]").length).toBeLessThanOrEqual(room + 2);
     expect(scene.stub.drawn.some((d) => /^\+\d+ more$/u.test(d))).toBe(true);
@@ -1786,21 +1849,42 @@ describe("year-turn sequence — build-doc §4 'a renderer of its event log'", (
 
 interface StubObject {
   setOrigin: (x?: number, y?: number) => StubObject;
+  setFillStyle: (color: number, alpha?: number) => StubObject;
   destroy: () => void;
   text: string;
+  fill: { color: number; alpha: number } | null;
+}
+
+interface KeyEventLike {
+  repeat?: boolean;
 }
 
 interface StubScene {
   key: string;
   drawn: string[];
-  handlers: Map<string, Array<() => void>>;
+  objects: StubObject[];
+  handlers: Map<string, Array<(event?: KeyEventLike) => void>>;
   launches: Array<{ key: string; data: unknown }>;
   lifecycle: string[];
   registered: Set<string>;
-  press: (key: string) => void;
+  /** Keys the scene registered with `addKey` — Phaser only suppresses repeats for these. */
+  addedKeys: Set<string>;
+  /** Keys physically held down, so the stub can model `repeat = key.isDown`. */
+  heldKeys: Set<string>;
+  press: (key: string, event?: KeyEventLike) => void;
+  release: (key: string) => void;
 }
 
-/** A stand-in for the slice of Phaser these two scenes touch. */
+/**
+ * A stand-in for the slice of Phaser these two scenes touch.
+ *
+ * ⚠ THE KEYBOARD MODELS PHASER'S OWN REPEAT RULE, because a defect lived in it. Phaser's
+ * KeyboardPlugin (`update`, node_modules/phaser/src/input/keyboard/KeyboardPlugin.js) does:
+ * `var key = keys[code]; … repeat = key.isDown; … if (!event.cancelled && (!key || !repeat))` — so a
+ * scene that binds `keydown-SPACE` WITHOUT `addKey` receives every OS auto-repeat, and one that
+ * registers the key does not. `press` reproduces exactly that: a second keydown with no keyup in
+ * between reaches the handlers only if the key was never registered. `release` is the keyup.
+ */
 function stubEngine(): { P: unknown; scenes: StubScene[] } {
   const scenes: StubScene[] = [];
 
@@ -1810,7 +1894,12 @@ function stubEngine(): { P: unknown; scenes: StubScene[] } {
       rectangle: (...a: unknown[]) => StubObject;
       text: (x: number, y: number, value: string | string[]) => StubObject;
     };
-    input: { keyboard: { on: (event: string, fn: () => void) => void } };
+    input: {
+      keyboard: {
+        on: (event: string, fn: (event?: KeyEventLike) => void) => void;
+        addKey: (key: string) => unknown;
+      };
+    };
     scene: {
       manager: { keys: Record<string, unknown> };
       launch: (key: string, data: unknown) => void;
@@ -1823,12 +1912,23 @@ function stubEngine(): { P: unknown; scenes: StubScene[] } {
       const state: StubScene = {
         key: config.key,
         drawn: [],
+        objects: [],
         handlers: new Map(),
         launches: [],
         lifecycle: [],
         registered: new Set<string>(),
-        press: (key: string) => {
-          for (const fn of state.handlers.get(key) ?? []) fn();
+        addedKeys: new Set<string>(),
+        heldKeys: new Set<string>(),
+        press: (key: string, event?: KeyEventLike) => {
+          const code = key.replace(/^keydown-/u, "");
+          const wasDown = state.heldKeys.has(code);
+          state.heldKeys.add(code);
+          // Phaser: a registered key that is already down emits nothing (`!key || !repeat`).
+          if (wasDown && state.addedKeys.has(code)) return;
+          for (const fn of state.handlers.get(key) ?? []) fn(event);
+        },
+        release: (key: string) => {
+          state.heldKeys.delete(key.replace(/^keydown-/u, ""));
         },
       };
       this.stub = state;
@@ -1837,13 +1937,19 @@ function stubEngine(): { P: unknown; scenes: StubScene[] } {
       const object = (label: string): StubObject => {
         const obj: StubObject = {
           text: label,
+          fill: null,
           setOrigin: () => obj,
+          setFillStyle: (color: number, alpha = 1) => {
+            obj.fill = { color, alpha };
+            return obj;
+          },
           destroy: () => {
             const at = state.drawn.indexOf(label);
             if (at >= 0) state.drawn.splice(at, 1);
           },
         };
         state.drawn.push(label);
+        state.objects.push(obj);
         return obj;
       };
 
@@ -1857,6 +1963,10 @@ function stubEngine(): { P: unknown; scenes: StubScene[] } {
             const list = state.handlers.get(event) ?? [];
             list.push(fn);
             state.handlers.set(event, list);
+          },
+          addKey: (key: string) => {
+            state.addedKeys.add(key);
+            return { isDown: false };
           },
         },
       };
@@ -1881,25 +1991,62 @@ type SceneCtor = new () => {
   scene: { manager: { keys: Record<string, unknown> } };
   init: (data: never) => void;
   create: () => void;
+  update: () => void;
 };
 
-describe("the scenes, driven for real", () => {
-  function legacyDrive(survivors = 3, seed = 17) {
-    const party = [
-      creature({ uid: "elder", line: mortalLine(), age: "E", level: 22, traits: [traitAt(0), traitAt(1)] }),
-    ];
-    for (let i = 0; i < survivors; i += 1) {
-      party.push(creature({ uid: `mate${String(i)}`, line: mortalLine(i + 1), age: "J", level: 10 + i }));
-    }
-    const save = saveWith(party, [], seed);
-    return driveYearTurn(save, {
-      content,
-      simRng: simRng(seed),
-      lifecycleRng: countingRng(seed).fn,
-      endedYear: save.year,
-    });
-  }
+/** Frames the slower of the two cards makes a player wait before it will act on a key. */
+const ARM_FRAMES = Math.max(
+  defaultYearTurnStyle(balance).advanceArmFrames,
+  defaultRetirementStyle(balance).confirmArmFrames,
+);
 
+type Driveable = { stub: StubScene; update: () => void };
+
+/** Run the scene's frame loop, the way Phaser's would. */
+function frames(scene: Driveable, count = ARM_FRAMES): void {
+  for (let i = 0; i < count; i += 1) scene.update();
+}
+
+/**
+ * One deliberate keypress: the screen has been readable for its arming window, the key goes down,
+ * and the player lets go. Everything a real player does; nothing a held key does.
+ */
+function tap(scene: Driveable, key: string): void {
+  frames(scene);
+  scene.stub.press(key);
+  scene.stub.release(key);
+}
+
+/**
+ * A HELD key: one press, then `repeats` OS auto-repeat keydowns with no keyup, one frame apart —
+ * the input that used to run the whole year-turn sequence and answer the Legacy card in four frames.
+ */
+function hold(scene: Driveable, key: string, repeats: number): void {
+  scene.stub.press(key);
+  for (let i = 0; i < repeats; i += 1) {
+    scene.update();
+    scene.stub.press(key, { repeat: true });
+  }
+}
+
+/** The Legacy beat as the demo cuts it: an Elder retiring with `survivors` teammates alive. */
+function legacyDrive(survivors = 3, seed = 17) {
+  const party = [
+    creature({ uid: "elder", line: mortalLine(), age: "E", level: 22, traits: [traitAt(0), traitAt(1)] }),
+  ];
+  for (let i = 0; i < survivors; i += 1) {
+    party.push(creature({ uid: `mate${String(i)}`, line: mortalLine(i + 1), age: "J", level: 10 + i }));
+  }
+  const save = saveWith(party, [], seed);
+  return driveYearTurn(save, {
+    content,
+    simRng: simRng(seed),
+    lifecycleRng: countingRng(seed).fn,
+    endedYear: save.year,
+  });
+}
+
+describe("the scenes, driven for real", () => {
   it("the retirement card draws EVERY stat heading and confirms the one on screen", () => {
     // Measured before the fix, with this same rig: "targets per stat: 5,5,5,5,5",
     // "statIndex values reachable after 12 DOWN presses: 0", "stat headings ever drawn: BOON  hp".
@@ -1919,20 +2066,33 @@ describe("the scenes, driven for real", () => {
       },
     } as never);
     scene.create();
-    expect(painted).toContain("elder"); // an honest labelled stand-in, never a stretched trial image
+    /*
+     * An honest labelled stand-in, never a stretched trial image — and labelled with an ASSET ID.
+     * It used to paint `offer.parent.uid` ("elder" here, "starter" in a real run): a save-local name
+     * that no `assets/final/**` path can ever match, so the portrait could not resolve to real art
+     * when Lane B lands one, and the label — which exists so "a reviewer can say WHICH asset is
+     * missing" (game/placeholder.ts) — named a file nobody could look for.
+     */
+    const offer0 = drive.flow.offer();
+    if (!offer0) throw new Error("no offer");
+    expect(painted).toEqual([dexArtId(offer0.parent.formName)]);
+    expect(painted[0]).not.toBe(offer0.parent.uid);
+    expect(assetId(`assets/final/${String(painted[0])}.png`)).toBe(painted[0]);
 
     const offer = drive.flow.offer();
     if (!offer) throw new Error("no offer");
     const headings = new Set<string>();
+    // The headings carry the cursor gutter now ("▸BOON  hp" on the selected side, " BOON  hp" on
+    // the other), so the marker is stripped before the stat is read off.
     const readHeading = (): void => {
-      const line = scene.stub.drawn.find((d) => d.startsWith("BOON"));
-      if (line) headings.add(line.trim());
+      const line = scene.stub.drawn.find((d) => d.replace(/^[▸ ]/u, "").startsWith("BOON"));
+      if (line) headings.add(line.replace(/^[▸ ]/u, "").trim());
     };
 
-    scene.stub.press("keydown-RIGHT");
+    tap(scene, "keydown-RIGHT");
     readHeading();
     for (let i = 0; i < boonRows(offer).length; i += 1) {
-      scene.stub.press("keydown-DOWN");
+      tap(scene, "keydown-DOWN");
       readHeading();
     }
     expect(headings.size).toBe(offer.boons.length);
@@ -1942,8 +2102,11 @@ describe("the scenes, driven for real", () => {
 
     // The marker is on screen, and confirming applies the stat the heading names.
     expect(scene.stub.drawn.some((d) => d.startsWith("▸"))).toBe(true);
-    const heading = scene.stub.drawn.find((d) => d.startsWith("BOON")) as string;
-    scene.stub.press("keydown-SPACE");
+    const heading = scene.stub.drawn
+      .find((d) => d.replace(/^[▸ ]/u, "").startsWith("BOON"))
+      ?.replace(/^[▸ ]/u, "")
+      .trim() as string;
+    tap(scene, "keydown-SPACE");
     expect(done).not.toBeNull();
     const applied = (done as unknown as AdvanceYearResultLike).choices[0];
     expect(applied?.kind).toBe("boon");
@@ -1981,12 +2144,12 @@ describe("the scenes, driven for real", () => {
     } as never);
     scene.create();
 
-    scene.stub.press("keydown-RIGHT"); // sit on the blocked BOON side
+    tap(scene, "keydown-RIGHT"); // sit on the blocked BOON side
     const before = drive.flow.remaining();
-    scene.stub.press("keydown-SPACE");
+    tap(scene, "keydown-SPACE");
     expect(drive.flow.remaining()).toBeLessThan(before); // the key was ANSWERED, not swallowed
 
-    for (let i = 0; i < 20; i += 1) scene.stub.press("keydown-SPACE");
+    for (let i = 0; i < 20; i += 1) tap(scene, "keydown-SPACE");
     expect(done).not.toBeNull();
     const result = done as unknown as { choices: Array<{ kind: string }>; rejected: unknown[] };
     expect(result.rejected.length).toBeGreaterThan(0); // and the refusal was recorded, not hidden
@@ -2007,7 +2170,7 @@ describe("the scenes, driven for real", () => {
     scene.create();
 
     // Walk the whole sequence, then keep pressing well past the end.
-    for (let i = 0; i < drive.beats.length + 20; i += 1) scene.stub.press("keydown-SPACE");
+    for (let i = 0; i < drive.beats.length + 20; i += 1) tap(scene, "keydown-SPACE");
 
     expect(scene.stub.launches.filter((l) => l.key === RETIREMENT_SCENE_KEY)).toHaveLength(1);
     expect(scene.stub.lifecycle).toContain("pause");
@@ -2037,8 +2200,8 @@ describe("the scenes, driven for real", () => {
     // Advance to the retirement beat.
     const retirementAt = drive.beats.findIndex((b) => b.t === "retirements");
     expect(retirementAt).toBeGreaterThan(0);
-    for (let i = 0; i < retirementAt; i += 1) year.stub.press("keydown-SPACE");
-    year.stub.press("keydown-SPACE"); // the beat itself hands off
+    for (let i = 0; i < retirementAt; i += 1) tap(year, "keydown-SPACE");
+    tap(year, "keydown-SPACE"); // the beat itself hands off
     const launch = year.stub.launches.find((l) => l.key === RETIREMENT_SCENE_KEY);
     expect(launch).toBeDefined();
     expect(committed).toBe(0);
@@ -2047,12 +2210,13 @@ describe("the scenes, driven for real", () => {
     const card = new Retirement();
     card.init(launch?.data as never);
     card.create();
-    while (drive.flow.remaining() > 0) card.stub.press("keydown-SPACE");
+    for (let i = 0; i < 10 && drive.flow.remaining() > 0; i += 1) tap(card, "keydown-SPACE");
+    expect(drive.flow.remaining()).toBe(0);
     expect(scenes.length).toBe(2);
 
     // Back on the year turn: it resumed, played what was left, and committed exactly once.
     expect(year.stub.lifecycle).toContain("resume");
-    for (let i = 0; i < drive.beats.length + 10; i += 1) year.stub.press("keydown-SPACE");
+    for (let i = 0; i < drive.beats.length + 10; i += 1) tap(year, "keydown-SPACE");
     expect(committed).toBe(1);
     expect(year.stub.launches.filter((l) => l.key === RETIREMENT_SCENE_KEY)).toHaveLength(1);
     expect(committedSave).not.toBeNull();
@@ -2070,7 +2234,7 @@ describe("the scenes, driven for real", () => {
     scene.init({ drive, onDone: () => { committed += 1; } } as never);
     // …no RETIREMENT key registered.
     scene.create();
-    for (let i = 0; i < drive.beats.length + 10; i += 1) scene.stub.press("keydown-SPACE");
+    for (let i = 0; i < drive.beats.length + 10; i += 1) tap(scene, "keydown-SPACE");
 
     expect(scene.stub.launches).toHaveLength(0);
     expect(committed).toBe(1); // the turn still completed, on core's own documented default
@@ -2099,7 +2263,7 @@ describe("the scenes, driven for real", () => {
 
     // Refuse both prompts the way a fully blocked BOON side does: the flow falls back to the rolled
     // HEIR, the party refills, and no partyEmpty beat is claimed.
-    for (let i = 0; i < drive.beats.length + 6; i += 1) scene.stub.press("keydown-SPACE");
+    for (let i = 0; i < drive.beats.length + 6; i += 1) tap(scene, "keydown-SPACE");
     const shown = scene.stub.drawn.join("\n");
     expect(shown).not.toContain("PARTY 0");
   });
@@ -2109,3 +2273,571 @@ describe("the scenes, driven for real", () => {
 interface AdvanceYearResultLike {
   choices: Array<{ kind: string; stat?: string | undefined }>;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * REPAIRS — one block per defect an independent verifier reproduced in the RUNNING game
+ *
+ * Every test below fails against the code as it was, and the comment on each one carries the
+ * measurement that was taken before the fix. They are here rather than folded into the blocks above
+ * because what they bind is not "the model is right" — the model was right — but "the thing the
+ * player touches does what the model says".
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("the repairs — reproduced defects, and what stops them coming back", () => {
+  function soloElder(seed = 11): SaveEnvelope {
+    // build-doc §1's own shape: ONE creature, the starter, retiring alone.
+    return saveWith(
+      [creature({ uid: "starter", line: mortalLine(), age: "E", level: 20, traits: [traitAt(0)] })],
+      [],
+      seed,
+    );
+  }
+
+  function driveOf(save: SaveEnvelope, extra: Record<string, unknown> = {}) {
+    return driveYearTurn(save, {
+      content,
+      simRng: simRng(save.seed),
+      lifecycleRng: countingRng(save.seed).fn,
+      endedYear: save.year,
+      ...extra,
+    } as never);
+  }
+
+  /* ── the cursor and the committed action (RetirementScene.ts) ──────────── */
+
+  it("BINDS — the ▸ is on the side SPACE will take, and moves when the side does", () => {
+    /*
+     * Measured in the running game before the fix, with the default selection {side:"heir"}: the
+     * card drew ["HEIR", " Cindril · J10", …, "BOON  hp", "▸Maelstrisk L14 · hp 110 → 121 (+11)"] —
+     * the single ▸ on a BOON row — and SPACE committed the HEIR. Pressing RIGHT to the BOON side
+     * left the marker exactly where it was. The only difference between the two sides was a panel
+     * alpha of 0.25 against 0.15.
+     */
+    const { P } = stubEngine();
+    const drive = legacyDrive(4);
+    const Scene = createRetirementScene(P as never) as unknown as SceneCtor;
+    const scene = new Scene();
+    let done: AdvanceYearResultLike | null = null;
+    scene.init({
+      flow: drive.flow,
+      onDone: (r: AdvanceYearResultLike) => {
+        done = r;
+      },
+      placeholder: () => undefined,
+    } as never);
+    scene.create();
+
+    const offer = drive.flow.offer();
+    if (!offer) throw new Error("no offer");
+    const marked = (): string[] => scene.stub.drawn.filter((d) => d.startsWith("▸"));
+    const heirBody = heirLines(offer);
+    const boonBody = new Set(offer.boons.flatMap((b) => boonLines(b)));
+
+    // The card opens on HEIR, which is what SPACE would take.
+    expect(selectedChoice({ side: "heir", statIndex: 0, targetIndex: 0 }, offer)?.kind).toBe("heir");
+    const onHeir = marked();
+    expect(onHeir.some((d) => d.includes("HEIR"))).toBe(true);
+    expect(onHeir.some((d) => d.includes("BOON"))).toBe(false);
+    expect(onHeir.some((d) => d.slice(1) === heirBody[0])).toBe(true);
+    expect(onHeir.some((d) => boonBody.has(d.slice(1)))).toBe(false);
+
+    // RIGHT moves the side, and the marker with it.
+    tap(scene, "keydown-RIGHT");
+    const onBoon = marked();
+    expect(onBoon.some((d) => d.includes("BOON"))).toBe(true);
+    expect(onBoon.some((d) => d.includes("HEIR"))).toBe(false);
+    expect(onBoon.some((d) => boonBody.has(d.slice(1)))).toBe(true);
+    expect(onBoon.some((d) => d.slice(1) === heirBody[0])).toBe(false);
+
+    // …and back, where SPACE really does take the HEIR the marker is sitting on.
+    tap(scene, "keydown-LEFT");
+    expect(marked().some((d) => d.includes("HEIR"))).toBe(true);
+    tap(scene, "keydown-SPACE");
+    expect(done).not.toBeNull();
+    expect((done as unknown as AdvanceYearResultLike).choices[0]?.kind).toBe("heir");
+  });
+
+  /* ── the held key (both scenes) ────────────────────────────────────────── */
+
+  it("BINDS — a HELD key advances one beat and answers no card", () => {
+    /*
+     * Reproduced frame by frame in the running game: one auto-repeat keydown per frame, no keyup.
+     * Frame 2 the sequence was already on the RETIREMENT beat, frame 3 the Legacy card was up,
+     * frame 4 it was gone (scene status SHUTDOWN), frame 5 `onDone` had fired with choices ["heir"].
+     * The never-cut card was on screen for ONE frame and answered itself.
+     */
+    const { P } = stubEngine();
+    const drive = legacyDrive(2);
+    const YearTurn = createYearTurnScene(P as never) as unknown as SceneCtor;
+    const Retirement = createRetirementScene(P as never) as unknown as SceneCtor;
+
+    const year = new YearTurn();
+    let committed = 0;
+    year.init({ drive, onDone: () => { committed += 1; }, placeholder: () => undefined } as never);
+    year.scene.manager.keys[RETIREMENT_SCENE_KEY] = {};
+    year.create();
+    const beatAt = (): string => year.stub.drawn.find((d) => /^\d+\/\d+$/u.test(d)) ?? "";
+    expect(beatAt()).toBe(`1/${String(drive.beats.length)}`);
+
+    /*
+     * Hard Req 6's season pass is a SEPARATE rectangle over an opaque backdrop, not the backdrop
+     * itself: `applySeasonOverlay` sets a fill and an alpha below 1, and the year-turn card is drawn
+     * over a PAUSED overworld — a translucent backdrop would show it through.
+     */
+    const washed = year.stub.objects.filter((o) => o.fill !== null);
+    expect(washed).toHaveLength(1);
+    expect(washed[0]?.fill?.alpha).toBeLessThan(1);
+    expect(washed[0]?.fill?.alpha).toBeGreaterThan(0);
+    expect(year.stub.objects.filter((o) => o.text === "[rect]" && o.fill === null).length).toBeGreaterThan(0);
+
+    // Held from the first frame: nothing at all happens until the beat has been readable.
+    hold(year, "keydown-SPACE", 40);
+    expect(beatAt()).toBe(`1/${String(drive.beats.length)}`);
+    expect(year.stub.launches).toHaveLength(0);
+    expect(committed).toBe(0);
+
+    // Armed, then held: exactly ONE beat, however long the key stays down.
+    year.stub.release("keydown-SPACE");
+    frames(year);
+    hold(year, "keydown-SPACE", 40);
+    expect(beatAt()).toBe(`2/${String(drive.beats.length)}`);
+
+    // The card: opened by a real press, then held. The repeats of that press answer nothing.
+    year.stub.release("keydown-SPACE");
+    const retirementAt = drive.beats.findIndex((b) => b.t === "retirements");
+    for (let i = 1; i < retirementAt; i += 1) tap(year, "keydown-SPACE");
+    tap(year, "keydown-SPACE");
+    const launch = year.stub.launches.find((l) => l.key === RETIREMENT_SCENE_KEY);
+    expect(launch).toBeDefined();
+
+    const card = new Retirement();
+    card.init(launch?.data as never);
+    card.create();
+    const pending = drive.flow.remaining();
+    expect(pending).toBeGreaterThan(0);
+
+    /*
+     * THE CARD WAS CREATED WHILE THE KEY WAS HELD, so the first keydown it ever sees is the OS
+     * repeating the press that opened it. Phaser's own repeat suppression cannot help here — the
+     * card's `Key` is new and reads `isDown: false`, so the plugin emits — which is why the handlers
+     * check `event.repeat` themselves. Frames are stepped first, so this isolates that check from
+     * the arming window: the card is fully armed and still refuses.
+     */
+    frames(card);
+    card.stub.press("keydown-SPACE", { repeat: true });
+    expect(drive.flow.remaining()).toBe(pending);
+
+    // Held from the card's own first frame: nothing either.
+    hold(card, "keydown-SPACE", 40);
+    expect(drive.flow.remaining()).toBe(pending); // the card is still up, and still unanswered
+    card.stub.release("keydown-SPACE");
+    tap(card, "keydown-SPACE");
+    expect(drive.flow.remaining()).toBe(pending - 1); // a deliberate press still answers it
+  });
+
+  /* ── the six-year game ends (year-events.ts, YearTurnScene.ts, SeasonMeter.ts) ── */
+
+  it("BINDS — the six-year game ends, and nothing on screen names a seventh year", () => {
+    /*
+     * Measured before the fix, driving the real shipped path: "--- year turn 6 -> 7 (reason meter)
+     * --- / beat festival: FESTIVAL · Y7/6", then "turn 7->8 festival='Y8/6' isOver=true", then
+     * "Y9/6". `core/clock.ts` `isOver` existed and no production code called it.
+     */
+    const finalYear = finalYearOf(balance);
+    expect(finalYear).toBe(balance.clock.startYear + balance.clock.yearsTotal - 1);
+    expect(yearTurnEndsRun(finalYear, balance)).toBe(true);
+    expect(yearTurnEndsRun(finalYear - 1, balance)).toBe(false);
+
+    let save = soloElder(5);
+    let turns = 0;
+    while (!isOver(save, balance)) {
+      const drive = driveOf(save);
+      if (save.year === finalYear) {
+        // The last turn: its copy reports the six years as complete, not a seventh as beginning.
+        const festival = drive.beats.find((b) => b.t === "festival");
+        if (!festival || festival.t !== "festival") throw new Error("no festival beat");
+        expect(festival.festival.beyondFinalYear).toBe(true);
+        expect(festival.festival.label).not.toContain(`Y${String(finalYear + 1)}`);
+        for (const line of beatLines(festival)) {
+          expect(line).not.toContain(`Y${String(finalYear + 1)}/`);
+        }
+      }
+      while (!drive.flow.done()) drive.flow.chooseHeir();
+      save = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carryTick);
+      turns += 1;
+      expect(turns).toBeLessThanOrEqual(balance.clock.yearsTotal);
+    }
+    // Six turns for six years — the invariant LANE-A-STATUS §5 counts season steps with.
+    expect(turns).toBe(balance.clock.yearsTotal);
+    expect(save.year).toBe(finalYear + 1);
+
+    // And the seventh turn is refused, by the guard rather than by luck.
+    expect(() => driveOf(save)).toThrow(YearTurnError);
+    expect(() => driveOf(save)).toThrow(/past the final year/u);
+
+    // The meter reads the completed game, never "Y7/6".
+    const over = seasonMeterModel(save, balance);
+    expect(over.over).toBe(true);
+    expect(over.label).not.toContain(`Y${String(finalYear + 1)}`);
+    expect(over.yearLabel).toBe(`Y${String(finalYear)}/${String(balance.clock.yearsTotal)}`);
+    expect(over.year).toBe(finalYear + 1); // the raw clock is still the raw clock
+    expect(seasonMeterModel({ year: finalYear, tick: 0 }, balance).over).toBe(false);
+  });
+
+  it("BINDS — a gym victory cannot end a year that a year turn has just begun", () => {
+    /*
+     * Measured before the fix: "A4 meter trigger {endedYear:1} / A4 after meter turn: year=2 tick=0
+     * / A4 gym trigger after meter turn: {endedYear:2,reason:'gymVictory'} / A4 SECOND TURN RAN —
+     * save year now 3". `gymVictory` reads the year off the already-advanced clock, so `endedYear`
+     * equalled `save.year` and both existing guards passed.
+     */
+    let save = soloElder(23);
+    const first = driveOf(save, { reason: "meter" });
+    while (!first.flow.done()) first.flow.chooseHeir();
+    save = finishYearTurn(first.flow.result(), first.tickBefore, first.carryTick);
+    expect(save.year).toBe(balance.clock.startYear + 1);
+    expect(save.tick).toBe(balance.clock.startTick);
+
+    const trigger = yearTurnTrigger(gymVictory({ year: save.year, tick: save.tick }, balance));
+    expect(trigger?.endedYear).toBe(save.year); // …which is exactly why the old guards passed
+    expect(trigger?.reason).toBe("gymVictory");
+    expect(() => driveOf(save, { reason: "gymVictory" })).toThrow(YearTurnError);
+    expect(() => driveOf(save, { reason: "gymVictory" })).toThrow(/no tick has been spent/u);
+
+    // L8's second trigger still works the moment the player has actually played the year.
+    const played = { ...save, tick: advanceAction(save, "foray", balance).clock.tick };
+    expect(played.tick).toBeGreaterThan(balance.clock.startTick);
+    expect(() => driveOf(played, { reason: "gymVictory" })).not.toThrow();
+  });
+
+  /* ── the one-sided BOON, said before the card opens (YearTurnScene.ts) ──── */
+
+  it("BINDS — the retirement beat states the BOON pool before the card is opened", () => {
+    /*
+     * Reproduced on a solo-starter run: "PROMPT 1/1 parent=Pyrevane E20 … BOON hp: no hp target ·
+     * owned 0" for all five stats. That is core's semantics (build-doc §7.5 step 3's boon needs a
+     * teammate) and not a coding error — but nothing told the player before the card was on screen.
+     */
+    const alone = driveOf(soloElder(31));
+    const beat = alone.beats.find((b) => b.t === "retirements");
+    if (!beat || beat.t !== "retirements") throw new Error("no retirement beat");
+    expect(beat.owned).toBe(0);
+    expect(beatLines(beat)[0]).toContain("owned 0");
+    const offer = alone.flow.offer();
+    if (!offer) throw new Error("no offer");
+    expect(offer.boons.every((b) => b.problem !== null)).toBe(true); // the card agrees
+
+    // With a teammate the same beat says so, and the BOON side is real.
+    const withMate = driveOf(
+      saveWith(
+        [
+          creature({ uid: "starter", line: mortalLine(), age: "E", level: 20, traits: [traitAt(0)] }),
+          creature({ uid: "mate", line: mortalLine(1), age: "J", level: 10 }),
+        ],
+        [],
+        31,
+      ),
+    );
+    const mateBeat = withMate.beats.find((b) => b.t === "retirements");
+    if (!mateBeat || mateBeat.t !== "retirements") throw new Error("no retirement beat");
+    expect(mateBeat.owned).toBe(1);
+    expect(beatLines(mateBeat)[0]).toContain("owned 1");
+    const mateOffer = withMate.flow.offer();
+    expect(mateOffer?.boons.some((b) => b.problem === null)).toBe(true);
+  });
+
+  /* ── the full meter is a position, not one past the last season (SeasonMeter.ts) ── */
+
+  it("BINDS — the full meter's derived fields agree with the season it reports", () => {
+    /*
+     * Measured: A3 fullMeter → {"seasonIndex":4,"season":"winter","ticksLeftInSeason":4,
+     * "ticksLeftInYear":0,"full":true} on a 4-season year — an index one past the last season, and
+     * four ticks left in a year that is over. `fullMeter` is the ONLY thing in the repo that asks
+     * about tick `ticksPerYear`, so the inconsistent state existed solely because this module built
+     * it.
+     */
+    const seasons = balance.clock.seasonOrder;
+    const filled = fullMeter(balance.clock.startYear, balance);
+    expect(filled.full).toBe(true);
+    expect(filled.seasonIndex).toBe(seasons.length - 1);
+    expect(seasons[filled.seasonIndex]).toBe(filled.season);
+    expect(filled.ticksIntoSeason).toBe(balance.clock.ticksPerSeason);
+    expect(filled.ticksLeftInSeason).toBe(0);
+    expect(filled.ticksLeftInYear).toBe(0);
+    expect(filled.cells.every((c) => c.filled)).toBe(true);
+    expect(filled.cells.some((c) => c.current)).toBe(false);
+
+    // …and every tick a live clock CAN hold still reads exactly what core/clock.ts says.
+    for (let tick = 0; tick < balance.clock.ticksPerYear; tick += 1) {
+      const model = seasonMeterModel({ year: balance.clock.startYear, tick }, balance);
+      const core = meter({ year: balance.clock.startYear, tick }, balance);
+      expect(model.seasonIndex).toBe(core.seasonIndex);
+      expect(model.season).toBe(core.season);
+      expect(model.ticksIntoSeason).toBe(core.ticksIntoSeason);
+      expect(model.ticksLeftInSeason).toBe(core.ticksLeftInSeason);
+      expect(model.ticksLeftInYear).toBe(core.ticksLeftInYear);
+      expect(seasons[model.seasonIndex]).toBe(model.season);
+      expect(model.full).toBe(false);
+    }
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * The logged run replays (build-doc §8.1 / L10) — game/year-replay.ts
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/** The action the shell logs for one player action, exactly as game/scenes/OverworldScene.ts does. */
+function actionFor(kind: "travel" | "foray" | "inn", nodeId: string) {
+  if (kind === "travel") return { t: "travel", to: nodeId } as const;
+  if (kind === "foray") return { t: "foray", nodeId } as const;
+  return { t: "inn", townId: nodeId } as const;
+}
+
+/**
+ * A run driven the way the SHIPPED shell drives one.
+ *
+ * This mirrors `OverworldScene.spendTicks` → `handleClockEvents` → `beginYearTurn` step for step:
+ * log the action, advance the real clock, step the REGION on every `seasonBoundary` (never on
+ * `yearEnd` — LANE-A-STATUS §5, integration defect I4), and hand a year end to `driveYearTurn` with
+ * the save still standing in the ending year. The scene itself cannot be imported here (it value-
+ * imports phaser, which throws in vitest's node environment), so the ORDER is asserted separately
+ * against its source in "the running game registers both scenes".
+ */
+function liveRun(
+  seed: number,
+  actions: ReadonlyArray<"travel" | "foray" | "inn">,
+): { initial: SaveEnvelope; save: SaveEnvelope; yearTurns: number } {
+  const initial = saveWith(
+    [creature({ uid: "starter", line: mortalLine(), age: "J", level: 10, traits: [traitAt(0)] })],
+    [],
+    seed,
+  );
+  let save = initial;
+  const stream = simRng(seed);
+  const context = defaultContext();
+  let yearTurns = 0;
+
+  for (const kind of actions) {
+    if (isOver(save, balance)) break;
+    save = appendAction(save, actionFor(kind, save.currentNode));
+    const tickBefore = save.tick;
+    const advanced = advanceAction({ year: save.year, tick: save.tick }, kind, balance);
+    save = { ...save, year: advanced.clock.year, tick: advanced.clock.tick };
+
+    for (const event of advanced.events) {
+      if (event.t !== "seasonBoundary") continue;
+      save = appendAction(save, { t: "seasonStep", season: event.seasonEnded });
+      const stepped = stepRegionStates(
+        content.nodes,
+        save.nodeStates,
+        event.seasonEnded,
+        stream,
+        context,
+      );
+      save = { ...save, nodeStates: stepped.states };
+    }
+
+    const trigger = yearTurnTrigger(advanced);
+    if (!trigger) continue;
+    const heir = subsystemRng(save.seed, `sim:heir:y${String(trigger.endedYear)}`);
+    const drive = driveYearTurn(
+      { ...save, year: trigger.endedYear, tick: tickBefore },
+      {
+        content,
+        simRng: stream,
+        lifecycleRng: () => heir.nextFloat(),
+        endedYear: trigger.endedYear,
+        reason: trigger.reason,
+        carryTick: trigger.carryTick,
+        context,
+      },
+    );
+    while (!drive.flow.done()) drive.flow.chooseHeir();
+    save = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carryTick);
+    yearTurns += 1;
+  }
+  return { initial, save, yearTurns };
+}
+
+describe("replaying the shipped path — build-doc §8.1's claim, for the run the game actually produces", () => {
+  /** Enough forays to fill a year, then an inn that straddles the boundary. */
+  const script: Array<"travel" | "foray" | "inn"> = [
+    ...Array.from({ length: balance.clock.ticksPerYear - 1 }, () => "foray" as const),
+    "inn",
+    "travel",
+    "foray",
+  ];
+
+  it("BINDS — the region-stepped year turn replays to the same numbers, node for node", () => {
+    /*
+     * Measured before this hook existed, with the obvious per-node `ecosimStep`: "G1 population
+     * diffs live-vs-replay: 17" across 6 nodes after ONE year turn (r1/bramblehog-line live 7 vs
+     * replay 8, r1/loamunder-line 35 vs 34, …). `driveYearTurn` steps the whole REGION once —
+     * `stepAll` costs the parent stream one draw for the region, which is what makes INV-2 true —
+     * while `replay` hands out a per-node hook, and the two are not the same computation.
+     */
+    const run = liveRun(41, script);
+    expect(run.yearTurns).toBe(1);
+
+    const hooks = replayRegionHooks({
+      content,
+      simRng: simRng(41),
+      initialStates: run.initial.nodeStates,
+      context: defaultContext(),
+    });
+    const replayed = replay(run.initial, run.save.actionLog, {
+      species: content.species,
+      balance,
+      nodes: content.nodes,
+      ecosimStep: hooks.ecosimStep,
+      applyOther: hooks.applyOther,
+    });
+
+    expect(replayed.nodeStates).toEqual(run.save.nodeStates);
+    expect(replayed.party).toEqual(run.save.party);
+    expect(replayed.box).toEqual(run.save.box);
+    expect(replayed.questFlags).toEqual(run.save.questFlags);
+    // One region step per season step, not one per node.
+    expect(hooks.regionSteps()).toBe(balance.clock.seasonOrder.length);
+
+    /*
+     * THE NEGATIVE CONTROL. The same replay with the per-node hook (the shape
+     * tests/integration/seams.test.ts uses) does NOT reproduce the run — so the assertion above is
+     * evidence about the hook, not about replay being insensitive to it.
+     */
+    const naiveRng = simRng(41);
+    const naive = replay(run.initial, run.save.actionLog, {
+      species: content.species,
+      balance,
+      nodes: content.nodes,
+      ecosimStep: (nodeId: string, state: NodeState, season: Season) =>
+        stepRegionStates(
+          content.nodes.filter((n) => n.id === nodeId),
+          { [nodeId]: state },
+          season,
+          naiveRng,
+        ).states[nodeId] as NodeState,
+    });
+    expect(naive.nodeStates).not.toEqual(run.save.nodeStates);
+  });
+
+  it("BINDS — the tick the year turn carried is recoverable from the action log", () => {
+    /*
+     * Measured before the fix: after an inn taken at tick 15, "D1 live tick: 1 year: 2 / D1
+     * replayed tick: 0 year: 2 / D1 tick divergence: true". `replay` does not model the clock at
+     * all, and `finishYearTurn` restores the carry `core/clock.ts` promises — so the two disagreed.
+     * The log was never missing the information: every entry carries the {year, tick} it was taken
+     * at, and L8's costs are in balance.
+     */
+    // Stops ON the inn, so the save stands exactly where the carry left it.
+    const run = liveRun(41, script.slice(0, script.indexOf("inn") + 1));
+    const inn = run.save.actionLog.find((e: ActionLogEntry) => e.action.t === "inn");
+    expect(inn).toBeDefined();
+    expect(inn?.tick).toBe(balance.clock.ticksPerYear - 1); // the inn really did straddle the year
+    const carry = balance.clock.innTicks - (balance.clock.ticksPerYear - (inn?.tick ?? 0));
+    expect(carry).toBeGreaterThan(0); // …and there is a carry to lose in the first place
+    expect(run.save.tick).toBe(carry);
+    expect(run.save.year).toBe(balance.clock.startYear + 1);
+
+    const start = { year: balance.clock.startYear, tick: balance.clock.startTick };
+    const fromLog = clockFromLog(start, run.save.actionLog, balance);
+    expect(fromLog).toEqual({ year: run.save.year, tick: run.save.tick });
+
+    const hooks = replayRegionHooks({
+      content,
+      simRng: simRng(41),
+      initialStates: run.initial.nodeStates,
+      context: defaultContext(),
+    });
+    const replayed = replay(run.initial, run.save.actionLog, {
+      species: content.species,
+      balance,
+      nodes: content.nodes,
+      ecosimStep: hooks.ecosimStep,
+      applyOther: hooks.applyOther,
+    });
+    expect(replayed.tick).not.toBe(run.save.tick); // core's replay still models no clock…
+    expect(withClockFromLog(replayed, start, run.save.actionLog, balance).tick).toBe(run.save.tick);
+    expect(withClockFromLog(replayed, start, run.save.actionLog, balance).year).toBe(run.save.year);
+    // …and the whole save now matches, byte for byte, which is what L10 claims.
+    expect(withClockFromLog(replayed, start, run.save.actionLog, balance)).toEqual(run.save);
+  });
+
+  it("BINDS — a gym victory's year turn replays too, tick included", () => {
+    // The other of build-doc §4's two triggers spends no ticks, so the year turn itself is what
+    // moves the clock — `clockFromLog` reads that off the `yearTurn` entry rather than a tick cost.
+    const start = { year: balance.clock.startYear, tick: balance.clock.startTick };
+    const log: ActionLogEntry[] = [
+      { seq: 0, year: start.year, tick: 3, action: { t: "gymVictory", gymId: "g1" } },
+      { seq: 1, year: start.year, tick: 3, action: { t: "yearTurn", year: start.year + 1 } },
+    ];
+    expect(clockFromLog(start, log, balance)).toEqual({
+      year: start.year + 1,
+      tick: balance.clock.startTick,
+    });
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * Reachability — a green test of a function nobody calls is evidence about a pure function
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("this lane is reached by playing, not only by testing", () => {
+  const root = fileURLToPath(new URL("../..", import.meta.url));
+  const read = (file: string): string => readFileSync(`${root}${file}`, "utf8");
+
+  it("BINDS — every read-side function this lane publishes has a caller in a scene", () => {
+    /*
+     * Counted before this: previewAction 0 callers, actionCosts 0, seasonTintsForYear 0,
+     * applySeasonOverlay 0, raidPreviews 0, raidCoverage 0, raidLedgerLines 0, hasRaids 0,
+     * raidableYears 0, raidsForYear 0 — the whole "what will this action cost", "what is about to be
+     * harvested" and "which acts have no authored raid" surface was exercised by this file and
+     * nothing else. A green suite over functions with no caller is evidence about pure functions.
+     */
+    const callers: Array<[string, string]> = [
+      ["previewAction", "game/scenes/OverworldScene.ts"],
+      ["actionCosts", "game/scenes/OverworldScene.ts"],
+      ["finalYearOf", "game/scenes/OverworldScene.ts"],
+      ["isOver", "game/scenes/OverworldScene.ts"],
+      ["gymVictory", "game/scenes/OverworldScene.ts"],
+      ["seasonTintsForYear", "game/scenes/YearTurnScene.ts"],
+      ["applySeasonOverlay", "game/scenes/YearTurnScene.ts"],
+      ["raidPreviews", "game/scenes/YearTurnScene.ts"],
+      ["raidCoverage", "game/scenes/YearTurnScene.ts"],
+      ["raidLedgerLines", "game/scenes/YearTurnScene.ts"],
+      ["hasRaids", "game/scenes/YearTurnScene.ts"],
+      // Reached through the two above, inside their own module.
+      ["raidableYears", "game/year-events.ts"],
+      ["raidsForYear", "game/year-events.ts"],
+    ];
+    for (const [name, file] of callers) {
+      const source = stripComments(read(file));
+      expect(source.includes(`${name}(`), `${file} never calls ${name}()`).toBe(true);
+    }
+    // …and the two intra-module ones really are reached from a scene, through a function that is.
+    expect(stripComments(read("game/year-events.ts")).includes("raidableYears(")).toBe(true);
+    expect(raidCoverage(balance).scriptedYears.length).toBeGreaterThan(0);
+    expect(raidPreviews({}, content.nodes, content.species, balance, balance.clock.startYear + 1)).toBeDefined();
+  });
+
+  it("BINDS — L8's three actions and both year-end triggers are wired in the overworld", () => {
+    /*
+     * Measured before: `grep -rn "gymVictory" game/` returned nothing at all, so half of L8 ("year =
+     * gym victory or full meter") could not be driven by playing; and `spendTicks` was declared
+     * `"travel" | "foray"` with two 1-tick call sites, so `clock.innTicks` was a tunable no action
+     * could reach and no player action could straddle a year boundary.
+     */
+    const overworld = stripComments(read("game/scenes/OverworldScene.ts"));
+    expect(overworld).toContain("restAtInn");
+    expect(overworld).toContain('t: "inn"');
+    expect(overworld).toContain("winGym");
+    expect(overworld).toContain('t: "gymVictory"');
+    expect(overworld).toContain("gymVictory(this.clock()");
+    expect(overworld).toContain("runIsOver");
+    expect(overworld).toContain("onRunComplete");
+    // The year cap is enforced where the ticks are spent, not only where the turn is driven.
+    expect(overworld).toMatch(/spendTicks\([\s\S]{0,400}runIsOver\(\)/u);
+    // …and the year turn is still handed the save standing in the ending year (build-doc §7.5).
+    expect(overworld).toContain("year: endedYear, tick: tickBefore");
+  });
+});

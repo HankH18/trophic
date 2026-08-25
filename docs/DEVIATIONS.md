@@ -46,8 +46,9 @@ are indexed below — but every deviation the integrator *introduced*, and every
 | `docs/DEVIATIONS-lane-a4.md` | A4 — lifecycle / save | D-A4-1 … D-A4-18 |
 | `docs/DEVIATIONS-lane-b.md` | B — art factory | B-D1 … |
 | `docs/DEVIATIONS-lane-c1.md` | C1 — game shell: boot, storage, registry, placeholders, title/menus | C1-D1 … C1-D8 |
+| `docs/DEVIATIONS-lane-c2.md` | C2 — overworld: painted map + mask movement + encounters off node JSON | C2-D1 … C2-D10 |
 | `docs/DEVIATIONS-lane-c56.md` | C5 + C6 — season meter, season tint, year turn, retirement | C56-D1 … C56-D11 |
-| `docs/DEVIATIONS-lane-c3.md` | C3 — battle scene as event-log renderer | C3-D1 … C3-D6, plus core gaps C3-G1 … C3-G6 |
+| `docs/DEVIATIONS-lane-c3.md` | C3 — battle scene as event-log renderer | C3-D1 … C3-D13, plus core/cross-lane gaps C3-G1 … C3-G8 |
 
 | # | Spec ref | Deviation | Rationale |
 |---|---|---|---|

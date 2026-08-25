@@ -210,6 +210,9 @@ export function snareShake(
   });
 }
 
+const BURST_PX = 8;
+const BURST_SCALE = 6;
+
 /** The catch settle — a bright pulse where the target was. */
 export function catchBurst(
   scene: PhaserNS.Scene,
@@ -217,17 +220,41 @@ export function catchBurst(
   duration: number,
 ): void {
   const at = positionOf(target);
-  const ring = scene.add.rectangle(at.x, at.y, 8, 8, roleColor("accent"));
+  const ring = scene.add.rectangle(at.x, at.y, BURST_PX, BURST_PX, roleColor("accent"));
   scene.tweens.add({
     targets: ring,
-    scaleX: 6,
-    scaleY: 6,
+    scaleX: BURST_SCALE,
+    scaleY: BURST_SCALE,
     alpha: 0,
     duration,
     onComplete: () => {
       ring.destroy();
     },
   });
+}
+
+/**
+ * A caught creature leaves the field: it is drawn INTO the snare — scaled down toward the burst —
+ * and its card fades with it.
+ *
+ * WAS MISSING ENTIRELY. `case "caught"` played `catchBurst` and nothing else, so the final frame of
+ * a successful catch said "Caught" over the caught creature still standing at full opacity beside a
+ * full-HP card. Measured against the other two terminal beats in the same harness: faint left the
+ * sprite at alpha 0, flee at alpha 0, catch at alpha 1 — the only outcome that left its subject
+ * fielded.
+ *
+ * Deliberately NOT `faintFade` (Hard Req 8 reserves the sink-and-fade for a KO) and not `fleeDash`
+ * (that is an escape). Three terminal beats, three pictures: a KO sinks, an escape bolts sideways,
+ * a catch is drawn in.
+ */
+export function catchSettle(
+  scene: PhaserNS.Scene,
+  target: PhaserNS.GameObjects.GameObject,
+  card: PhaserNS.GameObjects.GameObject,
+  duration: number,
+): void {
+  scene.tweens.add({ targets: target, scaleX: 0, scaleY: 0, alpha: 0, duration });
+  scene.tweens.add({ targets: card, alpha: 0, duration });
 }
 
 /** Level-up: a rising label. The level itself came from the log. */

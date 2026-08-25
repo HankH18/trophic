@@ -101,11 +101,20 @@ async function main(): Promise<number> {
       `IoU        ${result.iou.toFixed(4)}  (threshold ${result.threshold})  ` +
         `[whole frame ${result.unrestrictedIou.toFixed(4)}]`,
     );
+    const w = result.worstRegion;
     console.log(
-      `drift      ${result.cellsDrifted}/${result.cellsCompared} cells · largest run ` +
-        `${result.largestDrift} (limit ${result.driftLimit})` +
-        (result.worstDrift ? ` · worst at cell (${result.worstDrift.cx}, ${result.worstDrift.cy})` : ''),
+      `drift      ${result.cellsDrifted}/${result.cellsCompared} walkable cells drifted · worst region ` +
+        `${w?.cells ?? 0} cell(s), ${w?.judgedCells ?? 0} judged (limit ${result.driftLimit}) · ` +
+        `${w?.lostEdges ?? 0} edge px LOST (limit ${result.lostEdgeLimit}), ${w?.gainedEdges ?? 0} gained`,
     );
+    if (w) {
+      // Where to LOOK. The verdict used to name a single cell and nothing else, and G4 forbids
+      // overriding a REJECT by hand — so this line is the operator's only lead.
+      console.log(
+        `           at cells (${w.cellRect.cx0}, ${w.cellRect.cy0})–(${w.cellRect.cx1}, ${w.cellRect.cy1}) ` +
+          `= px (${w.pixelRect.x0}, ${w.pixelRect.y0})–(${w.pixelRect.x1}, ${w.pixelRect.y1})`,
+      );
+    }
     console.log(result.reason);
     if (!result.accepted) {
       const ladder = denoiseLadder(content.balance);

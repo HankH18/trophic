@@ -258,6 +258,36 @@ export function maskHealth(
   return readMask("health-check", pixels, balance, opts).health;
 }
 
+/**
+ * The INVERSE of {@link sampleMask}: a grid rendered back to a conforming mask raster.
+ *
+ * Black where blocked, white where walkable, **alpha 255 on every pixel**, at
+ * `balance.map.mapNativePx` — build-doc §7.6's "1-bit PNG at map native res". It lives here, beside
+ * the sampler, because an encoder that drifted from its decoder is a tool for writing masks that
+ * are wrong in a way nobody can see; `tools/collision-editor/` calls this rather than owning a
+ * second opinion about the format, and the round trip is asserted in tests/unit/collision.test.ts.
+ *
+ * Returns a {@link MaskPixels}, not an `ImageData`, so it is constructible in a node test — the
+ * editor wraps it in one line.
+ */
+export function maskRasterFrom(grid: CollisionGrid, balance: Balance): MaskPixels {
+  const side = Math.max(1, Math.floor(balance.map.mapNativePx));
+  const data = new Uint8ClampedArray(side * side * 4);
+  for (let y = 0; y < side; y += 1) {
+    const row = Math.min(grid.rows - 1, Math.floor((y * grid.rows) / side));
+    for (let x = 0; x < side; x += 1) {
+      const col = Math.min(grid.cols - 1, Math.floor((x * grid.cols) / side));
+      const ink = isBlocked(grid, col, row) ? 0 : CHANNEL_MAX;
+      const at = (y * side + x) * 4;
+      data[at] = ink;
+      data[at + 1] = ink;
+      data[at + 2] = ink;
+      data[at + 3] = CHANNEL_MAX;
+    }
+  }
+  return { width: side, height: side, data, channels: 4 };
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * Grid geometry
  * ──────────────────────────────────────────────────────────────────────────── */

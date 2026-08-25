@@ -46,11 +46,18 @@
  *
  * COPY (G7 / Hard Req 8)
  * ──────────────────────
- * Every line printed here comes from `ViewStep.caption`, which is identifiers and numbers. There is
+ * Every line printed here comes from `ViewStep.caption`, which is identifiers and numbers, or from
+ * `menuContextLine` (game/battle-input.ts), which is the armed snare tier and nothing else. There is
  * no moralizing copy about catching anywhere in the battle screen, and KO is FAINT ONLY — no word
- * from the death family appears in any string in this lane. `illegalActionReason`'s strings are NOT
- * printed: core/types.ts calls that field "a diagnostic, not player-facing copy", and a greyed row
- * is the player-facing answer. The strings stay reachable through `lastRefusal()` for debugging.
+ * from the death family appears in any string in this lane.
+ *
+ * `illegalActionReason`'s strings are NOT printed: core/types.ts calls that field "a diagnostic, not
+ * player-facing copy", and a greyed row is the player-facing answer. This claim used to be FALSE —
+ * `perform` said every caption unconditionally and the compiler had made the refusal's caption the
+ * reason string, so the diagnostic went to the screen and `lastRefusal()` stayed empty, exactly
+ * inverting the design described here. The refusal now has no caption to print, `perform` records it
+ * instead of saying it, and `BattleMessageBox.say` no longer takes the "diagnostic" flag that muted
+ * rather than refused. The strings stay reachable through `lastRefusal()` for debugging.
  *
  * CONSTANTS (G11)
  * ───────────────
@@ -66,12 +73,12 @@ import { caughtIndividual, startBattle, step, type BattleContext, type CaughtInd
 import type { BattleAction, BattleInput as BattleInputSpec, BattleState, TypeName } from "../../core/types";
 
 import { BattleView, VIEW_TIMING, type BattleViewNames, type BattlerView, type ViewStep } from "../battle-view";
-import { BattleInput, applyKey, type BattleKey } from "../battle-input";
+import { BattleInput, applyKey, menuContextLine, type BattleKey } from "../battle-input";
 import { BattleMessageBox } from "../ui/BattleMessageBox";
 import { BattleMenuPanel } from "../ui/BattleMenuPanel";
-import { CombatantPanel } from "../ui/BattleHud";
+import { CombatantPanel, type CardExtras } from "../ui/BattleHud";
 import { battleScreenLayout, type BattleScreenLayout } from "../ui/BattleLayout";
-import { catchBurst, damageNumberText, effectivenessRole, faintFade, flash, fleeDash, floatingNumber, hitShake, levelUpFlash, lunge, snareShake } from "../ui/BattleFx";
+import { catchBurst, catchSettle, damageNumberText, effectivenessRole, faintFade, flash, fleeDash, floatingNumber, hitShake, levelUpFlash, lunge, snareShake } from "../ui/BattleFx";
 import { roleColor } from "../ui/Palette";
 
 export const BATTLE_SCENE_KEY = "Battle";
@@ -93,8 +100,17 @@ export interface BattleSceneData {
   /**
    * Called once, when the reducer reports an outcome. `caught` is `caughtIndividual`'s report; the
    * CALLER applies the node-population decrement (Hard Req 2 / G3).
+   *
+   * REQUIRED, and it used to be optional. This scene deliberately routes nowhere — it does not know
+   * whether the fight was launched over a paused overworld, from a menu, or by the demo capture, and
+   * a `scene.start` guessed here would be C3 deciding C1's navigation. But "the scene does not route"
+   * plus "the callback is optional" adds up to a screen a caller can leave the player stranded on:
+   * once the reducer reports an outcome nothing on screen changes, `handleKey` returns early, and
+   * the scene never stops itself. Making the seam mandatory is the structural fix — a caller cannot
+   * forget what the type will not let it omit. `game/scenes/OverworldScene.ts` supplies it and does
+   * `scene.stop(battle)` + `scene.resume()` there.
    */
-  onFinished?: (result: { state: BattleState; caught: CaughtIndividual | null }) => void;
+  onFinished: (result: { state: BattleState; caught: CaughtIndividual | null }) => void;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -112,9 +128,20 @@ export class BattleScene extends Phaser.Scene {
   private menuInput!: BattleInput;
   private layout!: BattleScreenLayout;
   private retirementYears: Record<string, number> = {};
-  /** Core's last refusal string. A DIAGNOSTIC — never printed (core/types.ts), kept for debugging. */
+  /**
+   * Core's last refusal string. A DIAGNOSTIC — never printed (core/types.ts), kept for debugging.
+   *
+   * "LAST", so it is only ever written with a NON-EMPTY reason. The first cut assigned
+   * `model.focusedReason` on every menu render, which is `""` whenever the cursor sits on a legal
+   * row — so a refusal the reducer had just produced was wiped by the menu re-opening one beat
+   * later, and the accessor read empty at exactly the moment something had been refused.
+   */
   private refusal = "";
-  private onFinished?: (result: { state: BattleState; caught: CaughtIndividual | null }) => void;
+  /** How many `ViewStep`s `perform` has drawn. Read-only; the integration tests step on this. */
+  private performed = 0;
+  private onFinished!: (result: { state: BattleState; caught: CaughtIndividual | null }) => void;
+  /** The lure move's display name, derived from content. "" when content declares no such move. */
+  private lureLabel = "";
 
   private message!: BattleMessageBox;
   private menu!: BattleMenuPanel;
@@ -132,7 +159,8 @@ export class BattleScene extends Phaser.Scene {
     this.ctx = data.ctx;
     this.rng = data.rng;
     this.retirementYears = data.projectedRetirementYears ?? {};
-    if (data.onFinished !== undefined) this.onFinished = data.onFinished;
+    this.onFinished = data.onFinished;
+    this.lureLabel = this.lureMoveName();
 
     // The reducer opens the battle. Its events are the first thing the view plays.
     const started = startBattle(data.input, this.ctx);
@@ -171,7 +199,11 @@ export class BattleScene extends Phaser.Scene {
     // The opening `battleOpen` step rebuilds these from its own carried pair a beat later; building
     // them here means the screen is never empty, and `CombatantPanel.destroy()` makes the rebuild
     // cost two objects rather than leaking them.
-    this.rebuildPanels(this.viewOf(this.view.snapshot.activePlayerUid), this.viewOf(this.view.snapshot.activeEnemyUid));
+    this.rebuildPanels(
+      this.viewOf(this.view.snapshot.activePlayerUid),
+      this.viewOf(this.view.snapshot.activeEnemyUid),
+      this.view.snapshot.lureActive,
+    );
     this.bindKeys();
     this.pump();
   }
@@ -188,6 +220,32 @@ export class BattleScene extends Phaser.Scene {
       // carries no trainer identity — see the blocker in docs/DEVIATIONS-lane-c3.md. Supplying the
       // enemy's first creature as "the opponent" is what made the gym beat open "Gym battle: Nibbin".
     };
+  }
+
+  /**
+   * The lure move's name, for the card's persistent Lure chip.
+   *
+   * DERIVED, not written: the lure is the move whose effect is `{kind:"catchOdds"}` (core/types.ts
+   * `MoveEffect`), so the id and the display word both come out of `data/moves.json` and no move
+   * name is typed into `game/` (build-doc §8.3 / G2). Content with no such move yields "" and the
+   * card draws no chip, rather than this file coining a word for a mechanic that is not there.
+   */
+  private lureMoveName(): string {
+    for (const move of this.ctx.moves.values()) {
+      if (move.effects.some((effect) => effect.kind === "catchOdds")) return move.name;
+    }
+    return "";
+  }
+
+  /** What the enemy card needs beyond the battler: the lure chip. `ViewStep` carries the flag. */
+  private enemyExtras(lureActive: boolean): CardExtras {
+    return { lureActive, lureLabel: this.lureLabel };
+  }
+
+  /** What the player card needs beyond the battler: bible §4's projected retirement year. */
+  private playerExtras(uid: string): CardExtras {
+    const year = this.retirementYears[uid];
+    return year === undefined ? {} : { projectedRetirementYear: year };
   }
 
   /* ── panels ─────────────────────────────────────────────────────────────── */
@@ -208,7 +266,11 @@ export class BattleScene extends Phaser.Scene {
    * still standing beside a 0-HP card, and one more orphan on the display list per switch (twenty
    * images for two combatants over the shipped gym fight).
    */
-  private rebuildPanels(player: BattlerView | null | undefined, enemy: BattlerView | null | undefined): void {
+  private rebuildPanels(
+    player: BattlerView | null | undefined,
+    enemy: BattlerView | null | undefined,
+    lureActive: boolean,
+  ): void {
     this.playerPanel?.destroy();
     this.enemyPanel?.destroy();
     this.playerPanel = undefined;
@@ -221,9 +283,7 @@ export class BattleScene extends Phaser.Scene {
         cardX: this.layout.playerCard.x,
         cardY: this.layout.playerCard.y,
         view: player,
-        ...(this.retirementYears[player.uid] === undefined
-          ? {}
-          : { projectedRetirementYear: this.retirementYears[player.uid] }),
+        ...this.playerExtras(player.uid),
       });
     }
 
@@ -234,6 +294,7 @@ export class BattleScene extends Phaser.Scene {
         cardX: this.layout.enemyCard.x,
         cardY: this.layout.enemyCard.y,
         view: enemy,
+        ...this.enemyExtras(lureActive),
       });
     }
   }
@@ -247,8 +308,10 @@ export class BattleScene extends Phaser.Scene {
    * blow that emptied them was drawn.
    */
   private paintPanels(at: ViewStep): void {
-    if (at.playerAt !== null) this.playerPanel?.update(at.playerAt, this.retirementYears[at.playerAt.uid]);
-    if (at.enemyAt !== null) this.enemyPanel?.update(at.enemyAt);
+    if (at.playerAt !== null) this.playerPanel?.update(at.playerAt, this.playerExtras(at.playerAt.uid));
+    // `at.lureActive`, not `this.state.lureActive`: the step's own carried flag, for exactly the
+    // reason `playerAt`/`enemyAt` are carried — the state has already moved to the end of the turn.
+    if (at.enemyAt !== null) this.enemyPanel?.update(at.enemyAt, this.enemyExtras(at.lureActive));
   }
 
   /** Re-read the absolutes onto both cards. Only legal once the queue has drained. */
@@ -256,10 +319,10 @@ export class BattleScene extends Phaser.Scene {
     const snapshot = this.view.snapshot;
     const player = this.viewOf(snapshot.activePlayerUid);
     if (player !== undefined) {
-      this.playerPanel?.update(player, this.retirementYears[player.uid]);
+      this.playerPanel?.update(player, this.playerExtras(player.uid));
     }
     const enemy = this.viewOf(snapshot.activeEnemyUid);
-    if (enemy !== undefined) this.enemyPanel?.update(enemy);
+    if (enemy !== undefined) this.enemyPanel?.update(enemy, this.enemyExtras(snapshot.lureActive));
   }
 
   /**
@@ -297,7 +360,7 @@ export class BattleScene extends Phaser.Scene {
       if (this.finished) return;
       this.finished = true;
       this.menu.setVisible(false);
-      this.onFinished?.({ state: this.state, caught: caughtIndividual(this.state, this.ctx) });
+      this.onFinished({ state: this.state, caught: caughtIndividual(this.state, this.ctx) });
       return;
     }
     this.openMenu();
@@ -309,7 +372,18 @@ export class BattleScene extends Phaser.Scene {
    * to `ViewStep` fails this switch at compile time.
    */
   private perform(stepToPlay: ViewStep): void {
-    this.message.say(stepToPlay.caption, stepToPlay.kind === "rejected");
+    this.performed += 1;
+
+    // THE ONE STRING THAT NEVER REACHES THE MESSAGE BOX.
+    //
+    // This line used to be `this.message.say(caption, kind === "rejected")` — unconditional, with a
+    // flag that MUTED a refusal instead of refusing it — and `game/battle-view.ts` set the rejected
+    // step's caption to `illegalActionReason`'s string. So core's diagnostic ("only a wild creature
+    // can be snared") was printed as the story of the fight while `lastRefusal()` stayed empty: the
+    // design this file's header describes was exactly inverted. The refusal is now RECORDED and the
+    // narration line is left alone; `BattleMessageBox.say` no longer has a second argument to pass.
+    if (stepToPlay.kind === "rejected") this.noteRefusal(stepToPlay.reason);
+    else this.message.say(stepToPlay.caption);
 
     // Both cards read the state THIS step carries, before the step's own animation runs. An
     // hp-bearing step then overrides its target's HP with the tween's start value, below.
@@ -317,7 +391,7 @@ export class BattleScene extends Phaser.Scene {
 
     switch (stepToPlay.kind) {
       case "battleOpen":
-        this.rebuildPanels(stepToPlay.playerAt, stepToPlay.enemyAt);
+        this.rebuildPanels(stepToPlay.playerAt, stepToPlay.enemyAt, stepToPlay.lureActive);
         return;
 
       case "turnBanner":
@@ -390,7 +464,7 @@ export class BattleScene extends Phaser.Scene {
       }
 
       case "swap":
-        this.rebuildPanels(stepToPlay.playerAt, stepToPlay.enemyAt);
+        this.rebuildPanels(stepToPlay.playerAt, stepToPlay.enemyAt, stepToPlay.lureActive);
         return;
 
       case "item":
@@ -406,7 +480,13 @@ export class BattleScene extends Phaser.Scene {
 
       case "caught": {
         const panel = this.panelFor(stepToPlay.uid, stepToPlay);
-        if (panel !== undefined) catchBurst(this, panel.sprite, stepToPlay.hold);
+        if (panel === undefined) return;
+        catchBurst(this, panel.sprite, stepToPlay.hold);
+        // …and the creature LEAVES THE FIELD. `catchBurst` alone left the caught animal standing at
+        // full opacity beside a full-HP card under the word "Caught" — the only terminal beat that
+        // did not remove its subject (faint and flee both end at alpha 0). `catchSettle` is its own
+        // picture: drawn in, not sunk (Hard Req 8 keeps the sink for a KO) and not bolting sideways.
+        catchSettle(this, panel.sprite, panel.root, stepToPlay.hold);
         return;
       }
 
@@ -432,8 +512,18 @@ export class BattleScene extends Phaser.Scene {
         return;
       }
 
-      case "lure":
+      case "lure": {
+        // The PERSISTENT readout is the enemy card's Lure chip, already repainted by `paintPanels`
+        // above from this step's own `lureActive`. This is just the beat that draws the eye to it:
+        // before the chip existed the lure's entire on-screen life was this 260ms caption, in the
+        // one mechanic bible §3 keeps up for the rest of the battle.
+        const panel = this.panelFor(stepToPlay.activeEnemyUid, stepToPlay);
+        if (panel !== undefined) flash(this, panel.sprite, "accent", stepToPlay.hold);
+        return;
+      }
+
       case "rejected":
+        // Recorded at the top of `perform`, drawn nowhere. core/types.ts: a diagnostic, not copy.
         return;
 
       case "battleClose":
@@ -483,19 +573,40 @@ export class BattleScene extends Phaser.Scene {
   }
 
   /**
+   * Re-purpose the narration line for the menu that is now on top of it.
+   *
+   * WAS NEVER CALLED. `openMenu` made the panel visible and never touched the message box, so the
+   * player chose their next action under the PREVIOUS turn's damage line — and, walking root →
+   * Snare → Weighted → baits, nothing on screen ever said WHICH tier had been armed, in the pane
+   * `game/battle-input.ts` calls the largest lever the player has on catch odds. `menuContextLine`
+   * is that missing sentence; every other pane clears the line instead of leaving stale arithmetic
+   * under a menu it no longer describes. (`BattleMessageBox.clear()` existed and had no caller.)
+   */
+  private sayMenuContext(): void {
+    this.message.say(menuContextLine(this.menuInput));
+  }
+
+  /**
    * Draw the menu.
    *
    * The focused row's `reason` is core's `illegalActionReason` string, and core/types.ts says of it:
-   * "it is a diagnostic, not player-facing copy (G7)". So it is NOT printed. The first cut pushed it
-   * into the narration line — the player read `the active battler has fainted — only a switch is
-   * accepted` and `"salve" is not a battle medicine (balance.medicine)` as if they were the story of
-   * the fight — and, with no `else` branch, the line then stayed up while the cursor sat on
-   * perfectly legal rows and even after the pane changed. The player-facing answer is the greyed
-   * row, which `BattleMenuPanel` already paints; the string is kept for {@link lastRefusal}.
+   * "it is a diagnostic, not player-facing copy (G7)". So it is NOT printed — here or anywhere. The
+   * first cut pushed it into the narration line, and the SECOND cut only moved the leak: it stopped
+   * printing it from this method and went on printing it from `perform`, because
+   * `game/battle-view.ts` had made the refusal's CAPTION the reason string. Both holes are closed at
+   * the source — the caption is now `""` — and this method records the string for {@link lastRefusal}
+   * and repaints the menu. The player-facing answer is the greyed row, which `BattleMenuPanel`
+   * paints; the narration line says what pane the cursor is in, or nothing.
    */
   private renderMenu(): void {
     const model = this.menu.render(this.menuInput.entries(this.state, this.ctx), this.menuInput.cursor);
-    this.refusal = model.focusedReason;
+    this.noteRefusal(model.focusedReason);
+    this.sayMenuContext();
+  }
+
+  /** Record a refusal, if there is one. Never clears — see {@link refusal}. */
+  private noteRefusal(reason: string): void {
+    if (reason !== "") this.refusal = reason;
   }
 
   private bindKeys(): void {
@@ -525,7 +636,7 @@ export class BattleScene extends Phaser.Scene {
     const result = applyKey(this.menuInput, key, this.state, this.ctx);
     if (result.blocked !== undefined) {
       // Core's own refusal string is a DIAGNOSTIC, not copy (core/types.ts) — recorded, not printed.
-      this.refusal = result.blocked;
+      this.noteRefusal(result.blocked);
       this.renderMenu();
       return;
     }
@@ -556,6 +667,19 @@ export class BattleScene extends Phaser.Scene {
   /** Every visual step this scene has played, in order. */
   playedSteps(): readonly ViewStep[] {
     return this.view.played;
+  }
+
+  /**
+   * How many of {@link playedSteps} have actually been DRAWN.
+   *
+   * The suite used to derive this by counting writes to the message label, on the grounds that
+   * `perform` says exactly one caption per step. That stopped being true the moment a step could
+   * decline to narrate (a refusal) or something other than a step could write (the menu's context
+   * line), and a heuristic that silently miscounts turns a mid-animation assertion into an assertion
+   * about the wrong frame. The scene knows the number; it says it.
+   */
+  performedCount(): number {
+    return this.performed;
   }
 
   /** The live reducer state. Read-only by contract — mutate it and the tests stop meaning anything. */

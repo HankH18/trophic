@@ -38,8 +38,20 @@ import type { Rng } from "@core/rng";
 import type { SaveEnvelope } from "@core/save";
 import { appendYearTurn } from "@core/save";
 import type { AgeClass, Balance, Content, OwnedCreature, Role, Season, TypeName } from "@core/types";
-import type { FestivalBeat, RaidReport } from "@game/year-events";
-import { festivalBeat, ledgerNameOf, raidReportsFrom } from "@game/year-events";
+import type { FestivalBeat, RaidPreview, RaidReport } from "@game/year-events";
+import {
+  festivalBeat,
+  finalYearOf,
+  hasRaids,
+  ledgerNameOf,
+  raidCoverage,
+  raidLedgerLines,
+  raidPreviews,
+  raidReportsFrom,
+  raidsForYear,
+} from "@game/year-events";
+import type { SeasonTint } from "@game/season-tint";
+import { applySeasonOverlay, seasonTint, seasonTintsForYear } from "@game/season-tint";
 import { RetirementFlow, clampLines, wrapLines } from "@game/scenes/RetirementScene";
 import { fullMeter } from "@game/ui/SeasonMeter";
 
@@ -84,13 +96,35 @@ export interface FormChangeBeat {
 }
 
 export type YearTurnBeat =
-  | { t: "festival"; festival: FestivalBeat }
+  | {
+      t: "festival";
+      festival: FestivalBeat;
+      /**
+       * What the year's scripted Cullbrand raids are about to reach for, priced on the numbers the
+       * year began with (game/year-events.ts `raidPreviews`). The `raid` beat below reports what
+       * actually died; this is the same lines BEFORE, so the ledger reads as a before and an after
+       * rather than a single number the player has nothing to compare.
+       */
+      harvest: RaidPreview[];
+      /** The new year's four season readings — bible §12a's progressive darkening, in numbers. */
+      seasons: SeasonTint[];
+    }
   | { t: "aging"; season: Season; entries: AgingEntry[] }
   | { t: "ancients"; entries: AncientEntry[] }
   | { t: "form"; change: FormChangeBeat }
   | { t: "raid"; report: RaidReport }
   | { t: "mapVariant"; nodeId: string; nodeName: string; year: number; mapAsset: string }
-  | { t: "retirements"; count: number; uids: string[] }
+  | {
+      t: "retirements";
+      count: number;
+      uids: string[];
+      /**
+       * Creatures still owned when the prompts are answered — party + box, the retirees already
+       * removed. It is exactly the pool build-doc §7.5 step 3's BOON needs a target from, so a `0`
+       * here says, before the card opens, that HEIR is the only side that can be taken.
+       */
+      owned: number;
+    }
   | { t: "partyEmpty"; year: number };
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -118,10 +152,23 @@ export interface YearTurnDriveDeps {
    * cannot tell "the meter and a gym victory both ended year 3" from "year 4 has now ended too": a
    * second call with the post-turn save passed the check and ran a whole extra year — two festivals,
    * two aging passes, two season steps, two retirement rounds and two raid applications, burning two
-   * of the six years on one player action. Naming the ended year makes that structurally impossible,
-   * because after the first turn the save is no longer standing in it.
+   * of the six years on one player action. Naming the ended year stops the METER's second fire,
+   * because after the first turn the save is no longer standing in the year the meter ended. It is
+   * NOT enough on its own for build-doc §4's other trigger — a gym victory reports the year that has
+   * just begun as ended, which equals `save.year` and sails through. See
+   * {@link YearTurnDriveDeps.reason}, and the measurement in `driveYearTurn`.
    */
   endedYear: number;
+  /**
+   * Which of build-doc §4's two triggers fired — `yearTurnTrigger(...).reason`.
+   *
+   * Omitted ⇒ `"meter"`, which is what a headless driver stepping year after year is doing. It is
+   * read for ONE guard: `core/clock.ts` `gymVictory` reads the year off the clock it is handed, so a
+   * victory taken at tick 0 of a year a turn has just begun reports THAT year as ended — passing the
+   * `endedYear` check and `canRunYearTurn` both. Measured: a second full turn ran and the save
+   * jumped from year 1 to year 3 on one player action.
+   */
+  reason?: YearEndReason;
   /**
    * The tick the clock carried INTO the new year (`advanceAction(...).clock.tick`).
    *
@@ -175,6 +222,30 @@ export interface YearTurnTrigger {
   carryTick: number;
 }
 
+/** One warning per distinct set of unreachable raid years, so a per-turn caller cannot spam. */
+const warnedUnreachableRaids = new Set<string>();
+
+/**
+ * A raid authored for a year no year turn can begin never fires, and says nothing when it doesn't.
+ *
+ * `raidCoverage` has always been able to report it (`unreachableScriptedYears` — year 1, or year 7
+ * of a six-year game) and nothing in the running game asked. A one-character typo in the raid year
+ * otherwise buys a beat that silently does not happen, which is the same class of defect
+ * `runYearTurn` throws on for a misspelled node id — but the raid list is authored data, so this is
+ * a warning and not a refusal: the year turn is not the place to decide the content is wrong.
+ */
+function warnUnreachableRaids(balance: Balance, override?: readonly RaidScript[]): void {
+  const unreachable = raidCoverage(balance, override).unreachableScriptedYears;
+  if (unreachable.length === 0) return;
+  const key = unreachable.join(",");
+  if (warnedUnreachableRaids.has(key)) return;
+  warnedUnreachableRaids.add(key);
+  console.warn(
+    `[year-turn] scripted raid(s) authored for year(s) ${key}, which no year turn begins — ` +
+      "no turn will ever apply them (game/year-events.ts raidCoverage)",
+  );
+}
+
 export function yearTurnTrigger(advanced: ClockAdvance): YearTurnTrigger | null {
   const end = advanced.events.find(
     (e: ClockEvent): e is Extract<ClockEvent, { t: "yearEnd" }> => e.t === "yearEnd",
@@ -202,14 +273,33 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
   const { balance } = content;
 
   /*
+   * THE GAME IS SIX YEARS LONG (build-doc §1), AND THIS IS WHERE THAT ENDS.
+   *
+   * `core/clock.ts` `isOver` has always been able to answer this and NOTHING called it: the shipped
+   * game ran a seventh year turn, and an eighth, printing "FESTIVAL · Y7/6" and "Y8/6" while the
+   * season meter agreed. The turn OUT of the final year still runs — it owes that year its fourth
+   * season step (build-doc §7.5 step 5), the sixth of the six turns the 24-season-step invariant
+   * counts (LANE-A-STATUS §5) — and it is the last one. A save already standing past the final year
+   * has had it.
+   */
+  const finalYear = finalYearOf(balance);
+  if (save.year > finalYear) {
+    throw new YearTurnError(
+      `year ${String(save.year)} is past the final year (${String(finalYear)}) of a ` +
+        `${String(balance.clock.yearsTotal)}-year game — the turn out of the final year is the last one`,
+    );
+  }
+
+  /*
    * ONE TURN PER YEAR, keyed on the year that ENDED.
    *
    * `canRunYearTurn` guards the year the turn will BEGIN, which is the right question for core and
    * the wrong one for a shell with two triggers: after a turn, `save.year` is already the begun
    * year, so the flag (N+1) is below `save.year + 1` (N+2) and a second fire for the SAME player
    * action sails through and runs the next year's turn. Checking that the save is still standing in
-   * the year the clock says ended makes that impossible — measured: the second call now throws where
-   * it used to return "year 3".
+   * the year the clock says ended stops the SAME year end firing twice — measured: the second call
+   * now throws where it used to return "year 3". A LATER year end reported by a gym victory is a
+   * different question, and the guard below it is the one that answers that.
    */
   if (save.year !== deps.endedYear) {
     throw new YearTurnError(
@@ -224,6 +314,39 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
       `a year turn has already run for year ${String(save.year + 1)} — build-doc §4 gives the turn ` +
         "two triggers (full meter and gym victory) and firing both would re-age, re-retire and " +
         "re-apply the scripted raid",
+    );
+  }
+
+  /*
+   * AND A YEAR NOBODY HAS PLAYED A TICK OF CANNOT END.
+   *
+   * The two checks above are keyed on the ENDED year and on the BEGUN year, and a gym victory slips
+   * between them: `core/clock.ts` `gymVictory` reads the year off the clock it is handed, so a
+   * victory taken immediately after a year turn reports the year that just BEGAN as ended — which
+   * equals `save.year`, so guard 1 passes, and the flag (N+1) is below `save.year + 1` (N+2), so
+   * `canRunYearTurn` passes too. Reproduced against the shipped content: a meter-triggered turn out
+   * of year 1 followed by a gym victory ran a SECOND full turn and left the save in year 3, burning
+   * one of the six years with zero ticks played in it. The comment here used to call that
+   * "structurally impossible"; it was not.
+   *
+   * What is actually impossible is a GYM VICTORY ending a year the player has not spent a tick in
+   * and which a year turn began. `save.tick` is the carry the shell put back (see
+   * {@link finishYearTurn}), so a year entered at `startTick` with the year-turn flag naming it is a
+   * year in which nothing has happened at all. A gym victory later in the same year — after one
+   * travel, one foray, one inn — is build-doc §4's second trigger working as specified and passes,
+   * and the meter trigger cannot reach this state by construction (the meter only fills after
+   * `ticksPerYear` ticks have been spent), which is why the check is on the reason and not on the
+   * tick alone: a headless driver that runs turns back to back is not the defect.
+   */
+  if (
+    deps.reason === "gymVictory" &&
+    save.tick === balance.clock.startTick &&
+    lastYearTurnOf(save) === save.year
+  ) {
+    throw new YearTurnError(
+      `year ${String(save.year)} began with a year turn and no tick has been spent in it — a gym ` +
+        "victory ending it would consume one of the " +
+        `${String(balance.clock.yearsTotal)} years of build-doc §1 with nothing played in it`,
     );
   }
 
@@ -278,11 +401,42 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
     }
   }
 
+  /*
+   * THE SCRIPTED BEAT EITHER HAPPENS OR IT IS SAID OUT LOUD.
+   *
+   * bible §9's raids are "scripted per act, populations visibly drop at a named node", and the ONE
+   * authored raid is the year-4 strip-harvest the demo's cascade reads off. `runYearTurn` emits one
+   * `raid` event per harvested line, so a year the raid list says has a raid and whose event log has
+   * none is a beat that quietly did not happen — the exact failure mode `raidCoverage` was written
+   * to report and which nothing in the running game asked. The most likely cause is the footgun the
+   * deps document: a different `yearEvents` list handed to the previews and to the turn.
+   */
+  if (hasRaids(balance, turn.save.year, deps.yearEvents)) {
+    const scheduled = raidsForYear(balance, turn.save.year, deps.yearEvents).reduce(
+      (n, raid) => n + raid.targets.length,
+      0,
+    );
+    const emitted = turn.events.filter((e) => e.t === "raid").length;
+    if (scheduled > 0 && emitted === 0) {
+      throw new YearTurnError(
+        `year ${String(turn.save.year)} has ${String(scheduled)} scripted harvest target(s) and the ` +
+          "year turn emitted no raid event — the drop bible §9 promises at a named node did not happen",
+      );
+    }
+    if (emitted !== scheduled) {
+      console.warn(
+        `[year-turn] year ${String(turn.save.year)}: ${String(scheduled)} scripted harvest target(s), ` +
+          `${String(emitted)} raid event(s) — the previews and the turn were given different lists`,
+      );
+    }
+  }
+  warnUnreachableRaids(balance, deps.yearEvents);
+
   const flow = new RetirementFlow(turn, { content, rng: deps.lifecycleRng });
 
   return {
     turn,
-    beats: beatsFor(save, turn, content),
+    beats: beatsFor(save, turn, content, deps.yearEvents),
     flow,
     mapVariantSwaps: turn.mapVariantSwaps,
     tickBefore,
@@ -309,6 +463,7 @@ export function beatsFor(
   before: SaveEnvelope,
   turn: YearTurnResult,
   content: Content,
+  yearEvents?: readonly RaidScript[],
 ): YearTurnBeat[] {
   const { balance } = content;
   const index = indexSpecies(content.species);
@@ -323,7 +478,15 @@ export function beatsFor(
   const beats: YearTurnBeat[] = [];
 
   const year = turn.save.year;
-  beats.push({ t: "festival", festival: festivalBeat(year, balance) });
+  beats.push({
+    t: "festival",
+    festival: festivalBeat(year, balance),
+    // Priced on the numbers the year BEGAN with — `before.nodeStates`, the save the turn ran on —
+    // so the harvest reads as a before against the `raid` beat's after. Same `yearEvents` list the
+    // turn was run with, or the two disagree about what is coming.
+    harvest: raidPreviews(before.nodeStates, content.nodes, content.species, balance, year, yearEvents),
+    seasons: seasonTintsForYear(balance, year),
+  });
 
   const aging: AgingEntry[] = [];
   const ancients: AncientEntry[] = [];
@@ -401,6 +564,11 @@ export function beatsFor(
       t: "retirements",
       count: turn.prompts.length,
       uids: turn.prompts.map((p) => p.parentUid),
+      // The retirees are already out of `turn.save`, so this is the pool a BOON can be spent on —
+      // and on build-doc §1's own shape (one starter, the Legacy beat) it is 0, which is why the
+      // card's five BOON stats all read "no target". Saying the number before the card opens is the
+      // difference between a one-sided choice and a one-sided choice the player was told about.
+      owned: turn.save.party.length + turn.save.box.length,
     });
   }
 
@@ -467,7 +635,26 @@ export function finishYearTurn(
 export function beatLines(beat: YearTurnBeat): string[] {
   switch (beat.t) {
     case "festival":
-      return [`FESTIVAL · ${beat.festival.label}`];
+      return [
+        `FESTIVAL · ${beat.festival.label}`,
+        /*
+         * What the year's scripted harvest is reaching for, at which named node. G7: the minus does
+         * the work; nothing here characterises the harvest.
+         *
+         * The COUNT is deliberately not printed here. `raidPreviews` prices the year the turn began
+         * with, and `runYearTurn` runs the year's fourth season step BEFORE it applies the raid
+         * (build-doc §7.5 step 5), so the population has already moved by the time the harvest lands
+         * — measured on the shipped year-4 raid: preview 19, actual before 20. Two beats apart, that
+         * reads as a bug rather than as a season. The `raid` beat below owns the numbers.
+         */
+        ...beat.harvest.flatMap((preview) =>
+          preview.targets.map(
+            (t) => `HARVEST · ${preview.nodeName} · ${t.ledgerName} (−${String(t.requested)})`,
+          ),
+        ),
+        // bible §12a — "year aging progressively darkens". The scale IS the darkening, per season.
+        `tint · ${beat.seasons.map((t) => `${t.season} ${t.scale.toFixed(2)}`).join(" · ")}`,
+      ];
     case "aging":
       return [
         `AGING · ${beat.season} · ${String(beat.entries.length)}`,
@@ -490,16 +677,16 @@ export function beatLines(beat: YearTurnBeat): string[] {
         : [head];
     }
     case "raid":
-      return [
-        `${beat.report.nodeName} · −${String(beat.report.totalRemoved)}`,
-        ...beat.report.targets.map(
-          (t) => `${t.ledgerName} ${String(t.before)} → ${String(t.remaining)} (−${String(t.removed)})`,
-        ),
-      ];
+      // The rows come from game/year-events.ts `raidLedgerLines`, which is where this lane's raid
+      // copy lives. Formatting them a second time here was two homes for one ledger row, and the two
+      // had already drifted — this one dropped the node name from every row.
+      return [`${beat.report.nodeName} · −${String(beat.report.totalRemoved)}`, ...raidLedgerLines([beat.report])];
     case "mapVariant":
       return [`${beat.nodeName} · Y${String(beat.year)} · ${beat.mapAsset}`];
     case "retirements":
-      return [`RETIREMENT · ${String(beat.count)}`];
+      // `owned` is the BOON pool the card is about to offer from — 0 means HEIR is the only side
+      // that can be taken, said here rather than discovered five stats into the card.
+      return [`RETIREMENT · ${String(beat.count)} · owned ${String(beat.owned)}`];
     case "partyEmpty":
       return [`PARTY 0 · Y${String(beat.year)}`];
   }
@@ -510,7 +697,7 @@ export function beatLines(beat: YearTurnBeat): string[] {
  * ──────────────────────────────────────────────────────────────────────────── */
 
 import type PhaserNS from "phaser";
-import type { PlaceholderPainter, RetirementSceneData } from "@game/scenes/RetirementScene";
+import type { KeyLike, PlaceholderPainter, RetirementSceneData } from "@game/scenes/RetirementScene";
 import { RETIREMENT_SCENE_KEY } from "@game/scenes/RetirementScene";
 import { SCENE_KEYS, sceneRegistered } from "@game/scene-keys";
 
@@ -535,6 +722,15 @@ export interface YearTurnSceneStyle {
   lineHeight: number;
   /** Advance width of one character at `fontSize`, in px — what decides how many fit on a line. */
   charWidth: number;
+  /**
+   * Frames a beat must have been on screen before the next keypress advances it.
+   *
+   * Sibling of `RetirementSceneStyle.confirmArmFrames`, and the same measured defect: a HELD SPACE
+   * put the sequence on the retirement beat by frame 2 and past it by frame 4 — the whole never-cut
+   * Legacy beat, festival and aging and the card, gone in four frames of one press. Auto-repeat is
+   * refused outright in `create`; this is what stops a queued burst. Presentation only.
+   */
+  advanceArmFrames: number;
   bgColor: number;
   textColor: string;
   dimColor: string;
@@ -558,6 +754,7 @@ export function defaultYearTurnStyle(balance: Balance): YearTurnSceneStyle {
     pad: 12,
     lineHeight: 13,
     charWidth: 6,
+    advanceArmFrames: 6,
     bgColor: 0x101317,
     textColor: "#e8e4c9",
     dimColor: "#7d8478",
@@ -595,6 +792,8 @@ export function createYearTurnScene(
     private result: AdvanceYearResult | null = null;
     /** True once `onDone` has fired — it fires exactly once per turn. */
     private finished = false;
+    /** Frames the CURRENT beat has been on screen. Reset on every advance — see `next`. */
+    private framesShown = 0;
 
     constructor() {
       super({ key: YEAR_TURN_SCENE_KEY });
@@ -610,18 +809,54 @@ export function createYearTurnScene(
       this.awaitingFlow = false;
       this.result = null;
       this.finished = false;
+      this.framesShown = 0;
       this.drawn = [];
     }
 
     create(): void {
       const style = this.style;
       this.add.rectangle(0, 0, style.width, style.height, style.bgColor).setOrigin(0, 0);
+      /*
+       * Hard Req 6 — season variation is a runtime tint, and the year turn is the moment the year's
+       * reading changes. A SEPARATE pass over the opaque backdrop, never the backdrop itself:
+       * `applySeasonOverlay` sets a fill AND an alpha (0.1–0.22), so colouring the backdrop with it
+       * would leave the paused overworld showing through the card. The rows are added after this, so
+       * the wash sits under the copy. The season is the one the turn stepped, at the NEW year's
+       * darkening (bible §12a) — the six years are visibly not the same six years.
+       */
+      const overlay = this.add
+        .rectangle(0, 0, style.width, style.height, style.bgColor)
+        .setOrigin(0, 0);
+      applySeasonOverlay(
+        overlay,
+        seasonTint(this.drive.balance, this.drive.seasonStepped, this.drive.turn.save.year),
+      );
       const keyboard = this.input.keyboard;
       if (keyboard) {
-        keyboard.on("keydown-SPACE", () => this.next());
-        keyboard.on("keydown-ENTER", () => this.next());
+        // Registered so Phaser suppresses OS key repeat for them; see the note in RetirementScene.ts.
+        const register = (keyboard as { addKey?: (key: string) => unknown }).addKey;
+        if (typeof register === "function") {
+          for (const key of ["SPACE", "ENTER"]) register.call(keyboard, key);
+        }
+        keyboard.on("keydown-SPACE", (e?: KeyLike) => this.onKey(e));
+        keyboard.on("keydown-ENTER", (e?: KeyLike) => this.onKey(e));
       }
       this.redraw();
+    }
+
+    /** Phaser calls this every frame; it is what arms the next advance. */
+    override update(): void {
+      this.framesShown += 1;
+    }
+
+    /**
+     * One keydown. An OS auto-repeat advances nothing, and neither does a press that arrives before
+     * the beat has been readable for `style.advanceArmFrames` frames.
+     */
+    private onKey(event: KeyLike | undefined): void {
+      if (event?.repeat === true) return;
+      if (this.framesShown < this.style.advanceArmFrames) return;
+      this.next();
     }
 
     /**
@@ -718,18 +953,24 @@ export function createYearTurnScene(
 
     private redraw(): void {
       const style = this.style;
+      // A new beat is on screen: it has been readable for zero frames (see `onKey`).
+      this.framesShown = 0;
       for (const item of this.drawn) item.destroy();
       this.drawn = [];
       const beat = this.beats[this.cursor];
       if (!beat) return;
 
-      // L8's "year = … full meter" is true exactly here, and nowhere a saved clock can hold — see
-      // `fullMeter` (game/ui/SeasonMeter.ts). The header shows the meter the turn just filled.
+      /*
+       * L8's "year = … full meter" is true exactly here, and nowhere a saved clock can hold — see
+       * `fullMeter` (game/ui/SeasonMeter.ts). The header shows the meter the turn just filled, for
+       * the year that just ENDED: it used to print the year the turn BEGINS, which on the last turn
+       * of a six-year game read "Y7" — a year the game does not have.
+       */
       const filled = fullMeter(this.drive.turn.save.year - 1, this.drive.balance);
       const title = this.add.text(
         style.pad,
         style.pad,
-        `Y${String(this.drive.turn.save.year)} · ${filled.tickLabel}`,
+        `${filled.yearLabel} · ${filled.tickLabel}`,
         { fontFamily: style.fontFamily, fontSize: style.titleSize, color: style.textColor },
       );
       title.setOrigin(0, 0);

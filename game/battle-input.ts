@@ -22,8 +22,10 @@
  * ───────────────
  * No gameplay constant is written here. Snare tiers come from `SNARE_TIERS` (core/types.ts's
  * vocabulary), medicine ids from `balance.medicine`, quantities from `BattleState.bag`, move ids
- * from the battler's own `moves[]`. Bait ids are whatever is in the bag that is neither a snare tier
- * nor a medicine — so a new bait is a data change and this file never learns its name.
+ * from the battler's own `moves[]`. A bag key is a BAIT when it is a bait TAG — a species line id or
+ * one of core's `ROLES` (build-doc §7.2's own definition, see {@link isBaitTag}) — so a new bait is
+ * a data change and this file never learns its name, and a bag item that is neither a snare nor a
+ * medicine nor a bait is not silently offered as one.
  *
  * COPY (G7): labels are identifiers and numbers. No moralizing copy about catching, anywhere. Item,
  * snare and bait rows are labelled by TYPESETTING their id (`itemLabel`, game/battle-view.ts) — the
@@ -34,9 +36,9 @@
  * not player-facing copy, so `game/scenes/BattleScene.ts` greys the row and does not print it.
  */
 
-import { SNARE_TIERS } from "../core/types";
+import { ROLES, SNARE_TIERS } from "../core/types";
 import type { BattleAction, BattleState, SnareTier } from "../core/types";
-import { illegalActionReason, type BattleContext } from "../core/battle";
+import { baitMatchOf, illegalActionReason, type BattleContext } from "../core/battle";
 import { itemLabel } from "./battle-view";
 
 /**
@@ -125,18 +127,57 @@ function medicineIds(ctx: BattleContext): string[] {
 }
 
 /**
- * Bait ids = everything in the bag that is neither a snare tier nor a medicine.
+ * Is this bag key a BAIT TAG?
  *
- * bible §11 has two bait grades (role-generic and species-specific) and build-doc §7.2 matches them
- * through the DERIVED web, so a bait's identity is a data fact. Enumerating by exclusion is what
- * keeps this file from ever carrying a bait table (G3).
+ * build-doc §7.2 defines one: "bait matches target if bait's tag ∈ target's derived diet (§7.3)",
+ * and core/foodweb.ts `baitMatchFor` reads a tag as either a SPECIES LINE ID (bible §11's
+ * species-specific bait) or a ROLE NAME (its role-generic bait). So the question is answerable from
+ * core's own vocabulary — `ROLES` (core/types.ts) and the species index the battle context already
+ * carries — with no table anywhere (G3).
+ *
+ * WHY THIS IS A POSITIVE TEST AND NOT AN EXCLUSION
+ * ───────────────────────────────────────────────
+ * It used to be "every bag key that is not a snare tier and not one of `balance.medicine`'s two
+ * ids". That is a bait table's opposite and has a bait table's problem: every FUTURE bag item — a
+ * relic, a key item, a repel — became a live, un-greyed bait row. Reproduced against the real
+ * reducer with one `relic-antler-shard` in the bag: the row offered itself with `disabled:false`,
+ * `reason:null`, the throw consumed the item, and the catch chance with it (0.35736940298507464)
+ * was IDENTICAL to the chance with no bait at all. `core/battle.ts` cannot catch this for us —
+ * `illegalActionReason` only asks whether the bag HOLDS the id, and `performSnare` consumes
+ * whatever it is handed. `core/types.ts` already declares `OwnedCreature.relicSlot`, so items that
+ * are neither snares nor medicines nor baits are a designed part of this game, not a hypothetical.
+ */
+export function isBaitTag(id: string, ctx: BattleContext): boolean {
+  if (id === NO_BAIT_ID) return false;
+  return ctx.speciesIndex.byId.has(id) || (ROLES as readonly string[]).includes(id);
+}
+
+/**
+ * The bait ids in the bag, in sorted order.
+ *
+ * Snare tiers and medicines are still skipped — they are bag keys with their own panes — but the
+ * filter that decides a row is a BAIT is {@link isBaitTag}, not the absence of those two.
  */
 export function baitIdsIn(state: BattleState, ctx: BattleContext): string[] {
-  const excluded = new Set<string>([...SNARE_TIERS, ...medicineIds(ctx)]);
+  const otherPanes = new Set<string>([...SNARE_TIERS, ...medicineIds(ctx)]);
   return Object.keys(state.bag)
-    .filter((key) => !excluded.has(key))
+    .filter((key) => !otherPanes.has(key) && isBaitTag(key, ctx))
     .filter((key) => (state.bag[key] ?? 0) > 0)
     .sort();
+}
+
+/**
+ * What a bait buys against THIS target, in core's own word: `"species"`, `"role"` or `"none"`.
+ *
+ * `baitMatchOf` (core/battle.ts) is the same lookup `catchChance` runs, so the row cannot claim a
+ * multiplier the reducer will not apply — and a bait the player holds that happens not to match the
+ * creature in front of them says so instead of looking like every other row. No rule is restated
+ * here: this file asks and prints the answer.
+ */
+export function baitMatchDetail(state: BattleState, ctx: BattleContext, baitId: string): string {
+  const target = state.battlers[state.activeEnemyUid];
+  if (target === undefined) return "";
+  return baitMatchOf(baitId, target.lineId, ctx, state.nodeId);
 }
 
 export function moveEntries(state: BattleState, ctx: BattleContext): MenuEntry[] {
@@ -175,7 +216,16 @@ export function baitEntries(
 ): MenuEntry[] {
   const none = entry(state, { kind: "snare", tier }, ctx, NO_BAIT_ID, NO_BAIT_LABEL, "");
   const baits = baitIdsIn(state, ctx).map((baitId) =>
-    entry(state, { kind: "snare", tier, baitId }, ctx, baitId, labelFor(labels, baitId), stock(state, baitId)),
+    entry(
+      state,
+      { kind: "snare", tier, baitId },
+      ctx,
+      baitId,
+      labelFor(labels, baitId),
+      // The stock AND what core says this bait is worth against the creature in front of the
+      // player — build-doc §7.2's own `BaitMatch` word, not a number this file computed.
+      `${stock(state, baitId)} · ${baitMatchDetail(state, ctx, baitId)}`,
+    ),
   );
   return [none, ...baits];
 }
@@ -347,6 +397,29 @@ export class BattleInput {
     return action === undefined ? { pane: this.pane } : { pane: this.pane, action };
   }
 }
+
+/**
+ * What the narration line should read while the command menu is up.
+ *
+ * WAS NOTHING — and that is the defect. `openMenu()` made the panel visible and never touched the
+ * message box, so the player chose their action under the PREVIOUS turn's damage line ("Ember −29
+ * HP" was still on screen through root → Snare → Weighted → baits). Worse, once the snares pane
+ * closed, NOTHING on screen said which tier had been armed: `BattleInput.armedTier` was private and
+ * no widget drew it, in the one pane this file's own header calls "the single largest lever the
+ * player has on catch odds".
+ *
+ * The line is identifiers only (G7): the armed tier, typeset by `itemLabel`, plus core's own word
+ * for the thing being thrown. Every other pane clears the line rather than leaving last turn's
+ * arithmetic under a menu it no longer describes.
+ */
+export function menuContextLine(input: BattleInput): string {
+  const armed = input.armed;
+  if (input.currentPane !== "baits" || armed === null) return "";
+  return `${itemLabel(armed)} ${SNARE_NOUN}`;
+}
+
+/** The word the menu's own root row already uses for the snare pane, so no second noun is coined. */
+const SNARE_NOUN = ROOT_LABEL.snares.toLowerCase();
 
 /* ════════════════════════════════════════════════════════════════════════════
  * 4. Key bindings. The scene owns the keyboard; this names the mapping so the

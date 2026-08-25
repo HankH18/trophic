@@ -5088,6 +5088,8 @@
       "status": "approved",
       "recordedSeed": 42,
       "recordedVersion": 1,
+      "recordedPromptHash": "4cd76e5d1d3231a9",
+      "workflowHash": "661e805f06b0ef35",
       "timestamp": "2026-08-25",
       "file": "assets/approved-trials/player-APPROVED.png",
       "sha256": "ba2df07114ffa6d22055fdb0db4238ab0aed8780c68a2c45fe8c821a48f83140",

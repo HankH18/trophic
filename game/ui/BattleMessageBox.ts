@@ -9,8 +9,14 @@
  * G7: identifiers and numbers only. There is no moralizing copy about catching anywhere in the
  * battle screen, and KO is FAINT ONLY (Hard Req 8) — no word from the death family is printed.
  *
- * A `diagnostic` step (core's `actionRejected` reason string) is drawn muted and framed differently,
- * because core/types.ts calls that string "a diagnostic, not player-facing copy".
+ * THERE IS NO DIAGNOSTIC CHANNEL, BY CONSTRUCTION
+ * ───────────────────────────────────────────────
+ * `say` used to take a second argument, `diagnostic`, which MUTED the line rather than refusing it —
+ * so core's `illegalActionReason` strings ("only a wild creature can be snared") were painted into
+ * the narration line in a dimmer colour, which is not what core/types.ts:425 means by "a diagnostic,
+ * not player-facing copy (G7)". A muting flag is a channel; the argument is gone, so the widget has
+ * no way to be handed one. `ViewStep.rejected` now carries its `reason` on a field no widget reads
+ * and an EMPTY caption, and `BattleScene` records the reason instead of saying it.
  */
 
 import type PhaserNS from "phaser";
@@ -46,13 +52,13 @@ export class BattleMessageBox {
     this.root = scene.add.container(style.x, style.y, [plate, this.label]);
   }
 
-  /** Show a caption. `diagnostic` mutes it — a refusal is not narration. */
-  say(caption: string, diagnostic = false): void {
+  /** Show a caption. One argument, one colour: everything printed here is player-facing narration. */
+  say(caption: string): void {
     this.current = caption;
     this.label.setText(caption);
-    this.label.setColor(roleHex(diagnostic ? "textMuted" : "text"));
   }
 
+  /** Blank the line. What the scene does when the command menu takes over the screen. */
   clear(): void {
     this.say("");
   }

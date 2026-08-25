@@ -247,13 +247,13 @@ export function applyCatchToSave(
     };
   }
 
-  const file = content.nodes.find((n) => n.id === nodeId);
-  if (!file) {
+  if (!nodeFileOf(content, nodeId)) {
     return { save, before: 0, after: 0, gained: null, problem: `no node "${nodeId}" in data/nodes/` };
   }
 
-  const state = save.nodeStates[nodeId];
-  const live = state ? fromNodeState(file, state) : toEcoNode(file);
+  // The SAME resolver the encounter roll and the HUD use — see `liveNodeOf`. A second `state ? … : …`
+  // here is the two-answers defect again, on the number a catch is about to move.
+  const live = liveNodeOf(content, save, nodeId);
   const before = live.populations[caught.lineId]?.count ?? 0;
 
   let next: EcoNode;
@@ -394,4 +394,26 @@ export function provisionalStarter(content: Content): OwnedCreature | null {
 /** The shipped node file for an id — the one lookup this module needs and does not want copied. */
 export function nodeFileOf(content: Content, id: string): NodeFile | undefined {
   return content.nodes.find((n) => n.id === id);
+}
+
+/**
+ * ⚠ THE ONE PLACE THE POPULATION FALLBACK IS DECIDED. The live node = the shipped file with the
+ * save's populations, flora and recentDeaths on it.
+ *
+ * Every reader of a count goes through here — the encounter roll, the overworld HUD, the catch that
+ * is about to move the number. There used to be two: `OverworldScene.liveNode` fell back to the
+ * shipped file when a node had no `nodeStates` entry (the INV-2 "a save that predates this node"
+ * case, which `tests/gates/extensibility.test.ts` treats as supported), while `countOf` and this
+ * module independently fell back to 0. The HUD then printed every line as `0` while creatures kept
+ * spawning at the shipped weights, and an encounter banner read `pollywisp-line J L8 — count 0`.
+ * That is build-doc §8.3's two answers to one number, on the number Hard Req 2 is about.
+ *
+ * build-doc §7.2 — "sim initial state = the file as shipped" — is the fallback, and `toEcoNode`
+ * deep-copies, so a running game never aliases the shipped JSON.
+ */
+export function liveNodeOf(content: Content, save: SaveEnvelope, nodeId: string): EcoNode {
+  const file = nodeFileOf(content, nodeId);
+  if (!file) throw new Error(`no node "${nodeId}" in data/nodes/`);
+  const state = save.nodeStates[nodeId];
+  return state ? fromNodeState(file, state) : toEcoNode(file);
 }

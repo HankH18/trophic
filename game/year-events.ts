@@ -46,6 +46,37 @@ export function ledgerNameOf(line: SpeciesLine, balance: Balance): string {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * How long the game is (build-doc §1 — six in-game years)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The last year of the game: `startYear + yearsTotal − 1`, 6 on the shipped clock.
+ *
+ * ONE home for the arithmetic. It was written out three times in this lane (here, in the season
+ * meter, in the festival beat) and NOWHERE was it used to stop anything: `core/clock.ts` `isOver`
+ * existed and no production code called it, so the shipped game ran a full year turn out of year 6
+ * and printed "FESTIVAL · Y7/6", then "Y8/6", then "Y9/6" — a six-year game with no end. The cap is
+ * enforced in `game/scenes/YearTurnScene.ts` `driveYearTurn` (the turn refuses to run for a save
+ * already past the final year) and in `game/scenes/OverworldScene.ts` (no ticks are spent once
+ * `isOver` is true); this function is what both of them ask.
+ */
+export function finalYearOf(balance: Balance): number {
+  return balance.clock.startYear + balance.clock.yearsTotal - 1;
+}
+
+/**
+ * True for the year turn that ENDS the game: the one out of the final year.
+ *
+ * `endedYear` is the year the clock says just finished (`ClockEvent {t:"yearEnd", year}`). The turn
+ * still runs — it owes the final year its fourth season step (build-doc §7.5 step 5), which is the
+ * sixth of the six turns the 24-season-step invariant counts (LANE-A-STATUS §5) — and the run is
+ * over when it completes.
+ */
+export function yearTurnEndsRun(endedYear: number, balance: Balance): boolean {
+  return endedYear >= finalYearOf(balance);
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
  * Which raids fire
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -82,9 +113,10 @@ export function hasRaids(balance: Balance, year: number, override?: readonly Rai
  * beat quietly not happen.
  */
 export function raidableYears(balance: Balance): number[] {
-  const { startYear, yearsTotal } = balance.clock;
   const years: number[] = [];
-  for (let year = startYear + 1; year <= startYear + yearsTotal - 1; year += 1) years.push(year);
+  for (let year = balance.clock.startYear + 1; year <= finalYearOf(balance); year += 1) {
+    years.push(year);
+  }
   return years;
 }
 
@@ -274,17 +306,33 @@ export interface FestivalBeat {
   /** How many years of the six are now behind the player. */
   yearsElapsed: number;
   isFinalYear: boolean;
-  /** "Y3/6" — the whole of the festival's copy. */
+  /**
+   * True for the turn out of the FINAL year, whose beginning year is past the game.
+   *
+   * `runYearTurn` always begins `save.year + 1`, so the sixth of the six turns begins year 7 — a
+   * year `core/clock.ts` `isOver` calls past the game and the player never gets to play. The label
+   * used to announce it as `Y7/6`, and the season meter agreed, and nothing stopped the next turn
+   * from announcing `Y8/6`. See {@link finalYearOf}.
+   */
+  beyondFinalYear: boolean;
+  /** "Y3/6", or "Y6/6 · complete" for the turn that ends the game — the whole festival's copy. */
   label: string;
 }
 
 export function festivalBeat(year: number, balance: Balance): FestivalBeat {
-  const finalYear = balance.clock.startYear + balance.clock.yearsTotal - 1;
+  const finalYear = finalYearOf(balance);
+  const beyondFinalYear = year > finalYear;
+  const yearsTotal = balance.clock.yearsTotal;
   return {
     year,
-    yearsTotal: balance.clock.yearsTotal,
+    yearsTotal,
     yearsElapsed: Math.max(0, year - balance.clock.startYear),
-    isFinalYear: year >= finalYear,
-    label: `Y${year}/${balance.clock.yearsTotal}`,
+    isFinalYear: year === finalYear,
+    beyondFinalYear,
+    // Past the final year the six years are what there is to report; naming a seventh states a year
+    // the game does not have.
+    label: beyondFinalYear
+      ? `Y${String(finalYear)}/${String(yearsTotal)} · complete`
+      : `Y${String(year)}/${String(yearsTotal)}`,
   };
 }

@@ -357,6 +357,20 @@ const LABEL_ROW_PX = SCREEN_TEXT.lineHeight;
 const LABEL_ROWS_DOWN = 8;
 const LABEL_ROWS_UP = 4;
 
+/**
+ * The pixel a Phaser `Text` occupies beyond `characters × advance`, measured off the live scene:
+ * `getBounds().width` came back as 6n+1 for every string the diagram drew (14ch→85, 16ch→97,
+ * 17ch→103, 20ch→121, 32ch→193). One pixel is not worth much until it is the pixel two labels
+ * share, so the box below is the box the engine draws, not the box the arithmetic predicts.
+ */
+const LABEL_BOUND_PAD_PX = 1;
+
+/**
+ * Clear air kept between two labels. Non-overlapping is the requirement; two 10px strings sharing
+ * an edge are still one smear to read.
+ */
+const LABEL_MARGIN_PX = 2;
+
 /** The pixels a drawn label occupies. */
 export interface LabelBox {
   left: number;
@@ -365,18 +379,33 @@ export interface LabelBox {
   bottom: number;
 }
 
+/** How wide the engine draws this text. */
+function labelWidth(text: string): number {
+  return text.length * SCREEN_TEXT.advancePx + LABEL_BOUND_PAD_PX;
+}
+
 /**
- * The box a label occupies on the canvas, from the same three numbers the scene draws it with: the
+ * The box a label occupies on the canvas, from the same numbers the scene draws it with: the
  * monospace cell advance, the line height, and the origin the label carries.
  */
 export function labelBounds(label: WebLabel): LabelBox {
-  const half = (label.text.length * SCREEN_TEXT.advancePx) / 2;
+  const half = labelWidth(label.text) / 2;
   const top = label.y - SCREEN_TEXT.lineHeight * label.originY;
   return {
     left: label.x - half,
     right: label.x + half,
     top,
     bottom: top + SCREEN_TEXT.lineHeight,
+  };
+}
+
+/** `box` grown by the margin placement keeps around every label. */
+function inflated(box: LabelBox): LabelBox {
+  return {
+    left: box.left - LABEL_MARGIN_PX,
+    right: box.right + LABEL_MARGIN_PX,
+    top: box.top - LABEL_MARGIN_PX,
+    bottom: box.bottom + LABEL_MARGIN_PX,
   };
 }
 
@@ -419,9 +448,11 @@ function placeLabel(label: WebLabel, taken: LabelBox[], bounds: { min: number; m
     );
     const y = top + height * label.originY;
     const box = labelBounds({ ...label, y });
+    // Compared with the margin on one side only, which is what puts clear air between the pair.
+    const withMargin = inflated(box);
     let cost = 0;
     for (const other of taken) {
-      cost += labelOverlap(box, other);
+      cost += labelOverlap(withMargin, other);
       // An exact repeat of a taken box is never an acceptable answer, however crowded the node.
       if (box.left === other.left && box.top === other.top) cost += Number.MAX_SAFE_INTEGER;
     }
@@ -460,7 +491,7 @@ export function webDiagramBox(balance: Balance): WebLayoutBox {
  * other half, because a long enough species name would do it again with no float in sight.
  */
 function clampToCanvas(x: number, text: string, balance: Balance): number {
-  const half = (text.length * SCREEN_TEXT.advancePx) / 2;
+  const half = labelWidth(text) / 2;
   const width = balance.map.virtualWidth;
   if (half * 2 >= width) return width / 2;
   return Math.min(Math.max(x, half), width - half);

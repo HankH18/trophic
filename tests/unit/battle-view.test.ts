@@ -250,11 +250,16 @@ vi.mock("phaser", () => {
           o.fill = fill;
           return o;
         }) as unknown as (...args: never[]) => unknown,
-        text: ((x: number, y: number, value: string): FakeObject => {
+        // The STYLE is recorded, not discarded. It used to be, and the colour a widget sets at
+        // CONSTRUCTION (which is the only place `CombatantPanel` sets one) was therefore invisible
+        // to every test — so the palette inversion the audit read straight off `Text.style.color`
+        // in a real browser could not be seen headlessly at all.
+        text: ((x: number, y: number, value: string, style?: { color?: string }): FakeObject => {
           const o = make("text", objects, this);
           o.x = x;
           o.y = y;
           o.text = value;
+          o.color = style?.color ?? "";
           return o;
         }) as unknown as (...args: never[]) => unknown,
         image: ((x: number, y: number, key: string): FakeObject => {
@@ -369,6 +374,7 @@ vi.mock("phaser", () => {
 
 import { validateContent } from "../../core/schemas";
 import {
+  baitMatchOf,
   illegalActionReason,
   makeBattleContext,
   predationOracleFromWebs,
@@ -376,7 +382,9 @@ import {
   step,
   type BattleContext,
 } from "../../core/battle";
+import { AGE_CLASSES, STATUS_NAMES } from "../../core/types";
 import type {
+  AgeClass,
   BattleAction,
   BattleEvent,
   BattleInput,
@@ -400,13 +408,15 @@ import {
   bagEntries,
   baitEntries,
   baitIdsIn,
+  isBaitTag,
+  menuContextLine,
   moveEntries,
   rootEntries,
   snareEntries,
   teamEntries,
   type MenuEntry,
 } from "../../game/battle-input";
-import { menuPanelModel } from "../../game/ui/BattleMenuPanel";
+import { BattleMenuPanel, menuPanelModel, type MenuRowRender } from "../../game/ui/BattleMenuPanel";
 import {
   CARD_PADDING,
   DEFAULT_CARD_STYLE,
@@ -419,13 +429,28 @@ import {
   retirementLabel,
 } from "../../game/ui/BattleHud";
 import { battleScreenLayout, layoutPanels, rectsOverlap, spriteRect } from "../../game/ui/BattleLayout";
-import { PALETTE_FROZEN } from "../../game/ui/Palette";
+import {
+  PALETTE_FROZEN,
+  UI_SWATCH,
+  contrastRatio,
+  roleContrast,
+  roleHex,
+  swatchHex,
+  type UiSwatchRole,
+} from "../../game/ui/Palette";
 import { assetId, placeholderKey } from "../../game/placeholder";
 import { damageNumberText, effectivenessRole } from "../../game/ui/BattleFx";
 import { NEVER } from "../../core/lifecycle";
 import { BattleScene, type BattleSceneData } from "../../game/scenes/BattleScene";
 import { CombatantPanel } from "../../game/ui/BattleHud";
 import paletteFile from "../../data/palette.json";
+import manifest from "../../tools/comfy/manifest.json";
+
+/** The two fields of a manifest row this file reads. `tests/unit/manifest.test.ts` owns the rest. */
+interface ManifestRow {
+  class: string;
+  finalFile: string;
+}
 /** The STUB (see `vi.mock("phaser")` above) — the widgets take a `Phaser.Scene` and never touch the DOM. */
 import PhaserRuntime from "phaser";
 
@@ -801,9 +826,44 @@ describe("every visual step carries the log's own numbers", () => {
       cursor += 1;
       if (event.t !== "damage" || shown?.kind !== "hit") continue;
       expect(shown.attackerUid).toBe(lastActor);
+      // SPENT, not held: the attribution is consumed by the blow it explains.
+      lastActor = null;
       checked += 1;
     }
     expect(checked).toBeGreaterThan(10);
+    // On the real fixture every blow still has a named attacker, so consuming it degraded nothing.
+    const hits = steps.filter((s) => s.kind === "hit");
+    expect(hits.length).toBeGreaterThan(10);
+    expect(hits.every((s) => s.kind === "hit" && s.attackerUid !== null)).toBe(true);
+  });
+
+  it("BOUND — a second damage with no move in front of it names no attacker", () => {
+    // `hit.attackerUid` is the ONE thing the view needs that the log does not carry: it is inferred
+    // from the `moveUsed` immediately before the `damage`. That is exact for every event core can
+    // emit today — one `dealDamage` call site (core/battle.ts:1071), reached only from `performMove`
+    // right after its own `moveUsed` (:1110) — but it was undeclared load-bearing coupling: a future
+    // damage with no preceding move (recoil, a reflected hit, an environmental tick) would have been
+    // credited to whoever last swung. The inference is now consumed, so the honest answer is `null`.
+    const { openingState } = replay(WILD);
+    const opening2 = snapshotOf(openingState);
+    const p = openingState.activePlayerUid;
+    const e = openingState.activeEnemyUid;
+    const hit = (uid: string): BattleEvent => ({
+      t: "damage",
+      uid,
+      amount: 3,
+      effectiveness: "neutral",
+      crit: false,
+      predation: false,
+    });
+    const { steps } = compileBattleEvents(
+      [{ t: "turnStart", turn: 1 }, { t: "moveUsed", uid: p, moveId: "gnaw" }, hit(e), hit(p)],
+      opening2,
+    );
+    const hits = steps.filter((s) => s.kind === "hit");
+    expect(hits.length).toBe(2);
+    expect(hits[0]?.kind === "hit" ? hits[0].attackerUid : "?").toBe(p);
+    expect(hits[1]?.kind === "hit" ? hits[1].attackerUid : "?").toBeNull();
   });
 });
 
@@ -835,6 +895,28 @@ describe("the view cannot produce a battle rule's answer", () => {
     const { steps, snapshot } = compileBattleEvents(log, opening);
     expect(kinds(steps)).toEqual(["snareThrow"]);
     expect(snapshot.outcome).toBeNull();
+  });
+
+  it("a failed snare is NARRATED as a failure — the two outcomes do not share one caption", () => {
+    // WAS: the caption was `${tier} snare · ${pct} · ${shakes} shakes` and never consulted
+    // `event.caught`, though the payload carried it. The only difference on screen between a catch
+    // and a miss was that a `caught` step followed one of them, so a failed snare read as a throw
+    // followed by silence — nothing said the creature was still there. Reproduced live at rng 0.999:
+    // `base snare · 24% · 0 shakes` then straight into the enemy's reply.
+    const same = { uid: enemyUid, tier: "master", chance: 0.5, shakes: 3 } as const;
+    const missed = compileBattleEvents([{ t: "snareThrown", ...same, caught: false }], opening).steps[0];
+    const landed = compileBattleEvents([{ t: "snareThrown", ...same, caught: true }], opening).steps[0];
+    if (missed?.kind !== "snareThrow" || landed?.kind !== "snareThrow") throw new Error("expected snareThrow steps");
+    expect(missed.caption).not.toBe(landed.caption);
+    // Both still carry the numbers verbatim — the result is added, nothing is taken away.
+    for (const shown of [missed, landed]) {
+      expect(shown.caption).toContain(same.tier);
+      expect(shown.caption).toContain("50%");
+      expect(shown.caption).toContain("3 shakes");
+    }
+    // The failure's word is the negation of core's own event name, not a coined adjective.
+    expect(landed.caption.endsWith("caught")).toBe(true);
+    expect(missed.caption.endsWith("not caught")).toBe(true);
   });
 
   it("`caught` is the log's word, never inferred from the odds or the shake count", () => {
@@ -893,9 +975,11 @@ describe("the view cannot produce a battle rule's answer", () => {
     // The key set stays EXACT — this assertion is the thing stopping an xp bar fraction from being
     // smuggled onto the step. `playerAt`/`enemyAt` were added to `StepBase` deliberately, to fix a
     // reproduced defect (the scene was painting end-of-turn absolutes in the middle of a turn); they
-    // carry `BattlerView`s the compiler already had, and neither is an xp quantity. Nothing was
-    // loosened: the list grew by exactly the two fields the type grew by, and the scan below still
-    // rejects any key that looks like progress toward the next level.
+    // carry `BattlerView`s the compiler already had, and neither is an xp quantity. `lureActive` was
+    // added for the same class of reason (the card needs the lure state AS OF THIS STEP, not as of
+    // the end of the turn) and is a boolean the snapshot already tracked — `BattleState.lureActive`,
+    // copied, not derived. Nothing was loosened: the list grew by exactly the fields the type grew
+    // by, and the scan below still rejects any key that looks like progress toward the next level.
     expect(Object.keys(shown).sort()).toEqual([
       "activeEnemyUid",
       "activePlayerUid",
@@ -904,6 +988,7 @@ describe("the view cannot produce a battle rule's answer", () => {
       "enemyAt",
       "hold",
       "kind",
+      "lureActive",
       "playerAt",
       "uid",
     ]);
@@ -1256,6 +1341,28 @@ describe("G7 and Hard Req 8 — the battle screen's copy is identifiers and numb
     expect(faint?.caption).toMatch(/fainted$/);
   });
 
+  it("an EXTERNAL string cannot become a caption — the refusal channel is closed at the compiler", () => {
+    // THE HOLE THE SCANS ABOVE COULD NOT SEE. They read C3's own string literals and the captions
+    // the three fixtures produce, and no fixture contains an `actionRejected` (the gym recording
+    // says refusals were deliberately removed because "a fixture that records a refusal is not a
+    // recording of play"). So the one path that piped a string from OUTSIDE this lane into the
+    // message box was scanned by nothing, and the defect survived two cuts behind that green.
+    // core's 18 reasons carry no death or moralizing word today — this asserts that it would not
+    // matter if one did, because the caption is not the channel.
+    const { openingState } = replay(WILD);
+    const poison = "you killed too many of them and you should feel guilty";
+    expect(DEATH_WORDS.test(poison) && MORALIZING.test(poison)).toBe(true);
+    const { steps } = compileBattleEvents([{ t: "actionRejected", reason: poison }], snapshotOf(openingState));
+    const shown = steps[0];
+    if (shown?.kind !== "rejected") throw new Error("expected a rejected step");
+    expect(shown.reason).toBe(poison);
+    expect(shown.caption).toBe("");
+    for (const s of steps) {
+      expect(DEATH_WORDS.test(s.caption), s.caption).toBe(false);
+      expect(MORALIZING.test(s.caption), s.caption).toBe(false);
+    }
+  });
+
   it("BINDS — the scanners catch the copy they are meant to catch", () => {
     expect(DEATH_WORDS.test("the creature died")).toBe(true);
     expect(MORALIZING.test("you caught too many of them")).toBe(true);
@@ -1315,7 +1422,7 @@ describe("game/battle-input.ts greys exactly what core/battle.ts refuses", () =>
     expect(root.find((r) => r.id === "flee")?.disabled).toBe(false);
   });
 
-  it("bait rows are the bag's own keys minus snares and medicines — no bait table (G3)", () => {
+  it("bait rows are the bag's keys that ARE bait tags — a positive test, not an exclusion (G3)", () => {
     const { openingState, ctx } = replay(WILD);
     const baits = baitIdsIn(openingState, ctx);
     const med = ctx.balance.medicine;
@@ -1325,9 +1432,53 @@ describe("game/battle-input.ts greys exactly what core/battle.ts refuses", () =>
       expect(bagKeys).toContain(bait);
       expect(bait).not.toBe(med.salveItemId);
       expect(bait).not.toBe(med.tonicItemId);
+      // build-doc §7.2: a bait tag is a species line id or a role. Still no table (G3).
+      expect(isBaitTag(bait, ctx), bait).toBe(true);
     }
     // …and no snare tier leaks into the bait list.
     for (const tier of ["base", "weighted", "master"]) expect(baits).not.toContain(tier);
+  });
+
+  it("a bag item that is NOT a bait is not offered as one, and cannot be spent as one", () => {
+    // REPRODUCED, then fixed. `baitIdsIn` enumerated by EXCLUSION — "every bag key that is not a
+    // snare tier and not one of balance.medicine's two ids" — so any future bag item became a live,
+    // un-greyed bait row. core/battle.ts cannot catch it: `illegalActionReason` only asks whether
+    // the bag HOLDS the id (:1485) and `performSnare` consumes whatever it is handed. Measured with
+    // one junk id in the bag: the row offered itself `disabled:false, reason:null`, the throw
+    // consumed the item, and `snareThrown.chance` was IDENTICAL to the chance with no bait at all.
+    // core/types.ts already declares `OwnedCreature.relicSlot`, so non-bait items are designed in.
+    const { openingState, ctx } = replay(WILD);
+    const JUNK = "relic-antler-shard";
+    expect(isBaitTag(JUNK, ctx)).toBe(false);
+    const withJunk: BattleState = { ...openingState, bag: { ...openingState.bag, [JUNK]: 1 } };
+
+    expect(baitIdsIn(withJunk, ctx)).not.toContain(JUNK);
+    const rows = baitEntries(withJunk, ctx, "weighted");
+    expect(rows.map((r) => r.id)).not.toContain(JUNK);
+    // The real baits are still there — the filter did not simply empty the pane.
+    expect(rows.length).toBeGreaterThan(1);
+
+    // BINDS: the two shapes of bait tag build-doc §7.2 recognises both still answer true, so the
+    // positive test is not just "reject everything".
+    const someLine = content.species[0];
+    if (someLine === undefined) throw new Error("content has species");
+    expect(isBaitTag(someLine.id, ctx)).toBe(true);
+    expect(isBaitTag("Producer", ctx)).toBe(true);
+    expect(isBaitTag("", ctx)).toBe(false);
+  });
+
+  it("a bait row says what core will price it at against THIS target", () => {
+    const { openingState, ctx } = replay(WILD);
+    const target = openingState.battlers[openingState.activeEnemyUid];
+    if (target === undefined) throw new Error("fixture has an enemy");
+    const rows = baitEntries(openingState, ctx, "weighted").filter((r) => r.id !== "");
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      const match = baitMatchOf(row.id, target.lineId, ctx, openingState.nodeId);
+      expect(row.detail, row.id).toContain(match);
+      // The multiplier itself is core's; the row prints core's WORD, never a number of its own.
+      expect(row.detail).not.toMatch(/\d+\.\d/);
+    }
   });
 
   it("choosing a snare tier asks for bait, then emits the tier AND the bait core will price", () => {
@@ -1504,28 +1655,89 @@ describe("battle UI widget models", () => {
     const player = opening.battlers[openingState.activePlayerUid];
     const enemy = opening.battlers[openingState.activeEnemyUid];
     if (player === undefined || enemy === undefined) throw new Error("fixture has both sides");
-    const card = combatantCardModel(player, 100, 4);
+    const card = combatantCardModel(player, 100, { projectedRetirementYear: 4 });
     expect(card.title).toBe(`${player.displayName}  Lv ${String(player.level)}`);
     expect(card.hp.readout).toBe(`${String(player.curHp)}/${String(player.maxHp)}`);
     expect(card.retirement).toBe("Retires Y4");
     expect(card.spriteKey).toBe(battleSpriteKey(player.lineId, player.age, "back"));
     // The retirement year is a fact about a creature you own — the wild side never shows one.
-    expect(combatantCardModel(enemy, 100, 4).retirement).toBe("");
+    expect(combatantCardModel(enemy, 100, { projectedRetirementYear: 4 }).retirement).toBe("");
     expect(combatantCardModel(enemy, 100).spriteKey).toBe(battleSpriteKey(enemy.lineId, enemy.age, "front"));
   });
 
-  it("a missing sprite resolves to a stand-in that names the exact unbuilt asset id", () => {
-    // build-doc §9.7's battle-sprite rows are (line, age, facing). The key is built from data, so no
-    // species name is ever written in game/ (build-doc §8.3), and the shared helper's texture key
-    // carries that id verbatim — a reviewer can read WHICH asset is missing off a screenshot.
-    const key = battleSpriteKey("some-line", "A", "front");
-    expect(key).toBe("battle/some-line/A/front");
-    expect(assetId(key)).toBe(key);
-    const standIn = placeholderKey(key, 72, 72);
-    expect(standIn).toContain(key);
-    expect(standIn).toBe(placeholderKey(key, 72, 72));
+  it("the Lure chip is a persistent readout on the ENEMY card, and needs a content label", () => {
+    // WAS: nothing anywhere read `lureActive`. bible §3 makes a Lure last the whole battle and
+    // build-doc §7.2's `lureMult` is the largest single lever the player has on catch odds, and its
+    // entire on-screen life was one 260ms caption — by the time the snare was thrown, nothing said
+    // why the percentage was what it was. `grep -rn lureActive game/ui` returned nothing.
+    const { openingState } = replay(WILD);
+    const opening = snapshotOf(openingState);
+    const player = opening.battlers[openingState.activePlayerUid];
+    const enemy = opening.battlers[openingState.activeEnemyUid];
+    if (player === undefined || enemy === undefined) throw new Error("fixture has both sides");
+    const label = "Lure";
+    expect(combatantCardModel(enemy, 100, { lureActive: true, lureLabel: label }).lure).toBe(label);
+    expect(combatantCardModel(enemy, 100, { lureActive: false, lureLabel: label }).lure).toBe("");
+    // The flag is about the fielded ENEMY — core clears it on any enemy replacement.
+    expect(combatantCardModel(player, 100, { lureActive: true, lureLabel: label }).lure).toBe("");
+    // No label from content ⇒ no chip. This file coins no word for a mechanic data does not name.
+    expect(combatantCardModel(enemy, 100, { lureActive: true }).lure).toBe("");
+  });
+
+  it("EVERY battle-sprite key is a row lane B has actually committed, and vice versa", () => {
+    // WAS THE BIGGEST SILENT DEFECT IN THE LANE. `battleSpriteKey` returned
+    // `battle/<lineId>/<AGE>/<facing>` — a shape this lane invented and logged as an assumption
+    // ("lane B must adopt this key") while tools/comfy/manifest.json was already committed with
+    // `battle-cindril-j-front` under `assets/final/creature-battle/`. Measured intersection of the
+    // 162 keys this function produced with the manifest's 150 asset ids: ZERO. `textureFor` falls
+    // back to a placeholder SILENTLY, so the day the art landed every battle sprite would have gone
+    // on drawing a hatched box and nothing would have said so.
+    //
+    // The old test asserted `battleSpriteKey("some-line","A","front") === "battle/some-line/A/front"`
+    // — it restated the function and could never fail on a manifest disagreement. This one is a SET
+    // IDENTITY against the committed rows, so either side moving turns it red.
+    const manifestIds = new Set(
+      (manifest.rows as ManifestRow[])
+        .filter((row) => row.class === "creature-battle")
+        .map((row) => assetId(row.finalFile)),
+    );
+    expect(manifestIds.size).toBe(150); // build-doc §9.7 as corrected by DEVIATIONS D2.
+
+    // The keys the RUNNING GAME can ask for: every (line, age) a battler can be built at, both
+    // facings. Ancients are pinned to "E" by core/lifecycle.ts:346 (`line.ancient ? "E" : opts.age`),
+    // which is the same rule tools/comfy/comfy-batch.ts::artFormsOf ships them under.
+    const asked = new Set<string>();
+    for (const line of content.species) {
+      const ages: AgeClass[] = line.ancient ? ["E"] : [...AGE_CLASSES];
+      for (const age of ages) {
+        for (const facing of ["front", "back"] as const) asked.add(battleSpriteKey(line.id, age, facing));
+      }
+    }
+    expect([...asked].sort()).toEqual([...manifestIds].sort());
+
+    // The key IS the texture key: game/placeholder.ts strips `assets/final/` and the extension, so
+    // the id a reviewer reads off a stand-in is the manifest row that is missing.
+    const one = battleSpriteKey("cindril-line", "J", "front");
+    expect(one).toBe("creature-battle/battle-cindril-j-front");
+    expect(assetId("assets/final/creature-battle/battle-cindril-j-front.png")).toBe(one);
+    expect(assetId(one)).toBe(one);
+    const standIn = placeholderKey(one, 72, 72);
+    expect(standIn).toContain(one);
+    expect(standIn).toBe(placeholderKey(one, 72, 72));
     // Front and back are different manifest rows and must never collapse onto one stand-in.
-    expect(placeholderKey(battleSpriteKey("some-line", "A", "back"), 72, 72)).not.toBe(standIn);
+    expect(placeholderKey(battleSpriteKey("cindril-line", "J", "back"), 72, 72)).not.toBe(standIn);
+  });
+
+  it("BINDS — the manifest check refuses the key shape this lane used to invent", () => {
+    const manifestIds = new Set(
+      (manifest.rows as ManifestRow[])
+        .filter((row) => row.class === "creature-battle")
+        .map((row) => assetId(row.finalFile)),
+    );
+    const invented = (lineId: string, age: string, facing: string): string => `battle/${lineId}/${age}/${facing}`;
+    expect(manifestIds.has(invented("cindril-line", "J", "front"))).toBe(false);
+    // …and the shape that IS shipped is in there, so the check is not vacuously false.
+    expect(manifestIds.has(battleSpriteKey("cindril-line", "J", "front"))).toBe(true);
   });
 
   it("the menu panel greys a row by painting it, and reports core's reason under the cursor", () => {
@@ -1535,11 +1747,27 @@ describe("battle UI widget models", () => {
     const fleeIndex = rows.findIndex((r) => r.id === "flee");
     const model = menuPanelModel(rows, fleeIndex, style);
     const fleeRow = model.rows.find((r) => r.entry.id === "flee");
-    expect(fleeRow?.labelRole).toBe("border");
+    // Flee is refused in a gym AND the cursor is on it: a focused-but-closed row, which the old
+    // nested ternary painted in the plate's greyed colour even though it sits on the cursor bar.
+    expect(fleeRow?.labelRole).toBe("cursorInkDim");
+    expect(fleeRow?.backgroundRole).toBe("cursor");
     expect(model.focusedReason).toBe(illegalActionReason(openingState, { kind: "flee" }, ctx));
+
+    // An unfocused refused row sits on the plate.
+    const closedElsewhere = model.rows.find((r) => r.entry.disabled && !r.focused);
+    expect(closedElsewhere?.labelRole).toBe("textDisabled");
+    expect(closedElsewhere?.backgroundRole).toBe("panel");
+
     const movesIndex = rows.findIndex((r) => r.id === "moves");
     const openModel = menuPanelModel(rows, movesIndex, style);
-    expect(openModel.rows.find((r) => r.entry.id === "moves")?.labelRole).toBe("accent");
+    const focused = openModel.rows.find((r) => r.entry.id === "moves");
+    expect(focused?.labelRole).toBe("cursorInk");
+    expect(focused?.detailRole).toBe("cursorInkMuted");
+    expect(focused?.backgroundRole).toBe("cursor");
+    const rest = openModel.rows.find((r) => !r.focused && !r.entry.disabled);
+    expect(rest?.labelRole).toBe("text");
+    expect(rest?.detailRole).toBe("textMuted");
+    expect(rest?.backgroundRole).toBe("panel");
   });
 
   it("damage numbers and effectiveness colours are display-only reads of the log's fields", () => {
@@ -1869,6 +2097,18 @@ describe("the battle screen's boxes are disjoint and its text fits its plates", 
     expect(checked).toBeGreaterThan(10);
   });
 
+  it("the status chip and the Lure chip share a row without colliding", () => {
+    // They sit on the same y: the status left-aligned at the padding, the Lure right-aligned at the
+    // plate's inner edge. Longest possible pair, measured rather than eyeballed.
+    const longestStatus = [...STATUS_NAMES].sort((a, b) => b.length - a.length)[0] ?? "";
+    const lure = content.moves.moves.find((m) => m.effects.some((e) => e.kind === "catchOdds"))?.name ?? "";
+    expect(longestStatus).not.toBe("");
+    expect(lure, "content declares a catch-odds move, or the chip has no label").not.toBe("");
+    const left = CARD_PADDING + monoTextWidth(longestStatus, DEFAULT_CARD_STYLE.fontSize);
+    const right = hpReadoutRightX(DEFAULT_CARD_STYLE) - monoTextWidth(lure, DEFAULT_CARD_STYLE.fontSize);
+    expect(right, `"${longestStatus}" and "${lure}" collide on the card`).toBeGreaterThan(left);
+  });
+
   it("the readout still fits at four digits, and the check binds at five", () => {
     expect(hpReadoutFits(DEFAULT_CARD_STYLE, "9999/9999")).toBe(true);
     // The guard is real: a readout wide enough to reach the bar is refused.
@@ -1885,7 +2125,145 @@ describe("the battle screen's boxes are disjoint and its text fits its plates", 
     expect(PALETTE_FROZEN).toBe(paletteFile.frozen);
     expect(PALETTE_FROZEN).toBe(true);
   });
+});
 
+/* ════════════════════════════════════════════════════════════════════════════
+ * 10b. THE LEGIBILITY LADDER.
+ *
+ * The lane's palette tests used to assert role NAMES ("border", "accent") and
+ * that `PALETTE_FROZEN` matched the file. Both stayed green through gate B0's
+ * value swap, which inverted every ratio the role table had been chosen for: on
+ * the SHIPPED frozen palette a DISABLED menu row painted at 5.29 : 1 and a
+ * SELECTABLE one at 2.49 : 1, the focused row was the faintest label on its own
+ * cursor bar, and a half-health HP bar sat at 1.64 : 1 against its track.
+ *
+ * Nothing bound a role to the contrast its hex actually produces, so the green
+ * was evidence about the table's SHAPE. These tests recompute every ratio from
+ * data/palette.json — and the menu ones go through the real `menuPanelModel`,
+ * so they are about what gets painted rather than about a hand-picked pair.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/** WCAG 1.4.3 AA for small text. The battle UI's body face is 8px. */
+const AA_TEXT = 4.5;
+/** WCAG 1.4.11 for a non-text graphical mark — an HP bar, a floating combat number. */
+const AA_GRAPHIC = 3;
+
+describe("the battle UI's palette roles form a legibility ladder on the FROZEN palette", () => {
+  it("every role names a real swatch and resolves to that swatch's hex", () => {
+    const byId = new Map(paletteFile.colors.map((c) => [c.id, c.hex.toLowerCase()]));
+    for (const [role, id] of Object.entries(UI_SWATCH)) {
+      expect(byId.has(id), `${role} names swatch "${id}"`).toBe(true);
+      expect(roleHex(role as UiSwatchRole).toLowerCase(), role).toBe(byId.get(id));
+    }
+  });
+
+  it("BINDS — the contrast maths agrees with WCAG's own anchors", () => {
+    expect(contrastRatio("#000000", "#ffffff")).toBeCloseTo(21, 5);
+    expect(contrastRatio("#ffffff", "#ffffff")).toBeCloseTo(1, 5);
+    // The number the audit measured on the shipped file, recomputed here: c04 on c01.
+    expect(contrastRatio(swatchHex("c04"), swatchHex("c01"))).toBeCloseTo(5.29, 1);
+  });
+
+  it("text on the plate descends: primary > muted > refused, and the top two clear AA", () => {
+    const primary = roleContrast("text", "panel");
+    const muted = roleContrast("textMuted", "panel");
+    const refused = roleContrast("textDisabled", "panel");
+    expect(primary).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(muted).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(primary).toBeGreaterThan(muted);
+    expect(muted).toBeGreaterThan(refused);
+    // A greyed row must still be VISIBLE — dimmer is the point, invisible is a different defect.
+    expect(refused).toBeGreaterThan(2);
+    // The card's own name must out-shout its "muted" readout. It did not: 2.49 vs 3.81.
+    expect(primary / muted).toBeGreaterThan(1.2);
+  });
+
+  it("the FOCUSED row is the most legible label on the panel, and its detail is legible too", () => {
+    const focused = roleContrast("cursorInk", "cursor");
+    expect(focused).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(focused).toBeGreaterThan(roleContrast("text", "panel"));
+    expect(roleContrast("cursorInkMuted", "cursor")).toBeGreaterThanOrEqual(AA_TEXT);
+    // A focused row core refused is dimmer than a focused row it allowed — on the same surface.
+    expect(roleContrast("cursorInkDim", "cursor")).toBeLessThan(focused);
+    // …and the cursor bar itself must read against the plate it sits on.
+    expect(roleContrast("cursor", "panel")).toBeGreaterThanOrEqual(AA_GRAPHIC);
+  });
+
+  it("every HP band reads against its track, and the plate reads against the field", () => {
+    // WAS: `hpMid` (c16 #eec092) on a near-white track (c02) = 1.64 : 1 — a half-health bar was
+    // very nearly invisible, which is the one reading the player most needs mid-fight.
+    for (const band of ["hpHigh", "hpMid", "hpLow"] as const) {
+      expect(roleContrast(band, "hpTrack"), band).toBeGreaterThanOrEqual(AA_GRAPHIC);
+    }
+    expect(roleContrast("panel", "void")).toBeGreaterThanOrEqual(2);
+    expect(roleContrast("border", "void")).toBeGreaterThanOrEqual(AA_GRAPHIC);
+    // Both chips the card can draw — the status chip and the Lure chip — read on the plate.
+    expect(roleContrast("status", "panel")).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(roleContrast("accent", "panel")).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
+  it("every FX colour reads against the field it floats over", () => {
+    for (const role of ["accent", "hot", "cool", "good", "status", "text"] as const) {
+      expect(roleContrast(role, "void"), role).toBeGreaterThanOrEqual(AA_GRAPHIC);
+    }
+    // The effectiveness bands must be three different colours or the feedback says nothing.
+    const bands = new Set([
+      roleHex(effectivenessRole("super", false)),
+      roleHex(effectivenessRole("resisted", false)),
+      roleHex(effectivenessRole("neutral", false)),
+      roleHex(effectivenessRole("neutral", true)),
+    ]);
+    expect(bands.size).toBe(4);
+  });
+
+  it("ON THE REAL MENU — no refused row is painted more boldly than a selectable one", () => {
+    // THE TEST THAT WOULD HAVE CAUGHT IT. It reads the shipped gym root menu through the real
+    // `menuPanelModel`, resolves each row's painted foreground AND background through the frozen
+    // palette, and compares the two populations. On the shipped table "Bag" and "Team" (both
+    // refused) rendered at 5.29 : 1 while "Snare" and "Flee" (both selectable) rendered at 2.49 : 1.
+    const { openingState, ctx } = replay(GYM);
+    const style = { x: 0, y: 0, width: 100, rowHeight: 10, padding: 4, fontSize: "8px", visibleRows: 5 };
+    const painted = (row: MenuRowRender): number => roleContrast(row.labelRole, row.backgroundRole);
+
+    let compared = 0;
+    for (let cursor = 0; cursor < rootEntries(openingState, ctx).length; cursor += 1) {
+      const model = menuPanelModel(rootEntries(openingState, ctx), cursor, style);
+      const open = model.rows.filter((r) => !r.entry.disabled);
+      const closed = model.rows.filter((r) => r.entry.disabled);
+      if (open.length === 0 || closed.length === 0) continue;
+      const dimmestOpen = Math.min(...open.map(painted));
+      const boldestClosed = Math.max(...closed.map(painted));
+      expect(dimmestOpen, `cursor ${String(cursor)}: refused rows out-shout selectable ones`).toBeGreaterThan(
+        boldestClosed,
+      );
+      // And the row under the cursor is the boldest thing in the pane, whatever else is in it.
+      const focused = model.rows.find((r) => r.focused);
+      if (focused !== undefined && !focused.entry.disabled) {
+        for (const other of model.rows) {
+          if (other === focused) continue;
+          expect(painted(focused)).toBeGreaterThan(painted(other));
+        }
+      }
+      compared += 1;
+    }
+    expect(compared, "the gym root menu has both open and closed rows").toBeGreaterThan(3);
+  });
+
+  it("BINDS — the ladder check fails against the role table this lane shipped", () => {
+    // The pre-fix assignment, verbatim: panel c01, disabled c04, muted c05, text c07. Feeding the
+    // same comparison the old swatches must go the other way, or the check above proves nothing.
+    const was = { panel: "c01", disabled: "c04", muted: "c05", text: "c07" };
+    const plate = swatchHex(was.panel);
+    const enabled = contrastRatio(swatchHex(was.text), plate);
+    const disabled = contrastRatio(swatchHex(was.disabled), plate);
+    const muted = contrastRatio(swatchHex(was.muted), plate);
+    expect(disabled).toBeGreaterThan(enabled); // the inversion, measured
+    expect(muted).toBeGreaterThan(enabled); // "muted" out-shouted primary
+    expect(enabled).toBeLessThan(AA_TEXT); // and primary was below AA at 8px
+  });
+});
+
+describe("lane C3's comments name files that exist", () => {
   it("every repo path named in a lane-C3 file actually exists", () => {
     // WAS: BattleScene's docstring told the reader that every combatant draws through
     // `game/ui/Placeholder.ts::imageOrPlaceholder` — a module deleted during the build. A comment
@@ -1931,7 +2309,10 @@ function openScene(
   extra: Partial<BattleSceneData> = {},
 ): { scene: BattleScene; fake: FakeSceneParts } {
   const scene = new BattleScene();
-  const data: BattleSceneData = { ctx, input, rng, ...extra };
+  // `onFinished` is REQUIRED now (it used to be optional, and "the scene routes nowhere" plus "the
+  // callback is optional" is a screen a caller can strand the player on). A test that does not care
+  // about the hand-off still has to supply one, which is the point.
+  const data: BattleSceneData = { ctx, input, rng, onFinished: (): void => undefined, ...extra };
   scene.init(data);
   scene.create();
   return { scene, fake: fakeOf(scene) };
@@ -1973,11 +2354,17 @@ function hpTweens(fake: FakeSceneParts): Array<{ start: number; end: number }> {
 /**
  * A cursor over the steps the scene has actually PERFORMED.
  *
- * `perform` writes the caption exactly once per step, so the message label's write count is the
- * perform count. Counting fired timers would be wrong twice over: a flash schedules one that
- * performs nothing, a queue-drain fires one that performs nothing, and `commit()` performs a step
- * synchronously with no timer at all. `next()` returns the instant a step has been performed and
- * before anything else runs, which is the only moment a mid-animation assertion is meaningful.
+ * WAS a heuristic: it counted writes to the message label, on the grounds that `perform` says
+ * exactly one caption per step. That was true when every step narrated and nothing else wrote to the
+ * line, and both halves have since stopped being true — a refusal narrates nothing (its caption is
+ * empty by design, because core calls the string a diagnostic) and the menu writes its own context
+ * line. A miscounting cursor does not fail; it silently asserts against the wrong frame. It now
+ * reads `scene.performedCount()`, which is the scene's own count.
+ *
+ * Counting fired timers would be wrong twice over: a flash schedules one that performs nothing, a
+ * queue-drain fires one that performs nothing, and `commit()` performs a step synchronously with no
+ * timer at all. `next()` returns the instant a step has been performed and before anything else
+ * runs, which is the only moment a mid-animation assertion is meaningful.
  */
 function stepper(scene: BattleScene, fake: FakeSceneParts): {
   index(): number;
@@ -1985,25 +2372,23 @@ function stepper(scene: BattleScene, fake: FakeSceneParts): {
   next(): boolean;
   afterCommit(): void;
 } {
-  const label = fake.objects.filter((o) => o.kind === "text")[0];
-  if (label === undefined) throw new Error("the message label is the first text the scene creates");
-  let writes = label.writes ?? 0;
+  let performed = scene.performedCount();
   let index = 0;
   return {
     index: (): number => index,
     step: (): ViewStep | undefined => scene.playedSteps()[index],
     next: (): boolean => {
       while (advance(fake)) {
-        const now = label.writes ?? 0;
-        if (now === writes) continue;
-        writes = now;
+        const now = scene.performedCount();
+        if (now === performed) continue;
+        performed = now;
         index += 1;
         return true;
       }
       return false;
     },
     afterCommit: (): void => {
-      writes = label.writes ?? 0;
+      performed = scene.performedCount();
       index += 1;
     },
   };
@@ -2230,6 +2615,159 @@ describe("BattleScene, executed: it renders the log and holds no rule", () => {
     expect(fake.imagesOnScreen().length).toBe(2);
   });
 
+  it("the outcome is reported ONCE, and the scene hands the exit to its caller rather than freezing", () => {
+    // The scene deliberately routes nowhere — it cannot know whether it was launched over a paused
+    // overworld, from a menu, or by the demo capture. What it must NOT do is leave that to chance:
+    // `onFinished` used to be OPTIONAL, so a caller that forgot it stranded the player on a screen
+    // where nothing changes, every key returns early, and the scene never stops itself. It is now
+    // required (the type refuses a caller that omits it), it fires exactly once however long the
+    // clock runs, and every bound key after the outcome is inert.
+    const ctx = contextFor(WILD);
+    let finished = 0;
+    const { scene, fake } = openScene(WILD.input, ctx, cyclic(WILD.rngScript), {
+      onFinished: (): void => {
+        finished += 1;
+      },
+    });
+    fake.flush();
+    for (const action of WILD.actions) {
+      if (scene.battleState().outcome !== null) break;
+      scene.commit(action);
+      fake.flush();
+    }
+    expect(scene.battleState().outcome).not.toBeNull();
+    expect(finished).toBe(1);
+
+    const drawn = scene.performedCount();
+    const message = scene.currentMessage();
+    for (const key of ["keydown-UP", "keydown-DOWN", "keydown-Z", "keydown-ENTER", "keydown-X", "keydown-ESC"]) {
+      fake.press(key);
+    }
+    fake.flush();
+    fake.flush();
+    expect(finished, "the hand-off fires once, not once per idle frame").toBe(1);
+    expect(scene.performedCount()).toBe(drawn);
+    expect(scene.currentMessage()).toBe(message);
+    // The caller owns the transition; `BattleSceneData` says so and OverworldScene does it.
+    expect(stripComments(read("game/scenes/BattleScene.ts"))).not.toContain("this.scene.start");
+  });
+
+  it("a caught creature LEAVES the field — the terminal frame does not leave its subject standing", () => {
+    // WAS: `case "caught"` played `catchBurst` and nothing else. Measured live, at the end of the
+    // battle: `spriteAlpha {p:1, e:1}`, the enemy card reading "Nibbin Lv 4 | 71/71", and the word
+    // "Caught" under a placeholder sprite at full opacity — the ONLY terminal beat that left its
+    // subject fielded (faint ended at alpha 0, flee at alpha 0).
+    const ctx = contextFor(WILD);
+    const { scene, fake } = openScene(WILD.input, ctx, cyclic(WILD.rngScript));
+    fake.flush();
+    for (const action of WILD.actions) {
+      if (scene.battleState().outcome !== null) break;
+      scene.commit(action);
+      fake.flush();
+    }
+    expect(scene.battleState().outcome).toBe("caught");
+    const enemy = scene.panels().enemy;
+    const player = scene.panels().player;
+    if (enemy === undefined || player === undefined) throw new Error("expected both panels");
+    expect((enemy.sprite as unknown as FakeObject).alpha).toBe(0);
+    expect((enemy.root as unknown as FakeObject).alpha).toBe(0);
+    // The catcher is untouched — this is not a screen-wide fade.
+    expect((player.sprite as unknown as FakeObject).alpha).toBe(1);
+    // …and it is NOT the KO's vocabulary (Hard Req 8 keeps the sink-and-fade for a faint).
+    const src = stripComments(read("game/scenes/BattleScene.ts"));
+    const caughtCase = src.slice(src.indexOf('case "caught"'), src.indexOf('case "flee"'));
+    expect(caughtCase).toContain("catchSettle");
+    expect(caughtCase).not.toContain("faintFade");
+    expect(caughtCase).not.toContain("fleeDash");
+  });
+
+  it("an active Lure is a PERSISTENT chip on the enemy card, not a caption that scrolls away", () => {
+    // WAS: `lureActive` was tracked in the snapshot and moved by the log, and no widget read it —
+    // `grep -rn lureActive game/ui` returned nothing and `case "lure"` was a bare `return`. Observed
+    // live: "Ember used Lure" → "Lure active" → "Ember −29 HP" → "Turn 2" → "weighted snare · 80%",
+    // by which point nothing on screen said why that percentage was what it was. bible §3 keeps a
+    // Lure up for the rest of the battle and build-doc §7.2's `lureMult` is the largest lever there
+    // is on catch odds.
+    const ctx = contextFor(WILD);
+    const { scene, fake } = openScene(WILD.input, ctx, cyclic(WILD.rngScript));
+    fake.flush();
+    const chip = (): string => {
+      const panel = scene.panels().enemy;
+      if (panel === undefined) return "<no enemy panel>";
+      const label = ctx.moves.get("lure")?.name ?? "";
+      return cardChildren(panel).some((c) => c.kind === "text" && c.text === label && label !== "") ? label : "";
+    };
+    expect(chip()).toBe("");
+
+    // Turn 1 of the recorded fixture IS the lure.
+    scene.commit(WILD.actions[0] as BattleAction);
+    const at = stepper(scene, fake);
+    at.afterCommit();
+    let sawLureStep = false;
+    for (;;) {
+      const shown = at.step();
+      if (shown?.kind === "lure") {
+        sawLureStep = true;
+        expect(shown.active).toBe(true);
+        expect(shown.lureActive).toBe(true);
+        expect(chip()).toBe(ctx.moves.get("lure")?.name);
+      }
+      if (!at.next()) break;
+    }
+    expect(sawLureStep, "the wild fixture's first action is a Lure").toBe(true);
+
+    // …and it is STILL there several steps later, when the snare is thrown.
+    fake.flush();
+    expect(scene.battleState().lureActive).toBe(true);
+    expect(chip()).toBe(ctx.moves.get("lure")?.name);
+    const carried = scene.playedSteps().filter((s) => s.lureActive);
+    expect(carried.length, "the flag rides every step after the lure, not just the lure's own").toBeGreaterThan(2);
+  });
+
+  it("the menu re-purposes the narration line instead of leaving last turn's arithmetic under it", () => {
+    // WAS: `openMenu()` made the panel visible and never touched the message box. Reproduced live:
+    // root menu open → msg "Ember −29 HP"; snares pane → msg "Ember −29 HP"; baits pane → msg
+    // "Ember −29 HP", and NOTHING on screen named the armed tier once the snares pane closed —
+    // `armedTier` was private and no widget drew it. `BattleMessageBox.clear()` had no caller.
+    const ctx = contextFor(WILD);
+    const { scene, fake } = openScene(WILD.input, ctx, cyclic(WILD.rngScript));
+    fake.flush();
+    // A turn's worth of narration first, so there is something stale to leave behind.
+    scene.commit(WILD.actions[0] as BattleAction);
+    fake.flush();
+    const lastCaption = scene
+      .playedSteps()
+      .map((s) => s.caption)
+      .filter((c) => c !== "")
+      .pop();
+    expect(lastCaption).not.toBe(undefined);
+    // The menu is open again by now, and the line is the MENU's, not the turn's.
+    expect(scene.currentMessage()).toBe("");
+    expect(scene.currentMessage()).not.toBe(lastCaption);
+
+    // Walk root → Snare → a tier → baits, and the line names the tier that was armed.
+    const rows = rootEntries(scene.battleState(), ctx);
+    const snareAt = rows.findIndex((r) => r.id === "snares");
+    expect(snareAt).toBeGreaterThanOrEqual(0);
+    for (let i = 0; i < snareAt; i += 1) fake.press("keydown-DOWN");
+    fake.press("keydown-Z");
+    expect(scene.currentMessage()).toBe("");
+    const tiers = snareEntries(scene.battleState(), ctx);
+    const armedAt = tiers.findIndex((r) => !r.disabled);
+    expect(armedAt).toBeGreaterThanOrEqual(0);
+    for (let i = 0; i < armedAt; i += 1) fake.press("keydown-DOWN");
+    fake.press("keydown-Z");
+
+    const armed = tiers[armedAt];
+    if (armed === undefined) throw new Error("expected an open snare tier");
+    expect(scene.currentMessage()).toBe(`${armed.label} snare`);
+    expect(scene.currentMessage()).not.toBe("");
+
+    // Backing out of the bait pane drops the context line with the arming.
+    fake.press("keydown-X");
+    expect(scene.currentMessage()).toBe("");
+  });
+
   it("core's refusal strings are never printed as the narration line", () => {
     // WAS: `renderMenu()` and `handleKey()` pushed `illegalActionReason`'s string into the message
     // box. core/types.ts calls it "a diagnostic, not player-facing copy". LIVE, on screen:
@@ -2255,6 +2793,52 @@ describe("BattleScene, executed: it renders the log and holds no rule", () => {
     // …and moving back onto a legal row does not leave a stale refusal on screen either.
     fake.press("keydown-UP");
     expect(scene.currentMessage()).toBe(opening);
+  });
+
+  it("NO core string of ANY kind is ever on the narration line, over a whole fight", () => {
+    // The scan the old suite did not have. `tests/unit/battle-view.test.ts` scanned C3's own string
+    // literals and the captions of the three fixtures — and none of the fixtures contains an
+    // `actionRejected` event, so the ONE path that pipes an EXTERNAL string into the message box
+    // was scanned by nothing. This drives the menu through every root row of a gym (where snare and
+    // flee are both refused) and asserts the message line never becomes any of core's 18 reasons.
+    const ctx = contextFor(GYM);
+    const { scene, fake } = openScene(GYM.input, ctx, cyclic(GYM.rngScript));
+    fake.flush();
+
+    const reasons = new Set<string>();
+    const rows = rootEntries(scene.battleState(), ctx);
+    for (const row of rows) {
+      if (row.reason !== null) reasons.add(row.reason);
+      if (row.action === undefined) continue;
+      const why = illegalActionReason(scene.battleState(), row.action, ctx);
+      if (why !== null) reasons.add(why);
+    }
+    for (const action of [{ kind: "snare", tier: "base" } as const, { kind: "flee" } as const]) {
+      const why = illegalActionReason(scene.battleState(), action, ctx);
+      if (why !== null) reasons.add(why);
+    }
+    expect(reasons.size, "the gym refuses something").toBeGreaterThan(0);
+
+    const seen: string[] = [];
+    for (let i = 0; i < rows.length * 2; i += 1) {
+      fake.press("keydown-Z");
+      seen.push(scene.currentMessage());
+      fake.press("keydown-X");
+      seen.push(scene.currentMessage());
+      fake.press("keydown-DOWN");
+      seen.push(scene.currentMessage());
+    }
+    // …and the reducer's own refusal path, which is the one that reaches `perform`.
+    scene.commit({ kind: "snare", tier: "base" });
+    fake.flush();
+    seen.push(scene.currentMessage());
+
+    const rejected = scene.playedSteps().find((s) => s.kind === "rejected");
+    if (rejected?.kind !== "rejected") throw new Error("expected the gym to refuse a snare");
+    expect(rejected.reason).not.toBe("");
+    expect(rejected.caption).toBe("");
+    expect(scene.lastRefusal()).toBe(rejected.reason);
+    for (const line of seen) expect([...reasons], `printed "${line}"`).not.toContain(line);
   });
 
   it("the scene commits only actions core accepts, and a refused one is not committed", () => {
@@ -2353,16 +2937,33 @@ describe("BattleScene, executed: the beats the fixtures do not contain", () => {
     expect(shown.itemName).toBe(shown.itemId.charAt(0).toUpperCase() + shown.itemId.slice(1));
   });
 
-  it("a refused action reaches the scene as a `rejected` step and is drawn as a diagnostic", () => {
+  it("a refused action reaches the scene as a `rejected` step and is RECORDED, never printed", () => {
+    // THIS TEST USED TO ASSERT THE DEFECT. It ended `expect(scene.currentMessage()).toBe(
+    // rejected.caption)` — which was green precisely because `game/battle-view.ts` had made the
+    // caption core's `illegalActionReason` string and `perform` said every caption unconditionally.
+    // core/types.ts:425 calls that string "a diagnostic, not player-facing copy (G7)", and
+    // BattleScene's own header claimed it was not printed while it was. Reproduced in the browser:
+    // committing a snare in a gym put `only a wild creature can be snared` on the narration line and
+    // left `lastRefusal()` empty — the design exactly inverted.
     const { scene, fake } = openScene(buffInput, buffCtx, cyclic([0.5, 0.5, 0.5, 0.5, 0.5]));
     fake.flush();
+    const before = scene.currentMessage();
     // `commit` is the integration seam: hand the reducer something it refuses and it logs why.
     scene.commit({ kind: "item", itemId: SALVE });
     fake.flush();
     const rejected = scene.playedSteps().find((s) => s.kind === "rejected");
     if (rejected?.kind !== "rejected") throw new Error("expected the reducer to refuse a full-HP salve");
     expect(rejected.diagnostic).toBe(true);
-    expect(scene.currentMessage()).toBe(rejected.caption);
+    // The diagnostic is on the step, and it is NOT the caption — the caption is empty.
+    expect(rejected.reason).toBe(illegalActionReason(scene.battleState(), { kind: "item", itemId: SALVE }, buffCtx));
+    expect(rejected.caption).toBe("");
+    // It reaches the debug accessor…
+    expect(scene.lastRefusal()).toBe(rejected.reason);
+    // …and never the screen. (After the refusal the menu re-opens, so the line is the menu's.)
+    expect(scene.currentMessage()).not.toBe(rejected.reason);
+    // The menu is back up, so the line is the menu's context line — "" in the root pane.
+    expect(scene.currentMessage()).toBe("");
+    expect(before).not.toBe(rejected.reason);
   });
 
   it("the scene has executed every step kind these fights can produce, and the gap is declared", () => {
@@ -2478,5 +3079,67 @@ describe("CombatantPanel, executed", () => {
     expect(secondRemoved).toBe(0);
     panel.destroy();
     expect(secondRemoved).toBe(1);
+  });
+
+  it("PAINTED — the card's own name is bolder than its muted readout, in the colours actually set", () => {
+    // The audit read `Text.style.color` off the live objects in a real browser and found the card's
+    // name at 2.49 : 1 under a "muted" HP readout at 3.81 : 1. This is that measurement, headless:
+    // it reads the hexes the widget WROTE, not the roles it names, so a role table and a widget that
+    // disagree cannot both pass.
+    if (someone === undefined) throw new Error("fixture has a player");
+    const { scene } = panelScene();
+    const panel = new CombatantPanel(scene, {
+      x: 0,
+      y: 0,
+      cardX: 0,
+      cardY: 0,
+      view: someone,
+      projectedRetirementYear: 4,
+    });
+    const texts = cardChildren(panel).filter((c) => c.kind === "text");
+    const title = texts.find((c) => c.text.startsWith(someone.displayName));
+    const readout = texts.find((c) => /^\d+\/\d+$/.test(c.text));
+    if (title === undefined || readout === undefined) throw new Error("expected a title and a readout");
+    const plate = roleHex("panel");
+    expect(contrastRatio(title.color, plate)).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrastRatio(title.color, plate)).toBeGreaterThan(contrastRatio(readout.color, plate));
+    expect(title.color).toBe(roleHex("text"));
+    expect(readout.color).toBe(roleHex("textMuted"));
+  });
+});
+
+describe("BattleMenuPanel, executed: the colours it actually writes", () => {
+  it("PAINTED — no refused row is written in a bolder colour than a selectable one", () => {
+    // The audit's own reproduction, headless. In the browser it read, off the live menu:
+    //   Fight (focused) #ab8d62 · Bag (DISABLED) #53210c · Snare (enabled) #765b4e ·
+    //   Team (DISABLED) #53210c · Flee (enabled) #765b4e
+    // — the two darkest, boldest rows were the two the player could not choose. This reads the same
+    // property (`setColor`'s argument) off the same widget and compares measured contrast against
+    // the surface each row is drawn on.
+    const { openingState, ctx } = replay(GYM);
+    const scene = new PhaserRuntime.Scene();
+    const style = { x: 0, y: 0, width: 142, rowHeight: 12, padding: 5, fontSize: "8px", visibleRows: 5 };
+    const menu = new BattleMenuPanel(scene, style);
+    const rows = rootEntries(openingState, ctx);
+    expect(rows.some((r) => r.disabled) && rows.some((r) => !r.disabled)).toBe(true);
+
+    for (let cursor = 0; cursor < rows.length; cursor += 1) {
+      const model = menu.render(rows, cursor);
+      const children = (menu.root as unknown as FakeObject).list.filter((c) => c.kind === "text");
+      const painted = model.rows.map((row) => {
+        const label = children.find((c) => c.text === row.entry.label);
+        if (label === undefined) throw new Error(`no drawn label for "${row.entry.label}"`);
+        // The hex the widget WROTE, against the surface the model says the row sits on.
+        return { row, ratio: contrastRatio(label.color, roleHex(row.backgroundRole)) };
+      });
+      const open = painted.filter((p) => !p.row.entry.disabled);
+      const closed = painted.filter((p) => p.row.entry.disabled);
+      expect(open.length + closed.length).toBe(model.rows.length);
+      if (open.length === 0 || closed.length === 0) continue;
+      expect(
+        Math.min(...open.map((p) => p.ratio)),
+        `cursor ${String(cursor)}: a refused row is painted more boldly than a selectable one`,
+      ).toBeGreaterThan(Math.max(...closed.map((p) => p.ratio)));
+    }
   });
 });

@@ -52,11 +52,22 @@
  *     target is the other active battler", which is simply wrong for those five moves. There is no
  *     honest inference available, so the field is GONE rather than guessed: a projectile animation
  *     needs core to log the target.
+ *   · `damage` carries no ATTACKER, so `ViewStep.hit.attackerUid` is inferred from the `moveUsed`
+ *     immediately in front of it. That is exact for every event core can emit today (one `damage`
+ *     call site, reached only from `performMove`, right after its own `moveUsed`), and the inference
+ *     is now CONSUMED the moment it is spent, so a second `damage` with no move in front of it
+ *     reports `null` rather than crediting whoever last swung. See `actorUid` in the compiler.
  *
  * COPY (guardrail G7, Hard Requirement 8)
  * ───────────────────────────────────────
  * Captions are identifiers and numbers. There is no moralizing copy about catching anywhere in this
  * file, and KO is FAINT ONLY — no word in the death family appears in any string here.
+ *
+ * ONE STRING NEVER BECOMES A CAPTION: `actionRejected.reason`. core/types.ts calls it "a diagnostic,
+ * not player-facing copy (G7)" and the first cut made it the `rejected` step's caption, which put it
+ * on screen verbatim. It now travels on `ViewStep.rejected.reason` — a field no message box reads —
+ * and the caption is `""`. That is the only uncontrolled channel into the narration line there was,
+ * and it is closed at the compiler rather than guarded at the scene.
  *
  * CONSTANTS (G11)
  * ───────────────
@@ -374,7 +385,11 @@ export type ViewStep =
       resyncRequired: true;
     })
   | (StepBase & { kind: "lure"; active: boolean })
-  /** core/battle.ts calls `reason` a diagnostic, not player-facing copy — the scene marks it so. */
+  /**
+   * A refusal. `reason` is core's `illegalActionReason` string and core/types.ts calls it "a
+   * diagnostic, not player-facing copy (G7)", so it is NOT the caption — the caption is `""`. The
+   * scene records `reason` (`BattleScene.lastRefusal()`) and never prints it.
+   */
   | (StepBase & { kind: "rejected"; reason: string; diagnostic: true })
   | (StepBase & { kind: "battleClose"; outcome: BattleOutcome });
 
@@ -408,6 +423,16 @@ const OUTCOME_CAPTION: Record<BattleOutcome, string> = {
   fled: "Escaped",
   caught: "Caught",
   escaped: "It got away",
+};
+
+/**
+ * How a snare throw ends, in the log's own vocabulary. `caught` is core's event name (`t:"caught"`);
+ * `not caught` is its negation, formed the way this file already negates `fleeAttempt`'s success
+ * ("could not escape"). Nothing here is an adjective or a judgement (G7).
+ */
+const SNARE_RESULT: Record<"caught" | "free", string> = {
+  caught: "caught",
+  free: "not caught",
 };
 
 const KIND_CAPTION: Record<BattleKind, string> = {
@@ -629,6 +654,10 @@ export function compileBattleEvents(
 
       case "damage": {
         const hp = drain(event.uid, event.amount);
+        // Spend the inference (see `actorUid`): whoever swung is credited with THIS blow and no
+        // later one. A second `damage` with no `moveUsed` in front of it has no known attacker.
+        const attackerUid = actorUid;
+        actorUid = null;
         const band = EFFECTIVENESS_CAPTION[event.effectiveness];
         const tags: string[] = [];
         if (band !== "") tags.push(band);
@@ -638,7 +667,7 @@ export function compileBattleEvents(
           kind: "hit",
           hold: VIEW_TIMING.hit + (event.crit ? VIEW_TIMING.critExtra : 0),
           uid: event.uid,
-          attackerUid: actorUid,
+          attackerUid,
           amount: event.amount,
           effectiveness: event.effectiveness,
           crit: event.crit,
@@ -792,6 +821,14 @@ export function compileBattleEvents(
       }
 
       case "snareThrown": {
+        // The RESULT is on the caption, both ways.
+        //
+        // It used to be absent, so a throw that failed and a throw that succeeded printed the same
+        // line and the only difference on screen was that a `caught` step followed one of them: a
+        // failed snare read as a throw followed by silence, with nothing saying the creature was
+        // still there. `SNARE_RESULT` negates core's own event name (`t:"caught"`) — the same way
+        // `fleeAttempt`'s failure already reads "could not escape" — so no noun is coined, no
+        // judgement is added, and G7's "numbers, not adjectives" is untouched.
         emit({
           kind: "snareThrow",
           hold: VIEW_TIMING.shake * (event.shakes + 1),
@@ -800,7 +837,9 @@ export function compileBattleEvents(
           chance: event.chance,
           shakes: event.shakes,
           caught: event.caught,
-          caption: `${event.tier} snare · ${pct(event.chance)} · ${String(event.shakes)} shakes`,
+          caption: `${event.tier} snare · ${pct(event.chance)} · ${String(event.shakes)} shakes · ${
+            SNARE_RESULT[event.caught ? "caught" : "free"]
+          }`,
         });
         break;
       }
@@ -884,12 +923,24 @@ export function compileBattleEvents(
       }
 
       case "actionRejected": {
+        // THE CAPTION IS EMPTY, DELIBERATELY.
+        //
+        // `StepBase.caption` is "message-line text" — the thing the narration box prints. Putting
+        // core's `reason` there put a string core/types.ts:425 calls "a diagnostic, not player-facing
+        // copy (G7)" straight onto the screen: the shipped scene printed
+        // `only a wild creature can be snared` as the story of the fight, and its own docstring
+        // claimed it did not. The compiler is now structurally incapable of that — the diagnostic
+        // travels on `reason`, which no message box reads, and the caption carries nothing.
+        //
+        // It stays EMPTY rather than becoming a player-facing line because neither document supplies
+        // one and writing one here would be inventing content (docs/DEVIATIONS-lane-c3.md C3-G4).
+        // The player-facing answer to "why can't I do that" is the greyed row.
         emit({
           kind: "rejected",
           hold: VIEW_TIMING.rejected,
           reason: event.reason,
           diagnostic: true,
-          caption: event.reason,
+          caption: "",
         });
         break;
       }

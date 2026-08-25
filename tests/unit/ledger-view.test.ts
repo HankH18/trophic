@@ -1887,6 +1887,50 @@ describe("web diagram — every label is legible, not merely present", () => {
     expect(labelOverlap(a, { left: 192, right: 288, top: 144, bottom: 156 })).toBe(0);
   });
 
+  it("the modelled box is the box the ENGINE draws, to the pixel", () => {
+    // Measured off the live scene (LedgerScene in Chrome, `Text.getBounds()` read back): a Phaser
+    // Text at this face and size is `characters × advancePx + 1` wide and `lineHeight` tall —
+    // 14ch→85, 16ch→97, 17ch→103, 20ch→121, 32ch→193. One pixel does not matter until it is the
+    // pixel two labels share, and a model narrower than the engine calls a real overlap clear.
+    for (const [text, width] of [
+      ["[3] Fenmaw 6/9", 85],
+      ["collapsed (prey)", 97],
+      ["[2] Mirefin 11/24", 103],
+      ["collapsed (predator)", 121],
+    ] as const) {
+      expect(text.length * SCREEN_TEXT.advancePx + 1).toBe(width);
+      const box = labelBounds({ id: "x", text, x: 200, y: 100, originY: 0 });
+      expect(box.right - box.left, `"${text}" modelled narrower than the engine draws`).toBe(width);
+      expect(box.bottom - box.top).toBe(SCREEN_TEXT.lineHeight);
+    }
+  });
+
+  it("labels are separated, not merely tangent", () => {
+    // Non-overlapping is the requirement; two strings sharing an edge are still one thing to read.
+    const save = newSave({ seed: 12, currentNode: "hearthollow", nodes: content.nodes }, balance);
+    let closest = Number.POSITIVE_INFINITY;
+    for (const file of content.nodes) {
+      const base = save.nodeStates[file.id];
+      if (!base) continue;
+      for (const lineId of Object.keys(base.populations)) {
+        const state = JSON.parse(JSON.stringify(base)) as NodeState;
+        (state.populations[lineId] as { count: number }).count = 0;
+        const drawn = drawnBoxes(file, state);
+        for (let i = 0; i < drawn.length; i += 1) {
+          for (let j = i + 1; j < drawn.length; j += 1) {
+            const a = (drawn[i] as (typeof drawn)[number]).box;
+            const b = (drawn[j] as (typeof drawn)[number]).box;
+            const dx = Math.max(a.left - b.right, b.left - a.right);
+            const dy = Math.max(a.top - b.bottom, b.top - a.bottom);
+            // Only pairs that share a column can be close in the way that matters.
+            if (dx < 0) closest = Math.min(closest, dy);
+          }
+        }
+      }
+    }
+    expect(closest).toBeGreaterThanOrEqual(2);
+  });
+
   it("the box a label occupies is the box the scene anchors it with", () => {
     // The placement above is only true of the drawn screen if the scene uses the origin the label
     // carries. A vertex label hangs below its point (originY 0); a link label sits on it (0.5).

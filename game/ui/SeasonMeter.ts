@@ -20,8 +20,9 @@
  */
 
 import type { ClockActionKind, ClockEvent, ClockState } from "@core/clock";
-import { advanceAction, meter, seasonAt, ticksForAction } from "@core/clock";
+import { advanceAction, isOver, meter, seasonAt, ticksForAction } from "@core/clock";
 import type { Balance, Season } from "@core/types";
+import { finalYearOf } from "@game/year-events";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Model — pure, testable, engine-free
@@ -65,7 +66,16 @@ export interface SeasonMeterModel {
    * the moment it is true.
    */
   full: boolean;
-  /** "Y2/6 · summer · 7/16" — identifiers and numbers only (G7). */
+  /**
+   * `core/clock.ts` `isOver` — the clock is standing past the final year (build-doc §1's six).
+   *
+   * The turn out of the final year begins year 7, so this state is REACHED by playing, and while it
+   * was never asked the HUD read "Y7/6" and then "Y8/6". The meter reports the six-year game as
+   * complete instead of naming a seventh year: `year` below still carries the clock's raw number,
+   * and this flag is what explains the labels.
+   */
+  over: boolean;
+  /** "Y2/6 · summer · 7/16", or "Y6/6 · complete" once the game is over — numbers only (G7). */
   label: string;
   yearLabel: string;
   seasonLabel: string;
@@ -79,40 +89,58 @@ export interface SeasonMeterModel {
 export function seasonMeterModel(clock: ClockState, balance: Balance): SeasonMeterModel {
   const read = meter(clock, balance);
   const seasonsPerYear = balance.clock.seasonOrder.length;
-  const finalYear = balance.clock.startYear + balance.clock.yearsTotal - 1;
+  const finalYear = finalYearOf(balance);
+  const over = isOver(clock, balance);
+
+  /*
+   * THE FULL METER IS A POSITION CORE IS NEVER ASKED ABOUT, AND THIS MODULE IS THE ONLY THING THAT
+   * BUILDS IT (see `fullMeter`). `advance` fills the meter and resets the tick in one call, so a
+   * live clock only ever holds 0..ticksPerYear-1 — and asking `meter()` about tick 16 of a 16-tick,
+   * 4-season year came back with `seasonIndex: 4` (there is no fifth season; `season` correctly read
+   * the fourth) and `ticksLeftInSeason: 4` for a year that is over. The arithmetic is right for
+   * every tick the clock can stand on; the inconsistency exists only in the state constructed here,
+   * so it is resolved here: the full meter stands at the END of the last season, with nothing left.
+   */
+  const spent = over ? read.ticksPerYear : read.tick;
+  const full = spent >= read.ticksPerYear;
+  const lastSeasonIndex = Math.max(0, seasonsPerYear - 1);
+  const season = full ? seasonAt(read.ticksPerYear - 1, balance) : read.season;
 
   const cells: SeasonMeterCell[] = [];
   for (let index = 0; index < read.ticksPerYear; index += 1) {
     cells.push({
       index,
       season: seasonAt(index, balance),
-      filled: index < read.tick,
+      filled: index < spent,
       seasonStart: index % read.ticksPerSeason === 0,
-      current: index === read.tick,
+      current: index === spent,
     });
   }
 
-  const yearLabel = `Y${read.year}/${balance.clock.yearsTotal}`;
-  const seasonLabel = read.season;
-  const tickLabel = `${read.tick}/${read.ticksPerYear}`;
+  // Past the final year the six years are what there is to report; "Y7/6" names a year the game
+  // does not have (build-doc §1). The raw clock year stays on `year` below.
+  const yearLabel = `Y${over ? finalYear : read.year}/${balance.clock.yearsTotal}`;
+  const seasonLabel = season;
+  const tickLabel = `${spent}/${read.ticksPerYear}`;
 
   return {
     year: read.year,
     yearsTotal: balance.clock.yearsTotal,
     finalYear,
-    isFinalYear: read.year >= finalYear,
+    isFinalYear: read.year === finalYear,
     tick: read.tick,
     ticksPerYear: read.ticksPerYear,
     ticksPerSeason: read.ticksPerSeason,
-    season: read.season,
-    seasonIndex: read.seasonIndex,
+    season,
+    seasonIndex: full ? lastSeasonIndex : read.seasonIndex,
     seasonsPerYear,
-    ticksIntoSeason: read.ticksIntoSeason,
-    ticksLeftInSeason: read.ticksLeftInSeason,
-    ticksLeftInYear: read.ticksLeftInYear,
+    ticksIntoSeason: full ? read.ticksPerSeason : read.ticksIntoSeason,
+    ticksLeftInSeason: full ? 0 : read.ticksLeftInSeason,
+    ticksLeftInYear: full ? 0 : read.ticksLeftInYear,
     cells,
-    full: read.tick >= read.ticksPerYear,
-    label: `${yearLabel} · ${seasonLabel} · ${tickLabel}`,
+    full,
+    over,
+    label: over ? `${yearLabel} · complete` : `${yearLabel} · ${seasonLabel} · ${tickLabel}`,
     yearLabel,
     seasonLabel,
     tickLabel,
@@ -127,6 +155,11 @@ export function seasonMeterModel(clock: ClockState, balance: Balance): SeasonMet
  * carries this position and `seasonMeterModel(save)` can only ever show 15/16. This builds the
  * position rather than storing it, so the year-turn scene can draw the meter it just filled without
  * a second set of tick arithmetic — the model below is the ordinary one, asked about tick 16.
+ *
+ * Because this is the ONLY caller that asks about that tick, it is also the only place the derived
+ * season fields could go out of range, and {@link seasonMeterModel} settles them there: the full
+ * meter stands at the end of the last season with `ticksLeftInSeason` and `ticksLeftInYear` at 0,
+ * rather than publishing a `seasonIndex` one past the last season of the year.
  */
 export function fullMeter(year: number, balance: Balance): SeasonMeterModel {
   return seasonMeterModel({ year, tick: balance.clock.ticksPerYear }, balance);

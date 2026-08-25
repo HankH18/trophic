@@ -138,28 +138,54 @@ export function packRgb(rgb: SeasonTintRgb): number {
 }
 
 /**
- * The table must cover exactly the seasons the clock will ask for — `balance.clock.seasonOrder`.
+ * Presets in the table that `balance.clock.seasonOrder` will never ask for, sorted.
  *
- * A missing season is a season the map renders untinted with no warning; an extra one is a preset
- * nothing can ever reach. Both are caught here rather than at the frame that needed it, because
- * seasonOrder is a tunable (INV-3) and retuning it must not silently degrade the picture.
+ * Harmless by construction — nothing can reach them — so they are REPORTED rather than thrown on.
+ * See {@link assertCoversSeasonOrder} for why that distinction is load-bearing.
+ */
+export function unreachableSeasonPresets(table: SeasonTintTable, balance: Balance): string[] {
+  const order = balance.clock.seasonOrder;
+  return Object.keys(table)
+    .filter((key) => !order.includes(key as Season))
+    .sort();
+}
+
+/** One warning per distinct (extra presets × season order), so a per-frame caller cannot spam. */
+const warnedUnreachable = new Set<string>();
+
+function warnUnreachable(table: SeasonTintTable, balance: Balance): void {
+  const extra = unreachableSeasonPresets(table, balance);
+  if (extra.length === 0) return;
+  const key = `${extra.join(",")}|${balance.clock.seasonOrder.join(",")}`;
+  if (warnedUnreachable.has(key)) return;
+  warnedUnreachable.add(key);
+  console.warn(
+    `[season-tint] ${String(extra.length)} preset(s) balance.clock.seasonOrder never asks for: ` +
+      `${extra.join(", ")} — the map is tinted correctly for every season it does ask for`,
+  );
+}
+
+/**
+ * The table must cover every season the clock will ask for — `balance.clock.seasonOrder`.
+ *
+ * ⚠ ONLY A MISSING PRESET THROWS, and the asymmetry is deliberate. A missing season is a season the
+ * map renders untinted with no warning, so it is worth failing on. An EXTRA preset is one nothing
+ * can ever reach: it changes no pixel. Throwing on it turned a legal balance-only retune into a
+ * fatal — measured, shrinking `clock.seasonOrder` from four seasons to three made `seasonTint`
+ * throw, and `game/mapview.ts` calls it from `MapView`'s constructor, so the overworld could not be
+ * BUILT after a retune the season meter followed correctly. INV-3 says a retune touches
+ * data/balance.json only; it must not need this file edited in the same change. The extras are
+ * reported by {@link unreachableSeasonPresets} and warned about once.
  */
 export function assertCoversSeasonOrder(table: SeasonTintTable, balance: Balance): void {
-  const order = balance.clock.seasonOrder;
-  for (const season of order) {
+  for (const season of balance.clock.seasonOrder) {
     if (!table[season]) {
       throw new SeasonTintError(
         `season tint table has no preset for "${season}", which balance.clock.seasonOrder contains`,
       );
     }
   }
-  for (const key of Object.keys(table)) {
-    if (!order.includes(key as Season)) {
-      throw new SeasonTintError(
-        `season tint table carries a preset for "${key}", which balance.clock.seasonOrder does not`,
-      );
-    }
-  }
+  warnUnreachable(table, balance);
 }
 
 /** bible §12a season preset, from data/balance.json (G11 — never a literal here). */
@@ -221,7 +247,9 @@ export function hueOf(rgb: SeasonTintRgb): SeasonTintRgb {
  *     TOWARD white, i.e. taking the season's cast off the picture. bible §12a's "summer:
  *     +brightness" reads on screen as "summer is the season the map is least tinted".
  *  3. Nothing checked the table covered `balance.clock.seasonOrder` on this path — only the preview
- *     path did — so retuning seasonOrder could leave a preset unreachable with no warning.
+ *     path did — so retuning seasonOrder could leave a season with no preset and no warning. The
+ *     check throws for a MISSING preset only; an extra one is warned about (see
+ *     {@link assertCoversSeasonOrder}, and the fatal-on-a-legal-retune defect it records).
  *
  * `table` defaults to {@link PROVISIONAL_SEASON_TINTS} and is a parameter rather than a lookup so
  * the day `balance.seasonTint` exists the call site changes, not this function.

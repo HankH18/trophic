@@ -120,6 +120,20 @@ export function retirementLabel(projectedRetirementYear: number | undefined): st
   return `Retires Y${String(projectedRetirementYear)}`;
 }
 
+/**
+ * Everything about a card that is not read off the battler itself. The caller owns all of it: the
+ * retirement year comes from core/lifecycle.ts, and the lure LABEL comes from `data/moves.json`
+ * through the scene (no move name is written in this file — build-doc §8.3 / G2).
+ */
+export interface CardExtras {
+  /** `OwnedCreature.projectedRetirementYear`. Absent for a creature the player does not own. */
+  projectedRetirementYear?: number;
+  /** `BattleState.lureActive`, carried per step by `ViewStep.lureActive`. */
+  lureActive?: boolean;
+  /** The lure move's `name` from content. Absent ⇒ no chip, rather than a coined word. */
+  lureLabel?: string;
+}
+
 export interface CombatantCardModel {
   /** "Ember  Lv 18" — nickname or form name, then the level. */
   title: string;
@@ -130,6 +144,16 @@ export interface CombatantCardModel {
   mods: string;
   /** "" for the enemy — the projected retirement year is a fact about a creature you own. */
   retirement: string;
+  /**
+   * The persistent Lure chip, or "".
+   *
+   * `BattleState.lureActive` is per-target and per-battle (bible §3) and multiplies catch odds for
+   * the rest of the fight (build-doc §7.2 `lureMult`). Its entire on-screen life used to be a 260ms
+   * caption, so by the time the snare was thrown nothing said why the percentage was what it was.
+   * It is drawn on the ENEMY card because that is what the flag is about — core clears it on any
+   * enemy replacement.
+   */
+  lure: string;
   spriteKey: string;
   fainted: boolean;
 }
@@ -137,7 +161,7 @@ export interface CombatantCardModel {
 export function combatantCardModel(
   view: BattlerView,
   hpBarWidth: number,
-  projectedRetirementYear?: number,
+  extras: CardExtras = {},
 ): CombatantCardModel {
   // `statArrows` is the view's own log-tracked record (game/battle-view.ts). Reading `statMods`
   // here instead would show the modifiers as of the last SYNC, which mid-turn is the end of the
@@ -151,7 +175,11 @@ export function combatantCardModel(
     hp: hpBarModel(view.curHp, view.maxHp, hpBarWidth),
     status: view.status ?? "",
     mods: mods.join(" "),
-    retirement: view.side === "player" ? retirementLabel(projectedRetirementYear) : "",
+    retirement: view.side === "player" ? retirementLabel(extras.projectedRetirementYear) : "",
+    lure:
+      view.side === "enemy" && extras.lureActive === true && extras.lureLabel !== undefined
+        ? extras.lureLabel
+        : "",
     spriteKey: battleSpriteKey(view.lineId, view.age, facingFor(view.side)),
     fainted: view.fainted,
   };
@@ -242,6 +270,8 @@ export class CombatantPanel {
   private readonly hpFill: PhaserNS.GameObjects.Rectangle;
   private readonly hpText: PhaserNS.GameObjects.Text;
   private readonly statusText: PhaserNS.GameObjects.Text;
+  /** The persistent Lure chip. Right-aligned on the status row, so it never collides with it. */
+  private readonly lureText: PhaserNS.GameObjects.Text;
   private readonly footer: PhaserNS.GameObjects.Text;
   private readonly style: CombatantCardStyle;
   /** Kept so {@link destroy} can cancel every tween still pointed at this panel's objects. */
@@ -258,14 +288,13 @@ export class CombatantPanel {
       cardX: number;
       cardY: number;
       view: BattlerView;
-      projectedRetirementYear?: number;
       style?: CombatantCardStyle;
-    },
+    } & CardExtras,
   ) {
     const style = opts.style ?? DEFAULT_CARD_STYLE;
     this.style = style;
     this.scene = scene;
-    const model = combatantCardModel(opts.view, style.hpBarW, opts.projectedRetirementYear);
+    const model = combatantCardModel(opts.view, style.hpBarW, opts);
 
     // The ONE shared stand-in helper (game/placeholder.ts). Real art is drawn at its natural size
     // and only a MISSING asset becomes a labelled, hatched box naming this exact manifest row — no
@@ -289,7 +318,11 @@ export class CombatantPanel {
     };
 
     this.title = text(CARD_PADDING, 4, model.title, "text");
-    const track = scene.add.rectangle(CARD_PADDING, 18, style.hpBarW, style.hpBarH, roleColor("panelInner"));
+    // `hpTrack`, not `panelInner`. The track and the menu's cursor bar used to share one role, and
+    // one swatch cannot be both dark enough for a bar to read against and light enough for a cursor
+    // to read on the plate: the frozen value that suited the cursor left a half-health bar at
+    // 1.64 : 1. See game/ui/Palette.ts.
+    const track = scene.add.rectangle(CARD_PADDING, 18, style.hpBarW, style.hpBarH, roleColor("hpTrack"));
     track.setOrigin(0, 0);
     this.hpFill = scene.add.rectangle(CARD_PADDING, 18, model.hp.fillPx, style.hpBarH, roleColor(model.hp.swatchRole));
     this.hpFill.setOrigin(0, 0);
@@ -298,6 +331,8 @@ export class CombatantPanel {
     this.hpText = text(hpReadoutRightX(style), 15, model.hp.readout, "textMuted");
     this.hpText.setOrigin(1, 0);
     this.statusText = text(CARD_PADDING, 26, model.status, "status");
+    this.lureText = text(hpReadoutRightX(style), 26, model.lure, "accent");
+    this.lureText.setOrigin(1, 0);
     this.footer = text(
       CARD_PADDING,
       35,
@@ -312,17 +347,19 @@ export class CombatantPanel {
       this.hpFill,
       this.hpText,
       this.statusText,
+      this.lureText,
       this.footer,
     ]);
   }
 
   /** Re-read every absolute. Called with the display state the STEP being played carries. */
-  update(view: BattlerView, projectedRetirementYear?: number): void {
+  update(view: BattlerView, extras: CardExtras = {}): void {
     if (this.dead) return;
-    const model = combatantCardModel(view, this.style.hpBarW, projectedRetirementYear);
+    const model = combatantCardModel(view, this.style.hpBarW, extras);
     this.title.setText(model.title);
     this.paintHp(model.hp);
     this.statusText.setText(model.status);
+    this.lureText.setText(model.lure);
     this.footer.setText(model.retirement === "" ? model.mods : `${model.retirement}  ${model.mods}`);
   }
 

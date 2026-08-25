@@ -17,10 +17,12 @@
  *   (2) NO DRIFTED REGION LARGE ENOUGH TO MATTER — the same IoU computed PER COLLISION CELL; a
  *       cell scoring under the threshold is "drifted"; drifted cells are grouped into 8-connected
  *       REGIONS, and a region fails if EITHER
- *         · it holds as many cells as the player's own footprint
+ *         · it holds as many JUDGED cells as the player's own footprint
  *           (`ceil(playerSpriteW / collisionCellPx) × ceil(playerSpriteH / collisionCellPx)` = 6), OR
- *         · the edge pixels that actually DISAGREE inside it reach `driftLimit × (2·dilatePx+1)²`
+ *         · the base's edge pixels that have GONE inside it reach `driftLimit × (2·dilatePx+1)²`
  *           — one dilated edge blob per cell of that footprint (6 × 25 = 150 px).
+ *       LOST edges, not total disagreement: what a collision mask cannot survive is structure
+ *       leaving, and a year variant ADDING marks is the whole point of §9.5.
  *
  * Why (2) had to be added. A single frame-wide ratio cannot fail on a local change: displacing a
  * fraction f of the edge pixels gives IoU ≈ (1−f)/(1+f), which stays ≥ 0.85 for every f ≤ 0.081.
@@ -52,9 +54,11 @@
  * covered walkable, which is exactly the Hard Req 5 failure this gate exists to stop.
  *
  * The fix is to measure the region the way a region is: 8-connected, every cell that carries any
- * evidence judged, and sized by BOTH its cell count and the disagreeing edge area inside it. The
- * area clause is what catches a drift that is one cell tall and four cells long — a horizontally
- * displaced object — which no cell-count-in-a-run can ever reach.
+ * evidence kept IN the region (so its pixels are counted and it cannot punch a hole), the evidence
+ * floor demoted to deciding only whether a cell's own RATIO counts toward the footprint clause, and
+ * a second clause on the LOST edge area inside the region. The area clause is what catches a drift
+ * that is one cell tall and four cells long — a horizontally displaced object — which no
+ * cell-count-in-a-run can ever reach.
  *
  * Criterion (2) is measured in COLLISION CELLS because that is the unit the collision mask is
  * authored in, and the size limit is the PLAYER'S FOOTPRINT because that is the physical statement
@@ -64,8 +68,9 @@
  *
  * Measured separation on five real 1024² painted maps (see tests/unit/overlay-diff.test.ts), at 5
  * positions each: a 64px feature displaced by ONE collision cell is rejected at 25 of 25 pairs
- * (worst-region disagreement 151–2375 px against the 150 px limit), while a linear tint of any depth
- * is accepted at 15 of 15 (worst-region disagreement ≤ 41 px, i.e. a 3.7× margin).
+ * (worst-region LOST edges 151–1550 px against the 150 px limit), while a linear tint of any depth
+ * (≤ 40 lost), a synthetic weathering pass (≤ 112 lost) and 24 hard 5×5 rot blotches (≤ 25 lost,
+ * 227–259 GAINED) are all accepted.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * THE WALKABLE RESTRICTION, AND ITS COST — stated because it is not free.
@@ -116,7 +121,27 @@ export interface OverlayDiffConfig extends EdgeOptions {
 export interface DriftRegion {
   /** Drifted cells in the region. */
   cells: number;
-  /** Edge pixels inside those cells, in walkable pixels only, that differ between the two maps. */
+  /**
+   * Of those, the cells carrying at least one dilated edge pixel's worth of union evidence
+   * (`(2·dilatePx+1)²`). A cell holding 8 union pixels is real evidence of DISAGREEMENT — it stays in
+   * the region and its pixels are counted below — but its own RATIO is not a verdict about a cell,
+   * so it does not count toward the footprint clause.
+   */
+  judgedCells: number;
+  /**
+   * Base edge pixels inside the region, in walkable pixels only, that the candidate does NOT have.
+   * Structure that WAS there and is now gone — the thing a collision mask authored against the base
+   * can no longer be right about. This is the quantity criterion (2) fails on.
+   */
+  lostEdges: number;
+  /**
+   * Candidate edge pixels the base does not have. Reported, never failed on: rot, moss, scorch and
+   * new grain are what bible §6's aging arcs ADD, and adding a mark does not move a layout. Measured
+   * on all five real maps: 24 hard 5×5 rot blotches score 227–259 gained against 0–25 lost, while a
+   * 64px feature displaced ONE cell scores 151–1550 lost.
+   */
+  gainedEdges: number;
+  /** `lostEdges + gainedEdges` — every walkable edge pixel the two maps disagree about here. */
   disagreement: number;
   /** Inclusive cell bounds. */
   cellRect: { cx0: number; cy0: number; cx1: number; cy1: number };
@@ -144,14 +169,14 @@ export interface OverlayDiffResult {
   cellsDrifted: number;
   /** Cells in the worst drifted region — the one that decided `localPass`. */
   largestDrift: number;
-  /** `driftFootprint.cols × driftFootprint.rows` — the cell count at which a drifted region fails. */
+  /** `driftFootprint.cols × driftFootprint.rows` — the judged-cell count at which a region fails. */
   driftLimit: number;
   /**
-   * `driftLimit × (2·dilatePx+1)²` — the disagreeing-edge area, in walkable pixels, at which a
-   * drifted region fails regardless of how few cells it spans. One dilated edge blob per cell of the
+   * `driftLimit × (2·dilatePx+1)²` — the LOST-edge area, in walkable pixels, at which a drifted
+   * region fails regardless of how few cells it spans. One dilated edge blob per cell of the
    * player's footprint.
    */
-  disagreementLimit: number;
+  lostEdgeLimit: number;
   /** Top-left cell of the worst drifted region, for the operator to go and look at. */
   worstDrift?: { cx: number; cy: number };
   /** The worst drifted region in full — bounds in cells AND in pixels, and what was measured in it. */
@@ -245,7 +270,10 @@ export function overlayDiff(input: OverlayDiffInput): OverlayDiffResult {
   // not in a per-cell skip that silently deletes the strongest evidence the gate can have.
   const cellCount = grid.cols * grid.rows;
   const drifted = new Uint8Array(cellCount);
-  const cellDisagreement = new Int32Array(cellCount);
+  const cellJudged = new Uint8Array(cellCount);
+  const cellLost = new Int32Array(cellCount);
+  const cellGained = new Int32Array(cellCount);
+  const minCellEvidence = (2 * config.dilatePx + 1) ** 2;
   const xs: CellSpan[] = [];
   for (let cx = 0; cx < grid.cols; cx++) {
     const sx = spanOf(cx, grid.cols, width);
@@ -259,6 +287,8 @@ export function overlayDiff(input: OverlayDiffInput): OverlayDiffResult {
       const sx = xs[cx]!;
       let ci = 0;
       let cu = 0;
+      let lost = 0;
+      let gained = 0;
       let anyWalkable = false;
       for (let y = sy.lo; y < sy.hi; y++) {
         const row = y * width;
@@ -270,6 +300,8 @@ export function overlayDiff(input: OverlayDiffInput): OverlayDiffResult {
           const b = ec[i]!;
           if (a && b) ci++;
           if (a || b) cu++;
+          if (a && !b) lost++;
+          if (!a && b) gained++;
         }
       }
       if (!anyWalkable || cu === 0) continue; // blocked, or neither map has an edge here at all
@@ -277,19 +309,29 @@ export function overlayDiff(input: OverlayDiffInput): OverlayDiffResult {
       if (ci / cu < config.iouThreshold) {
         const k = cy * grid.cols + cx;
         drifted[k] = 1;
-        cellDisagreement[k] = cu - ci;
+        if (cu >= minCellEvidence) cellJudged[k] = 1;
+        cellLost[k] = lost;
+        cellGained[k] = gained;
         cellsDrifted++;
       }
     }
   }
   const driftLimit = foot.cols * foot.rows;
-  const disagreementLimit = driftLimit * (2 * config.dilatePx + 1) ** 2;
-  const worst = worstRegion(drifted, cellDisagreement, grid, width, height, driftLimit, disagreementLimit);
+  const lostEdgeLimit = driftLimit * minCellEvidence;
+  const worst = worstRegion(
+    { drifted, judged: cellJudged, lost: cellLost, gained: cellGained },
+    grid,
+    width,
+    height,
+    driftLimit,
+    lostEdgeLimit,
+  );
 
   const iou = union === 0 ? 0 : intersection / union;
   const unrestrictedIou = allUnion === 0 ? 0 : allIntersection / allUnion;
   const globalPass = iou >= config.iouThreshold;
-  const localPass = worst === undefined || (worst.cells < driftLimit && worst.disagreement < disagreementLimit);
+  const localPass =
+    worst === undefined || (worst.judgedCells < driftLimit && worst.lostEdges < lostEdgeLimit);
   const result: OverlayDiffResult = {
     iou,
     accepted: false,
@@ -305,7 +347,7 @@ export function overlayDiff(input: OverlayDiffInput): OverlayDiffResult {
     cellsDrifted,
     largestDrift: worst?.cells ?? 0,
     driftLimit,
-    disagreementLimit,
+    lostEdgeLimit,
     unrestrictedIou,
     reason: '',
   };
@@ -343,11 +385,11 @@ export function overlayDiff(input: OverlayDiffInput): OverlayDiffResult {
       `= px (${worst.pixelRect.x0}, ${worst.pixelRect.y0})–(${worst.pixelRect.x1}, ${worst.pixelRect.y1})`
     : 'no region';
   const regionFacts = worst
-    ? `${worst.cells} drifted cell(s) spanning ${where}, with ${worst.disagreement} of the edge ` +
-      `pixels inside them differing`
+    ? `${worst.cells} drifted cell(s) (${worst.judgedCells} of them carrying a full edge blob) spanning ` +
+      `${where}, where ${worst.lostEdges} base edge px are GONE and ${worst.gainedEdges} are NEW`
     : 'no drifted region at all';
-  const localLimits = `limits: ${driftLimit} cells (the ${foot.cols}×${foot.rows}-cell player footprint) ` +
-    `or ${disagreementLimit} disagreeing px`;
+  const localLimits = `limits: ${driftLimit} judged cells (the ${foot.cols}×${foot.rows}-cell player ` +
+    `footprint) or ${lostEdgeLimit} lost px`;
   // Named in every rejection because it is the rule the operator is about to want to argue with.
   const rule =
     'Hard Req 5 asks ONE collision mask to fit all six years, and this candidate\'s edges inside the ' +
@@ -390,18 +432,29 @@ export function overlayDiff(input: OverlayDiffInput): OverlayDiffResult {
  * 8-connected region of 9 — the same physical region, counted two ways, one of which cleared a limit
  * of 6 and one of which did not.
  *
- * "Closest to a limit" is `max(cells / driftLimit, disagreement / disagreementLimit)`, so the region
+ * "Closest to a limit" is `max(judgedCells / driftLimit, lostEdges / lostEdgeLimit)`, so the region
  * reported is the one that actually drove the verdict rather than merely the widest one.
+ *
+ * WHY THE LIMIT IS ON LOST EDGES AND NOT ON TOTAL DISAGREEMENT. A year variant is SUPPOSED to add
+ * marks — bible §6's arcs are rot, moss, scorch and thinning canopy — and a mark that appears on
+ * open ground moves nothing: the collision mask authored against the base is still exactly right.
+ * What invalidates that mask is structure that has GONE from where it was. Measured on the five real
+ * maps in this repo, that distinction is the whole gate: 24 hard 5×5 rot blotches score 227–259
+ * gained and 0–25 lost, a synthetic weathering pass scores ≤ 112 lost, a linear tint ≤ 40 lost — and
+ * a 64px feature displaced by ONE collision cell scores 151–1550 lost at 25 of 25 (map, position)
+ * pairs, because displacing a thing always vacates where it was. Failing on TOTAL disagreement
+ * instead was measured to reject the rot blotches (242 px) while still accepting the tightest real
+ * displacement (151 px) — i.e. exactly backwards.
  */
 function worstRegion(
-  drifted: Uint8Array,
-  cellDisagreement: Int32Array,
+  cellData: { drifted: Uint8Array; judged: Uint8Array; lost: Int32Array; gained: Int32Array },
   grid: CellGrid,
   width: number,
   height: number,
   driftLimit: number,
-  disagreementLimit: number,
+  lostEdgeLimit: number,
 ): DriftRegion | undefined {
+  const { drifted, judged, lost, gained } = cellData;
   const seen = new Uint8Array(drifted.length);
   const stack: number[] = [];
   let best: DriftRegion | undefined;
@@ -409,7 +462,9 @@ function worstRegion(
   for (let s = 0; s < drifted.length; s++) {
     if (!drifted[s] || seen[s]) continue;
     let cells = 0;
-    let disagreement = 0;
+    let judgedCells = 0;
+    let lostEdges = 0;
+    let gainedEdges = 0;
     let cx0 = grid.cols;
     let cy0 = grid.rows;
     let cx1 = -1;
@@ -420,7 +475,9 @@ function worstRegion(
     while (stack.length > 0) {
       const p = stack.pop()!;
       cells++;
-      disagreement += cellDisagreement[p]!;
+      if (judged[p]) judgedCells++;
+      lostEdges += lost[p]!;
+      gainedEdges += gained[p]!;
       const cx = p % grid.cols;
       const cy = (p - cx) / grid.cols;
       if (cx < cx0) cx0 = cx;
@@ -441,7 +498,7 @@ function worstRegion(
         }
       }
     }
-    const score = Math.max(cells / driftLimit, disagreement / disagreementLimit);
+    const score = Math.max(judgedCells / driftLimit, lostEdges / lostEdgeLimit);
     if (score > bestScore) {
       bestScore = score;
       const lo = spanOf(cx0, grid.cols, width);
@@ -450,7 +507,10 @@ function worstRegion(
       const hiY = spanOf(cy1, grid.rows, height);
       best = {
         cells,
-        disagreement,
+        judgedCells,
+        lostEdges,
+        gainedEdges,
+        disagreement: lostEdges + gainedEdges,
         cellRect: { cx0, cy0, cx1, cy1 },
         pixelRect: { x0: lo.lo, y0: loY.lo, x1: hi.hi - 1, y1: hiY.hi - 1 },
       };

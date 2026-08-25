@@ -19,6 +19,7 @@ import { createRng } from "../../core/rng";
 import { validateContent } from "../../core/schemas";
 import { AGE_CLASSES, type AgeClass, type Balance, type NodeFile, type Season } from "../../core/types";
 import {
+  absenceCauseOf,
   absentLines,
   encounterChancePerStep,
   encounterTable,
@@ -405,5 +406,157 @@ describe("G3 / no_shadow_tables — every weight comes from core/foodweb.ts", ()
     const smuggled = `const bias = { "skir-line": 3 };`;
     const hit = content.species.filter((l) => smuggled.includes(l.id));
     expect(hit.length).toBeGreaterThan(0);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * The individual met is COMPLETE — bible §2's one trait per wild creature
+ *
+ * `Encounter` used to carry {nodeId, lineId, age, level} and no traits, while `BattlerSpec.traits`
+ * is not optional — so the encounter could not be handed to a battle without someone inventing the
+ * roll at the hand-off, and `tools/harness/player.ts` had already invented its own. The balance
+ * report therefore described a player whose creatures the game had no way to produce.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("a wild creature is met with its traits (bible §2)", () => {
+  it("carries exactly balance.traits.slotsPerWildCreature traits, all from the shipped pool", () => {
+    const ctx = ctxFor("r1");
+    for (let seed = 1; seed <= 200; seed += 1) {
+      const met = rollEncounterAt(ctx, createRng(seed));
+      expect(met).not.toBeNull();
+      expect(met!.traits.length).toBe(balance.traits.slotsPerWildCreature);
+      for (const trait of met!.traits) {
+        const shipped = balance.traits.pool.find((t) => t.id === trait.id);
+        expect(shipped, `${trait.id} is not in balance.traits.pool`).toBeDefined();
+        expect(trait).toEqual(shipped);
+      }
+    }
+  });
+
+  it("only Elders ever roll the rare pool (bible §2: 'Elders roll rare traits')", () => {
+    const ctx = ctxFor("r1");
+    const rareIds = new Set(balance.traits.pool.filter((t) => t.rarity === "rare").map((t) => t.id));
+    expect(rareIds.size).toBeGreaterThan(0);
+    let elderRare = 0;
+    let elders = 0;
+    for (let seed = 1; seed <= 1500; seed += 1) {
+      const met = rollEncounterAt(ctx, createRng(seed));
+      if (!met) continue;
+      const rare = met.traits.some((t) => rareIds.has(t.id));
+      if (met.age === "E") {
+        elders += 1;
+        if (rare) elderRare += 1;
+      } else {
+        expect(rare, `a ${met.age} rolled a rare trait`).toBe(false);
+      }
+    }
+    expect(elders, "no Elder was met in 1500 seeds — the fixture is wrong").toBeGreaterThan(0);
+    expect(elderRare, "no Elder ever rolled rare — elderRareChance is not being read").toBeGreaterThan(0);
+    // …and it is a CHANCE, not a certainty: `balance.traits.elderRareChance` is 0 < p < 1.
+    expect(elderRare).toBeLessThan(elders);
+  });
+
+  it("the traits are part of the seed: the same seed meets the same animal, traits and all", () => {
+    const ctx = ctxFor("r1");
+    expect(rollEncounterAt(ctx, createRng(77))).toEqual(rollEncounterAt(ctx, createRng(77)));
+  });
+
+  it("the trait roll is LAST, so it did not renumber the draws that pick the animal", () => {
+    // Species, age and level are decided before a trait is drawn. Two encounters that differ only in
+    // their traits therefore cannot exist for one seed — but the property that matters is that the
+    // roll consumes the stream in a fixed order, which the whole-foray identity below re-checks.
+    const ctx = ctxFor("r1");
+    const rng = createRng(5);
+    const first = rollEncounterAt(ctx, rng);
+    const second = rollEncounterAt(ctx, rng);
+    expect(first).not.toBeNull();
+    expect(second).not.toBeNull();
+    const replayed = createRng(5);
+    expect(rollEncounterAt(ctx, replayed)).toEqual(first);
+    expect(rollEncounterAt(ctx, replayed)).toEqual(second);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * Hard Req 10 — FOUR causes of absence, not two
+ *
+ * `AbsenceReason.seasonal` could say "dormant" | "migrating" | null, and null was documented as
+ * "the line is simply gone". A sign-chain-gated Ancient is neither: it sits at a real count with
+ * `active:false` and no `dormantReason`, so the HUD printed the same word for a species held behind
+ * a quest and a species the player had wiped out. Measured on `r2`, on the never-cut vertical slice:
+ *     reedrick-line: 24 (migrating)
+ *     undermere-line: 1 (absent)
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("absence has four causes, and each is derived rather than assumed", () => {
+  it("a gated line at a real count reads as gated, never as wiped", () => {
+    const gatedLines = content.species.filter((s) => s.habitat.includes(balance.encounter.signChainGatedHabitatTag));
+    expect(gatedLines.length).toBeGreaterThan(0);
+    let checked = 0;
+    for (const line of gatedLines) {
+      const host = content.nodes.find((n) => (n.populations[line.id]?.count ?? 0) > 0);
+      if (!host) continue;
+      checked += 1;
+      const absence = absentLines(ctxFor(host.id)).find((a) => a.lineId === line.id);
+      expect(absence, `${line.id} is absent at ${host.id} but not reported`).toBeDefined();
+      expect(absence!.cause).toBe("gated");
+      // Hard Req 2 — the real number is still on screen. The animal is held back, not gone.
+      expect(absence!.count).toBeGreaterThan(0);
+    }
+    expect(checked, "no shipped node carries a gated line at a real count").toBeGreaterThan(0);
+  });
+
+  it("PROVES the classification against core rather than restating its rule", () => {
+    /*
+     * The classification reads the SHAPE of what core/foodweb.ts returned; it does not re-derive the
+     * gate. This walks every shipped node in every season and checks the claim the shape is standing
+     * in for: a line called "gated" is exactly a line that becomes ACTIVE when its own chain is
+     * unlocked, and a line called "wiped" is exactly a line at count 0.
+     */
+    let gated = 0;
+    let wiped = 0;
+    let seasonal = 0;
+    for (const node of content.nodes) {
+      for (const season of balance.clock.seasonOrder) {
+        const ctx = ctxFor(node.id, { season });
+        for (const absence of absentLines(ctx)) {
+          if (absence.cause === "gated") {
+            gated += 1;
+            const unlocked = encounterTable(ctxFor(node.id, { season, unlocked: [absence.lineId] })).find(
+              (e) => e.lineId === absence.lineId,
+            );
+            expect(unlocked?.active, `${absence.lineId} called gated but stayed inactive when unlocked`).toBe(true);
+            expect(absence.count).toBeGreaterThan(0);
+          } else if (absence.cause === "wiped") {
+            wiped += 1;
+            expect(absence.count).toBe(0);
+          } else {
+            seasonal += 1;
+            const line = species.byId.get(absence.lineId);
+            expect(line?.seasonalWindow, `${absence.lineId} called ${absence.cause} with no seasonalWindow`).toBeDefined();
+          }
+        }
+      }
+    }
+    expect(gated, "no gated line was seen across the whole region").toBeGreaterThan(0);
+    expect(seasonal, "no seasonal absence was seen across the whole region").toBeGreaterThan(0);
+    expect(wiped + gated + seasonal).toBeGreaterThan(0);
+  });
+
+  it("BINDS — a gated line and a wiped line at the same node produce DIFFERENT causes", () => {
+    const gatedLine = content.species.find(
+      (s) => s.habitat.includes(balance.encounter.signChainGatedHabitatTag),
+    );
+    expect(gatedLine).toBeDefined();
+    const host = content.nodes.find((n) => (n.populations[gatedLine!.id]?.count ?? 0) > 0);
+    expect(host).toBeDefined();
+    const other = Object.keys(host!.populations).find((id) => id !== gatedLine!.id);
+    expect(other).toBeDefined();
+
+    const ctx = ctxFor(host!.id, { counts: { [other!]: 0 } });
+    const causes = new Map(absentLines(ctx).map((a) => [a.lineId, a.cause]));
+    expect(causes.get(gatedLine!.id)).toBe("gated");
+    expect(causes.get(other!)).toBe("wiped");
+    expect(causes.get(gatedLine!.id)).not.toBe(causes.get(other!));
   });
 });

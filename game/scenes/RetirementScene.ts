@@ -280,9 +280,11 @@ export class RetirementFlow {
       stats: parentStats,
     };
 
-    const heir = this.priceHeir(prompt, parent);
+    // Priced in this order on purpose: whether the prompt is answerable at all decides whether the
+    // heir is ROLLED, and a roll spends a draw from the seeded stream (see {@link apply}).
     const boons = STAT_KEYS.map((stat) => this.priceBoon(prompt, stat));
-    const deadlocked = heir.problem !== null && boons.every((b) => b.problem !== null);
+    const deadlocked = this.deadlockedFor(prompt);
+    const heir = this.priceHeir(prompt, parent, deadlocked);
 
     return {
       prompt,
@@ -297,16 +299,69 @@ export class RetirementFlow {
   }
 
   /**
+   * Whether an heir could be PLACED at all, asked without rolling one.
+   *
+   * `retirementChoiceProblem` answers two questions for a HEIR choice: are the inherited traits the
+   * parent's (a roll can never fail this — the pool IS the parent's trait ids), and is there room in
+   * the party or the box. Handing it a heir choice that inherits nothing isolates the second, which
+   * is the only one that can make a prompt unanswerable. Core keeps the rule; this asks it.
+   */
+  private heirRoomProblem(prompt: YearRetirementPrompt): string | null {
+    return retirementChoiceProblem(
+      this.save,
+      prompt,
+      { kind: "heir", parentUid: prompt.parentUid, inheritedTraitIds: [], heirUid: prompt.parentUid },
+      this.balance,
+    );
+  }
+
+  /**
+   * True when NEITHER side of this prompt can be applied: no room for an heir, and no legal target
+   * for any of the five boon stats.
+   *
+   * Asked from `boonTargetUids` (core's own list) rather than from the priced offer, so it is cheap
+   * enough to ask before deciding whether to spend a draw.
+   */
+  private deadlockedFor(prompt: YearRetirementPrompt): boolean {
+    if (this.heirRoomProblem(prompt) === null) return false;
+    return STAT_KEYS.every((stat) => boonTargetUids(this.save, this.balance, stat).length === 0);
+  }
+
+  /**
    * Price the HEIR by ASKING core/lifecycle.ts to build it, on a copy of the save that is then
    * thrown away. `resolveRetirement` is pure, so this costs one object graph and no state — and it
    * is the only way to show the heir's level and traits before the choice without restating
    * build-doc §7.5 step 3's `floor(parent × heirLevelFactor)` in a second place.
+   *
+   * `deadlocked` means the prompt cannot be answered on either side; then NOTHING IS ROLLED, because
+   * a roll is a draw from the seeded stream and this prompt will never reach the action log for a
+   * replay to draw against (see {@link apply}). What is shown is core's own reason and the identity
+   * the line gives — no inherited traits, because none were rolled.
    */
-  private priceHeir(prompt: YearRetirementPrompt, parent: ParentCard): HeirOffer {
-    const choice = this.rolledHeir(prompt);
+  private priceHeir(
+    prompt: YearRetirementPrompt,
+    parent: ParentCard,
+    deadlocked: boolean,
+  ): HeirOffer {
     const { content } = this.deps;
     const index = indexSpecies(content.species);
     const line = lineOf(index, prompt.lineId);
+
+    const roomProblem = this.heirRoomProblem(prompt);
+    if (deadlocked && roomProblem !== null) {
+      return {
+        heirUid: prompt.parentUid,
+        lineId: prompt.lineId,
+        formName: line.formNames[YOUNGEST_AGE_CLASS],
+        age: YOUNGEST_AGE_CLASS,
+        inheritedTraitIds: [],
+        inheritedTraits: [],
+        relicSlot: prompt.relicSlot ?? null,
+        problem: roomProblem,
+      };
+    }
+
+    const choice = this.rolledHeir(prompt);
     const problem = retirementChoiceProblem(this.save, prompt, choice, this.balance);
 
     const inheritedTraitIds = choice.kind === "heir" ? [...choice.inheritedTraitIds] : [];
@@ -435,10 +490,15 @@ export class RetirementFlow {
     };
   }
 
-  /** Take the rolled HEIR for the current prompt. */
+  /**
+   * Take the rolled HEIR for the current prompt.
+   *
+   * `null` rather than `this.rolledHeir(prompt)`: the roll is taken inside {@link apply}, AFTER the
+   * deadlock check, so a prompt that can be answered on neither side spends no draw.
+   */
   chooseHeir(): void {
     const prompt = this.requirePrompt();
-    this.apply(prompt, this.rolledHeir(prompt));
+    this.apply(prompt, null);
   }
 
   /** Take the BOON: `targetUid` gains `stat`. */
@@ -472,36 +532,61 @@ export class RetirementFlow {
    * avoid. So a doubly-refused prompt is recorded twice and PASSED OVER: the retiree is gone and
    * nothing replaced it, which is the true outcome and the only one that does not lose the turn.
    * See docs/DEVIATIONS-lane-c56.md C56-D4.
+   *
+   * ⚠ AND IT IS CHECKED BEFORE THE HEIR IS ROLLED, which is a determinism question, not a
+   * performance one. A skipped prompt reaches no `retirement` entry in the action log, and
+   * `core/save.ts` `replay` draws `rollHeirChoice` only inside its `retirement` case — so a live run
+   * that rolled for a prompt it then skipped left the lifecycle stream one draw ahead of its own
+   * replay, and every later heir roll in the run differed (build-doc §8.1 / L10). Rolling only for
+   * prompts that can be answered makes live and replay draw the same number of times. The roll is
+   * still taken for BOTH sides of an answerable prompt — HEIR and BOON leave the stream in the same
+   * place, which is the other half of the same invariant.
    */
-  private apply(prompt: YearRetirementPrompt, offered: RetirementChoice): void {
+  private apply(prompt: YearRetirementPrompt, offered: RetirementChoice | null): void {
+    /*
+     * Both sides refused, decided BEFORE the roll. `offered === null` means "the rolled HEIR", and
+     * the fallback for anything else is that same rolled heir — whose only possible problem is room
+     * (a roll's inherited traits are the parent's own, so the other clause of
+     * `retirementChoiceProblem` cannot fail). So "the fallback will be refused" is exactly
+     * `heirRoomProblem !== null`, and it is answerable without drawing.
+     */
+    const offeredProblem =
+      offered === null
+        ? this.heirRoomProblem(prompt)
+        : retirementChoiceProblem(this.save, prompt, offered, this.balance);
+    const fallbackProblemAhead = this.heirRoomProblem(prompt);
+    if (offeredProblem !== null && fallbackProblemAhead !== null) {
+      this.skipRefused(prompt, offered, offeredProblem, fallbackProblemAhead);
+      return;
+    }
+
     const rolled = this.rolledHeir(prompt);
-    let choice = offered;
-    const problem = retirementChoiceProblem(this.save, prompt, choice, this.balance);
-    if (problem !== null) {
+    let choice = offered ?? rolled;
+    if (offeredProblem !== null) {
       this.events.push({
         t: "choiceRejected",
         parentUid: prompt.parentUid,
         kind: choice.kind,
-        reason: problem,
+        reason: offeredProblem,
       });
-      this.rejected.push({ parentUid: prompt.parentUid, offered: choice, applied: rolled, reason: problem });
+      this.rejected.push({
+        parentUid: prompt.parentUid,
+        offered: choice,
+        applied: rolled,
+        reason: offeredProblem,
+      });
       choice = rolled;
 
+      /*
+       * The fallback was checked BEFORE the roll (`fallbackProblemAhead` above) and this re-asks the
+       * same question of the choice that was actually rolled, so a rolled heir that somehow could
+       * not be applied still lands on the one skip path rather than reaching `resolveRetirement`,
+       * which throws. Unreachable by construction today: a roll inherits only the parent's own
+       * traits, so room is the only clause left, and room was already null to get here.
+       */
       const fallbackProblem = retirementChoiceProblem(this.save, prompt, choice, this.balance);
       if (fallbackProblem !== null) {
-        this.events.push({
-          t: "choiceRejected",
-          parentUid: prompt.parentUid,
-          kind: choice.kind,
-          reason: fallbackProblem,
-        });
-        this.rejected.push({
-          parentUid: prompt.parentUid,
-          offered: choice,
-          applied: choice,
-          reason: fallbackProblem,
-        });
-        this.cursor += 1;
+        this.skipRefused(prompt, choice, fallbackProblem, fallbackProblem, false);
         return;
       }
     }
@@ -513,6 +598,61 @@ export class RetirementFlow {
     this.save = result.save as SaveEnvelope;
     this.events.push(...result.events);
     this.choices.push(choice);
+    this.cursor += 1;
+  }
+
+  /**
+   * Record a prompt neither side could answer, and pass over it (docs/DEVIATIONS-lane-c56.md C56-D4).
+   *
+   * Two `choiceRejected` events and two `rejected` rows — the offered choice and the fallback — then
+   * the cursor moves on. The retiree is gone and nothing replaced it: that is the true outcome, and
+   * the only one that does not discard a year turn which has already run its season step, its
+   * scripted raid and its map swap.
+   *
+   * `offered === null` means the caller asked for the rolled HEIR, and no heir was rolled (see
+   * {@link apply}); the choice named in the log is then the heir that WOULD have been placed, with
+   * no inherited traits, because none were drawn.
+   */
+  private skipRefused(
+    prompt: YearRetirementPrompt,
+    offered: RetirementChoice | null,
+    offeredReason: string,
+    fallbackReason: string,
+    recordFallback = true,
+  ): void {
+    const unrolledHeir: RetirementChoice = {
+      kind: "heir",
+      parentUid: prompt.parentUid,
+      inheritedTraitIds: [],
+      heirUid: prompt.parentUid,
+    };
+    const offeredChoice = offered ?? unrolledHeir;
+    this.events.push({
+      t: "choiceRejected",
+      parentUid: prompt.parentUid,
+      kind: offeredChoice.kind,
+      reason: offeredReason,
+    });
+    this.rejected.push({
+      parentUid: prompt.parentUid,
+      offered: offeredChoice,
+      applied: unrolledHeir,
+      reason: offeredReason,
+    });
+    if (recordFallback) {
+      this.events.push({
+        t: "choiceRejected",
+        parentUid: prompt.parentUid,
+        kind: unrolledHeir.kind,
+        reason: fallbackReason,
+      });
+      this.rejected.push({
+        parentUid: prompt.parentUid,
+        offered: unrolledHeir,
+        applied: unrolledHeir,
+        reason: fallbackReason,
+      });
+    }
     this.cursor += 1;
   }
 
@@ -677,6 +817,7 @@ export function clampLines(lines: readonly string[], maxLines: number): string[]
  * ──────────────────────────────────────────────────────────────────────────── */
 
 import type PhaserNS from "phaser";
+import { dexArtId } from "@game/ledger-view";
 import { placeholderImage } from "@game/placeholder";
 import { SCENE_KEYS } from "@game/scene-keys";
 
@@ -696,6 +837,17 @@ export type PlaceholderPainter = (
   height: number,
   assetId: string,
 ) => void;
+
+/**
+ * The one field these two scenes read off a keydown event.
+ *
+ * `repeat` is the browser's "this keydown is the OS repeating a key that is still held". Phaser
+ * forwards the native event to the handler, and a test double may forward nothing at all — hence
+ * both the optional event and the optional field.
+ */
+export interface KeyLike {
+  repeat?: boolean;
+}
 
 /**
  * From `game/scene-keys.ts`, the ONE registry (`game/boot.ts` re-exports it) — not a second spelling
@@ -727,6 +879,19 @@ export interface RetirementSceneStyle {
    * many characters fit in a column — see {@link wrapLines}.
    */
   charWidth: number;
+  /**
+   * Frames the card must have been on screen before it will accept a confirm.
+   *
+   * ⚠ THIS IS NOT A TIMING FUDGE — it is the guard on the demo's one destructive keypress. The
+   * year-turn sequence advances on the same SPACE this card confirms with, and Phaser delivers a
+   * keydown to every active scene, so a HELD key ran the sequence to the retirement beat, launched
+   * the card, and committed the default HEIR on the very next frame: measured, the never-cut Legacy
+   * card was on screen for exactly ONE frame and answered itself. Auto-repeat is refused outright
+   * (see `create`); this is what stops the rest — a queued burst, a second press the player has
+   * already begun, a key repeat a fake keyboard does not flag. Presentation, not gameplay: no rule
+   * in build-doc depends on it.
+   */
+  confirmArmFrames: number;
   bgColor: number;
   panelColor: number;
   selectedColor: number;
@@ -754,6 +919,7 @@ export function defaultRetirementStyle(balance: Balance): RetirementSceneStyle {
     lineHeight: 12,
     portrait: 48,
     charWidth: 6,
+    confirmArmFrames: 6,
     bgColor: 0x14171a,
     panelColor: 0x23282c,
     selectedColor: 0xffd76a,
@@ -942,6 +1108,11 @@ export function createRetirementScene(
     private style!: RetirementSceneStyle;
     /** True once the last prompt is answered — `onDone`/`stop` happen exactly once. */
     private finished = false;
+    /**
+     * Frames this card has been on screen since it opened, or since the last prompt was answered.
+     * Reset per prompt: a card with three prompts must not answer all three from one held key.
+     */
+    private framesShown = 0;
 
     constructor() {
       super({ key: RETIREMENT_SCENE_KEY });
@@ -954,6 +1125,7 @@ export function createRetirementScene(
       this.selection = { side: "heir", statIndex: 0, targetIndex: 0 };
       this.style = styleOverride ?? defaultRetirementStyle(data.flow.balanceOf());
       this.finished = false;
+      this.framesShown = 0;
       this.drawn = [];
     }
 
@@ -962,14 +1134,44 @@ export function createRetirementScene(
       this.add.rectangle(0, 0, style.width, style.height, style.bgColor).setOrigin(0, 0);
       const keyboard = this.input.keyboard;
       if (keyboard) {
-        keyboard.on("keydown-LEFT", () => this.move("left"));
-        keyboard.on("keydown-RIGHT", () => this.move("right"));
-        keyboard.on("keydown-UP", () => this.move("up"));
-        keyboard.on("keydown-DOWN", () => this.move("down"));
-        keyboard.on("keydown-SPACE", () => this.confirm());
-        keyboard.on("keydown-ENTER", () => this.confirm());
+        /*
+         * REGISTERED, not merely listened for. Phaser's KeyboardPlugin only suppresses OS key repeat
+         * for keys it holds a `Key` object for — `repeat = key.isDown; … if (!event.cancelled &&
+         * (!key || !repeat))` — so a scene that binds `keydown-SPACE` without `addKey` receives
+         * EVERY queued repeat. `addKey` is a no-op for a keyboard plugin that does not have it (a
+         * test double), which is why the handlers below still check the event themselves.
+         */
+        const register = (keyboard as { addKey?: (key: string) => unknown }).addKey;
+        if (typeof register === "function") {
+          for (const key of ["SPACE", "ENTER", "LEFT", "RIGHT", "UP", "DOWN"]) {
+            register.call(keyboard, key);
+          }
+        }
+        keyboard.on("keydown-LEFT", (e?: KeyLike) => this.onKey(e, () => this.move("left")));
+        keyboard.on("keydown-RIGHT", (e?: KeyLike) => this.onKey(e, () => this.move("right")));
+        keyboard.on("keydown-UP", (e?: KeyLike) => this.onKey(e, () => this.move("up")));
+        keyboard.on("keydown-DOWN", (e?: KeyLike) => this.onKey(e, () => this.move("down")));
+        keyboard.on("keydown-SPACE", (e?: KeyLike) => this.onKey(e, () => this.confirm()));
+        keyboard.on("keydown-ENTER", (e?: KeyLike) => this.onKey(e, () => this.confirm()));
       }
       this.redraw();
+    }
+
+    /** Phaser calls this every frame; it is what arms {@link confirm}. */
+    override update(): void {
+      this.framesShown += 1;
+    }
+
+    /**
+     * One gate for every key: an OS auto-repeat answers nothing.
+     *
+     * `event.repeat` is the browser's own "this keydown is a repeat of a key that is still down",
+     * and it is the exact discriminator for the defect: the player pressed once, at the year-turn
+     * beat, and the repeats of that one press were dismissing the card behind it.
+     */
+    private onKey(event: KeyLike | undefined, run: () => void): void {
+      if (event?.repeat === true) return;
+      run();
     }
 
     /**
@@ -988,6 +1190,15 @@ export function createRetirementScene(
 
     private confirm(): void {
       if (this.finished) return;
+      /*
+       * ⚠ THE ARMING GUARD. This card is the one screen in the demo where a keypress cannot be taken
+       * back, and the key that opens it is the key that confirms it. Measured before the fix, with a
+       * held SPACE in the running game: the card was created on one frame and committed the default
+       * HEIR on the next, so the never-cut Legacy beat was on screen for a single frame and the
+       * player never saw the choice they had made. `style.confirmArmFrames` is the number of frames
+       * it must have been readable for; `update()` counts them and every answered prompt resets it.
+       */
+      if (this.framesShown < this.style.confirmArmFrames) return;
       const offer = this.flow.offer();
       if (!offer) return;
       // An unselectable side answers with the choice it STANDS FOR: `RetirementFlow.apply` refuses it
@@ -995,6 +1206,7 @@ export function createRetirementScene(
       // the player pressing SPACE at a card that could not be answered.
       this.flow.choose(selectedChoice(this.selection, offer) ?? refusedChoice(this.selection, offer));
       this.selection = { side: "heir", statIndex: 0, targetIndex: 0 };
+      this.framesShown = 0;
       if (this.flow.done()) {
         this.finished = true;
         this.clear();
@@ -1068,9 +1280,24 @@ export function createRetirementScene(
       title.setOrigin(0, 0);
       this.drawn.push(title);
 
-      // The retiree, portrait first — a labelled placeholder rectangle, never a stand-in image.
+      /*
+       * The retiree, portrait first — a labelled placeholder rectangle, never a stand-in image.
+       *
+       * The label is an ASSET ID (`game/ledger-view.ts` `dexArtId`, the same key the dex and the
+       * summary card ask for), not the creature's save-local uid. game/placeholder.ts resolves the
+       * id against `assets/final/` and writes it on the stand-in so "a reviewer can say WHICH asset
+       * is missing" — and a uid like "starter" names no file, so it could never resolve to real art
+       * when Lane B lands the portraits, and told the reviewer nothing in the meantime.
+       */
       const top = style.pad + style.lineHeight * 2;
-      this.placeholder(this, style.pad, top, style.portrait, style.portrait, offer.parent.uid);
+      this.placeholder(
+        this,
+        style.pad,
+        top,
+        style.portrait,
+        style.portrait,
+        dexArtId(offer.parent.formName),
+      );
       const parentX = style.pad + style.portrait + style.pad;
       const parentWidth = style.width - parentX - style.pad;
       let y = top;
@@ -1113,18 +1340,33 @@ export function createRetirementScene(
       const boonWidth = style.width - style.pad - boonX;
       const bodyTop = columnTop + style.pad + style.lineHeight;
 
-      this.line(heirX, columnTop + style.pad, "HEIR");
+      /*
+       * ⚠ THE CURSOR IS ON THE SIDE SPACE WILL TAKE. Both column headers carry the marker gutter and
+       * exactly one of them is ever marked, because the marker and {@link selectedChoice} read the
+       * same `selection.side`.
+       *
+       * Before this, the ONLY ▸ on the card sat on a BOON row — drawn whenever that row was
+       * available, never gated on the selected side — while the HEIR column was drawn with no marker
+       * at all. Measured in the running game: with the default selection (HEIR) the card showed
+       * "▸Maelstrisk L14 · hp 110 → 121 (+11)" and SPACE took the HEIR; pressing RIGHT to the BOON
+       * side drew the IDENTICAL marker. The cursor and the committed action disagreed on the demo's
+       * one interactive screen, and the only thing that distinguished the sides was a panel alpha of
+       * 0.25 against 0.15.
+       */
+      this.line(heirX, columnTop + style.pad, `${heirSelected ? "▸" : " "}HEIR`);
       this.column(
         heirX,
         bodyTop,
         columnHeight - style.lineHeight,
         wrapLines(heirLines(offer), this.columnChars(heirWidth)),
         offer.heir.problem !== null,
-        null,
+        // The HEIR side is one choice, so the marker belongs on its first row — there is no second
+        // row to move it to, and an unmarked column while SPACE takes it is the defect above.
+        heirSelected ? 0 : null,
       );
 
       const stat = offer.boons[this.selection.statIndex];
-      this.line(boonX, columnTop + style.pad, `BOON  ${stat ? stat.stat : ""}`);
+      this.line(boonX, columnTop + style.pad, `${heirSelected ? " " : "▸"}BOON  ${stat ? stat.stat : ""}`);
       if (stat) {
         // The marker tracks the SOURCE row, so wrapping a long row cannot move it onto a continuation.
         const raw = boonLines(stat);
@@ -1132,14 +1374,23 @@ export function createRetirementScene(
         let markRow: number | null = null;
         raw.forEach((row, i) => {
           const wrapped = wrapLines([row], this.columnChars(boonWidth));
-          if (stat.problem === null && i === this.selection.targetIndex) markRow = rows.length;
+          if (!heirSelected && stat.problem === null && i === this.selection.targetIndex) {
+            markRow = rows.length;
+          }
           rows.push(...wrapped);
         });
         this.column(boonX, bodyTop, columnHeight - style.lineHeight, rows, stat.problem !== null, markRow);
       }
 
       if (offer.deadlocked) {
-        this.line(style.pad, style.height - style.pad - style.lineHeight, "no choice applies — HEIR is rolled", true);
+        // No heir is rolled for a prompt neither side can answer — the draw would leave the seeded
+        // stream one ahead of its own replay (see `RetirementFlow.apply`). The prompt is passed over.
+        this.line(
+          style.pad,
+          style.height - style.pad - style.lineHeight,
+          "no choice applies · passed over",
+          true,
+        );
       }
     }
   };

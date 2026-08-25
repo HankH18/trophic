@@ -17,6 +17,26 @@
  * One thing this file deliberately does NOT do: touch the network. Every assertion is against local
  * data. Comfy Cloud bills for failed jobs (DEVIATIONS-lane-b B-D8), and a test suite that can spend
  * credits will eventually spend them in CI.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * WHAT THIS FILE PASSED WHILE BELIEVING (B1 repair wave 2).
+ * ─────────────────────────────────────────────────────────────────────────────
+ * It was green on 91 tests with five reproduced defects live in the runner, and in three places it
+ * had written the defect down as the expectation:
+ *
+ *   · the G5 tests all exercised `rebuild`. Nothing tested the `run` path's own derivation, and
+ *     `main()` never re-derives — so §8.4's versioned reseed was a NO-OP there, submitting the old
+ *     seed and wedging the manifest (B-D42).
+ *   · "a row whose derivation has MOVED is refused on the live path" asserted `status === 'failed'`
+ *     — which is the defect: a G5 refusal downgraded the approved row it was defending, and
+ *     `selectRows` (pending|failed) then handed it to the next unattended run (B-D43).
+ *   · "a REGENERATION reuses the frozen seed" regenerated an `approved` row with `confirmed: false`
+ *     and asserted it went through — the exact command that erases the gate-B0 record (B-D44).
+ *   · "no mask" was asserted to leave the row `failed` AFTER a billed generation (B-D43).
+ *   · nothing anywhere read `workflowHash`, so prompt drift on an approved row was invisible (B-D45),
+ *     and nothing asserted what the G13 estimate would actually bill (B-D46).
+ *
+ * Each of those assertions is now the corrected one, with the reason it changed written beside it.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
@@ -41,7 +61,14 @@ import {
   encounterableLines,
   graphForRow,
   overlayDiffGate,
+  ManifestError,
+  StyleLockError,
+  TRANSPORT_ATTEMPTS,
+  assertFiltersMatch,
+  assertRowsDerived,
+  assertStyleLock,
   planBatch,
+  promptIdentity,
   rebuildRows,
   runBatch,
   seedForSubmit,
@@ -60,6 +87,8 @@ import {
 } from '../../tools/comfy/img2img.ts';
 import { positiveInt, type Graph } from '../../tools/comfy/client.ts';
 import { blankRaster, idx, writeRaster, type Raster } from '../../tools/postprocess/raster.ts';
+import { cellsToRaster, walkableCells } from '../../tools/overlay-diff/mask.ts';
+import { collisionGrid } from '../../tools/overlay-diff/config.ts';
 import { validateContent } from '../../core/schemas';
 import { PROP_KINDS } from '../../core/types';
 import { hashSeed } from '../../core/rng';
@@ -345,6 +374,7 @@ describe('manifest seed-reuse enforcement (G5 / build-doc §8.4)', () => {
     Object.assign(target, {
       status: 'approved',
       recordedSeed: target.seed,
+      recordedPromptHash: promptIdentity(target),
       workflowHash: 'deadbeefdeadbeef',
       timestamp: '2026-08-25T00:00:00.000Z',
       file: 'assets/raw/trainer-battle/trainer-odo.png',
@@ -353,6 +383,7 @@ describe('manifest seed-reuse enforcement (G5 / build-doc §8.4)', () => {
     const after = rebuildRows(m, content).find((r) => r.id === 'trainer-odo')!;
     expect(after).toMatchObject({
       status: 'approved',
+      recordedPromptHash: promptIdentity(target),
       workflowHash: 'deadbeefdeadbeef',
       timestamp: '2026-08-25T00:00:00.000Z',
       attempts: 2,
@@ -887,6 +918,16 @@ describe('the runner (build-doc §9.1)', () => {
    * (the reuse property, which is what the test was FOR), and a drifted row is refused on the live
    * path instead of silently overridden.
    */
+  /*
+   * WHY THIS TEST CHANGED (justify-test-edit). It regenerated an `approved` row with
+   * `confirmed: false` and asserted the regeneration went through. That is the defect, not the
+   * behaviour: `run --force --id=player-front --dry-run` exits 0 today, and the non-dry version
+   * moves the one gate-B0 asset from `approved` to `raw`, repoints `file` away from
+   * assets/approved-trials/player-APPROVED.png and overwrites the approved sha256 — with no human
+   * in the loop, because player-front carries no `gate` and class `player` is `trialled: true`.
+   * The seed claim is unchanged and still asserted; what changed is that a human has to say so, and
+   * that the record the regeneration replaces is kept.
+   */
   it('a REGENERATION reuses the frozen seed — G5 on the live path', async () => {
     const { client } = stubClient(() => 'ok');
     const batch = pick(1);
@@ -895,8 +936,24 @@ describe('the runner (build-doc §9.1)', () => {
     row.status = 'approved';
     row.recordedSeed = frozen;
     row.recordedVersion = row.version;
+    row.recordedPromptHash = promptIdentity(row);
+    row.file = 'assets/approved-trials/some-approved.png';
+    row.sha256 = 'ba2df07114ffa6d22055fdb0db4238ab0aed8780c68a2c45fe8c821a48f83140';
+
+    // …and it may not happen at all without a human: a sign-off is not overwritten unsupervised.
+    await expect(
+      runBatch(manifest, batch, client as never, baseGraph, ENV, {
+        confirmed: false,
+        root,
+        concurrency: 1,
+        log: () => {},
+        layoutGate: null,
+      }),
+    ).rejects.toThrow(SupervisedGateError);
+    expect(row.status).toBe('approved');
+
     await runBatch(manifest, batch, client as never, baseGraph, ENV, {
-      confirmed: false,
+      confirmed: true,
       root,
       concurrency: 1,
       log: () => {},
@@ -905,6 +962,13 @@ describe('the runner (build-doc §9.1)', () => {
     expect(row.status).toBe('raw');
     expect(row.recordedSeed).toBe(frozen);
     expect(graphForRow(row, baseGraph).seed).toBe(frozen);
+    // What the regeneration replaced is still readable — the PNG on disk was never what was at risk.
+    expect(row.supersededApproval).toMatchObject({
+      status: 'approved',
+      file: 'assets/approved-trials/some-approved.png',
+      sha256: 'ba2df07114ffa6d22055fdb0db4238ab0aed8780c68a2c45fe8c821a48f83140',
+      recordedSeed: frozen,
+    });
   });
 
   it('a row whose derivation has MOVED is refused on the live path, not silently overridden', async () => {
@@ -914,19 +978,30 @@ describe('the runner (build-doc §9.1)', () => {
     row.status = 'approved';
     row.recordedSeed = row.seed + 7; // the derivation moved out from under the frozen seed
     row.recordedVersion = row.version;
+    row.recordedPromptHash = promptIdentity(row);
+    // --confirm, deliberately: a human HAS approved this regeneration, and G5 still refuses it.
+    // A guardrail that only holds while nobody is looking is the wrong way round.
     await runBatch(manifest, batch, client as never, baseGraph, ENV, {
-      confirmed: false,
+      confirmed: true,
       root,
       concurrency: 1,
       log: () => {},
       layoutGate: null,
     });
-    expect(row.status).toBe('failed');
+    // A GUARDRAIL REFUSAL LEAVES THE RECORD IT DEFENDS ALONE. This used to assert
+    // `status === 'failed'`, which was the defect written down as an expectation: the refusal
+    // downgraded the approved row it was protecting, main()'s `finally` persisted that, and
+    // `selectRows` (pending|failed) then re-attempted the same row on the next bare `run` — so a
+    // guard that refused once handed the row back to the next unattended batch, approval gone.
+    expect(row.status).toBe('approved');
     expect(row.flaggedForReview).toBe(true);
     expect(row.reviewReason).toMatch(/reuse its manifest seed/);
-    // G5 is not transient: it must not be retried, and nothing may be submitted.
+    expect(row.reviewReason).toMatch(/REFUSED/);
+    // G5 is not transient: it must not be retried, and nothing may be submitted or billed.
     expect(calls).toHaveLength(0);
-    expect(row.attempts).toBe(1);
+    expect(row.attempts).toBeUndefined();
+    // …and the row is not re-selected by a later bare run, because it never became `failed`.
+    expect(selectRows({ ...manifest, rows: [row] }, { force: false })).toHaveLength(0);
   });
 
   it('G13 refuses BEFORE anything is submitted', async () => {
@@ -1099,8 +1174,8 @@ describe('the §8.2 layout gate runs on the live path (G4)', () => {
   function gateStub(verdicts: boolean[]) {
     const seen: Array<number | undefined> = [];
     let i = 0;
-    const gate = async (row: ManifestRow) => {
-      seen.push(row.denoise);
+    const gate = async (_row: ManifestRow, _saved: string, _root: string, denoise?: number) => {
+      seen.push(denoise);
       const ok = verdicts[Math.min(i++, verdicts.length - 1)]!;
       return { accepted: ok, iou: ok ? 0.93 : 0.61, threshold: 0.85, largestDrift: ok ? 2 : 41, reason: ok ? 'ACCEPT' : 'REJECT' };
     };
@@ -1142,7 +1217,13 @@ describe('the §8.2 layout gate runs on the live path (G4)', () => {
     expect(report.succeeded).toBe(1);
     expect(seen).toEqual([0.35, 0.3, 0.25]); // start, −step, −step (§8.2 / §9.5)
     expect(calls).toHaveLength(3); // one generation per rung, not a blind retry
-    expect(batch[0]!.denoise).toBe(0.25);
+    // The rung that WORKED is recorded on the verdict…
+    expect(batch[0]!.layoutGate!.denoise).toBe(0.25);
+    // …and the row's own derived `denoise` is untouched. The ladder used to write its working value
+    // here, which left the row permanently disagreeing with its own derivation — and, once the run
+    // path re-derives before submitting (assertRowsDerived), that disagreement is a refusal.
+    expect(batch[0]!.denoise).toBe(content.balance.overlayDiff.denoiseStart);
+    expect(specOf(batch[0]!)).toEqual(deriveRows(trialled(), content).find((r) => r.id === batch[0]!.id));
   });
 
   it('gives up at maxRegenAttempts and FLAGS — it never accepts a failing variant (G4)', async () => {
@@ -1218,7 +1299,7 @@ describe('the §8.2 layout gate runs on the live path (G4)', () => {
       await writeRaster(resolve(maskless, node.mapAsset), townFixture(size, 0));
       expect(existsSync(resolve(maskless, node.collisionMask))).toBe(false);
 
-      const { client } = stubClient(() => 'ok');
+      const { client, calls } = stubClient(() => 'ok');
       const batch = [variantRow()];
       const report = await runBatch(trialled(), batch, client as never, baseGraph, ENV, {
         confirmed: true,
@@ -1230,16 +1311,34 @@ describe('the §8.2 layout gate runs on the live path (G4)', () => {
         uploadInit: fakeUpload,
       });
       expect(report.succeeded).toBe(0);
-      expect(batch[0]!.status).toBe('failed');
+      // REFUSED, not failed, and refused BEFORE anything is submitted. The gate used to run after a
+      // billed generation and then mark the row `failed` — so "no mask authored yet", which is the
+      // state of all twelve nodes, cost an image every time and downgraded the row.
+      expect(calls, 'a row the gate cannot judge must not be generated at all').toHaveLength(0);
+      expect(batch[0]!.status).toBe('pending');
+      expect(batch[0]!.attempts).toBeUndefined();
+      expect(batch[0]!.flaggedForReview).toBe(true);
       expect(batch[0]!.reviewReason).toMatch(/collision mask/);
       expect(batch[0]!.reviewReason).toMatch(/G4/);
+      expect(batch[0]!.reviewReason).toMatch(/nothing was billed/);
       expect(batch[0]!.layoutGate).toBeUndefined();
     } finally {
       await rm(maskless, { recursive: true, force: true });
     }
   }, 30_000);
 
-  it('THE REAL GATE, end to end: a moved building is REJECTED and a repaint is ACCEPTED', async () => {
+  /**
+   * Once with the mask authored at MAP resolution (1024²) and once at CELL resolution (64×64).
+   * tools/overlay-diff/mask.ts promises the collision editor that either is acceptable, and until
+   * this ran that promise was a sentence in a comment — while tools/collision-editor/ is empty and
+   * not one of the twelve masks data/nodes/*.json names exists on disk (B-D49). These are still
+   * SYNTHETIC masks of a SYNTHETIC town; what they pin is the file format and the plumbing, not
+   * that a human's mask of a painted map marks the cells this gate assumes.
+   */
+  it.each([
+    ['authored at map resolution (1024²)', 1],
+    ['authored at cell resolution (64×64)', 0],
+  ])('THE REAL GATE, end to end, %s: a moved building is REJECTED and a repaint is ACCEPTED', async (_label, atMapRes) => {
     // Real overlayDiff, real balance numbers, real runner — only the cloud is a stub. The node's
     // base map and mask are written into a scratch root so the test never touches assets/.
     const node = content.nodes.find((n) => n.id === 'r1')!;
@@ -1249,7 +1348,12 @@ describe('the §8.2 layout gate runs on the live path (G4)', () => {
       const base = townFixture(size, 0);
       await mkdir(dirname(resolve(gateRoot, node.mapAsset)), { recursive: true });
       await writeRaster(resolve(gateRoot, node.mapAsset), base);
-      await writeRaster(resolve(gateRoot, node.collisionMask), townMask(size));
+      const grid = collisionGrid(content.balance);
+      const cells = walkableCells(townMask(size), grid);
+      await writeRaster(
+        resolve(gateRoot, node.collisionMask),
+        atMapRes ? townMask(size) : cellsToRaster(cells, grid),
+      );
 
       for (const [label, candidate, accepted] of [
         ['repaint', dimmed(townFixture(size, 0), 0.88), true],
@@ -1387,5 +1491,352 @@ describe('the runner does not re-bill for post-generation failures (§9.1)', () 
     expect(report.attempted).toBe(3);
     expect(report.succeeded).toBe(3);
     expect(calls).toHaveLength(3);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * The B1 repair wave — every one of these reproduced against the real tree first.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe('§8.4\'s versioned reseed is real on the RUN path, not only on rebuild (B-D42)', () => {
+  const root = REPO_ROOT; // nothing here submits; the guards fire before any write
+
+  /** The exact state an operator lands in by doing what `SeedReuseError` tells them to do. */
+  function handBumped(): { m: ManifestFile; row: ManifestRow } {
+    const m = clone(manifest);
+    const row = m.rows.find((r) => r.id === 'battle-fenmaw-e-front')!;
+    row.status = 'approved';
+    row.recordedSeed = row.seed; // frozen at version 1
+    row.recordedVersion = 1;
+    row.recordedPromptHash = promptIdentity(row);
+    row.file = 'assets/raw/creature-battle/battle-fenmaw-e-front.png';
+    row.version = 2; // …bumped by hand, WITHOUT a rebuild. `seed` is still version 1's.
+    return { m, row };
+  }
+
+  it('REFUSES to submit a bumped row whose seed the bump never reached', () => {
+    const { row } = handBumped();
+    expect(row.seed).toBe(deriveSeed(row.id, 1));
+    expect(row.seed).not.toBe(deriveSeed(row.id, 2));
+    // It used to return `row.seed` here — the OLD seed — bill for it, record it as a reseed, and
+    // leave the manifest in a state `rebuild` refuses to touch.
+    expect(() => seedForSubmit(row)).toThrow(SeedReuseError);
+    expect(() => seedForSubmit(row)).toThrow(/rebuild/);
+  });
+
+  it('…and runBatch submits NOTHING, bills nothing, and leaves the record untouched', async () => {
+    const { m, row } = handBumped();
+    const { client, calls } = stubClient(() => 'ok');
+    const before = JSON.stringify(row);
+    const report = await runBatch(m, [row], client as never, baseGraph, ENV, {
+      confirmed: true,
+      root,
+      concurrency: 1,
+      log: () => {},
+      layoutGate: null,
+    });
+    expect(calls, 'a wedge must not be paid for').toHaveLength(0);
+    expect(report.succeeded).toBe(0);
+    expect(report.flagged).toHaveLength(1);
+    expect(row.status).toBe('approved');
+    expect(row.recordedSeed).toBe(deriveSeed(row.id, 1));
+    expect(row.recordedVersion).toBe(1);
+    expect(row.attempts).toBeUndefined();
+    // Everything except the review flag is exactly as it was found.
+    const after = { ...row };
+    delete after.flaggedForReview;
+    delete after.reviewReason;
+    expect(JSON.stringify(after)).toBe(
+      JSON.stringify(Object.fromEntries(Object.entries(JSON.parse(before) as Record<string, unknown>))),
+    );
+  });
+
+  it('the run path re-derives before it submits — a hand edit never reaches the cloud unexamined', () => {
+    const { m, row } = handBumped();
+    expect(() => assertRowsDerived(m, [row], content)).toThrow(/version 2 != 1/);
+    expect(() => assertRowsDerived(m, [row], content)).toThrow(/rebuild/);
+    // And a subject rewritten in a header block is caught the same way, on the same path.
+    const m2 = clone(manifest);
+    (m2._player as Record<string, unknown>).subject = 'a completely different character';
+    const player = m2.rows.find((r) => r.id === 'player-front')!;
+    expect(() => assertRowsDerived(m2, [player], content)).toThrow(/prompt/);
+    // …while an untouched manifest passes, so the check is not simply always-throwing.
+    expect(() => assertRowsDerived(manifest, manifest.rows, content)).not.toThrow();
+  });
+
+  it('the escape ITSELF still works: rebuild moves the seed, and then the run path accepts it', () => {
+    const { m } = handBumped();
+    const rebuilt = rebuildRows(m, content).find((r) => r.id === 'battle-fenmaw-e-front')!;
+    expect(rebuilt.seed).toBe(deriveSeed('battle-fenmaw-e-front', 2));
+    expect(rebuilt.status).toBe('pending');
+    expect(seedForSubmit(rebuilt)).toBe(deriveSeed('battle-fenmaw-e-front', 2));
+    expect(() => assertRowsDerived({ ...m, rows: [rebuilt] }, [rebuilt], content)).not.toThrow();
+  });
+});
+
+describe('a guardrail refusal does not damage the record it defends (B-D43)', () => {
+  const root = REPO_ROOT;
+
+  it('a refused row keeps its status, so the next bare run does not pick it up again', async () => {
+    const m = clone(manifest);
+    const row = m.rows.find((r) => r.id === 'battle-cindril-j-front')!;
+    row.status = 'approved';
+    row.recordedSeed = row.seed + 7; // drifted derivation: G5
+    row.recordedVersion = row.version;
+    row.recordedPromptHash = promptIdentity(row);
+    row.sha256 = 'deadbeef';
+    row.file = 'assets/raw/creature-battle/battle-cindril-j-front.png';
+
+    const { client, calls } = stubClient(() => 'ok');
+    await runBatch(m, [row], client as never, baseGraph, ENV, {
+      confirmed: true,
+      root,
+      concurrency: 1,
+      log: () => {},
+      layoutGate: null,
+    });
+    expect(calls).toHaveLength(0);
+    expect(row.status).toBe('approved');
+    expect(row.sha256).toBe('deadbeef');
+    expect(row.recordedSeed).toBe(deriveSeed(row.id, row.version) + 7);
+    expect(row.flaggedForReview).toBe(true);
+    // The failure this replaces: `fail()` set status 'failed', main()'s finally persisted it, and
+    // selectRows picks pending|failed — so a G5 refusal handed the approved row straight back to
+    // the next unattended `run`, approval and sha256 gone.
+    expect(selectRows({ ...m, rows: [row] }, { force: false })).toHaveLength(0);
+  });
+
+  it('a REAL failure still downgrades — refuse() has not replaced fail()', async () => {
+    const m = clone(manifest);
+    const batch = clone(rowsOfClass('creature-battle').slice(0, 1));
+    const { client } = stubClient(() => new Error('cloud said no'));
+    await runBatch(m, batch, client as never, baseGraph, ENV, {
+      confirmed: false,
+      root: await mkdtemp(join(tmpdir(), 'trophic-refuse-')),
+      concurrency: 1,
+      log: () => {},
+      layoutGate: null,
+    });
+    expect(batch[0]!.status).toBe('failed');
+    expect(batch[0]!.attempts).toBe(3);
+  });
+});
+
+describe('§8.4 locks the PROMPT as well as the seed (B-D45)', () => {
+  it('the one approved row carries the prompt identity of the art it claims', () => {
+    const row = manifest.rows.find((r) => r.id === 'player-front')!;
+    expect(row.status).toBe('approved');
+    expect(row.recordedPromptHash).toBe(promptIdentity(row));
+    // …anchored in the gate-B0 record, not in the current manifest agreeing with itself.
+    const b0 = JSON.parse(readFileSync(resolve(REPO_ROOT, 'tools/comfy/manifest-b0.json'), 'utf8')) as {
+      rows: Array<Record<string, string>>;
+    };
+    const approved = b0.rows.find((r) => r.id === 'player-front')!;
+    expect(promptIdentity({ prompt: approved.subject!, negative: approved.negative! })).toBe(row.recordedPromptHash);
+    expect(row.sha256).toBe(approved.sha256);
+  });
+
+  it('a prompt that moves under a frozen seed is REFUSED — on rebuild and on the submit path', () => {
+    const m = clone(manifest);
+    (m._player as Record<string, unknown>).subject =
+      'young field warden protagonist wearing a RED shirt, a top hat and no satchel';
+    // Before: rebuild accepted this in silence and left player-front `approved`, still claiming the
+    // sha256 of art the OLD prompt produced. workflowHash was written on every row and read by
+    // nothing — `grep -rn workflowHash tools tests` found only assignments.
+    expect(() => rebuildRows(m, content)).toThrow(StyleLockError);
+    expect(() => rebuildRows(m, content)).toThrow(/prompt has changed/);
+
+    const drifted = clone(manifest).rows.find((r) => r.id === 'player-front')!;
+    drifted.prompt = `${drifted.prompt} and a top hat`;
+    expect(() => assertStyleLock(drifted)).toThrow(StyleLockError);
+    expect(() => graphForRow(drifted, baseGraph)).toThrow(StyleLockError);
+  });
+
+  it('the NEGATIVE is part of the identity too — B-D7\'s cape ban lives only there', () => {
+    const row = clone(manifest).rows.find((r) => r.id === 'player-front')!;
+    row.negative = row.negative.replace(', cape, cloak, hood, mantle', '');
+    expect(() => assertStyleLock(row)).toThrow(StyleLockError);
+  });
+
+  it('versioning the row is the escape, exactly as it is for the seed', () => {
+    const row = clone(manifest).rows.find((r) => r.id === 'player-front')!;
+    row.prompt = 'something else entirely';
+    row.recordedVersion = 1;
+    row.version = 2;
+    expect(() => assertStyleLock(row)).not.toThrow(); // superseded, not drifted
+  });
+
+  it('a recorded row with NO prompt identity is a refusal, not a silent pass', () => {
+    const row = clone(manifest).rows.find((r) => r.id === 'player-front')!;
+    delete row.recordedPromptHash;
+    expect(() => assertStyleLock(row)).toThrow(/recordedPromptHash/);
+    // …and a row that has generated nothing has nothing to protect.
+    const pending = clone(manifest).rows.find((r) => r.id === 'battle-fenmaw-e-front')!;
+    expect(pending.recordedSeed).toBeUndefined();
+    expect(() => assertStyleLock(pending)).not.toThrow();
+  });
+
+  it('a successful run records the prompt identity alongside the seed', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'trophic-lock-'));
+    try {
+      const batch = clone(rowsOfClass('creature-battle').slice(0, 1));
+      const { client } = stubClient(() => 'ok');
+      await runBatch(manifest, batch, client as never, baseGraph, ENV, {
+        confirmed: false,
+        root: dir,
+        concurrency: 1,
+        log: () => {},
+        layoutGate: null,
+      });
+      expect(batch[0]!.recordedPromptHash).toBe(promptIdentity(batch[0]!));
+      expect(batch[0]!.workflowHash).toHaveLength(16);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('G13 projects what can actually be billed (B-D46)', () => {
+  const priced = (): ManifestFile => {
+    const m = clone(manifest);
+    m._credits.perImageCredits = 1;
+    m._credits.measuredFrom = 'a test';
+    return m;
+  };
+
+  it('a map-variant batch reports the §9.1 retry AND the §9.5 ladder, not one image per row', () => {
+    const m = priced();
+    const variants = m.rows.filter((r) => r.class === 'map-variant');
+    const plan = planBatch(variants, m);
+    expect(variants).toHaveLength(28);
+    expect(plan.projectedCredits).toBe(28); // the floor — this is all the old estimate reported
+    // 3 transport attempts (§9.1 "retry ×2") inside 3 regen attempts (balance.overlayDiff).
+    expect(plan.worstCaseImages).toBe(28 * TRANSPORT_ATTEMPTS * content.balance.overlayDiff.maxRegenAttempts);
+    expect(plan.worstCaseImages).toBe(252);
+    expect(plan.worstCaseCredits).toBe(252);
+    expect(plan.lines.join('\n')).toMatch(/up to 252 worst case/);
+  });
+
+  it('an ungated class carries the transport budget only — 3×, not 9×', () => {
+    const m = priced();
+    const sprites = m.rows.filter((r) => r.class === 'creature-battle');
+    const plan = planBatch(sprites, m);
+    expect(sprites).toHaveLength(150);
+    expect(plan.worstCaseImages).toBe(150 * TRANSPORT_ATTEMPTS);
+  });
+
+  it('BINDS — the projection tracks the real budgets, so it cannot drift from them', () => {
+    const m = priced();
+    const variants = m.rows.filter((r) => r.class === 'map-variant').slice(0, 1);
+    expect(planBatch(variants, m, { transportAttempts: 1, maxRegenAttempts: 1 }).worstCaseImages).toBe(1);
+    expect(planBatch(variants, m, { transportAttempts: 2, maxRegenAttempts: 5 }).worstCaseImages).toBe(10);
+  });
+
+  it('the ladder really can spend that budget — measured, not asserted', async () => {
+    // One map-variant row, a gate that always rejects, a transport that fails on alternate calls.
+    const dir = await mkdtemp(join(tmpdir(), 'trophic-budget-'));
+    const LADDER = { denoiseStep: 0.05, denoiseFloor: 0.2, maxRegenAttempts: 3 };
+    try {
+      const m = clone(manifest);
+      m._img2img = { trialled: true };
+      const row = m.rows.find((r: ManifestRow) => r.class === 'map-variant')!;
+      let n = 0;
+      const { client, calls } = stubClient(() => {
+        n++;
+        return n % 2 === 0 ? new Error('transport') : 'ok';
+      });
+      await runBatch(m, [row], client as never, baseGraph, ENV, {
+        confirmed: true,
+        root: dir,
+        concurrency: 1,
+        log: () => {},
+        ladder: LADDER,
+        uploadInit: async () => 'init.png',
+        layoutGate: async () => ({ accepted: false, iou: 0.5, threshold: 0.85, largestDrift: 40, reason: 'REJECT' }),
+      });
+      expect(calls.length).toBeGreaterThan(3); // more than one rung's worth of billed generations
+      expect(calls.length).toBeLessThanOrEqual(TRANSPORT_ATTEMPTS * LADDER.maxRegenAttempts);
+      expect(row.attempts).toBe(calls.length);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('a filter that matches nothing is a typo, not a finished batch (B-D47)', () => {
+  it('an unknown --class is a refusal, with the near miss named', () => {
+    expect(() => assertFiltersMatch(manifest, { class: 'creature-batle' })).toThrow(ManifestError);
+    expect(() => assertFiltersMatch(manifest, { class: 'creature-batle' })).toThrow(/Did you mean creature-battle/);
+  });
+
+  it('an unknown --id is a refusal', () => {
+    expect(() => assertFiltersMatch(manifest, { id: 'nonexistent-row' })).toThrow(/is not a row/);
+    expect(() => assertFiltersMatch(manifest, { id: 'battle-fenmaw-e-fron' })).toThrow(/Did you mean battle-fenmaw-e-front/);
+  });
+
+  it('the real ones pass', () => {
+    expect(() => assertFiltersMatch(manifest, { class: 'creature-battle', id: 'battle-fenmaw-e-front' })).not.toThrow();
+    expect(() => assertFiltersMatch(manifest, {})).not.toThrow();
+  });
+
+  it('…and "nothing to do" is only reachable when rows genuinely matched', () => {
+    // The old message asserted "every selected row is already generated", which was false for a
+    // typo — the rows it claimed were generated did not exist. selectRows itself cannot tell the
+    // difference, which is exactly why the check above has to happen before it.
+    const m = clone(manifest);
+    m.rows.find((r) => r.id === 'battle-fenmaw-e-front')!.status = 'approved';
+    expect(selectRows(m, { id: 'battle-fenmaw-e-front', force: false })).toHaveLength(0);
+    expect(selectRows(m, { id: 'battle-fenmaw-e-front', force: true })).toHaveLength(1);
+    expect(selectRows(m, { id: 'nonexistent-row', force: true })).toHaveLength(0);
+  });
+});
+
+describe('§9.2\'s workflow lock is COMPARED, not just recorded (B-D45)', () => {
+  it('the approved row records the hash of the graph it was generated with', () => {
+    const row = manifest.rows.find((r) => r.id === 'player-front')!;
+    // It had NO workflowHash at all before this wave, so "every row records sha256 and workflowHash"
+    // was false for the only row that had a record.
+    expect(row.workflowHash).toHaveLength(16);
+    expect(graphForRow({ ...row, workflowHash: undefined }, baseGraph).hash).toBe(row.workflowHash);
+  });
+
+  it('a moved WORKFLOW is refused even when prompt, negative and seed all still match', () => {
+    const row = clone(manifest).rows.find((r) => r.id === 'player-front')!;
+    // §9.2 locks steps/cfg/sampler/scheduler/resolution and B-D2's ModelSamplingAuraFlow shift.
+    // None of them is visible to a seed (hashSeed(version, id)) or to promptIdentity.
+    const tampered = JSON.parse(JSON.stringify(baseGraph)) as Graph;
+    const sampler = Object.values(tampered).find((n) => n!.class_type === 'KSampler')!;
+    sampler.inputs.steps = 12; // was 8
+    expect(promptIdentity(row)).toBe(row.recordedPromptHash); // prompt half is untouched…
+    expect(() => graphForRow(row, tampered)).toThrow(StyleLockError); // …and it is still refused.
+    expect(() => graphForRow(row, tampered)).toThrow(/WORKFLOW itself/);
+    // The unmodified graph passes, so the check is not simply always-throwing.
+    expect(() => graphForRow(row, baseGraph)).not.toThrow();
+  });
+
+  it('versioning the row is the escape here too', () => {
+    // A DERIVED-seed row, in the state `rebuild` leaves it after a bump: version 2, seed re-derived.
+    // (player-front cannot demonstrate this — its seed is PINNED at the validated trial 42, so a
+    // version bump cannot move it and `finish` refuses one; that is B-D27's refusal, still binding.)
+    const row = clone(manifest).rows.find((r) => r.id === 'battle-fenmaw-e-front')!;
+    row.recordedSeed = deriveSeed(row.id, 1);
+    row.recordedVersion = 1;
+    row.recordedPromptHash = promptIdentity(row);
+    row.workflowHash = 'aaaaaaaaaaaaaaaa';
+    row.version = 2;
+    row.seed = deriveSeed(row.id, 2);
+    const tampered = JSON.parse(JSON.stringify(baseGraph)) as Graph;
+    Object.values(tampered).find((n) => n!.class_type === 'KSampler')!.inputs.steps = 12;
+    expect(() => graphForRow(row, tampered)).not.toThrow();
+  });
+
+  it('an img2img row is NOT hash-locked — §9.5 is supposed to move its denoise', () => {
+    const row = clone(manifest).rows.find((r) => r.class === 'map-variant')!;
+    row.recordedSeed = row.seed;
+    row.recordedVersion = row.version;
+    row.recordedPromptHash = promptIdentity(row);
+    row.workflowHash = 'aaaaaaaaaaaaaaaa'; // deliberately wrong
+    expect(row.mode).toBe('img2img');
+    expect(() => graphForRow(row, baseGraph, 'init.png', 0.25)).not.toThrow();
   });
 });

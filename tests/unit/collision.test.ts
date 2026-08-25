@@ -15,10 +15,16 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { validateContent } from "../../core/schemas";
-import type { Balance } from "../../core/types";
+import type { Balance, CollisionGrid } from "../../core/types";
+import { createRng } from "../../core/rng";
+import { walkableCells } from "../../tools/overlay-diff/mask";
+import type { Raster } from "../../tools/postprocess/raster";
 import {
   blockedCount,
   cellAtWorld,
+  chooseSpawnTile,
+  collisionFromMask,
+  maskHealth,
   cellTopLeftWorld,
   cloneGrid,
   debugOverlayRects,
@@ -31,6 +37,8 @@ import {
   inBounds,
   isBlocked,
   loadCollision,
+  maskRasterFrom,
+  readMask,
   packedByteLength,
   rectBlocked,
   sampleMask,
@@ -44,9 +52,11 @@ import {
 } from "../../game/collision";
 import {
   DIRECTIONS,
+  chooseDirection,
   createMovement,
   delta,
   movementConfig,
+  newlyPressed,
   queueInput,
   resolveInput,
   spriteWorldPosition,
@@ -553,5 +563,310 @@ describe("guardrails this lane must not break", () => {
   it("G1 — nothing here builds or slices a tileset", () => {
     const code = executable("game/collision.ts") + executable("game/mapview.ts");
     expect(code).not.toMatch(/tileset|tilemap|createFromTiles|putTileAt/i);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * THE MASK CONTRACT — one declaration, two readers
+ *
+ * `game/collision.ts` and `tools/overlay-diff/mask.ts` both read the same PNG: the first to decide
+ * where the player may walk, the second to restrict the Hard Req 5 / G4 acceptance IoU to "the
+ * walkable cells of the collision mask" (build-doc §8.2). They each declared themselves the
+ * authority on the encoding and they CONTRADICTED each other on transparent pixels — measured, by
+ * feeding one raster to both: an all-transparent 8×8 gave 0/64 blocked to the game and 64/64 to the
+ * gate. The consequence was not academic: an alpha-background mask (the export style
+ * game/collision.ts explicitly claimed to support) played as an almost entirely open map while
+ * `tools/overlay-diff/diff.ts` took its `walkable === 0` branch and REJECTED every year variant.
+ *
+ * The resolution is the contract in `MaskPolarity`: a mask is FULLY OPAQUE. These tests prove the
+ * two halves of that being enough — the readers agree on every opaque raster, and a raster that is
+ * not opaque is refused by the runtime rather than played.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("the mask contract makes the runtime and the Hard Req 5 gate agree", () => {
+  const CELLS = 8;
+
+  /** One raster, read by game/collision.ts. `true` = blocked. */
+  function gameBlocked(pixels: MaskPixels): boolean[] {
+    const grid = sampleMask("agree", pixels, balance, { cols: CELLS, rows: CELLS });
+    const out: boolean[] = [];
+    for (let row = 0; row < CELLS; row += 1) for (let col = 0; col < CELLS; col += 1) out.push(isBlocked(grid, col, row));
+    return out;
+  }
+
+  /** The SAME raster, read by tools/overlay-diff/mask.ts. `true` = blocked (not walkable). */
+  function gateBlocked(pixels: MaskPixels): boolean[] {
+    const raster: Raster = {
+      width: pixels.width,
+      height: pixels.height,
+      data: pixels.data as Uint8ClampedArray,
+    };
+    const cells = walkableCells(raster, { cols: CELLS, rows: CELLS });
+    return [...cells].map((v) => v === 0);
+  }
+
+  /** A deterministic opaque black/white raster — no Math.random anywhere in this repo (G11). */
+  function opaqueRaster(seed: number, side = CELLS): MaskPixels {
+    const rng = createRng(seed);
+    const data = new Uint8ClampedArray(side * side * 4);
+    for (let i = 0; i < side * side; i += 1) {
+      const ink = rng.chance(0.5) ? 0 : 255;
+      data[i * 4] = ink;
+      data[i * 4 + 1] = ink;
+      data[i * 4 + 2] = ink;
+      data[i * 4 + 3] = 255;
+    }
+    return { width: side, height: side, data, channels: 4 };
+  }
+
+  it("agrees cell-for-cell on every OPAQUE raster, over many seeds", () => {
+    for (let seed = 1; seed <= 200; seed += 1) {
+      const pixels = opaqueRaster(seed);
+      expect(gameBlocked(pixels), `seed ${seed}`).toEqual(gateBlocked(pixels));
+    }
+  });
+
+  it("agrees at both extremes", () => {
+    const white: MaskPixels = { width: 2, height: 2, channels: 4, data: new Uint8ClampedArray(16).fill(255) };
+    const black: MaskPixels = {
+      width: 2,
+      height: 2,
+      channels: 4,
+      data: new Uint8ClampedArray([0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255, 0, 0, 0, 255]),
+    };
+    // Only 2×2 pixels, so ask for a 2×2 grid rather than the 8×8 the helpers above use.
+    const smallGame = (p: MaskPixels): boolean[] => {
+      const grid = sampleMask("x", p, balance, { cols: 2, rows: 2 });
+      const out: boolean[] = [];
+      for (let row = 0; row < 2; row += 1) for (let col = 0; col < 2; col += 1) out.push(isBlocked(grid, col, row));
+      return out;
+    };
+    const smallGate = (p: MaskPixels): boolean[] =>
+      [...walkableCells({ width: p.width, height: p.height, data: p.data as Uint8ClampedArray }, { cols: 2, rows: 2 })].map(
+        (v) => v === 0,
+      );
+    expect(smallGame(white)).toEqual(smallGate(white));
+    expect(smallGame(black)).toEqual(smallGate(black));
+    expect(smallGame(white).every((b) => !b)).toBe(true);
+    expect(smallGame(black).every((b) => b)).toBe(true);
+  });
+
+  it("BINDS — the two readers genuinely DISAGREE on transparency, which is why it is out of contract", () => {
+    // If this ever stops disagreeing the contract could be relaxed. Until then, the refusal below is
+    // load-bearing and this assertion is what says so.
+    const clear: MaskPixels = { width: CELLS, height: CELLS, channels: 4, data: new Uint8ClampedArray(CELLS * CELLS * 4) };
+    expect(gameBlocked(clear).every((b) => !b)).toBe(true);
+    expect(gateBlocked(clear).every((b) => b)).toBe(true);
+    expect(gameBlocked(clear)).not.toEqual(gateBlocked(clear));
+  });
+});
+
+describe("maskHealth — provenance that answers 'is this usable', not 'did a file decode'", () => {
+  function raster(fill: (i: number, data: Uint8ClampedArray) => void, side = 8): MaskPixels {
+    const data = new Uint8ClampedArray(side * side * 4);
+    for (let i = 0; i < side * side; i += 1) fill(i, data);
+    return { width: side, height: side, data, channels: 4 };
+  }
+  const opaque = (value: number) => (i: number, d: Uint8ClampedArray): void => {
+    d[i * 4] = value;
+    d[i * 4 + 1] = value;
+    d[i * 4 + 2] = value;
+    d[i * 4 + 3] = 255;
+  };
+
+  it("a fully transparent mask is REFUSED and says the readers would disagree about it", () => {
+    const clear = raster((i, d) => {
+      d[i * 4 + 3] = 0;
+    });
+    const health = maskHealth(clear, balance, { cols: 8, rows: 8 });
+    expect(health.usable).toBe(false);
+    expect(health.transparentPixels).toBe(64);
+    expect(health.problems.join(" ")).toMatch(/opaque/);
+
+    const loaded = collisionFromMask("t", "assets/final/maps/t-mask.png", clear, balance, { cols: 8, rows: 8 });
+    // The whole point: it does NOT come back as authored geometry.
+    expect(loaded.source).toBe("synthesised");
+    expect(loaded.synthetic).toBe(true);
+    expect(loaded.note).toContain("REFUSED");
+    expect(loaded.health?.usable).toBe(false);
+  });
+
+  it("an all-blocked mask is REFUSED — there is nowhere to stand", () => {
+    const black = raster(opaque(0));
+    const health = maskHealth(black, balance, { cols: 8, rows: 8 });
+    expect(health.usable).toBe(false);
+    expect(health.walkableCells).toBe(0);
+    expect(health.problems.join(" ")).toMatch(/nowhere to stand/);
+    expect(collisionFromMask("b", "b.png", black, balance, { cols: 8, rows: 8 }).source).toBe("synthesised");
+  });
+
+  it("an entirely open mask is REPORTED but still played — an open field is a legal map", () => {
+    const white = raster(opaque(255));
+    const health = maskHealth(white, balance, { cols: 8, rows: 8 });
+    expect(health.usable).toBe(true);
+    expect(health.blockedCells).toBe(0);
+    expect(health.problems.join(" ")).toMatch(/whole map is open/);
+    const loaded = collisionFromMask("w", "w.png", white, balance, { cols: 8, rows: 8 });
+    expect(loaded.source).toBe("authored");
+    expect(loaded.note).toMatch(/whole map is open/);
+  });
+
+  it("an ordinary mask is authored, with no problems at all", () => {
+    const mixed = raster((i, d) => {
+      const value = i % 8 < 2 ? 0 : 255;
+      d[i * 4] = value;
+      d[i * 4 + 1] = value;
+      d[i * 4 + 2] = value;
+      d[i * 4 + 3] = 255;
+    });
+    const loaded = collisionFromMask("m", "m.png", mixed, balance, { cols: 8, rows: 8 });
+    expect(loaded.source).toBe("authored");
+    expect(loaded.synthetic).toBe(false);
+    expect(loaded.health?.usable).toBe(true);
+    expect(loaded.health?.problems).toEqual([]);
+    expect(loaded.health?.blockedCells).toBe(16);
+  });
+});
+
+describe("chooseSpawnTile — the null that must not be swallowed", () => {
+  it("hands back a walkable tile and no problem on an ordinary grid", () => {
+    const choice = chooseSpawnTile(synthesiseBorderCollision("s", balance).grid, balance);
+    expect(choice.problem).toBeNull();
+    expect(tileWalkable(synthesiseBorderCollision("s", balance).grid, choice.tile.col, choice.tile.row, balance)).toBe(true);
+  });
+
+  it("says so, in a sentence, when every tile is blocked — instead of returning (0,0)", () => {
+    const dims = gridDimensions(balance);
+    const grid = emptyGrid("solid", dims);
+    for (let row = 0; row < dims.rows; row += 1) {
+      for (let col = 0; col < dims.cols; col += 1) setBlocked(grid, col, row, true);
+    }
+    const choice = chooseSpawnTile(grid, balance);
+    expect(choice.problem).not.toBeNull();
+    expect(choice.problem).toMatch(/NO WALKABLE TILE/);
+    // (0,0) is BLOCKED on any bordered grid — the value the old `?? { col: 0, row: 0 }` produced.
+    expect(firstWalkableTile(grid, balance)).toBeNull();
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * Input — Gold's "most recent press wins", and why the tie-break alone deadlocks
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("chooseDirection — a wall never locks out a direction with an open path", () => {
+  /** (25,26) is a wall; everything else on this lattice is open. */
+  const canEnter = (tile: { col: number; row: number }): boolean => !(tile.col === 25 && tile.row === 26);
+  const standing = (queued: Direction | null = null): MovementState => ({
+    ...createMovement({ col: 25, row: 25 }),
+    queued,
+  });
+
+  it("REPRODUCES the deadlock in the primitive it replaced", () => {
+    // resolveInput knows nothing about walls, so `previous` re-elects the blocked direction forever.
+    expect(resolveInput(["down", "right"], "down")).toBe("down");
+  });
+
+  it("a freshly pressed direction wins over the one already held", () => {
+    expect(chooseDirection(["down", "right"], standing("down"), canEnter, ["right"])).toBe("right");
+  });
+
+  it("with nothing fresh, an open direction still beats a held wall", () => {
+    expect(chooseDirection(["down", "right"], standing("down"), canEnter, [])).toBe("right");
+  });
+
+  it("two directions pressed on the SAME frame resolve to the open one", () => {
+    expect(chooseDirection(["down", "right"], standing(null), canEnter, ["down", "right"])).toBe("right");
+  });
+
+  it("keeps walking the held direction when it is open — no stutter from a brushed key", () => {
+    const open = (): boolean => true;
+    expect(chooseDirection(["down", "right"], standing("down"), open, [])).toBe("down");
+  });
+
+  it("still bumps: with every direction blocked you turn and stay put", () => {
+    const wall = (): boolean => false;
+    const dir = chooseDirection(["down"], standing(null), wall, ["down"]);
+    expect(dir).toBe("down");
+    const result = updateMovement(queueInput(standing(null), dir), 200, wall, movementConfig(balance));
+    expect(result.state.tile).toEqual({ col: 25, row: 25 });
+    expect(result.state.facing).toBe("down");
+    expect(result.events.some((e) => e.t === "blocked")).toBe(true);
+  });
+
+  it("judges a mid-step choice from where the step will LAND, not from where it started", () => {
+    // Standing at (25,25) stepping to (25,26)… which is the wall, so a step there cannot be in
+    // flight. Step to (24,25) instead and ask about `down` from there: (24,26) is open.
+    const moving: MovementState = {
+      ...createMovement({ col: 25, row: 25 }),
+      step: { from: { col: 25, row: 25 }, to: { col: 24, row: 25 }, dir: "left", elapsedMs: 0, durationMs: 100 },
+    };
+    expect(chooseDirection(["down"], moving, canEnter, ["down"])).toBe("down");
+    // …whereas from the ORIGIN tile the same key is into the wall.
+    expect(chooseDirection(["down"], standing(null), canEnter, ["down"])).toBe("down");
+    expect(canEnter({ col: 25, row: 26 })).toBe(false);
+  });
+
+  it("nothing held is nothing chosen", () => {
+    expect(chooseDirection([], standing("down"), canEnter, [])).toBeNull();
+  });
+
+  it("newlyPressed is exactly the difference between two frames", () => {
+    expect(newlyPressed(["down", "right"], new Set<Direction>(["down"]))).toEqual(["right"]);
+    expect(newlyPressed(["down"], new Set<Direction>(["down"]))).toEqual([]);
+    expect(newlyPressed(["up", "left"], new Set<Direction>())).toEqual(["up", "left"]);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * The round trip — what tools/collision-editor/ writes is what the runtime reads
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("maskRasterFrom is the exact inverse of the sampler, and its output is unambiguous", () => {
+  /** A deterministic grid with both kinds of cell (G11: core/rng.ts, never Math.random). */
+  function drawnGrid(seed: number): CollisionGrid {
+    const dims = gridDimensions(balance);
+    const grid = emptyGrid("drawn", dims);
+    const rng = createRng(seed);
+    for (let row = 0; row < dims.rows; row += 1) {
+      for (let col = 0; col < dims.cols; col += 1) if (rng.chance(0.3)) setBlocked(grid, col, row, true);
+    }
+    return grid;
+  }
+
+  it("a painted grid survives export → re-import cell for cell", () => {
+    for (const seed of [1, 2, 3, 17, 99]) {
+      const grid = drawnGrid(seed);
+      const reread = readMask("rt", maskRasterFrom(grid, balance), balance);
+      expect(gridToAscii(reread.grid), `seed ${seed}`).toBe(gridToAscii(grid));
+    }
+  });
+
+  it("what it writes is FULLY OPAQUE, so the runtime and the Hard Req 5 gate cannot disagree", () => {
+    const grid = drawnGrid(5);
+    const raster = maskRasterFrom(grid, balance);
+    expect(raster.width).toBe(balance.map.mapNativePx);
+    expect(raster.height).toBe(balance.map.mapNativePx);
+
+    const health = readMask("rt", raster, balance).health;
+    expect(health.transparentPixels).toBe(0);
+    expect(health.usable).toBe(true);
+    expect(health.problems).toEqual([]);
+
+    // …and the gate reads it identically, which is the whole claim the contract makes.
+    const gate = walkableCells({ width: raster.width, height: raster.height, data: raster.data as Uint8ClampedArray }, {
+      cols: grid.cols,
+      rows: grid.rows,
+    });
+    for (let row = 0; row < grid.rows; row += 1) {
+      for (let col = 0; col < grid.cols; col += 1) {
+        expect(gate[row * grid.cols + col] === 0, `cell ${String(col)},${String(row)}`).toBe(isBlocked(grid, col, row));
+      }
+    }
+  });
+
+  it("an all-walkable export is still opaque and still readable by both", () => {
+    const raster = maskRasterFrom(emptyGrid("open", gridDimensions(balance)), balance);
+    expect(readMask("open", raster, balance).health.transparentPixels).toBe(0);
+    expect(readMask("open", raster, balance).health.blockedCells).toBe(0);
   });
 });

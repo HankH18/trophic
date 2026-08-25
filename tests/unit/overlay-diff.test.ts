@@ -36,6 +36,27 @@
  * cases run on those too. A synthetic town proves the arithmetic; a painted map is what the gate
  * will actually see.
  *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * AND THEN THIS FILE PASSED 38/38 WHILE TWO MORE REPRODUCED DEFECTS WERE LIVE.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * The rewrite above fixed the SCALE and the SHAPE of the fixtures and then measured them at ONE
+ * POINT. Its real-map block moved a single block size (8×CELL = 128px) at a single position
+ * (300,300) on each map — so it could not see that a 64×64 px feature, LARGER than the 32×48
+ * player, displaced by one whole collision cell was ACCEPTED on pt-map-brackwater at (300,300) and
+ * on pt-map-cindershelf at (500,200) and (400,400). Nor that a change confined entirely to BLOCKED
+ * cells rejected a variant whose walkable pixels were byte-identical. Both are B1 repair wave 2
+ * (DEVIATIONS-lane-b B-D39, B-D40). What this file does about it:
+ *
+ *   · every size is tried at FIVE positions and BOTH displacements, on every real map;
+ *   · the additive half of an aging pass (rot blotches) is asserted to PASS on real art, because
+ *     the criterion that catches a displacement must not catch a mark appearing;
+ *   · the isolation the walkable restriction is specified to give is asserted directly — zero
+ *     walkable edge pixels may move for a change confined to blocked cells — with the coupling it
+ *     replaces asserted to still exist over the whole frame, so the fix is proved to be the cause;
+ *   · the rejection MESSAGE is asserted to name a rectangle that overlaps the thing that moved;
+ *   · the collision-mask encoding this all rests on gets its own block, including a test that goes
+ *     RED the day a real mask lands, because none of these numbers has ever seen one (B-D49).
+ *
  * No Math.random anywhere (G11): every pattern is a closed-form function of (x, y).
  */
 import { describe, expect, it } from 'vitest';
@@ -46,6 +67,7 @@ import { blankRaster, idx, readRaster } from '../../tools/postprocess/raster.ts'
 import { REPO_ROOT } from '../../tools/postprocess/palette.ts';
 import {
   contrastRange,
+  CONTRAST_TAIL,
   dilate,
   edgeMap,
   luminance,
@@ -55,6 +77,8 @@ import {
   thresholdEdges,
   walkableCells,
   walkableMaskFor,
+  cellsToRaster,
+  MASK_ENCODING,
   SOBEL_MAX,
 } from '../../tools/overlay-diff/index.ts';
 import { collisionGrid, denoiseLadder, driftFootprint, overlayDiffConfig } from '../../tools/overlay-diff/config.ts';
@@ -518,6 +542,69 @@ function moveBlock(src: Raster, x0: number, y0: number, S: number, d: number, gx
   return o;
 }
 
+/** The five positions every size is tried at — one is the (300,300) the old block only ever used. */
+const MOVE_POSITIONS = [
+  [300, 300],
+  [500, 200],
+  [200, 500],
+  [400, 400],
+  [600, 600],
+] as const;
+
+/** 24 hard 5×5 rot marks — the additive half of bible §6's aging arcs, at their harshest. */
+function blotched(src: Raster): Raster {
+  const o = blankRaster(src.width, src.height);
+  o.data.set(src.data);
+  for (let i = 0; i < 24; i++) {
+    const bx = 8 + ((i * 149) % (src.width - 24));
+    const by = 8 + ((i * 251) % (src.height - 24));
+    for (let y = by; y < by + 5; y++) {
+      for (let x = bx; x < bx + 5; x++) {
+        const k = idx(o, x, y);
+        o.data[k] = 40;
+        o.data[k + 1] = 36;
+        o.data[k + 2] = 30;
+        o.data[k + 3] = 255;
+      }
+    }
+  }
+  return o;
+}
+
+/** A mask that blocks ONLY a square in the top-left corner — everything else is walkable. */
+function cornerMask(width: number, height: number, side: number): Raster {
+  const m = blankRaster(width, height);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = idx(m, x, y);
+      const v = x < side && y < side ? 0 : 255;
+      m.data[i] = v;
+      m.data[i + 1] = v;
+      m.data[i + 2] = v;
+      m.data[i + 3] = 255;
+    }
+  }
+  return m;
+}
+
+/** A soft additive glow — "vents flare" (bible §6), the local emissive event, closed-form (G11). */
+function glow(src: Raster, cx: number, cy: number, radius: number, strength: number): Raster {
+  const o = blankRaster(src.width, src.height);
+  o.data.set(src.data);
+  for (let y = Math.max(0, cy - radius); y < Math.min(src.height, cy + radius); y++) {
+    for (let x = Math.max(0, cx - radius); x < Math.min(src.width, cx + radius); x++) {
+      const d = Math.hypot(x - cx, y - cy);
+      if (d > radius) continue;
+      const k = idx(o, x, y);
+      const f = strength * (1 - d / radius);
+      for (let c = 0; c < 3; c++) {
+        o.data[k + c] = Math.max(0, Math.min(255, Math.round(src.data[k + c]! + 255 * f)));
+      }
+    }
+  }
+  return o;
+}
+
 describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', () => {
   it('there are real 1024² maps in the repo to measure against', () => {
     expect(REAL_MAPS.length).toBeGreaterThanOrEqual(1);
@@ -560,8 +647,182 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
         },
         60_000,
       );
+
+      /* ────────────────────────────────────────────────────────────────────────
+       * THE SIZE AND THE POSITION THE OLD TEST NEVER TRIED.
+       *
+       * The previous version of this block moved ONE size (8×CELL = 128px) at ONE position
+       * (300,300) on each map, and passed — while a 64×64 px feature, which is LARGER than the
+       * 32×48 player, displaced by ONE collision cell was ACCEPTED on pt-map-brackwater at
+       * (300,300) (IoU 0.9917) and on pt-map-cindershelf at (500,200) and (400,400). A single
+       * (size, position) pair cannot support the claim "every layout move down to a 64px feature
+       * is rejected"; five positions and two displacements can, and do.
+       * ──────────────────────────────────────────────────────────────────────── */
+      it(
+        'REJECTS a 64px feature — bigger than the 32×48 player — at FIVE positions and BOTH displacements',
+        async () => {
+          const map = await readRaster(resolve(REPO_ROOT, rel));
+          const mask = maskFromLuminance(map);
+          for (const [px, py] of MOVE_POSITIONS) {
+            for (const cells of [1, 2]) {
+              const moved = moveBlock(map, px, py, 4 * CELL, cells * CELL, 20, 900);
+              const v = run(map, moved, mask);
+              expect(v.accepted, `${rel} 64px at (${px},${py}) moved ${cells} cell(s): ${v.reason}`).toBe(false);
+              // …and it fails LOCALLY. The frame-wide ratio is 0.973–0.997 on every one of these:
+              // §8.2's own criterion (1) says ACCEPT to all 50, which is the whole reason (2) exists.
+              expect(v.globalPass, `${rel} 64px at (${px},${py})`).toBe(true);
+              expect(v.localPass).toBe(false);
+            }
+          }
+        },
+        120_000,
+      );
+
+      it(
+        'the rejection points the operator at the pixels that actually moved (§8.2 + G4)',
+        async () => {
+          // G4 forbids overriding a REJECT by hand, so the message is the operator's only lead.
+          // An earlier version told them "the layout moved inside the walkable cells" and named a
+          // cell ~760 px from the change, in a case where ZERO walkable pixels differed at all.
+          const map = await readRaster(resolve(REPO_ROOT, rel));
+          const mask = maskFromLuminance(map);
+          const [x0, y0, S] = [400, 400, 4 * CELL];
+          const v = run(map, moveBlock(map, x0, y0, S, CELL, 20, 900), mask);
+          expect(v.accepted).toBe(false);
+          const box = v.worstRegion?.pixelRect;
+          expect(box, v.reason).toBeDefined();
+          // The region the message cites must OVERLAP the block that moved — not merely exist.
+          expect(box!.x1, `${rel}: cited ${JSON.stringify(box)} vs block ${x0},${y0}+${S}`).toBeGreaterThanOrEqual(x0 - CELL);
+          expect(box!.x0).toBeLessThanOrEqual(x0 + S + CELL);
+          expect(box!.y1).toBeGreaterThanOrEqual(y0 - CELL);
+          expect(box!.y0).toBeLessThanOrEqual(y0 + S + CELL);
+          // …and the reason quotes that same rectangle in pixels, so the operator never has to
+          // convert cells to pixels by hand to find it.
+          expect(v.reason).toContain(`px (${box!.x0}, ${box!.y0})–(${box!.x1}, ${box!.y1})`);
+        },
+        60_000,
+      );
+
+      it(
+        'ACCEPTS rot blotches — a year variant ADDS marks, and adding a mark moves no layout',
+        async () => {
+          // bible §6's aging arcs are additive: rot, moss, scorch. The local criterion fails on
+          // LOST base edges for exactly this reason. Failing on TOTAL disagreement instead was
+          // measured to reject these (227–259 px gained) while still accepting the tightest real
+          // displacement (151 px lost) — the wrong way round.
+          const map = await readRaster(resolve(REPO_ROOT, rel));
+          const mask = maskFromLuminance(map);
+          const v = run(map, blotched(map), mask);
+          expect(v.accepted, `${rel} rot blotches: ${v.reason}`).toBe(true);
+          expect(v.worstRegion?.gainedEdges ?? 0, `${rel} gained`).toBeGreaterThan(100);
+          expect(v.worstRegion?.lostEdges ?? 0, `${rel} lost`).toBeLessThan(v.lostEdgeLimit);
+        },
+        60_000,
+      );
+
+      /* ────────────────────────────────────────────────────────────────────────
+       * B-D40: the walkable restriction must ISOLATE, not merely restrict.
+       * ──────────────────────────────────────────────────────────────────────── */
+      it(
+        'a change confined to BLOCKED cells does not move the measurement inside the walkable ones',
+        async () => {
+          const map = await readRaster(resolve(REPO_ROOT, rel));
+          const W = map.width;
+          const H = map.height;
+          const mask = cornerMask(W, H, 16 * CELL); // blocks the top-left 256×256 only
+          const walk = walkableMaskFor(mask, GRID, W, H);
+          const cand = glow(map, 120, 120, 96, 1.0); // radius 96 at (120,120): inside the corner
+
+          let changedWalkable = 0;
+          for (let i = 0; i < W * H; i++) {
+            const k = i * 4;
+            const differs =
+              map.data[k] !== cand.data[k] ||
+              map.data[k + 1] !== cand.data[k + 1] ||
+              map.data[k + 2] !== cand.data[k + 2];
+            if (differs && walk[i]) changedWalkable++;
+          }
+          expect(changedWalkable, `${rel}: the fixture must change ONLY blocked pixels`).toBe(0);
+
+          // The coupling was real and this is the half that proves the fix binds: measured over the
+          // WHOLE frame, the same change moves the contrast range and therefore the edge map.
+          const wholeFrame = contrastRange(luminance(map));
+          const wholeFrameCand = contrastRange(luminance(cand));
+          expect(wholeFrameCand.range, `${rel}: whole-frame range must move`).not.toBeCloseTo(wholeFrame.range, 4);
+          // Measured over the walkable population — the population §8.2 scores — it does not.
+          expect(contrastRange(luminance(cand), CONTRAST_TAIL, walk).range).toBeCloseTo(
+            contrastRange(luminance(map), CONTRAST_TAIL, walk).range,
+            10,
+          );
+
+          const eb = edgeMap(map, CFG, walk);
+          const ec = edgeMap(cand, CFG, walk);
+          let movedInsideWalkable = 0;
+          for (let i = 0; i < W * H; i++) if (walk[i] && eb[i] !== ec[i]) movedInsideWalkable++;
+          expect(movedInsideWalkable, `${rel}: walkable edge pixels moved`).toBe(0);
+
+          const v = run(map, cand, mask);
+          // Before the fix, on town-map.png this exact fixture scored IoU 0.9535 and was REJECTED
+          // for "7 collision cells drifted TOGETHER at cell (53, 34)" — 760 px from the change.
+          expect(v.iou, `${rel}: ${v.reason}`).toBe(1);
+          expect(v.accepted).toBe(true);
+        },
+        60_000,
+      );
     });
   }
+  /* ──────────────────────────────────────────────────────────────────────────
+   * The evidence floor that used to delete the strongest evidence there is.
+   * Swept across every map and every position, because a cell that thin does not appear
+   * at every (map, position) pair — and a test that only tries one pair is how the
+   * 64px false-accept survived a green suite in the first place.
+   * ────────────────────────────────────────────────────────────────────────── */
+  it(
+    'a cell whose two edge maps share NOTHING is counted, however little evidence it holds',
+    async () => {
+      // The old rule skipped any cell holding fewer than one dilated blob (25 px) of edge union as
+      // "carrying no evidence either way". A cell with ci = 0 and cu = 10 is the OPPOSITE of that:
+      // it is total disagreement on the evidence it has, and dropping it also punched a hole in the
+      // region it belonged to. Asserted as the general property, not as one number: every walkable
+      // cell where the two maps share no edge pixel at all must be counted as drifted.
+      let thinOnesOverall = 0;
+      for (const rel of REAL_MAPS) {
+        const map = await readRaster(resolve(REPO_ROOT, rel));
+        const mask = maskFromLuminance(map);
+        const walk = walkableMaskFor(mask, GRID, map.width, map.height);
+        const eb = edgeMap(map, CFG, walk);
+        for (const [px, py] of MOVE_POSITIONS) {
+          const cand = moveBlock(map, px, py, 4 * CELL, CELL, 20, 900);
+          const v = run(map, cand, mask);
+          const ec = edgeMap(cand, CFG, walk);
+          let zeroOverlapCells = 0;
+          for (let cy = 0; cy < GRID.rows; cy++) {
+            for (let cx = 0; cx < GRID.cols; cx++) {
+              let ci = 0;
+              let cu = 0;
+              for (let y = cy * CELL; y < (cy + 1) * CELL; y++) {
+                for (let x = cx * CELL; x < (cx + 1) * CELL; x++) {
+                  const i = y * map.width + x;
+                  if (!walk[i]) continue;
+                  if (eb[i] && ec[i]) ci++;
+                  if (eb[i] || ec[i]) cu++;
+                }
+              }
+              if (cu === 0 || ci > 0) continue;
+              zeroOverlapCells++;
+              if (cu < (2 * CFG.dilatePx + 1) ** 2) thinOnesOverall++;
+            }
+          }
+          expect(zeroOverlapCells, `${rel} at (${px},${py}): fixture must disagree totally somewhere`).toBeGreaterThan(0);
+          expect(v.cellsDrifted, `${rel} at (${px},${py}): ${v.reason}`).toBeGreaterThanOrEqual(zeroOverlapCells);
+        }
+      }
+      // …and the sweep really did contain cells the old 25px floor would have dropped, so the
+      // assertion above is measuring the rule that changed and not a vacuous inequality.
+      expect(thinOnesOverall, 'no cell under the old 25px floor appeared anywhere in the sweep').toBeGreaterThan(0);
+    },
+    180_000,
+  );
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -671,5 +932,111 @@ describe('overlay-diff internals', () => {
     expect(seen[seen.length - 1]).toBeGreaterThanOrEqual(LADDER.denoiseFloor);
     expect(nextDenoise(LADDER.denoiseFloor, LADDER)).toBeNull();
     expect(seen).toEqual([0.35, 0.3, 0.25, 0.2]);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * The collision-mask encoding (B-D49).
+ *
+ * tools/collision-editor/ is EMPTY, `npm run collision` points into it, and not one of the twelve
+ * masks data/nodes/*.json names exists on disk — so the encoding tools/overlay-diff/mask.ts declares
+ * has no producer and Hard Req 5 has never been measured against a mask a human authored. That is a
+ * cross-lane blocker and it is stated as one. What CAN be pinned from here is pinned here, so that
+ * whatever the editor eventually emits has a specification to fail against rather than a comment.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe('collision-mask encoding — mask.ts is the single declaration (B-D49)', () => {
+  /** A hand-authored walkability grid: a cross of open ground through a blocked field. */
+  function authored(): Uint8Array {
+    const cells = new Uint8Array(GRID.cols * GRID.rows);
+    for (let cy = 0; cy < GRID.rows; cy++) {
+      for (let cx = 0; cx < GRID.cols; cx++) {
+        const walk = (cx >= 28 && cx < 35) || (cy >= 28 && cy < 35) || (cx + cy) % 17 === 0;
+        cells[cy * GRID.cols + cx] = walk ? 1 : 0;
+      }
+    }
+    return cells;
+  }
+
+  it('round-trips: cells -> raster -> cells is the identity at cell resolution', () => {
+    const cells = authored();
+    expect(Array.from(walkableCells(cellsToRaster(cells, GRID), GRID))).toEqual(Array.from(cells));
+  });
+
+  it('a mask authored at 64×64 and the SAME mask at 1024² read identically', () => {
+    // mask.ts claims this in prose ("both are read the same way") and nothing measured it. It is
+    // load-bearing: whatever the collision editor writes, this is the freedom it is being promised.
+    const cells = authored();
+    const atCellRes = cellsToRaster(cells, GRID);
+    const atMapRes = cellsToRaster(cells, GRID, MAP.collisionCellPx);
+    expect(atCellRes.width).toBe(GRID.cols);
+    expect(atMapRes.width).toBe(MAP.mapNativePx);
+    expect(Array.from(walkableCells(atCellRes, GRID))).toEqual(Array.from(walkableCells(atMapRes, GRID)));
+
+    // …and the whole gate agrees, not just the sampler: same verdict, same numbers, both ways.
+    const base = baseMap();
+    for (const [label, cand] of [
+      ['texture', texturedVariant(base)],
+      ['moved building', baseMap(2)],
+    ] as const) {
+      const a = run(base, cand, atCellRes);
+      const b = run(base, cand, atMapRes);
+      expect(a.accepted, `${label}: ${a.reason}`).toBe(b.accepted);
+      expect(a.iou).toBeCloseTo(b.iou, 12);
+      expect(a.largestDrift).toBe(b.largestDrift);
+      expect(a.walkable).toBe(b.walkable);
+    }
+  });
+
+  it('the declared encoding IS what the reader reads — swatch by swatch', () => {
+    const probe = blankRaster(4, 1);
+    const put = (x: number, rgba: readonly number[]) => {
+      const i = idx(probe, x, 0);
+      probe.data[i] = rgba[0]!;
+      probe.data[i + 1] = rgba[1]!;
+      probe.data[i + 2] = rgba[2]!;
+      probe.data[i + 3] = rgba[3]!;
+    };
+    put(0, MASK_ENCODING.walkableRgba);
+    put(1, MASK_ENCODING.blockedRgba);
+    put(2, [255, 255, 255, 0]); // white but TRANSPARENT — unpainted is never "walk here"
+    put(3, [127, 127, 127, 255]); // luminance 0.498, a hair under the threshold
+    expect(Array.from(walkableCells(probe, { cols: 4, rows: 1 }))).toEqual([1, 0, 0, 0]);
+    expect(MASK_ENCODING.transparentIsBlocked).toBe(true);
+    expect(MASK_ENCODING.rule).toBe('majority');
+  });
+
+  it('majority, not "any": a cell that is half blocked is blocked', () => {
+    const m = blankRaster(4, 1); // one cell, four pixels
+    for (let x = 0; x < 4; x++) {
+      const i = idx(m, x, 0);
+      const v = x < 2 ? 255 : 0; // exactly half walkable
+      m.data[i] = v;
+      m.data[i + 1] = v;
+      m.data[i + 2] = v;
+      m.data[i + 3] = 255;
+    }
+    expect(walkableCells(m, { cols: 1, rows: 1 })[0]).toBe(0);
+    m.data[idx(m, 2, 0)] = 255;
+    m.data[idx(m, 2, 0) + 1] = 255;
+    m.data[idx(m, 2, 0) + 2] = 255;
+    expect(walkableCells(m, { cols: 1, rows: 1 })[0]).toBe(1);
+  });
+
+  it('cellsToRaster refuses a mismatched grid or a nonsense scale instead of writing a wrong mask', () => {
+    expect(() => cellsToRaster(new Uint8Array(3), GRID)).toThrow(/cell array is 3/);
+    expect(() => cellsToRaster(authored(), GRID, 0)).toThrow(/bad scale/);
+    expect(() => cellsToRaster(authored(), GRID, 1.5)).toThrow(/bad scale/);
+  });
+
+  it('STATES THE GAP: no mask any node names exists, so the gate is unmeasured against real art', () => {
+    // Deliberately asserted rather than left in a comment: the day someone authors these, this test
+    // goes red and whoever is here has to come and re-measure the claims in diff.ts's header
+    // against a real mask instead of a luminance-derived stand-in.
+    const missing = content.nodes.filter((n) => !existsSync(resolve(REPO_ROOT, n.collisionMask)));
+    expect(
+      missing.length,
+      'a collision mask now exists — re-measure B-D39/B-D40 against it and update this test',
+    ).toBe(content.nodes.length);
   });
 });

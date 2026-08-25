@@ -27,18 +27,17 @@
 import Phaser from "phaser";
 import {
   advanceAction,
+  gymVictory,
+  isOver,
   seasonOf,
+  type ClockActionKind,
   type ClockEvent,
   type ClockState,
+  type YearEndReason,
 } from "../../core/clock";
-import {
-  defaultContext,
-  fromNodeState,
-  stepRegionStates,
-  type SimContext,
-} from "../../core/ecosim";
-import { indexSpecies, toEcoNode, type EcoNode, type SpeciesIndex } from "../../core/foodweb";
-import { deriveStream, type Rng } from "../../core/rng";
+import { defaultContext, stepRegionStates, type SimContext } from "../../core/ecosim";
+import { indexSpecies, type EcoNode, type SpeciesIndex } from "../../core/foodweb";
+import { deriveStream, subsystemRng, type Rng } from "../../core/rng";
 import { validateContent } from "../../core/schemas";
 import {
   appendAction,
@@ -70,6 +69,7 @@ import {
 import {
   applyWildBattleOutcome,
   buildWildBattle,
+  liveNodeOf,
   wildBattleProblem,
 } from "../wild-battle";
 import {
@@ -83,10 +83,13 @@ import {
 } from "../mapview";
 import { seasonTintLabel } from "../season-tint";
 import { SCENE_KEYS, sceneRegistered } from "../scene-keys";
+import { finalYearOf } from "../year-events";
 import {
   DEFAULT_SEASON_METER_STYLE,
   SeasonMeterHud,
+  actionCosts,
   phaserMeterSurface,
+  previewAction,
   seasonMeterModel,
   type SeasonMeterStyle,
 } from "../ui/SeasonMeter";
@@ -154,6 +157,17 @@ export interface OverworldHooks {
   onSaveChanged?: (save: SaveEnvelope, scene: OverworldScene) => void;
   /** C7/C9. The player travelled the adjacency graph. */
   onTravel?: (from: string, to: string, scene: OverworldScene) => void;
+  /**
+   * C7. The six years of build-doc §1 are over — the turn out of the final year has committed and
+   * `core/clock.ts` `isOver` is true of the save. Nothing more can be spent: {@link
+   * OverworldScene.spendTicks} refuses, no encounter rolls, and no further year turn can run.
+   *
+   * This is the seam the ending hangs off (Hard Req 7's epilogue ledger, the Vellsire choice). Until
+   * something takes it, the overworld says so on screen and stops, which is the honest minimum —
+   * before it, the shipped game simply kept going: Y7/6, Y8/6, Y9/6, with a festival and a
+   * retirement round in each.
+   */
+  onRunComplete?: (save: SaveEnvelope, scene: OverworldScene) => void;
 }
 
 export interface OverworldSceneData {
@@ -209,6 +223,7 @@ export class OverworldScene extends Phaser.Scene {
   private cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   private dirKeys: Array<{ dir: Direction; keys: Phaser.Input.Keyboard.Key[] }> = [];
   private overlayKey?: Phaser.Input.Keyboard.Key;
+  private innKey?: Phaser.Input.Keyboard.Key;
   private travelKeys: Phaser.Input.Keyboard.Key[] = [];
   /**
    * Directions held on the previous frame, so {@link chooseDirection} can tell a NEW press from a
@@ -366,12 +381,9 @@ export class OverworldScene extends Phaser.Scene {
    * one number, on the number Hard Req 2 is about.
    */
   liveNode(id: string = this.node.id): EcoNode {
-    const file = this.nodeFile(id);
-    const state = this.save.nodeStates[id];
-    // No state means a save that predates this node; build-doc §7.2 — "sim initial state = the file
-    // as shipped" — is the honest fallback, and `toEcoNode` deep-copies, so the shipped JSON is
-    // never aliased by a running game.
-    return state ? fromNodeState(file, state) : toEcoNode(file);
+    // Delegated, not restated: `liveNodeOf` (game/wild-battle.ts) is the one place the fallback is
+    // decided, so the catch that moves a count and the roll that reads it cannot drift apart.
+    return liveNodeOf(this.content, this.save, id);
   }
 
   /**
@@ -438,6 +450,9 @@ export class OverworldScene extends Phaser.Scene {
     this.travelKeys = [codes.ONE, codes.TWO, codes.THREE, codes.FOUR, codes.FIVE, codes.SIX].map(
       (code) => keyboard.addKey(code),
     );
+    // L8 prices three actions and the shell only ever spent two of them, so `clock.innTicks` was a
+    // tunable nothing could reach and no player action could straddle a year boundary. [R] rests.
+    this.innKey = keyboard.addKey(codes.R);
   }
 
   private pressedDirections(): Direction[] {
@@ -457,6 +472,7 @@ export class OverworldScene extends Phaser.Scene {
 
   override update(_time: number, delta: number): void {
     if (this.overlayKey && Phaser.Input.Keyboard.JustDown(this.overlayKey)) this.toggleOverlay();
+    if (this.innKey && Phaser.Input.Keyboard.JustDown(this.innKey)) this.restAtInn();
 
     this.travelKeys.forEach((key, i) => {
       if (Phaser.Input.Keyboard.JustDown(key)) {
@@ -523,6 +539,9 @@ export class OverworldScene extends Phaser.Scene {
    * tick §3 L8 prices a foray at.
    */
   private onStepCompleted(): void {
+    // build-doc §1's six years are over: nothing is rolled and nothing is spent. Rolling here would
+    // draw from the encounter stream in a year the game does not have (see {@link runIsOver}).
+    if (this.runIsOver()) return;
     const encounter = rollForayStep(this.forayContext(), this.streamFor(ENCOUNTER_STREAM));
     if (encounter) {
       this.encountersMet += 1;
@@ -531,15 +550,25 @@ export class OverworldScene extends Phaser.Scene {
       this.flashBanner(
         `${encounter.lineId} ${encounter.age} L${encounter.level} — count ${this.countOf(encounter.lineId)}`,
       );
-      // The hook is an override; without one the scene fights it (see OverworldHooks.onEncounter).
-      if (this.hooks.onEncounter) this.hooks.onEncounter(encounter, this);
-      else this.beginWildBattle(encounter);
     }
 
+    /*
+     * THE TICK IS SPENT BEFORE THE HAND-OFF, and the order matters. `spendTicks` can cross a season
+     * boundary or end the year, and the year turn launches a scene and pauses this one — so handing
+     * the encounter over FIRST would launch two scenes for one step and pause the overworld twice.
+     * The encounter itself was already rolled against the season the step was taken in, above, so
+     * nothing about WHICH animal was met depends on this ordering.
+     */
     this.stepsSinceTick += 1;
     if (this.stepsSinceTick >= stepsPerForay(this.balance)) {
       this.stepsSinceTick = 0;
       this.spendTicks("foray", { t: "foray", nodeId: this.node.id });
+    }
+
+    if (encounter) {
+      // The hook is an override; without one the scene fights it (see OverworldHooks.onEncounter).
+      if (this.hooks.onEncounter) this.hooks.onEncounter(encounter, this);
+      else this.beginWildBattle(encounter);
     }
   }
 
@@ -698,11 +727,74 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * Spend one action's ticks (travel 1 / foray 1) through core/clock.ts, log the action, and deal
-   * with whatever boundary it crossed.
+   * The six years of build-doc §1 are behind the player — `core/clock.ts` `isOver` of this save.
+   *
+   * ⚠ NOTHING USED TO ASK THIS. `isOver` existed and had no caller outside the tests, so the year
+   * turn out of year 6 rolled straight into a seventh: a full festival, aging pass and retirement
+   * round labelled "FESTIVAL · Y7/6", then Y8/6, then Y9/6, with the season meter agreeing. The turn
+   * out of the FINAL year is the last one (it owes that year its fourth season step, build-doc §7.5
+   * step 5); after it commits, this is true and the overworld spends nothing more.
    */
-  private spendTicks(kind: "travel" | "foray", action: GameAction): void {
+  runIsOver(): boolean {
+    return isOver(this.clock(), this.balance);
+  }
+
+  /** The last year of the game (build-doc §1) — `game/year-events.ts`, one home for the number. */
+  finalYear(): number {
+    return finalYearOf(this.balance);
+  }
+
+  /**
+   * Rest at the inn: build-doc §3 L8's third action, and the only one that costs more than one tick.
+   *
+   * ⚠ IT WAS UNREACHABLE. `spendTicks` was typed `"travel" | "foray"` and had exactly two call
+   * sites, both costing 1 tick — so no player action could ever straddle a year boundary, which made
+   * `balance.clock.innTicks` a tunable nothing read and `finishYearTurn`'s carry a path nothing
+   * walked. Measured for contrast: `previewAction({year:1,tick:15}, "inn")` → cost 2, endsYear true,
+   * afterTick 1. The town is `save.currentNode` — the node schema has no separate inn prop, and
+   * inventing one would be content (G2).
+   */
+  restAtInn(townId: string = this.save.currentNode): void {
+    if (this.isHandedOver() || this.travelling) return;
+    if (this.runIsOver()) {
+      this.flashBanner(`the ${String(this.balance.clock.yearsTotal)} years are over`);
+      return;
+    }
+    this.spendTicks("inn", { t: "inn", townId });
+    this.flashBanner(`inn at ${townId} · ${String(actionCosts(this.balance).inn)} ticks`);
+  }
+
+  /**
+   * build-doc §4 / L8's OTHER year-end trigger: "year = gym victory or full meter".
+   *
+   * ⚠ THE HALF OF L8 THAT WAS NOT WIRED. `core/clock.ts` `gymVictory` had no caller anywhere in
+   * `game/` — the shipped game could only end a year by filling the meter, so the diegetic gym gate
+   * (bible §9's Annual Festival) closed nothing. C3/C7 call this when a leader is beaten; the gym
+   * itself, its roster and its dialogue are theirs, and this scene only owns the clock.
+   */
+  winGym(gymId: string): void {
+    if (this.isHandedOver() || this.travelling) return;
+    if (this.runIsOver()) {
+      this.flashBanner(`the ${String(this.balance.clock.yearsTotal)} years are over`);
+      return;
+    }
+    const tickBefore = this.save.tick;
+    this.save = appendAction(this.save, { t: "gymVictory", gymId });
+    const advanced = gymVictory(this.clock(), this.balance);
+    this.save = { ...this.save, year: advanced.clock.year, tick: advanced.clock.tick };
+    this.handleClockEvents(advanced.events, tickBefore);
+    this.hudDirty = true;
+    this.hooks.onSaveChanged?.(this.save, this);
+  }
+
+  /**
+   * Spend one action's ticks (travel 1 / foray 1 / inn 2) through core/clock.ts, log the action, and
+   * deal with whatever boundary it crossed.
+   */
+  private spendTicks(kind: ClockActionKind, action: GameAction): void {
     if (this.yearTurnRunning) return;
+    // The game is six years long and they are over: no tick is spent past the end (build-doc §1).
+    if (this.runIsOver()) return;
     this.save = appendAction(this.save, action);
     // The tick the action STARTED on, kept because the year turn has to be handed a save that is
     // still standing in the year the clock is about to end (build-doc §7.5 runs on year N and
@@ -748,6 +840,18 @@ export class OverworldScene extends Phaser.Scene {
     if (trigger) this.beginYearTurn(trigger.endedYear, trigger.reason, tickBefore, trigger.carryTick);
   }
 
+  /**
+   * The run is over: say so, and hand it to whoever owns the ending.
+   *
+   * Called once, from the year turn's own completion — the only place `isOver` can become true.
+   */
+  private completeRun(): void {
+    this.flashBanner(
+      `${String(this.balance.clock.yearsTotal)} years complete · Y${String(this.finalYear())} ended`,
+    );
+    this.hooks.onRunComplete?.(this.save, this);
+  }
+
   /* ── the year turn (build-doc §4 step 5 / §7.5) ───────────────────────── */
 
   /**
@@ -759,7 +863,7 @@ export class OverworldScene extends Phaser.Scene {
    */
   private beginYearTurn(
     endedYear: number,
-    reason: string,
+    reason: YearEndReason,
     tickBefore: number,
     carryTick: number,
   ): void {
@@ -777,18 +881,23 @@ export class OverworldScene extends Phaser.Scene {
        * does not exist to open, and adding one needs data/balance.json + core/types.ts +
        * core/schemas.ts in one change (core/ is not this lane's to edit). Reported as a blocker.
        *
-       * Until it exists, the heir stream is a CHILD of the sim stream through core/rng.ts's own
-       * `deriveStream` — core's sanctioned way to split a stream, keyed so each year turn gets its
-       * own and costing the parent exactly one draw. That keeps the heir rolls out of the ecology's
-       * draw sequence (they would otherwise interleave with the region step's) and keeps every
-       * random number in the repo inside core/rng.ts (G11).
+       * Until it exists, the heir rolls come from a stream keyed on (save seed, year turn) —
+       * core/rng.ts's own `subsystemRng`, i.e. `hashSeed` + a fresh state, with the tag composed
+       * from the sim tag so it is legibly parented. It used to be a CHILD of the live sim stream
+       * (`deriveStream`), which cost the sim stream a draw per year turn and made every heir roll
+       * depend on how many draws the ECOLOGY happened to have taken — the exact cross-coupling
+       * `deriveStream`'s own header warns about, and it put the roll's position where neither
+       * core/save.ts `replay` nor a mid-run reload could reproduce it. Keyed on the seed and the
+       * year, it is the same roll in a live run, in a reloaded run, and in a replay, and it moves no
+       * other stream by a single draw.
        */
-      const heirStream = deriveStream(this.streamFor(SIM_STREAM), `${SIM_STREAM}:heir:y${String(endedYear)}`);
+      const heirStream = subsystemRng(this.save.seed, `${SIM_STREAM}:heir:y${String(endedYear)}`);
       drive = driveYearTurn(atEndedYear, {
         content: this.content,
         simRng: this.streamFor(SIM_STREAM),
         lifecycleRng: () => heirStream.nextFloat(),
         endedYear,
+        reason,
         carryTick,
         // The same context the three clock-boundary steps above use, so the year's four season steps
         // are all taken against one context rather than three against this one and a fourth against
@@ -811,6 +920,8 @@ export class OverworldScene extends Phaser.Scene {
       this.refreshHud();
       this.hooks.onSaveChanged?.(this.save, this);
       this.flashBanner(`year ${endedYear} ended (${reason}) → Y${String(this.save.year)}`);
+      // build-doc §1 — the turn out of the final year is the last one. Nothing more is spent.
+      if (this.runIsOver()) this.completeRun();
     };
 
     /*
@@ -944,8 +1055,30 @@ export class OverworldScene extends Phaser.Scene {
     const tint = this.mapView.tint;
     lines.push(`tint ${seasonTintLabel(tint)}${tint.provisional ? " · PROVISIONAL hues" : ""}`);
     lines.push(this.lastNote);
+    /*
+     * L8's three prices, and what the next one would DO — both read from core/clock.ts through
+     * game/ui/SeasonMeter.ts (`actionCosts` runs `ticksForAction`; `previewAction` runs the REAL
+     * transition on a copy). The HUD counts nothing itself, so a retune of `balance.clock` moves the
+     * prices on screen and the world together (INV-3) — and the two functions that answer "what will
+     * this cost and what will it cross", which nothing in the running game asked, are now on screen.
+     */
+    if (this.runIsOver()) {
+      lines.push(`${String(this.balance.clock.yearsTotal)} years complete · no ticks remain`);
+    } else {
+      const costs = actionCosts(this.balance);
+      const next = previewAction(this.clock(), "foray", this.balance);
+      const crossing = next.endsYear
+        ? "ends the year"
+        : next.seasonsCrossed.length > 0
+          ? `ends ${next.seasonsCrossed.join(", ")}`
+          : `${String(next.after.ticksLeftInSeason)} to the next season`;
+      lines.push(
+        `ticks travel ${String(costs.travel)} · foray ${String(costs.foray)} · inn ${String(costs.inn)}` +
+          ` · next foray ${crossing}`,
+      );
+    }
     this.node.adjacency.forEach((id, i) => lines.push(`[${i + 1}] travel → ${id}`));
-    lines.push("[C] collision overlay");
+    lines.push("[C] collision overlay · [R] inn");
     this.hud.setText(lines);
   }
 
@@ -959,6 +1092,31 @@ export class OverworldScene extends Phaser.Scene {
   /** Tile lattice size, for anything that wants to place something on the grid. */
   tiles(): { cols: number; rows: number } {
     return tileGridSize(this.balance);
+  }
+
+  /*
+   * The three counters the HUD prints, exposed so a test can assert BEHAVIOUR rather than scrape the
+   * rendered string. They are reads, not seams: nothing may set them from outside.
+   */
+
+  /** Wild creatures met since this scene instance was created. */
+  encountersMetCount(): number {
+    return this.encountersMet;
+  }
+
+  /** The last wild creature met, or null if none has been. */
+  lastEncounterMet(): Encounter | null {
+    return this.lastEncounter;
+  }
+
+  /** Completed tile steps since the last foray tick was charged (build-doc §4 / DEVIATIONS D18). */
+  forayStepsSinceTick(): number {
+    return this.stepsSinceTick;
+  }
+
+  /** True while a wild battle or the year-turn sequence has the screen. */
+  isHandedOver(): boolean {
+    return this.battleRunning || this.yearTurnRunning;
   }
 }
 
