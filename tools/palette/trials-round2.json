@@ -1,0 +1,27 @@
+{
+  "_source": "AUTHORED CONTENT. Round-2 correctives. Subjects vary the manifest row only in the anatomy clause and the view clause; the species names and concepts are docs/content-bible.md §4 verbatim (G2). Here rather than in the .ts for the same reason as round 1 — G3 / no_shadow_tables.",
+  "_skeleton": "pixel art creature battle sprite, retro 90s handheld RPG style, {subject}, {view}, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+  "rows": [
+    {
+      "id": "pt-fenmaw-b",
+      "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped snout, a narrow needle-like jaw far longer than the head is wide, adult Water creature, bulk gharial, extremely long thin tube-shaped gharial snout, narrow needle-like jaws",
+      "view": "facing the viewer, battle stance",
+      "hypothesis": "H1 — describe the snout by its geometry, not by the word \"gharial\"",
+      "region": "deep water (retry)"
+    },
+    {
+      "id": "pt-fenmaw-c",
+      "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped snout, a narrow needle-like jaw far longer than the head is wide, adult Water creature, bulk gharial, extremely long thin tube-shaped gharial snout, narrow needle-like jaws",
+      "view": "three-quarter view turned to the side so the long snout is seen along its length, battle stance",
+      "hypothesis": "H2 — the head-on class view foreshortens the one feature that identifies the species",
+      "region": "deep water (retry)"
+    },
+    {
+      "id": "pt-webvern",
+      "subject": "Webvern, canopy weaver spider-wyrm, adult Poison creature, canopy weaver spider-wyrm",
+      "view": "facing the viewer, battle stance",
+      "hypothesis": "does a pure-Poison creature render magenta at all, or is the magenta probe contentless",
+      "region": "magenta / violet"
+    }
+  ]
+}

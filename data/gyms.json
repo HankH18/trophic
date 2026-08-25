@@ -1,7 +1,8 @@
 {
-  "_source": "docs/content-bible.md §7 (fixed rosters). Transcribed verbatim, never invented (G2). Roster sizes including the signature are 4 / 4 / 5 / 6 / 6 / 6 — asserted in tests/unit/transcription.test.ts.",
+  "_source": "docs/content-bible.md §7 (fixed rosters). Transcribed verbatim, never invented (G2). Roster sizes including the signature are 3 / 4 / 5 / 6 / 6 / 6 — asserted in tests/unit/transcription.test.ts and by core/schemas.ts GYM_ROSTER_SIZES.",
+  "_amendment": "DEVIATIONS A5-D1 (authorised by Hank, 2026-08-25): Maribel's roster is THREE, not the bible's four. The duplicate Nibbin (A) slot was cut; she keeps Bramblehog (A), Skir (A) and the signature \"Old Nib\" Nibbin (E). Chosen by measurement, not taste — of the three possible cuts the harness put Nibbin (A) first on every axis (see the deviation row). This amends bible §7 and build-doc Hard Req 9.",
   "_schema": "build-doc §7.7 ghost-compatible: every leader ships source:\"fixed\". \"ghost\" is schema-only (Hard Req 9); building any ghost feature is guardrail G8.",
-  "_levels": "bible §7 gives no levels. Ramp assigned by rule: roster level = 8 + 6×(gym−1) → 8/14/20/26/32/38; the signature is +2 → 10/16/22/28/34/40, so the last signature sits exactly on the level cap 40 (build-doc §7.4).",
+  "_levels": "bible §7 gives no levels. Ramp assigned by rule: roster level = 8 + 6×(gym−1) → 8/14/20/26/32/38; the signature is +2 → 16/22/28/34/40, so the last signature sits exactly on the level cap 40 (build-doc §7.4). EXCEPTION, gym 1 (DEVIATIONS A5-D2): Maribel's signature is +0, level 8. A flat +2 is a level premium that shrinks as a FRACTION of the player's level — 25% of a level-8 team, 5% of a level-38 one — so it lands hardest at the one gym the harness measured as the hardest in the game. Old Nib is still unambiguously the ace: Elder (×1.15) with Thick Pelt (+10% def) against level-parity Adults.",
   "_lineIds": "Juvenile line-forms are keyed by LINE id, not form name (build-doc §7.1): Bogling = mirefin-line age J, Gloomgrub = gloomoth-line age J.",
   "gyms": [
     {
@@ -12,14 +13,13 @@
       "type": "Beast",
       "source": "fixed",
       "slots": [
-        { "lineId": "nibbin-line", "age": "A", "level": 8 },
         { "lineId": "bramblehog-line", "age": "A", "level": 8 },
         { "lineId": "skir-line", "age": "A", "level": 8 }
       ],
       "signature": {
         "lineId": "nibbin-line",
         "age": "E",
-        "level": 10,
+        "level": 8,
         "nickname": "Old Nib",
         "traits": [{ "id": "thick-pelt", "name": "Thick Pelt", "stat": "def", "direction": "up", "rarity": "common" }]
       }

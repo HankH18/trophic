@@ -1,9 +1,9 @@
 {
-  "_source": "docs/content-bible.md §7 gym 1 (Maribel, Beast) — enemy party transcribed from data/gyms.json at authoring time. build-doc §11: 'fixtures/battle-scripts/*.json (action logs incl. gym fights)'.",
+  "_source": "docs/content-bible.md §7 gym 1 (Maribel, Beast) — enemy party transcribed from data/gyms.json, AS AMENDED by DEVIATIONS A5-D1/A5-D2 (Maribel reduced to three; her signature levels at +0). tests/unit/battle.test.ts re-reads gyms.json and fails if this party ever drifts from it, so the recording below cannot go stale in silence. build-doc §11: \"fixtures/battle-scripts/*.json (action logs incl. gym fights)\".",
   "_replay": "Headless: startBattle(input, ctx) then step(state, actions[i], rng, ctx) in order. `rngScript` is the deterministic float source the recording used, cycled; when core/rng.ts lands, drive the same script from the seeded battle stream (`seed` below) and re-record.",
   "_foodWeb": "Derived, not authored: deriveFoodWeb(toEcoNode(data/nodes/<id>.json), indexSpecies(species), balance) from core/foodweb.ts (G3 — battle.ts never derives an edge itself). It is recorded here so the fixture replays byte-identically; tests/unit/battle.test.ts re-derives it and fails if the EDGES ever drift. The comparison is by set, not by array order: predationOracleFromWebs folds both lists into Sets, so the order core/foodweb.ts emits them in changes no answer and is not part of the contract.",
   "id": "gym-01-maribel",
-  "description": "Year-1 gym: a six-strong Meadow party (Skir, Nibbin, Bramblehog, Pollywisp, Loamunder and a juvenile Cindril) against Maribel's Nibbin/Bramblehog/Skir and the Elder signature 'Old Nib'.",
+  "description": "Year-1 gym: a six-strong Meadow party (Skir, Nibbin, Bramblehog, Pollywisp, Loamunder and a juvenile Cindril) against Maribel's Bramblehog/Skir and the Elder signature \"Old Nib\".",
   "seed": 20250824,
   "rngScript": [
     0.4173,
@@ -109,30 +109,23 @@
     "enemyParty": [
       {
         "uid": "maribel-1",
-        "lineId": "nibbin-line",
-        "age": "A",
-        "level": 8,
-        "traits": []
-      },
-      {
-        "uid": "maribel-2",
         "lineId": "bramblehog-line",
         "age": "A",
         "level": 8,
         "traits": []
       },
       {
-        "uid": "maribel-3",
+        "uid": "maribel-2",
         "lineId": "skir-line",
         "age": "A",
         "level": 8,
         "traits": []
       },
       {
-        "uid": "maribel-4",
+        "uid": "maribel-3",
         "lineId": "nibbin-line",
         "age": "E",
-        "level": 10,
+        "level": 8,
         "traits": [
           {
             "id": "thick-pelt",
@@ -155,14 +148,6 @@
     {
       "kind": "switch",
       "uid": "p-nib"
-    },
-    {
-      "kind": "move",
-      "moveId": "maul"
-    },
-    {
-      "kind": "move",
-      "moveId": "maul"
     },
     {
       "kind": "move",
@@ -223,11 +208,11 @@
   ],
   "expect": {
     "outcome": "win",
-    "turns": 13,
-    "events": 74,
-    "eventDigest": "9a8e0c8e",
+    "turns": 12,
+    "events": 65,
+    "eventDigest": "51887e64",
     "finalHp": {
-      "p-skir": 0,
+      "p-skir": 13,
       "p-nib": 0,
       "p-brambl": 0,
       "p-polly": 0,
@@ -235,8 +220,8 @@
       "p-ember": 59,
       "maribel-1": 0,
       "maribel-2": 0,
-      "maribel-3": 0,
-      "maribel-4": 0
+      "maribel-3": 0
     }
-  }
+  },
+  "_recording": "RE-RECORDED 2026-08-25 against the amended roster. The action log is the SAME party walk-through as before, minus the two Maul commands that the shorter fight left with nothing to hit (they would have been refused with `actionRejected`, and a fixture that records a refusal is not a recording of play). Every expectation below — turns, event count, digest, final HP — was produced by replaying this file through core/battle.ts, not edited by hand."
 }

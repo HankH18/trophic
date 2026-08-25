@@ -1,41 +1,188 @@
 {
-  "_comment": "*** NOT YET FROZEN — PLACEHOLDER VALUES ***  build-doc §8.4: the real palette is k-means over the APPROVED TRIAL ART and is frozen at gate B0 (§15). Until then post-process must not treat these hexes as final. The freeze is a VALUE SWAP, not a schema change: set frozen:true, stamp frozenAt, set source to the manifest rows the k-means ran over, and replace the 32 hex values in place. Ids c00–c31 are stable across the freeze so every asset reference survives it.",
-  "frozen": false,
-  "frozenAt": null,
-  "source": "placeholder — hand-picked 32-color retro handheld ramp, standing in until gate B0",
+  "_comment": "FROZEN at gate B0 (build-doc §8.4, §15). 32 colours, weighted k-means over the approved trial set. Ids c00-c31 are positional and stable; the freeze was a VALUE SWAP, not a schema change. Regenerate/verify with `npx tsx tools/palette/fit.mjs` (deterministic, k-means++ seeded at 42). Method and per-image error live in _method / _validation below and in assets/approved-trials/_palette-freeze/_fit-report.json.",
+  "_method": {
+    "algorithm": "weighted k-means, k=32, k-means++ init seeded at 42 via core/rng.ts (no Math.random, G11)",
+    "fitSpace": "sRGB",
+    "weighting": "equal",
+    "weightingRationale": "Each source image contributes equal total weight (1/N) regardless of pixel count, because the town map holds ~353k distinct colours against ~49-60k for the sprites (B-D5) and naive pixel-pooling lets it buy the palette and starve the sprite classes of hue.",
+    "backgroundExcluded": "The plain white backdrop (§9.2 prompt skeleton) is flood-filled from the border and excluded from the cluster input, along with a 2px dilation that drops the anti-aliased rim. It is not a content colour and a slot spent on it is stolen from the artwork.",
+    "quantizerMetric": "Scoring assigns each source colour the way tools/postprocess/steps.ts::quantize does — nearest palette entry by squared euclidean distance in sRGB — so the reported error is the error the pipeline will actually produce, not the error of an idealised quantizer.",
+    "errorMetric": "CIEDE2000",
+    "selectionRule": "Six candidates (2 fit spaces x 3 weightings). Rule stated before the numbers were seen: minimise the MAXIMUM per-image mean ΔE2000 — \"serves every asset class\" is a claim about the worst class, not the mean. Ties within 0.05 break on the overall mean. OVERRIDDEN: the rule selected srgb/pooled; srgb/equal was frozen instead. Reason: The rule's instrument (per-image MEAN dE) cannot see a 1.29%-of-pixels feature. tools/palette/validate.mjs measures the L6 identity bands directly, and the rule's winner srgb/pooled degrades them badly: the player's star badge scores mean dE 8.33 with its core yellow #f5d300 mapping to ORANGE #eb991c at dE 19.9; skin 7.39; dark outline 6.31. srgb/equal scores star badge 2.93 (single swatch #f9db10, a true yellow), skin 4.02, outline 3.78, leather 3.02 - better on 4 of the 5 player identity bands, and only 0.36 worse on shirt green (2.49 vs 2.13, both invisible). Cost elsewhere is 0.12 on the worst-image mean (map 4.64 vs 4.52) and one fewer light neutral, which shifts the trainer's pale apron warm (worst-significant colour #e2e2e3 at dE 10.9). Gate B0 is about the CHARACTER surviving quantization, so the band measurement decides.",
+    "excluded": [
+      "assets/approved-trials/superseded/** (entirely)",
+      "assets/approved-trials/player-style-reference.png (style reference carrying an L6-forbidden cape; not an approved asset)"
+    ]
+  },
+  "_validation": {
+    "player": {
+      "meanDeltaE2000": 3.304,
+      "p95": 7.732,
+      "p99": 10.572,
+      "max": 32.314,
+      "maxOverColoursHolding0p1pct": 5.257
+    },
+    "fox": {
+      "meanDeltaE2000": 2.27,
+      "p95": 6.572,
+      "p99": 11.097,
+      "max": 31.575,
+      "maxOverColoursHolding0p1pct": 5.031
+    },
+    "croc": {
+      "meanDeltaE2000": 4.46,
+      "p95": 11.225,
+      "p99": 15.029,
+      "max": 31.698,
+      "maxOverColoursHolding0p1pct": 1.302
+    },
+    "trainer": {
+      "meanDeltaE2000": 4.158,
+      "p95": 11.131,
+      "p99": 17.751,
+      "max": 33.939,
+      "maxOverColoursHolding0p1pct": 10.904
+    },
+    "map": {
+      "meanDeltaE2000": 4.641,
+      "p95": 13.999,
+      "p99": 24.274,
+      "max": 41.445,
+      "maxOverColoursHolding0p1pct": 0.528
+    }
+  },
+  "frozen": true,
+  "frozenAt": "2026-08-25",
+  "source": "k-means over the 5 approved trials (player, fox, croc, trainer, map), sRGB / equal weighting, seed 42 — gate B0",
   "colorCount": 32,
   "colors": [
-    { "id": "c00", "hex": "#0b0a10" },
-    { "id": "c01", "hex": "#1c1a26" },
-    { "id": "c02", "hex": "#2f2b3d" },
-    { "id": "c03", "hex": "#4a4459" },
-    { "id": "c04", "hex": "#6b6478" },
-    { "id": "c05", "hex": "#948da0" },
-    { "id": "c06", "hex": "#c4bfcb" },
-    { "id": "c07", "hex": "#f2eee9" },
-    { "id": "c08", "hex": "#3a1f18" },
-    { "id": "c09", "hex": "#6b3521" },
-    { "id": "c10", "hex": "#9c5a2c" },
-    { "id": "c11", "hex": "#c98f4a" },
-    { "id": "c12", "hex": "#e8c07a" },
-    { "id": "c13", "hex": "#7a2118" },
-    { "id": "c14", "hex": "#c23a1e" },
-    { "id": "c15", "hex": "#f07135" },
-    { "id": "c16", "hex": "#f6b03c" },
-    { "id": "c17", "hex": "#16301c" },
-    { "id": "c18", "hex": "#2a5a2c" },
-    { "id": "c19", "hex": "#4d8b3a" },
-    { "id": "c20", "hex": "#83b850" },
-    { "id": "c21", "hex": "#c2dc7a" },
-    { "id": "c22", "hex": "#0f2a3c" },
-    { "id": "c23", "hex": "#1c4f6b" },
-    { "id": "c24", "hex": "#2f7f9c" },
-    { "id": "c25", "hex": "#5cb3c4" },
-    { "id": "c26", "hex": "#a3dfe2" },
-    { "id": "c27", "hex": "#2a1c46" },
-    { "id": "c28", "hex": "#4b2f74" },
-    { "id": "c29", "hex": "#7a4fa3" },
-    { "id": "c30", "hex": "#b07ecb" },
-    { "id": "c31", "hex": "#e6b3e0" }
+    {
+      "id": "c00",
+      "hex": "#030202"
+    },
+    {
+      "id": "c01",
+      "hex": "#a4a3ad"
+    },
+    {
+      "id": "c02",
+      "hex": "#fdfdfb"
+    },
+    {
+      "id": "c03",
+      "hex": "#2a1212"
+    },
+    {
+      "id": "c04",
+      "hex": "#53210c"
+    },
+    {
+      "id": "c05",
+      "hex": "#6e3620"
+    },
+    {
+      "id": "c06",
+      "hex": "#a20d07"
+    },
+    {
+      "id": "c07",
+      "hex": "#765b4e"
+    },
+    {
+      "id": "c08",
+      "hex": "#8f5230"
+    },
+    {
+      "id": "c09",
+      "hex": "#e1541b"
+    },
+    {
+      "id": "c10",
+      "hex": "#ec9a70"
+    },
+    {
+      "id": "c11",
+      "hex": "#b07037"
+    },
+    {
+      "id": "c12",
+      "hex": "#ab8d62"
+    },
+    {
+      "id": "c13",
+      "hex": "#f39311"
+    },
+    {
+      "id": "c14",
+      "hex": "#f49f4d"
+    },
+    {
+      "id": "c15",
+      "hex": "#f0c05f"
+    },
+    {
+      "id": "c16",
+      "hex": "#eec092"
+    },
+    {
+      "id": "c17",
+      "hex": "#f9daae"
+    },
+    {
+      "id": "c18",
+      "hex": "#f7ebd3"
+    },
+    {
+      "id": "c19",
+      "hex": "#90b633"
+    },
+    {
+      "id": "c20",
+      "hex": "#a9c93f"
+    },
+    {
+      "id": "c21",
+      "hex": "#f9db10"
+    },
+    {
+      "id": "c22",
+      "hex": "#faec67"
+    },
+    {
+      "id": "c23",
+      "hex": "#033309"
+    },
+    {
+      "id": "c24",
+      "hex": "#2a7a34"
+    },
+    {
+      "id": "c25",
+      "hex": "#688b2d"
+    },
+    {
+      "id": "c26",
+      "hex": "#4bac53"
+    },
+    {
+      "id": "c27",
+      "hex": "#68c361"
+    },
+    {
+      "id": "c28",
+      "hex": "#083f22"
+    },
+    {
+      "id": "c29",
+      "hex": "#1e4d35"
+    },
+    {
+      "id": "c30",
+      "hex": "#2e6040"
+    },
+    {
+      "id": "c31",
+      "hex": "#2865cc"
+    }
   ]
 }

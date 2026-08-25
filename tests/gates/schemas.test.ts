@@ -14,6 +14,7 @@ import {
   validateBundle,
   validateContent,
   zSaveFile,
+  zSaveFileFor,
   type RawContentBundle,
 } from "../../core/schemas";
 
@@ -141,6 +142,25 @@ describe("corrupted moves.json is rejected", () => {
     rejects((b) => (b.moves.typeChart.Fire.strongVs = ["Poison", "Dark"]), /typeChart: Plant is weak vs Fire/));
   it("a type chart missing a type", () => rejects((b) => delete b.moves.typeChart.Dark, /moves\.json/));
   it("duplicate move ids", () => rejects((b) => (b.moves.moves[1].id = b.moves.moves[0].id), /duplicate move ids/));
+
+  // The dual check is `includes()`-based, and `includes()` is blind to multiplicity and to
+  // reflexivity. Both of these were ACCEPTED: the chart stayed its own dual while carrying a
+  // matchup that resolves a type against itself, or a strength counted twice.
+  it("a type listed twice in the same strongVs", () =>
+    rejects((b) => b.moves.typeChart.Fire.strongVs.push("Plant"), /Fire\.strongVs lists the same type more than once/));
+  it("a type listed twice in the same weakVs", () =>
+    rejects((b) => b.moves.typeChart.Fire.weakVs.push("Water"), /Fire\.weakVs lists the same type more than once/));
+  it("a type strong against itself", () =>
+    rejects((b) => {
+      b.moves.typeChart.Fire.strongVs.push("Fire");
+      b.moves.typeChart.Fire.weakVs.push("Fire"); // keep the dual satisfied, so ONLY reflexivity is under test
+    }, /Fire is listed in its own strongVs/));
+  it("a type both strong and weak against the same defender", () =>
+    rejects((b) => {
+      // Fire already beats Plant; make Plant beat Fire too, keeping both duals intact.
+      b.moves.typeChart.Plant.strongVs.push("Fire");
+      b.moves.typeChart.Fire.weakVs.push("Plant");
+    }, /Fire is both strong and weak vs Plant/));
 });
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -164,6 +184,32 @@ describe("corrupted gyms.json is rejected", () => {
     ));
   it("a roster trait that disagrees with the pool entry of the same id", () =>
     rejects((b) => (b.gyms.gyms[0].signature.traits[0].stat = "atk"), /trait "thick-pelt" disagrees with balance\.traits\.pool/));
+
+  /*
+   * Hard Req 9 — "Gym rosters fixed per bible §7", counting the signature, at sizes 3/4/5/6/6/6
+   * (gym 1 amended from 4 by DEVIATIONS A5-D1; the other five are the bible's).
+   * tests/unit/transcription.test.ts caught every one of these against the SHIPPED tree, so the
+   * repo was safe; validateBundle did not, and validateBundle is what runs at boot against whatever
+   * content the build is actually carrying. A save loaded onto a five-slot gym 1 is the failure the
+   * transcription test cannot be present for.
+   */
+  it("gym 1 shrunk below its Hard Req 9 roster size", () =>
+    rejects((b) => b.gyms.gyms[0].slots.pop(), /gym maribel: roster of 2 .* Hard Req 9 fixes gym 1 at 3/));
+  it("gym 1 grown past its Hard Req 9 roster size", () =>
+    rejects(
+      (b) => b.gyms.gyms[0].slots.push(structuredClone(b.gyms.gyms[0].slots[0])),
+      /gym maribel: roster of 4 .* Hard Req 9 fixes gym 1 at 3/,
+    ));
+  it("gym 6 shrunk below its Hard Req 9 roster size", () =>
+    rejects((b) => b.gyms.gyms[5].slots.pop(), /gym greaves: roster of 5 .* Hard Req 9 fixes gym 6 at 6/));
+  it("a seventh gym leader", () =>
+    rejects((b) => {
+      const extra = structuredClone(b.gyms.gyms[5]);
+      extra.id = "wick";
+      b.gyms.gyms.push(extra);
+    }, /expected 6 leaders \(Hard Req 9\), found 7/));
+  it("a fifth gym leader removed", () =>
+    rejects((b) => b.gyms.gyms.pop(), /expected 6 leaders \(Hard Req 9\), found 5/));
 });
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -210,6 +256,39 @@ describe("corrupted balance.json is rejected", () => {
     rejects((b) => delete b.balance.harness.overcatch, /balance\.json/));
   it("an over-catch snare tier that is not a snare tier", () =>
     rejects((b) => (b.balance.harness.overcatch.snareTier = "titanium"), /balance\.json/));
+
+  /*
+   * build-doc §7.6's derived identities. Before these existed the eleven `balance.map` keys were
+   * eleven FREE integers: every one of them survived arbitrary mutation with the whole suite green,
+   * and the two halves of "1024 native, 16px grid, 64×64 cells" could drift apart in silence. The
+   * cases below are the ones that matter — each leaves a collision grid that does not cover the
+   * painting it is sampled from, or a movement step that is not one cell.
+   */
+  it("a map native size that no longer divides into the declared cell count", () =>
+    rejects((b) => (b.balance.map.mapNativePx = 512), /collisionCols is 64, but a 16px grid over a 512px map has 32 cells/));
+  it("a collision column count that does not match the grid", () =>
+    rejects((b) => (b.balance.map.collisionCols = 32), /collisionCols is 32, but a 16px grid over a 1024px map has 64 cells/));
+  it("a collision row count that does not match the grid", () =>
+    rejects((b) => (b.balance.map.collisionRows = 32), /collisionRows is 32, but a 16px grid over a 1024px map has 64 cells/));
+  it("a cell size that no longer divides the map", () =>
+    rejects((b) => (b.balance.map.collisionCellPx = 8), /collisionCols is 64, but a 8px grid over a 1024px map has 128 cells/));
+  it("a tile step that is not one collision cell at render scale", () =>
+    rejects((b) => (b.balance.map.tileStepPx = 16), /tileStepPx is 16, but one 16px collision cell rendered at 2× is 32 world px/));
+  it("a render scale that puts the movement grid out of step with the mask", () =>
+    rejects((b) => (b.balance.map.mapRenderScale = 3), /tileStepPx is 32, but one 16px collision cell rendered at 3× is 48 world px/));
+
+  /*
+   * build-doc §7.5 step 5 — the raids are DATA, and every id in them is a reference into another
+   * file. A dangling one is a year turn that decrements nothing, silently.
+   */
+  it("a raid aimed at a node that does not exist", () =>
+    rejects((b) => (b.balance.yearEvents.raids[0].nodeId = "moonbase"), /targets node "moonbase", which is not a node/));
+  it("a raid aimed at a species line that does not exist", () =>
+    rejects((b) => (b.balance.yearEvents.raids[0].targets[0].lineId = "dragon-line"), /targets "dragon-line", which is not a species line/));
+  it("a raid scheduled past the end of the run", () =>
+    rejects((b) => (b.balance.yearEvents.raids[0].year = 9), /fires in year 9, past the 6-year run/));
+  it("two raids under the same id", () =>
+    rejects((b) => b.balance.yearEvents.raids.push(structuredClone(b.balance.yearEvents.raids[0])), /duplicate yearEvents\.raids id/));
 });
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -218,6 +297,87 @@ describe("corrupted palette.json is rejected", () => {
     rejects((b) => (b.palette.colorCount = 99), /colorCount 99 does not match/));
   it("a hex that is not a hex", () => rejects((b) => (b.palette.colors[0].hex = "cornflower"), /palette\.json/));
   it("frozen as a string", () => rejects((b) => (b.palette.frozen = "yes"), /palette\.json/));
+
+  /*
+   * The CONTRACT, not the colours. Gate B0 is "a value swap, not a restructure"
+   * (docs/LANE-A-STATUS.md §4), so the hexes are legitimately in flux and are pinned NOWHERE. What
+   * Lane B indexes against is the count and the positional ids — and that had no gate at all: a
+   * `c00` → `z00` rename, a swatch removed, and a `frozen: false → true` claim about a gate that
+   * had not run all survived the full suite.
+   */
+  it("a swatch id renamed away from its positional contract", () =>
+    rejects((b) => (b.palette.colors[0].id = "z00"), /swatch 0 is "z00", expected "c00"/));
+  it("swatches reordered, so an id no longer names its own position", () =>
+    rejects((b) => {
+      const [a, c] = [b.palette.colors[3], b.palette.colors[4]];
+      b.palette.colors[3] = c;
+      b.palette.colors[4] = a;
+    }, /swatch 3 is "c04", expected "c03"/));
+  it("a palette that is no longer 32 swatches", () =>
+    rejects((b) => {
+      b.palette.colors.pop();
+      b.palette.colorCount = b.palette.colors.length; // keep the count honest: ONLY the size is under test
+    }, /expected the 32-swatch palette \(build-doc §8\.4\), found 31/));
+  it("a freeze claimed with no gate-B0 date behind it", () =>
+    rejects((b) => (b.palette.frozenAt = null), /frozen=true but frozenAt=null/));
+  it("a gate-B0 date with the freeze claim withdrawn", () =>
+    rejects((b) => (b.palette.frozen = false), /frozen=false but frozenAt="/));
+  it("a frozenAt that is not a date", () =>
+    rejects((b) => (b.palette.frozenAt = "soon"), /palette\.json/));
+
+  it("but the COLOURS are free — gate B0 is a value swap, and the hexes are pinned nowhere", () => {
+    const bundle = clone();
+    for (const c of (bundle.palette as any).colors) c.hex = "#123456";
+    expect(() => validateBundle(bundle)).not.toThrow();
+  });
+});
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * G3 across EVERY content file, not just data/nodes/.
+ *
+ * Hard Req 3 ("No second table may exist") and build-doc §8.3 ("no encounter-weight literal tables
+ * anywhere") are unscoped, but the raw-key sweep used to run only inside `raw.nodes`. species.json,
+ * moves.json, gyms.json and palette.json parse with `z.object`, which STRIPS undeclared keys in
+ * silence — so every one of the tables below was ACCEPTED, with nothing to see in the error output
+ * and nothing for the typechecker to complain about.
+ * ────────────────────────────────────────────────────────────────────────── */
+describe("a second table in any content file is rejected (G3 / Hard Req 3)", () => {
+  it("a spawn table on species.json", () =>
+    rejects((b) => (b.species.spawnTables = { "nibbin-line": 40 }), /species\.json: key "spawnTables" — encounter weights are DERIVED/));
+  it("encounter weights on moves.json", () =>
+    rejects((b) => (b.moves.encounterWeights = { singe: 3 }), /moves\.json: key "encounterWeights" — encounter weights are DERIVED/));
+  it("a bait table on gyms.json", () =>
+    rejects((b) => (b.gyms.baitTable = { worm: "mirefin-line" }), /gyms\.json: key "baitTable" — encounter weights are DERIVED/));
+  it("a bait lookup on palette.json", () =>
+    rejects((b) => (b.palette.baitLookup = { worm: "c00" }), /palette\.json: key "baitLookup" — encounter weights are DERIVED/));
+
+  // The half the /spawn|encounter|bait/ regex cannot see: a table under an innocent name. Only the
+  // allow-list catches these, and only because it runs on the RAW object.
+  it("a diet-edge table on species.json — the one derivation §8.3 gives core/foodweb.ts alone", () =>
+    rejects((b) => (b.species.dietEdges = { "fenmaw-line": ["mirefin-line"] }), /species\.json: unknown key "dietEdges"/));
+  it("a second type chart on moves.json", () =>
+    rejects((b) => (b.moves.typeChartMultipliers = { Fire: 1.5 }), /moves\.json: unknown key "typeChartMultipliers"/));
+  it("a roll table on gyms.json", () =>
+    rejects((b) => (b.gyms.rollTable = [["maribel", 3]]), /gyms\.json: unknown key "rollTable"/));
+  it("a shadow group on balance.json", () =>
+    rejects((b) => (b.balance.speciesWeights = { "nibbin-line": 40 }), /balance\.json: unknown key "speciesWeights"/));
+
+  it("but balance.json's own `encounter` and `catch` groups are not second tables", () => {
+    // The allow-list is consulted BEFORE the regex for exactly this reason: two legitimate
+    // balance.json group names match /spawn|encounter|bait/ and must not be flagged.
+    expect(() => validateContent()).not.toThrow();
+    expect(Object.keys(validateContent().balance)).toEqual(expect.arrayContaining(["encounter", "catch"]));
+  });
+
+  it("and every content file keeps its `_`-prefixed documentation", () => {
+    const bundle = clone();
+    (bundle.species as any)._note = "documentation is allowed";
+    (bundle.moves as any)._note = "documentation is allowed";
+    (bundle.gyms as any)._note = "documentation is allowed";
+    (bundle.palette as any)._note = "documentation is allowed";
+    (bundle.balance as any)._note = "documentation is allowed";
+    expect(() => validateBundle(bundle)).not.toThrow();
+  });
 });
 
 /* ────────────────────────────────────────────────────────────────────────── */
@@ -301,5 +461,66 @@ describe("save schema (build-doc §7.8)", () => {
     const broken = structuredClone(save) as any;
     delete broken.party[0].yearsRemaining;
     expect(() => zSaveFile.parse(broken)).toThrow();
+  });
+
+  /*
+   * A hand-edited or corrupted slot reaches core/save.ts `replay()` through this schema and nothing
+   * else, so the party bound has to be here. A seven-member party used to parse cleanly and only
+   * fail later, deep inside the reducer, as a battler with no slot to stand in. The bound is
+   * balance.party.maxPartySize — read, never restated (G11 / INV-3).
+   */
+  const balance = validateContent().balance;
+  const member = (uid: string) => ({ ...structuredClone(save.party[0]), uid });
+
+  it("refuses a party larger than balance.party.maxPartySize", () => {
+    const overfull = {
+      ...save,
+      party: Array.from({ length: balance.party.maxPartySize + 1 }, (_, i) => member(`c${i}`)),
+    };
+    expect(() => zSaveFile.parse(overfull)).toThrow();
+    // …and the legal maximum still loads, or the bound would be off by one.
+    expect(() =>
+      zSaveFile.parse({ ...save, party: Array.from({ length: balance.party.maxPartySize }, (_, i) => member(`c${i}`)) }),
+    ).not.toThrow();
+  });
+
+  it("refuses a box larger than balance.party.maxBoxSize", () => {
+    const overfull = {
+      ...save,
+      box: Array.from({ length: balance.party.maxBoxSize + 1 }, (_, i) => member(`b${i}`)),
+    };
+    expect(() => zSaveFile.parse(overfull)).toThrow();
+    expect(() =>
+      zSaveFile.parse({ ...save, box: Array.from({ length: balance.party.maxBoxSize }, (_, i) => member(`b${i}`)) }),
+    ).not.toThrow();
+  });
+
+  it("takes the bound from the balance it is handed, not from a copy of the number", () => {
+    // zSaveFileFor is what a lane holding an overridden balance calls (INV-3: a retune is a
+    // balance.json edit). Shrink the cap and the same save that passed above must now fail.
+    const tight = zSaveFileFor({ ...balance.party, maxPartySize: 1 });
+    expect(() => tight.parse(save)).not.toThrow(); // the fixture party is one member
+    expect(() => tight.parse({ ...save, party: [member("c0"), member("c1")] })).toThrow();
+  });
+
+  /*
+   * `actionLog[].action` stays permissive on purpose — pinning the GameAction union here would make
+   * every lane that adds an action edit core/schemas.ts (INV-1/INV-2 spirit). What is NOT optional
+   * is the discriminant every replayer switches on: an entry whose action is null, a number or `{}`
+   * cannot be replayed by anything, so accepting it only moves the failure to replay time.
+   */
+  it("accepts an action shape core/ has never seen, as long as it is dispatchable", () => {
+    expect(() =>
+      zSaveFile.parse({
+        ...save,
+        actionLog: [{ seq: 0, year: 1, tick: 0, action: { t: "someLaterLanesAction", payload: { a: 1 } } }],
+      }),
+    ).not.toThrow();
+  });
+
+  it("refuses a replay tape entry that no replayer could dispatch", () => {
+    for (const action of [null, 7, "travel", {}, { t: "" }, []]) {
+      expect(() => zSaveFile.parse({ ...save, actionLog: [{ seq: 0, year: 1, tick: 0, action }] }), JSON.stringify(action)).toThrow();
+    }
   });
 });

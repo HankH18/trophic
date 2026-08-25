@@ -31,7 +31,21 @@ export async function loadEnv(path = '.env'): Promise<ComfyEnv> {
   const host = env.COMFY_HOST ?? env.COMFY_BASE_URL;
   const key = env.COMFY_CLOUD_API_KEY ?? env.COMFY_API_KEY;
   if (!host || !key) throw new Error('.env missing COMFY_HOST / COMFY_CLOUD_API_KEY');
-  return { host, key, maxConcurrency: Number(env.COMFY_MAX_CONCURRENCY ?? 1) };
+  return { host, key, maxConcurrency: positiveInt(env.COMFY_MAX_CONCURRENCY, 'COMFY_MAX_CONCURRENCY', 1) };
+}
+
+/**
+ * Parse a positive integer, or REFUSE. `Number('abc')` is NaN and NaN survives `Math.max(1, …)`,
+ * which is how a malformed `COMFY_MAX_CONCURRENCY` produced an empty worker pool: the runner
+ * submitted nothing, reported success and exited 0 with every row still pending.
+ */
+export function positiveInt(raw: string | undefined, label: string, fallback: number): number {
+  if (raw === undefined || raw.trim() === '') return fallback;
+  const v = Number(raw);
+  if (!Number.isInteger(v) || v < 1) {
+    throw new ComfyError(`${label}=${raw} is not a whole number ≥ 1`);
+  }
+  return v;
 }
 
 export class ComfyError extends Error {}
@@ -70,8 +84,32 @@ export class ComfyClient {
 
       return await new Promise<NodeOutputs>((resolve, reject) => {
         const outputs: NodeOutputs = {};
-        const timer = setTimeout(() => reject(new ComfyError(`job ${promptId} exceeded ${timeoutMs}ms`)), timeoutMs);
-        const done = (fn: () => void) => { clearTimeout(timer); fn(); };
+        let settled = false;
+        const timer = setTimeout(
+          () => done(() => reject(new ComfyError(`job ${promptId} exceeded ${timeoutMs}ms`))),
+          timeoutMs,
+        );
+        const done = (fn: () => void) => { if (settled) return; settled = true; clearTimeout(timer); fn(); };
+
+        // A dropped socket is TERMINAL, not silence. Without these two listeners the promise sat on
+        // the 300s timeout and the runner then retried — up to 3 billed generations and ~15 minutes
+        // for one row, because the only listener registered here was `message`. The `error` handler
+        // installed while opening was `{ once: true }` and its rejection targeted the already
+        // resolved open-promise, so it could never surface.
+        ws.addEventListener('close', (ev: CloseEvent) => {
+          done(() =>
+            reject(
+              new ComfyError(
+                `WebSocket closed (code ${ev.code}${ev.reason ? `, ${ev.reason}` : ''}) before job ${promptId} ` +
+                  'reported completion. Comfy Cloud delivers outputs ONLY over this socket, so the job ' +
+                  'may have run and billed with its output unrecoverable.',
+              ),
+            ),
+          );
+        });
+        ws.addEventListener('error', () => {
+          done(() => reject(new ComfyError(`WebSocket error while waiting on job ${promptId}`)));
+        });
 
         ws.addEventListener('message', (ev: MessageEvent) => {
           if (typeof ev.data !== 'string') return;          // binary frames are previews

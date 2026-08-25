@@ -20,7 +20,16 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { validateContent } from "../../core/schemas";
-import { makeBattleContext, predationOracleFromWebs, startBattle, step, type BattleContext } from "../../core/battle";
+import {
+  catchChance,
+  catchInstinctMultiplier,
+  makeBattleContext,
+  makeBattler,
+  predationOracleFromWebs,
+  startBattle,
+  step,
+  type BattleContext,
+} from "../../core/battle";
 import type { BattleAction, BattleEvent, BattleInput, BattleState, Content, FoodWeb, Trait } from "../../core/types";
 
 const content: Content = validateContent();
@@ -369,6 +378,55 @@ describe("battle invariants over random play", () => {
         },
       ),
       FC(120),
+    );
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * build-doc §7.4 as AMENDED 2026-08-25 (DEVIATIONS D-A5-1): the bait term now scales with the
+   * CATCHING creature's Instinct. The unit cases live in tests/unit/catch.test.ts; these are the
+   * two laws that must hold for EVERY catcher the roster can produce, not just the tabled ones.
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  it("the Instinct term is continuous, strictly increasing and positive for every catcher", () => {
+    const statsArb = fc.record({
+      hp: fc.integer({ min: 1, max: 400 }),
+      atk: fc.integer({ min: 1, max: 400 }),
+      def: fc.integer({ min: 1, max: 400 }),
+      spd: fc.integer({ min: 1, max: 400 }),
+      ins: fc.integer({ min: 1, max: 400 }),
+    });
+    fc.assert(
+      fc.property(battlerArb("c"), statsArb, fc.integer({ min: 1, max: 200 }), (spec, stats, bump) => {
+        const base = makeBattler(spec, "player", CTX, { isWild: false, enteredOnTurn: 1 });
+        const at = (s: typeof stats): number => catchInstinctMultiplier({ ...base, stats: { ...s } }, B);
+        // Positive everywhere: the shipped slope cannot drive the factor to or below zero, so it
+        // can never flip the sign of a probability. (The §7.4 clamp is still the only clamp.)
+        expect(at(stats)).toBeGreaterThan(0);
+        // Strictly increasing in Instinct with the other four stats held: more Instinct is never
+        // worth less, which is the whole point of the amendment.
+        expect(at({ ...stats, ins: stats.ins + bump })).toBeGreaterThan(at(stats));
+        // …and scale-free: multiplying all five stats by the same factor — which is exactly what an
+        // age class, a level, a metamorphic jump and the Beast bonus each do — leaves it alone.
+        const scaled = { hp: stats.hp * 3, atk: stats.atk * 3, def: stats.def * 3, spd: stats.spd * 3, ins: stats.ins * 3 };
+        expect(at(scaled)).toBeCloseTo(at(stats), 10);
+      }),
+      FC(300),
+    );
+  });
+
+  it("keeps every catch inside the §7.4 clamp whichever creature throws the snare", () => {
+    fc.assert(
+      fc.property(battlerArb("c"), battlerArb("t"), fc.constantFrom("base" as const, "weighted" as const, "master" as const), fc.boolean(), (who, what, tier, lure) => {
+        const thrower = makeBattler(who, "player", CTX, { isWild: false, enteredOnTurn: 1 });
+        const prey = makeBattler(what, "enemy", CTX, { isWild: true, enteredOnTurn: 1 });
+        for (const bait of [undefined, "Grazer", "reedrick-line"]) {
+          const p = catchChance(prey, tier, bait, lure, CTX, "prop", thrower);
+          expect(p).toBeGreaterThanOrEqual(B.catch.clampMin);
+          expect(p).toBeLessThanOrEqual(B.catch.clampMax);
+          expect(Number.isNaN(p)).toBe(false);
+        }
+      }),
+      FC(300),
     );
   });
 

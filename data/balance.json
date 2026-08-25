@@ -87,11 +87,14 @@
     "_why": "evadeTurns 1 = the evasion covers the turn the user spent skipping and no longer. (The evade also resolves BEFORE the opponent's attack — core/battle.ts `movePriority` — because an evade applied after the hit it is meant to duck mitigates nothing, which made the move strictly dominated for every creature slower than its opponent.) Any larger duration makes a 0-power utility move strictly better than attacking, which would break the §10.5 round-robin band. statusWearOffTurns is consulted ONLY when status.persistUntilCured is false: with the shipped `true` a status never wears off on its own (build-doc §7.4 names no expiry), so the number is inert at ship — it exists so that flipping the advertised flag in the balance harness actually changes behaviour instead of doing nothing."
   },
   "catch": {
-    "_source": "build-doc §7.4 catch formula (build-doc addition, tunable): p = baseCatch(age) × snareTier × baitMult × (2 − hpFrac)/2 × lureMult, clamped.",
+    "_source": "build-doc §7.4 catch formula (build-doc addition, tunable), AMENDED 2026-08-25 (DEVIATIONS D-A5-1, authorised by Hank): p = baseCatch(age) × snareTier × (baitMult × instinctBait) × (2 − hpFrac)/2 × lureMult, clamped.",
+    "_instinctBait": "bible §2 gives Instinct three jobs — 'crit chance, bait success, sign-reading quality' — and until this amendment core/battle.ts read it for crit alone, which made Instinct the strongest and NEGATIVE predictor of round-robin win rate (r = -0.582, docs/BALANCE-REPORT.md §3.1). The bait term now scales with the CATCHING creature's Instinct: instinctBait = 1 + instinctBaitSlope × (insShare − instinctBaitPivot), where insShare = ins / (hp+atk+def+spd+ins) over that creature's EFFECTIVE stats. The SHARE, not the raw stat, is what a point of Instinct actually costs: every non-Ancient line spends exactly 300 base points (data/species.json _statRule), and because the age, level, metamorphic and Beast multipliers are common to all five stats they cancel out of the ratio — so the term reads ALLOCATION and cannot become a level-scaled global catch buff. In-battle stat mods are deliberately NOT read (raising your own Defense with Harden would otherwise lower your catch odds). instinctBaitPivot is the roster's MEDIAN Instinct allocation, 45/300 = 0.15, so a median-Instinct catcher is unchanged from the pre-amendment formula; measured over the 24 non-Ancient lines the term spans ×0.846 (base ins 30) to ×1.257 (base ins 70) with a roster mean of ×1.010. Positive over the whole mathematically possible share range [0,1] — 1 + 3×(0−0.15) = 0.55 — so the term never flips the sign of a probability; the .02–.95 clamp still binds at both ends.",
     "baseCatch": { "J": 0.5, "A": 0.3, "E": 0.15 },
     "baseCatchAncient": 0.05,
     "snareTier": { "base": 1.0, "weighted": 1.5, "master": 2.2 },
     "baitMult": { "none": 1.0, "role": 1.5, "species": 2.0 },
+    "instinctBaitPivot": 0.15,
+    "instinctBaitSlope": 3.0,
     "lureMult": 1.5,
     "hpTermOffset": 2,
     "hpTermDivisor": 2,
@@ -192,8 +195,9 @@
     "outOfSeasonWeight": 0,
     "scavengerRecentDeathsDivisor": 10,
     "signChainGatedHabitatTag": "hidden",
+    "_levelByYear": "RETUNED 2026-08-25 from [4,10,16,22,28,34] (DEVIATIONS A5-D3, INV-3: balance.json only). The gym ramp in data/gyms.json is 8/14/20/26/32/38, so the old array put the region's own wild population FOUR levels under the leader it feeds — measured, that is why the harness's UNTRAINED player (docs/BALANCE-REPORT.md §1 clause 4) won gym 1 in 0.2% of 500 seeds. The new array is the same smooth +6 ramp two levels under the gym instead of four: a player who only catches and walks in is behind, not hopeless. Measured over 500 seeds/gym: UNTRAINED Maribel 1.6% → 31.4%, mean UNTRAINED gym win rate +11.7 pp, and every TRAINED row byte-identical (the TRAINED model reads gyms.json, not this key), so no gym is moved out of a §10.5 band.",
     "ageWeights": { "J": 0.5, "A": 0.4, "E": 0.1 },
-    "levelByYear": [4, 10, 16, 22, 28, 34],
+    "levelByYear": [6, 12, 18, 24, 30, 36],
     "levelJitter": 2,
     "minLevel": 2
   },

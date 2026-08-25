@@ -1,0 +1,565 @@
+{
+  "chain": "§9.3: trim → nearest-neighbour downscale → quantize → background removal",
+  "subjects": [
+    {
+      "id": "player",
+      "size": "32x48",
+      "distinctPreQuantize": 1003,
+      "palettes": {
+        "FROZEN": {
+          "quantizeMeanDeltaE": 2.901,
+          "quantizeMaxDeltaE": 26.202,
+          "worstPair": {
+            "src": "#53694e",
+            "dst": "#765b4e"
+          },
+          "distinctColoursAfterQuantize": 21,
+          "bands": {
+            "star yellow": {
+              "pixels": 16,
+              "coloursHeld": "#f9db10x16"
+            },
+            "shirt/cap green": {
+              "pixels": 353,
+              "coloursHeld": "#4bac53x268 #2a7a34x81 #1e4d35x3 #68c361x1"
+            },
+            "skin": {
+              "pixels": 73,
+              "coloursHeld": "#ec9a70x67 #eec092x6"
+            },
+            "leather brown": {
+              "pixels": 255,
+              "coloursHeld": "#53210cx117 #8f5230x100 #6e3620x30 #b07037x8"
+            },
+            "dark outline": {
+              "pixels": 276,
+              "coloursHeld": "#53210cx117 #2a1212x78 #033309x49 #030202x32"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 0,
+              "coloursHeld": null
+            }
+          }
+        },
+        "CANDIDATE": {
+          "quantizeMeanDeltaE": 6.508,
+          "quantizeMaxDeltaE": 32.596,
+          "worstPair": {
+            "src": "#003f09",
+            "dst": "#0a0819"
+          },
+          "distinctColoursAfterQuantize": 20,
+          "bands": {
+            "star yellow": {
+              "pixels": 16,
+              "coloursHeld": "#f7d92cx16"
+            },
+            "shirt/cap green": {
+              "pixels": 425,
+              "coloursHeld": "#53bb5cx269 #205c39x151 #489b7dx3 #567e2ex2"
+            },
+            "skin": {
+              "pixels": 66,
+              "coloursHeld": "#dd9c74x66"
+            },
+            "leather brown": {
+              "pixels": 155,
+              "coloursHeld": "#8d543bx99 #6d3421x41 #ac7e53x15"
+            },
+            "dark outline": {
+              "pixels": 263,
+              "coloursHeld": "#47180dx155 #020203x64 #0a0819x41 #222538x3"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 4,
+              "coloursHeld": "#222538x3 #554a69x1"
+            }
+          }
+        },
+        "CLASS-EQ": {
+          "quantizeMeanDeltaE": 4.075,
+          "quantizeMaxDeltaE": 29.228,
+          "worstPair": {
+            "src": "#53694e",
+            "dst": "#74564e"
+          },
+          "distinctColoursAfterQuantize": 20,
+          "bands": {
+            "star yellow": {
+              "pixels": 16,
+              "coloursHeld": "#f8d80fx16"
+            },
+            "shirt/cap green": {
+              "pixels": 353,
+              "coloursHeld": "#49ae53x269 #2d6f38x83 #37630fx1"
+            },
+            "skin": {
+              "pixels": 75,
+              "coloursHeld": "#f3a262x66 #f7c398x5 #ca9164x4"
+            },
+            "leather brown": {
+              "pixels": 221,
+              "coloursHeld": "#642c16x109 #8c5230x104 #aa7241x8"
+            },
+            "dark outline": {
+              "pixels": 145,
+              "coloursHeld": "#321410x109 #040308x36"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 0,
+              "coloursHeld": null
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "fox-cindril",
+      "size": "96x96",
+      "distinctPreQuantize": 3164,
+      "palettes": {
+        "FROZEN": {
+          "quantizeMeanDeltaE": 1.934,
+          "quantizeMaxDeltaE": 24.95,
+          "worstPair": {
+            "src": "#ac6b72",
+            "dst": "#ab8d62"
+          },
+          "distinctColoursAfterQuantize": 23,
+          "bands": {
+            "star yellow": {
+              "pixels": 157,
+              "coloursHeld": "#faec67x129 #f9db10x28"
+            },
+            "shirt/cap green": {
+              "pixels": 7,
+              "coloursHeld": "#2e6040x5 #1e4d35x2"
+            },
+            "skin": {
+              "pixels": 272,
+              "coloursHeld": "#eec092x232 #ec9a70x40"
+            },
+            "leather brown": {
+              "pixels": 501,
+              "coloursHeld": "#6e3620x420 #53210cx54 #b07037x20 #8f5230x7"
+            },
+            "dark outline": {
+              "pixels": 1091,
+              "coloursHeld": "#030202x990 #53210cx54 #2a1212x47"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 0,
+              "coloursHeld": null
+            }
+          }
+        },
+        "CANDIDATE": {
+          "quantizeMeanDeltaE": 3.696,
+          "quantizeMaxDeltaE": 27.21,
+          "worstPair": {
+            "src": "#625f4d",
+            "dst": "#554a69"
+          },
+          "distinctColoursAfterQuantize": 20,
+          "bands": {
+            "star yellow": {
+              "pixels": 130,
+              "coloursHeld": "#f7d92cx130"
+            },
+            "shirt/cap green": {
+              "pixels": 6,
+              "coloursHeld": "#489b7dx6"
+            },
+            "skin": {
+              "pixels": 53,
+              "coloursHeld": "#dd9c74x53"
+            },
+            "leather brown": {
+              "pixels": 489,
+              "coloursHeld": "#6d3421x436 #ac7e53x35 #8d543bx18"
+            },
+            "dark outline": {
+              "pixels": 1084,
+              "coloursHeld": "#020203x973 #47180dx63 #0a0819x42 #222538x3 #2c3151x3"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 14,
+              "coloursHeld": "#554a69x8 #222538x3 #2c3151x3"
+            }
+          }
+        },
+        "CLASS-EQ": {
+          "quantizeMeanDeltaE": 5.742,
+          "quantizeMaxDeltaE": 33.356,
+          "worstPair": {
+            "src": "#fd7b0c",
+            "dst": "#f8d80f"
+          },
+          "distinctColoursAfterQuantize": 19,
+          "bands": {
+            "star yellow": {
+              "pixels": 210,
+              "coloursHeld": "#f8d80fx210"
+            },
+            "shirt/cap green": {
+              "pixels": 1,
+              "coloursHeld": "#2d6f38x1"
+            },
+            "skin": {
+              "pixels": 2195,
+              "coloursHeld": "#f3a262x2085 #f7c398x70 #ca9164x40"
+            },
+            "leather brown": {
+              "pixels": 534,
+              "coloursHeld": "#642c16x484 #aa7241x39 #8c5230x11"
+            },
+            "dark outline": {
+              "pixels": 1047,
+              "coloursHeld": "#040308x1004 #321410x38 #272940x5"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 5,
+              "coloursHeld": "#272940x5"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "puddlisk",
+      "size": "96x96",
+      "distinctPreQuantize": 3259,
+      "palettes": {
+        "FROZEN": {
+          "quantizeMeanDeltaE": 16.246,
+          "quantizeMaxDeltaE": 37.821,
+          "worstPair": {
+            "src": "#38b6b6",
+            "dst": "#2865cc"
+          },
+          "distinctColoursAfterQuantize": 16,
+          "bands": {
+            "star yellow": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "shirt/cap green": {
+              "pixels": 81,
+              "coloursHeld": "#2e6040x37 #1e4d35x35 #4bac53x8 #68c361x1"
+            },
+            "skin": {
+              "pixels": 3,
+              "coloursHeld": "#eec092x3"
+            },
+            "leather brown": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "dark outline": {
+              "pixels": 1043,
+              "coloursHeld": "#030202x1010 #033309x20 #2a1212x13"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 987,
+              "coloursHeld": "#2865ccx987"
+            }
+          }
+        },
+        "CANDIDATE": {
+          "quantizeMeanDeltaE": 4.14,
+          "quantizeMaxDeltaE": 30.863,
+          "worstPair": {
+            "src": "#b9a1a1",
+            "dst": "#82b1a8"
+          },
+          "distinctColoursAfterQuantize": 19,
+          "bands": {
+            "star yellow": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "shirt/cap green": {
+              "pixels": 33,
+              "coloursHeld": "#489b7dx21 #205c39x12"
+            },
+            "skin": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "leather brown": {
+              "pixels": 3,
+              "coloursHeld": "#ac7e53x3"
+            },
+            "dark outline": {
+              "pixels": 1105,
+              "coloursHeld": "#020203x759 #0a0819x286 #2c3151x32 #222538x28"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 3592,
+              "coloursHeld": "#6fe2e6x2506 #3ea6cax980 #2c3151x32 #554a69x31 #222538x28 #156fbfx14 #26a1ebx1"
+            }
+          }
+        },
+        "CLASS-EQ": {
+          "quantizeMeanDeltaE": 6.378,
+          "quantizeMaxDeltaE": 26.331,
+          "worstPair": {
+            "src": "#495e57",
+            "dst": "#74564e"
+          },
+          "distinctColoursAfterQuantize": 17,
+          "bands": {
+            "star yellow": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "shirt/cap green": {
+              "pixels": 3,
+              "coloursHeld": "#2d6f38x3"
+            },
+            "skin": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "leather brown": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "dark outline": {
+              "pixels": 1097,
+              "coloursHeld": "#040308x1042 #272940x54 #321410x1"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 3739,
+              "coloursHeld": "#73e3e7x2681 #3da2d7x960 #272940x54 #2178bbx27 #303271x17"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "fenmaw",
+      "size": "96x96",
+      "distinctPreQuantize": 2286,
+      "palettes": {
+        "FROZEN": {
+          "quantizeMeanDeltaE": 4.934,
+          "quantizeMaxDeltaE": 29.412,
+          "worstPair": {
+            "src": "#638273",
+            "dst": "#765b4e"
+          },
+          "distinctColoursAfterQuantize": 24,
+          "bands": {
+            "star yellow": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "shirt/cap green": {
+              "pixels": 2036,
+              "coloursHeld": "#4bac53x1261 #2e6040x673 #1e4d35x89 #68c361x12 #688b2dx1"
+            },
+            "skin": {
+              "pixels": 418,
+              "coloursHeld": "#ec9a70x284 #eec092x134"
+            },
+            "leather brown": {
+              "pixels": 30,
+              "coloursHeld": "#6e3620x24 #53210cx2 #8f5230x2 #b07037x2"
+            },
+            "dark outline": {
+              "pixels": 510,
+              "coloursHeld": "#030202x477 #2a1212x22 #033309x9 #53210cx2"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 0,
+              "coloursHeld": null
+            }
+          }
+        },
+        "CANDIDATE": {
+          "quantizeMeanDeltaE": 4.369,
+          "quantizeMaxDeltaE": 31.549,
+          "worstPair": {
+            "src": "#3c715e",
+            "dst": "#554a69"
+          },
+          "distinctColoursAfterQuantize": 21,
+          "bands": {
+            "star yellow": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "shirt/cap green": {
+              "pixels": 2000,
+              "coloursHeld": "#489b7dx1275 #205c39x722 #567e2ex3"
+            },
+            "skin": {
+              "pixels": 314,
+              "coloursHeld": "#dd9c74x314"
+            },
+            "leather brown": {
+              "pixels": 116,
+              "coloursHeld": "#ac7e53x84 #6d3421x27 #8d543bx5"
+            },
+            "dark outline": {
+              "pixels": 615,
+              "coloursHeld": "#020203x470 #222538x101 #0a0819x34 #2c3151x5 #47180dx5"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 130,
+              "coloursHeld": "#222538x101 #554a69x24 #2c3151x5"
+            }
+          }
+        },
+        "CLASS-EQ": {
+          "quantizeMeanDeltaE": 6.75,
+          "quantizeMaxDeltaE": 31.416,
+          "worstPair": {
+            "src": "#517366",
+            "dst": "#74564e"
+          },
+          "distinctColoursAfterQuantize": 22,
+          "bands": {
+            "star yellow": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "shirt/cap green": {
+              "pixels": 685,
+              "coloursHeld": "#2d6f38x684 #68cb6cx1"
+            },
+            "skin": {
+              "pixels": 106,
+              "coloursHeld": "#ca9164x92 #f7c398x13 #f3a262x1"
+            },
+            "leather brown": {
+              "pixels": 33,
+              "coloursHeld": "#642c16x24 #aa7241x6 #8c5230x3"
+            },
+            "dark outline": {
+              "pixels": 597,
+              "coloursHeld": "#040308x488 #272940x95 #321410x14"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 95,
+              "coloursHeld": "#272940x95"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "duskstalk",
+      "size": "96x96",
+      "distinctPreQuantize": 766,
+      "palettes": {
+        "FROZEN": {
+          "quantizeMeanDeltaE": 3.949,
+          "quantizeMaxDeltaE": 35.657,
+          "worstPair": {
+            "src": "#25194a",
+            "dst": "#1e4d35"
+          },
+          "distinctColoursAfterQuantize": 12,
+          "bands": {
+            "star yellow": {
+              "pixels": 43,
+              "coloursHeld": "#f9db10x39 #faec67x4"
+            },
+            "shirt/cap green": {
+              "pixels": 109,
+              "coloursHeld": "#1e4d35x101 #2e6040x8"
+            },
+            "skin": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "leather brown": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "dark outline": {
+              "pixels": 3467,
+              "coloursHeld": "#030202x3422 #2a1212x45"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 0,
+              "coloursHeld": null
+            }
+          }
+        },
+        "CANDIDATE": {
+          "quantizeMeanDeltaE": 3.423,
+          "quantizeMaxDeltaE": 26.592,
+          "worstPair": {
+            "src": "#898289",
+            "dst": "#82b1a8"
+          },
+          "distinctColoursAfterQuantize": 10,
+          "bands": {
+            "star yellow": {
+              "pixels": 43,
+              "coloursHeld": "#f7d92cx43"
+            },
+            "shirt/cap green": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "skin": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "leather brown": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "dark outline": {
+              "pixels": 3572,
+              "coloursHeld": "#0a0819x2395 #020203x1036 #2c3151x89 #222538x51 #47180dx1"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 154,
+              "coloursHeld": "#2c3151x89 #222538x51 #554a69x14"
+            }
+          }
+        },
+        "CLASS-EQ": {
+          "quantizeMeanDeltaE": 5.755,
+          "quantizeMaxDeltaE": 24.229,
+          "worstPair": {
+            "src": "#131c18",
+            "dst": "#321410"
+          },
+          "distinctColoursAfterQuantize": 10,
+          "bands": {
+            "star yellow": {
+              "pixels": 43,
+              "coloursHeld": "#f8d80fx43"
+            },
+            "shirt/cap green": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "skin": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "leather brown": {
+              "pixels": 0,
+              "coloursHeld": null
+            },
+            "dark outline": {
+              "pixels": 3569,
+              "coloursHeld": "#040308x3427 #272940x137 #321410x5"
+            },
+            "cool (cyan/blue)": {
+              "pixels": 141,
+              "coloursHeld": "#272940x137 #303271x4"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

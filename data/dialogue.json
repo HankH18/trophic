@@ -1,0 +1,5271 @@
+{
+  "_source": "docs/content-bible.md §4 (Ancient lore surfaces), §6 (towns + aging arcs), §7 (gym leaders), §8 (story spine), §9 (side quests), §10 (NPCs), §13.13 (dialogue budget) + build-doc §15 C7. Names of species, places, people and organisations are transcribed from the bible, never invented (G2); the coined quest-NPC given names are logged in docs/DIALOGUE-NOTES.md.",
+  "_guardrail": "G7 — no moralizing copy about catching, anywhere. NPCs state facts, express their own livelihood interests, and disagree with each other. No line tells the player they did wrong, implies guilt, or delivers a lesson. Enforced by the pattern scan in tests/unit/dialogue.test.ts AND by a line-by-line human-style read documented in docs/DIALOGUE-NOTES.md — a regex cannot detect tone.",
+  "_budget": "bible §13.13: ~10 lines per named NPC, ~3 per ambient, roughly 400–500 total. Shipped: see _counts. Named speakers that carry an Ancient lore chain or a six-act arc (Maren, Wick, Sel, Bram) run above 10; ambient speakers in the vertical-slice towns run above 3 because they carry year/population state variants the flat budget did not price in.",
+  "_conditionModel": "An entry fires when every clause of `when` holds. years/yearMin/yearMax gate the act; seasons gate the four migrant windows; flagsSet/flagsUnset/flagEquals read SaveFile.questFlags; population/floraStock read the LIVE node state (SaveFile.nodeStates), so a town's lines change as its web does. Among the entries that match a (speaker,node,kind) request the game takes the highest `priority` (default 0). Every greeting/ambient group ships an unconditional fallback, so a matching entry always exists.",
+  "_chains": {
+    "vellsire-chain": "bible §4 'Maren's keystone lectures' + 'Duskhollow astronomers on the Vellsire's vanishing'. Steps 1..11 alternate NPC and antler-standing-stone props across Hearthollow → r1 → Brackwater → r2 → r3 → Bowerdeep → Cindershelf → Duskhollow (Orrin) → sanctum-approach → sanctum. Each step is gated on the previous step's flag, so the lore opens as it is earned rather than arriving as one block.",
+    "undermere-chain": "bible §4 \"Sel's serpent tales\". Steps 1..7 alternate Sel and the sunken idols at brackwater/r2; step 5 additionally requires the Ferryman's Wager (bible §9) to be finished. Completing it sets chain.undermere.complete, the gate on the Undermere hunt.",
+    "kilnback-chain": "bible §4 'Bram and the miners on the warm shell below'. Steps 1..6 alternate Bram, the miner Gerta and the shell-kiln shrines in the Cindershelf mine. Completing it sets chain.kilnback.complete, the gate on the Kilnback hunt."
+  },
+  "_counts": {
+    "speakers": 62,
+    "entries": 211,
+    "lines": 499
+  },
+  "speakers": [
+    {
+      "id": "maren",
+      "name": "Warden Maren",
+      "kind": "named",
+      "role": "mentor",
+      "home": "hearthollow",
+      "portrait": "trainer-maren"
+    },
+    {
+      "id": "wick",
+      "name": "Wick",
+      "kind": "named",
+      "role": "rival",
+      "home": "hearthollow",
+      "portrait": "trainer-wick"
+    },
+    {
+      "id": "greaves",
+      "name": "Magnate Greaves",
+      "kind": "named",
+      "role": "antagonist",
+      "home": "sanctum",
+      "portrait": "trainer-greaves"
+    },
+    {
+      "id": "maribel",
+      "name": "Maribel",
+      "kind": "named",
+      "role": "gym-leader",
+      "home": "hearthollow",
+      "portrait": "trainer-maribel"
+    },
+    {
+      "id": "odo",
+      "name": "Odo",
+      "kind": "named",
+      "role": "gym-leader",
+      "home": "brackwater",
+      "portrait": "trainer-odo"
+    },
+    {
+      "id": "vesper",
+      "name": "Vesper",
+      "kind": "named",
+      "role": "gym-leader",
+      "home": "bowerdeep",
+      "portrait": "trainer-vesper"
+    },
+    {
+      "id": "sable",
+      "name": "Sable",
+      "kind": "named",
+      "role": "gym-leader",
+      "home": "cindershelf",
+      "portrait": "trainer-sable"
+    },
+    {
+      "id": "noct",
+      "name": "Noct",
+      "kind": "named",
+      "role": "gym-leader",
+      "home": "duskhollow",
+      "portrait": "trainer-noct"
+    },
+    {
+      "id": "bram",
+      "name": "Bram",
+      "kind": "named",
+      "role": "forge-smith",
+      "home": "cindershelf",
+      "portrait": "npc-bram"
+    },
+    {
+      "id": "sel",
+      "name": "Sel",
+      "kind": "named",
+      "role": "ferryman",
+      "home": "brackwater",
+      "portrait": "npc-sel"
+    },
+    {
+      "id": "tolm",
+      "name": "Tolm",
+      "kind": "named",
+      "role": "quest-giver",
+      "home": "hearthollow",
+      "portrait": "npc-farmer"
+    },
+    {
+      "id": "nessa",
+      "name": "Nessa",
+      "kind": "named",
+      "role": "quest-giver",
+      "home": "brackwater",
+      "portrait": "npc-angler"
+    },
+    {
+      "id": "halder",
+      "name": "Halder",
+      "kind": "named",
+      "role": "quest-giver",
+      "home": "bowerdeep",
+      "portrait": "npc-market-vendor"
+    },
+    {
+      "id": "pell",
+      "name": "Pell",
+      "kind": "named",
+      "role": "quest-giver",
+      "home": "bowerdeep",
+      "portrait": "npc-townsfolk-elder"
+    },
+    {
+      "id": "gerta",
+      "name": "Gerta",
+      "kind": "named",
+      "role": "quest-giver",
+      "home": "cindershelf",
+      "portrait": "npc-miner"
+    },
+    {
+      "id": "ives",
+      "name": "Ives",
+      "kind": "named",
+      "role": "quest-giver",
+      "home": "duskhollow",
+      "portrait": "npc-astronomer"
+    },
+    {
+      "id": "orrin",
+      "name": "Orrin",
+      "kind": "named",
+      "role": "quest-giver",
+      "home": "duskhollow",
+      "portrait": "npc-astronomer"
+    },
+    {
+      "id": "innkeeper-hearthollow",
+      "name": "Innkeeper",
+      "kind": "generic",
+      "role": "innkeeper",
+      "home": "hearthollow",
+      "portrait": "npc-innkeeper"
+    },
+    {
+      "id": "innkeeper-brackwater",
+      "name": "Innkeeper",
+      "kind": "generic",
+      "role": "innkeeper",
+      "home": "brackwater",
+      "portrait": "npc-innkeeper"
+    },
+    {
+      "id": "innkeeper-bowerdeep",
+      "name": "Innkeeper",
+      "kind": "generic",
+      "role": "innkeeper",
+      "home": "bowerdeep",
+      "portrait": "npc-innkeeper"
+    },
+    {
+      "id": "innkeeper-cindershelf",
+      "name": "Innkeeper",
+      "kind": "generic",
+      "role": "innkeeper",
+      "home": "cindershelf",
+      "portrait": "npc-innkeeper"
+    },
+    {
+      "id": "innkeeper-duskhollow",
+      "name": "Innkeeper",
+      "kind": "generic",
+      "role": "innkeeper",
+      "home": "duskhollow",
+      "portrait": "npc-innkeeper"
+    },
+    {
+      "id": "vendor-hearthollow",
+      "name": "Market Vendor",
+      "kind": "generic",
+      "role": "vendor",
+      "home": "hearthollow",
+      "portrait": "npc-market-vendor"
+    },
+    {
+      "id": "vendor-brackwater",
+      "name": "Market Vendor",
+      "kind": "generic",
+      "role": "vendor",
+      "home": "brackwater",
+      "portrait": "npc-market-vendor"
+    },
+    {
+      "id": "vendor-bowerdeep",
+      "name": "Night Market Vendor",
+      "kind": "generic",
+      "role": "vendor",
+      "home": "bowerdeep",
+      "portrait": "npc-market-vendor"
+    },
+    {
+      "id": "vendor-cindershelf",
+      "name": "Market Vendor",
+      "kind": "generic",
+      "role": "vendor",
+      "home": "cindershelf",
+      "portrait": "npc-market-vendor"
+    },
+    {
+      "id": "vendor-duskhollow",
+      "name": "Market Vendor",
+      "kind": "generic",
+      "role": "vendor",
+      "home": "duskhollow",
+      "portrait": "npc-market-vendor"
+    },
+    {
+      "id": "hearthollow-elder",
+      "name": "Old Drover",
+      "kind": "ambient",
+      "home": "hearthollow",
+      "portrait": "npc-townsfolk-elder"
+    },
+    {
+      "id": "hearthollow-child",
+      "name": "Hearthollow Child",
+      "kind": "ambient",
+      "home": "hearthollow",
+      "portrait": "npc-townsfolk-child"
+    },
+    {
+      "id": "hearthollow-farmhand",
+      "name": "Farmhand",
+      "kind": "ambient",
+      "home": "hearthollow",
+      "portrait": "npc-farmer"
+    },
+    {
+      "id": "hearthollow-forager",
+      "name": "Forager",
+      "kind": "ambient",
+      "home": "hearthollow",
+      "portrait": "npc-farmer"
+    },
+    {
+      "id": "hearthollow-fenceman",
+      "name": "Fence-Mender",
+      "kind": "ambient",
+      "home": "hearthollow",
+      "portrait": "npc-farmer"
+    },
+    {
+      "id": "brackwater-dockhand",
+      "name": "Dockhand",
+      "kind": "ambient",
+      "home": "brackwater",
+      "portrait": "npc-angler"
+    },
+    {
+      "id": "brackwater-netmender",
+      "name": "Net-Mender",
+      "kind": "ambient",
+      "home": "brackwater",
+      "portrait": "npc-angler"
+    },
+    {
+      "id": "brackwater-child",
+      "name": "Brackwater Child",
+      "kind": "ambient",
+      "home": "brackwater",
+      "portrait": "npc-townsfolk-child"
+    },
+    {
+      "id": "brackwater-elder",
+      "name": "Stilt-Town Elder",
+      "kind": "ambient",
+      "home": "brackwater",
+      "portrait": "npc-townsfolk-elder"
+    },
+    {
+      "id": "brackwater-buyer",
+      "name": "Fishery Buyer",
+      "kind": "ambient",
+      "home": "brackwater",
+      "portrait": "npc-market-vendor"
+    },
+    {
+      "id": "bowerdeep-logger",
+      "name": "Logger",
+      "kind": "ambient",
+      "home": "bowerdeep",
+      "portrait": "npc-logger"
+    },
+    {
+      "id": "bowerdeep-silkwinder",
+      "name": "Silk-Winder",
+      "kind": "ambient",
+      "home": "bowerdeep",
+      "portrait": "npc-market-vendor"
+    },
+    {
+      "id": "bowerdeep-child",
+      "name": "Bowerdeep Child",
+      "kind": "ambient",
+      "home": "bowerdeep",
+      "portrait": "npc-townsfolk-child"
+    },
+    {
+      "id": "bowerdeep-elder",
+      "name": "Canopy Elder",
+      "kind": "ambient",
+      "home": "bowerdeep",
+      "portrait": "npc-townsfolk-elder"
+    },
+    {
+      "id": "bowerdeep-lampkeeper",
+      "name": "Lamp-Keeper",
+      "kind": "ambient",
+      "home": "bowerdeep",
+      "portrait": "npc-townsfolk-elder"
+    },
+    {
+      "id": "cindershelf-miner",
+      "name": "Miner",
+      "kind": "ambient",
+      "home": "cindershelf",
+      "portrait": "npc-miner"
+    },
+    {
+      "id": "cindershelf-shafthand",
+      "name": "Shaft-Hand",
+      "kind": "ambient",
+      "home": "cindershelf",
+      "portrait": "npc-miner"
+    },
+    {
+      "id": "cindershelf-elder",
+      "name": "Steppe Elder",
+      "kind": "ambient",
+      "home": "cindershelf",
+      "portrait": "npc-townsfolk-elder"
+    },
+    {
+      "id": "cindershelf-child",
+      "name": "Cindershelf Child",
+      "kind": "ambient",
+      "home": "cindershelf",
+      "portrait": "npc-townsfolk-child"
+    },
+    {
+      "id": "cindershelf-worker",
+      "name": "Cullbrand Worker",
+      "kind": "ambient",
+      "home": "cindershelf",
+      "portrait": "npc-cullbrand-worker"
+    },
+    {
+      "id": "duskhollow-astronomer",
+      "name": "Astronomer",
+      "kind": "ambient",
+      "home": "duskhollow",
+      "portrait": "npc-astronomer"
+    },
+    {
+      "id": "duskhollow-elder",
+      "name": "Vale Elder",
+      "kind": "ambient",
+      "home": "duskhollow",
+      "portrait": "npc-townsfolk-elder"
+    },
+    {
+      "id": "duskhollow-child",
+      "name": "Duskhollow Child",
+      "kind": "ambient",
+      "home": "duskhollow",
+      "portrait": "npc-townsfolk-child"
+    },
+    {
+      "id": "duskhollow-lampwright",
+      "name": "Lampwright",
+      "kind": "ambient",
+      "home": "duskhollow",
+      "portrait": "npc-market-vendor"
+    },
+    {
+      "id": "duskhollow-shepherd",
+      "name": "Vale Shepherd",
+      "kind": "ambient",
+      "home": "duskhollow",
+      "portrait": "npc-townsfolk-elder"
+    },
+    {
+      "id": "r1-forager",
+      "name": "Meadow Forager",
+      "kind": "ambient",
+      "home": "r1",
+      "portrait": "npc-farmer"
+    },
+    {
+      "id": "r2-ferryhand",
+      "name": "Ferry-Hand",
+      "kind": "ambient",
+      "home": "r2",
+      "portrait": "npc-angler"
+    },
+    {
+      "id": "r3-logger",
+      "name": "Cullbrand Logger",
+      "kind": "ambient",
+      "home": "r3",
+      "portrait": "npc-logger"
+    },
+    {
+      "id": "r4-worker",
+      "name": "Cullbrand Worker",
+      "kind": "ambient",
+      "home": "r4",
+      "portrait": "npc-cullbrand-worker"
+    },
+    {
+      "id": "r5-astronomer",
+      "name": "Field Astronomer",
+      "kind": "ambient",
+      "home": "r5",
+      "portrait": "npc-astronomer"
+    },
+    {
+      "id": "sanctum-approach-scout",
+      "name": "Cullbrand Scout",
+      "kind": "ambient",
+      "home": "sanctum-approach",
+      "portrait": "npc-cullbrand-worker"
+    },
+    {
+      "id": "prop-antler-stone",
+      "name": "Antler Standing-Stone",
+      "kind": "prop",
+      "portrait": "prop-antler-stone"
+    },
+    {
+      "id": "prop-sunken-idol",
+      "name": "Sunken Idol",
+      "kind": "prop",
+      "portrait": "prop-sunken-idol"
+    },
+    {
+      "id": "prop-shell-kiln-shrine",
+      "name": "Shell-Kiln Shrine",
+      "kind": "prop",
+      "portrait": "prop-shell-kiln-shrine"
+    },
+    {
+      "id": "prop-sign-card",
+      "name": "Sign Card",
+      "kind": "prop",
+      "portrait": "prop-sign-card"
+    }
+  ],
+  "entries": [
+    {
+      "id": "maren.opening",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "priority": 100,
+      "when": {
+        "years": [
+          1
+        ],
+        "flagsUnset": [
+          "story.opening.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "So you're the one Hearthollow keeps sending up the hill. Good. I have a use for you."
+        },
+        {
+          "text": "Maren. Warden of Fallowmere, which mostly means I count things and then write the counts down."
+        },
+        {
+          "text": "There used to be a keystone in this region. A stag. Vellsire. It went out of Fallowmere a generation back and nothing has stood in for it since."
+        },
+        {
+          "text": "Three young ones on the bench there. Cindril, Puddlisk, Thornlet. All hatched this spring, all juveniles, all with three years in them."
+        },
+        {
+          "text": "Three years is what a juvenile has. Pick the one you'd rather walk beside for all three."
+        }
+      ],
+      "choices": [
+        {
+          "text": "Cindril",
+          "goto": "maren.starter.cindril"
+        },
+        {
+          "text": "Puddlisk",
+          "goto": "maren.starter.puddlisk"
+        },
+        {
+          "text": "Thornlet",
+          "goto": "maren.starter.thornlet"
+        }
+      ]
+    },
+    {
+      "id": "maren.starter.cindril",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "when": {
+        "years": [
+          1
+        ]
+      },
+      "lines": [
+        {
+          "text": "Cindril. Fire, mesopredator, and quicker off the mark than anything else on that bench."
+        },
+        {
+          "text": "It becomes Vulkindle at two and Pyrevane at three. You'll meet all three; they are the same animal wearing its age."
+        }
+      ],
+      "setFlags": {
+        "story.starter": "cindril-line",
+        "story.opening.done": true
+      },
+      "goto": "maren.tutorial.snare"
+    },
+    {
+      "id": "maren.starter.puddlisk",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "when": {
+        "years": [
+          1
+        ]
+      },
+      "lines": [
+        {
+          "text": "Puddlisk. Water, mesopredator, glass-skinned — you can watch it digest, which some people find unpleasant and I find useful."
+        },
+        {
+          "text": "It becomes Rillisk at two and Maelstrisk at three. Same animal, three names, one life."
+        }
+      ],
+      "setFlags": {
+        "story.starter": "puddlisk-line",
+        "story.opening.done": true
+      },
+      "goto": "maren.tutorial.snare"
+    },
+    {
+      "id": "maren.starter.thornlet",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "when": {
+        "years": [
+          1
+        ]
+      },
+      "lines": [
+        {
+          "text": "Thornlet. Plant, mesopredator, and it will bleed you if you carry it wrong. Carry it in the crook of the arm."
+        },
+        {
+          "text": "Bramblore at two, Thornwald at three. The last name is the one the meadow remembers."
+        }
+      ],
+      "setFlags": {
+        "story.starter": "thornlet-line",
+        "story.opening.done": true
+      },
+      "goto": "maren.tutorial.snare"
+    },
+    {
+      "id": "maren.tutorial.snare",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "when": {
+        "years": [
+          1
+        ],
+        "flagsUnset": [
+          "tutorial.snare.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Snares. Three of them. A snare takes one individual out of a node and puts it in your hand."
+        },
+        {
+          "text": "Bait improves the odds. You craft bait from what the target eats, and what the target eats is in the web, so learn the web."
+        },
+        {
+          "text": "Weighted snares hold better than plain ones. A master snare holds almost anything. Almost."
+        }
+      ],
+      "setFlags": {
+        "tutorial.snare.done": true
+      },
+      "goto": "maren.tutorial.ledger"
+    },
+    {
+      "id": "maren.tutorial.ledger",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "when": {
+        "years": [
+          1
+        ],
+        "flagsUnset": [
+          "tutorial.ledger.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "And the ledger. Every node in Fallowmere, every line in it, counted. Real numbers, not guesses."
+        },
+        {
+          "text": "Read it before you set out. Read it when you come back. The difference between the two readings is the only report I want from you."
+        },
+        {
+          "text": "Meadow Reach is through the north gate. Go and see what is standing in it."
+        }
+      ],
+      "setFlags": {
+        "tutorial.ledger.done": true,
+        "quest.first-signs.offered": true
+      }
+    },
+    {
+      "id": "maren.quest.first-signs.offer",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "quest",
+      "quest": "first-signs",
+      "priority": 60,
+      "when": {
+        "years": [
+          1
+        ],
+        "flagsSet": [
+          "quest.first-signs.offered"
+        ],
+        "flagsUnset": [
+          "quest.first-signs.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Before you go far — foraging. A sign card is what you get when you read a track, a scrape, a fresh cast of droppings."
+        },
+        {
+          "text": "Walk Meadow Reach and bring me three. Any three. Instinct decides how much a card tells you, so a sharp creature reads a poor sign better than a dull one reads a good one."
+        },
+        {
+          "text": "Cards flag migrants too. Pollywisp is a spring animal — out of spring the card will read dormant rather than absent. Those are different words for a reason."
+        }
+      ]
+    },
+    {
+      "id": "maren.quest.first-signs.done",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "quest",
+      "quest": "first-signs",
+      "priority": 61,
+      "when": {
+        "years": [
+          1
+        ],
+        "flagsSet": [
+          "quest.first-signs.turnin"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Three cards. Loamunder, Nibbin, and something that scraped bark at chest height — that's Bramblehog."
+        },
+        {
+          "text": "You now know more about Meadow Reach than most of Hearthollow does. Keep the cards; they stack up into something."
+        }
+      ],
+      "setFlags": {
+        "quest.first-signs.done": true,
+        "chain.vellsire.unlocked": true
+      }
+    },
+    {
+      "id": "maren.tutorial.release",
+      "speaker": "maren",
+      "node": "brackwater",
+      "kind": "cutscene",
+      "priority": 60,
+      "when": {
+        "yearMin": 2,
+        "flagsUnset": [
+          "tutorial.release.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "One more thing the snare does, backwards. You can open it."
+        },
+        {
+          "text": "Release puts an individual back into whatever node you're standing in. The count goes up by one, same arithmetic, opposite sign."
+        },
+        {
+          "text": "The ledger records it identically. It does not care which direction the number moved."
+        }
+      ],
+      "setFlags": {
+        "tutorial.release.done": true
+      }
+    },
+    {
+      "id": "maren.greeting.y1",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "greeting",
+      "when": {
+        "years": [
+          1
+        ]
+      },
+      "lines": [
+        {
+          "text": "Meadow Reach is holding at a decent flora stock this year. Loamunder are doing the work — they seed as they walk."
+        },
+        {
+          "text": "Maribel keeps the gym at the far end of the green. She's had that Nibbin longer than you've been alive."
+        }
+      ],
+      "priority": 45
+    },
+    {
+      "id": "maren.greeting.y2",
+      "speaker": "maren",
+      "node": "brackwater",
+      "kind": "greeting",
+      "when": {
+        "years": [
+          2
+        ]
+      },
+      "lines": [
+        {
+          "text": "Odo runs the gym off the east stilts. Ask him what a Fenmaw does to a survey boat some time."
+        }
+      ],
+      "priority": 45
+    },
+    {
+      "id": "maren.greeting.y3",
+      "speaker": "maren",
+      "node": "bowerdeep",
+      "kind": "greeting",
+      "when": {
+        "years": [
+          3
+        ]
+      },
+      "lines": [
+        {
+          "text": "Bowerdeep runs on silk and timber, and both come off the same trees. That's a tighter knot than the town admits."
+        }
+      ],
+      "priority": 45
+    },
+    {
+      "id": "maren.greeting.y4",
+      "speaker": "maren",
+      "node": "cindershelf",
+      "kind": "greeting",
+      "when": {
+        "years": [
+          4
+        ]
+      },
+      "lines": [
+        {
+          "text": "Gerta has a shaft survey she can't finish alone. Talk to her before you go up the steppe."
+        }
+      ],
+      "priority": 45
+    },
+    {
+      "id": "maren.greeting.y5",
+      "speaker": "maren",
+      "node": "duskhollow",
+      "kind": "greeting",
+      "when": {
+        "years": [
+          5
+        ]
+      },
+      "lines": [
+        {
+          "text": "The observatory has the only archive in Fallowmere older than mine. Orrin will let you read it if you ask plainly."
+        }
+      ],
+      "priority": 45
+    },
+    {
+      "id": "maren.greeting.y6",
+      "speaker": "maren",
+      "node": "sanctum-approach",
+      "kind": "greeting",
+      "when": {
+        "years": [
+          6
+        ]
+      },
+      "lines": [
+        {
+          "text": "The gate's open. It has not been open in my lifetime, and it was not us who opened it."
+        }
+      ],
+      "priority": 45
+    },
+    {
+      "id": "maren.keystone.1",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "lore",
+      "signChain": "vellsire-chain",
+      "chainStep": 1,
+      "priority": 50,
+      "when": {
+        "years": [
+          1
+        ],
+        "flagsSet": [
+          "chain.vellsire.unlocked"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step1"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You asked what a keystone is. It isn't the biggest animal in a region, and it isn't the strongest."
+        },
+        {
+          "text": "It's the one whose absence changes the shape of everything else. Take it out and the rest of the web rearranges around the hole."
+        },
+        {
+          "text": "Vellsire was ours. Where it grazed, the ground came back richer than it left. Nobody has put a number on why. I would like to."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step1": true
+      }
+    },
+    {
+      "id": "maren.keystone.2",
+      "speaker": "maren",
+      "node": "brackwater",
+      "kind": "lore",
+      "signChain": "vellsire-chain",
+      "chainStep": 3,
+      "priority": 50,
+      "when": {
+        "yearMin": 2,
+        "flagsSet": [
+          "chain.vellsire.step2"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step3"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You read one of the antler stones on Meadow Reach. There are more — Brackmarsh, the Wilds, the steppe, the vale, the Sanctum Approach."
+        },
+        {
+          "text": "Someone set them where the herd used to pass. The herd has not passed in thirty years and the stones are much older than thirty years."
+        },
+        {
+          "text": "Whoever cut them was keeping a record too. Mine is paper. Theirs is granite. Theirs will outlast mine."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step3": true
+      }
+    },
+    {
+      "id": "maren.keystone.3",
+      "speaker": "maren",
+      "node": "bowerdeep",
+      "kind": "lore",
+      "signChain": "vellsire-chain",
+      "chainStep": 5,
+      "priority": 50,
+      "when": {
+        "yearMin": 3,
+        "flagsSet": [
+          "chain.vellsire.step4"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step5"
+        ]
+      },
+      "lines": [
+        {
+          "text": "A cut stump is a ledger with the pages stacked instead of bound. Wide ring, good year. Thin ring, poor one."
+        },
+        {
+          "text": "Every stump the loggers have opened for me in Bowerdeep runs wide, wide, wide — then three decades of thin, and the thin starts within a season of the last Vellsire count."
+        },
+        {
+          "text": "One stump is an anecdote. Forty is a record."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step5": true
+      }
+    },
+    {
+      "id": "maren.keystone.4",
+      "speaker": "maren",
+      "node": "cindershelf",
+      "kind": "lore",
+      "signChain": "vellsire-chain",
+      "chainStep": 6,
+      "priority": 50,
+      "when": {
+        "yearMin": 4,
+        "flagsSet": [
+          "chain.vellsire.step5"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step6"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Cinder Steppe's flora stock is at a number I have never had cause to write before."
+        },
+        {
+          "text": "It runs downhill in order. The flora first, then the grazers inside two seasons, then the mesopredators, then whatever apex was living off the mesopredators."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step6": true
+      }
+    },
+    {
+      "id": "maren.keystone.5",
+      "speaker": "maren",
+      "node": "duskhollow",
+      "kind": "lore",
+      "signChain": "vellsire-chain",
+      "chainStep": 8,
+      "priority": 50,
+      "when": {
+        "yearMin": 5,
+        "flagsSet": [
+          "chain.vellsire.step7"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step8"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Orrin's archive has the last confirmed sighting, with a date and a sky on it. Astronomers log everything, including things that are not stars."
+        },
+        {
+          "text": "Three separate observers, one night, the same herd crossing the vale toward the caldera. And then nothing, for thirty years, from anyone."
+        },
+        {
+          "text": "Animals do not stop being seen. They stop being where they were seen."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step8": true
+      }
+    },
+    {
+      "id": "maren.keystone.6",
+      "speaker": "maren",
+      "node": "sanctum-approach",
+      "kind": "lore",
+      "signChain": "vellsire-chain",
+      "chainStep": 10,
+      "priority": 50,
+      "when": {
+        "yearMin": 6,
+        "flagsSet": [
+          "chain.vellsire.step9"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step10"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The Sanctum Fallow has been sealed since before the stones were cut. The word fallow means rested, not dead. Somebody chose it carefully."
+        },
+        {
+          "text": "If the herd went anywhere, it went in there, and if anything of it is left, it is one animal and it is very old."
+        },
+        {
+          "text": "I can't tell you what to do when you're standing in front of it. I can tell you the ledger will read differently either way, and that I will be reading it."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step10": true,
+        "chain.vellsire.complete": true
+      }
+    },
+    {
+      "id": "maren.retirement",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "priority": 55,
+      "when": {
+        "yearMin": 2,
+        "flagsSet": [
+          "lifecycle.first-retirement"
+        ],
+        "flagsUnset": [
+          "lifecycle.first-retirement.spoken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "It's out of years. That's all that has happened; it isn't hurt and it isn't sick."
+        },
+        {
+          "text": "You take an heir or you take a boon. The heir is a juvenile of the same line carrying one or two of its traits and half its levels. The boon is a permanent stat on a teammate, and it keeps the retiree's name."
+        },
+        {
+          "text": "Most wardens take the heir the first time and the boon after that. I have no data on which is correct."
+        }
+      ],
+      "setFlags": {
+        "lifecycle.first-retirement.spoken": true
+      }
+    },
+    {
+      "id": "maren.crash-survey",
+      "speaker": "maren",
+      "node": "cindershelf",
+      "kind": "lore",
+      "priority": 52,
+      "when": {
+        "yearMin": 4,
+        "population": [
+          {
+            "node": "r4",
+            "lineId": "stonewing-line",
+            "op": "lte",
+            "value": 1
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Cinder Steppe had a Stonewing pair on the west scarp for as long as the ledger has existed. The ledger now says what it says."
+        },
+        {
+          "text": "The condors did not leave first. The Cragmar went, then the Pyrelisk that ate the Ashvole, and the scarp emptied from the bottom up."
+        }
+      ]
+    },
+    {
+      "id": "maren.finale",
+      "speaker": "maren",
+      "node": "sanctum-approach",
+      "kind": "cutscene",
+      "priority": 70,
+      "when": {
+        "years": [
+          6
+        ],
+        "flagsSet": [
+          "story.greaves.entered"
+        ],
+        "flagsUnset": [
+          "story.finale.spoken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Greaves went through an hour ago with six teams and a transport cradle. He didn't hurry."
+        },
+        {
+          "text": "Go on. I'll hold the page."
+        }
+      ],
+      "setFlags": {
+        "story.finale.spoken": true
+      }
+    },
+    {
+      "id": "wick.act1.pre",
+      "speaker": "wick",
+      "node": "r1",
+      "kind": "battle-pre",
+      "priority": 80,
+      "when": {
+        "years": [
+          1
+        ],
+        "flagsUnset": [
+          "rival.act1.fought"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Wick. Cullbrand apprentice, second year. And you're Maren's, which means you're carrying her book."
+        },
+        {
+          "text": "The Company pays by the head and doesn't ask whose head. That's not sentiment. That's a price list."
+        },
+        {
+          "text": "Carricrow's mine. Everyone laughs at that until the year a web goes over and the crows are the only thing still worth catching."
+        }
+      ]
+    },
+    {
+      "id": "wick.act1.win",
+      "speaker": "wick",
+      "node": "r1",
+      "kind": "battle-win",
+      "priority": 80,
+      "when": {
+        "years": [
+          1
+        ]
+      },
+      "lines": [
+        {
+          "text": "Clean. You're faster than the intake numbers said you'd be."
+        },
+        {
+          "text": "Meadow Reach is easy country. Come find me when the ground stops being flat."
+        }
+      ],
+      "setFlags": {
+        "rival.act1.fought": true,
+        "rival.act1.result": "loss"
+      }
+    },
+    {
+      "id": "wick.act1.loss",
+      "speaker": "wick",
+      "node": "r1",
+      "kind": "battle-loss",
+      "priority": 79,
+      "when": {
+        "years": [
+          1
+        ]
+      },
+      "lines": [
+        {
+          "text": "That's the shape of it. Keep the ledger — it's the part of this you're ahead on."
+        }
+      ],
+      "setFlags": {
+        "rival.act1.fought": true,
+        "rival.act1.result": "win"
+      }
+    },
+    {
+      "id": "wick.act2.pre",
+      "speaker": "wick",
+      "node": "r2",
+      "kind": "battle-pre",
+      "priority": 80,
+      "when": {
+        "years": [
+          2
+        ],
+        "flagsUnset": [
+          "rival.act2.fought"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Brackwater's fishery has been indexed to the Fenmaw count for sixty years. Sixty. Written into the buyer's contracts."
+        },
+        {
+          "text": "Nobody on those stilts calls that harvesting. They call it the season, and they eat off it."
+        }
+      ]
+    },
+    {
+      "id": "wick.act2.win",
+      "speaker": "wick",
+      "node": "r2",
+      "kind": "battle-win",
+      "priority": 80,
+      "when": {
+        "years": [
+          2
+        ]
+      },
+      "lines": [
+        {
+          "text": "Your Mirefin timing is better than mine. Noted, and I do write it down."
+        },
+        {
+          "text": "Ask Sel what he poles over out here some time. He'll tell you and you won't believe him."
+        }
+      ],
+      "setFlags": {
+        "rival.act2.fought": true,
+        "rival.act2.result": "loss"
+      }
+    },
+    {
+      "id": "wick.act2.loss",
+      "speaker": "wick",
+      "node": "r2",
+      "kind": "battle-loss",
+      "priority": 79,
+      "when": {
+        "years": [
+          2
+        ]
+      },
+      "lines": [
+        {
+          "text": "Marsh rewards patience. So does the Company, occasionally."
+        }
+      ],
+      "setFlags": {
+        "rival.act2.fought": true,
+        "rival.act2.result": "win"
+      }
+    },
+    {
+      "id": "wick.act3.pre",
+      "speaker": "wick",
+      "node": "r3",
+      "kind": "battle-pre",
+      "priority": 80,
+      "when": {
+        "years": [
+          3
+        ],
+        "flagsUnset": [
+          "rival.act3.fought"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Silk pays for the night market. The night market pays for the road. The road is how you walked in here."
+        },
+        {
+          "text": "Vesper will tell you the Webvern count can't take the orders Halder is writing. She's probably right. She's also on the road."
+        },
+        {
+          "text": "I'm not asking you to agree with me. I'm asking you to notice that nobody in Bowerdeep is outside the trade."
+        }
+      ]
+    },
+    {
+      "id": "wick.act3.win",
+      "speaker": "wick",
+      "node": "r3",
+      "kind": "battle-win",
+      "priority": 80,
+      "when": {
+        "years": [
+          3
+        ]
+      },
+      "lines": [
+        {
+          "text": "Three years running. I'd move you up two grades if you were ours."
+        },
+        {
+          "text": "You're not, and Maren pays badly, and here you still are. I find that interesting."
+        }
+      ],
+      "setFlags": {
+        "rival.act3.fought": true,
+        "rival.act3.result": "loss"
+      }
+    },
+    {
+      "id": "wick.act3.loss",
+      "speaker": "wick",
+      "node": "r3",
+      "kind": "battle-loss",
+      "priority": 79,
+      "when": {
+        "years": [
+          3
+        ]
+      },
+      "lines": [
+        {
+          "text": "The canopy favours whoever knows which branch takes weight. That's all that was."
+        }
+      ],
+      "setFlags": {
+        "rival.act3.fought": true,
+        "rival.act3.result": "win"
+      }
+    },
+    {
+      "id": "wick.act4.pre",
+      "speaker": "wick",
+      "node": "r4",
+      "kind": "battle-pre",
+      "priority": 80,
+      "when": {
+        "years": [
+          4
+        ],
+        "flagsUnset": [
+          "rival.act4.fought"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You've walked it, then. I worked this steppe. Two seasons on the west scarp with a company crew."
+        },
+        {
+          "text": "And I'd work it again. Cullbrand paid out on Cinder Steppe for four years and four towns ate off that payout, including yours."
+        },
+        {
+          "text": "After that the count went sideways on us and never came back. The steppe isn't a mystery. It's a scheduling error with a number attached."
+        }
+      ]
+    },
+    {
+      "id": "wick.act4.win",
+      "speaker": "wick",
+      "node": "r4",
+      "kind": "battle-win",
+      "priority": 80,
+      "when": {
+        "years": [
+          4
+        ]
+      },
+      "lines": [
+        {
+          "text": "Fought that on a dead scarp with nothing to work with. Fair."
+        },
+        {
+          "text": "Sable's forge takes relics. If you've lost one to age this year, take it to Bram before it goes brittle."
+        }
+      ],
+      "setFlags": {
+        "rival.act4.fought": true,
+        "rival.act4.result": "loss"
+      }
+    },
+    {
+      "id": "wick.act4.loss",
+      "speaker": "wick",
+      "node": "r4",
+      "kind": "battle-loss",
+      "priority": 79,
+      "when": {
+        "years": [
+          4
+        ]
+      },
+      "lines": [
+        {
+          "text": "I know this ground. Knowing the ground is most of it, up here."
+        }
+      ],
+      "setFlags": {
+        "rival.act4.fought": true,
+        "rival.act4.result": "win"
+      }
+    },
+    {
+      "id": "wick.act5.pre",
+      "speaker": "wick",
+      "node": "r5",
+      "kind": "battle-pre",
+      "priority": 80,
+      "when": {
+        "years": [
+          5
+        ],
+        "flagsUnset": [
+          "rival.act5.fought"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Greaves says a region is a stock, and a stock exists to be drawn on. It is a clean argument and I have never found the one that beats it."
+        },
+        {
+          "text": "Bring me the argument when you have it. Until then — Duskhollow Vale, and my Carricrow is an Elder now."
+        }
+      ]
+    },
+    {
+      "id": "wick.act5.win",
+      "speaker": "wick",
+      "node": "r5",
+      "kind": "battle-win",
+      "priority": 80,
+      "when": {
+        "years": [
+          5
+        ]
+      },
+      "lines": [
+        {
+          "text": "Five for five. There's a version of this where I stop showing up."
+        },
+        {
+          "text": "Not this year."
+        }
+      ],
+      "setFlags": {
+        "rival.act5.fought": true,
+        "rival.act5.result": "loss"
+      }
+    },
+    {
+      "id": "wick.act5.loss",
+      "speaker": "wick",
+      "node": "r5",
+      "kind": "battle-loss",
+      "priority": 79,
+      "when": {
+        "years": [
+          5
+        ]
+      },
+      "lines": [
+        {
+          "text": "Wispurr are winter animals and the ridge is theirs when they're up. Ground and season. That's the whole trick."
+        }
+      ],
+      "setFlags": {
+        "rival.act5.fought": true,
+        "rival.act5.result": "win"
+      }
+    },
+    {
+      "id": "wick.act6.pre",
+      "speaker": "wick",
+      "node": "sanctum-approach",
+      "kind": "battle-pre",
+      "priority": 80,
+      "when": {
+        "years": [
+          6
+        ],
+        "flagsUnset": [
+          "rival.act6.fought"
+        ]
+      },
+      "lines": [
+        {
+          "text": "He's gone in for the stag. Six teams and a cradle built to hold something that weighs as much as a barge."
+        },
+        {
+          "text": "I'm not going in with him. Not a change of heart — I want that on the record, because it isn't one."
+        },
+        {
+          "text": "It's a change of arithmetic. Cinder Steppe taught me what the column looks like after the last draw. There's nothing under it."
+        },
+        {
+          "text": "So this is the argument, finally, and it's mine. Beat me and go make him hear it."
+        }
+      ]
+    },
+    {
+      "id": "wick.act6.win",
+      "speaker": "wick",
+      "node": "sanctum-approach",
+      "kind": "battle-win",
+      "priority": 80,
+      "when": {
+        "years": [
+          6
+        ]
+      },
+      "lines": [
+        {
+          "text": "Six years. Every one of them the same result and I kept the column anyway."
+        },
+        {
+          "text": "Gate's through the antler ring. He'll have left it open; he never expects to be followed."
+        }
+      ],
+      "setFlags": {
+        "rival.act6.fought": true,
+        "rival.act6.result": "loss",
+        "story.greaves.entered": true
+      }
+    },
+    {
+      "id": "wick.act6.loss",
+      "speaker": "wick",
+      "node": "sanctum-approach",
+      "kind": "battle-loss",
+      "priority": 79,
+      "when": {
+        "years": [
+          6
+        ]
+      },
+      "lines": [
+        {
+          "text": "Then I hold the approach a while longer. Come back when your team has slept."
+        }
+      ],
+      "setFlags": {
+        "rival.act6.fought": true,
+        "rival.act6.result": "win"
+      }
+    },
+    {
+      "id": "wick.greeting.town",
+      "speaker": "wick",
+      "node": "brackwater",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Intake, invoices, and a barge that runs late. Apprenticeship is mostly paperwork about animals."
+        },
+        {
+          "text": "I'll be on the marsh road when you're done in town."
+        }
+      ]
+    },
+    {
+      "id": "greaves.act3.intro",
+      "speaker": "greaves",
+      "node": "bowerdeep",
+      "kind": "cutscene",
+      "priority": 70,
+      "when": {
+        "years": [
+          3
+        ],
+        "flagsUnset": [
+          "story.greaves.met"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Greaves. Cullbrand Company. You'll have been told what we are, so I'll skip to what we aren't."
+        },
+        {
+          "text": "Cullbrand does not log Bowerdeep. Cullbrand buys timber and silk from people who log Bowerdeep. My lawyers consider the distinction load-bearing."
+        },
+        {
+          "text": "You keep a warden's ledger. So do I — mine is called an inventory and it balances to the individual."
+        },
+        {
+          "text": "We will disagree about very little except who the columns belong to."
+        }
+      ],
+      "setFlags": {
+        "story.greaves.met": true
+      }
+    },
+    {
+      "id": "greaves.act4.steppe",
+      "speaker": "greaves",
+      "node": "cindershelf",
+      "kind": "cutscene",
+      "priority": 70,
+      "when": {
+        "years": [
+          4
+        ],
+        "flagsUnset": [
+          "story.greaves.steppe"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Cinder Steppe was a six-year contract. We closed it in four."
+        },
+        {
+          "text": "That sentence is the entire account of what happened out there. Everything else people add to it is weather."
+        },
+        {
+          "text": "Cindershelf ate for four years on that contract and is hungry in the fifth. Both halves are true and only one gets said in the tavern."
+        }
+      ],
+      "setFlags": {
+        "story.greaves.steppe": true
+      }
+    },
+    {
+      "id": "greaves.finale.pre",
+      "speaker": "greaves",
+      "node": "sanctum",
+      "kind": "battle-pre",
+      "priority": 90,
+      "when": {
+        "years": [
+          6
+        ],
+        "flagsUnset": [
+          "story.greaves.beaten"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You've been counting for six years. I've been buying for forty. Only one of those moves a number on the ground."
+        },
+        {
+          "text": "The stag is a keystone. A keystone is an input. An input with no owner is an input going to waste."
+        },
+        {
+          "text": "Stand aside or don't. The cradle is already assembled."
+        }
+      ]
+    },
+    {
+      "id": "greaves.finale.post",
+      "speaker": "greaves",
+      "node": "sanctum",
+      "kind": "battle-win",
+      "priority": 90,
+      "when": {
+        "years": [
+          6
+        ]
+      },
+      "lines": [
+        {
+          "text": "Six teams. Forty years of records. Beaten by a child with a warden's book."
+        },
+        {
+          "text": "It's behind you, in the ring. Take it or leave it standing; the Company is diversified either way."
+        }
+      ],
+      "setFlags": {
+        "story.greaves.beaten": true
+      }
+    },
+    {
+      "id": "maribel.pre",
+      "speaker": "maribel",
+      "node": "hearthollow",
+      "kind": "battle-pre",
+      "priority": 70,
+      "when": {
+        "flagsUnset": [
+          "gym.maribel.beaten"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Maribel. I keep beasts — not the clever lines, the ones that were here first and will be here after."
+        },
+        {
+          "text": "Nibbin, Bramblehog, Skir. Nothing exotic. You will lose to them anyway if you rush."
+        },
+        {
+          "text": "And Old Nib, who is twelve. Elders don't get quick. They get certain."
+        }
+      ]
+    },
+    {
+      "id": "maribel.post.win",
+      "speaker": "maribel",
+      "node": "hearthollow",
+      "kind": "battle-win",
+      "priority": 70,
+      "when": {},
+      "lines": [
+        {
+          "text": "You waited out the Thick Pelt instead of hammering it. Most people hammer it."
+        },
+        {
+          "text": "Badge's yours. The festival closes the year once you've taken it — Hearthollow does the whole green with lanterns."
+        }
+      ],
+      "setFlags": {
+        "gym.maribel.beaten": true
+      }
+    },
+    {
+      "id": "maribel.post.loss",
+      "speaker": "maribel",
+      "node": "hearthollow",
+      "kind": "battle-loss",
+      "priority": 69,
+      "when": {},
+      "lines": [
+        {
+          "text": "Old Nib gets one more season out of that pelt. Come back inside it."
+        }
+      ]
+    },
+    {
+      "id": "maribel.greeting.reach-thin",
+      "speaker": "maribel",
+      "node": "hearthollow",
+      "kind": "greeting",
+      "priority": 40,
+      "when": {
+        "population": [
+          {
+            "node": "r1",
+            "lineId": "nibbin-line",
+            "op": "lte",
+            "value": 4
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Meadow Reach is thin on Nibbin this season. I breed mine at home, so my count doesn't move when the Reach's does."
+        },
+        {
+          "text": "Skir notice before I do. Fewer voles on the Reach and the kestrels start working my hedgerow instead."
+        }
+      ]
+    },
+    {
+      "id": "maribel.greeting",
+      "speaker": "maribel",
+      "node": "hearthollow",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Beast lines get the reputation for being simple. Simple is what survives six bad winters in a row."
+        },
+        {
+          "text": "Bramblehog will take a fence apart to reach a Loamunder patch. Tolm has views on that. Tolm has views generally."
+        }
+      ]
+    },
+    {
+      "id": "odo.pre",
+      "speaker": "odo",
+      "node": "brackwater",
+      "kind": "battle-pre",
+      "priority": 70,
+      "when": {
+        "flagsUnset": [
+          "gym.odo.beaten"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Odo. I fish this marsh and I fight out of it, and the two are the same skill at different speeds."
+        },
+        {
+          "text": "Bogling first, because everyone underestimates a tadpole. Then Reedrick. Then the Mirefin it grew into."
+        },
+        {
+          "text": "Last is a Fenmaw Elder. She has taken the bottom out of two survey boats and neither of them was mine."
+        }
+      ]
+    },
+    {
+      "id": "odo.post.win",
+      "speaker": "odo",
+      "node": "brackwater",
+      "kind": "battle-win",
+      "priority": 70,
+      "when": {},
+      "lines": [
+        {
+          "text": "You read the metamorphosis. Bogling grazes, Mirefin hunts, and the marsh still counts them as one line either way."
+        },
+        {
+          "text": "Badge. And use the ferry; Sel's rates are better than the road and his stories are free."
+        }
+      ],
+      "setFlags": {
+        "gym.odo.beaten": true
+      }
+    },
+    {
+      "id": "odo.post.loss",
+      "speaker": "odo",
+      "node": "brackwater",
+      "kind": "battle-loss",
+      "priority": 69,
+      "when": {},
+      "lines": [
+        {
+          "text": "The marsh doesn't reward hurrying and neither do I. Again when you're rested."
+        }
+      ]
+    },
+    {
+      "id": "odo.greeting.fishery-low",
+      "speaker": "odo",
+      "node": "brackwater",
+      "kind": "greeting",
+      "priority": 40,
+      "when": {
+        "population": [
+          {
+            "node": "r2",
+            "lineId": "mirefin-line",
+            "op": "lte",
+            "value": 4
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Buyer's contract prices the season off the Mirefin count in Brackmarsh. The count is what it is and so is the price."
+        },
+        {
+          "text": "Nessa has been running the shallows survey herself since the fishery cut her hours. Ask her what she's found."
+        }
+      ]
+    },
+    {
+      "id": "odo.greeting",
+      "speaker": "odo",
+      "node": "brackwater",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Water erodes and plant overtakes. That's the marsh in four words and it's most of my gym strategy."
+        },
+        {
+          "text": "Sporantle do the quiet work here. Everything that dies in Brackmarsh goes through them before it goes anywhere else."
+        }
+      ]
+    },
+    {
+      "id": "vesper.pre",
+      "speaker": "vesper",
+      "node": "bowerdeep",
+      "kind": "battle-pre",
+      "priority": 70,
+      "when": {
+        "flagsUnset": [
+          "gym.vesper.beaten"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Vesper. Poison, which in Bowerdeep means rot, and rot is the half of the canopy nobody wants on a banner."
+        },
+        {
+          "text": "Gloomgrub, Sporantle, Mirefin, Webvern. And a Webvern Elder that spins Silk-Spun — she is faster than a spider has any business being."
+        },
+        {
+          "text": "Halder has an order out for three Webvern. I have told the council what three does to the canopy count. The council has minutes and Halder has buyers."
+        }
+      ]
+    },
+    {
+      "id": "vesper.post.win",
+      "speaker": "vesper",
+      "node": "bowerdeep",
+      "kind": "battle-win",
+      "priority": 70,
+      "when": {},
+      "lines": [
+        {
+          "text": "Toxin ramps. You waited it out instead of trading hits into it. Good."
+        },
+        {
+          "text": "Badge. If you're in town for the migration, Pell needs someone walking the lantern road with him."
+        }
+      ],
+      "setFlags": {
+        "gym.vesper.beaten": true
+      }
+    },
+    {
+      "id": "vesper.post.loss",
+      "speaker": "vesper",
+      "node": "bowerdeep",
+      "kind": "battle-loss",
+      "priority": 69,
+      "when": {},
+      "lines": [
+        {
+          "text": "Poison is patient and so is the canopy. Come back with a tonic."
+        }
+      ]
+    },
+    {
+      "id": "vesper.greeting",
+      "speaker": "vesper",
+      "node": "bowerdeep",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Barkhide hold the canopy open. Where the elk stop browsing, the understory closes and the light stops reaching the silk lines."
+        },
+        {
+          "text": "Halder and I have had this argument for nine years. He is not a villain and I am not a warden. We just price the same tree differently."
+        }
+      ]
+    },
+    {
+      "id": "sable.pre",
+      "speaker": "sable",
+      "node": "cindershelf",
+      "kind": "battle-pre",
+      "priority": 70,
+      "when": {
+        "flagsUnset": [
+          "gym.sable.beaten"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Sable. Fire type, steppe born, and everything on my bench was caught inside a day's walk of this forge."
+        },
+        {
+          "text": "Ashvole, Cragmar, an Ashvole Elder, Stonewing, Pyrelisk. Six, because year four is where the region stops being polite."
+        },
+        {
+          "text": "My signature is a Pyrelisk Elder off the west vents. There are not many left to catch out there, which I mention as a fact about my bench, not about you."
+        }
+      ]
+    },
+    {
+      "id": "sable.post.win",
+      "speaker": "sable",
+      "node": "cindershelf",
+      "kind": "battle-win",
+      "priority": 70,
+      "when": {},
+      "lines": [
+        {
+          "text": "Fire purges, water erodes, and you brought water. Unsentimental. I approve."
+        },
+        {
+          "text": "Badge. Bram's forge is behind the gym — take him a relic and he'll make it into something you can hold."
+        }
+      ],
+      "setFlags": {
+        "gym.sable.beaten": true
+      }
+    },
+    {
+      "id": "sable.post.loss",
+      "speaker": "sable",
+      "node": "cindershelf",
+      "kind": "battle-loss",
+      "priority": 69,
+      "when": {},
+      "lines": [
+        {
+          "text": "The vents run hot in bursts. So do I. Rest and come back."
+        }
+      ]
+    },
+    {
+      "id": "sable.greeting",
+      "speaker": "sable",
+      "node": "cindershelf",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "The vents flare on their own schedule and the mine expands to follow them. Half this town is built on the last flare's leavings."
+        },
+        {
+          "text": "Gerta will tell you the third shaft is warm. She has been telling people that since she was an apprentice and she has always been right."
+        }
+      ]
+    },
+    {
+      "id": "noct.pre",
+      "speaker": "noct",
+      "node": "duskhollow",
+      "kind": "battle-pre",
+      "priority": 70,
+      "when": {
+        "flagsUnset": [
+          "gym.noct.beaten"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Noct. Dark lines. In the vale that isn't a theme, it's just what is awake when you aren't."
+        },
+        {
+          "text": "Gloomoth, Umbrat, Carricrow, Wispurr, an Umbrat Elder. And a Duskstalk Elder that has been on my team since before the observatory had a roof."
+        },
+        {
+          "text": "Daze skips turns. Bring something with Instinct or bring patience. Either works. Nothing else does."
+        }
+      ]
+    },
+    {
+      "id": "noct.post.win",
+      "speaker": "noct",
+      "node": "duskhollow",
+      "kind": "battle-win",
+      "priority": 70,
+      "when": {},
+      "lines": [
+        {
+          "text": "Through a Duskstalk Elder. There are four people alive who have done that and two of them are me on a good night."
+        },
+        {
+          "text": "Badge. The gate to the Sanctum Approach opens off the vale road, and it has been shut my whole life."
+        }
+      ],
+      "setFlags": {
+        "gym.noct.beaten": true
+      }
+    },
+    {
+      "id": "noct.post.loss",
+      "speaker": "noct",
+      "node": "duskhollow",
+      "kind": "battle-loss",
+      "priority": 69,
+      "when": {},
+      "lines": [
+        {
+          "text": "Dusk swallows. It's not personal and it's not quick."
+        }
+      ]
+    },
+    {
+      "id": "noct.greeting",
+      "speaker": "noct",
+      "node": "duskhollow",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Carricrow came into the vale eleven seasons ago and stayed. They follow deaths, so their count is a reading of somewhere else."
+        },
+        {
+          "text": "Orrin thinks the dark in the vale has been deepening since the Sanctum went quiet. Ives thinks Orrin needs a better lamp. I stay out of it."
+        }
+      ]
+    },
+    {
+      "id": "sel.greeting",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Sel. I pole the crossing to Brackmarsh and back, six times a day, forty-one years."
+        },
+        {
+          "text": "Rates are on the post. Rates go down if you've done me a favour, and I remember favours longer than I remember faces."
+        }
+      ]
+    },
+    {
+      "id": "sel.service.ferry",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "service",
+      "when": {},
+      "lines": [
+        {
+          "text": "Across, then. Sit in the middle and don't trail your hand."
+        }
+      ]
+    },
+    {
+      "id": "sel.tale.1",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "lore",
+      "signChain": "undermere-chain",
+      "chainStep": 1,
+      "priority": 55,
+      "when": {
+        "yearMin": 2,
+        "flagsUnset": [
+          "chain.undermere.step1"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You want the crossing or you want the stories? Most people say crossing and then ask about the stories halfway over."
+        },
+        {
+          "text": "Here's the one that's just measurement. My pole is eleven feet. Everywhere in these shallows it finds bottom with a hand to spare."
+        },
+        {
+          "text": "Everywhere but four spots. In those four the pole goes down eleven feet and keeps going, and I've never found what's under it."
+        },
+        {
+          "text": "My grandfather marked all four. I mark them still. The idols sit on their rims."
+        }
+      ],
+      "setFlags": {
+        "chain.undermere.step1": true
+      }
+    },
+    {
+      "id": "sel.tale.2",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "lore",
+      "signChain": "undermere-chain",
+      "chainStep": 3,
+      "priority": 55,
+      "when": {
+        "yearMin": 2,
+        "flagsSet": [
+          "chain.undermere.step2"
+        ],
+        "flagsUnset": [
+          "chain.undermere.step3"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You read the idol on the dock rim. Then you know it isn't marsh stone. Nothing in Brackwater is cut like that."
+        },
+        {
+          "text": "Grandfather's word for the four spots was the lake-beneath-the-lake. He didn't mean it poetically; he meant there's another water down there and ours sits on top of it."
+        },
+        {
+          "text": "Water table here hasn't moved in my lifetime. Drought years, flood years — same line on the stilt. That is not normal and Maren agrees with me, which she hates."
+        }
+      ],
+      "setFlags": {
+        "chain.undermere.step3": true
+      }
+    },
+    {
+      "id": "sel.tale.3",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "lore",
+      "signChain": "undermere-chain",
+      "chainStep": 4,
+      "priority": 55,
+      "when": {
+        "yearMin": 2,
+        "flagsSet": [
+          "quest.ferrymans-wager.done",
+          "chain.undermere.step3"
+        ],
+        "flagsUnset": [
+          "chain.undermere.step4"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You took an Elder Mirefin out of the channel before the year turned. That's the wager and you won it, and you're owed the rest of the tale."
+        },
+        {
+          "text": "Eyeless. That's the part everyone leaves out when they repeat it back to me."
+        },
+        {
+          "text": "Nothing down there needs eyes. Grandfather said it came up once through the dock spot in a flood year and the whole town heard the pilings sing."
+        }
+      ],
+      "setFlags": {
+        "chain.undermere.step4": true
+      }
+    },
+    {
+      "id": "sel.tale.4",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "lore",
+      "signChain": "undermere-chain",
+      "chainStep": 6,
+      "priority": 55,
+      "when": {
+        "yearMin": 2,
+        "flagsSet": [
+          "chain.undermere.step5"
+        ],
+        "flagsUnset": [
+          "chain.undermere.step6"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Both idols, then. The dock rim and the shallows out on Brackmarsh. They face each other across two miles of reed and they are exactly the same carving."
+        },
+        {
+          "text": "Line between them runs through the third spot. I have poled that line a thousand times and never once put a boat down it at slack water."
+        },
+        {
+          "text": "Slack water is the hour to try. If you're going to try, take a master snare, and take something that can swim."
+        }
+      ],
+      "setFlags": {
+        "chain.undermere.step6": true
+      }
+    },
+    {
+      "id": "sel.tale.5",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "lore",
+      "signChain": "undermere-chain",
+      "chainStep": 7,
+      "priority": 56,
+      "when": {
+        "yearMin": 3,
+        "flagsSet": [
+          "chain.undermere.step6"
+        ],
+        "flagsUnset": [
+          "chain.undermere.complete"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Here. Grandfather's card, and mine under it, and yours will go on top when you've read the water yourself."
+        },
+        {
+          "text": "Undermere. That's the name on the older card, in a hand neither of us can date."
+        },
+        {
+          "text": "It doesn't age. That's what the card says and that's what the water table says, and I have stopped arguing with either."
+        },
+        {
+          "text": "Slack water, third spot, off the Brackmarsh idol. Go on then."
+        }
+      ],
+      "setFlags": {
+        "chain.undermere.step7": true,
+        "chain.undermere.complete": true
+      }
+    },
+    {
+      "id": "sel.quest.wager.offer",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "ferrymans-wager",
+      "priority": 58,
+      "when": {
+        "yearMin": 2,
+        "flagsUnset": [
+          "quest.ferrymans-wager.done",
+          "quest.ferrymans-wager.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "A wager, then, since you're going out anyway. An Elder Mirefin, caught and brought back before the year turns."
+        },
+        {
+          "text": "Elders are one year from retiring, so you're spending a year of something to prove a point. That's what makes it a wager and not an errand."
+        },
+        {
+          "text": "Win and you ride free as long as I'm poling. Lose and you've still got a Mirefin, which is not nothing."
+        }
+      ],
+      "choices": [
+        {
+          "text": "Take the wager.",
+          "setFlags": {
+            "quest.ferrymans-wager.taken": true
+          },
+          "goto": "sel.quest.wager.accepted"
+        },
+        {
+          "text": "Not this year.",
+          "goto": "sel.quest.wager.declined"
+        }
+      ]
+    },
+    {
+      "id": "sel.quest.wager.accepted",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "ferrymans-wager",
+      "when": {
+        "flagsSet": [
+          "quest.ferrymans-wager.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Good. Channel's the place, not the shallows — Elders hold the deep edge where the current does the work for them."
+        },
+        {
+          "text": "Bait it with something a Mirefin actually eats. It works the Reedrick in the reed edge, and it is not fussy about which one."
+        }
+      ]
+    },
+    {
+      "id": "sel.quest.wager.declined",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "ferrymans-wager",
+      "when": {},
+      "lines": [
+        {
+          "text": "Suit yourself. The offer keeps; the Mirefin don't."
+        }
+      ]
+    },
+    {
+      "id": "sel.quest.wager.done",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "ferrymans-wager",
+      "priority": 59,
+      "when": {
+        "flagsSet": [
+          "quest.ferrymans-wager.turnin"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Elder, and a big one. Look at the jaw on it — that's three years of channel current."
+        },
+        {
+          "text": "Free crossings, then, for as long as I'm poling. And you've earned the rest of the story."
+        }
+      ],
+      "setFlags": {
+        "quest.ferrymans-wager.done": true
+      }
+    },
+    {
+      "id": "sel.docks.rotting",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "greeting",
+      "priority": 42,
+      "when": {
+        "yearMin": 3,
+        "population": [
+          {
+            "node": "r2",
+            "lineId": "mirefin-line",
+            "op": "lte",
+            "value": 4
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Third and fourth pilings are soft. Nobody's paying to drive new ones — town replaces pilings out of the fishery levy and the levy is off the Mirefin count."
+        },
+        {
+          "text": "So the dock rots at the speed of the channel. That's not a saying. That's the accounting."
+        }
+      ]
+    },
+    {
+      "id": "sel.docks.rebuilt",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "greeting",
+      "priority": 42,
+      "when": {
+        "yearMin": 3,
+        "population": [
+          {
+            "node": "r2",
+            "lineId": "mirefin-line",
+            "op": "gte",
+            "value": 9
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "New pilings on three and four. Levy came in over estimate and the town spent it on the thing that holds the town up, for once."
+        },
+        {
+          "text": "Deck's level enough to roll a barrel down now. It has not been level since I was thirty."
+        }
+      ]
+    },
+    {
+      "id": "bram.greeting",
+      "speaker": "bram",
+      "node": "cindershelf",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Bram. Forge is mine, the shaft-head above it is the town's, and the heat under both of them belongs to nobody I've met."
+        },
+        {
+          "text": "If you've a relic, put it on the bench. If you've a question, ask it while I work."
+        }
+      ]
+    },
+    {
+      "id": "bram.warm.1",
+      "speaker": "bram",
+      "node": "cindershelf",
+      "kind": "lore",
+      "signChain": "kilnback-chain",
+      "chainStep": 1,
+      "priority": 55,
+      "when": {
+        "yearMin": 4,
+        "flagsUnset": [
+          "chain.kilnback.step1"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Put your hand flat on the floor. Go on. That's not the forge; the forge is cold since first light."
+        },
+        {
+          "text": "The vents run hot in bursts — up, over, gone in an hour. This runs steady. Steady is the strange part."
+        },
+        {
+          "text": "Miners have a name for it. The warm shell below. Third shaft has been eight degrees over every other shaft since the day it was cut, and the difference has never once moved."
+        }
+      ],
+      "setFlags": {
+        "chain.kilnback.step1": true
+      }
+    },
+    {
+      "id": "bram.warm.2",
+      "speaker": "bram",
+      "node": "cindershelf",
+      "kind": "lore",
+      "signChain": "kilnback-chain",
+      "chainStep": 3,
+      "priority": 55,
+      "when": {
+        "yearMin": 4,
+        "flagsSet": [
+          "chain.kilnback.step2"
+        ],
+        "flagsUnset": [
+          "chain.kilnback.step3"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You found the shrine at the shaft head. Now look at what it's built out of, because it isn't stone."
+        },
+        {
+          "text": "That's shell. Kiln-fired, and thick as a door. Every shrine in this mine is a piece of the same shell and the pieces don't match any tortoise anyone can name."
+        }
+      ],
+      "setFlags": {
+        "chain.kilnback.step3": true
+      }
+    },
+    {
+      "id": "bram.warm.3",
+      "speaker": "bram",
+      "node": "cindershelf",
+      "kind": "lore",
+      "signChain": "kilnback-chain",
+      "chainStep": 6,
+      "priority": 56,
+      "when": {
+        "yearMin": 4,
+        "flagsSet": [
+          "chain.kilnback.step5"
+        ],
+        "flagsUnset": [
+          "chain.kilnback.complete"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Gerta's readings, the deep shrine, and my floor. Three measurements, one answer."
+        },
+        {
+          "text": "Kilnback. It's on the older shrine in letters we stopped cutting before the mine existed."
+        },
+        {
+          "text": "It doesn't age. Sable's grandmother wrote that down as a joke and the temperature log has been proving it ever since."
+        },
+        {
+          "text": "Take the card. Deep shrine, third shaft, when the vents are quiet. And take something that resists Fire, because you will not out-wait it."
+        }
+      ],
+      "setFlags": {
+        "chain.kilnback.step6": true,
+        "chain.kilnback.complete": true
+      }
+    },
+    {
+      "id": "bram.quest.forge.offer",
+      "speaker": "bram",
+      "node": "cindershelf",
+      "kind": "quest",
+      "quest": "forge-a-legacy",
+      "priority": 58,
+      "when": {
+        "yearMin": 4,
+        "flagsSet": [
+          "lifecycle.first-retirement"
+        ],
+        "flagsUnset": [
+          "quest.forge-a-legacy.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "One of yours has run out of years, then. You'll have kept the relic — everyone keeps the relic, they just don't know what it's for."
+        },
+        {
+          "text": "Bring it here and I'll set it. A set relic is a held item; it carries a slice of what the animal was into whatever holds it next."
+        },
+        {
+          "text": "Bring the relic and one ingot off the shaft-head store. That's the whole cost."
+        }
+      ]
+    },
+    {
+      "id": "bram.quest.forge.done",
+      "speaker": "bram",
+      "node": "cindershelf",
+      "kind": "quest",
+      "quest": "forge-a-legacy",
+      "priority": 59,
+      "when": {
+        "flagsSet": [
+          "quest.forge-a-legacy.turnin"
+        ]
+      },
+      "lines": [
+        {
+          "text": "There. Cooled, seated, and it will not come loose."
+        },
+        {
+          "text": "Name's stamped underneath where nobody looks. That's the part I do for free."
+        }
+      ],
+      "setFlags": {
+        "quest.forge-a-legacy.done": true
+      }
+    },
+    {
+      "id": "bram.mine.expanding",
+      "speaker": "bram",
+      "node": "cindershelf",
+      "kind": "greeting",
+      "priority": 42,
+      "when": {
+        "yearMin": 5,
+        "population": [
+          {
+            "node": "r4",
+            "lineId": "cragmar-line",
+            "op": "gte",
+            "value": 12
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Fifth shaft opened this spring. Town only cuts a new shaft when the steppe can feed the crews that dig it."
+        },
+        {
+          "text": "Cragmar on the scarp again, which means grazing, which means the flora came back. The mine follows the ram, always has."
+        }
+      ]
+    },
+    {
+      "id": "bram.mine.closing",
+      "speaker": "bram",
+      "node": "cindershelf",
+      "kind": "greeting",
+      "priority": 42,
+      "when": {
+        "yearMin": 5,
+        "population": [
+          {
+            "node": "r4",
+            "lineId": "cragmar-line",
+            "op": "lte",
+            "value": 3
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Fourth shaft's boarded. Not collapsed — boarded. Somebody signed that."
+        },
+        {
+          "text": "Third stays open as long as I'm here. It's the warm one and I'm not letting them close the warm one."
+        }
+      ]
+    },
+    {
+      "id": "gerta.greeting",
+      "speaker": "gerta",
+      "node": "cindershelf",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Gerta. Thirty-one years down the third shaft, and I have carried a thermometer every one of them."
+        },
+        {
+          "text": "Nobody paid me to. It's just that once you notice a number moving you can't stop reading it."
+        }
+      ]
+    },
+    {
+      "id": "gerta.warm.testimony",
+      "speaker": "gerta",
+      "node": "cindershelf",
+      "kind": "lore",
+      "signChain": "kilnback-chain",
+      "chainStep": 4,
+      "priority": 54,
+      "when": {
+        "yearMin": 4,
+        "flagsSet": [
+          "chain.kilnback.step3"
+        ],
+        "flagsUnset": [
+          "chain.kilnback.step4"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Bram sent you for the log. Here — thirty-one years of the third shaft, one reading a shift."
+        },
+        {
+          "text": "Eight degrees over, flat, for three decades. Except twice. Twice it went to fourteen for about four days and then back down."
+        },
+        {
+          "text": "Both times were the winter after a vent season that never came. Whatever's down there was cold and did something about it."
+        },
+        {
+          "text": "Deep shrine sits at the bottom of the warm reach. Take the log to Bram and then take yourself down there."
+        }
+      ],
+      "setFlags": {
+        "chain.kilnback.step4": true
+      }
+    },
+    {
+      "id": "gerta.quest.crash.offer",
+      "speaker": "gerta",
+      "node": "cindershelf",
+      "kind": "quest",
+      "quest": "after-the-crash",
+      "priority": 58,
+      "when": {
+        "yearMin": 4,
+        "flagsUnset": [
+          "quest.after-the-crash.done",
+          "quest.after-the-crash.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The steppe survey. I can't finish it alone and Maren can't finish it at all — she's needed at the ledger desk."
+        },
+        {
+          "text": "Five counts on Cinder Steppe. Ashvole, Cragmar, Pyrelisk, Stonewing, Carricrow. Just the numbers; I'll do the reading."
+        },
+        {
+          "text": "Bring me all five and the flora reading with them. The flora reading is the one that tells you what happened; the counts tell you how far it has got."
+        }
+      ],
+      "choices": [
+        {
+          "text": "I'll walk the counts.",
+          "setFlags": {
+            "quest.after-the-crash.taken": true
+          },
+          "goto": "gerta.quest.crash.accepted"
+        },
+        {
+          "text": "Later.",
+          "goto": "gerta.quest.crash.declined"
+        }
+      ]
+    },
+    {
+      "id": "gerta.quest.crash.accepted",
+      "speaker": "gerta",
+      "node": "cindershelf",
+      "kind": "quest",
+      "quest": "after-the-crash",
+      "when": {
+        "flagsSet": [
+          "quest.after-the-crash.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "West scarp first, then the vent line, then the low ground. That's the order the crews worked it in and it's the order it emptied in."
+        }
+      ]
+    },
+    {
+      "id": "gerta.quest.crash.declined",
+      "speaker": "gerta",
+      "node": "cindershelf",
+      "kind": "quest",
+      "quest": "after-the-crash",
+      "when": {},
+      "lines": [
+        {
+          "text": "The counts will keep. They've stopped moving much."
+        }
+      ]
+    },
+    {
+      "id": "gerta.quest.crash.done",
+      "speaker": "gerta",
+      "node": "cindershelf",
+      "kind": "quest",
+      "quest": "after-the-crash",
+      "priority": 59,
+      "when": {
+        "flagsSet": [
+          "quest.after-the-crash.turnin"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Carricrow. Always Carricrow. Scavenger weight rises with recent deaths, so a crow count is a death count wearing feathers."
+        },
+        {
+          "text": "Read it back down the web and you get the order. Flora stock went first. Ashvole and Cragmar graze it, so they followed. Pyrelisk followed the Ashvole. Stonewing had nothing left to hunt and the scarp went quiet."
+        },
+        {
+          "text": "That's a crashed web, top to bottom, in five numbers. Now you can read one anywhere."
+        }
+      ],
+      "setFlags": {
+        "quest.after-the-crash.done": true,
+        "lore.scavenger.unlocked": true
+      }
+    },
+    {
+      "id": "tolm.greeting",
+      "speaker": "tolm",
+      "node": "hearthollow",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Tolm. Four fields on the Hearthollow side of the fence, and one of them fallow every year whether I like it or not."
+        },
+        {
+          "text": "Mind the gate on your way through. Bramblehog have been working the post again."
+        }
+      ]
+    },
+    {
+      "id": "tolm.quest.fallow.offer",
+      "speaker": "tolm",
+      "node": "hearthollow",
+      "kind": "quest",
+      "quest": "fallow-field",
+      "priority": 58,
+      "when": {
+        "years": [
+          1
+        ],
+        "flagsUnset": [
+          "quest.fallow-field.done",
+          "quest.fallow-field.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Loamunder are what turn my west field. They walk it, they seed it, and come spring I get a crop off ground that would otherwise lie fallow."
+        },
+        {
+          "text": "There are twenty-four of them my side of the fence. What I want is twenty-four of them there at harvest."
+        },
+        {
+          "text": "So: leave the Loamunder standing through the year and I'll pay you out of the crop. It's a bigger purse than the snare would fetch, and it's a purse that comes back every year I'm farming."
+        },
+        {
+          "text": "You can take them instead. Buyers in Hearthollow will give you coin today for a Loamunder. I'd just rather you took my offer, and I'd rather say so plainly than have you guess."
+        }
+      ],
+      "choices": [
+        {
+          "text": "I'll leave the field alone.",
+          "setFlags": {
+            "quest.fallow-field.taken": true
+          },
+          "goto": "tolm.quest.fallow.accepted"
+        },
+        {
+          "text": "I'll think about it.",
+          "goto": "tolm.quest.fallow.declined"
+        }
+      ]
+    },
+    {
+      "id": "tolm.quest.fallow.accepted",
+      "speaker": "tolm",
+      "node": "hearthollow",
+      "kind": "quest",
+      "quest": "fallow-field",
+      "when": {
+        "flagsSet": [
+          "quest.fallow-field.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Good. Count's twenty-four; I'll walk it myself at the turn of the year and we'll compare books."
+        },
+        {
+          "text": "Meadow Reach has its own Loamunder and they are not mine. Nothing in this arrangement covers the Reach."
+        }
+      ]
+    },
+    {
+      "id": "tolm.quest.fallow.declined",
+      "speaker": "tolm",
+      "node": "hearthollow",
+      "kind": "quest",
+      "quest": "fallow-field",
+      "when": {},
+      "lines": [
+        {
+          "text": "Fair enough. Offer stands until harvest."
+        }
+      ]
+    },
+    {
+      "id": "tolm.quest.fallow.done.kept",
+      "speaker": "tolm",
+      "node": "hearthollow",
+      "kind": "quest",
+      "quest": "fallow-field",
+      "priority": 60,
+      "when": {
+        "flagsSet": [
+          "quest.fallow-field.turnin"
+        ],
+        "population": [
+          {
+            "node": "hearthollow",
+            "lineId": "loamunder-line",
+            "op": "gte",
+            "value": 24
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Twenty-four, and two of them juveniles I didn't have in spring. Here's your share, and it's heavier than I quoted."
+        },
+        {
+          "text": "West field came in at full weight. Meadow Reach came in over — the bloom carried right across the fence line."
+        },
+        {
+          "text": "Same arrangement next year, if you're still walking."
+        }
+      ],
+      "setFlags": {
+        "quest.fallow-field.done": true,
+        "quest.fallow-field.result": "kept"
+      }
+    },
+    {
+      "id": "tolm.quest.fallow.done.short",
+      "speaker": "tolm",
+      "node": "hearthollow",
+      "kind": "quest",
+      "quest": "fallow-field",
+      "priority": 59,
+      "when": {
+        "flagsSet": [
+          "quest.fallow-field.turnin"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Count's short of twenty-four, so the crop share doesn't trigger. That's the arrangement working as written."
+        },
+        {
+          "text": "West field goes fallow another year. I'll sow the east twice and make it up somewhere."
+        },
+        {
+          "text": "Offer's the same next spring. Numbers are the numbers."
+        }
+      ],
+      "setFlags": {
+        "quest.fallow-field.done": true,
+        "quest.fallow-field.result": "short"
+      }
+    },
+    {
+      "id": "nessa.greeting",
+      "speaker": "nessa",
+      "node": "brackwater",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Nessa. Fishery cut my hours two seasons back, so I survey the shallows for nobody and write it down anyway."
+        },
+        {
+          "text": "Creel's empty. Ask me about the creel and I'll talk for an hour."
+        }
+      ]
+    },
+    {
+      "id": "nessa.quest.restock.offer",
+      "speaker": "nessa",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "restock-the-shallows",
+      "priority": 58,
+      "when": {
+        "yearMin": 2,
+        "flagsUnset": [
+          "quest.restock-the-shallows.done",
+          "quest.restock-the-shallows.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You know the line runs Bogling to Mirefin? Same animal. Tadpole in the shallows, lungfish in the channel."
+        },
+        {
+          "text": "The fishery takes Mirefin out of the channel. Bogling and Mirefin are one line on the warden's page — the same count, whichever end of it you are looking at."
+        },
+        {
+          "text": "The Brackmarsh count is low. I want four Boglings put back into that water, and I don't mind where you get them."
+        },
+        {
+          "text": "Your snare opens. Stand in the shallows and open it — that's release, and the ledger counts it the same way it counts a catch, sign reversed."
+        }
+      ],
+      "choices": [
+        {
+          "text": "Four Boglings, into the shallows.",
+          "setFlags": {
+            "quest.restock-the-shallows.taken": true
+          },
+          "goto": "nessa.quest.restock.accepted"
+        },
+        {
+          "text": "Ask what the fishery pays.",
+          "goto": "nessa.quest.restock.economics"
+        }
+      ]
+    },
+    {
+      "id": "nessa.quest.restock.accepted",
+      "speaker": "nessa",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "restock-the-shallows",
+      "when": {
+        "flagsSet": [
+          "quest.restock-the-shallows.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Put them in on the Brackmarsh side. There is a Fenmaw working the channel mouth and it will take a small one straight back off the count."
+        }
+      ]
+    },
+    {
+      "id": "nessa.quest.restock.economics",
+      "speaker": "nessa",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "restock-the-shallows",
+      "when": {},
+      "lines": [
+        {
+          "text": "The buyer prices the season off that count and the levy comes off the price. So the count is the wage, and everybody here talks about the wage and nobody talks about the count."
+        },
+        {
+          "text": "Put one back and the count goes up by one. That is the whole of it, and half of Brackwater has never once thought about it."
+        },
+        {
+          "text": "It isn't fast money. It is the only money anybody here can actually move."
+        }
+      ],
+      "choices": [
+        {
+          "text": "Four Boglings, into the shallows.",
+          "setFlags": {
+            "quest.restock-the-shallows.taken": true
+          },
+          "goto": "nessa.quest.restock.accepted"
+        }
+      ]
+    },
+    {
+      "id": "nessa.quest.restock.done",
+      "speaker": "nessa",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "restock-the-shallows",
+      "priority": 59,
+      "when": {
+        "flagsSet": [
+          "quest.restock-the-shallows.turnin"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Four in, and the Brackmarsh count on my board goes up by four. First time it's moved up since I started the board."
+        },
+        {
+          "text": "The buyer prices off that count, so the levy moves when the count moves. I will see it on the board before I see it in the creel."
+        }
+      ],
+      "setFlags": {
+        "quest.restock-the-shallows.done": true
+      }
+    },
+    {
+      "id": "halder.greeting",
+      "speaker": "halder",
+      "node": "bowerdeep",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Halder. Silk, thread, finished bolt, and the only stall in the night market that pays on the day."
+        },
+        {
+          "text": "Webvern silk. Nothing else in Fallowmere holds a dye like it and nothing else pays the canopy's wages."
+        }
+      ]
+    },
+    {
+      "id": "halder.quest.silk.offer",
+      "speaker": "halder",
+      "node": "bowerdeep",
+      "kind": "quest",
+      "quest": "silk-shortage",
+      "priority": 58,
+      "when": {
+        "yearMin": 3,
+        "flagsUnset": [
+          "quest.silk-shortage.done",
+          "quest.silk-shortage.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "I have an order I cannot fill. Three Webvern, adult, alive, delivered to the winding house."
+        },
+        {
+          "text": "Vesper has been at the council about it. Her position is that three adults out of the canopy is more than the canopy replaces in a year, and she has the count to show it."
+        },
+        {
+          "text": "Both of those are true at once. That's the shape of it. I'm not going to pretend she's wrong to get you to say yes."
+        },
+        {
+          "text": "Three Webvern, my price, or walk away and tell her I asked."
+        }
+      ],
+      "choices": [
+        {
+          "text": "I'll bring the three.",
+          "setFlags": {
+            "quest.silk-shortage.taken": true
+          },
+          "goto": "halder.quest.silk.accepted"
+        },
+        {
+          "text": "I'll hear Vesper first.",
+          "setFlags": {
+            "quest.silk-shortage.heard-vesper": true
+          },
+          "goto": "halder.quest.silk.deferred"
+        }
+      ]
+    },
+    {
+      "id": "halder.quest.silk.accepted",
+      "speaker": "halder",
+      "node": "bowerdeep",
+      "kind": "quest",
+      "quest": "silk-shortage",
+      "when": {
+        "flagsSet": [
+          "quest.silk-shortage.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Adults only. A juvenile spins thread you can snap with a breath and the buyer will know."
+        },
+        {
+          "text": "They hang the high lines in Bowerdeep Wilds. Take something that isn't afraid of Poison."
+        }
+      ]
+    },
+    {
+      "id": "halder.quest.silk.deferred",
+      "speaker": "halder",
+      "node": "bowerdeep",
+      "kind": "quest",
+      "quest": "silk-shortage",
+      "when": {},
+      "lines": [
+        {
+          "text": "Go on then. She's more interesting than I am on this and she'll tell you the count without rounding it."
+        }
+      ]
+    },
+    {
+      "id": "halder.quest.silk.done",
+      "speaker": "halder",
+      "node": "bowerdeep",
+      "kind": "quest",
+      "quest": "silk-shortage",
+      "priority": 59,
+      "when": {
+        "flagsSet": [
+          "quest.silk-shortage.turnin"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Three adults. Order goes out on the morning barge and Bowerdeep keeps the trade another year."
+        },
+        {
+          "text": "Vesper will have the new canopy count by the festival. She always does, and she always reads it out."
+        }
+      ],
+      "setFlags": {
+        "quest.silk-shortage.done": true,
+        "quest.silk-shortage.result": "delivered"
+      }
+    },
+    {
+      "id": "pell.greeting",
+      "speaker": "pell",
+      "node": "bowerdeep",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Pell. I keep the lantern road from the winding house out to the eastern stair, and I have kept it forty years."
+        },
+        {
+          "text": "Autumn's the hard month. Everything with wings comes through at once and half of it comes through the lamps."
+        }
+      ]
+    },
+    {
+      "id": "pell.quest.lanternless.offer",
+      "speaker": "pell",
+      "node": "bowerdeep",
+      "kind": "quest",
+      "quest": "lanternless-night",
+      "priority": 58,
+      "when": {
+        "yearMin": 3,
+        "seasons": [
+          "autumn"
+        ],
+        "flagsUnset": [
+          "quest.lanternless-night.done",
+          "quest.lanternless-night.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Gloomoth migration starts tonight. Region-wide — they come up out of the Wilds and go through Bowerdeep on their way to wherever they go."
+        },
+        {
+          "text": "They are Dark and Wind and they take the lamps out as they pass. Not on purpose. They just fill the air."
+        },
+        {
+          "text": "I need a walk to the eastern stair and back with the relight kit. Duskstalk work the dark stretches, and a road with its lamps out is one long dark stretch."
+        },
+        {
+          "text": "One night. Autumn only — out of autumn they're not here at all, and the sign cards will read migrating rather than gone."
+        }
+      ],
+      "choices": [
+        {
+          "text": "I'll walk the road.",
+          "setFlags": {
+            "quest.lanternless-night.taken": true
+          },
+          "goto": "pell.quest.lanternless.accepted"
+        },
+        {
+          "text": "Not tonight.",
+          "goto": "pell.quest.lanternless.declined"
+        }
+      ]
+    },
+    {
+      "id": "pell.quest.lanternless.accepted",
+      "speaker": "pell",
+      "node": "bowerdeep",
+      "kind": "quest",
+      "quest": "lanternless-night",
+      "when": {
+        "flagsSet": [
+          "quest.lanternless-night.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Stay under the lit stretch and move when I move. If a lamp goes, we light it before we take another step."
+        }
+      ]
+    },
+    {
+      "id": "pell.quest.lanternless.declined",
+      "speaker": "pell",
+      "node": "bowerdeep",
+      "kind": "quest",
+      "quest": "lanternless-night",
+      "when": {},
+      "lines": [
+        {
+          "text": "Then it's a dark road and I've walked it dark before. Ask me again while the moths are still through."
+        }
+      ]
+    },
+    {
+      "id": "pell.quest.lanternless.done",
+      "speaker": "pell",
+      "node": "bowerdeep",
+      "kind": "quest",
+      "quest": "lanternless-night",
+      "priority": 59,
+      "when": {
+        "flagsSet": [
+          "quest.lanternless-night.turnin"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Every lamp on the road, and a Duskstalk turned at the stair instead of at us. Good walking."
+        },
+        {
+          "text": "They'll be gone by winter and the road will be quiet and I will miss them, which I do not explain to people."
+        }
+      ],
+      "setFlags": {
+        "quest.lanternless-night.done": true
+      }
+    },
+    {
+      "id": "ives.greeting",
+      "speaker": "ives",
+      "node": "duskhollow",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Ives. Observatory. I do the census — the one on the ground, not the one overhead."
+        },
+        {
+          "text": "Duskhollow counts stars and Duskhollow counts animals with the same instrument, which is a person, sitting still, writing things down."
+        }
+      ]
+    },
+    {
+      "id": "ives.quest.census.offer",
+      "speaker": "ives",
+      "node": "duskhollow",
+      "kind": "quest",
+      "quest": "star-census",
+      "priority": 58,
+      "when": {
+        "yearMin": 5,
+        "flagsUnset": [
+          "quest.star-census.offered"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The star census is the dex, kept properly. Every identity you've entered, with the age forms counted separately, because a Bogling and a Mirefin are not the same page."
+        },
+        {
+          "text": "Bring me milestones and I'll have the illustrators paint the entry out properly. Painted, on good paper, with the field notes underneath."
+        },
+        {
+          "text": "Migrants get a flag on the card — dormant or migrating. An absent Wispurr in summer is not a missing Wispurr, and the card must never let you confuse the two."
+        }
+      ],
+      "setFlags": {
+        "quest.star-census.offered": true
+      }
+    },
+    {
+      "id": "ives.quest.census.milestone",
+      "speaker": "ives",
+      "node": "duskhollow",
+      "kind": "quest",
+      "quest": "star-census",
+      "priority": 59,
+      "when": {
+        "flagsSet": [
+          "quest.star-census.milestone"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Another milestone. Here's the plate, still tacky — hold it by the edge."
+        },
+        {
+          "text": "Thirty-five identities in the full census. Nobody in Fallowmere has all thirty-five, including the observatory."
+        }
+      ]
+    },
+    {
+      "id": "orrin.greeting",
+      "speaker": "orrin",
+      "node": "duskhollow",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Orrin. Archive, mostly. Ives has the eyepiece and I have the shelves and we are both convinced the other has the easy job."
+        },
+        {
+          "text": "The vale runs darker every year. Ives says my lamp is failing. My lamp is four years old."
+        }
+      ]
+    },
+    {
+      "id": "orrin.vanishing",
+      "speaker": "orrin",
+      "node": "duskhollow",
+      "kind": "lore",
+      "signChain": "vellsire-chain",
+      "chainStep": 7,
+      "priority": 55,
+      "when": {
+        "yearMin": 5,
+        "flagsSet": [
+          "chain.vellsire.step6"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step7"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You want the vanishing. Everyone eventually wants the vanishing, and the archive is the only place it exists as a document."
+        },
+        {
+          "text": "Duskhollow logs the sky nightly and has since the observatory was roofed. When something crosses the vale under the instrument, it goes in the margin."
+        },
+        {
+          "text": "There are two hundred and six margin entries for Vellsire across ninety years. Herds of nine, of twelve, of four. Then one entry with three separate observers on the same night: a herd of six crossing the vale toward the caldera."
+        },
+        {
+          "text": "And then the margin is empty. Not thinning — empty, from that night, for thirty years, in a book that never misses a night."
+        },
+        {
+          "text": "Animals do not stop existing on a date. They stop being where the instrument points. Whatever went through that gate went through it all at once."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step7": true
+      }
+    },
+    {
+      "id": "orrin.quest.trail.offer",
+      "speaker": "orrin",
+      "node": "duskhollow",
+      "kind": "quest",
+      "quest": "vellsires-trail",
+      "priority": 58,
+      "when": {
+        "yearMin": 5,
+        "flagsSet": [
+          "chain.vellsire.step7"
+        ],
+        "flagsUnset": [
+          "quest.vellsires-trail.done",
+          "quest.vellsires-trail.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The antler stones are a trail and the trail has a direction. Meadow Reach, Brackmarsh, the Wilds, the steppe, the vale, the Approach."
+        },
+        {
+          "text": "Each stone carries a sign older than any card in your pouch. Reading one needs Instinct, and reading the last one needs more Instinct than reading the first."
+        },
+        {
+          "text": "Walk the trail in order and bring me what the stones say. I have waited a long time for someone with the legs for it."
+        }
+      ],
+      "choices": [
+        {
+          "text": "I'll walk the stones.",
+          "setFlags": {
+            "quest.vellsires-trail.taken": true
+          },
+          "goto": "orrin.quest.trail.accepted"
+        },
+        {
+          "text": "Not yet.",
+          "goto": "orrin.quest.trail.declined"
+        }
+      ]
+    },
+    {
+      "id": "orrin.quest.trail.accepted",
+      "speaker": "orrin",
+      "node": "duskhollow",
+      "kind": "quest",
+      "quest": "vellsires-trail",
+      "when": {
+        "flagsSet": [
+          "quest.vellsires-trail.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "In order. The stones were cut in order and they do not read out of it."
+        },
+        {
+          "text": "Take the sharpest thing on your team. Instinct decides how much of a sign you get, and a poor read on the last stone is the same as no read at all."
+        }
+      ]
+    },
+    {
+      "id": "orrin.quest.trail.declined",
+      "speaker": "orrin",
+      "node": "duskhollow",
+      "kind": "quest",
+      "quest": "vellsires-trail",
+      "when": {},
+      "lines": [
+        {
+          "text": "Thirty years. I can manage another season."
+        }
+      ]
+    },
+    {
+      "id": "orrin.quest.trail.done",
+      "speaker": "orrin",
+      "node": "duskhollow",
+      "kind": "quest",
+      "quest": "vellsires-trail",
+      "priority": 59,
+      "when": {
+        "flagsSet": [
+          "quest.vellsires-trail.turnin"
+        ]
+      },
+      "lines": [
+        {
+          "text": "All six. Laid end to end they are one sentence and the sentence is a direction."
+        },
+        {
+          "text": "It points at the Sanctum Fallow, which everybody guessed, and it gives a season, which nobody did."
+        },
+        {
+          "text": "Take this to Maren. She has been the other half of this file for eleven years and does not know it."
+        }
+      ],
+      "setFlags": {
+        "quest.vellsires-trail.done": true
+      }
+    },
+    {
+      "id": "prop.hearthollow-signpost",
+      "speaker": "prop-sign-card",
+      "node": "hearthollow",
+      "kind": "prop",
+      "propId": "hearthollow-signpost",
+      "when": {},
+      "lines": [
+        {
+          "text": "WARDEN'S FIELD STATION — Hearthollow. Counts posted at first light. Corrections welcome; guesses are not."
+        },
+        {
+          "text": "Below, in a different hand: Meadow Reach through the north gate. Take the ledger."
+        }
+      ]
+    },
+    {
+      "id": "prop.r1-sign-forage",
+      "speaker": "prop-sign-card",
+      "node": "r1",
+      "kind": "prop",
+      "propId": "r1-sign-forage",
+      "when": {},
+      "lines": [
+        {
+          "text": "FORAGE SIGN — Meadow Reach. Tracks, scrapes, castings, browse lines. Read one and you have a card."
+        },
+        {
+          "text": "A card on a migrant reads DORMANT or MIGRATING. Neither word means gone."
+        }
+      ]
+    },
+    {
+      "id": "prop.r1-antler-north",
+      "speaker": "prop-antler-stone",
+      "node": "r1",
+      "kind": "prop",
+      "propId": "r1-antler-north",
+      "signChain": "vellsire-chain",
+      "chainStep": 2,
+      "priority": 50,
+      "when": {
+        "flagsSet": [
+          "chain.vellsire.step1"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step2"
+        ]
+      },
+      "lines": [
+        {
+          "text": "A standing stone cut into branching antlers, worn round on the weather side. It is taller than you and set deep."
+        },
+        {
+          "text": "The carving on the sheltered face is a herd, six figures, and a line running north from them."
+        },
+        {
+          "text": "The stone is warm where the meadow grass banks against it. Nothing else on Meadow Reach is."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step2": true,
+        "trail.stone.r1": true
+      }
+    },
+    {
+      "id": "prop.r1-antler-south",
+      "speaker": "prop-antler-stone",
+      "node": "r1",
+      "kind": "prop",
+      "propId": "r1-antler-south",
+      "when": {},
+      "lines": [
+        {
+          "text": "The southern stone, snapped off at half height. The break is old enough to have grown its own lichen."
+        },
+        {
+          "text": "What is left of the carving shows hooves and the bottom of a line. The line points at its northern twin."
+        }
+      ]
+    },
+    {
+      "id": "prop.brackwater-idol-dock",
+      "speaker": "prop-sunken-idol",
+      "node": "brackwater",
+      "kind": "prop",
+      "propId": "brackwater-idol-dock",
+      "signChain": "undermere-chain",
+      "chainStep": 2,
+      "priority": 50,
+      "when": {
+        "flagsSet": [
+          "chain.undermere.step1"
+        ],
+        "flagsUnset": [
+          "chain.undermere.step2"
+        ],
+        "yearMin": 2
+      },
+      "lines": [
+        {
+          "text": "A stone figure stands half under the water off the dock rim, facing out. The shallows around it are clear and the water directly beneath it is not."
+        },
+        {
+          "text": "It has no eyes. Not weathered away — never cut. The face is finished everywhere else."
+        },
+        {
+          "text": "The stone is not marsh stone. There is nothing in Brackwater that would cut like this."
+        }
+      ],
+      "setFlags": {
+        "chain.undermere.step2": true
+      }
+    },
+    {
+      "id": "prop.r2-idol-shallows",
+      "speaker": "prop-sunken-idol",
+      "node": "r2",
+      "kind": "prop",
+      "propId": "r2-idol-shallows",
+      "signChain": "undermere-chain",
+      "chainStep": 5,
+      "priority": 50,
+      "when": {
+        "flagsSet": [
+          "chain.undermere.step4"
+        ],
+        "flagsUnset": [
+          "chain.undermere.step5"
+        ],
+        "yearMin": 2
+      },
+      "lines": [
+        {
+          "text": "The second idol, out where the reeds thin. Same carving, same missing eyes, facing back across the water toward the dock."
+        },
+        {
+          "text": "Between the two of them the reed stops growing in a band about a boat wide."
+        },
+        {
+          "text": "Your pole finds nothing under that band. Sel said it wouldn't."
+        }
+      ],
+      "setFlags": {
+        "chain.undermere.step5": true
+      }
+    },
+    {
+      "id": "prop.r2-antler-causeway",
+      "speaker": "prop-antler-stone",
+      "node": "r2",
+      "kind": "prop",
+      "propId": "r2-antler-causeway",
+      "signChain": "vellsire-chain",
+      "chainStep": 4,
+      "priority": 50,
+      "when": {
+        "flagsSet": [
+          "chain.vellsire.step3"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step4"
+        ],
+        "yearMin": 2
+      },
+      "lines": [
+        {
+          "text": "The causeway stone leans, but it leans the way it was set — the marsh has moved around it and it has not moved with the marsh."
+        },
+        {
+          "text": "Six figures again, and the line out of them runs east. Someone has re-cut the line at least once; the groove has two depths."
+        },
+        {
+          "text": "Whoever kept these stones kept them for long enough to need to repair them."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step4": true,
+        "trail.stone.r2": true
+      }
+    },
+    {
+      "id": "prop.bowerdeep-sign-market",
+      "speaker": "prop-sign-card",
+      "node": "bowerdeep",
+      "kind": "prop",
+      "propId": "bowerdeep-sign-market",
+      "when": {},
+      "lines": [
+        {
+          "text": "NIGHT MARKET — open dusk to dawn. Silk, thread, dye, lamp oil, relight kits."
+        },
+        {
+          "text": "Pinned beneath: canopy count, posted by the gym. The figure has been crossed out and rewritten twice this season."
+        }
+      ]
+    },
+    {
+      "id": "prop.r3-antler-canopy",
+      "speaker": "prop-antler-stone",
+      "node": "r3",
+      "kind": "prop",
+      "propId": "r3-antler-canopy",
+      "signChain": "vellsire-chain",
+      "priority": 50,
+      "when": {
+        "flagsSet": [
+          "chain.vellsire.step4"
+        ],
+        "flagsUnset": [
+          "trail.stone.r3"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The forest grew up around this one. Two trunks have closed against its sides and stopped, as if they met something they would not pass."
+        },
+        {
+          "text": "The herd on the sheltered face is six figures. It has been six on every stone."
+        },
+        {
+          "text": "The line runs east again, toward the steppe."
+        }
+      ],
+      "setFlags": {
+        "trail.stone.r3": true
+      }
+    },
+    {
+      "id": "prop.cindershelf-shrine-mine",
+      "speaker": "prop-shell-kiln-shrine",
+      "node": "cindershelf",
+      "kind": "prop",
+      "propId": "cindershelf-shrine-mine",
+      "signChain": "kilnback-chain",
+      "chainStep": 2,
+      "priority": 50,
+      "when": {
+        "flagsSet": [
+          "chain.kilnback.step1"
+        ],
+        "flagsUnset": [
+          "chain.kilnback.step2"
+        ],
+        "yearMin": 4
+      },
+      "lines": [
+        {
+          "text": "A shrine at the shaft head, built from curved plates the colour of fired clay, fitted without mortar."
+        },
+        {
+          "text": "The plates are not clay. Up close the grain is bone, kiln-hardened, and each plate is thicker than a door."
+        },
+        {
+          "text": "Miners have set candles in the joins for long enough to have worn hollows for them."
+        }
+      ],
+      "setFlags": {
+        "chain.kilnback.step2": true
+      }
+    },
+    {
+      "id": "prop.cindershelf-shrine-deep",
+      "speaker": "prop-shell-kiln-shrine",
+      "node": "cindershelf",
+      "kind": "prop",
+      "propId": "cindershelf-shrine-deep",
+      "signChain": "kilnback-chain",
+      "chainStep": 5,
+      "priority": 50,
+      "when": {
+        "flagsSet": [
+          "chain.kilnback.step4"
+        ],
+        "flagsUnset": [
+          "chain.kilnback.step5"
+        ],
+        "yearMin": 4
+      },
+      "lines": [
+        {
+          "text": "The deep shrine, at the bottom of the warm reach. The air here is still and eight degrees over and it has been for thirty-one years."
+        },
+        {
+          "text": "This shrine is one plate, not many. It is the size of a cart and it is curved, and it was never quarried — it was shed."
+        },
+        {
+          "text": "A word is cut across the join in letters the mine stopped using: KILNBACK."
+        }
+      ],
+      "setFlags": {
+        "chain.kilnback.step5": true
+      }
+    },
+    {
+      "id": "prop.r4-antler-vent",
+      "speaker": "prop-antler-stone",
+      "node": "r4",
+      "kind": "prop",
+      "propId": "r4-antler-vent",
+      "signChain": "vellsire-chain",
+      "priority": 50,
+      "when": {
+        "flagsSet": [
+          "chain.vellsire.step4"
+        ],
+        "flagsUnset": [
+          "trail.stone.r4"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Vent heat has glazed the windward face to glass. The sheltered face is untouched and sharp."
+        },
+        {
+          "text": "Six figures. The line runs south-east, toward the vale."
+        }
+      ],
+      "setFlags": {
+        "trail.stone.r4": true
+      }
+    },
+    {
+      "id": "prop.duskhollow-sign-observatory",
+      "speaker": "prop-sign-card",
+      "node": "duskhollow",
+      "kind": "prop",
+      "propId": "duskhollow-sign-observatory",
+      "when": {},
+      "lines": [
+        {
+          "text": "STAR CENSUS — identities recorded, of thirty-five. Painted plates issued at each milestone."
+        },
+        {
+          "text": "Under the board, in Orrin's hand: the margin is a census too."
+        }
+      ]
+    },
+    {
+      "id": "prop.r5-antler-vale",
+      "speaker": "prop-antler-stone",
+      "node": "r5",
+      "kind": "prop",
+      "propId": "r5-antler-vale",
+      "signChain": "vellsire-chain",
+      "priority": 50,
+      "when": {
+        "flagsSet": [
+          "chain.vellsire.step4"
+        ],
+        "flagsUnset": [
+          "trail.stone.r5"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The vale stone stands in open ground with no cover for a quarter mile in any direction. It was meant to be seen at night."
+        },
+        {
+          "text": "Six figures, and the line runs up — not along the ground. Up, toward the caldera rim."
+        }
+      ],
+      "setFlags": {
+        "trail.stone.r5": true
+      }
+    },
+    {
+      "id": "prop.sanctum-approach-antler-gate",
+      "speaker": "prop-antler-stone",
+      "node": "sanctum-approach",
+      "kind": "prop",
+      "propId": "sanctum-approach-antler-gate",
+      "signChain": "vellsire-chain",
+      "chainStep": 9,
+      "priority": 50,
+      "when": {
+        "flagsSet": [
+          "chain.vellsire.step8"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step9"
+        ],
+        "yearMin": 6
+      },
+      "lines": [
+        {
+          "text": "The gate stone. The largest of them, and the only one with the herd cut on both faces."
+        },
+        {
+          "text": "On the outward face: six figures walking in. On the inward face: six figures standing still."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step9": true,
+        "trail.stone.sanctum-approach": true
+      }
+    },
+    {
+      "id": "prop.sanctum-approach-antler-inner",
+      "speaker": "prop-antler-stone",
+      "node": "sanctum-approach",
+      "kind": "prop",
+      "propId": "sanctum-approach-antler-inner",
+      "when": {},
+      "lines": [
+        {
+          "text": "An inner stone, unfinished. The antlers are roughed out and the herd was never cut."
+        },
+        {
+          "text": "The tools are still at its foot under a century of ash. Whoever was working stopped and did not come back."
+        }
+      ]
+    },
+    {
+      "id": "prop.sanctum-antler-ring",
+      "speaker": "prop-antler-stone",
+      "node": "sanctum",
+      "kind": "prop",
+      "propId": "sanctum-antler-ring",
+      "signChain": "vellsire-chain",
+      "chainStep": 11,
+      "priority": 50,
+      "when": {
+        "years": [
+          6
+        ]
+      },
+      "lines": [
+        {
+          "text": "The ring at the caldera heart: nine stones, every one carved, every one facing inward."
+        },
+        {
+          "text": "The herd on these is not six. On these it is one."
+        },
+        {
+          "text": "The grass inside the ring is the only green thing in the Sanctum Fallow, and it is grazed short."
+        }
+      ]
+    },
+    {
+      "id": "sanctum.vellsire.approach",
+      "speaker": "prop-antler-stone",
+      "node": "sanctum",
+      "kind": "cutscene",
+      "propId": "sanctum-antler-ring",
+      "priority": 95,
+      "when": {
+        "years": [
+          6
+        ],
+        "flagsSet": [
+          "story.greaves.beaten"
+        ],
+        "flagsUnset": [
+          "story.vellsire.resolved"
+        ]
+      },
+      "lines": [
+        {
+          "text": "It comes down into the ring without hurrying, and it is larger than the carvings made it."
+        },
+        {
+          "text": "Beast and Dark. Elder, and it has been Elder longer than the stones have been standing, and it will not be anything else."
+        },
+        {
+          "text": "It waits inside the ring. Whatever happens next happens because you do it."
+        }
+      ],
+      "choices": [
+        {
+          "text": "Set the snare.",
+          "setFlags": {
+            "story.vellsire.attempt": "catch"
+          }
+        },
+        {
+          "text": "Stand aside and let it pass.",
+          "setFlags": {
+            "story.vellsire.attempt": "release"
+          }
+        }
+      ]
+    },
+    {
+      "id": "maren.epilogue.caught",
+      "speaker": "maren",
+      "node": "sanctum",
+      "kind": "cutscene",
+      "priority": 95,
+      "when": {
+        "years": [
+          6
+        ],
+        "flagsSet": [
+          "story.vellsire.resolved"
+        ],
+        "flagEquals": [
+          {
+            "key": "story.vellsire.outcome",
+            "value": "caught"
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "It's yours. Ancients don't age, so it stays exactly as it is for as long as you do."
+        },
+        {
+          "text": "Counts, then. Meadow Reach, Brackmarsh, Bowerdeep Wilds, Cinder Steppe, Duskhollow Vale, the Approach. This morning, in the same hand as the ones I took the week you started."
+        },
+        {
+          "text": "Breeding in every node adjacent to the Sanctum runs at the base rate now. That's the whole of the difference, and it is a real one — four seasons to see it, eight to be sure of it."
+        },
+        {
+          "text": "Bring it by the station some time. I have never had the chance to measure one."
+        }
+      ],
+      "setFlags": {
+        "story.epilogue.shown": true
+      }
+    },
+    {
+      "id": "maren.epilogue.released",
+      "speaker": "maren",
+      "node": "sanctum",
+      "kind": "cutscene",
+      "priority": 95,
+      "when": {
+        "years": [
+          6
+        ],
+        "flagsSet": [
+          "story.vellsire.resolved"
+        ],
+        "flagEquals": [
+          {
+            "key": "story.vellsire.outcome",
+            "value": "released"
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "It went up the scarp and over the rim and it did not hurry."
+        },
+        {
+          "text": "Counts, then. The same six nodes, the same hand, this morning."
+        },
+        {
+          "text": "Breeding in every node adjacent to the Sanctum runs at one and a half while it is out there. That is not a story. It is a coefficient, and it will show."
+        },
+        {
+          "text": "You don't own the thing you spent six years finding. That is the other half of the entry and I am writing it down too."
+        }
+      ],
+      "setFlags": {
+        "story.epilogue.shown": true
+      }
+    },
+    {
+      "id": "innkeeper-hearthollow.rest",
+      "speaker": "innkeeper-hearthollow",
+      "node": "hearthollow",
+      "kind": "service",
+      "when": {},
+      "lines": [
+        {
+          "text": "Bed's two ticks off the season meter and everything you're carrying comes back up to full."
+        },
+        {
+          "text": "Lanterns go up on the green at festival. You'll want to be in town for that one."
+        }
+      ]
+    },
+    {
+      "id": "innkeeper-brackwater.rest",
+      "speaker": "innkeeper-brackwater",
+      "node": "brackwater",
+      "kind": "service",
+      "when": {},
+      "lines": [
+        {
+          "text": "Rooms are over the water, so they sway. Everyone says they won't sleep and everyone sleeps."
+        },
+        {
+          "text": "Two ticks, full heal, and I'll have your boots dry by morning."
+        }
+      ]
+    },
+    {
+      "id": "innkeeper-bowerdeep.rest",
+      "speaker": "innkeeper-bowerdeep",
+      "node": "bowerdeep",
+      "kind": "service",
+      "when": {},
+      "lines": [
+        {
+          "text": "We rent by the day here, not the night. Night is when the market's open."
+        },
+        {
+          "text": "Dark lines come up into the eaves after dusk. They've never bothered a paying guest."
+        }
+      ]
+    },
+    {
+      "id": "innkeeper-cindershelf.rest",
+      "speaker": "innkeeper-cindershelf",
+      "node": "cindershelf",
+      "kind": "service",
+      "when": {},
+      "lines": [
+        {
+          "text": "Two ticks. Water's hot without heating it; that's the one thing this town gets free."
+        },
+        {
+          "text": "Rooms on the vent side are warmer and shake more. Your choice."
+        }
+      ]
+    },
+    {
+      "id": "innkeeper-duskhollow.rest",
+      "speaker": "innkeeper-duskhollow",
+      "node": "duskhollow",
+      "kind": "service",
+      "when": {},
+      "lines": [
+        {
+          "text": "Two ticks, and the shutters stay open — observatory rules, the whole town keeps them."
+        },
+        {
+          "text": "The vale's darker than it was when I took this place on. That's not a mood, it's on Orrin's chart."
+        }
+      ]
+    },
+    {
+      "id": "vendor-hearthollow.shop",
+      "speaker": "vendor-hearthollow",
+      "node": "hearthollow",
+      "kind": "service",
+      "when": {},
+      "lines": [
+        {
+          "text": "Snares, salve, tonic, bait mats. Weighted snares when the smith has them and not before."
+        },
+        {
+          "text": "Role bait's cheap and works on anything of that role. Species bait costs and works properly."
+        },
+        {
+          "text": "Bait's crafted off the web. If you don't know what your target eats, you're buying at random."
+        }
+      ]
+    },
+    {
+      "id": "vendor-brackwater.shop",
+      "speaker": "vendor-brackwater",
+      "node": "brackwater",
+      "kind": "service",
+      "when": {},
+      "lines": [
+        {
+          "text": "Marsh stock: tonic, salve, weighted snares, and reed bait by the bundle."
+        },
+        {
+          "text": "Reed bait takes Grazers. Out here that's Reedrick, and Reedrick is a summer animal, so the bait sits on my shelf half the year."
+        },
+        {
+          "text": "Prices move with the levy, and the levy moves with the channel count. Ask Odo, not me."
+        }
+      ]
+    },
+    {
+      "id": "vendor-bowerdeep.shop",
+      "speaker": "vendor-bowerdeep",
+      "node": "bowerdeep",
+      "kind": "service",
+      "when": {},
+      "lines": [
+        {
+          "text": "Night market. Open dusk to dawn, and no, we don't do mornings."
+        },
+        {
+          "text": "Lamp oil, relight kits, tonics, silk by the bolt. Dark lines come to the stalls; step round them, they're browsing."
+        },
+        {
+          "text": "Master snares turn up here about twice a year and go the same night."
+        }
+      ]
+    },
+    {
+      "id": "vendor-cindershelf.shop",
+      "speaker": "vendor-cindershelf",
+      "node": "cindershelf",
+      "kind": "service",
+      "when": {},
+      "lines": [
+        {
+          "text": "Ingots, snares, salve, and ash bait, which is the only thing an Ashvole will look at."
+        },
+        {
+          "text": "Company store closed when the contract closed. I'm what's left and my prices show it."
+        },
+        {
+          "text": "Bram takes relics next door. He does not take payment for the stamping and don't offer."
+        }
+      ]
+    },
+    {
+      "id": "vendor-duskhollow.shop",
+      "speaker": "vendor-duskhollow",
+      "node": "duskhollow",
+      "kind": "service",
+      "when": {},
+      "lines": [
+        {
+          "text": "Lamps, oil, tonic, master snares. In the vale the lamp is the important one."
+        },
+        {
+          "text": "Dark bait moves in winter when the Wispurr are up and sits on the shelf the rest of the year."
+        },
+        {
+          "text": "Observatory buys my whole lamp stock every autumn. I don't ask why and they don't say."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-elder.base",
+      "speaker": "hearthollow-elder",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Drove cattle up Meadow Reach for fifty years. Now I sit here and watch other people walk up it."
+        },
+        {
+          "text": "Meadow is producer country. Loamunder turn the ground and everything else lives off what they turn."
+        },
+        {
+          "text": "Skir over the hedge at dusk. A kestrel won't hunt what it can't see move."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-elder.bloom",
+      "speaker": "hearthollow-elder",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 2,
+        "floraStock": [
+          {
+            "node": "r1",
+            "op": "gte",
+            "value": 80
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Reach came in green right down to the fence line. I've not seen it come that far since I was droving."
+        },
+        {
+          "text": "When the Reach blooms it spills into the town fields, and Tolm gets a crop off ground he'd written off."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-elder.thin",
+      "speaker": "hearthollow-elder",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 2,
+        "floraStock": [
+          {
+            "node": "r1",
+            "op": "lte",
+            "value": 45
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Reach is short this year. Grass came up but it's thin and the ground shows through on the rise."
+        },
+        {
+          "text": "The fields follow the Reach. Always have. Tolm's west side shows it first."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-child.base",
+      "speaker": "hearthollow-child",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Maren let me hold the ledger once. It's just numbers. I thought it would have drawings."
+        },
+        {
+          "text": "There's a Nibbin under the mill step. I gave it a name and Maren says that isn't how counting works."
+        },
+        {
+          "text": "When I'm bigger I'm walking all the way to the Sanctum Fallow. Everyone says it's shut."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-child.older",
+      "speaker": "hearthollow-child",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 5
+      },
+      "lines": [
+        {
+          "text": "The festival lanterns were better when I was small. My mother says I was smaller, not the lanterns."
+        },
+        {
+          "text": "The Nibbin under the mill step is an Elder now. It's the same one. I checked against the ledger."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-farmhand.base",
+      "speaker": "hearthollow-farmhand",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Bramblehog took the west gate apart again. Third time this season and it's the same post."
+        },
+        {
+          "text": "Loamunder walk the furrows all night. Stand still out there and you can hear them working."
+        },
+        {
+          "text": "Harvest is in six weeks and I have two hands and four fields."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-forager.base",
+      "speaker": "hearthollow-forager",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Sign cards. Tracks, scrapes, castings, browse lines. You learn to read them or you walk past everything."
+        },
+        {
+          "text": "Pollywisp are spring only. Out of spring the card says dormant, which means down, not gone."
+        },
+        {
+          "text": "Instinct decides how much a card gives you. A dull creature makes a poor read of a good sign."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-fenceman.base",
+      "speaker": "hearthollow-fenceman",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Fence line's four miles. I mend it twice a year and I have never once got ahead of it."
+        },
+        {
+          "text": "Whatever comes through here has hooves and shoulders behind them. Bramblehog, most likely."
+        },
+        {
+          "text": "Maren says put a count on it. I say I put a post on it."
+        }
+      ]
+    },
+    {
+      "id": "amb.brackwater-dockhand.base",
+      "speaker": "brackwater-dockhand",
+      "node": "brackwater",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Barge lands at slack water or it doesn't land. That's not a preference, that's the channel."
+        },
+        {
+          "text": "Everything Brackwater sells comes out of the water and everything it eats comes back over the water."
+        },
+        {
+          "text": "Sel has poled that crossing longer than this dock has been standing. He'd tell you the same, at length."
+        }
+      ]
+    },
+    {
+      "id": "amb.brackwater-dockhand.rot",
+      "speaker": "brackwater-dockhand",
+      "node": "brackwater",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 3,
+        "population": [
+          {
+            "node": "r2",
+            "lineId": "mirefin-line",
+            "op": "lte",
+            "value": 4
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Third piling's soft. You feel it through your boots when the barge lands."
+        },
+        {
+          "text": "The levy pays for pilings and the levy comes off the channel count."
+        }
+      ]
+    },
+    {
+      "id": "amb.brackwater-dockhand.rebuilt",
+      "speaker": "brackwater-dockhand",
+      "node": "brackwater",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 3,
+        "population": [
+          {
+            "node": "r2",
+            "lineId": "mirefin-line",
+            "op": "gte",
+            "value": 9
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "New pilings on three and four. First new timber on this dock in eleven years."
+        },
+        {
+          "text": "Deck's level. I keep noticing it, and then noticing that I noticed."
+        }
+      ]
+    },
+    {
+      "id": "amb.brackwater-netmender.base",
+      "speaker": "brackwater-netmender",
+      "node": "brackwater",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Coarse nets for Mirefin, fine nets for Bogling. You don't put the fine ones out unless a buyer has asked."
+        },
+        {
+          "text": "Reedrick walk the shallows all summer and are somewhere else the rest of the year. The card reads migrating."
+        },
+        {
+          "text": "Sporantle take everything that dies out there. Brackmarsh would be a different smell without them."
+        }
+      ]
+    },
+    {
+      "id": "amb.brackwater-child.base",
+      "speaker": "brackwater-child",
+      "node": "brackwater",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "I've seen a Fenmaw. It looked at the boat, and then it didn't."
+        },
+        {
+          "text": "There's a stone man in the water off the dock and he hasn't got any eyes."
+        },
+        {
+          "text": "Sel says don't trail your hand in the water. I trail my hand in the water."
+        }
+      ]
+    },
+    {
+      "id": "amb.brackwater-elder.base",
+      "speaker": "brackwater-elder",
+      "node": "brackwater",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Sixty years on these stilts. The water line on my post has not moved once in all of it."
+        },
+        {
+          "text": "Drought years, flood years, same mark. Nobody thinks that's strange except Sel and the warden."
+        },
+        {
+          "text": "My mother heard the pilings sing in a flood year. She never once said what did it."
+        }
+      ]
+    },
+    {
+      "id": "amb.brackwater-buyer.base",
+      "speaker": "brackwater-buyer",
+      "node": "brackwater",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "I price the season off the channel count. Not the shallows. The channel. That's what the contract says."
+        },
+        {
+          "text": "The Fenmaw at the top of that marsh keep the Mirefin spread out. Sounds backwards. It isn't."
+        },
+        {
+          "text": "Contract's sixty years old and nobody has asked to reopen it, including me."
+        }
+      ]
+    },
+    {
+      "id": "amb.brackwater-buyer.lowseason",
+      "speaker": "brackwater-buyer",
+      "node": "brackwater",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 3,
+        "population": [
+          {
+            "node": "r2",
+            "lineId": "fenmaw-line",
+            "op": "lte",
+            "value": 1
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "No confirmed Fenmaw in Brackmarsh this survey. The contract has a clause for that and the clause is not generous."
+        },
+        {
+          "text": "Mirefin will run for a season or two without them and then the channel does something I've only read about."
+        }
+      ]
+    },
+    {
+      "id": "amb.r1-forager.base",
+      "speaker": "r1-forager",
+      "node": "r1",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Reach is the easiest country in Fallowmere and it still takes a season to learn where things stand."
+        },
+        {
+          "text": "Loamunder up on the rise, Nibbin in the tussock, Bramblehog wherever the bramble is. Skir over all of it."
+        },
+        {
+          "text": "There's a stone up north cut like antlers. Nobody in Hearthollow put it there."
+        }
+      ]
+    },
+    {
+      "id": "amb.r1-forager.thin",
+      "speaker": "r1-forager",
+      "node": "r1",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 2,
+        "population": [
+          {
+            "node": "r1",
+            "lineId": "nibbin-line",
+            "op": "lte",
+            "value": 4
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Walked the tussock line all morning for two Nibbin. It used to take about ten minutes."
+        },
+        {
+          "text": "Skir are still up. They're working the far hedge now instead of the rise, which tells you where the voles went."
+        }
+      ]
+    },
+    {
+      "id": "amb.r1-forager.bloom",
+      "speaker": "r1-forager",
+      "node": "r1",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 2,
+        "floraStock": [
+          {
+            "node": "r1",
+            "op": "gte",
+            "value": 88
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Bloom year. Flora stock is over anything in the warden's book and the grazers are all up with it."
+        },
+        {
+          "text": "Everything eats better in a bloom year, including the things that eat the things that eat."
+        }
+      ]
+    },
+    {
+      "id": "amb.r2-ferryhand.base",
+      "speaker": "r2-ferryhand",
+      "node": "r2",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "I pole the second boat when Sel's boat is full. Which is most days, because everyone wants his boat."
+        },
+        {
+          "text": "Channel on the left, shallows on the right, and don't confuse them with a Bogling in the creel."
+        },
+        {
+          "text": "There's an idol out where the reed thins. It faces the town. I've stopped looking at it."
+        }
+      ]
+    },
+    {
+      "id": "amb.r2-ferryhand.quiet",
+      "speaker": "r2-ferryhand",
+      "node": "r2",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 3,
+        "population": [
+          {
+            "node": "r2",
+            "lineId": "reedrick-line",
+            "op": "lte",
+            "value": 10
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Reed's gone quiet. In a normal summer you can't hear the pole for Reedrick calling."
+        },
+        {
+          "text": "Sporantle are still thick. They always are. Something has to take what settles."
+        }
+      ]
+    },
+    {
+      "id": "amb.bowerdeep-logger.base",
+      "speaker": "bowerdeep-logger",
+      "node": "bowerdeep",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Cullbrand buys what I cut. Cullbrand doesn't cut it. That distinction is in my contract and it is not in my back."
+        },
+        {
+          "text": "Silk lines want light and light wants gaps. The trade needs the canopy open and closed at the same time."
+        },
+        {
+          "text": "Barkhide keep the understory down. Where the elk stop browsing, the young growth closes and the light stops."
+        }
+      ]
+    },
+    {
+      "id": "amb.bowerdeep-logger.thin",
+      "speaker": "bowerdeep-logger",
+      "node": "bowerdeep",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 4,
+        "population": [
+          {
+            "node": "r3",
+            "lineId": "barkhide-line",
+            "op": "lte",
+            "value": 4
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Canopy's thinning at the east stair. Not from cutting — nobody's cut there in four years."
+        },
+        {
+          "text": "No Barkhide on that slope. The understory closed, the young trees went up together, and now the whole stand is the same age and the same height."
+        }
+      ]
+    },
+    {
+      "id": "amb.bowerdeep-silkwinder.base",
+      "speaker": "bowerdeep-silkwinder",
+      "node": "bowerdeep",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "An adult Webvern gives thread you can pull a boat with. A juvenile gives thread you can break by looking at it."
+        },
+        {
+          "text": "Winding house takes the raw line and turns it into bolt. The whole town's wages go through that one building."
+        },
+        {
+          "text": "Vesper posts the canopy count on the market board. Halder posts his order beside it. Nobody planned that."
+        }
+      ]
+    },
+    {
+      "id": "amb.bowerdeep-child.base",
+      "speaker": "bowerdeep-child",
+      "node": "bowerdeep",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "In autumn the Gloomoth come through and the lamps all go out at once and everyone shouts."
+        },
+        {
+          "text": "Gloomgrub are the little ones. They're Poison and Plant and then they aren't, they're Dark and Wind. It's the same animal."
+        },
+        {
+          "text": "I'm not allowed on the east stair after dark. There's a Duskstalk on the east stair."
+        }
+      ]
+    },
+    {
+      "id": "amb.bowerdeep-elder.base",
+      "speaker": "bowerdeep-elder",
+      "node": "bowerdeep",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Bowerdeep is three towns stacked: the floor, the walk, and the canopy. I've lived on all three."
+        },
+        {
+          "text": "Mosslet on the floor, Webvern up top, and Sporantle turning whatever falls between them."
+        },
+        {
+          "text": "The market opens at dusk because the buyers keep to the dark. Been that way since before the market had a roof."
+        }
+      ]
+    },
+    {
+      "id": "amb.bowerdeep-lampkeeper.base",
+      "speaker": "bowerdeep-lampkeeper",
+      "node": "bowerdeep",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Two hundred and eleven lamps on the walk. I know because I light them and I count as I go."
+        },
+        {
+          "text": "Pell has the road out to the eastern stair. That's the hard stretch and he's had it forty years."
+        },
+        {
+          "text": "Out of autumn the road's quiet. The moths aren't dead, they're elsewhere, and the card says so."
+        }
+      ]
+    },
+    {
+      "id": "amb.cindershelf-miner.base",
+      "speaker": "cindershelf-miner",
+      "node": "cindershelf",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Third shaft's warm. Everyone new asks and everyone old stops noticing, and Gerta never stopped noticing."
+        },
+        {
+          "text": "Vents run hot in bursts. The shaft runs warm flat. Those are different heats and you learn the difference fast."
+        },
+        {
+          "text": "Pyrelisk come up the vent line when it flares. You don't work the vent line on a flare day."
+        }
+      ]
+    },
+    {
+      "id": "amb.cindershelf-shafthand.base",
+      "speaker": "cindershelf-shafthand",
+      "node": "cindershelf",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Mine follows the flare. Vents open new ground, the town digs it, the town moves. Half of Cindershelf is built on the last one's spoil."
+        },
+        {
+          "text": "Shrines are all through the deep workings. We didn't put them there and we don't move them."
+        },
+        {
+          "text": "Ashvole burrow the cinder. Where the Ashvole are is where the ground's soft enough to be worth cutting."
+        }
+      ]
+    },
+    {
+      "id": "amb.cindershelf-elder.base",
+      "speaker": "cindershelf-elder",
+      "node": "cindershelf",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Sixty-two years under the shelf. Four contracts, three of them good."
+        },
+        {
+          "text": "Stonewing used to nest the west scarp in pairs and you could set your year by them."
+        },
+        {
+          "text": "Cragmar on the high ground meant grazing, and grazing meant the flora had come back. That's how we read a year up here."
+        }
+      ]
+    },
+    {
+      "id": "amb.cindershelf-child.base",
+      "speaker": "cindershelf-child",
+      "node": "cindershelf",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "The floor is warm in Bram's forge even when the forge is cold. He lets me feel it."
+        },
+        {
+          "text": "There's a shrine at the bottom of the third shaft that's bigger than a cart."
+        },
+        {
+          "text": "Sable's Pyrelisk is the loudest thing in this town and the vents are in this town."
+        }
+      ]
+    },
+    {
+      "id": "amb.cindershelf-worker.base",
+      "speaker": "cindershelf-worker",
+      "node": "cindershelf",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Company overalls, no company. Contract closed two years early and the store shut the same week."
+        },
+        {
+          "text": "I worked the west scarp crew. We hit the contract weight in four years instead of six and everyone got a bonus."
+        },
+        {
+          "text": "I'm still here because my wife is from here. The rest of the crew went where the next contract was."
+        }
+      ]
+    },
+    {
+      "id": "amb.duskhollow-astronomer.base",
+      "speaker": "duskhollow-astronomer",
+      "node": "duskhollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "We log the sky nightly and we log the margin nightly. The margin is anything that crosses the vale under the instrument."
+        },
+        {
+          "text": "Ninety years of margins. Ives will tell you it's a census and Ives is right, and Ives is insufferable about it."
+        },
+        {
+          "text": "Wispurr are winter animals. In summer the vale is genuinely empty and the card says so."
+        }
+      ]
+    },
+    {
+      "id": "amb.duskhollow-elder.base",
+      "speaker": "duskhollow-elder",
+      "node": "duskhollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "The vale was never bright. It is darker than it was, though, and I have the lamp bills to prove it."
+        },
+        {
+          "text": "Umbrat in the walls, Wispurr on the ridge, and Carricrow wherever something has finished dying."
+        },
+        {
+          "text": "Noct's Duskstalk has been in this town longer than the observatory has had a roof."
+        }
+      ]
+    },
+    {
+      "id": "amb.duskhollow-child.base",
+      "speaker": "duskhollow-child",
+      "node": "duskhollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "We keep the shutters open at night. It's a rule. It's for the observatory."
+        },
+        {
+          "text": "Orrin let me see the margin book. There's a page where the writing just stops for thirty years."
+        },
+        {
+          "text": "I want a Wispurr. Mother says winter, and winter takes forever."
+        }
+      ]
+    },
+    {
+      "id": "amb.duskhollow-lampwright.base",
+      "speaker": "duskhollow-lampwright",
+      "node": "duskhollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "I make lamps for a town that isn't allowed to use them after dark. It's a strange trade and it pays."
+        },
+        {
+          "text": "Observatory buys my whole autumn stock. They put them somewhere on the vale road and they don't say where."
+        },
+        {
+          "text": "Pressed oil, twice strained, four burns to the fill. Better than anything the night market sells."
+        }
+      ]
+    },
+    {
+      "id": "amb.duskhollow-shepherd.base",
+      "speaker": "duskhollow-shepherd",
+      "node": "duskhollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Vale grazing is thin and dark and my flock does fine on it, which nobody believes until they see it."
+        },
+        {
+          "text": "Umbrat take the fallen grain. Wispurr take the Umbrat. I lose nothing to either of them."
+        },
+        {
+          "text": "The Sanctum gate is up the vale road. It's been shut my whole life and my father's whole life."
+        }
+      ]
+    },
+    {
+      "id": "amb.r3-logger.base",
+      "speaker": "r3-logger",
+      "node": "r3",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Wilds crew. We cut on marked stands and the marks come from the town, not the Company."
+        },
+        {
+          "text": "High lines are Webvern country. You don't cut a Webvern tree, you cut round it, because the silk pays better than the timber."
+        },
+        {
+          "text": "Duskstalk work this stand after dark. We're out by dusk and so is everyone sensible."
+        }
+      ]
+    },
+    {
+      "id": "amb.r4-worker.base",
+      "speaker": "r4-worker",
+      "node": "r4",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Salvage crew. Contract's closed; I'm pulling out cable and rail and whatever the Company still wants back."
+        },
+        {
+          "text": "West scarp is where the crew worked. You can still follow the cable runs from the vent line if you want the tour."
+        },
+        {
+          "text": "Carricrow follow me around out here. They know the sound of a crate coming open."
+        }
+      ]
+    },
+    {
+      "id": "amb.r4-worker.arrival",
+      "speaker": "r4-worker",
+      "node": "r4",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "years": [
+          4
+        ]
+      },
+      "lines": [
+        {
+          "text": "You'll want the ledger open for this one. Whatever the counts say up here, they say it fast."
+        },
+        {
+          "text": "I was on the crew. I'm not going to tell you I wasn't."
+        }
+      ]
+    },
+    {
+      "id": "amb.r4-worker.emptied",
+      "speaker": "r4-worker",
+      "node": "r4",
+      "kind": "ambient",
+      "priority": 41,
+      "when": {
+        "yearMin": 4,
+        "population": [
+          {
+            "node": "r4",
+            "lineId": "stonewing-line",
+            "op": "lte",
+            "value": 1
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "No Cragmar on the high ground, no Pyrelisk on the vent line, and the Stonewing nest is empty and dry."
+        },
+        {
+          "text": "More Carricrow up here than I've seen anywhere, and they're the only line I can still fill an order with."
+        }
+      ]
+    },
+    {
+      "id": "amb.r5-astronomer.base",
+      "speaker": "r5-astronomer",
+      "node": "r5",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Field station. We take the vale readings out here because the town's lamps ruin the instrument."
+        },
+        {
+          "text": "There's an antler stone in the open ground north of here. It was set to be seen at night and it works."
+        },
+        {
+          "text": "The dark has been deepening about a degree a decade. Orrin has the chart. Nobody has an explanation on the chart."
+        }
+      ]
+    },
+    {
+      "id": "amb.sanctum-approach-scout.base",
+      "speaker": "sanctum-approach-scout",
+      "node": "sanctum-approach",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Company scout. Six teams went up the approach this morning with a cradle on rollers."
+        },
+        {
+          "text": "I'm posted here to count what comes back down. So far that's nothing."
+        },
+        {
+          "text": "The gate was already open when we got here. Nobody wants to say that out loud, so I'm saying it to you."
+        }
+      ]
+    },
+    {
+      "id": "festival.hearthollow",
+      "speaker": "hearthollow-elder",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "priority": 65,
+      "when": {
+        "flagsSet": [
+          "event.festival.open"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Lanterns on the green. The festival closes the year, and the year closes whether the meter runs out or the badge comes in."
+        },
+        {
+          "text": "Everything ages at the turn. Yours, mine, and the ones in the box you haven't looked at since spring."
+        }
+      ]
+    },
+    {
+      "id": "festival.brackwater",
+      "speaker": "brackwater-elder",
+      "node": "brackwater",
+      "kind": "cutscene",
+      "priority": 65,
+      "when": {
+        "flagsSet": [
+          "event.festival.open"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Brackwater does the festival on the water. Every boat lit, all at once, and the whole channel goes orange."
+        },
+        {
+          "text": "Then the year turns and the buyer reprices the season, and we find out what we're eating."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-fenceman.late",
+      "speaker": "hearthollow-fenceman",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 6
+      },
+      "lines": [
+        {
+          "text": "Six years I've mended this line and it's the same four miles and the same two hands."
+        },
+        {
+          "text": "Different meadow behind it, though. You'd have to have walked it every year to see how different."
+        }
+      ]
+    },
+    {
+      "id": "amb.brackwater-netmender.late",
+      "speaker": "brackwater-netmender",
+      "node": "brackwater",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 6
+      },
+      "lines": [
+        {
+          "text": "I've re-cut the mesh three times in six years to match what's coming up in it."
+        },
+        {
+          "text": "A net is a record of the fishery, if you keep the old ones. I keep the old ones."
+        }
+      ]
+    },
+    {
+      "id": "amb.r1-forager.late",
+      "speaker": "r1-forager",
+      "node": "r1",
+      "kind": "ambient",
+      "priority": 39,
+      "when": {
+        "yearMin": 5
+      },
+      "lines": [
+        {
+          "text": "Six years on the same four miles of Reach. The tussock line has moved about a hundred yards north in that time."
+        },
+        {
+          "text": "Nobody moved it. It followed the ground water and the ground water followed the grazing."
+        }
+      ]
+    },
+    {
+      "id": "maren.greeting.hearthollow",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Station's open. Counts are on the board and the kettle is usually on."
+        }
+      ]
+    },
+    {
+      "id": "maren.greeting.brackwater",
+      "speaker": "maren",
+      "node": "brackwater",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "I'm out on the stilts most days with a board and a pencil. Ask and I'll show you the page."
+        }
+      ]
+    },
+    {
+      "id": "maren.greeting.bowerdeep",
+      "speaker": "maren",
+      "node": "bowerdeep",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Canopy counts. Slow work, and I'm doing it from the ground like a sensible person."
+        }
+      ]
+    },
+    {
+      "id": "maren.greeting.cindershelf",
+      "speaker": "maren",
+      "node": "cindershelf",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Steppe survey. Come and read over my shoulder; it's quicker than me explaining it."
+        }
+      ]
+    },
+    {
+      "id": "maren.greeting.duskhollow",
+      "speaker": "maren",
+      "node": "duskhollow",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Archive in the morning, vale counts at dusk. Duskhollow suits the work."
+        }
+      ]
+    },
+    {
+      "id": "maren.greeting.sanctum-approach",
+      "speaker": "maren",
+      "node": "sanctum-approach",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "I'll be at the rim with the ledger. That's where I'll stay."
+        }
+      ]
+    },
+    {
+      "id": "amb.r2-ferryhand.apex",
+      "speaker": "r2-ferryhand",
+      "node": "r2",
+      "kind": "ambient",
+      "priority": 41,
+      "when": {
+        "yearMin": 3,
+        "population": [
+          {
+            "node": "r2",
+            "lineId": "fenmaw-line",
+            "op": "lte",
+            "value": 1
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "No Fenmaw sighting on the channel run all season. I used to log two a month and I logged them because they were worth logging."
+        },
+        {
+          "text": "Mirefin are everywhere in the shallows now, right up under the boards. Nessa says that follows."
+        }
+      ]
+    }
+  ]
+}

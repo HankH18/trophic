@@ -744,10 +744,14 @@ describe("type chart — bible §1", () => {
 
 /* ────────────────────────────────────────────────────────────────────────── */
 describe("gym rosters — bible §7", () => {
-  it("ships six fixed leaders with roster sizes 4/4/5/6/6/6 including the signature", () => {
+  it("ships six fixed leaders with roster sizes 3/4/5/6/6/6 including the signature", () => {
+    // 3, not the bible's 4, at gym 1 only: DEVIATIONS A5-D1, authorised by Hank on the harness
+    // measurement that gym 1 was the hardest fight in the game (26.0% against an 80–95% target).
+    // The same three numbers are pinned in core/schemas.ts GYM_ROSTER_SIZES, which now REJECTS a
+    // four-creature Maribel at boot — so the amendment cannot be undone silently in either place.
     expect(gyms.map((g) => g.id)).toEqual(["maribel", "odo", "vesper", "sable", "noct", "greaves"]);
     expect(gyms.map((g) => g.name)).toEqual(["Maribel", "Odo", "Vesper", "Sable", "Noct", "Magnate Greaves"]);
-    expect(gyms.map((g) => g.slots.length + 1)).toEqual([4, 4, 5, 6, 6, 6]);
+    expect(gyms.map((g) => g.slots.length + 1)).toEqual([3, 4, 5, 6, 6, 6]);
     expect(gyms.every((g) => g.source === "fixed")).toBe(true); // Hard Req 9 / G8
     expect(gyms.map((g) => g.type)).toEqual(["Beast", "Water", "Poison", "Fire", "Dark", "mixed"]);
     expect(gyms.map((g) => g.town)).toEqual(["hearthollow", "brackwater", "bowerdeep", "cindershelf", "duskhollow", "sanctum"]);
@@ -756,7 +760,9 @@ describe("gym rosters — bible §7", () => {
 
   it("transcribes each roster line-for-line", () => {
     const roster = (g: GymLeader) => [...g.slots, g.signature].map((s) => `${s.lineId}:${s.age}`);
-    expect(roster(gym("maribel"))).toEqual(["nibbin-line:A", "bramblehog-line:A", "skir-line:A", "nibbin-line:E"]);
+    // bible §7 reads "Nibbin (A), Bramblehog (A), Skir (A) | Old Nib — Nibbin (E)". The DUPLICATE
+    // Nibbin (A) is the slot cut by DEVIATIONS A5-D1; every other leader is still verbatim.
+    expect(roster(gym("maribel"))).toEqual(["bramblehog-line:A", "skir-line:A", "nibbin-line:E"]);
     expect(roster(gym("odo"))).toEqual(["mirefin-line:J", "reedrick-line:A", "mirefin-line:A", "fenmaw-line:E"]);
     expect(roster(gym("vesper"))).toEqual(["gloomoth-line:J", "sporantle-line:A", "mirefin-line:A", "webvern-line:A", "webvern-line:E"]);
     expect(roster(gym("sable"))).toEqual(["ashvole-line:A", "cragmar-line:A", "ashvole-line:E", "stonewing-line:A", "pyrelisk-line:A", "pyrelisk-line:E"]);
@@ -782,15 +788,30 @@ describe("gym rosters — bible §7", () => {
   it("levels EVERY slot by the published ramp, not just the leader's top slot", () => {
     // gyms.json `_levels`: "roster level = 8 + 6×(gym−1); the signature is +2". Checking only each
     // leader's maximum let any non-signature slot drift downward undetected (DEVIATIONS D9).
+    //
+    // Gym 1's signature premium is +0, not +2 (DEVIATIONS A5-D2). The rank-and-file ramp is
+    // untouched everywhere, including gym 1 — the exception is ONE number, and it is asserted here
+    // as an exact value rather than as a range, so it cannot slide any further.
+    const signaturePremium = (i: number) => (i === 0 ? 0 : 2);
     gyms.forEach((g, i) => {
       const rosterLevel = 8 + 6 * i;
       for (const [j, slot] of g.slots.entries()) {
         expect(slot.level, `${g.id} slots[${j}]`).toBe(rosterLevel);
       }
-      expect(g.signature.level, `${g.id} signature`).toBe(rosterLevel + 2);
+      expect(g.signature.level, `${g.id} signature`).toBe(rosterLevel + signaturePremium(i));
     });
-    expect(gyms.map((g) => g.signature.level)).toEqual([10, 16, 22, 28, 34, 40]);
+    expect(gyms.map((g) => g.signature.level)).toEqual([8, 16, 22, 28, 34, 40]);
     expect(gyms[gyms.length - 1]!.signature.level).toBe(balance.xp.levelCap); // build-doc §7.4 cap
+  });
+
+  it("keeps the region's wild level ramp two levels under the gym it feeds (DEVIATIONS A5-D3)", () => {
+    // The UNTRAINED player model (docs/BALANCE-REPORT.md §1 clause 4) fields the level the grass
+    // sits at. At [4,10,16,22,28,34] that was FOUR under every leader and gym 1 measured 0.2% over
+    // 500 seeds. This binds the relationship rather than the array, so a future retune of either
+    // side has to move both.
+    const rankAndFile = gyms.map((g) => Math.max(...g.slots.map((s) => s.level)));
+    expect(rankAndFile).toEqual([8, 14, 20, 26, 32, 38]);
+    expect(balance.encounter.levelByYear).toEqual(rankAndFile.map((l) => l - 2));
   });
 
   it("ramps the Elder count with the years (bible §7)", () => {
@@ -950,6 +971,48 @@ describe("nodes — bible §6", () => {
         expect(pop.breedRate, `${n.id}/${id} breedRate`).toBe(BREED_BY_ROLE[s.role[balance.ecosim.webRoleAgeClass]]);
         expect(pop.carryCap, `${n.id}/${id} carryCap`).toBe(pop.count * 3);
       }
+    }
+  });
+
+  it("pins every node's floraStock, the one population number no published rule covers", () => {
+    /*
+     * `count`, `breedRate` and `carryCap` are all held by the rules each node file publishes in its
+     * own `_breedRule` / `_pyramid` (the test above), so every mutation of them goes red. Its
+     * sibling `floraStock` was free inside the balance.ecosim band: `hearthollow` +5 survived the
+     * whole suite. It is not a free number — it is the base of the grazer tier (bible §5: grazers
+     * eat "Producers + each node's abstract flora stock"), it feeds the starvation ratio in the
+     * ecology gates below, and the §7.3 step-1 birth term rides on it.
+     *
+     * There is no rule to check it against: unlike its siblings, neither the build doc, the bible
+     * nor the node files' own `_pyramid` states a derivation for flora — grep confirms it. Checked,
+     * and the values do not fall out of the S=3/S=4 node scale, the biome, or the grazer budget. So
+     * the honest binding is the transcription form used everywhere else in this file: the authored
+     * values, listed, one line per node. Changing one is then a visible edit here, which is the
+     * whole point. If a rule is ever published, this table should become a derivation like its
+     * siblings'.
+     */
+    const AUTHORED_FLORA: Record<string, number> = {
+      hearthollow: 60,
+      r1: 78,
+      brackwater: 55,
+      r2: 72,
+      bowerdeep: 66,
+      r3: 84,
+      cindershelf: 36,
+      r4: 42,
+      duskhollow: 44,
+      r5: 58,
+      "sanctum-approach": 35,
+      sanctum: 50,
+    };
+    // Identity, not cardinality — every node is listed, and only the nodes that exist.
+    expect(Object.keys(AUTHORED_FLORA).sort()).toEqual(nodes.map((n) => n.id).sort());
+    for (const n of nodes) {
+      expect(n.floraStock, `${n.id} floraStock`).toBe(AUTHORED_FLORA[n.id]);
+      // …and it stays a whole stock inside the band the sim clamps it to (build-doc §7.2 "0–100").
+      expect(Number.isInteger(n.floraStock), `${n.id} floraStock is a whole stock`).toBe(true);
+      expect(n.floraStock).toBeGreaterThanOrEqual(balance.ecosim.floraMin);
+      expect(n.floraStock).toBeLessThanOrEqual(balance.ecosim.floraMax);
     }
   });
 

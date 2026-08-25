@@ -1,0 +1,272 @@
+{
+  "palette": "data/palette.json",
+  "frozenAt": "2026-08-25",
+  "assignment": "nearest in sRGB (tools/postprocess/steps.ts::quantize)",
+  "errorMetric": "CIEDE2000",
+  "bands": {
+    "player": {
+      "star yellow": {
+        "pixels": 5035,
+        "share": 0.01294,
+        "meanDeltaE": 2.926,
+        "maxDeltaE": 5.437,
+        "paletteSlotsUsed": 1
+      },
+      "shirt/cap green": {
+        "pixels": 137459,
+        "share": 0.35314,
+        "meanDeltaE": 2.487,
+        "maxDeltaE": 30.622,
+        "paletteSlotsUsed": 11
+      },
+      "skin": {
+        "pixels": 53298,
+        "share": 0.13692,
+        "meanDeltaE": 4.021,
+        "maxDeltaE": 17.321,
+        "paletteSlotsUsed": 6
+      },
+      "leather brown": {
+        "pixels": 80172,
+        "share": 0.20596,
+        "meanDeltaE": 3.021,
+        "maxDeltaE": 17.186,
+        "paletteSlotsUsed": 6
+      },
+      "dark outline": {
+        "pixels": 76821,
+        "share": 0.19736,
+        "meanDeltaE": 3.776,
+        "maxDeltaE": 31.708,
+        "paletteSlotsUsed": 6
+      }
+    },
+    "fox": {
+      "star yellow": {
+        "pixels": 18070,
+        "share": 0.0528,
+        "meanDeltaE": 2.483,
+        "maxDeltaE": 15.849,
+        "paletteSlotsUsed": 5
+      },
+      "shirt/cap green": {
+        "pixels": 0,
+        "share": 0,
+        "meanDeltaE": 0,
+        "maxDeltaE": 0,
+        "paletteSlotsUsed": 0
+      },
+      "skin": {
+        "pixels": 17227,
+        "share": 0.05034,
+        "meanDeltaE": 5.449,
+        "maxDeltaE": 14.713,
+        "paletteSlotsUsed": 6
+      },
+      "leather brown": {
+        "pixels": 25387,
+        "share": 0.07418,
+        "meanDeltaE": 2.822,
+        "maxDeltaE": 23.669,
+        "paletteSlotsUsed": 6
+      },
+      "dark outline": {
+        "pixels": 56745,
+        "share": 0.16581,
+        "meanDeltaE": 1.998,
+        "maxDeltaE": 31.575,
+        "paletteSlotsUsed": 4
+      }
+    },
+    "croc": {
+      "star yellow": {
+        "pixels": 0,
+        "share": 0,
+        "meanDeltaE": 0,
+        "maxDeltaE": 0,
+        "paletteSlotsUsed": 0
+      },
+      "shirt/cap green": {
+        "pixels": 249718,
+        "share": 0.53789,
+        "meanDeltaE": 2.801,
+        "maxDeltaE": 30.747,
+        "paletteSlotsUsed": 13
+      },
+      "skin": {
+        "pixels": 2323,
+        "share": 0.005,
+        "meanDeltaE": 4.668,
+        "maxDeltaE": 17.168,
+        "paletteSlotsUsed": 5
+      },
+      "leather brown": {
+        "pixels": 9687,
+        "share": 0.02087,
+        "meanDeltaE": 4.941,
+        "maxDeltaE": 21.612,
+        "paletteSlotsUsed": 6
+      },
+      "dark outline": {
+        "pixels": 36201,
+        "share": 0.07798,
+        "meanDeltaE": 9.26,
+        "maxDeltaE": 30.886,
+        "paletteSlotsUsed": 6
+      }
+    },
+    "trainer": {
+      "star yellow": {
+        "pixels": 0,
+        "share": 0,
+        "meanDeltaE": 0,
+        "maxDeltaE": 0,
+        "paletteSlotsUsed": 0
+      },
+      "shirt/cap green": {
+        "pixels": 903,
+        "share": 0.00251,
+        "meanDeltaE": 16.388,
+        "maxDeltaE": 18.972,
+        "paletteSlotsUsed": 3
+      },
+      "skin": {
+        "pixels": 45258,
+        "share": 0.12582,
+        "meanDeltaE": 4.611,
+        "maxDeltaE": 17.162,
+        "paletteSlotsUsed": 6
+      },
+      "leather brown": {
+        "pixels": 64629,
+        "share": 0.17967,
+        "meanDeltaE": 4.036,
+        "maxDeltaE": 19.312,
+        "paletteSlotsUsed": 7
+      },
+      "dark outline": {
+        "pixels": 89194,
+        "share": 0.24796,
+        "meanDeltaE": 2.802,
+        "maxDeltaE": 30.603,
+        "paletteSlotsUsed": 6
+      }
+    },
+    "map": {
+      "star yellow": {
+        "pixels": 51882,
+        "share": 0.04948,
+        "meanDeltaE": 6.767,
+        "maxDeltaE": 19.794,
+        "paletteSlotsUsed": 6
+      },
+      "shirt/cap green": {
+        "pixels": 401179,
+        "share": 0.38259,
+        "meanDeltaE": 2.99,
+        "maxDeltaE": 36.602,
+        "paletteSlotsUsed": 15
+      },
+      "skin": {
+        "pixels": 20797,
+        "share": 0.01983,
+        "meanDeltaE": 5.01,
+        "maxDeltaE": 17.653,
+        "paletteSlotsUsed": 9
+      },
+      "leather brown": {
+        "pixels": 74140,
+        "share": 0.07071,
+        "meanDeltaE": 6.461,
+        "maxDeltaE": 24.553,
+        "paletteSlotsUsed": 7
+      },
+      "dark outline": {
+        "pixels": 45403,
+        "share": 0.0433,
+        "meanDeltaE": 10.014,
+        "maxDeltaE": 41.012,
+        "paletteSlotsUsed": 8
+      }
+    }
+  },
+  "hueCoverage": {
+    "neutral": [
+      "#030202",
+      "#a4a3ad",
+      "#fdfdfb"
+    ],
+    "red": [],
+    "orange": [
+      "#2a1212",
+      "#53210c",
+      "#6e3620",
+      "#a20d07",
+      "#765b4e",
+      "#8f5230",
+      "#e1541b",
+      "#ec9a70"
+    ],
+    "yellow": [
+      "#b07037",
+      "#ab8d62",
+      "#f39311",
+      "#f49f4d",
+      "#f0c05f",
+      "#eec092",
+      "#f9daae",
+      "#f7ebd3",
+      "#f9db10"
+    ],
+    "yellow-green": [
+      "#90b633",
+      "#a9c93f",
+      "#faec67",
+      "#688b2d"
+    ],
+    "green": [
+      "#033309",
+      "#2a7a34",
+      "#4bac53",
+      "#68c361",
+      "#083f22",
+      "#1e4d35",
+      "#2e6040"
+    ],
+    "cyan": [],
+    "blue": [],
+    "violet": [
+      "#2865cc"
+    ],
+    "magenta": []
+  },
+  "sourceHueShare": {
+    "red": 0.00378,
+    "orange": 0.12429,
+    "yellow": 0.27697,
+    "yellow-green": 0.29608,
+    "green": 0.18575,
+    "cyan": 0.0105,
+    "blue": 0.00047,
+    "violet": 0.00374,
+    "magenta": 0.00661,
+    "neutral": 0.09179
+  },
+  "previewStats": {
+    "player": {
+      "meanDeltaE2000OverContent": 3.304
+    },
+    "fox": {
+      "meanDeltaE2000OverContent": 2.27
+    },
+    "croc": {
+      "meanDeltaE2000OverContent": 4.46
+    },
+    "trainer": {
+      "meanDeltaE2000OverContent": 4.158
+    },
+    "map": {
+      "meanDeltaE2000OverContent": 4.641
+    }
+  }
+}

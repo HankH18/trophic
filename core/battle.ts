@@ -785,8 +785,54 @@ export function baitMatchOf(
 }
 
 /**
- * build-doc §7.4 — p = baseCatch(age) × snareTier × baitMult × (2 − hpFrac)/2 × lureMult,
+ * bible §2's SECOND job for Instinct — "bait success" — as build-doc §7.4 was amended on
+ * 2026-08-25 (docs/DEVIATIONS.md D-A5-1, authorised by Hank off docs/ACTIONS-FROM-HARNESS.md A3).
+ * Until the amendment `catchChance` never read Instinct at all and `computeDamage` read it only for
+ * crit, which bought ~2.9% expected damage over the roster's whole 40-point spread — so Instinct
+ * measured as the STRONGEST and NEGATIVE predictor of round-robin win rate (r = -0.582, 44,928
+ * battles, docs/BALANCE-REPORT.md §3.1). Every point spent on it was a point taken from a stat that
+ * worked.
+ *
+ *     instinctBait(c) = 1 + instinctBaitSlope × (insShare(c) − instinctBaitPivot)
+ *     insShare(c)     = c.ins / (c.hp + c.atk + c.def + c.spd + c.ins)
+ *
+ * Three decisions this shape encodes, none of them arbitrary:
+ *
+ *  1. **The SHARE, not the raw stat.** Every non-Ancient line spends exactly 300 base points
+ *     (data/species.json `_statRule`), so allocation is what a point of Instinct actually costs.
+ *     The age, level, metamorphic and Beast multipliers are common to all five stats and cancel out
+ *     of the ratio, which is what keeps this a rebalance of WHO catches well rather than a catch
+ *     rate that climbs with the player's level.
+ *  2. **Effective stats, but NOT `statMods`.** Traits and retirement boons are part of the creature
+ *     and count (bible §2 "Keen Eye: +10% Instinct"); a Harden or a Screech is transient battle
+ *     state, and reading it here would make raising your own Defense lower your catch odds.
+ *  3. **No clamp on the term itself.** It is continuous and strictly increasing in Instinct over
+ *     the whole reachable range, and positive over the whole MATHEMATICALLY possible one — at
+ *     share 0 the shipped constants give 1 + 3 × (0 − 0.15) = 0.55 — so it can never flip the sign
+ *     of a probability. The §7.4 .02–.95 clamp is still the only clamp, and still binds.
+ *
+ * An absent catcher answers with the pivot creature's value, exactly 1 (`ABSENT`): a caller that
+ * models a catch without naming a thrower — the balance harness's mode (c), `tools/harness/full-run.ts`
+ * — gets the pre-amendment formula rather than a silent zero-Instinct penalty.
+ */
+export function catchInstinctMultiplier(catcher: Battler | undefined, balance: Balance): number {
+  if (catcher === undefined) return ABSENT;
+  const cfg = balance.catch;
+  let total = 0;
+  for (const key of STAT_KEYS) total += catcher.stats[key];
+  if (total === 0) return ABSENT;
+  const insShare = catcher.stats.ins / total;
+  return ABSENT + cfg.instinctBaitSlope * (insShare - cfg.instinctBaitPivot);
+}
+
+/**
+ * build-doc §7.4 as amended 2026-08-25 (DEVIATIONS D-A5-1) —
+ *   p = baseCatch(age) × snareTier × (baitMult × instinctBait(catcher)) × (2 − hpFrac)/2 × lureMult,
  * clamped .02–.95. Ancients use their own base (bible §4: "very hard catches").
+ *
+ * `catcher` is the creature THROWING the snare — the one whose Instinct reads the animal. It is
+ * optional so that a caller with no thrower keeps the pre-amendment answer; see
+ * {@link catchInstinctMultiplier}.
  */
 export function catchChance(
   target: Battler,
@@ -795,12 +841,15 @@ export function catchChance(
   lureActive: boolean,
   ctx: BattleContext,
   nodeId?: string,
+  catcher?: Battler,
 ): number {
   const cfg = ctx.balance.catch;
   const line = lineOf(ctx, target.lineId);
   const base = line.ancient ? cfg.baseCatchAncient : cfg.baseCatch[target.age];
   const snare = cfg.snareTier[tier];
-  const bait = cfg.baitMult[baitMatchOf(baitId, target.lineId, ctx, nodeId)];
+  // bible §2 — the bait term is where Instinct lives: "bait success" is the catcher's read of the
+  // animal, so the §7.2 bait multiplier is scaled rather than a sixth factor being bolted on.
+  const bait = cfg.baitMult[baitMatchOf(baitId, target.lineId, ctx, nodeId)] * catchInstinctMultiplier(catcher, ctx.balance);
   const hpFrac = target.maxHp === 0 ? 0 : target.curHp / target.maxHp;
   const hpTerm = (cfg.hpTermOffset - hpFrac) / cfg.hpTermDivisor;
   const lure = lureActive ? cfg.lureMult : ABSENT;
@@ -1153,8 +1202,9 @@ function performSnare(
   baitId: string | undefined,
   rng: BattleRng,
   ctx: BattleContext,
+  catcher: BattleBattler,
 ): void {
-  const chance = catchChance(target, tier, baitId, state.lureActive, ctx, state.nodeId);
+  const chance = catchChance(target, tier, baitId, state.lureActive, ctx, state.nodeId, catcher);
   bagConsume(state, tier);
   if (baitId !== undefined) bagConsume(state, baitId);
   // Each shake is an independent check at p^(1/shakes), so all shakes passing has probability
@@ -1474,7 +1524,10 @@ function performAction(
       performItem(state, events, action.itemId, action.targetUid, ctx);
       return;
     case "snare":
-      performSnare(state, events, battlerAt(state, opponentUid), action.tier, action.baitId, rng, ctx);
+      // The ACTOR is the catcher — build-doc §7.4's amended bait term reads its Instinct. (Only the
+      // player ever reaches this case: `illegalActionReason` refuses a snare outside a wild/ancient
+      // encounter, and `chooseEnemyAction` is an argmax over moves and never returns one.)
+      performSnare(state, events, battlerAt(state, opponentUid), action.tier, action.baitId, rng, ctx, actor);
       return;
     case "flee":
       performFlee(state, events, actor, battlerAt(state, opponentUid), rng, ctx);

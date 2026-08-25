@@ -17,7 +17,9 @@ import { validateContent } from "../../core/schemas";
 import {
   baitMatchOf,
   catchChance,
+  catchInstinctMultiplier,
   caughtIndividual,
+  computeDamage,
   effectiveStats,
   fleeChance,
   hasMetamorphosed,
@@ -38,6 +40,7 @@ import type {
   Content,
   FoodWeb,
   SpeciesLine,
+  Trait,
 } from "../../core/types";
 
 const content: Content = validateContent();
@@ -207,6 +210,267 @@ describe("catch chance (build-doc §7.4)", () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
+ * The Instinct term on the bait multiplier — build-doc §7.4 as AMENDED 2026-08-25
+ * (docs/DEVIATIONS.md D-A5-1, authorised by Hank off docs/ACTIONS-FROM-HARNESS.md A3).
+ *
+ *   instinctBait(c) = 1 + instinctBaitSlope × (insShare(c) − instinctBaitPivot)
+ *   insShare(c)     = c.ins / (c.hp + c.atk + c.def + c.spd + c.ins)      [effective stats]
+ *   shipped: instinctBaitSlope 3, instinctBaitPivot 0.15
+ *
+ * Every expected number below is hand-computed in the comment above it, all the way from
+ * data/species.json's base stats through bible §2's effective-stat chain.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/** A catcher built the way the reducer builds one — the player side of a wild encounter. */
+function catcher(lineId: string, age: AgeClass, level: number, traits: readonly Trait[] = [], ctx: BattleContext = CTX): Battler {
+  return makeBattler({ uid: `p-${lineId}`, lineId, age, level, traits: [...traits] }, "player", ctx, {
+    isWild: false,
+    enteredOnTurn: 1,
+  });
+}
+
+/** A hand-built Battler whose five stats are stated outright, for the term's mathematical edges. */
+function synthetic(stats: { hp: number; atk: number; def: number; spd: number; ins: number }): Battler {
+  return {
+    ...catcher("webvern-line", "A", 20),
+    uid: "synthetic",
+    stats: { ...stats },
+    maxHp: Math.max(1, stats.hp),
+    curHp: Math.max(1, stats.hp),
+  };
+}
+
+function traitNamed(id: string): Trait {
+  const t = B.traits.pool.find((p) => p.id === id);
+  if (!t) throw new Error(`no trait "${id}" in balance.traits.pool`);
+  return t;
+}
+
+describe("the bait term's Instinct factor (build-doc §7.4 as amended)", () => {
+  it("is 1 + 3 × (insShare − 0.15) — table-driven, hand-computed across the Instinct range", () => {
+    // Every row is an ADULT at level 20, so the effective-stat chain is base × ageMult 1.0 ×
+    // levelMult (1 + 0.02 × 20) = base × 1.4, plus ×1.15 where the line is metamorphic and ×1.1
+    // where the adult form is Beast. Those factors are COMMON to all five stats, so they cancel out
+    // of the share; the share is the base-stat allocation, which is the whole point of the shape.
+    const rows: readonly [string, number, number, string][] = [
+      // Fenmaw  80/90/65/35/30 (Water)        ×1.4 ⇒ 112/126/91/49/42, total 420
+      //   share 42/420 = 0.10        ⇒ 1 + 3 × (0.10 − 0.15)        = 0.85
+      ["fenmaw-line", 30, 0.85, "the roster floor: 30 of 300 points in Instinct"],
+      // Barkhide 90/60/85/35/30 (Plant/Earth) ×1.4 ⇒ 126/84/119/49/42, total 420
+      //   share 42/420 = 0.10        ⇒ 0.85 — a different animal, the same ALLOCATION
+      ["barkhide-line", 30, 0.85, "same allocation as Fenmaw, same answer"],
+      // Mirefin 65/70/50/75/40 (Water/Poison, metamorphic) ×1.15×1.4 ⇒ 105/113/80/121/64, total 483
+      //   share 64/483 = 0.1325052   ⇒ 1 + 3 × (−0.0174948)         = 0.9475155
+      ["mirefin-line", 40, 0.9475155, "rounding of five integers moves the share off 40/300"],
+      // Webvern 60/70/45/80/45 (Poison)       ×1.4 ⇒ 84/98/63/112/63, total 420
+      //   share 63/420 = 0.15 EXACTLY ⇒ 1 + 3 × 0                   = 1.00
+      ["webvern-line", 45, 1.0, "the roster MEDIAN allocation — the pivot, unchanged from before"],
+      // Sporantle 85/40/75/35/65 (Poison/Plant) ×1.4 ⇒ 119/56/105/49/91, total 420
+      //   share 91/420 = 0.2166667   ⇒ 1 + 3 × 0.0666667            = 1.20
+      ["sporantle-line", 65, 1.2, "one of the round-robin's weakest lines, and a heavy Instinct buy"],
+      // Carricrow 50/60/45/75/70 (Dark/Wind)  ×1.4 ⇒ 70/84/63/105/98, total 420
+      //   share 98/420 = 0.2333333   ⇒ 1 + 3 × 0.0833333            = 1.25
+      ["carricrow-line", 70, 1.25, "the roster ceiling: 70 of 300 points in Instinct"],
+    ];
+    expect(B.catch.instinctBaitSlope).toBe(3);
+    expect(B.catch.instinctBaitPivot).toBe(0.15);
+    for (const [lineId, baseIns, expected, why] of rows) {
+      const line = content.species.find((s) => s.id === lineId);
+      if (!line) throw new Error(`no ${lineId}`);
+      expect(line.baseStats.ins, `${lineId}: ${why}`).toBe(baseIns);
+      expect(catchInstinctMultiplier(catcher(lineId, "A", 20), B), `${lineId} — ${why}`).toBeCloseTo(expected, 7);
+    }
+    // …and the table is ordered by base Instinct, so the multipliers must be ordered too.
+    const mults = rows.map(([lineId]) => catchInstinctMultiplier(catcher(lineId, "A", 20), B));
+    expect([...mults].sort((a, b) => a - b)).toEqual(mults);
+  });
+
+  it("leaves a MID-Instinct creature exactly where the pre-amendment formula had it", () => {
+    // Webvern's share is 63/420 = 0.15 = instinctBaitPivot, so its factor is exactly 1 and every
+    // catch it makes is bit-for-bit the number this file asserted before the amendment.
+    const mid = catcher("webvern-line", "A", 20);
+    expect(catchInstinctMultiplier(mid, B)).toBe(1);
+    const a = target("mirefin-line", "A", 5);
+    expect(catchChance(a, "base", undefined, false, CTX, "r2", mid)).toBeCloseTo(0.15, 10);
+    expect(catchChance(a, "base", "Grazer", false, CTX, "r2", mid)).toBeCloseTo(0.225, 10);
+    expect(catchChance(a, "base", "reedrick-line", false, CTX, "r2", mid)).toBeCloseTo(0.3, 10);
+    expect(catchChance(target("mirefin-line", "J", 5), "master", undefined, false, CTX, "r2", mid)).toBeCloseTo(0.55, 10);
+    // …which is the same as passing no catcher at all, the pre-amendment call shape.
+    for (const bait of [undefined, "Grazer", "reedrick-line"]) {
+      expect(catchChance(a, "base", bait, false, CTX, "r2", mid)).toBe(catchChance(a, "base", bait, false, CTX));
+    }
+  });
+
+  it("makes a HIGH-Instinct catcher beat a LOW-Instinct one, by the margin the constants imply", () => {
+    // Carricrow ×1.25 against Fenmaw ×0.85 — a ratio of 1.25/0.85 = 1.470588 on identical gear.
+    // That is the whole intended magnitude: below any single purchase in the formula (snare 2.2,
+    // bait 2.0, lure 1.5), because allocation is passive and those are bought.
+    const a = target("mirefin-line", "A", 5);
+    const high = catchChance(a, "base", "reedrick-line", false, CTX, "r2", catcher("carricrow-line", "A", 20));
+    const low = catchChance(a, "base", "reedrick-line", false, CTX, "r2", catcher("fenmaw-line", "A", 20));
+    expect(high).toBeGreaterThan(low);
+    // 0.3 × 1.0 × (2.0 × 1.25) × 0.5 = 0.375   vs   0.3 × 1.0 × (2.0 × 0.85) × 0.5 = 0.255
+    expect(high).toBeCloseTo(0.375, 10);
+    expect(low).toBeCloseTo(0.255, 10);
+    expect(high / low).toBeCloseTo(1.470588, 6);
+  });
+
+  it("reads ALLOCATION, not the raw stat — so it does not become a level-scaled global catch buff", () => {
+    // This is the reason the term is a share. Webvern's RAW effective Instinct swings by 2.4× over
+    // a playthrough: J at level 1 is 45 × 0.75 × 1.02 = 34.4 → 34, A at level 40 is 45 × 1.8 = 81.
+    // A term reading the raw stat would hand a level-40 party a catch rate the level-1 one cannot
+    // have, which is a global buff wearing a rebalance's clothes. The SHARE moves by under 1%.
+    expect(catcher("webvern-line", "J", 1).stats.ins).toBe(34);
+    expect(catcher("webvern-line", "A", 40).stats.ins).toBe(81);
+    expect(catcher("webvern-line", "A", 40).stats.ins / catcher("webvern-line", "J", 1).stats.ins).toBeCloseTo(2.382353, 6);
+    const configs: readonly [AgeClass, number][] = [["J", 1], ["J", 4], ["A", 10], ["A", 20], ["E", 34], ["A", 40]];
+    for (const [age, level] of configs) {
+      // The residual is integer rounding of five effective stats, nothing else: age, level and the
+      // metamorphic and Beast multipliers are common factors and cancel exactly. The worst case
+      // over the whole roster is the juvenile ×0.75, and it costs 0.56% — against the 138% swing a
+      // raw-stat reading would have produced over the same six configurations.
+      const drift = Math.abs(catchInstinctMultiplier(catcher("webvern-line", age, level), B) - 1);
+      expect(drift, `webvern ${age}${String(level)} drifts off the pivot by ${drift.toFixed(5)}`).toBeLessThan(0.01);
+    }
+    // Stated over the WHOLE non-Ancient roster, since one line could hide a rounding cliff.
+    let worst = 0;
+    for (const line of content.species.filter((s) => !s.ancient)) {
+      const at20 = catchInstinctMultiplier(catcher(line.id, "A", 20), B);
+      for (const [age, level] of configs) {
+        worst = Math.max(worst, Math.abs(catchInstinctMultiplier(catcher(line.id, age, level), B) - at20));
+      }
+    }
+    expect(worst, `the age/level residual peaks at ${worst.toFixed(5)}`).toBeLessThan(0.01);
+    // Two ages of the SAME line stay ordered against a different line, which is the property that
+    // matters: who catches better is decided by the animal, never by how far the save has got.
+    expect(catchInstinctMultiplier(catcher("carricrow-line", "J", 1), B)).toBeGreaterThan(
+      catchInstinctMultiplier(catcher("fenmaw-line", "E", 40), B),
+    );
+  });
+
+  it("counts traits, because bible §2 sells Keen Eye as +10% Instinct", () => {
+    const plain = catchInstinctMultiplier(catcher("webvern-line", "A", 20), B);
+    const keen = catchInstinctMultiplier(catcher("webvern-line", "A", 20, [traitNamed("keen-eye")]), B);
+    const dull = catchInstinctMultiplier(catcher("webvern-line", "A", 20, [traitNamed("dulled-sense")]), B);
+    // Keen Eye: ins 63 → raw 63 + 6.3 = 69.3 → 69, total 84+98+63+112+69 = 426.
+    //   share 69/426 = 0.1619718 ⇒ 1 + 3 × 0.0119718 = 1.0359155
+    expect(keen).toBeCloseTo(1.0359155, 7);
+    // Dulled Sense: 63 − 6.3 = 56.7 → 57, total 414. share 57/414 = 0.1376812 ⇒ 0.9630435
+    expect(dull).toBeCloseTo(0.9630435, 7);
+    expect(dull).toBeLessThan(plain);
+    expect(plain).toBeLessThan(keen);
+  });
+
+  it("does NOT read in-battle stat mods — Harden must not be a way to catch worse", () => {
+    // `statMods` is transient battle state. If the share read it, raising your own Defense would
+    // shrink your Instinct share and cost you the catch, and Screech would be a catching tool.
+    const withMods: Battler = {
+      ...catcher("webvern-line", "A", 20),
+      statMods: { atk: 2, def: 2, spd: 2, ins: 2 },
+    };
+    expect(catchInstinctMultiplier(withMods, B)).toBe(catchInstinctMultiplier(catcher("webvern-line", "A", 20), B));
+  });
+
+  it("stays positive over the whole mathematically possible share, so it can never flip a probability", () => {
+    // share 0 ⇒ 1 + 3 × (0 − 0.15) = 0.55; share 1 ⇒ 1 + 3 × 0.85 = 3.55. Neither needs a clamp of
+    // its own, which is why the amendment adds no second clamp to §7.4.
+    expect(catchInstinctMultiplier(synthetic({ hp: 100, atk: 100, def: 100, spd: 100, ins: 0 }), B)).toBeCloseTo(0.55, 10);
+    expect(catchInstinctMultiplier(synthetic({ hp: 0, atk: 0, def: 0, spd: 0, ins: 100 }), B)).toBeCloseTo(3.55, 10);
+    // A statless battler has no allocation to read, so it takes the pivot rather than dividing by 0.
+    expect(catchInstinctMultiplier(synthetic({ hp: 0, atk: 0, def: 0, spd: 0, ins: 0 }), B)).toBe(1);
+    expect(Number.isNaN(catchInstinctMultiplier(synthetic({ hp: 0, atk: 0, def: 0, spd: 0, ins: 0 }), B))).toBe(false);
+  });
+
+  it("takes the pivot when no catcher is named, so a caller with no thrower is unchanged", () => {
+    // tools/harness/full-run.ts resolves six years of catches with no battle and therefore no
+    // thrower. It must keep answering the pre-amendment number rather than a zero-Instinct penalty.
+    expect(catchInstinctMultiplier(undefined, B)).toBe(1);
+    const a = target("mirefin-line", "A", 5);
+    expect(catchChance(a, "weighted", "reedrick-line", false, CTX, "r2")).toBeCloseTo(
+      catchChance(a, "weighted", "reedrick-line", false, CTX, "r2", catcher("webvern-line", "A", 20)),
+      10,
+    );
+  });
+
+  it("BINDS the upper clamp at .95 with the term in the chain, from either end of the Instinct range", () => {
+    // J × master × species bait × half HP × lure, times the term:
+    //   worst catcher: 0.5 × 2.2 × (2.0 × 0.85) × 0.75 × 1.5 = 2.10375
+    //   best catcher:  0.5 × 2.2 × (2.0 × 1.25) × 0.75 × 1.5 = 3.09375
+    // Both are far outside the band, so the clamp is still doing the work at both ends.
+    const j = target("mirefin-line", "J", 5, CTX, 0.5);
+    for (const who of ["fenmaw-line", "carricrow-line"]) {
+      expect(catchChance(j, "master", "reedrick-line", true, CTX, "r2", catcher(who, "A", 20))).toBe(B.catch.clampMax);
+    }
+    // And the term ALONE can reach the clamp when it is retuned: at slope 20 a Carricrow's
+    // 1 + 20 × (0.2333333 − 0.15) = 2.6666667 turns 0.3 × 2.2 × (2.0 × 2.6666667) × 0.5 = 1.76 into
+    // a clamped 0.95, on an ADULT with no lure at full HP.
+    const steep = ctxWith(retuned((b) => {
+      b.catch.instinctBaitSlope = 20;
+    }));
+    const a = target("mirefin-line", "A", 5, steep);
+    expect(catchChance(a, "master", "reedrick-line", false, steep, "r2", catcher("carricrow-line", "A", 20, [], steep))).toBe(
+      B.catch.clampMax,
+    );
+  });
+
+  it("BINDS the lower clamp at .02 through the term", () => {
+    // At slope 20 a Fenmaw's factor is 1 + 20 × (0.10 − 0.15) = 0, so the whole product is 0 and
+    // the floor is what answers — the clamp catches a pathological retune of the NEW constant, not
+    // merely of the old ones.
+    const steep = ctxWith(retuned((b) => {
+      b.catch.instinctBaitSlope = 20;
+    }));
+    expect(catchInstinctMultiplier(catcher("fenmaw-line", "A", 20, [], steep), steep.balance)).toBeCloseTo(0, 10);
+    const j = target("mirefin-line", "J", 5, steep, 0.5);
+    expect(catchChance(j, "master", "reedrick-line", true, steep, "r2", catcher("fenmaw-line", "A", 20, [], steep))).toBe(
+      B.catch.clampMin,
+    );
+    expect(B.catch.clampMin).toBe(0.02);
+  });
+
+  it("collapses to the pre-amendment formula at slope 0 (INV-3: the knob is real, in both directions)", () => {
+    const off = ctxWith(retuned((b) => {
+      b.catch.instinctBaitSlope = 0;
+    }));
+    const a = target("mirefin-line", "A", 5, off);
+    for (const who of ["fenmaw-line", "webvern-line", "carricrow-line"]) {
+      expect(catchInstinctMultiplier(catcher(who, "A", 20, [], off), off.balance)).toBe(1);
+      // 0.3 × 1.0 × 2.0 × 0.5 = 0.30 — the number this file asserted before the amendment.
+      expect(catchChance(a, "base", "reedrick-line", false, off, "r2", catcher(who, "A", 20, [], off))).toBeCloseTo(0.3, 10);
+    }
+    // Moving the PIVOT moves every catcher together, which is the global-rate knob if one is ever
+    // wanted: at pivot 0.10 the Fenmaw sits on it and scores exactly 1.
+    const shifted = ctxWith(retuned((b) => {
+      b.catch.instinctBaitPivot = 0.1;
+    }));
+    expect(catchInstinctMultiplier(catcher("fenmaw-line", "A", 20, [], shifted), shifted.balance)).toBe(1);
+  });
+
+  it("leaves the damage path untouched — the amendment is in the catch chain only", () => {
+    // build-doc §6 INV-3: a tunable with a second, undocumented job is the trap this whole file
+    // guards. Retuning either new catch constant must not move one point of damage, and must not
+    // move flee or XP either.
+    const atk = catcher("fenmaw-line", "A", 20);
+    const def = target("mirefin-line", "A", 20);
+    const move = content.moves.moves.find((m) => m.power > 0);
+    if (!move) throw new Error("no damaging move");
+    const baseline = computeDamage(atk, def, move, scripted([0.5, 0.99]), CTX, "r2");
+    for (const patch of [
+      (b: Balance) => {
+        b.catch.instinctBaitSlope = 12;
+      },
+      (b: Balance) => {
+        b.catch.instinctBaitPivot = 0.4;
+      },
+    ]) {
+      const other = ctxWith(retuned(patch));
+      expect(computeDamage(atk, def, move, scripted([0.5, 0.99]), other, "r2")).toEqual(baseline);
+      expect(fleeChance(atk, def, other.balance)).toBe(fleeChance(atk, def, B));
+    }
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
  * Throwing a snare inside the reducer.
  * ════════════════════════════════════════════════════════════════════════════ */
 
@@ -222,11 +486,18 @@ describe("snare throws (build-doc §7.4 / Hard Req 2)", () => {
 
   it("shakes balance.catch.shakes times, all of which must pass", () => {
     const started = startBattle(wild, CTX);
-    // p = 0.25 (J, base snare, no bait, full HP) ⇒ each shake passes below 0.25^(1/3) = 0.62996.
+    // p = 0.25 (J, base snare, no bait, full HP) × the CATCHER's Instinct term (§7.4 as amended).
+    // The thrower is the Fenmaw: base stats 80/90/65/35/30, so its Instinct share is 30/300 = 0.10
+    // exactly at every age and level, and instinctBait = 1 + 3 × (0.10 − 0.15) = 0.85.
+    //   p = 0.25 × 0.85 = 0.2125 ⇒ each shake passes below 0.2125^(1/3) = 0.596742.
     // Three draws under it ⇒ three shakes ⇒ caught.
+    // (The literal below is 0.2125 to the last bit the IEEE-754 product actually lands on —
+    //  `1 + 3 × (0.1 − 0.15)` is 0.8500000000000001, not 0.85. Pinned rather than loosened: this
+    //  assertion is an exact `toEqual` over the whole event and stays one.)
     const caught = step(started.state, { kind: "snare", tier: "base" }, scripted([0.5, 0.5, 0.5]), CTX);
     const thrown = caught.events.find((e) => e.t === "snareThrown");
-    expect(thrown).toEqual({ t: "snareThrown", uid: "w", tier: "base", chance: 0.25, shakes: 3, caught: true });
+    expect(thrown).toEqual({ t: "snareThrown", uid: "w", tier: "base", chance: 0.21250000000000002, shakes: 3, caught: true });
+    expect(thrown?.t === "snareThrown" ? thrown.chance : 0).toBeCloseTo(0.2125, 12);
     expect(caught.state.outcome).toBe("caught");
     expect(caught.state.caughtUid).toBe("w");
     expect(caught.events.some((e) => e.t === "caught" && e.nodeId === "r2")).toBe(true);
@@ -237,14 +508,15 @@ describe("snare throws (build-doc §7.4 / Hard Req 2)", () => {
 
   it("reports the shake it broke on and lets the wild creature act", () => {
     const started = startBattle(wild, CTX);
-    // draw 1 passes (0.5 < 0.63), draw 2 fails (0.7 ≥ 0.63) ⇒ one shake, no catch;
+    // p = 0.2125 as above (Fenmaw catcher ⇒ ×0.85), so a shake passes below 0.2125^(1/3) = 0.5967.
+    // draw 1 passes (0.5 < 0.5967), draw 2 fails (0.7 ≥ 0.5967) ⇒ one shake, no catch;
     // the enemy then attacks, spending [damage roll, crit].
     const missed = step(started.state, { kind: "snare", tier: "base" }, scripted([0.5, 0.7, 0.5, 0.99]), CTX);
     expect(missed.events.find((e) => e.t === "snareThrown")).toEqual({
       t: "snareThrown",
       uid: "w",
       tier: "base",
-      chance: 0.25,
+      chance: 0.21250000000000002,
       shakes: 1,
       caught: false,
     });
@@ -289,7 +561,8 @@ describe("snare throws (build-doc §7.4 / Hard Req 2)", () => {
       bag: { master: 1 },
     };
     const started = startBattle(adultFight, CTX);
-    // p = 0.3 × 2.2 × 0.5 = 0.33 ⇒ each shake needs a draw under 0.33^(1/3) = 0.6910.
+    // p = 0.3 × 2.2 × 0.5 × 0.85 (Fenmaw catcher) = 0.2805 ⇒ a shake needs a draw under
+    // 0.2805^(1/3) = 0.65449.
     const caught = step(started.state, { kind: "snare", tier: "master" }, scripted([0.1, 0.1, 0.1]), CTX);
     const individual = caughtIndividual(caught.state, CTX);
     expect(individual?.metamorphosed).toBe(true);
@@ -314,7 +587,8 @@ describe("snare throws (build-doc §7.4 / Hard Req 2)", () => {
       bag: {},
     };
     const started = startBattle(ancientFight, CTX);
-    // p = 0.05 × 2.2 × 0.5 = 0.055 ⇒ each shake needs a draw under 0.055^(1/3) = 0.3803.
+    // p = 0.05 × 2.2 × 0.5 × 0.85 (Fenmaw catcher) = 0.04675 ⇒ a shake needs a draw under
+    // 0.04675^(1/3) = 0.36042.
     const caught = step(started.state, { kind: "snare", tier: "master" }, scripted([0.1, 0.1, 0.1]), CTX);
     expect(caught.state.outcome).toBe("caught");
     expect(caughtIndividual(caught.state, CTX)?.ancient).toBe(true);
@@ -392,12 +666,17 @@ describe("snare throws (build-doc §7.4 / Hard Req 2)", () => {
     // Lure spends the turn; the wild Mirefin replies with [damage roll, crit].
     const lured = step(started.state, { kind: "move", moveId: "lure" }, scripted([0.5, 0.99]), CTX);
     expect(lured.state.lureActive).toBe(true);
-    // 0.3 × 1.0 × 1.0 × 0.5 × 1.5 = 0.225 — the throw sees the lure without being told about it.
+    // The catcher is the Puddlisk (65/70/50/75/40) at A15: effective 97/105/75/112/60, total 449,
+    // Instinct share 60/449 = 0.1336303, so instinctBait = 1 + 3 × (0.1336303 − 0.15) = 0.9508909.
+    //   0.3 × 1.0 × (1.0 × 0.9508909) × 0.5 × 1.5 = 0.2139504 — the throw sees the lure without
+    // being told about it.
     const thrown = step(lured.state, { kind: "snare", tier: "base" }, scripted([0.1, 0.1, 0.1]), CTX);
     const event = thrown.events.find((e) => e.t === "snareThrown");
-    expect(event?.t === "snareThrown" ? event.chance : 0).toBeCloseTo(0.225, 10);
-    // …which is exactly the un-lured chance times balance.catch.lureMult.
-    expect(catchChance(target("mirefin-line", "A", 6), "base", undefined, false, CTX) * B.catch.lureMult).toBeCloseTo(0.225, 10);
+    expect(event?.t === "snareThrown" ? event.chance : 0).toBeCloseTo(0.2139504, 7);
+    // …which is exactly the un-lured chance for the SAME catcher times balance.catch.lureMult.
+    const catcher = lured.state.battlers["p"];
+    if (!catcher) throw new Error("no catcher");
+    expect(catchChance(target("mirefin-line", "A", 6), "base", undefined, false, CTX, "r2", catcher) * B.catch.lureMult).toBeCloseTo(0.2139504, 7);
   });
 });
 

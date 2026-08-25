@@ -1,0 +1,286 @@
+{
+  "_comment": "CANDIDATE for Hank to compare against data/palette.json. NOT FROZEN — a candidate written to data/palette.candidate.json. data/palette.json is the frozen palette and is untouched. 32 colours, weighted k-means over the source set. Ids c00-c31 are positional and stable; a swap is a VALUE SWAP, not a schema change. Regenerate/verify with `npx tsx tools/palette/fit.mjs` (deterministic, k-means++ seeded at 42). Method and per-image error live in _method / _validation below and in assets/approved-trials/_palette-candidate/_fit-report.json.",
+  "_method": {
+    "algorithm": "weighted k-means, k=32, k-means++ init seeded at 42 via core/rng.ts (no Math.random, G11)",
+    "fitSpace": "sRGB",
+    "weighting": "equal",
+    "weightingRationale": "Each source image contributes equal total weight (1/N) regardless of pixel count, because the town map holds ~353k distinct colours against ~49-60k for the sprites (B-D5) and naive pixel-pooling lets it buy the palette and starve the sprite classes of hue.",
+    "backgroundExcluded": "The plain white backdrop (§9.2 prompt skeleton) is flood-filled from the border and excluded from the cluster input, along with a 2px dilation that drops the anti-aliased rim. It is not a content colour and a slot spent on it is stolen from the artwork.",
+    "quantizerMetric": "Scoring assigns each source colour the way tools/postprocess/steps.ts::quantize does — nearest palette entry by squared euclidean distance in sRGB — so the reported error is the error the pipeline will actually produce, not the error of an idealised quantizer.",
+    "errorMetric": "CIEDE2000",
+    "selectionRule": "Six candidates (2 fit spaces x 3 weightings). Rule stated before the numbers were seen: minimise the MAXIMUM per-image mean ΔE2000 — \"serves every asset class\" is a claim about the worst class, not the mean. Ties within 0.05 break on the overall mean. OVERRIDDEN: the rule selected lab/equal; srgb/equal was frozen instead. Reason: Matches the B0 freeze method exactly (DEVIATIONS-lane-b B-D12); only the SOURCE SET is broadened. Changing the weighting at the same time as the input would make the comparison uninterpretable.",
+    "excluded": [
+      "assets/approved-trials/superseded/** (entirely)",
+      "assets/approved-trials/player-style-reference.png (style reference carrying an L6-forbidden cape; not an approved asset)"
+    ]
+  },
+  "_validation": {
+    "player": {
+      "meanDeltaE2000": 7.429,
+      "p95": 20.87,
+      "p99": 31.578,
+      "max": 36.01,
+      "maxOverColoursHolding0p1pct": 12.609
+    },
+    "fox": {
+      "meanDeltaE2000": 3.6,
+      "p95": 11.325,
+      "p99": 16.319,
+      "max": 30.761,
+      "maxOverColoursHolding0p1pct": 10.143
+    },
+    "croc": {
+      "meanDeltaE2000": 7.018,
+      "p95": 21.853,
+      "p99": 25.188,
+      "max": 35.449,
+      "maxOverColoursHolding0p1pct": 2.924
+    },
+    "trainer": {
+      "meanDeltaE2000": 5.182,
+      "p95": 11.078,
+      "p99": 15.931,
+      "max": 32.759,
+      "maxOverColoursHolding0p1pct": 10.447
+    },
+    "map": {
+      "meanDeltaE2000": 5.867,
+      "p95": 16.901,
+      "p99": 27.388,
+      "max": 38.307,
+      "maxOverColoursHolding0p1pct": 2.246
+    },
+    "brackwater": {
+      "meanDeltaE2000": 5.334,
+      "p95": 15.91,
+      "p99": 26.28,
+      "max": 38.402,
+      "maxOverColoursHolding0p1pct": 5.768
+    },
+    "r2-marsh": {
+      "meanDeltaE2000": 4.808,
+      "p95": 12.357,
+      "p99": 23.066,
+      "max": 43.694,
+      "maxOverColoursHolding0p1pct": 2.199
+    },
+    "duskhollow": {
+      "meanDeltaE2000": 6.859,
+      "p95": 16.191,
+      "p99": 27.697,
+      "max": 47.776,
+      "maxOverColoursHolding0p1pct": 8.884
+    },
+    "cindershelf": {
+      "meanDeltaE2000": 4.563,
+      "p95": 14.014,
+      "p99": 25.361,
+      "max": 41.185,
+      "maxOverColoursHolding0p1pct": 2.088
+    },
+    "fenmaw": {
+      "meanDeltaE2000": 4.703,
+      "p95": 12.995,
+      "p99": 21.206,
+      "max": 34.288,
+      "maxOverColoursHolding0p1pct": 10.459
+    },
+    "puddlisk": {
+      "meanDeltaE2000": 4.052,
+      "p95": 10.068,
+      "p99": 22.587,
+      "max": 30.978,
+      "maxOverColoursHolding0p1pct": 6.909
+    },
+    "bogling": {
+      "meanDeltaE2000": 2.718,
+      "p95": 7.763,
+      "p99": 18.564,
+      "max": 31.284,
+      "maxOverColoursHolding0p1pct": 7.769
+    },
+    "mirefin": {
+      "meanDeltaE2000": 2.559,
+      "p95": 5.633,
+      "p99": 14.171,
+      "max": 33.919,
+      "maxOverColoursHolding0p1pct": 5.273
+    },
+    "undermere": {
+      "meanDeltaE2000": 4.447,
+      "p95": 12.948,
+      "p99": 19.619,
+      "max": 35.384,
+      "maxOverColoursHolding0p1pct": 10.614
+    },
+    "duskstalk": {
+      "meanDeltaE2000": 2.35,
+      "p95": 6.244,
+      "p99": 9.936,
+      "max": 35.164,
+      "maxOverColoursHolding0p1pct": 6.344
+    },
+    "wispurr": {
+      "meanDeltaE2000": 3.278,
+      "p95": 15.493,
+      "p99": 18.042,
+      "max": 30.622,
+      "maxOverColoursHolding0p1pct": 17.454
+    },
+    "gloomoth": {
+      "meanDeltaE2000": 2.408,
+      "p95": 4.605,
+      "p99": 7.466,
+      "max": 28.476,
+      "maxOverColoursHolding0p1pct": 5.071
+    },
+    "sporantle": {
+      "meanDeltaE2000": 6.068,
+      "p95": 15.018,
+      "p99": 19.091,
+      "max": 33.331,
+      "maxOverColoursHolding0p1pct": 15.803
+    },
+    "webvern": {
+      "meanDeltaE2000": 4.494,
+      "p95": 7.796,
+      "p99": 13.758,
+      "max": 30.333,
+      "maxOverColoursHolding0p1pct": 6.068
+    }
+  },
+  "frozen": false,
+  "frozenAt": null,
+  "source": "CANDIDATE — k-means over 19 trials (player, fox, croc, trainer, map, brackwater, r2-marsh, duskhollow, cindershelf, fenmaw, puddlisk, bogling, mirefin, undermere, duskstalk, wispurr, gloomoth, sporantle, webvern), sRGB / equal weighting, seed 42 — proposal, nothing is swapped",
+  "colorCount": 32,
+  "colors": [
+    {
+      "id": "c00",
+      "hex": "#020203"
+    },
+    {
+      "id": "c01",
+      "hex": "#0a0819"
+    },
+    {
+      "id": "c02",
+      "hex": "#d6d9e2"
+    },
+    {
+      "id": "c03",
+      "hex": "#fbfaf2"
+    },
+    {
+      "id": "c04",
+      "hex": "#47180d"
+    },
+    {
+      "id": "c05",
+      "hex": "#6d3421"
+    },
+    {
+      "id": "c06",
+      "hex": "#aa1312"
+    },
+    {
+      "id": "c07",
+      "hex": "#8d543b"
+    },
+    {
+      "id": "c08",
+      "hex": "#e2661a"
+    },
+    {
+      "id": "c09",
+      "hex": "#dd9c74"
+    },
+    {
+      "id": "c10",
+      "hex": "#ac7e53"
+    },
+    {
+      "id": "c11",
+      "hex": "#f2a04d"
+    },
+    {
+      "id": "c12",
+      "hex": "#edc481"
+    },
+    {
+      "id": "c13",
+      "hex": "#a0cc43"
+    },
+    {
+      "id": "c14",
+      "hex": "#f7d92c"
+    },
+    {
+      "id": "c15",
+      "hex": "#f5e3b8"
+    },
+    {
+      "id": "c16",
+      "hex": "#567e2e"
+    },
+    {
+      "id": "c17",
+      "hex": "#87b333"
+    },
+    {
+      "id": "c18",
+      "hex": "#53bb5c"
+    },
+    {
+      "id": "c19",
+      "hex": "#205c39"
+    },
+    {
+      "id": "c20",
+      "hex": "#23997f"
+    },
+    {
+      "id": "c21",
+      "hex": "#489b7d"
+    },
+    {
+      "id": "c22",
+      "hex": "#4adab0"
+    },
+    {
+      "id": "c23",
+      "hex": "#82b1a8"
+    },
+    {
+      "id": "c24",
+      "hex": "#6fe2e6"
+    },
+    {
+      "id": "c25",
+      "hex": "#b2f1e5"
+    },
+    {
+      "id": "c26",
+      "hex": "#3ea6ca"
+    },
+    {
+      "id": "c27",
+      "hex": "#26a1eb"
+    },
+    {
+      "id": "c28",
+      "hex": "#222538"
+    },
+    {
+      "id": "c29",
+      "hex": "#2c3151"
+    },
+    {
+      "id": "c30",
+      "hex": "#156fbf"
+    },
+    {
+      "id": "c31",
+      "hex": "#554a69"
+    }
+  ]
+}

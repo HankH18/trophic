@@ -100,8 +100,9 @@
     "outcome": "caught",
     "turns": 2,
     "events": 10,
-    "eventDigest": "44c4c897",
+    "eventDigest": "623bded0",
     "caughtUid": "w-nibbin",
+    "_reRecordedForD-A5-1": "eventDigest 44c4c897 -> 623bded0. build-doc §7.4's catch formula was amended on 2026-08-25 (docs/DEVIATIONS.md D-A5-1) to give the bait term an Instinct factor read off the CATCHING creature. The battle is UNCHANGED in every other respect: outcome caught, turns 2, events 10, shakes 3, caughtUid w-nibbin, and every HP identical. The single differing field in the whole log is `chance` on the one `snareThrown` event — 0.84375 -> 0.8040812 — because Ember is a Cindril (60/70/45/85/40) whose Instinct share at A18 is 63/469 = 0.1343284, giving 1 + 3 × (0.1343284 - 0.15) = 0.9529851. Re-recorded, not loosened: the digest is still exact.",
     "_reRecordedAtIntegration": "events 9 -> 10 and eventDigest d90d55fd -> 44c4c897. The battle is UNCHANGED: outcome, turns, caughtUid and every HP are identical. The extra entry is a `lureChanged` event, added to the BattleEvent union at integration to clear a blocker lane A3 reported and could not fix (core/types.ts was another lane's file). bible \u00a73's Lure changes catch odds for the rest of the battle and nothing in the log said so, which build-doc \u00a74 needs \u2014 'the Phaser scene is a renderer of its event log'. Re-recorded, not loosened: the digest is still exact."
   }
 }

@@ -1,0 +1,23 @@
+[
+  { "id": "player",  "class": "overworld-character", "file": "assets/approved-trials/player-APPROVED.png", "set": "B0-approved" },
+  { "id": "fox",     "class": "creature-battle",     "file": "assets/approved-trials/creature-fox.png",    "set": "B0-approved" },
+  { "id": "croc",    "class": "creature-battle",     "file": "assets/approved-trials/creature-croc.png",   "set": "B0-approved" },
+  { "id": "trainer", "class": "trainer-battle",      "file": "assets/approved-trials/trainer-battle.png",  "set": "B0-approved" },
+  { "id": "map",     "class": "town-map",            "file": "assets/approved-trials/town-map.png",        "set": "B0-approved" },
+
+  { "id": "brackwater",  "class": "map-town",        "file": "assets/raw/palette-trials/pt-map-brackwater.png",  "set": "cool-trial", "region": "deep water + marsh teal" },
+  { "id": "r2-marsh",    "class": "map-route",       "file": "assets/raw/palette-trials/pt-map-r2.png",          "set": "cool-trial", "region": "marsh teal + shallow water" },
+  { "id": "duskhollow",  "class": "map-town",        "file": "assets/raw/palette-trials/pt-map-duskhollow.png",  "set": "cool-trial", "region": "dusk blue / night violet" },
+  { "id": "cindershelf", "class": "map-town",        "file": "assets/raw/palette-trials/pt-map-cindershelf.png", "set": "cool-trial", "region": "CONTROL — warm" },
+
+  { "id": "fenmaw",    "class": "creature-battle",   "file": "assets/raw/palette-trials/pt-fenmaw-b.png",   "set": "cool-trial", "region": "water apex teal" },
+  { "id": "puddlisk",  "class": "creature-battle",   "file": "assets/raw/palette-trials/pt-puddlisk.png",   "set": "cool-trial", "region": "ice / pale cyan" },
+  { "id": "bogling",   "class": "creature-battle",   "file": "assets/raw/palette-trials/pt-bogling.png",    "set": "cool-trial", "region": "marsh teal" },
+  { "id": "mirefin",   "class": "creature-battle",   "file": "assets/raw/palette-trials/pt-mirefin.png",    "set": "cool-trial", "region": "mid blue" },
+  { "id": "undermere", "class": "creature-battle",   "file": "assets/raw/palette-trials/pt-undermere.png",  "set": "cool-trial", "region": "deep water + dark" },
+  { "id": "duskstalk", "class": "creature-battle",   "file": "assets/raw/palette-trials/pt-duskstalk.png",  "set": "cool-trial", "region": "dark / dusk violet" },
+  { "id": "wispurr",   "class": "creature-battle",   "file": "assets/raw/palette-trials/pt-wispurr.png",    "set": "cool-trial", "region": "dark navy" },
+  { "id": "gloomoth",  "class": "creature-battle",   "file": "assets/raw/palette-trials/pt-gloomoth.png",   "set": "cool-trial", "region": "dusk violet" },
+  { "id": "sporantle", "class": "creature-battle",   "file": "assets/raw/palette-trials/pt-sporantle.png",  "set": "cool-trial", "region": "poison/plant" },
+  { "id": "webvern",   "class": "creature-battle",   "file": "assets/raw/palette-trials/pt-webvern.png",    "set": "cool-trial", "region": "poison dark navy" }
+]

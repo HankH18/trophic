@@ -1,0 +1,83 @@
+{
+  "_source": "AUTHORED CONTENT. Round-1 cool-region palette trials. Every `from` names a row in tools/comfy/manifest.json, which is the G2-gated transcription of docs/content-bible.md §4 (species) and §6 (towns); the prompt is taken from that row VERBATIM. Species names live here rather than in the .ts because build-doc §8.3 / G3 forbid content literals in code (tests/property/foodweb.test.ts no_shadow_tables).",
+  "rows": [
+    {
+      "id": "pt-map-brackwater",
+      "from": "map-brackwater",
+      "region": "deep water + marsh teal",
+      "why": "bible §6 year-2 town, stilt town on a marsh — in the never-cut vertical slice; the biggest single gap"
+    },
+    {
+      "id": "pt-map-r2",
+      "from": "map-r2",
+      "region": "marsh teal + shallow water",
+      "why": "bible §6 R2 Brackmarsh — the slice route, reeds and shallow water"
+    },
+    {
+      "id": "pt-map-duskhollow",
+      "from": "map-duskhollow",
+      "region": "dusk blue / violet",
+      "why": "bible §6 dusk vale town with the observatory — night/starlit range"
+    },
+    {
+      "id": "pt-map-cindershelf",
+      "from": "map-cindershelf",
+      "region": "CONTROL — warm",
+      "why": "bible §6 volcanic steppe; tests whether the existing warm half is actually sufficient"
+    },
+    {
+      "id": "pt-fenmaw",
+      "from": "battle-fenmaw-a-front",
+      "region": "deep water",
+      "why": "bible §4 row 12, bulk gharial, Water Apex, Marsh. §9.2 fidelity rule applies — the manifest subject already front-loads and repeats the gharial snout because a previous trial regressed it (B-D6)"
+    },
+    {
+      "id": "pt-puddlisk",
+      "from": "battle-puddlisk-j-front",
+      "region": "ice / pale cyan",
+      "why": "bible §4 row 2, glass-skinned newt, the Water starter"
+    },
+    {
+      "id": "pt-bogling",
+      "from": "battle-mirefin-j-front",
+      "region": "marsh teal / murk",
+      "why": "bible §4 row 9, mudball tadpole, Water Grazer, Marsh — juvenile of the Mirefin line"
+    },
+    {
+      "id": "pt-mirefin",
+      "from": "battle-mirefin-a-front",
+      "region": "teal + poison magenta",
+      "why": "bible §4 row 11, stalking lungfish, Water/Poison — the type pair with two missing hue families"
+    },
+    {
+      "id": "pt-undermere",
+      "from": "battle-undermere-e-front",
+      "region": "deep water + dark",
+      "why": "bible §4 row 28, eyeless serpent, Water/Dark Ancient Apex, Marsh (hidden)"
+    },
+    {
+      "id": "pt-duskstalk",
+      "from": "battle-duskstalk-a-front",
+      "region": "dark / dusk blue",
+      "why": "bible §4 row 17, long-limbed shadow cat, Dark Apex, Forest"
+    },
+    {
+      "id": "pt-wispurr",
+      "from": "battle-wispurr-a-front",
+      "region": "wisp cyan on dark",
+      "why": "bible §4 row 25, will-o-wisp cat, Dark/Beast, Vale"
+    },
+    {
+      "id": "pt-gloomoth",
+      "from": "battle-gloomoth-a-front",
+      "region": "dusk violet",
+      "why": "bible §4 row 16, migratory dusk moth, Dark/Wind, Forest"
+    },
+    {
+      "id": "pt-sporantle",
+      "from": "battle-sporantle-a-front",
+      "region": "magenta / violet",
+      "why": "bible §4 row 13, spore-antlered fungus beast, Poison/Plant Producer, Marsh/Forest"
+    }
+  ]
+}

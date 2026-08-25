@@ -1,0 +1,933 @@
+{
+  "frozen": "data/palette.json",
+  "candidate": "data/palette.candidate.json",
+  "assignment": "nearest in sRGB (tools/postprocess/steps.ts::quantize)",
+  "errorMetric": "CIEDE2000",
+  "validationSet": [
+    {
+      "id": "player",
+      "file": "assets/approved-trials/player-APPROVED.png",
+      "set": "B0-approved",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "fox",
+      "file": "assets/approved-trials/creature-fox.png",
+      "set": "B0-approved",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "croc",
+      "file": "assets/approved-trials/creature-croc.png",
+      "set": "B0-approved",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "trainer",
+      "file": "assets/approved-trials/trainer-battle.png",
+      "set": "B0-approved",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "map",
+      "file": "assets/approved-trials/town-map.png",
+      "set": "B0-approved",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "brackwater",
+      "file": "assets/raw/palette-trials/pt-map-brackwater.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "r2-marsh",
+      "file": "assets/raw/palette-trials/pt-map-r2.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "duskhollow",
+      "file": "assets/raw/palette-trials/pt-map-duskhollow.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "cindershelf",
+      "file": "assets/raw/palette-trials/pt-map-cindershelf.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "fenmaw",
+      "file": "assets/raw/palette-trials/pt-fenmaw-b.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "puddlisk",
+      "file": "assets/raw/palette-trials/pt-puddlisk.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "bogling",
+      "file": "assets/raw/palette-trials/pt-bogling.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "mirefin",
+      "file": "assets/raw/palette-trials/pt-mirefin.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "undermere",
+      "file": "assets/raw/palette-trials/pt-undermere.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "duskstalk",
+      "file": "assets/raw/palette-trials/pt-duskstalk.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "wispurr",
+      "file": "assets/raw/palette-trials/pt-wispurr.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "gloomoth",
+      "file": "assets/raw/palette-trials/pt-gloomoth.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "sporantle",
+      "file": "assets/raw/palette-trials/pt-sporantle.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "webvern",
+      "file": "assets/raw/palette-trials/pt-webvern.png",
+      "set": "cool-trial",
+      "heldOutForCandidate": false
+    },
+    {
+      "id": "fenmaw-GENERIC",
+      "file": "assets/raw/palette-trials/pt-fenmaw.png",
+      "set": "held-out",
+      "heldOutForCandidate": true,
+      "note": "round-1 Fenmaw — snout regressed to a generic croc (B-D19); excluded from the fit, kept as held-out evidence"
+    },
+    {
+      "id": "fenmaw-3q",
+      "file": "assets/raw/palette-trials/pt-fenmaw-c.png",
+      "set": "held-out",
+      "heldOutForCandidate": true,
+      "note": "three-quarter Fenmaw — long snout reads but the jaw doubled; excluded from the fit, held out"
+    }
+  ],
+  "perImage": [
+    {
+      "id": "player",
+      "frozen": {
+        "mean": 3.304,
+        "p95": 7.733,
+        "p99": 10.573,
+        "max": 32.314,
+        "maxOverColoursHolding0p1pct": 5.257
+      },
+      "candidate": {
+        "mean": 7.429,
+        "p95": 20.866,
+        "p99": 31.578,
+        "max": 36.01,
+        "maxOverColoursHolding0p1pct": 12.609
+      }
+    },
+    {
+      "id": "fox",
+      "frozen": {
+        "mean": 2.27,
+        "p95": 6.573,
+        "p99": 11.095,
+        "max": 31.575,
+        "maxOverColoursHolding0p1pct": 5.031
+      },
+      "candidate": {
+        "mean": 3.6,
+        "p95": 11.325,
+        "p99": 16.319,
+        "max": 30.761,
+        "maxOverColoursHolding0p1pct": 10.143
+      }
+    },
+    {
+      "id": "croc",
+      "frozen": {
+        "mean": 4.46,
+        "p95": 11.225,
+        "p99": 15.029,
+        "max": 31.698,
+        "maxOverColoursHolding0p1pct": 1.302
+      },
+      "candidate": {
+        "mean": 7.017,
+        "p95": 21.853,
+        "p99": 25.188,
+        "max": 35.449,
+        "maxOverColoursHolding0p1pct": 2.924
+      }
+    },
+    {
+      "id": "trainer",
+      "frozen": {
+        "mean": 4.158,
+        "p95": 11.131,
+        "p99": 17.752,
+        "max": 33.939,
+        "maxOverColoursHolding0p1pct": 10.904
+      },
+      "candidate": {
+        "mean": 5.182,
+        "p95": 11.078,
+        "p99": 15.933,
+        "max": 32.759,
+        "maxOverColoursHolding0p1pct": 10.447
+      }
+    },
+    {
+      "id": "map",
+      "frozen": {
+        "mean": 4.641,
+        "p95": 13.998,
+        "p99": 24.27,
+        "max": 41.445,
+        "maxOverColoursHolding0p1pct": 0.528
+      },
+      "candidate": {
+        "mean": 5.867,
+        "p95": 16.902,
+        "p99": 27.388,
+        "max": 38.307,
+        "maxOverColoursHolding0p1pct": 2.246
+      }
+    },
+    {
+      "id": "brackwater",
+      "frozen": {
+        "mean": 9.483,
+        "p95": 28.74,
+        "p99": 36.738,
+        "max": 42.046,
+        "maxOverColoursHolding0p1pct": 19.995
+      },
+      "candidate": {
+        "mean": 5.334,
+        "p95": 15.912,
+        "p99": 26.274,
+        "max": 38.402,
+        "maxOverColoursHolding0p1pct": 5.768
+      }
+    },
+    {
+      "id": "r2-marsh",
+      "frozen": {
+        "mean": 7.699,
+        "p95": 22.656,
+        "p99": 25.908,
+        "max": 47.726,
+        "maxOverColoursHolding0p1pct": 4.216
+      },
+      "candidate": {
+        "mean": 4.808,
+        "p95": 12.357,
+        "p99": 23.071,
+        "max": 43.694,
+        "maxOverColoursHolding0p1pct": 2.199
+      }
+    },
+    {
+      "id": "duskhollow",
+      "frozen": {
+        "mean": 10.579,
+        "p95": 35.969,
+        "p99": 39.384,
+        "max": 46.402,
+        "maxOverColoursHolding0p1pct": 35.755
+      },
+      "candidate": {
+        "mean": 6.859,
+        "p95": 16.19,
+        "p99": 27.692,
+        "max": 47.776,
+        "maxOverColoursHolding0p1pct": 8.884
+      }
+    },
+    {
+      "id": "cindershelf",
+      "frozen": {
+        "mean": 5.973,
+        "p95": 20.603,
+        "p99": 36.299,
+        "max": 43.054,
+        "maxOverColoursHolding0p1pct": 2.641
+      },
+      "candidate": {
+        "mean": 4.563,
+        "p95": 14.013,
+        "p99": 25.361,
+        "max": 41.185,
+        "maxOverColoursHolding0p1pct": 2.088
+      }
+    },
+    {
+      "id": "fenmaw",
+      "frozen": {
+        "mean": 8.592,
+        "p95": 14.257,
+        "p99": 18.613,
+        "max": 32.23,
+        "maxOverColoursHolding0p1pct": 13.234
+      },
+      "candidate": {
+        "mean": 4.703,
+        "p95": 12.995,
+        "p99": 21.206,
+        "max": 34.288,
+        "maxOverColoursHolding0p1pct": 10.459
+      }
+    },
+    {
+      "id": "puddlisk",
+      "frozen": {
+        "mean": 22.275,
+        "p95": 34.229,
+        "p99": 35.943,
+        "max": 43.603,
+        "maxOverColoursHolding0p1pct": 29.941
+      },
+      "candidate": {
+        "mean": 4.051,
+        "p95": 10.068,
+        "p99": 22.587,
+        "max": 30.978,
+        "maxOverColoursHolding0p1pct": 6.909
+      }
+    },
+    {
+      "id": "bogling",
+      "frozen": {
+        "mean": 12.011,
+        "p95": 15.532,
+        "p99": 20.927,
+        "max": 30.901,
+        "maxOverColoursHolding0p1pct": 15.532
+      },
+      "candidate": {
+        "mean": 2.718,
+        "p95": 7.763,
+        "p99": 18.564,
+        "max": 31.284,
+        "maxOverColoursHolding0p1pct": 7.769
+      }
+    },
+    {
+      "id": "mirefin",
+      "frozen": {
+        "mean": 11.505,
+        "p95": 22.755,
+        "p99": 24.515,
+        "max": 36.828,
+        "maxOverColoursHolding0p1pct": 22.798
+      },
+      "candidate": {
+        "mean": 2.56,
+        "p95": 5.633,
+        "p99": 14.171,
+        "max": 33.919,
+        "maxOverColoursHolding0p1pct": 5.273
+      }
+    },
+    {
+      "id": "undermere",
+      "frozen": {
+        "mean": 14.967,
+        "p95": 25.65,
+        "p99": 28.282,
+        "max": 33.229,
+        "maxOverColoursHolding0p1pct": 25.717
+      },
+      "candidate": {
+        "mean": 4.446,
+        "p95": 12.948,
+        "p99": 19.619,
+        "max": 35.384,
+        "maxOverColoursHolding0p1pct": 10.614
+      }
+    },
+    {
+      "id": "duskstalk",
+      "frozen": {
+        "mean": 8.057,
+        "p95": 10.296,
+        "p99": 34.487,
+        "max": 36.539,
+        "maxOverColoursHolding0p1pct": 10.296
+      },
+      "candidate": {
+        "mean": 2.351,
+        "p95": 6.244,
+        "p99": 9.936,
+        "max": 35.164,
+        "maxOverColoursHolding0p1pct": 6.344
+      }
+    },
+    {
+      "id": "wispurr",
+      "frozen": {
+        "mean": 20.825,
+        "p95": 31.596,
+        "p99": 32.553,
+        "max": 36.898,
+        "maxOverColoursHolding0p1pct": 32.616
+      },
+      "candidate": {
+        "mean": 3.278,
+        "p95": 15.493,
+        "p99": 18.042,
+        "max": 30.622,
+        "maxOverColoursHolding0p1pct": 17.454
+      }
+    },
+    {
+      "id": "gloomoth",
+      "frozen": {
+        "mean": 16.355,
+        "p95": 29.052,
+        "p99": 29.715,
+        "max": 32.438,
+        "maxOverColoursHolding0p1pct": 29.95
+      },
+      "candidate": {
+        "mean": 2.408,
+        "p95": 4.605,
+        "p99": 7.465,
+        "max": 28.476,
+        "maxOverColoursHolding0p1pct": 5.071
+      }
+    },
+    {
+      "id": "sporantle",
+      "frozen": {
+        "mean": 7.339,
+        "p95": 17.308,
+        "p99": 26.849,
+        "max": 33.7,
+        "maxOverColoursHolding0p1pct": 17.522
+      },
+      "candidate": {
+        "mean": 6.068,
+        "p95": 15.016,
+        "p99": 19.091,
+        "max": 33.331,
+        "maxOverColoursHolding0p1pct": 15.803
+      }
+    },
+    {
+      "id": "webvern",
+      "frozen": {
+        "mean": 15.383,
+        "p95": 31.615,
+        "p99": 31.921,
+        "max": 39.671,
+        "maxOverColoursHolding0p1pct": 31.998
+      },
+      "candidate": {
+        "mean": 4.495,
+        "p95": 7.796,
+        "p99": 13.758,
+        "max": 30.333,
+        "maxOverColoursHolding0p1pct": 6.068
+      }
+    },
+    {
+      "id": "fenmaw-GENERIC",
+      "frozen": {
+        "mean": 9.285,
+        "p95": 15.887,
+        "p99": 19.213,
+        "max": 31.006,
+        "maxOverColoursHolding0p1pct": 16.191
+      },
+      "candidate": {
+        "mean": 6.154,
+        "p95": 13.941,
+        "p99": 15.914,
+        "max": 32.629,
+        "maxOverColoursHolding0p1pct": 14.415
+      }
+    },
+    {
+      "id": "fenmaw-3q",
+      "frozen": {
+        "mean": 17.494,
+        "p95": 33.13,
+        "p99": 33.936,
+        "max": 41.939,
+        "maxOverColoursHolding0p1pct": 33.43
+      },
+      "candidate": {
+        "mean": 9.876,
+        "p95": 29.358,
+        "p99": 30.55,
+        "max": 34.184,
+        "maxOverColoursHolding0p1pct": 29.856
+      }
+    }
+  ],
+  "hueFamilies": {
+    "neutral": {
+      "shareOfValidationPixels": 0.14195,
+      "frozen": {
+        "slots": 3,
+        "meanDeltaE": 5.15
+      },
+      "candidate": {
+        "slots": 4,
+        "meanDeltaE": 3.252
+      }
+    },
+    "red": {
+      "shareOfValidationPixels": 0.00508,
+      "frozen": {
+        "slots": 0,
+        "meanDeltaE": 13.903
+      },
+      "candidate": {
+        "slots": 0,
+        "meanDeltaE": 15.661
+      }
+    },
+    "orange": {
+      "shareOfValidationPixels": 0.06239,
+      "frozen": {
+        "slots": 8,
+        "meanDeltaE": 6.83
+      },
+      "candidate": {
+        "slots": 5,
+        "meanDeltaE": 7.018
+      }
+    },
+    "yellow": {
+      "shareOfValidationPixels": 0.1539,
+      "frozen": {
+        "slots": 9,
+        "meanDeltaE": 5.638
+      },
+      "candidate": {
+        "slots": 6,
+        "meanDeltaE": 5.389
+      }
+    },
+    "yellow-green": {
+      "shareOfValidationPixels": 0.31329,
+      "frozen": {
+        "slots": 4,
+        "meanDeltaE": 4.425
+      },
+      "candidate": {
+        "slots": 3,
+        "meanDeltaE": 3.975
+      }
+    },
+    "green": {
+      "shareOfValidationPixels": 0.11981,
+      "frozen": {
+        "slots": 7,
+        "meanDeltaE": 9.313
+      },
+      "candidate": {
+        "slots": 5,
+        "meanDeltaE": 5.934
+      }
+    },
+    "cyan": {
+      "shareOfValidationPixels": 0.04705,
+      "frozen": {
+        "slots": 0,
+        "meanDeltaE": 22.028
+      },
+      "candidate": {
+        "slots": 3,
+        "meanDeltaE": 8.526
+      }
+    },
+    "blue": {
+      "shareOfValidationPixels": 0.04285,
+      "frozen": {
+        "slots": 0,
+        "meanDeltaE": 21.259
+      },
+      "candidate": {
+        "slots": 2,
+        "meanDeltaE": 7.741
+      }
+    },
+    "violet": {
+      "shareOfValidationPixels": 0.09212,
+      "frozen": {
+        "slots": 1,
+        "meanDeltaE": 21.243
+      },
+      "candidate": {
+        "slots": 3,
+        "meanDeltaE": 4.337
+      }
+    },
+    "magenta": {
+      "shareOfValidationPixels": 0.02156,
+      "frozen": {
+        "slots": 0,
+        "meanDeltaE": 26.185
+      },
+      "candidate": {
+        "slots": 1,
+        "meanDeltaE": 11.491
+      }
+    }
+  },
+  "namedFeatures": {
+    "star yellow": {
+      "on": "player",
+      "pixels": 5035,
+      "share": 0.01294,
+      "frozen": {
+        "mean": 2.926,
+        "max": 5.437,
+        "slots": 1,
+        "worst": {
+          "src": "#e2d92f",
+          "dst": "#f9db10",
+          "de": 5.4372148534120885
+        }
+      },
+      "candidate": {
+        "mean": 3.591,
+        "max": 5.996,
+        "slots": 1,
+        "worst": {
+          "src": "#fbee0d",
+          "dst": "#f7d92c",
+          "de": 5.995692603147384
+        }
+      }
+    },
+    "shirt/cap green": {
+      "on": "player",
+      "pixels": 137459,
+      "share": 0.35314,
+      "frozen": {
+        "mean": 2.487,
+        "max": 30.622,
+        "slots": 11,
+        "worst": {
+          "src": "#537b58",
+          "dst": "#765b4e",
+          "de": 30.621916883663125
+        }
+      },
+      "candidate": {
+        "mean": 5.621,
+        "max": 18.631,
+        "slots": 7,
+        "worst": {
+          "src": "#1f8c30",
+          "dst": "#205c39",
+          "de": 18.63087813254867
+        }
+      }
+    },
+    "skin": {
+      "on": "player",
+      "pixels": 53298,
+      "share": 0.13692,
+      "frozen": {
+        "mean": 4.021,
+        "max": 17.321,
+        "slots": 6,
+        "worst": {
+          "src": "#c7a78f",
+          "dst": "#a4a3ad",
+          "de": 17.321367720933633
+        }
+      },
+      "candidate": {
+        "mean": 7.952,
+        "max": 19.775,
+        "slots": 5,
+        "worst": {
+          "src": "#f6b5a7",
+          "dst": "#edc481",
+          "de": 19.774792174564176
+        }
+      }
+    },
+    "leather brown": {
+      "on": "player",
+      "pixels": 80172,
+      "share": 0.20596,
+      "frozen": {
+        "mean": 3.021,
+        "max": 17.186,
+        "slots": 6,
+        "worst": {
+          "src": "#bc715c",
+          "dst": "#ab8d62",
+          "de": 17.18602016569659
+        }
+      },
+      "candidate": {
+        "mean": 5.284,
+        "max": 18.383,
+        "slots": 4,
+        "worst": {
+          "src": "#503805",
+          "dst": "#47180d",
+          "de": 18.38298677888289
+        }
+      }
+    },
+    "dark outline": {
+      "on": "player",
+      "pixels": 76821,
+      "share": 0.19736,
+      "frozen": {
+        "mean": 3.776,
+        "max": 31.708,
+        "slots": 6,
+        "worst": {
+          "src": "#2a3809",
+          "dst": "#2a1212",
+          "de": 31.707569352411333
+        }
+      },
+      "candidate": {
+        "mean": 11.066,
+        "max": 34.426,
+        "slots": 5,
+        "worst": {
+          "src": "#223a07",
+          "dst": "#47180d",
+          "de": 34.42596735439191
+        }
+      }
+    },
+    "deep water": {
+      "on": "brackwater",
+      "pixels": 41657,
+      "share": 0.03973,
+      "frozen": {
+        "mean": 22.015,
+        "max": 38.053,
+        "slots": 8,
+        "worst": {
+          "src": "#487588",
+          "dst": "#4bac53",
+          "de": 38.05259629359065
+        }
+      },
+      "candidate": {
+        "mean": 5.956,
+        "max": 36.129,
+        "slots": 9,
+        "worst": {
+          "src": "#596aa7",
+          "dst": "#489b7d",
+          "de": 36.12853391071415
+        }
+      }
+    },
+    "marsh teal": {
+      "on": "r2-marsh",
+      "pixels": 16207,
+      "share": 0.01546,
+      "frozen": {
+        "mean": 21.87,
+        "max": 39.679,
+        "slots": 9,
+        "worst": {
+          "src": "#36b9b3",
+          "dst": "#2865cc",
+          "de": 39.67851716896913
+        }
+      },
+      "candidate": {
+        "mean": 10.403,
+        "max": 32.78,
+        "slots": 11,
+        "worst": {
+          "src": "#095b7f",
+          "dst": "#23997f",
+          "de": 32.7795919776568
+        }
+      }
+    },
+    "ice / pale cyan": {
+      "on": "puddlisk",
+      "pixels": 164700,
+      "share": 0.55493,
+      "frozen": {
+        "mean": 26.712,
+        "max": 43.603,
+        "slots": 4,
+        "worst": {
+          "src": "#43d6d5",
+          "dst": "#2865cc",
+          "de": 43.6025126080098
+        }
+      },
+      "candidate": {
+        "mean": 2.668,
+        "max": 18.461,
+        "slots": 7,
+        "worst": {
+          "src": "#54c8d4",
+          "dst": "#4adab0",
+          "de": 18.46103836190463
+        }
+      }
+    },
+    "dusk blue/violet": {
+      "on": "duskhollow",
+      "pixels": 167942,
+      "share": 0.16016,
+      "frozen": {
+        "mean": 30.627,
+        "max": 42.805,
+        "slots": 11,
+        "worst": {
+          "src": "#000066",
+          "dst": "#083f22",
+          "de": 42.80468040595165
+        }
+      },
+      "candidate": {
+        "mean": 10.748,
+        "max": 41.241,
+        "slots": 12,
+        "worst": {
+          "src": "#8b3ae1",
+          "dst": "#82b1a8",
+          "de": 41.24071824854646
+        }
+      }
+    },
+    "magenta": {
+      "on": "duskhollow",
+      "pixels": 41734,
+      "share": 0.0398,
+      "frozen": {
+        "mean": 32.304,
+        "max": 46.402,
+        "slots": 14,
+        "worst": {
+          "src": "#aa40a0",
+          "dst": "#ab8d62",
+          "de": 46.40227647698676
+        }
+      },
+      "candidate": {
+        "mean": 14.099,
+        "max": 47.776,
+        "slots": 14,
+        "worst": {
+          "src": "#ce0dfc",
+          "dst": "#dd9c74",
+          "de": 47.77563319061446
+        }
+      }
+    }
+  },
+  "coolProbes": [
+    {
+      "probe": "deep water",
+      "hex": "#1b4f7a",
+      "frozen": {
+        "to": "#2e6040",
+        "deltaE": 32.31
+      },
+      "candidate": {
+        "to": "#2c3151",
+        "deltaE": 14.42
+      }
+    },
+    {
+      "probe": "sky blue",
+      "hex": "#7ec8f0",
+      "frozen": {
+        "to": "#a4a3ad",
+        "deltaE": 22.33
+      },
+      "candidate": {
+        "to": "#6fe2e6",
+        "deltaE": 15.02
+      }
+    },
+    {
+      "probe": "marsh teal",
+      "hex": "#2f7f7a",
+      "frozen": {
+        "to": "#2e6040",
+        "deltaE": 16.15
+      },
+      "candidate": {
+        "to": "#23997f",
+        "deltaE": 11.51
+      }
+    },
+    {
+      "probe": "ice cyan",
+      "hex": "#a8e8ea",
+      "frozen": {
+        "to": "#f7ebd3",
+        "deltaE": 23.06
+      },
+      "candidate": {
+        "to": "#b2f1e5",
+        "deltaE": 5.68
+      }
+    },
+    {
+      "probe": "purple",
+      "hex": "#7a4fa3",
+      "frozen": {
+        "to": "#765b4e",
+        "deltaE": 29.89
+      },
+      "candidate": {
+        "to": "#554a69",
+        "deltaE": 14.02
+      }
+    },
+    {
+      "probe": "magenta",
+      "hex": "#c04a9a",
+      "frozen": {
+        "to": "#ab8d62",
+        "deltaE": 42.69
+      },
+      "candidate": {
+        "to": "#ac7e53",
+        "deltaE": 39.03
+      }
+    }
+  ]
+}

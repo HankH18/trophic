@@ -1,0 +1,150 @@
+{
+  "9": {
+    "inputs": {
+      "filename_prefix": "ComfyUI",
+      "images": [
+        "65",
+        0
+      ]
+    },
+    "class_type": "SaveImage",
+    "_meta": {
+      "title": "Save Image"
+    }
+  },
+  "62": {
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "lumina2",
+      "device": "default"
+    },
+    "class_type": "CLIPLoader",
+    "_meta": {
+      "title": "Load CLIP"
+    }
+  },
+  "63": {
+    "inputs": {
+      "vae_name": "ae.safetensors"
+    },
+    "class_type": "VAELoader",
+    "_meta": {
+      "title": "Load VAE"
+    }
+  },
+  "65": {
+    "inputs": {
+      "samples": [
+        "70",
+        0
+      ],
+      "vae": [
+        "63",
+        0
+      ]
+    },
+    "class_type": "VAEDecode",
+    "_meta": {
+      "title": "VAE Decode"
+    }
+  },
+  "66": {
+    "inputs": {
+      "unet_name": "z_image_turbo_bf16.safetensors",
+      "weight_dtype": "default"
+    },
+    "class_type": "UNETLoader",
+    "_meta": {
+      "title": "Load Diffusion Model"
+    }
+  },
+  "67": {
+    "inputs": {
+      "text": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, seen from directly behind, facing away from the viewer, full body, compact youthful proportions, large head, short limbs, plain white background, crisp clean pixel edges, 2D game asset",
+      "clip": [
+        "62",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "69": {
+    "inputs": {
+      "shift": 3,
+      "model": [
+        "66",
+        0
+      ]
+    },
+    "class_type": "ModelSamplingAuraFlow",
+    "_meta": {
+      "title": "ModelSamplingAuraFlow"
+    }
+  },
+  "70": {
+    "inputs": {
+      "seed": 42,
+      "steps": 8,
+      "cfg": 1,
+      "sampler_name": "res_multistep",
+      "scheduler": "simple",
+      "denoise": 0.4,
+      "model": [
+        "69",
+        0
+      ],
+      "positive": [
+        "67",
+        0
+      ],
+      "negative": [
+        "71",
+        0
+      ],
+      "latent_image": [
+        "73",
+        0
+      ]
+    },
+    "class_type": "KSampler",
+    "_meta": {
+      "title": "KSampler"
+    }
+  },
+  "71": {
+    "inputs": {
+      "text": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
+      "clip": [
+        "62",
+        0
+      ]
+    },
+    "class_type": "CLIPTextEncode",
+    "_meta": {
+      "title": "CLIP Text Encode (Prompt)"
+    }
+  },
+  "72": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "PLACEHOLDER-uploaded-init.png",
+      "upload": "image"
+    }
+  },
+  "73": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": [
+        "72",
+        0
+      ],
+      "vae": [
+        "63",
+        0
+      ]
+    }
+  }
+}

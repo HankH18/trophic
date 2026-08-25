@@ -1,0 +1,80 @@
+{
+  "palette": "data/palette.json",
+  "source": "assets/approved-trials/player-APPROVED.png",
+  "targets": [
+    {
+      "size": "32x48",
+      "meanDeltaE": 2.901,
+      "maxDeltaE": 26.202,
+      "bands": {
+        "star yellow": {
+          "pixelsAt1024": 5423,
+          "pixelsPreQuantize": 15,
+          "pixelsPostQuantize": 16,
+          "coloursHeld": "#f9db10x16"
+        },
+        "shirt/cap green": {
+          "pixelsAt1024": 117742,
+          "pixelsPreQuantize": 412,
+          "pixelsPostQuantize": 353,
+          "coloursHeld": "#4bac53x268 #2a7a34x81 #1e4d35x3 #68c361x1"
+        },
+        "skin": {
+          "pixelsAt1024": 22463,
+          "pixelsPreQuantize": 146,
+          "pixelsPostQuantize": 73,
+          "coloursHeld": "#ec9a70x67 #eec092x6"
+        },
+        "leather brown": {
+          "pixelsAt1024": 95332,
+          "pixelsPreQuantize": 218,
+          "pixelsPostQuantize": 255,
+          "coloursHeld": "#53210cx117 #8f5230x100 #6e3620x30 #b07037x8"
+        },
+        "dark outline": {
+          "pixelsAt1024": 98597,
+          "pixelsPreQuantize": 219,
+          "pixelsPostQuantize": 276,
+          "coloursHeld": "#53210cx117 #2a1212x78 #033309x49 #030202x32"
+        }
+      }
+    },
+    {
+      "size": "64x96",
+      "meanDeltaE": 2.847,
+      "maxDeltaE": 29.333,
+      "bands": {
+        "star yellow": {
+          "pixelsAt1024": 5423,
+          "pixelsPreQuantize": 56,
+          "pixelsPostQuantize": 59,
+          "coloursHeld": "#f9db10x59"
+        },
+        "shirt/cap green": {
+          "pixelsAt1024": 117742,
+          "pixelsPreQuantize": 1628,
+          "pixelsPostQuantize": 1415,
+          "coloursHeld": "#4bac53x1078 #2a7a34x306 #1e4d35x13 #90b633x7 #2e6040x6 #68c361x4 #688b2dx1"
+        },
+        "skin": {
+          "pixelsAt1024": 22463,
+          "pixelsPreQuantize": 583,
+          "pixelsPostQuantize": 264,
+          "coloursHeld": "#ec9a70x251 #eec092x13"
+        },
+        "leather brown": {
+          "pixelsAt1024": 95332,
+          "pixelsPreQuantize": 936,
+          "pixelsPostQuantize": 1115,
+          "coloursHeld": "#53210cx513 #8f5230x445 #6e3620x128 #b07037x29"
+        },
+        "dark outline": {
+          "pixelsAt1024": 98597,
+          "pixelsPreQuantize": 939,
+          "pixelsPostQuantize": 1178,
+          "coloursHeld": "#53210cx513 #2a1212x309 #033309x237 #030202x119"
+        }
+      }
+    }
+  ]
+}

@@ -1,3 +1,87 @@
-// Boot entry. Real scene wiring lands in Lane C (build-doc §15 C1).
-console.info('Trophic boot');
-export {};
+/**
+ * game/main.ts — the entry point index.html loads.
+ *
+ * Two jobs and no more: name the scenes, and start the game. The scene LIST lives here so that a
+ * later Lane C step adding OverworldScene (C2), BattleScene (C3) or the ledger (C4) touches this
+ * file and nothing else — `game/boot.ts` deliberately imports no scene, so there is no cycle to
+ * unpick and no registration order to get right.
+ */
+
+import Phaser from "phaser";
+
+import { attachIntegerScale, createGameConfig, renderFatalError, viewport } from "./boot";
+import { BattleScene } from "./scenes/BattleScene";
+import { BootScene } from "./scenes/BootScene";
+import { DexScene } from "./scenes/DexScene";
+import { LedgerScene } from "./scenes/LedgerScene";
+import { MenuScene } from "./scenes/MenuScene";
+import { OverworldScene } from "./scenes/OverworldScene";
+import { createRetirementScene } from "./scenes/RetirementScene";
+import { SummaryScene } from "./scenes/SummaryScene";
+import { TitleScene } from "./scenes/TitleScene";
+import { createYearTurnScene } from "./scenes/YearTurnScene";
+
+/**
+ * Scene order matters only for the first entry: Phaser starts scene[0]. Everything after it is
+ * registered and idle until something calls `scene.start`.
+ *
+ * ⚠ INTEGRATION SEAM. This list is what `sceneRegistered()` (game/scene-keys.ts) reads, and
+ * `enterGameplay()` routes to the in-run menu — saying so on screen — for as long as
+ * `SCENE_KEYS.overworld` is absent from it.
+ *
+ * REGISTERED IS NOT ROUTED, and the difference is stated here rather than implied:
+ *   • Boot → Title → Menu → Overworld is routed here and in `game/boot.ts` (`enterGameplay`), which
+ *     hands the overworld the LIVE session — its content, its save and its RNG streams. Started with
+ *     no data, `OverworldScene.init` falls back to a brand-new save at the default seed, so a
+ *     CONTINUE that routed without data would silently discard the slot it had just loaded.
+ *   • `Ledger`, `Dex` and `Summary` are routed from the in-run menu (game/scenes/MenuScene.ts), each
+ *     handed the session's content and its live `nodeStates`.
+ *   • `Battle`, `YearTurn` and `Retirement` are registered and IDLE. Their drivers belong to the
+ *     lanes that own them — a battle needs a party (build-doc §15 C7 hands the starter over) and the
+ *     year turn needs the clock's `yearEnd` (C6). Neither is invented here: a router that fabricated
+ *     a creature to have something to fight would break G2, and one that faked a year turn would
+ *     break G6.
+ *
+ * ⚠ AND A SCENE THAT IS NOT IN THIS LIST DOES NOT EXIST. `YearTurn` and `Retirement` were built,
+ * tested and left unregistered — so build-doc §1's never-cut Legacy beat, and Hard Requirement 6's
+ * season tint with it, were reachable from the test suite and from nowhere else. Registering them is
+ * what makes every green test in that lane evidence about the running game rather than about pure
+ * functions nobody calls. `Overworld` is here for the same reason: it is what STARTS the year turn,
+ * and without it `enterGameplay()` routes the player to the in-run menu and the clock never runs.
+ *
+ * The two year-turn scenes are built by a FACTORY that takes the engine as an argument, because
+ * their modules must stay importable from a node test (`import "phaser"` there throws
+ * `window is not defined`). Registering them is the same one line either way.
+ */
+const SCENES: Phaser.Types.Scenes.SceneType[] = [
+  BootScene,
+  TitleScene,
+  MenuScene,
+  OverworldScene,
+  BattleScene,
+  LedgerScene,
+  DexScene,
+  SummaryScene,
+  createYearTurnScene(Phaser),
+  createRetirementScene(Phaser),
+];
+
+function start(): void {
+  const config = createGameConfig(Phaser, SCENES);
+  // createGameConfig has already rendered the reason into the page.
+  if (!config) return;
+
+  try {
+    const game = new Phaser.Game(config);
+    const view = viewport();
+    if (view) attachIntegerScale(game, view);
+  } catch (err) {
+    renderFatalError("the renderer could not start", [
+      err instanceof Error ? err.message : String(err),
+      "",
+      "A WebGL or Canvas context is required.",
+    ]);
+  }
+}
+
+start();

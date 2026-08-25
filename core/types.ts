@@ -676,6 +676,14 @@ export interface Balance {
     baseCatchAncient: number;
     snareTier: Record<SnareTier, number>;
     baitMult: Record<BaitMatch, number>;
+    /**
+     * build-doc §7.4 as amended 2026-08-25 (DEVIATIONS D-A5-1) — bible §2's "bait success" job for
+     * Instinct. The bait term is multiplied by `1 + instinctBaitSlope × (insShare − instinctBaitPivot)`,
+     * where `insShare` is the CATCHING creature's Instinct as a fraction of its five effective stats.
+     * `instinctBaitPivot` is the allocation at which the term is 1 (the roster median, 45/300).
+     */
+    instinctBaitPivot: number;
+    instinctBaitSlope: number;
     lureMult: number;
     hpTermOffset: number;
     hpTermDivisor: number;
