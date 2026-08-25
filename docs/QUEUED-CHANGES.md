@@ -1,5 +1,39 @@
 # Queued changes — authorised, waiting on in-flight work
 
+## CURRENT STATE (loop tick, 03:38)
+
+**Build: GREEN.** `npx tsc --noEmit` silent · `npx vitest run` 32 files / 1613 tests, all passing.
+HEAD `88bf97d`, remote verified. No leftover scratch probes.
+
+> **`tools/harness/probe.ts` is a REAL MODULE** that `tools/harness/measure.ts` imports. It is NOT a
+> leftover scratch file. Deleting it breaks `tests/unit/harness.test.ts` at collection time. This
+> already happened once during a probe sweep — match `__*` / `__c*probe*` under `game/` and
+> `tests/unit/` only, never a bare `*probe*` across `tools/`.
+
+| Change | State |
+|---|---|
+| Q1 renames | not started — needs `tests/unit/transcription.test.ts` |
+| Q2 tick-only time | **blocked** — Lanes B+C holds `game/` |
+| Q3 act decoupling (+ Q3a, Q3b) | **blocked** — needs `game/`; largest item, needs its own verification pass |
+| Q4 backgroundTolerance | **IN FLIGHT** |
+| Q5 Fenmaw shape-not-species | **IN FLIGHT** |
+| Q6 r4 mid-collapse | not started |
+| Q7 wire dialogue into `game/` | **blocked** — Lanes B+C holds `game/` |
+| Q8 dialogue-schema allowance | **DONE** — landed, verified legitimate (the two real gameplay constants read from `balance.json`) |
+
+**Landed since the last snapshot:** Instinct now feeds bait success via the catcher's Instinct
+*share* of effective stats, pivoted at the roster median so a median-Instinct catcher is unchanged
+(build-doc §7.4 amended). Maribel reduced to 3 — measured **26.0% -> 38.6%** against an 80-95%
+target, so improved and NOT fixed; still -41.4pp.
+
+**Awaiting Hank, do not decide unilaterally:** which palette variant (recommendation: class-equal);
+the five borderline G7 lines in `docs/DIALOGUE-NOTES.md`; every rename in `docs/IP-SWEEP.md` (G15).
+
+**Never:** fire a >=20-image batch (G13, Hank's credits) · swap `data/palette.json` without Q4 in
+the same change · weaken a test to go green.
+
+---
+
 Both authorised by Hank 2026-08-25. Not started yet: each collides with a file a running
 workflow currently owns. Launching them now would corrupt concurrent edits, so they are
 specified here in full and dispatched the moment their blockers land.
