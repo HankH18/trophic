@@ -32,7 +32,11 @@ The same failure mode has a third instance that is worse, because it is a test w
 **negation** of what it says: `tests/integration/seams.test.ts:327` is named *"HONEST GAP: nothing in
 production wires battle's catch to the ledger yet"*, and it is green **because the wiring it greps
 for landed in a file that is not on its source list** (**BF-3**). Its own comment instructs whoever
-finds it to replace it with a real test. And a fourth, **BF-4**: a wild Ancient can be rolled at age
+finds it to replace it with a real test.
+**BF-3 is RESOLVED (2026-08-25)** — and the sweep its last paragraph asked for turned out to be the
+larger half: **nine** test files in this class, including an identical hand-written-source-list twin
+one block below the named test, and the discovery that **G7 has no repo-wide gate at all**. See the
+resolution block on that entry. And a fourth, **BF-4**: a wild Ancient can be rolled at age
 J or A, which is 12 sprite keys with no manifest row — while
 `tests/unit/battle-view.test.ts:1706-1716` asserts the manifest matches "the keys the running game
 can ask for" by *computing that set from the invariant the encounter roll violates*.
@@ -176,7 +180,9 @@ leader's name instead of `"Gym battle"`.
 ### BF-3 · A green test that asserts the negation of the truth
 **Scope:** `tests/integration/seams.test.ts`
 **Reported by:** C2 repair (blocker #2) — *"stale test outside my scope"*
-**Status: STILL PRESENT** — highest test-integrity severity in this document.
+**Status: RESOLVED 2026-08-25 — the named test, AND the sweep its last paragraph asked for.**
+Nine test files, three categories, four previously unreported defects. See the resolution block at
+the end of this entry; the diagnosis below is left verbatim as the record of what was wrong.
 
 ```
 tests/integration/seams.test.ts
@@ -207,6 +213,164 @@ immediately, which is correct — replace it with a behavioural test of `applyCa
 **The same failure mode recurs** at `tests/unit/year-turn-ux.test.ts:2883, :2923` — which is exactly
 why **BF-2**'s missing caller reads green. Sweep for source-list-scoped greps used as behavioural
 assertions while fixing this.
+
+#### RESOLUTION — the named instance was already fixed; the SWEEP it asked for had not been done
+
+**Status after the sweep (2026-08-25): the class is closed in nine test files, and the sweep found
+four defects nobody had reported.** The one test BF-3 names was replaced correctly by an earlier
+pass. What that pass did not do is the last paragraph above — *"sweep for source-list-scoped greps
+used as behavioural assertions"* — and every finding below came out of doing it. **Test files only;
+no `game/`, `core/`, `data/` or `tools/` source was changed.** Every replacement was proved by
+sabotaging the thing it now asserts, watching it go red, and restoring the file byte-for-byte
+(sha256 checked before and after, in both directions where the assertion is two-sided).
+
+**The taxonomy, as it actually came out.** A test that certifies an absence fails in one of three
+ways, and all three are present here:
+
+| category | what it looks like | files |
+|---|---|---|
+| **A · the gap CLOSED and the test still asserts it is open** | green while stating the negation of the truth | seams `:329` *(already fixed)*, wild-battle header *(already fixed)* |
+| **B · the gap is OPEN and nothing will say when it closes** | passes while the hole persists, and passes after it is filled | demo-beats `:367`, collision `:469`, regional-events `:407`, battle-view `:1706` |
+| **C · a SOURCE-SUBSTRING assertion standing in for a behaviour** | `expect(source).toContain("winGym")` — satisfied by the declaration | year-turn-ux `:2923`/`:2962`, seams `:516`, battle-view `LANE_C3_FILES`, ledger-view §13 |
+
+##### Per file
+
+1. **`tests/integration/seams.test.ts`** — **A (already fixed) + C (NOT fixed, found here).** The
+   test BF-3 names is gone and its two replacements run `applyCatchToSave` and walk every `core/` and
+   `game/` source. **But its identical twin, one describe block below, was untouched:** `:516`
+   *"core/rng.ts is the only generator"* iterated **a hand-written list of six `core/` modules**
+   (`battle, ecosim, lifecycle, save, clock, foodweb`). `core/` holds twelve — `acts.ts`,
+   `regional-events.ts`, `dialogue-schema.ts`, `quests.ts`, `schemas.ts`, `types.ts` were **never
+   scanned**, so a second xorshift landing in any of them was invisible to the only test that forbids
+   one. Same file, same mechanism, same page. Now discovers `core/` by walking it, exempts
+   `core/rng.ts` by path, and asserts the home of the generator *does* shift bits so the scan cannot
+   be vacuously clean. **RED/GREEN:** planting `(s ^ (s >>> 17)) >>> 0` in `core/acts.ts` — a file the
+   old list did not name — fails it (`['core/acts.ts']`); reverted, green.
+
+2. **`tests/unit/year-turn-ux.test.ts`** — **C, and this is the live instance BF-2 blames.**
+   `:2962` `expect(overworld).toContain("winGym")` is satisfied by `winGym`'s own **declaration** in
+   that file, and so are `restAtInn` and `onRunComplete`. The `:2923` block's *"every read-side
+   function has a caller in a scene"* used `source.includes(`${name}(`)`, which has the same hole for
+   any name declared where it is asserted. Replaced with a `callSites()` helper that strikes the
+   declaration out first — a bare `name(` at line start is a call when a statement follows the
+   argument list and a declaration when a body does — plus optional-call (`?.(`) support. A new
+   `it("BINDS the instrument …")` is the permanent positive control: it feeds the helper the exact
+   dead-`winGym` shape and asserts `callSites` returns `[]` *while the old assertion still passes on
+   it*. **RED/GREEN:** deleting the single `this.winGym(gym.id)` call site from
+   `game/scenes/OverworldScene.ts` now fails with *"no code path awards a badge — acts 2..6 are
+   unreachable"*; the old assertion stayed green under the same sabotage (`grep -c winGym` = 5).
+   Reverted, sha256 identical.
+
+3. **`tests/integration/demo-beats.test.ts`** — **B.** `:241` (the RELEASE half) was re-checked and
+   is **honest** — `0 < released < SEEDS` goes red the day the release becomes a law — and was left
+   alone. `:367` was not: the HONEST GAP note says the starter retires *three years early*, but the
+   assertion was `firstWithoutStarter.year < leagueYear`, which **the repair also satisfies** (a
+   schedule retuned to bible §4's *"peaks right before the league"* retires it in year 5, still
+   `< 6`). So the test would have gone on passing through the very change it was written to wait for.
+   The MEASURED year is now pinned (`RETIRES_AT = 4`, leagueYear 6, seed 7, through the shipped
+   `driveYearTurn`) with a message telling the fixer to rewrite the note.
+
+4. **`tests/unit/encounters.test.ts`** — **B, newly written.** BF-4 had no behavioural witness
+   anywhere: the only test of the Ancient-age invariant restates it instead of asking the code. Added
+   `"OPEN GAP (BF-4) — an unlocked Ancient still rolls at J and A"`, which drives the real
+   `rollEncounterAt` at each Ancient's real host with the sign chain unlocked and asserts a non-Elder
+   age IS produced. **MEASURED, 4000 seeds per line:** `undermere-line@r2` J 40 / A 37 / E 10 ·
+   `kilnback-line@cindershelf` J 60 / A 54 / E 12 · `vellsire-line@sanctum` J 663 / A 528 / E 130.
+   **RED/GREEN:** applying the BF-4 clamp in `game/encounters.ts` fails it with *"BF-4 IS FIXED"*.
+
+5. **`tests/unit/battle-view.test.ts`** — **B + C, and the C half is a guardrail hole.**
+   *(B)* `:1706`'s set identity derives "the keys the running game can ask for" from
+   `line.ancient ? ["E"] : AGE_CLASSES` — the invariant, not the caller — so it is green whatever the
+   encounter roll does. The identity is kept (it is what caught the invented key shape) and now says
+   so; the blind spot is measured beside it by a new test that rolls the real encounter path and
+   subtracts the manifest: **12 keys with no row**, all matching `-(j|a)-(front|back)`. Red when the
+   clamp lands. *(C)* `LANE_C3_FILES` was a hand-written list of nine files used to enforce **G7** and
+   Hard Req 8. **G7 has no repo-wide gate at all** (`grep -n "G7" tests/gates/` → nothing), so its
+   only enforcement anywhere was three hand-written lists totalling 16 files. Both copy scans now
+   walk every `.ts` under `game/` and `core/`. Measured across all of them: **zero** moralizing
+   literals, and exactly **one** death-word literal — `game/ledger-view.ts`'s `"recent deaths "`,
+   the ecosim's own `recentDeaths` field printed as a real number (Hard Req 2), which is exempted **by
+   its text, not by its file**, with an assertion that the exemption still matches something.
+   `LANE_C3_FILES` survives for the two checks that are genuinely lane-scoped. **RED/GREEN:** pointing
+   the walk at `tests/unit` (which holds a deliberately poisoned literal) fails both scans with 18
+   offenders each.
+
+6. **`tests/unit/collision.test.ts`** — **B.** The describe was titled *"no authored mask exists
+   yet"* and **nothing asserted it**; every test inside hands `loadCollision` a `null` buffer, so all
+   of them drive the synthesised branch whatever is on disk. A mask landing would have left the
+   heading lying and no one prompted to re-measure. Now opens with the same shape
+   `tests/unit/overlay-diff.test.ts:1032` already uses: no shipped node's declared mask is on disk.
+   **RED/GREEN:** touching `assets/final/maps/r1-mask.png` fails it *and* fires overlay-diff's
+   existing guard; removed, both green.
+
+7. **`tests/unit/regional-events.test.ts`** — **B.** `:407` forbade two **spellings**
+   (`regionalEvents.bloomSpawnMultiplier`, `encounter.bloomMultiplier`), so bible §9's bonus-spawn
+   half could be built under a third name with the test still reporting it unbuilt. Added the
+   structural half: `ForayContext` — the encounter roll's entire input surface — is pinned to its six
+   fields, so a bloom cannot reach a spawn weight by any spelling without turning this red, plus an
+   event-vocabulary scan of the module. **RED/GREEN:** adding `openEventWindows?: readonly string[]`
+   to `ForayContext` fails it.
+
+8. **`tests/unit/ledger-view.test.ts`** — **C, defended by a false claim.** §13 justified reading
+   source with *"The scenes value-import Phaser, which throws in the node environment, so — exactly as
+   tests/unit/battle-view.test.ts does for `BattleScene` — they are checked by reading their source."*
+   **Both halves are false:** `battle-view.test.ts` `vi.mock`s Phaser and EXECUTES `BattleScene`, as
+   `overworld-scene.test.ts` does for the real `OverworldScene`, and `YearTurnScene` /
+   `RetirementScene` run through exported `create*(P)` factories. Four of ten scenes are driven; the
+   value-import is not the obstacle (BF-35 is). The comment now says the section is source-reading by
+   default rather than by necessity, and the defect class it exists for — *a renderer that imports
+   something and never draws it* — is asserted **directly** by a dead-method census instead of by
+   re-checking the one instance by name. **RED/GREEN:** a new unreferenced method in `DexScene`
+   fails it, and so does wiring one of the two already-dead methods.
+
+9. **`tests/unit/wild-battle.test.ts`** — **A (already fixed) + one gap in the fix.** The header's
+   stale note was corrected by the earlier pass and is accurate. But BF-3's replacement tests
+   `applyCatchToSave`, the inner writer, while what `OverworldScene.finishWildBattle` calls is
+   `applyWildBattleOutcome` — **untested anywhere in this file**, and its whole body is one
+   three-state decision where `undefined` ("read it for me") and `null` ("I looked, there was none")
+   mean opposite things. Added a test of all four branches. **RED/GREEN:** collapsing
+   `opts.caught === undefined ? … : opts.caught` to `opts.caught ?? …` fails it.
+
+##### REAL DEFECTS THE SWEEP UNCOVERED — none is fixed here; all are in source this scope may not touch
+
+- **D-SWEEP-1 · `G7` is not enforced anywhere repo-wide, and was not before this change.** It is a
+  fail-the-task guardrail (*"NO moralising copy about catching, anywhere, in any string"*) and
+  `tests/gates/guardrails.test.ts` has **no G7 rule at all**. Until now the only enforcement was three
+  hand-written file lists covering 16 files. Item 5 widens the scan to all of `game/` + `core/`, but
+  **the right home is the gates file**, alongside `no_magic_numbers` and the `Math.random` ban, and it
+  should cover `data/*.json` copy too — which item 5 deliberately does not, because dialogue copy is
+  Hank's ruling (G2). Owner: whoever next holds `tests/gates/guardrails.test.ts`.
+- **D-SWEEP-2 · `LedgerScene.setStates` and `LedgerScene.webLines` are dead public API.**
+  `grep -rn "setStates\|webLines" game/ core/ tests/` returns their declarations **and nothing else**.
+  `webLines`'s own doc says it exists "in a form a test can assert" and no test asserts it — and it is
+  the only other caller of `renderWebEdge`, the symbol whose deadness §13 was written about. Pinned by
+  the census in item 8, so a third one fails immediately. Fix is in `game/scenes/LedgerScene.ts`:
+  wire them or delete them, then shorten the pinned list.
+- **D-SWEEP-3 · BF-4 is confirmed live and now measured through the real roll**, not inferred: ~90 %
+  of unlocked-Ancient encounters are J or A. See item 4 for the per-line numbers. Unchanged verdict,
+  first hard evidence.
+- **D-SWEEP-4 · `game/quests.ts` fails `no_shadow_tables`.** Landing from the concurrent Q7/Q3b
+  stream while this sweep ran: `npx vitest run` reports
+  `game/quests.ts names "Webvern" — content belongs in data/, not in code (G2/G3)`
+  (`tests/property/foodweb.test.ts:584`). **Not this sweep's file and not this sweep's failure** — the
+  nine files above are green — but it is the one red in the suite and its owner needs to see it.
+
+##### Notes for whoever reads this next
+
+- **The Q7/Q3b stream is live in the same tree.** `game/dialogue-runner.ts`, `game/props.ts`,
+  `game/quests.ts` and `core/quests.ts` appeared while this ran, and `game/scenes/OverworldScene.ts`
+  gained the dialogue/quest/prop wiring at 09:40. **BF-1 is closing.** A guard asserting "nothing in
+  `game/` plays dialogue" was drafted and then **not written**, because it would have been born false
+  — which is the same mistake this sweep exists to remove. Nothing was added touching the Vellsire
+  outcome flags or the 12 quest turn-in flags either: `core/dialogue-schema.ts` now exports
+  `externallyGrantedFlags` and `core/quests.ts` names D-INT-4 in its header, so that stream owns the
+  instrument and a competing guard here would only collide with it.
+- **Checked and found HONEST; deliberately left alone:** `demo-beats.test.ts:241`,
+  `overlay-diff.test.ts:1032` (the model the collision fix copies), `manifest.test.ts:622`
+  (`yearVariants` still empty), `manifest.test.ts:1285` (no map or mask on disk),
+  `postprocess.test.ts:300` (`palette.json` still a placeholder — and explicit that freezing it is
+  also a pass), `battle-view.test.ts:2969` (the step-kind census is a set identity, red in both
+  directions), `overworld-scene.test.ts` §8 (guardrail scans, not gap tests).
 
 ---
 
@@ -1093,7 +1257,8 @@ publishes an out-of-range `seasonIndex`; `assertCoversSeasonOrder` only throws o
 
 ## 8. Dispatch order
 
-**Clear to dispatch now** (no concurrent owner): BF-3, BF-4, ~~BF-5~~ *(RESOLVED 2026-08-25)*,
+**Clear to dispatch now** (no concurrent owner): ~~BF-3~~ *(RESOLVED 2026-08-25 — the sweep is done;
+its four new findings are D-SWEEP-1…4 on that entry)*, BF-4, ~~BF-5~~ *(RESOLVED 2026-08-25)*,
 BF-6, BF-7, BF-9 *(the `game/`
 half)*, BF-10a–f, BF-12, BF-13 *(consumer)*, BF-14, BF-15, BF-18 *(5 of 7 files)*, BF-19,
 BF-20, BF-21, BF-22, BF-23, BF-24, BF-25, BF-26, BF-30, BF-32, BF-33, BF-34, BF-35, BF-36.
@@ -1111,8 +1276,8 @@ workflow after its verification; see the note on that entry.)*
 1. `tools/comfy/**` + `tools/palette/**` + `tools/postprocess/**` — ~~BF-5~~ *(done)*, BF-6, BF-20, BF-21, (BF-22 evidence)
 2. `game/encounters.ts` + `game/placeholder.ts` + `tests/unit/battle-view.test.ts` — **BF-7 then BF-4**
    *(in that order — BF-7's warning surfaces BF-4 and anything else in its class)*
-3. `tests/integration/seams.test.ts` + `tests/unit/year-turn-ux.test.ts` — BF-3 and its sibling
-   source-list-grep assertions
+3. ~~`tests/integration/seams.test.ts` + `tests/unit/year-turn-ux.test.ts` — BF-3 and its sibling
+   source-list-grep assertions~~ *(DONE 2026-08-25, and it reached nine files, not two)*
 4. `core/types.ts` + `core/battle.ts` + `core/foodweb.ts` + `core/save.ts` — BF-10, BF-12
 5. the five non-concurrent scene files + `game/ui/SeasonMeter.ts` — BF-18
 6. `docs/**` — BF-34, BF-20's merge, BF-26's doc half

@@ -125,18 +125,40 @@ export function autoplayEntryFor(
  * the data that says where Maren is standing. Talking is therefore "address the room": the
  * highest-priority eligible thing anyone in this node has to say. A `npcs[]` placement array would
  * change this and that is a content decision, not one to invent here (G2). Logged as D-Q7-4.
+ *
+ * ⚠⚠ `said` IS NOT AN OPTIMISATION — IT IS WHAT STOPS ONE LINE STARVING A CHAIN. A room's winner is
+ * the highest-priority ELIGIBLE entry, and the corpus ships entries that are eligible for ever and
+ * write no flag to close themselves. `maren.crash-survey` is one: `kind: "lore"`, node
+ * `cindershelf`, **priority 52**, `when` = act ≥ 4 and Route 4's apex at or under one individual,
+ * `setFlags` absent. The act-4 Cullbrand raid is what drives that apex down, so in ordinary play it
+ * latches ON and never closes — and `maren.keystone.4`, Vellsire chain step 6, sits at **priority
+ * 50** in the same room. Without this parameter, [E] at Cindershelf returns the survey line every
+ * press for ever, step 6 is unreachable, and with it `chain.vellsire.complete` and the entire
+ * Ancient hunt. Excluding what has already been said this visit makes every eligible entry
+ * reachable in a bounded number of presses; when everything eligible has been said the exclusion is
+ * dropped, so the last line repeats rather than the room falling silent (which is also how a Gold
+ * townsperson behaves). The copy is untouched — this is a wiring fix, not a content edit (G2), and
+ * the underlying priority collision is recorded in docs/DIALOGUE-NOTES.md.
  */
 export function talkEntryFor(
   file: DialogueFile,
   node: string,
   ctx: DialogueContext,
+  said: ReadonlySet<string> = EMPTY_IDS,
 ): DialogueEntry | undefined {
+  for (const kind of TALK_KINDS) {
+    const fresh = selectEntryWhere(file, ctx, (e) => e.node === node && e.kind === kind && !said.has(e.id));
+    if (fresh) return fresh;
+  }
+  // Everything eligible has been heard: repeat the room's winner rather than answering silence.
   for (const kind of TALK_KINDS) {
     const found = selectEntryWhere(file, ctx, (e) => e.node === node && e.kind === kind);
     if (found) return found;
   }
   return undefined;
 }
+
+const EMPTY_IDS: ReadonlySet<string> = new Set<string>();
 
 /**
  * What a PROP reads out right now.

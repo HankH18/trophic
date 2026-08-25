@@ -16,7 +16,9 @@
  *   §1 the trait roll obeys bible §2 and is the SAME rule tools/harness/player.ts measured with;
  *   §2 an encounter becomes a legal `BattleInput` with nothing invented;
  *   §3 a catch moves the count by exactly one, through core/ecosim.ts's own writer, and the LIVE
- *      path lands where core/save.ts's `replay` of the same tape lands (L10);
+ *      path lands where core/save.ts's `replay` of the same tape lands (L10) — at BOTH ends of the
+ *      wire: `applyCatchToSave`, and `applyWildBattleOutcome`, which is what the scene calls and
+ *      what the stand-in's replacement did not reach (see that test's own note);
  *   §4 the provisional starter is derived from data, not named in code (G2).
  */
 

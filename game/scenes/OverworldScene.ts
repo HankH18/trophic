@@ -321,6 +321,13 @@ export class OverworldScene extends Phaser.Scene {
    * beat every frame for ever.
    */
   private autoplayed = new Set<string>();
+  /**
+   * Entries [E] has already produced in the node the player is standing in.
+   *
+   * Cleared on arrival at a node. It is what makes every eligible line in a room REACHABLE — see
+   * `talkEntryFor`, and the `maren.crash-survey` / `maren.keystone.4` priority collision it names.
+   */
+  private spokenHere = new Set<string>();
 
   constructor() {
     super(OVERWORLD_SCENE_KEY);
@@ -371,6 +378,7 @@ export class OverworldScene extends Phaser.Scene {
     this.battleRunning = false;
     this.dialogueRunning = false;
     this.autoplayed = new Set<string>();
+    this.spokenHere = new Set<string>();
     this.heldLastFrame = new Set<Direction>();
   }
 
@@ -882,8 +890,13 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    const talk = this.tryDialogue(() => talkEntryFor(DIALOGUE, this.node.id, this.dialogueCtx()));
+    const talk = this.tryDialogue(() =>
+      talkEntryFor(DIALOGUE, this.node.id, this.dialogueCtx(), this.spokenHere),
+    );
     if (talk) {
+      // Remembered so the NEXT press gets the next thing the room has to say. See `talkEntryFor`:
+      // without this, one permanently-eligible high-priority line starves every chain step under it.
+      this.spokenHere.add(talk.id);
       this.playEntry(talk.id, talk.speaker);
       return;
     }
@@ -1349,7 +1362,18 @@ export class OverworldScene extends Phaser.Scene {
     // once its own flags are written and the question has no answer left to give.
     const flags = prologueExitFlags(this.balance).filter((f) => this.save.questFlags[f] !== true);
     if (flags.length === 0) return;
-    if (this.hooks.onOpeningBeat?.(this) === true) return;
+    if (this.hooks.onOpeningBeat?.(this) === true) {
+      /*
+       * "I own the opening beat" has to mean the WHOLE beat. Without this the hook switched the
+       * stand-in off and the corpus's own opening cutscene then autoplayed anyway out of
+       * `create()`, wrote `story.opening.done` itself, and handed the lane an act it had not yet
+       * decided to grant — the same seam broken from the other side. Marking the corpus's beat as
+       * already played is how the scene stands down completely.
+       */
+      const owned = this.openingBeatEntry(flags);
+      if (owned !== null) this.autoplayed.add(owned);
+      return;
+    }
     if (this.openingBeatEntry(flags) !== null) return;
     if (this.save.party.length === 0) {
       this.flashBanner(`act ${String(this.act())} · prologue open · ${flags.join(" ")} unwritten`);
@@ -1671,6 +1695,9 @@ export class OverworldScene extends Phaser.Scene {
       const target = this.nodeFile(nodeId);
       await ensureNodeArt(this, nodeArtKeys(target, this.save.year, this.balance));
       this.node = target;
+      // A new room has its own conversation: what was said in the last one must not suppress a
+      // line here (see `talkEntryFor`).
+      this.spokenHere = new Set<string>();
       this.save = { ...this.save, currentNode: target.id };
       this.buildNodeView();
       this.cameras.main.setBounds(0, 0, this.mapView.worldWidth, this.mapView.worldHeight);

@@ -117,125 +117,107 @@ export const RETIREMENT_MILESTONE_FLAG: string = retirementMilestoneFlag(DIALOGU
  * The objective table — CONTENT, transcribed, with the line each row came from
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export interface QuestObjectiveRow {
-  objective: QuestObjective;
-  /** The authored line the row transcribes. Verbatim; never a paraphrase (G2). */
-  source: string;
-  /**
-   * Where the transcription is NARROWER or WIDER than the copy, said out loud. `null` means the
-   * mechanism is exactly what the line asks for.
-   */
-  deviation: string | null;
-}
-
 /**
- * bible §9 / `data/dialogue.json`, one row per quest.
+ * bible §9 / `data/dialogue.json`, one row per quest — the OBJECTIVE each giver is waiting on.
+ *
+ * ⚠ EVERY CITATION BELOW IS A COMMENT, NEVER A STRING. `tests/property/foodweb.test.ts`
+ * "no shipping source names a species" forbids a species id or form name as a STRING LITERAL
+ * anywhere in `core/`, `game/` or `tools/` — and the authored lines these rows transcribe are full
+ * of them. Quoting them in a `source:` field turned that gate red on the first run, which is the
+ * gate working: content in code is exactly what it exists to stop. The quotes live where a reader
+ * needs them and the compiler cannot ship them.
  *
  * The four vertical-slice quests build-doc §15 C7 names first — First Signs, The Fallow Field,
- * Restock the Shallows, Ferryman's Wager — are the four that are never cut, and they are the four
- * whose objectives are mechanised most literally.
+ * Restock the Shallows, Ferryman's Wager — are never cut, and they are the four mechanised most
+ * literally.
  */
-export const QUEST_OBJECTIVES: Readonly<Record<string, QuestObjectiveRow>> = {
-  /* ── the four never-cut slice quests ───────────────────────────────────── */
-  "first-signs": {
-    objective: { kind: "distinctLinesMetAt", node: "r1", count: 3 },
-    source: "\"Walk Meadow Reach and bring me three. Any three.\" (maren.quest.first-signs.offer)",
-    deviation:
-      "A sign card is not an item in the shipped schema — `data/nodes/*.json` has no inventory and " +
-      "`items` carries snares, baits and medicines. The card is therefore the FORAGE ITSELF: three " +
-      "DISTINCT lines met on Meadow Reach. Maren's own done line names three of them, and 'any " +
-      "three' is what the offer asks for.",
-  },
-  "fallow-field": {
-    objective: { kind: "yearTurnedSinceAccepted" },
-    source:
-      "\"Count's twenty-four; I'll walk it myself at the turn of the year and we'll compare books.\" " +
-      "(tolm.quest.fallow.accepted)",
-    deviation:
-      "None. The twenty-four is NOT transcribed here on purpose — the corpus already carries it, as " +
-      "the `population` clause on tolm.quest.fallow.done.kept, and `conditionHolds` resolves it. The " +
-      "turn-in flag means only 'harvest has come'; which of the two authored endings then fires is " +
-      "the live Loamunder count's answer, exactly as authored.",
-  },
-  "restock-the-shallows": {
-    objective: { kind: "releasesAt", node: "r2", count: 4 },
-    source:
-      "\"I want four Boglings put back into that water\" / \"Put them in on the Brackmarsh side.\" " +
-      "(nessa.quest.restock.offer, nessa.quest.restock.accepted)",
-    deviation:
-      "The SPECIES is not checked — a source may not name one (see the header). Four individuals " +
-      "released into Brackmarsh close it, whichever line they are. Nessa's done line reads 'the " +
-      "Brackmarsh count on my board goes up by four', which is true of any four.",
-  },
-  "ferrymans-wager": {
-    objective: { kind: "holdsAge", age: "E" },
-    source:
-      "\"An Elder Mirefin, caught and brought back before the year turns.\" (sel.quest.wager.offer)",
-    deviation:
-      "The SPECIES is not checked (see the header): holding any Elder closes it. The AGE is, which " +
-      "is the half the beat is about — \"Elders are one year from retiring, so you're spending a " +
-      "year of something to prove a point.\"",
-  },
+export const QUEST_OBJECTIVES: Readonly<Record<string, QuestObjective>> = {
+  /* ── the four never-cut slice quests ─────────────────────────────────────
+   *
+   * FIRST SIGNS — maren.quest.first-signs.offer:
+   *   "Walk Meadow Reach and bring me three. Any three."
+   * DEVIATION: a sign card is not an item in the shipped schema — `data/nodes/*` carries no
+   * inventory and `save.items` carries snares, baits and medicines. The card is therefore the
+   * FORAGE ITSELF: three DISTINCT lines met on Meadow Reach (r1). Maren's own done line names
+   * three of them, and "any three" is what the offer asks for.
+   */
+  "first-signs": { kind: "distinctLinesMetAt", node: "r1", count: 3 },
 
-  /* ── the six above cut line C-3 ────────────────────────────────────────── */
-  "silk-shortage": {
-    objective: { kind: "catchesAt", node: "r3", age: "A", count: 3 },
-    source: "\"Three Webvern, my price, or walk away and tell her I asked.\" (halder.quest.silk.offer)",
-    deviation:
-      "Species unchecked (see the header); the AGE is checked because both sides of the authored " +
-      "dilemma are about adults — \"three adults out of the canopy is more than the canopy replaces " +
-      "in a year\". Taken on Bowerdeep Wilds, which is where the canopy is.",
-  },
-  "lanternless-night": {
-    objective: { kind: "returnedTo", node: "bowerdeep", season: "autumn" },
-    source:
-      "\"I need a walk to the eastern stair and back with the relight kit.\" / \"One night. Autumn " +
-      "only\" (pell.quest.lanternless.offer)",
-    deviation:
-      "'The eastern stair' is not a place the node graph carries, so the walk is transcribed as its " +
-      "shape: leave Bowerdeep and come back, in autumn. The season is the authored gate and is " +
-      "checked exactly.",
-  },
-  "after-the-crash": {
-    objective: { kind: "visitedSince", node: "r4" },
-    source:
-      "\"Five counts on Cinder Steppe. … Bring me all five and the flora reading with them.\" " +
-      "(gerta.quest.crash.offer)",
-    deviation:
-      "The counts and the flora reading are the LEDGER's, and the ledger reads the live save from " +
-      "anywhere — so the only part of the survey that is a fact about the player is having stood on " +
-      "Cinder Steppe. A ledger-visit record would tighten this and the ledger scene keeps none.",
-  },
-  "forge-a-legacy": {
-    objective: { kind: "flagSet", flag: "lifecycle.first-retirement" },
-    source:
-      "\"One of yours has run out of years, then.\" / \"Bring it here and I'll set it.\" " +
-      "(bram.quest.forge.offer)",
-    deviation:
-      "The relic and the ingot are not items the shipped economy carries, so the cost is not taken. " +
-      "The retirement is: `lifecycle.first-retirement` is derived from the action tape by " +
-      "{@link syncQuestFlags} and is itself one of the flags nothing wrote.",
-  },
-  "star-census": {
-    objective: { kind: "dexIdentitiesRisen" },
-    source:
-      "\"Another milestone. Here's the plate, still tacky\" / \"Thirty-five identities in the full " +
-      "census.\" (ives.quest.census.milestone)",
-    deviation:
-      "The only quest of the ten with no terminal state, and the flag is repeatable — so a " +
-      "milestone is paid whenever the census has GROWN since the last plate, rather than at a " +
-      "step size nothing in the copy states. Inventing a step would be inventing content.",
-  },
-  "vellsires-trail": {
-    objective: { kind: "everyCorpusFlagWithPrefix", prefix: "trail.stone." },
-    source:
-      "\"Walk the trail in order and bring me what the stones say.\" / \"All six.\" " +
-      "(orrin.quest.trail.offer, orrin.quest.trail.done)",
-    deviation:
-      "None, and nothing is transcribed: the six stones ARE the six `trail.stone.*` flags the " +
-      "corpus's own antler-stone prop entries write, so the objective reads the corpus rather than " +
-      "a copy of it. Six is never typed anywhere.",
-  },
+  /* THE FALLOW FIELD — tolm.quest.fallow.accepted:
+   *   "Count's twenty-four; I'll walk it myself at the turn of the year and we'll compare books."
+   * NO DEVIATION, and the twenty-four is deliberately NOT transcribed: the corpus already carries
+   * it, as the `population` clause on tolm.quest.fallow.done.kept, and `conditionHolds` resolves
+   * it. The turn-in flag means only "harvest has come"; which of the two authored endings then
+   * fires is the live count's answer, exactly as authored. This module never reads that count.
+   */
+  "fallow-field": { kind: "yearTurnedSinceAccepted" },
+
+  /* RESTOCK THE SHALLOWS — nessa.quest.restock.offer / .accepted:
+   *   "I want four ... put back into that water" / "Put them in on the Brackmarsh side."
+   * DEVIATION: the SPECIES is not checked (see the header). Four individuals released into
+   * Brackmarsh (r2) close it, whichever line they are. Nessa's done line reads "the Brackmarsh
+   * count on my board goes up by four", which is true of any four.
+   */
+  "restock-the-shallows": { kind: "releasesAt", node: "r2", count: 4 },
+
+  /* FERRYMAN'S WAGER — sel.quest.wager.offer:
+   *   "An Elder ..., caught and brought back before the year turns."
+   * DEVIATION: the SPECIES is not checked (see the header); holding any Elder closes it. The AGE
+   * is, which is the half the beat is about — "Elders are one year from retiring, so you're
+   * spending a year of something to prove a point."
+   */
+  "ferrymans-wager": { kind: "holdsAge", age: "E" },
+
+  /* ── the six above cut line C-3 ──────────────────────────────────────────
+   *
+   * SILK SHORTAGE — halder.quest.silk.offer:
+   *   "Three ..., my price, or walk away and tell her I asked."
+   * DEVIATION: species unchecked (see the header); the AGE is checked, because both sides of the
+   * authored dilemma are about adults — "three adults out of the canopy is more than the canopy
+   * replaces in a year". Taken on Bowerdeep Wilds (r3), which is where the canopy is.
+   */
+  "silk-shortage": { kind: "catchesAt", node: "r3", age: "A", count: 3 },
+
+  /* LANTERNLESS NIGHT — pell.quest.lanternless.offer:
+   *   "I need a walk to the eastern stair and back with the relight kit." / "One night. Autumn only"
+   * DEVIATION: "the eastern stair" is not a place the node graph carries, so the walk is
+   * transcribed as its shape — leave Bowerdeep and come back, in autumn. The season is the
+   * authored gate and is checked exactly.
+   */
+  "lanternless-night": { kind: "returnedTo", node: "bowerdeep", season: "autumn" },
+
+  /* AFTER THE CRASH — gerta.quest.crash.offer:
+   *   "Five counts on Cinder Steppe. ... Bring me all five and the flora reading with them."
+   * DEVIATION: the counts and the flora reading are the LEDGER's, and the ledger reads the live
+   * save from anywhere — so the only part of the survey that is a fact about the PLAYER is having
+   * stood on Cinder Steppe (r4). A ledger-visit record would tighten this; the ledger keeps none.
+   */
+  "after-the-crash": { kind: "visitedSince", node: "r4" },
+
+  /* FORGE A LEGACY — bram.quest.forge.offer:
+   *   "One of yours has run out of years, then." / "Bring it here and I'll set it."
+   * DEVIATION: the relic and the ingot are not items the shipped economy carries, so no cost is
+   * taken. The retirement is real: `lifecycle.first-retirement` is derived from the action tape by
+   * `syncQuestFlags` below, and it is itself one of the flags nothing wrote.
+   */
+  "forge-a-legacy": { kind: "flagSet", flag: RETIREMENT_MILESTONE_FLAG },
+
+  /* THE STAR CENSUS — ives.quest.census.milestone:
+   *   "Another milestone. Here's the plate, still tacky" / "Thirty-five identities in the full
+   *   census."
+   * DEVIATION: the only quest of the ten with no terminal state, and its flag is repeatable — so a
+   * milestone is paid whenever the census has GROWN since the last plate, rather than at a step
+   * size nothing in the copy states. Inventing a step would be inventing content (G2).
+   */
+  "star-census": { kind: "dexIdentitiesRisen" },
+
+  /* VELLSIRE'S TRAIL — orrin.quest.trail.offer / .done:
+   *   "Walk the trail in order and bring me what the stones say." / "All six."
+   * NO DEVIATION, and nothing is transcribed: the six stones ARE the six `trail.stone.*` flags the
+   * corpus's own antler-stone prop entries write, so the objective reads the corpus rather than a
+   * copy of it. Six is never typed anywhere.
+   */
+  "vellsires-trail": { kind: "everyCorpusFlagWithPrefix", prefix: "trail.stone." },
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -328,13 +310,13 @@ export function questReports(
   file: DialogueFile = DIALOGUE,
 ): QuestReport[] {
   return questDefinitions(file).map((def) => {
-    const row = QUEST_OBJECTIVES[def.id];
+    const objective = QUEST_OBJECTIVES[def.id];
     const stage = questStage(def, save.questFlags);
     return {
       id: def.id,
       stage,
-      objective: row?.objective ?? null,
-      met: row === undefined ? false : objectiveHolds(row.objective, questWorld(save, content, def, file)),
+      objective: objective ?? null,
+      met: objective === undefined ? false : objectiveHolds(objective, questWorld(save, content, def, file)),
       owedFlag: def.owedFlag,
     };
   });
@@ -388,12 +370,12 @@ export function syncQuestFlags(
     if (flagIsSet(next.questFlags, def.owedFlag)) continue;
     const stage = questStage(def, next.questFlags);
     if (stage !== "accepted" && stage !== "open") continue;
-    const row = QUEST_OBJECTIVES[def.id];
-    if (row === undefined) continue;
-    if (!objectiveHolds(row.objective, questWorld(next, content, def, file))) continue;
+    const objective = QUEST_OBJECTIVES[def.id];
+    if (objective === undefined) continue;
+    if (!objectiveHolds(objective, questWorld(next, content, def, file))) continue;
     due[def.owedFlag] = true;
     // A repeatable milestone re-arms: the census pays a plate once per growth, not once per press.
-    if (row.objective.kind === "dexIdentitiesRisen") {
+    if (objective.kind === "dexIdentitiesRisen") {
       due[milestoneAtFlag(def.id)] = dexIdentities(next, content);
     }
   }

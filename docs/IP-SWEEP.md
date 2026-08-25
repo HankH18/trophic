@@ -454,9 +454,10 @@ were on the shortlist and were dropped on evidence found in this pass:
 
 1. **General web search was unavailable.** The session's 200-call search budget was exhausted (the
    same wall this document's original sweep hit), DuckDuckGo served a CAPTCHA, Mojeek returned 403
-   and every public SearXNG instance rate-limited. **Two of the three names got one working
-   DuckDuckGo pass before the block** (which is where *ATA Rootfast* and the Warriors cat names came
-   from); `Baretooth` and `Scoldcall` got none. The Fandom cross-wiki index and GitHub code search
+   and every public SearXNG instance rate-limited. **Of the three adopted names only `Rootfast` got a working
+   DuckDuckGo pass before the block** — that pass is where *ATA Rootfast* and the Warriors cat
+   names for the rejected `Rookcall`/`Crowcall` came from. **`Scoldcall` and `Baretooth` got no
+   open-web pass at all**, and rest entirely on the API-backed sources in the table. The Fandom cross-wiki index and GitHub code search
    are good substitutes for the *games* half of that gap; they are not substitutes for the open web.
 2. **In-game location and item names inside shipping titles** remain the systematic blind spot this
    document already names. `Gapejaw Bog` was caught only because a wiki indexes it.
