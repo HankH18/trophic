@@ -22,3 +22,14 @@ orthogonally across roads that read at 45°.
 This is a class-level style lock affecting all 12 maps *and* the collision editor, and Hard Req 5
 means each mask is authored once and must survive all six years — so it is expensive to revisit
 after B4. Options are in the B0 briefing. Not blocking; needs a call before B4.
+
+## Live-API findings (Lane B build-out)
+
+| # | Spec ref | Finding | Action |
+|---|---|---|---|
+| B-D7 | build-doc §8.4 / §9.2 | **Player-class negative prompt extended.** `cape, cloak, hood, mantle` appended to the frozen negative, for the player class ONLY. | L6 forbids a cape and the new style reference *has* one; without this the model reproduces it. §9.2 forbids `cape`/`cloak` in the positive prompt — this is the negative-side enforcement of the same lock. All other classes use the frozen negative unchanged. |
+| B-D8 | build-doc §9.1 | **Comfy Cloud does NOT implement `GET /api/history/{id}`** (404s forever), unlike local ComfyUI. Job outputs are delivered ONLY over the WebSocket `executed` message *while the job runs*. `GET /api/job/{id}/status` exists and is authoritative for terminal state but carries no outputs. | Load-bearing for the batch runner: the socket must be OPEN BEFORE submitting, or the output is unrecoverable and the job still bills. `tools/comfy/client.ts` connects first, then submits. §9.1's "polls/WebSockets" is therefore WebSocket-only in practice. |
+| B-D9 | build-doc §9.2 | **The validated trial's prompt skeleton differs from §9.2's.** The trial graph says `retro 90s handheld RPG style`; §9.2's skeleton says `retro 90s handheld monster-taming RPG style`, and the trial has no `[PALETTE NOTE]` segment. | The trial string is what actually produced the approved art, so it is the empirical style lock and is used verbatim. §9.2's skeleton is treated as the documented intent, the trial string as the operative one. |
+| B-D10 | build-doc §9.1 / G13 | **No credit-balance endpoint found** (`/api/customers/credit`, `/api/credit`, `/api/user/credit` all 404). Balance is visible only in the dashboard (4,197 before this session's generations). | G13's pre-batch credit estimate cannot be computed from the API. The runner will estimate from a measured per-image cost derived by reading the dashboard before/after a known batch, and print that with the `--confirm` gate. |
+
+**Verified working:** `POST /api/prompt` → `wss://cloud.comfy.org/ws` (`executed` / `execution_success`) → `GET /api/view`. Same graph + same seed produced **byte-identical output across two runs** (sha256 `ff9290ee44efb7ec…`), which is the reproduction property the B1 gate needs. ~4-6s per 1024² generation.

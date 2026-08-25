@@ -1,0 +1,105 @@
+{
+  "gate": "B0",
+  "workflowGraph": "tools/comfy/pixel-txt2img-api.json",
+  "rows": [
+    {
+      "id": "b0-player-floppy-chibi",
+      "class": "overworld-character",
+      "view": "front",
+      "seed": 42,
+      "targetSize": "32x48",
+      "status": "raw",
+      "subject": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a wide-brimmed floppy green ranger hat with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
+      "file": "assets/raw/b0/b0-player-floppy-chibi.png"
+    },
+    {
+      "id": "b0-player-floppy-compact",
+      "class": "overworld-character",
+      "view": "front",
+      "seed": 42,
+      "targetSize": "32x48",
+      "status": "raw",
+      "subject": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a wide-brimmed floppy green ranger hat with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, standing facing forward, full body, compact youthful proportions, large head, short limbs, plain white background, crisp clean pixel edges, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
+      "file": "assets/raw/b0/b0-player-floppy-compact.png"
+    },
+    {
+      "id": "b0-player-floppy-sturdy",
+      "class": "overworld-character",
+      "view": "front",
+      "seed": 42,
+      "targetSize": "32x48",
+      "status": "raw",
+      "subject": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a wide-brimmed floppy green ranger hat with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, standing facing forward, full body, sturdy young-adventurer proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
+      "file": "assets/raw/b0/b0-player-floppy-sturdy.png"
+    },
+    {
+      "id": "b0-player-bucket-chibi",
+      "class": "overworld-character",
+      "view": "front",
+      "seed": 42,
+      "targetSize": "32x48",
+      "status": "raw",
+      "subject": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a soft green bucket-style ranger hat with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
+      "file": "assets/raw/b0/b0-player-bucket-chibi.png"
+    },
+    {
+      "id": "b0-player-bucket-compact",
+      "class": "overworld-character",
+      "view": "front",
+      "seed": 42,
+      "targetSize": "32x48",
+      "status": "raw",
+      "subject": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a soft green bucket-style ranger hat with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, standing facing forward, full body, compact youthful proportions, large head, short limbs, plain white background, crisp clean pixel edges, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
+      "file": "assets/raw/b0/b0-player-bucket-compact.png"
+    },
+    {
+      "id": "b0-player-bucket-sturdy",
+      "class": "overworld-character",
+      "view": "front",
+      "seed": 42,
+      "targetSize": "32x48",
+      "status": "raw",
+      "subject": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a soft green bucket-style ranger hat with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, standing facing forward, full body, sturdy young-adventurer proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
+      "file": "assets/raw/b0/b0-player-bucket-sturdy.png"
+    },
+    {
+      "id": "b0-player-peaked-chibi",
+      "class": "overworld-character",
+      "view": "front",
+      "seed": 42,
+      "targetSize": "32x48",
+      "status": "raw",
+      "subject": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
+      "file": "assets/raw/b0/b0-player-peaked-chibi.png"
+    },
+    {
+      "id": "b0-player-peaked-compact",
+      "class": "overworld-character",
+      "view": "front",
+      "seed": 42,
+      "targetSize": "32x48",
+      "status": "raw",
+      "subject": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, standing facing forward, full body, compact youthful proportions, large head, short limbs, plain white background, crisp clean pixel edges, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
+      "file": "assets/raw/b0/b0-player-peaked-compact.png"
+    },
+    {
+      "id": "b0-player-peaked-sturdy",
+      "class": "overworld-character",
+      "view": "front",
+      "seed": 42,
+      "targetSize": "32x48",
+      "status": "raw",
+      "subject": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, standing facing forward, full body, sturdy young-adventurer proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
+      "file": "assets/raw/b0/b0-player-peaked-sturdy.png"
+    }
+  ]
+}
