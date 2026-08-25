@@ -2559,7 +2559,7 @@ describe("the repairs — reproduced defects, and what stops them coming back", 
     expect(late.ticksLeftInYear).toBe(early.ticksLeftInYear);
 
     // The RUN is over on an act condition and this save has not earned it — that is not an error.
-    expect(runIsComplete(save, balance)).toBe(false);
+    expect(runIsComplete(save, content.gyms, balance)).toBe(false);
   });
 
   it("BINDS — aging and retirement keep working past the old cap: year 12 retires on schedule", () => {
@@ -2768,6 +2768,7 @@ describe("replaying the shipped path — build-doc §8.1's claim, for the run th
     });
     const replayed = replay(run.initial, run.save.actionLog, {
       species: content.species,
+      gyms: content.gyms,
       balance,
       nodes: content.nodes,
       ecosimStep: hooks.ecosimStep,
@@ -2789,6 +2790,7 @@ describe("replaying the shipped path — build-doc §8.1's claim, for the run th
     const naiveRng = simRng(41);
     const naive = replay(run.initial, run.save.actionLog, {
       species: content.species,
+      gyms: content.gyms,
       balance,
       nodes: content.nodes,
       ecosimStep: (nodeId: string, state: NodeState, season: Season) =>
@@ -2832,6 +2834,7 @@ describe("replaying the shipped path — build-doc §8.1's claim, for the run th
     });
     const replayed = replay(run.initial, run.save.actionLog, {
       species: content.species,
+      gyms: content.gyms,
       balance,
       nodes: content.nodes,
       ecosimStep: hooks.ecosimStep,

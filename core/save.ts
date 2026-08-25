@@ -17,6 +17,7 @@ import type {
   ActionLogEntry,
   Balance,
   GameAction,
+  GymLeader,
   NodeFile,
   NodeState,
   OwnedCreature,
@@ -25,12 +26,17 @@ import type {
 import type { AdvanceYearResult, RandomFn, YearRetirementPrompt, YearTurnDeps } from "./lifecycle";
 import {
   cloneNodeState,
+  enterPendingActs,
   LifecycleError,
   resolveRetirement,
   rollHeirChoice,
   runYearTurn,
   yearTurnActions,
 } from "./lifecycle";
+// L10 — the ACT half of the tape. A gym victory is the act model's only numeric input, so replay
+// must award the badge and enter the acts it earned exactly as `OverworldScene.winGym` does, or a
+// replayed run has no badges, no acts and no Cullbrand raid.
+import { awardBadge } from "./acts";
 import type { Rng, RngState } from "./rng";
 import { subsystemRng } from "./rng";
 // build-doc §7.3 step 4's clamp, and G3's single source of truth for a population write: replay
@@ -475,6 +481,17 @@ export function appendYearTurn(
 
 export interface ReplayDeps extends YearTurnDeps {
   /**
+   * data/gyms.json — the badge ladder `core/acts.ts` counts.
+   *
+   * REQUIRED, and deliberately not optional. A `gymVictory` in the tape awards a badge, which can
+   * enter one or more acts, and act entry is what applies the Cullbrand raid (D-Q3-1). Without the
+   * gym list replay cannot derive the act, and an optional field would have made that a SILENT
+   * half-replay: badges present, acts absent, raid never applied, ledger quietly wrong. L10 says
+   * the same (seed, actionLog) gives a byte-identical save; a missing dep must be a compile error,
+   * not a different ending.
+   */
+  gyms: readonly GymLeader[];
+  /**
    * The lifecycle stream, rebuilt from `save.seed` with core/rng.ts. Supplying it makes replay draw
    * the SAME number of values in the SAME order as live play did (the heir roll happens either way,
    * even though the log already fixes which choice was taken), so a replayed run leaves the stream
@@ -482,8 +499,8 @@ export interface ReplayDeps extends YearTurnDeps {
    */
   rng?: RandomFn;
   /**
-   * Handler for the actions other lanes own (travel, foray, battle, inn, gym victory). Replay
-   * applies the lifecycle actions itself and hands everything else here; without a handler those
+   * Handler for the actions other lanes own (travel, foray, battle, inn). Replay applies the
+   * lifecycle and act actions itself and hands everything else here; without a handler those
    * entries are carried into the log unchanged and alter nothing.
    */
   applyOther?: (save: SaveEnvelope, entry: ActionLogEntry) => SaveEnvelope;
@@ -543,6 +560,9 @@ function adjustPopulation(
  *   yearTurn   — core/lifecycle.ts `runYearTurn` (build-doc §7.5)
  *   retirement — core/lifecycle.ts `resolveRetirement` (build-doc §7.5 step 3)
  *   seasonStep — the injected `ecosimStep` (build-doc §7.3)
+ *   gymVictory — core/acts.ts `awardBadge` + core/lifecycle.ts `enterPendingActs`. The badge is the
+ *                act model's only numeric input and act entry applies the Cullbrand raid (D-Q3-1),
+ *                so a tape without this case replays a run with no badges and an unharvested r4.
  *   catch/release — ONLY the node-population delta build-doc §7.3 attributes to the action itself
  *                   ("Player catch/release directly increments/decrements count at action time").
  *                   The party/box side needs the individual's age, level and traits, which the
@@ -636,6 +656,29 @@ export function replay(
           }
           save = { ...save, nodeStates };
         }
+        break;
+      }
+      case "gymVictory": {
+        /*
+         * THE ACT HALF OF L10. Before the raids moved off the calendar they rode on the `yearTurn`
+         * entry, which this switch has always handled; keyed on the act (D-Q3-1) they ride on this
+         * entry instead, and this case did not exist. Measured on a three-victory tape: live r4
+         * ashvole 3 / cragmar 2 / recentDeaths 19 against replayed 14 / 10 / 0, with no badges and
+         * act 0 — a replay that silently disagreed with the run it was replaying.
+         *
+         * It is `awardBadge` + `enterPendingActs`, the same two calls in the same order the live
+         * path makes (`OverworldScene.winGym`), so there is no second answer to "what does a badge
+         * do" here. `enterPendingActs` is idempotent through `ACT_ENTERED_FLAG`, exactly as the
+         * live path relies on.
+         */
+        save = { ...save, ...awardBadge(save, action.gymId, deps.balance) };
+        const entered = enterPendingActs(save, {
+          balance: deps.balance,
+          gyms: deps.gyms,
+          ...(deps.yearEvents === undefined ? {} : { yearEvents: deps.yearEvents }),
+        });
+        save = { ...save, ...entered.save };
+        if (deps.applyOther) save = deps.applyOther(save, entry);
         break;
       }
       case "catch": {

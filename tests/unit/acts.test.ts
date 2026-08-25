@@ -28,10 +28,15 @@ import {
   lastAct,
   lastActEntered,
   markActEntered,
+  markRunCompleteShown,
   nodeUnlockedAt,
   pendingActEntries,
+  prologueExitFlags,
+  RUN_COMPLETE_SHOWN_FLAG,
   runCompleteFlag,
+  runCompleteShown,
   runIsComplete,
+  setQuestFlags,
   ungatedNodeIds,
   unlockActOf,
   unlockedNodeIds,
@@ -149,7 +154,7 @@ describe("acts — AN ACT ADVANCES ON A BADGE AND NEVER ON A YEAR TURN", () => {
     // No fail state, no time limit, no year cap: neither of these is an error and nothing reports one.
     const slow: SaveFile = { ...withBadges(0), year: 10, tick: 7 };
     expect(actOf(slow, gyms, balance)).toBe(1);
-    expect(runIsComplete(slow, balance)).toBe(false);
+    expect(runIsComplete(slow, gyms, balance)).toBe(false);
     expect(() => runYearTurn(slow, { species: content.species, balance, nodes })).not.toThrow();
 
     // And a fast one: every badge earned while the calendar is still in its first year.
@@ -174,12 +179,76 @@ describe("acts — AN ACT ADVANCES ON A BADGE AND NEVER ON A YEAR TURN", () => {
 describe("acts — the run ends on an act condition and on nothing else", () => {
   it("runIsComplete is a flag, never a date", () => {
     const late: SaveFile = { ...withBadges(ladder.length - 1), year: 99 };
-    expect(runIsComplete(late, balance)).toBe(false);
+    expect(runIsComplete(late, gyms, balance)).toBe(false);
     const done = { ...late, questFlags: { ...late.questFlags, [runCompleteFlag(balance)]: true } };
-    expect(runIsComplete(done, balance)).toBe(true);
+    expect(runIsComplete(done, gyms, balance)).toBe(true);
     // …and it is still true in the start year: earning it early ends the run early.
     const early: SaveFile = { ...(done as SaveFile), year: balance.clock.startYear };
-    expect(runIsComplete(early, balance)).toBe(true);
+    expect(runIsComplete(early, gyms, balance)).toBe(true);
+  });
+
+  /*
+   * THE DEFECT THIS PINS, and it is the one that makes "the player reaches the ending and sees
+   * nothing" real. `balance.acts.runCompleteFlag` is `story.greaves.beaten`, which ONLY
+   * data/dialogue.json writes — and nothing in game/ reads that file (QUEUED-CHANGES Q7). So the
+   * only end condition in the game was unreachable in the shipped build, where the calendar
+   * condition it replaced did fire. `onRunComplete` is the seam Hard Req 7's epilogue ledger and
+   * the Vellsire choice hang off, and it is on build-doc §16's never-cut list.
+   */
+  it("BINDS — beating every leader completes the run, with no dialogue flag at all", () => {
+    const all = withBadges(ladder.length);
+    expect(badgeCount(all, gyms, balance)).toBe(gyms.length);
+    expect(all.questFlags[runCompleteFlag(balance)]).toBeUndefined();
+    expect(runIsComplete(all, gyms, balance)).toBe(true);
+
+    // One short is not the ending — the disjunction cannot become "nearly finished counts".
+    expect(runIsComplete(withBadges(ladder.length - 1), gyms, balance)).toBe(false);
+  });
+
+  it("does not complete VACUOUSLY when a content set has no leaders", () => {
+    // `badgeCount >= gyms.length` is trivially true of an empty roster; a run with no gyms ends on
+    // the story flag or not at all, never on the first frame.
+    expect(runIsComplete(fresh(), [], balance)).toBe(false);
+    const flagged = {
+      ...fresh(),
+      questFlags: { ...fresh().questFlags, [runCompleteFlag(balance)]: true },
+    };
+    expect(runIsComplete(flagged, [], balance)).toBe(true);
+  });
+
+  it("the hand-over latch is a save flag, so an ending cannot replay on a reload", () => {
+    const done = withBadges(ladder.length);
+    expect(runCompleteShown(done)).toBe(false);
+    const shown = markRunCompleteShown(done);
+    expect(runCompleteShown(shown)).toBe(true);
+    // Pure, and idempotent: marking twice is the same save.
+    expect(markRunCompleteShown(shown)).toEqual(shown);
+    expect(done.questFlags[RUN_COMPLETE_SHOWN_FLAG]).toBeUndefined();
+  });
+});
+
+describe("acts — the prologue's exit condition is read from the gates, never spelled in code", () => {
+  it("prologueExitFlags IS the act-1 gate's flag list", () => {
+    const gate = gateForAct(firstAct(balance) + 1, balance);
+    expect(gate).not.toBeNull();
+    expect(prologueExitFlags(balance)).toEqual(gate?.flags);
+    // Non-empty on the shipped ladder: this is the rung that had no writer in game/.
+    expect(prologueExitFlags(balance).length).toBeGreaterThan(0);
+    // A copy, not the live array — writing through it must not retune balance.acts.
+    prologueExitFlags(balance).push("story.injected");
+    expect(prologueExitFlags(balance)).toEqual(gate?.flags);
+  });
+
+  it("setting them is exactly what moves a fresh save off the prologue", () => {
+    const start = fresh();
+    expect(actOf(start, gyms, balance)).toBe(firstAct(balance));
+    expect(unlockedNodeIds(actOf(start, gyms, balance), balance)).toEqual(
+      gateForAct(firstAct(balance), balance)?.nodes,
+    );
+    const opened = setQuestFlags(start, prologueExitFlags(balance));
+    expect(actOf(opened, gyms, balance)).toBe(firstAct(balance) + 1);
+    // Pure — the input save is untouched.
+    expect(actOf(start, gyms, balance)).toBe(firstAct(balance));
   });
 });
 

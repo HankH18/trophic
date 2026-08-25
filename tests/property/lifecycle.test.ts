@@ -410,8 +410,8 @@ describe("build-doc §8.1 det_replay — identical (seed, actionLog) => byte-ide
     fc.assert(
       fc.property(arbUniforms, arbDecisions, fc.integer({ min: 1, max: 7 }), (u, d, years) => {
         const { initial, live, log } = timeline(u, d, years);
-        const a = replay(initial, log, { species, balance, nodes, rng: stream(u) });
-        const b = replay(initial, log, { species, balance, nodes, rng: stream(u) });
+        const a = replay(initial, log, { gyms: content.gyms, species, balance, nodes, rng: stream(u) });
+        const b = replay(initial, log, { gyms: content.gyms, species, balance, nodes, rng: stream(u) });
         expect(serialize(a)).toBe(serialize(b));
         expect(serialize(a)).toBe(serialize(live));
       }),

@@ -1,10 +1,15 @@
 /**
- * game/year-events.ts — the scripted act events of the year turn.
+ * game/year-events.ts — the scripted ACT events, and the year turn's festival beat.
  *
  * build-doc §7.5 step 5: "node sims run their 4th season step + year events (Cullbrand raid scripts
  * decrement scripted node populations)". bible §9 regional events: "Annual Festival (diegetic gym
  * gate, closes the year); … Cullbrand Harvest raids (scripted per act, populations visibly drop at a
  * named node)".
+ *
+ * ⚠ "YEAR" IN THE NAME IS HISTORY, NOT THE MODEL. The raids fire on ACT ENTRY (D-Q3-1) — bible §9
+ * always said "scripted per act", and it was content-bible §6's "six acts = six years" equation
+ * that made the two look like one axis. The module and the balance group keep the name
+ * `yearEvents` because build-doc §7.5 step 5 names them that; nothing here reads the calendar.
  *
  * WHAT THIS FILE IS ALLOWED TO BE. A Cullbrand raid is a SCRIPTED WORLD EVENT and scripting it is
  * explicitly sanctioned — it is the antagonist's industrial harvest, "the scripted, large-scale
@@ -14,8 +19,9 @@
  *
  *   - the raid list is DATA (`balance.yearEvents.raids`), read through core/lifecycle.ts
  *     `yearEventsOf`; this module never writes one and never invents one;
- *   - the raid is APPLIED by core/lifecycle.ts `runYearTurn`, which owns the population floor and
- *     the `recentDeaths` credit; this module never decrements a population;
+ *   - the raid is APPLIED by core/lifecycle.ts `enterPendingActs`, on entry to the raid's act,
+ *     which owns the population floor and the `recentDeaths` credit; this module never decrements
+ *     a population. It used to say `runYearTurn`, which is exactly what D-Q3-1 moved;
  *   - nothing here touches core/ecosim.ts or its rules.
  *
  * This module is the READ side: which raids fire this year, at which named node, and the real

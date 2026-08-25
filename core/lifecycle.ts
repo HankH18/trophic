@@ -786,7 +786,7 @@ export function runYearTurn(save: SaveFile, deps: YearTurnDeps): YearTurnResult 
 
   /*
    * build-doc §7.5 step 5's second half USED TO BE HERE — "year events fire (Cullbrand raid scripts
-   * decrement scripted node populations at named nodes)". It has moved to {@link applyActEntry}.
+   * decrement scripted node populations at named nodes)". It has moved to {@link enterPendingActs}.
    *
    * The raids are keyed on the ACT now (D-Q3-1), and acts are not on the calendar: bible §6 wants
    * Cindershelf entered "mid-collapse" whether the player arrives in calendar year 2 or year 11, so

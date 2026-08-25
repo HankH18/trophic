@@ -236,6 +236,7 @@ describe("§3 applyCatchToSave moves the ledger the way replay would", () => {
 
     const replayed = replay({ ...save, actionLog: [] }, live.save.actionLog, {
       species: content.species,
+      gyms: content.gyms,
       balance,
     });
     for (const nodeId of Object.keys(save.nodeStates)) {

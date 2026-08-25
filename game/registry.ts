@@ -260,7 +260,7 @@ class GameRegistry {
    * badge is a legal, supported game in progress.
    */
   runComplete(): boolean {
-    return runIsComplete(this.save(), this.balance());
+    return runIsComplete(this.save(), this.content().gyms, this.balance());
   }
 
   /** bible §9's regional events open right now, each a `ticksPerSeason` window (D-Q2-2). */

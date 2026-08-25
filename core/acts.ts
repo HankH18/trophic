@@ -239,9 +239,46 @@ export function runCompleteFlag(balance: Balance): string {
  * player earns it, in year 6 or year 20, and a player who never earns it plays forever. `isOver`
  * — which used to answer "has the calendar passed year 6" and gated ticks, encounter rolls and the
  * year turn on it — is gone, along with the six-year cap it enforced.
+ *
+ * ⚠ IT READS TWO THINGS, AND IT HAD TO. `balance.acts.runCompleteFlag` is `story.greaves.beaten`,
+ * which `data/dialogue.json` writes at the end of the Sanctum chain — and NOTHING IN `game/` READS
+ * `data/dialogue.json` yet (docs/QUEUED-CHANGES.md Q7). Measured: awarding all six badges to a
+ * fresh save left `runIsComplete` FALSE, so `onRunComplete` — "the seam the ending hangs off", and
+ * on build-doc §16's never-cut list — was unreachable in the shipped build, where the calendar
+ * condition it replaced did fire. Beating every leader in `gyms` is the same claim stated in the
+ * thing the shipped build CAN observe; the flag is the story lane's marker and stays authoritative
+ * for the moment the finale cutscene has actually played. Neither is derived from the other, and a
+ * content set with no leaders completes on the flag alone rather than vacuously.
  */
-export function runIsComplete(save: Pick<SaveFile, "questFlags">, balance: Balance): boolean {
-  return save.questFlags[runCompleteFlag(balance)] === true;
+export function runIsComplete(
+  save: Pick<SaveFile, "questFlags">,
+  gyms: readonly GymLeader[],
+  balance: Balance,
+): boolean {
+  if (save.questFlags[runCompleteFlag(balance)] === true) return true;
+  return gyms.length > 0 && badgeCount(save, gyms, balance) >= gyms.length;
+}
+
+/**
+ * Where the act model records that the run's ending has already been handed over.
+ *
+ * The sibling of {@link ACT_ENTERED_FLAG}, and it exists for the same reason: `runIsComplete` is a
+ * standing condition, not an edge. Nothing ever clears `story.greaves.beaten` and nothing takes a
+ * badge back, so a caller that re-tested the condition on every year turn fired the ending once a
+ * year, for ever — measured at three `onRunComplete` calls across three year turns of one finished
+ * run, which for C7/C9 is the epilogue ledger replaying annually. The latch lives in the SAVE, so a
+ * reload of a finished run does not replay the ending either.
+ */
+export const RUN_COMPLETE_SHOWN_FLAG = "story.runCompleteShown";
+
+/** True when the run's ending has already been handed to whoever owns it. */
+export function runCompleteShown(save: Pick<SaveFile, "questFlags">): boolean {
+  return save.questFlags[RUN_COMPLETE_SHOWN_FLAG] === true;
+}
+
+/** Mark the ending handed over. Pure. */
+export function markRunCompleteShown<S extends Pick<SaveFile, "questFlags">>(save: S): S {
+  return { ...save, questFlags: { ...save.questFlags, [RUN_COMPLETE_SHOWN_FLAG]: true } };
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -284,4 +321,30 @@ export function pendingActEntries(
 /** Mark `act` entered. Pure. */
 export function markActEntered<S extends Pick<SaveFile, "questFlags">>(save: S, act: number): S {
   return { ...save, questFlags: { ...save.questFlags, [ACT_ENTERED_FLAG]: act } };
+}
+
+/**
+ * The flags the rung ABOVE the prologue requires — the opening chain's exit condition, read out of
+ * `balance.acts.gates` rather than spelled anywhere in code (G11: `story.opening.done` is a name in
+ * data/balance.json and data/dialogue.json, and appears in neither `core/` nor `game/` as a
+ * literal).
+ *
+ * Exported because the act ladder's FIRST rung is the one nothing in the shipped build can climb:
+ * the flags are written by `data/dialogue.json`'s opening chain, and nothing in `game/` reads that
+ * file yet (docs/QUEUED-CHANGES.md Q7). `game/scenes/OverworldScene.ts` uses this to say exactly
+ * which flags are missing, and — while no lane owns the opening beat — to stand in for it.
+ */
+export function prologueExitFlags(balance: Balance): string[] {
+  return gateForAct(firstAct(balance) + 1, balance)?.flags.slice() ?? [];
+}
+
+/** Set every flag in `flags` true. Pure; an empty list returns the same save. */
+export function setQuestFlags<S extends Pick<SaveFile, "questFlags">>(
+  save: S,
+  flags: readonly string[],
+): S {
+  if (flags.length === 0) return save;
+  const questFlags = { ...save.questFlags };
+  for (const flag of flags) questFlags[flag] = true;
+  return { ...save, questFlags };
 }

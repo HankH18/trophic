@@ -2,7 +2,7 @@
   "_source": "docs/content-bible.md §4 (Ancient lore surfaces), §6 (towns + aging arcs), §7 (gym leaders), §8 (story spine), §9 (side quests), §10 (NPCs), §13.13 (dialogue budget) + build-doc §15 C7. Names of species, places, people and organisations are transcribed from the bible, never invented (G2); the coined quest-NPC given names are logged in docs/DIALOGUE-NOTES.md.",
   "_guardrail": "G7 — no moralizing copy about catching, anywhere. NPCs state facts, express their own livelihood interests, and disagree with each other. No line tells the player they did wrong, implies guilt, or delivers a lesson. Enforced by the pattern scan in tests/unit/dialogue.test.ts AND by a line-by-line human-style read documented in docs/DIALOGUE-NOTES.md — a regex cannot detect tone.",
   "_budget": "bible §13.13: ~10 lines per named NPC, ~3 per ambient, roughly 400–500 total. Shipped: see _counts. Named speakers that carry an Ancient lore chain or a six-act arc (Maren, Wick, Sel, Bram) run above 10; ambient speakers in the vertical-slice towns run above 3 because they carry year/population state variants the flat budget did not price in.",
-  "_conditionModel": "An entry fires when every clause of `when` holds. TWO INDEPENDENT CLOCKS (Q3, the authorised L8 amendment): act/actMin/actMax are the STORY clock, derived from badges and quest flags by core/dialogue-schema.ts actFromFlags(), and every story beat gates on them so it fires whenever the player earns it, in any calendar year; years/yearMin/yearMax are the WORLD clock — unbounded, never waiting for the player — and only world-ageing copy reads it. seasons gate the four migrant windows; flagsSet/flagsUnset/flagEquals read SaveFile.questFlags; population/floraStock read the LIVE node state (SaveFile.nodeStates), so a town's lines change as its web does. Among the entries that match a (speaker,node,kind) request the game takes the highest `priority` (default 0). Every greeting/ambient group ships an unconditional fallback, so a matching entry always exists.",
+  "_conditionModel": "An entry fires when every clause of `when` holds. TWO INDEPENDENT CLOCKS (Q3, the authorised L8 amendment): act/actMin/actMax are the STORY clock and every story beat gates on them, so it fires whenever the player earns it, in any calendar year; years/yearMin/yearMax are the WORLD clock — unbounded, never waiting for the player — and only world-ageing copy reads it. THE ACT LADDER IS core/acts.ts actOf(), which is the repo's only act authority and reads data/balance.json acts.gates: acts run 0..6, and ACT 0 IS THE PROLOGUE — a real state every new save starts in, which act 1 opens on story.opening.done. An `act` EQUALITY closes the entry the moment the act advances, so it is used only where the beat belongs to that act and nowhere else (the prologue; each act's arrival greeting); anything a player can walk past and come back to uses actMin, because town N's gym and route N unlock in the same act. seasons gate the four migrant windows; flagsSet/flagsUnset/flagEquals read SaveFile.questFlags; population/floraStock read the LIVE node state (SaveFile.nodeStates), so a town's lines change as its web does — a line that quotes a count or an abundance must carry the clause that makes it true. Among the entries that match a (speaker,node,kind) request the game takes the highest `priority` (default 0). Every greeting/ambient group ships an unconditional fallback, so a matching entry always exists.",
   "_chains": {
     "vellsire-chain": "bible §4 'Maren's keystone lectures' + 'Duskhollow astronomers on the Vellsire's vanishing'. Steps 1..11 alternate NPC and antler-standing-stone props across Hearthollow → r1 → Brackwater → r2 → r3 → Bowerdeep → Cindershelf → Duskhollow (Orrin) → sanctum-approach → sanctum. Each step is gated on the previous step's flag, so the lore opens as it is earned rather than arriving as one block.",
     "undermere-chain": "bible §4 \"Sel's serpent tales\". Steps 1..7 alternate Sel and the sunken idols at brackwater/r2; step 5 additionally requires the Ferryman's Wager (bible §9) to be finished. Completing it sets chain.undermere.complete, the gate on the Undermere hunt.",
@@ -481,7 +481,7 @@
       "priority": 100,
       "when": {
         "act": [
-          1
+          0
         ],
         "flagsUnset": [
           "story.opening.done"
@@ -526,7 +526,10 @@
       "kind": "cutscene",
       "when": {
         "act": [
-          1
+          0
+        ],
+        "flagsUnset": [
+          "story.opening.done"
         ]
       },
       "lines": [
@@ -550,7 +553,10 @@
       "kind": "cutscene",
       "when": {
         "act": [
-          1
+          0
+        ],
+        "flagsUnset": [
+          "story.opening.done"
         ]
       },
       "lines": [
@@ -574,7 +580,10 @@
       "kind": "cutscene",
       "when": {
         "act": [
-          1
+          0
+        ],
+        "flagsUnset": [
+          "story.opening.done"
         ]
       },
       "lines": [
@@ -597,9 +606,6 @@
       "node": "hearthollow",
       "kind": "cutscene",
       "when": {
-        "act": [
-          1
-        ],
         "flagsUnset": [
           "tutorial.snare.done"
         ]
@@ -626,9 +632,6 @@
       "node": "hearthollow",
       "kind": "cutscene",
       "when": {
-        "act": [
-          1
-        ],
         "flagsUnset": [
           "tutorial.ledger.done"
         ]
@@ -736,6 +739,13 @@
       "when": {
         "act": [
           1
+        ],
+        "floraStock": [
+          {
+            "node": "r1",
+            "op": "gte",
+            "value": 46
+          }
         ]
       },
       "lines": [
@@ -1112,9 +1122,7 @@
       "kind": "battle-pre",
       "priority": 80,
       "when": {
-        "act": [
-          1
-        ],
+        "actMin": 1,
         "flagsUnset": [
           "rival.act1.fought"
         ]
@@ -1138,9 +1146,7 @@
       "kind": "battle-win",
       "priority": 80,
       "when": {
-        "act": [
-          1
-        ]
+        "actMin": 1
       },
       "lines": [
         {
@@ -1162,9 +1168,7 @@
       "kind": "battle-loss",
       "priority": 79,
       "when": {
-        "act": [
-          1
-        ]
+        "actMin": 1
       },
       "lines": [
         {
@@ -1183,9 +1187,7 @@
       "kind": "battle-pre",
       "priority": 80,
       "when": {
-        "act": [
-          2
-        ],
+        "actMin": 2,
         "flagsUnset": [
           "rival.act2.fought"
         ]
@@ -1206,9 +1208,7 @@
       "kind": "battle-win",
       "priority": 80,
       "when": {
-        "act": [
-          2
-        ]
+        "actMin": 2
       },
       "lines": [
         {
@@ -1230,9 +1230,7 @@
       "kind": "battle-loss",
       "priority": 79,
       "when": {
-        "act": [
-          2
-        ]
+        "actMin": 2
       },
       "lines": [
         {
@@ -1251,9 +1249,7 @@
       "kind": "battle-pre",
       "priority": 80,
       "when": {
-        "act": [
-          3
-        ],
+        "actMin": 3,
         "flagsUnset": [
           "rival.act3.fought"
         ]
@@ -1277,9 +1273,7 @@
       "kind": "battle-win",
       "priority": 80,
       "when": {
-        "act": [
-          3
-        ]
+        "actMin": 3
       },
       "lines": [
         {
@@ -1301,9 +1295,7 @@
       "kind": "battle-loss",
       "priority": 79,
       "when": {
-        "act": [
-          3
-        ]
+        "actMin": 3
       },
       "lines": [
         {
@@ -1322,9 +1314,7 @@
       "kind": "battle-pre",
       "priority": 80,
       "when": {
-        "act": [
-          4
-        ],
+        "actMin": 4,
         "flagsUnset": [
           "rival.act4.fought"
         ]
@@ -1348,9 +1338,7 @@
       "kind": "battle-win",
       "priority": 80,
       "when": {
-        "act": [
-          4
-        ]
+        "actMin": 4
       },
       "lines": [
         {
@@ -1372,9 +1360,7 @@
       "kind": "battle-loss",
       "priority": 79,
       "when": {
-        "act": [
-          4
-        ]
+        "actMin": 4
       },
       "lines": [
         {
@@ -1393,9 +1379,7 @@
       "kind": "battle-pre",
       "priority": 80,
       "when": {
-        "act": [
-          5
-        ],
+        "actMin": 5,
         "flagsUnset": [
           "rival.act5.fought"
         ]
@@ -1416,9 +1400,7 @@
       "kind": "battle-win",
       "priority": 80,
       "when": {
-        "act": [
-          5
-        ]
+        "actMin": 5
       },
       "lines": [
         {
@@ -1440,9 +1422,7 @@
       "kind": "battle-loss",
       "priority": 79,
       "when": {
-        "act": [
-          5
-        ]
+        "actMin": 5
       },
       "lines": [
         {
@@ -1461,9 +1441,7 @@
       "kind": "battle-pre",
       "priority": 80,
       "when": {
-        "act": [
-          6
-        ],
+        "actMin": 6,
         "flagsUnset": [
           "rival.act6.fought"
         ]
@@ -1490,9 +1468,7 @@
       "kind": "battle-win",
       "priority": 80,
       "when": {
-        "act": [
-          6
-        ]
+        "actMin": 6
       },
       "lines": [
         {
@@ -1515,9 +1491,7 @@
       "kind": "battle-loss",
       "priority": 79,
       "when": {
-        "act": [
-          6
-        ]
+        "actMin": 6
       },
       "lines": [
         {
@@ -2772,6 +2746,14 @@
         "flagsUnset": [
           "quest.fallow-field.done",
           "quest.fallow-field.taken"
+        ],
+        "population": [
+          {
+            "node": "hearthollow",
+            "lineId": "loamunder-line",
+            "op": "gte",
+            "value": 24
+          }
         ]
       },
       "lines": [
@@ -3966,6 +3948,9 @@
         "flagsSet": [
           "story.vellsire.resolved"
         ],
+        "flagsUnset": [
+          "story.epilogue.shown"
+        ],
         "flagEquals": [
           {
             "key": "story.vellsire.outcome",
@@ -4001,6 +3986,9 @@
         "actMin": 6,
         "flagsSet": [
           "story.vellsire.resolved"
+        ],
+        "flagsUnset": [
+          "story.epilogue.shown"
         ],
         "flagEquals": [
           {
@@ -4970,8 +4958,9 @@
       "kind": "ambient",
       "priority": 40,
       "when": {
-        "act": [
-          4
+        "actMin": 4,
+        "flagsUnset": [
+          "story.steppe.arrival.seen"
         ]
       },
       "lines": [
@@ -4981,7 +4970,10 @@
         {
           "text": "I was on the crew. I'm not going to tell you I wasn't."
         }
-      ]
+      ],
+      "setFlags": {
+        "story.steppe.arrival.seen": true
+      }
     },
     {
       "id": "amb.r4-worker.emptied",
@@ -5128,7 +5120,7 @@
       "kind": "ambient",
       "priority": 39,
       "when": {
-        "yearMin": 5
+        "yearMin": 6
       },
       "lines": [
         {

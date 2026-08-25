@@ -315,9 +315,12 @@ const MAGIC_NUMBER_ALLOWANCE: Record<string, { values: readonly number[]; why: s
     why:
       "zod SHAPE bounds on the dialogue TEXT surface, never read by a formula: a line body is at " +
       "most 400 characters and a choice prompt 120 (both must fit the 480x320 dialogue box), an " +
-      "entry is at most 8 lines and a choice list at most 4 options. The two values here that ARE " +
-      "gameplay constants — the 1..6 year range and the 0..100 flora ceiling — are read from " +
-      "balance.json (clock.yearsTotal, ecosim.floraMax), so no retune can move anything left here. " +
+      "entry is at most 8 lines and a choice list at most 4 options. Every value here that IS a " +
+      "gameplay constant is read from data/balance.json instead: the flora ceiling from " +
+      "ecosim.floraMax, the year FLOOR from clock.startYear (Q3 removed the ceiling — the calendar " +
+      "is unbounded, and clock.yearsTotal survives only as NOMINAL_YEARS, a pacing readout that " +
+      "bounds nothing), and the act range from acts.first/acts.last via core/acts.ts — NOT from the " +
+      "gym count, which is six while the ladder is seven rows because act 0 is the prologue. " +
       "That distinction is the INV-4 test: a gameplay constant is one a retune moves",
   },
 };

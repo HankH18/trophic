@@ -298,9 +298,10 @@ a file must not be able to certify its own inventions.
 
 ## 7. Known gate interaction
 
-`core/dialogue-schema.ts` reads `balance.clock.yearsTotal` and `balance.ecosim.floraMax` from
-`data/balance.json` rather than re-typing 6 and 100, so a retune cannot leave the dialogue schema
-validating against a different world than the sim (G11 / INV-3).
+`core/dialogue-schema.ts` reads every world bound from `data/balance.json` rather than re-typing it,
+so a retune cannot leave the dialogue schema validating against a different world than the sim
+(G11 / INV-3): `ecosim.floraMax` is the flora ceiling, `clock.startYear` is the year floor, and
+`acts.first` / `acts.last` are the act range.
 
 **What `clock.yearsTotal` means changed under Q3.** It used to be the ceiling on a year in a
 condition (`zYear` was `min(1).max(yearsTotal)`), which is precisely the assumption that made a
@@ -308,31 +309,47 @@ year-8 run lose the finale. The calendar is now unbounded, so `zYear` has a floo
 the value is exported as **`NOMINAL_YEARS`** — the span a normally paced run reaches, a correlation
 and not a rule. It is still read from `balance.json`, and the tests use it to probe well past it.
 
-The act count is likewise **read, never typed**: `ACT_GYM_IDS` / `ACTS_TOTAL` come from
-`data/gyms.json`'s `gyms` array — bible §6 gives each act exactly one gym. Only `id` and the array
-length are read, deliberately never the table's own act index field, so Q3's rename of that field
-(`year` → `act`) cannot reach in here. No new numeric literal entered the file, so the
-`MAGIC_NUMBER_ALLOWANCE` row below is unchanged and still exhaustive.
+### The act ladder is `core/acts.ts`, and this module has none of its own
+
+**This is the correction of a shipped defect, not a refinement.** Q3a bounded the act axis with
+`ACTS_TOTAL = ACT_GYM_IDS.length` — the gym count — and derived the act itself with a local
+`actFromFlags()` that returned `1 + badgesBeaten`. Both were wrong in the same way, and the way was
+invisible:
+
+> **There are six gyms and SEVEN acts.** `balance.acts.first` is **0** — the prologue, the act a
+> brand-new save is in until Maren's opening chain writes `story.opening.done`. `1 + beaten` cannot
+> return 0 and `min(1)` cannot express it.
+
+So the corpus gated `maren.opening`, the three starter branches and both tutorials on `act: [1]`,
+which is the act you reach *by finishing them*, while `game/registry.ts` and `OverworldScene` handed
+`actOf()`'s answer — 0. The game's first scene did not fire, the three entries that write
+`story.opening.done` were themselves behind the gate that flag opens, and **nothing was red**,
+because every test supplied its own act and agreed with the corpus rather than with the game.
+
+What ships now:
+
+- **`actFromFlags()` is a one-line delegation to `core/acts.ts` `actOf()`** and must never grow a
+  body. One authority, one implementation. A second derivation of a value that already has an
+  authority is the bug, every time.
+- **`FIRST_ACT` / `LAST_ACT` are read from `balance.acts`**, so `zAct` admits act 0 and a
+  prologue-only line is authorable. `ACTS_TOTAL` is gone; `ACT_GYM_IDS` remains and is documented as
+  *not* the ladder.
+- **`conditionHolds()` / `selectEntry()` throw on a context off either clock** rather than answering
+  `false`. An act outside the ladder made every `act` clause false and every unclaused entry
+  eligible — a game rendering fallback lines everywhere and reporting nothing, which is the exact
+  silent failure the "act is required, never optional" rule was written to prevent.
+- A test reads the SOURCE of the two bound declarations, because the gym count and `acts.last` are
+  both 6 today and no assertion on their *values* can tell them apart. Add a seventh leader and the
+  conflation returns silently; that assertion is the only thing that survives the day it does.
 
 Four numeric literals remain and are **structural shape bounds, not gameplay constants**: a line body
 is at most 400 characters, a choice prompt at most 120, an entry at most 8 lines, and a choice list at
-most 4 options. No formula reads any of them and no `balance.json` retune can move them. The allowance
-row in `MAGIC_NUMBER_ALLOWANCE` (`tests/gates/guardrails.test.ts`, another lane's file) has landed and
-is still exactly right — Q3a added no literal — though its `why` now describes the pre-Q3 world in one
-clause: *"the 1..6 year range"* is no longer a range this file enforces, and the value it names,
-`clock.yearsTotal`, is still read (as `NOMINAL_YEARS`). The values need no change; the sentence does,
-and that file is not this lane's to edit:
-
-```
-"core/dialogue-schema.ts": {
-  values: [4, 8, 120, 400],
-  why: "zod SHAPE bounds on the dialogue text surface, never read by a formula: a line body is at " +
-       "most 400 characters and a choice prompt 120 (they must fit the 480x320 dialogue box), an " +
-       "entry is at most 8 lines and a choice list at most 4 options. The two values that ARE " +
-       "gameplay constants — the 1..6 year range and the 0..100 flora ceiling — are read from " +
-       "balance.json (clock.yearsTotal, ecosim.floraMax), so no retune can move anything left here",
-},
-```
+most 4 options. No formula reads any of them and no `balance.json` retune can move them. The
+`MAGIC_NUMBER_ALLOWANCE` row in `tests/gates/guardrails.test.ts` keeps those four values unchanged —
+this change added no literal — and its `why` has been corrected, because it described a 1..6 year
+range this file no longer enforces and said nothing about the act range at all. **That file is
+another lane's; the edit is prose inside the row that documents THIS module, and it is called out in
+the change report.**
 
 ---
 
@@ -364,14 +381,15 @@ the **calendar**, because the town ages with the world and not with the plot.
 
 | Entries | Was | Now | Why |
 |---|---|---|---|
-| `maren.opening`, the three `maren.starter.*`, `maren.tutorial.snare`, `maren.tutorial.ledger` | `years: [1]` | `act: [1]` | act-1 content, one-shot behind its own flags |
+| `maren.opening`, the three `maren.starter.*` | `years: [1]` | **`act: [0]`** + `flagsUnset: story.opening.done` | **CORRECTED — this shipped as `act: [1]` and deadlocked the game.** Act 0 is the prologue and is where a brand-new save is; act 1 is what finishing this chain OPENS, so gating the chain on act 1 put the three writers of `story.opening.done` behind the gate that flag opens. The starters now also read the flag they write, so no act-ladder change can make them loop. |
+| `maren.tutorial.snare`, `maren.tutorial.ledger` | `years: [1]` | **no act clause**, flags only | **CORRECTED from `act: [1]`.** They are `goto` targets of the starter entry that WRITES `story.opening.done`, so they straddle the act 0 → 1 boundary and an act clause on either side of it can strand them. Their own `tutorial.*.done` flags are the guard. |
 | `maren.quest.first-signs.offer`, `.done`, `maren.keystone.1` | `years: [1]` | **no calendar or act gate**, flags only | this was **D2**, a hard dead-end: `.done` is the only source of `chain.vellsire.unlocked`, and `maren.keystone.1` needed that flag *and* year 1, so a player who did not turn *First Signs* in within year 1 permanently lost the 11-step Vellsire chain, *Vellsire's Trail* and the lore behind the finale. Gating on the flags alone is the fix |
-| `tolm.quest.fallow.offer` | `years: [1]` | flags only | a quest offer must not expire on a clock |
+| `tolm.quest.fallow.offer` | `years: [1]` | flags only **+ `population: hearthollow.loamunder-line gte 24`** | A quest offer must not expire on a clock — but this one quotes the ledger (*"There are twenty-four of them my side of the fence"*) and losing `years: [1]` left it with no clause of any kind, so it could assert a number the on-screen ledger contradicted, forever, on both clocks. Its own completion beat one entry away already carried exactly this clause. |
 | `maren.greeting.y1`–`y6` → **renamed** `maren.greeting.act1`–`act6` | `years: [N]` | `act: [N]` | each is that act's arrival pointer in that act's town (*"Talk to Gerta before you go up the steppe"*), and the id said `y` for a year it no longer means |
-| the 18 rival entries `wick.act1..6.{pre,win,loss}` | `years: [N]` | `act: [N]` — **equality, not a floor** | Wick meets you once per act on that act's route; `actMin` would leave his act-1 lines still firing at Meadow Reach in act 6 |
+| the 18 rival entries `wick.act1..6.{pre,win,loss}` | `years: [N]` | **`actMin: N`** — a floor | **CORRECTED from the equality.** The stated reason for the equality — *"`actMin` would leave his act-1 lines still firing at Meadow Reach in act 6"* — is false: every `.pre` already carries `flagsUnset: rival.actN.fought`, and each route hosts exactly one Wick battle, so `.win`/`.loss` cannot collide either. What the equality DID do is delete each encounter at the moment the player earned a reason to walk that act's route: `balance.acts.gates` opens town *N* and route *N* in the SAME act, and Wick stands on the route while the gym is in the town — so beating gym *N* advanced the save to act *N+1* and lost `wick.actN.*` permanently, for playing efficiently. |
 | `greaves.act3.intro`, `greaves.act4.steppe` | `years: [3]` / `[4]` | `actMin: 3` / `4` | one-shot cutscenes already guarded by `story.greaves.met` / `.steppe`, so a floor is strictly better than an equality — a player who blows past Bowerdeep still gets the introduction on the way back, instead of meeting Greaves for the first time at the finale |
-| `maren.finale`, `greaves.finale.pre`, `greaves.finale.post`, `sanctum.vellsire.approach`, `maren.epilogue.caught`, `maren.epilogue.released`, `prop.sanctum-antler-ring` | `years: [6]` | `actMin: 6` | the never-cut beats. Act 6 is the last act, so a floor and an equality are the same set — the floor is used because it cannot be broken by a later act being added |
-| `amb.r4-worker.arrival` | `years: [4]` | `act: [4]` | the Cullbrand crash is an act beat under Q3 (*"Cindershelf must be entered mid-collapse whether the player arrives in year 2 or year 11"*) |
+| `maren.finale`, `greaves.finale.pre`, `greaves.finale.post`, `sanctum.vellsire.approach`, `maren.epilogue.caught`, `maren.epilogue.released`, `prop.sanctum-antler-ring` | `years: [6]` | `actMin: 6` (both epilogues **+ `flagsUnset: story.epilogue.shown`**) | the never-cut beats. Act 6 is the last act, so a floor and an equality are the same set — the floor is used because it cannot be broken by a later act being added. **CORRECTION:** `actMin: 6` is forward-open on a clock that never stops, so it terminates nothing. The two epilogues wrote `story.epilogue.shown` and **nothing read it**, so the last cutscene in the game replayed on every further word with Maren at the Sanctum, in year 6 and year 30 alike — the old `years: [6]` had been the only thing ending them. `maren.finale` one entry away already had the pattern. |
+| `amb.r4-worker.arrival` | `years: [4]` | **`actMin: 4`** + a one-shot `story.steppe.arrival.seen` guard | **CORRECTED from `act: [4]`, same defect as the rival arc.** Act 4 opens cindershelf AND r4, so Sable's badge is takeable without ever walking r4 — and this is the only line that frames the crash on arrival, for exactly the early arriver Q6 is written for. The floor alone would have made it the permanent r4 ambient and buried `.base`; the seen-flag makes it what its id says it is. |
 
 **B — 32 `yearMin` gates that were standing in for an act prerequisite, also moved.** This is beyond
 the literal 44 and it is the same defect: a `yearMin: 5` quest offer is story driven by time, which
@@ -444,37 +462,82 @@ rival encounter loosened from `act: [N]` to `actMin: N`; Greaves' introduction d
 unreachable population (`gte 999`); a contradictory population pair; a `yearMax` ceiling on a world
 line; town ageing migrated to the act axis; an act past the last act; and a seventh "six years" line.
 
+### Repairs made after the first Q3a pass, and what now binds them
+
+Every item below was a defect an independent verifier reproduced against the shipped file. The
+sabotage sweep that proves each repair is bound is in §6's format: **fifteen corpus injections and
+four schema injections, every one red**, with `data/dialogue.json` and `core/dialogue-schema.ts`
+restored byte-identical (md5 checked) after each.
+
+| Injection | Caught by |
+|---|---|
+| `maren.opening` back to `act: [1]` — the deadlock itself | *a brand-new save is in the prologue and Maren opens the game there* (3 tests red) |
+| a starter's act clause deleted | *every story beat carries exactly the act clause the split put on it* |
+| `act: [1]` restored on a tutorial | same, + *an act equality is only used where the door is meant to close* |
+| either epilogue's `flagsUnset` deleted | *an epilogue plays once and is then over, in every calendar year* |
+| one rival entry, or all 18, back to `act: [N]` | *an encounter the player walked past is still waiting on its route in a later act* (4 red) |
+| `wick.actN.pre` loses its `rival.actN.fought` guard | *…and is gone once it has actually been fought* |
+| `amb.r4-worker.arrival` back to `act: [4]` | the exact-clause table + the equality enumeration |
+| `tolm.quest.fallow.offer` loses its population clause | *a line that quotes the live ledger reads the live ledger* |
+| `maren.greeting.act1` loses its floraStock clause | *a line that quotes live flora reads live flora* |
+| `amb.r1-forager.late` back to `yearMin: 5` | *a run-length claim on the calendar is true at the year it first fires* |
+| a new write-only flag appears | *every flag the corpus writes is either read by the corpus or a named output* |
+| `zAct` floor back to 1 | the shipped file no longer validates at all |
+| `actFromFlags` back to `1 + beaten` | *the dialogue act axis is core/acts.ts and agrees with it at every rung* |
+| `assertContext` gutted | *a context off either clock throws instead of quietly answering false* |
+| `LAST_ACT` counted off the gym table | *the act bounds are read from balance.acts, never counted off the gym table* |
+
+**The test that mattered most did not exist before.** Every probe in the suite supplied its own act
+number, so all of them agreed with a corpus that disagreed with the game. There is now one that
+never types an act: it builds a flag bag, asks `core/acts.ts` `actOf()` what act that is — the same
+call `game/registry.ts` makes — and walks the opening chain forward through the shipped
+`selectEntry()`, one beat at a time, re-deriving the act after every flag write.
+
+**The act-FLOOR table is gone**, replaced by an exact-CLAUSE table. A floor could not tell `act: [1]`
+from no act clause at all — both floor to 1 — so every row reading `1` bound nothing, which a
+verifier demonstrated by deleting `act: [1]` from both tutorials and watching the suite stay green.
+The clause itself is asserted now, so a deleted gate, a drifted gate, an `actMin` narrowed to an
+equality and an equality widened to a floor are all four visible. Beside it, the ten entries that
+legitimately carry an act EQUALITY are enumerated by hand, so an eleventh is a decision.
+
 ### Still open — flagged, not fixed
 
-1. **D19 is now wider than six lines.** `docs/STORY-REVIEW.md` D19 flags six lines that hardcode
-   *"six years"* as the length of a run; under an unbounded calendar a year-12 player can be told
-   they have been counting for six. Act-gating does not cause this, but it removes the last thing
-   that made it true. **A seventh belongs on the list: `wick.act3.win` — *"Three years running."*** —
-   which is now act-anchored, so it can be said in act 3 of year 1. The three ambient ones
-   (`amb.hearthollow-fenceman.late`, `amb.brackwater-netmender.late`, `amb.r1-forager.late`) stay on
-   `yearMin` and are cheap to reword; the four story ones (`wick.act3.win`, `wick.act6.win`,
-   `greaves.finale.pre`, `maren.epilogue.released`) are load-bearing finale lines. **Nothing was
-   rewritten — the ruling is Hank's.** Two tests pin the sets so the ruling has an exact checklist
-   and an eighth cannot appear unnoticed: every act-gated line naming a span in years is enumerated
-   count-for-count and classified `world` (true whenever said) or `run-length` (falsifiable).
-2. **`amb.r1-forager.late` states "Six years on the same four miles of Reach" behind `yearMin: 5`,
-   so it is false at its own earliest firing** — and was, before Q3 as well. A pre-existing defect
-   found while re-gating; the gate was left alone because the fix is a reword (D19) and a copy change
-   is not this task's to make.
-3. **`maren.greeting.act1` makes an ungated abundance claim.** *"Meadow Reach is holding at a decent
-   flora stock this year"* has no `floraStock` clause. Under the old gate the exposure was one
-   in-game year; act 1 is now unbounded, so a player who lingers and strips the Reach can be told it
-   is holding. **The fix is a `floraStock` gate, and the threshold is a content decision** — the
-   shipped neighbours use `gte 80` (bloom) and `lte 45` (thin), neither of which is "decent", and
-   r1 ships flora 78. Recorded rather than invented (G2).
-4. **MISSING — no act-4 arrival line for a player who arrives before the raid.** `amb.r4-worker.arrival`
-   and `amb.r4-worker.emptied` are the crash's arrival copy; the second is population-gated and the
-   first is not. Q6 recommends letting the act-4 raid crash r4 on entry rather than shipping r4
-   pre-crashed, which means a player can stand on the steppe in the window before the raid fires.
-   There is no line for that window. Nothing was written to fill it.
-5. **MISSING — no beat marks entering an act.** Progression is now an act index nothing announces.
-   Maren's `greeting.act1`–`act6` are the closest thing and they are greetings, not arrivals. Whoever
-   wires dialogue into `game/` (Q7) will want an act-entry hook; the copy for it does not exist.
+1. **D19's forward drift is still Hank's ruling.** `docs/STORY-REVIEW.md` D19 flags six lines that
+   hardcode *"six years"* as the length of a run; under an unbounded calendar a year-12 player can
+   be told they have been counting for six. **A seventh belongs on the list: `wick.act3.win` —
+   *"Three years running."*** — which is act-anchored, so it can be said in act 3 of year 1. The
+   four story ones (`wick.act3.win`, `wick.act6.win`, `greaves.finale.pre`, `maren.epilogue.released`)
+   are load-bearing finale lines. **Nothing was rewritten — the ruling is Hank's.** Four tests now
+   pin the sets so the ruling has an exact checklist: act-gated lines naming a year span are
+   enumerated count-for-count and classified `world` / `run-length`, and **calendar-gated ones are
+   too, which they were not before** — that omission is what let item 2 below sit unnoticed.
+2. **FIXED, and it was a gate bug rather than a copy bug.** `amb.r1-forager.late` stated *"Six years
+   on the same four miles of Reach"* behind `yearMin: 5`, so it was false at its own earliest
+   firing — before Q3 as well as after. Its two siblings (`amb.hearthollow-fenceman.late`,
+   `amb.brackwater-netmender.late`) say "six years" behind `yearMin: 6` and are true at their floor;
+   this one disagreed with its own gate. The gate moved to 6. **No copy changed**, the forward drift
+   past year 6 is untouched, and it stays D19's to rule on. A test now asserts that a calendar-gated
+   run-length claim is true at the year it first fires.
+3. **FIXED — `maren.greeting.act1` now reads the flora it claims.** *"Meadow Reach is holding at a
+   decent flora stock this year"* carries `floraStock: r1 gte 46`. **The threshold is DERIVED, not
+   invented (G2):** the shipped neighbours call r1 "thin" at `lte 45`, so "decent" is the weakest
+   claim consistent with both the copy and a number already in the file. `gte 80` was available and
+   is "bloom", not "decent". A greeting group always ships an unconditional fallback, so the clause
+   cannot mute Maren.
+4. **MISSING — no act-4 arrival line for a player who arrives before the raid.** Unchanged. Q6
+   recommends letting the act-4 raid crash r4 on entry, which means a player can stand on the steppe
+   in the window before the raid fires, and there is no line for that window. `amb.r4-worker.arrival`
+   is now a floor and a one-shot, so the arriver gets the framing whenever they arrive — but it is
+   the crash's copy, not the before-copy. Nothing was written to fill it.
+5. **MISSING — no beat marks entering an act.** Unchanged. Progression is an act index nothing
+   announces; Maren's `greeting.act1`–`act6` are the closest thing and they are greetings.
+6. **REVIEWED, deliberately unclaused — `maren.keystone.4`.** *"Cinder Steppe's flora stock is at a
+   number I have never had cause to write before"* has no `floraStock` clause, and it is the one
+   abundance line that keeps none. It names **no figure**, so there is nothing the ledger can
+   contradict; and it is step 5 of the **Vellsire chain**, so a live gate on it would strand the
+   chain — and with it `chain.vellsire.complete`, *Vellsire's Trail* and the lore behind the finale —
+   if r4's flora recovered. Trading a vague claim for a new dead-end is the wrong trade. Classified
+   `world` in the published review table so the decision is visible rather than absent.
 
 ### G7 re-read of every entry whose firing context changed
 
@@ -493,5 +556,24 @@ none needed to be.** Two are worth recording because their context genuinely mov
   so it wants a human read once the lines are actually on screen (Q7).
 - **`bram.mine.closing`** was already fixed for this class after the audit (§4 item 4) and stays on
   the calendar, so its context did not move.
+
+**Re-read again for the repair pass, because three sets moved further than the first pass moved them.**
+No line was rewritten and none needed to be; the vocabulary scan and the entry-level scan are both
+still clean, and these are the placement questions a regex cannot answer:
+
+- **The rival's 18 entries can now be met LATE.** `actMin` means a player who took every badge
+  without walking the routes can meet Wick for the first time on r1 in act 6 and hear *"Wick.
+  Cullbrand apprentice, second year"*. That is a continuity oddity, not a G7 one — there is no
+  addressee and no verdict — and it is the identical trade the first pass already accepted for
+  Greaves' introductions, where the alternative is meeting a recurring character for the first time
+  at the finale, or never. Losing the encounter is strictly worse than hearing it out of order.
+- **`amb.r4-worker.arrival` can now fire in act 5 or 6.** Its copy — *"I was on the crew. I'm not
+  going to tell you I wasn't"* — is the Company's own history and reads the same whenever it is
+  said. It is now a one-shot, so it says it once.
+- **`tolm.quest.fallow.offer` is population-gated**, so a player who has already taken the west
+  field below 24 will not be offered the quest. That is the correct silence: he cannot ask you to
+  keep twenty-four standing when there are nine, and Hard Req 2 plus D12 both say silence beats a
+  claim the ledger contradicts. It is **not a dead-end** — Loamunder breed, so the offer returns
+  when the field does, which is exactly the arithmetic the quest is about.
 
 The five borderline lines in §4 are untouched and still await Hank's *keep / trim / cut*.

@@ -224,6 +224,7 @@
     "scavengerRecentDeathsDivisor": 10,
     "signChainGatedHabitatTag": "hidden",
     "_levelByYear": "RETUNED 2026-08-25 from [4,10,16,22,28,34] (DEVIATIONS D-A5-G3, INV-3: balance.json only). The gym ramp in data/gyms.json is 8/14/20/26/32/38, so the old array put the region's own wild population FOUR levels under the leader it feeds — measured, that is why the harness's UNTRAINED player (docs/BALANCE-REPORT.md §1 clause 4) won gym 1 in 0.2% of 500 seeds. The new array is the same smooth +6 ramp two levels under the gym instead of four: a player who only catches and walks in is behind, not hopeless. Measured over 500 seeds/gym: UNTRAINED Maribel 1.6% → 31.4%, mean UNTRAINED gym win rate +11.7 pp, and every TRAINED row byte-identical (the TRAINED model reads gyms.json, not this key), so no gym is moved out of a §10.5 band.",
+    "_levelByYearIsAnActLadder": "THE KEY NAME IS HISTORY; BOTH READERS INDEX IT BY ACT (DEVIATIONS D-Q3-2 as resolved, D-Q3-8). tools/harness/player.ts has always read it by the LEADER'S act, and D-A5-G3 tuned these six values against the gym ramp, which is an act ladder. game/encounters.ts `rollLevel` read it by the CALENDAR YEAR until 2026-08-25, which under an unbounded decoupled calendar meant a player still in act 1 on Route 1 in calendar year 6 met level 34-38 wild creatures against heirs entering at ~5 — a soft fail state by the back door, and the exact pressure Q3 removed. It reads the ACT now, so the two readings agree and the array means one thing. The KEY is not renamed because that is data + core/types.ts + core/schemas.ts + tools/harness, all outside the change that found it; this note is the name.",
     "ageWeights": { "J": 0.5, "A": 0.4, "E": 0.1 },
     "levelByYear": [6, 12, 18, 24, 30, 36],
     "levelJitter": 2,
@@ -282,10 +283,11 @@
   },
   "party": {
     "_source": "build-doc §3 L12 / §7.8 — versioned JSON in localStorage, 3 slots.",
+    "_saveVersion": "BUMPED 1 → 2 on 2026-08-25 with the two-clock change (DEVIATIONS D-Q3-7). core/acts.ts `story.actEntered` is the latch that says which acts a save has already ENTERED, and a save written before it exists has no latch — so `lastActEntered` reads `first - 1` and the game re-enters acts 0..N on the first frame, re-applying the act-4 Cullbrand raid ON TOP of the harvest the old build already applied. Measured on a mid-run v1 save (3 badges, r4 already harvested once): ashvole 3 → 0, cragmar 2 → 0, recentDeaths 19 → 24, i.e. an extinction the player did not cause, which then feeds the derived cascade. A new save is indistinguishable from an old one by questFlags alone (both have no latch), so the VERSION is the only thing that can tell them apart. core/save.ts `deserialize` refuses a v1 save with the documented message; saves are not migrated (demo scope).",
     "maxPartySize": 6,
     "maxBoxSize": 60,
     "saveSlots": 3,
-    "saveVersion": 1
+    "saveVersion": 2
   },
   "economy": {
     "_source": "bible §11 — snares ×3 tiers, baits role-generic vs species-specific, medicines, inn rest. Prices are build-doc-addition tunables; medicine EFFECTS are in `medicine`.",

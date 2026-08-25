@@ -5,10 +5,13 @@
 
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { ACT_ENTERED_FLAG, actOf, awardBadge, hasBadge } from "../../core/acts";
+import { enterPendingActs } from "../../core/lifecycle";
 import { validateContent } from "../../core/schemas";
 import type {
   ActionLogEntry,
   Balance,
+  GymLeader,
   NodeFile,
   OwnedCreature,
   SaveFile,
@@ -125,7 +128,9 @@ function populatedSave(): SaveEnvelope {
 describe("build-doc §7.8 — the save shape", () => {
   it("seeds a new game with a live copy of every node JSON", () => {
     const save = fresh();
-    expect(save.version).toBe(1);
+    // The version has ONE home (INV-3 / D-A4-18): `balance.party.saveVersion`. Pinning the literal
+    // here is what made a bump look like a test failure instead of a decision.
+    expect(save.version).toBe(balance.party.saveVersion);
     expect(save.year).toBe(balance.clock.startYear);
     expect(save.tick).toBe(balance.clock.startTick);
     expect(Object.keys(save.nodeStates).sort()).toEqual(nodes.map((n) => n.id).sort());
@@ -253,8 +258,24 @@ describe("build-doc §7.8 — version refusal", () => {
     expect(err.found).toBe(0);
     expect(err.expected).toBe(balance.party.saveVersion);
     expect(err.message).toMatch(/v0/);
-    expect(err.message).toMatch(/v1/);
+    expect(err.message).toContain(`v${String(balance.party.saveVersion)}`);
     expect(err.message.toLowerCase()).toMatch(/new game/);
+  });
+
+  /*
+   * THE DEFECT THIS PINS. `story.actEntered` (core/acts.ts `ACT_ENTERED_FLAG`) is the latch that
+   * says which acts a save has already entered. A save written before it existed has no latch, so
+   * `lastActEntered` reads `first - 1` and the game re-enters acts 0..N on the first frame —
+   * re-applying the act-4 Cullbrand raid on top of the harvest the old build already applied.
+   * Measured on a v1-shaped mid-run save: r4 ashvole 3 → 0, cragmar 2 → 0, recentDeaths 19 → 24.
+   * A new save and an old one are INDISTINGUISHABLE by questFlags (neither has the latch), so the
+   * version is the only thing that can refuse one, and `party.saveVersion` had not been bumped.
+   */
+  it("BINDS — a save from before the act latch existed is refused, not silently re-entered", () => {
+    expect(balance.party.saveVersion).toBeGreaterThan(1);
+    const preActs = { ...populatedSave(), version: 1 } as unknown as SaveEnvelope;
+    expect(preActs.questFlags[ACT_ENTERED_FLAG]).toBeUndefined();
+    expect(() => deserialize(serialize(preActs), balance)).toThrow(SaveVersionError);
   });
 
   it("refuses a newer save too, instead of loading a shape it does not know", () => {
@@ -397,8 +418,8 @@ describe("build-doc §8.1 det_replay — (seed, actionLog) => the same final sav
 
   it("replays a log onto the initial save and reproduces it byte for byte", () => {
     const { initial, live, log } = timeline(stream(values));
-    const a = replay(initial, log, { species, balance, nodes, rng: stream(values) });
-    const b = replay(initial, log, { species, balance, nodes, rng: stream(values) });
+    const a = replay(initial, log, { gyms: content.gyms, species, balance, nodes, rng: stream(values) });
+    const b = replay(initial, log, { gyms: content.gyms, species, balance, nodes, rng: stream(values) });
     expect(serialize(a)).toBe(serialize(b));
     expect(serialize(a)).toBe(serialize(live));
   });
@@ -409,7 +430,7 @@ describe("build-doc §8.1 det_replay — (seed, actionLog) => the same final sav
     const { initial, live, log } = timeline(stream(values));
     expect(log.length).toBeGreaterThan(1);
     expect(log.map((e) => e.seq)).toEqual(log.map((_, i) => i));
-    const replayed = replay(initial, log, { species, balance, nodes, rng: stream(values) });
+    const replayed = replay(initial, log, { gyms: content.gyms, species, balance, nodes, rng: stream(values) });
     expect(replayed.actionLog.map((e) => e.seq)).toEqual(log.map((e) => e.seq));
   });
 
@@ -580,7 +601,7 @@ describe("build-doc §8.1 — a mid-run save/load/continue matches an uninterrup
     const streams = openStreams(s, balance);
     const mid = runYears(s, () => (streams.sim as { nextFloat(): number }).nextFloat(), 2);
     expect(mid.actionLog.length).toBeGreaterThan(0);
-    expect(() => replay(mid, mid.actionLog, { species, balance, nodes })).toThrow(SaveCorruptError);
+    expect(() => replay(mid, mid.actionLog, { gyms: content.gyms, species, balance, nodes })).toThrow(SaveCorruptError);
   });
 
   it("refuses it for a catch-only log too — the case that failed in silence", () => {
@@ -611,7 +632,7 @@ describe("build-doc §8.1 — a mid-run save/load/continue matches an uninterrup
     }
     expect(save.nodeStates[nodeId]?.populations[lineId]?.count).toBe(before - 3);
     expect(save.actionLog.every((e) => e.action.t === "catch")).toBe(true);
-    expect(() => replay(save, save.actionLog, { species, balance, nodes })).toThrow(SaveCorruptError);
+    expect(() => replay(save, save.actionLog, { gyms: content.gyms, species, balance, nodes })).toThrow(SaveCorruptError);
   });
 });
 
@@ -645,17 +666,96 @@ describe("build-doc §8.1 det_replay — refusals", () => {
     const log: ActionLogEntry[] = [
       { seq: 0, year: 1, tick: 0, action: { t: "yearTurn", year: 5 } },
     ];
-    expect(() => replay(initial, log, { species, balance, nodes })).toThrow(SaveCorruptError);
+    expect(() => replay(initial, log, { gyms: content.gyms, species, balance, nodes })).toThrow(SaveCorruptError);
     const good: ActionLogEntry[] = [
       { seq: 0, year: 1, tick: 0, action: { t: "yearTurn", year: initial.year + 1 } },
     ];
-    expect(replay(initial, good, { species, balance, nodes }).year).toBe(initial.year + 1);
+    expect(replay(initial, good, { gyms: content.gyms, species, balance, nodes }).year).toBe(initial.year + 1);
+  });
+
+  /*
+   * L10, THE ACT HALF. `replay` had no `gymVictory` case, so the tape reproduced no badge, no act
+   * and — since the Cullbrand raid moved off the calendar onto act entry (D-Q3-1) — no raid either.
+   * Measured on a three-victory tape before the fix: live r4 ashvole 3 / cragmar 2 / recentDeaths 19
+   * against replayed 14 / 10 / 0, with no badges and act 0. Before the raid moved it rode on the
+   * `yearTurn` entry, which replay has always handled, so this was a REGRESSION in the one scripted
+   * world event the game has.
+   */
+  it("BINDS — a gymVictory tape reproduces the badges, the acts AND the Cullbrand raid", () => {
+    const ladder = [...content.gyms].sort((a, b) => a.act - b.act);
+    const raid = balance.yearEvents.raids[0];
+    expect(raid).toBeDefined();
+    if (!raid) return;
+    // Enough victories to enter the raid's act, exactly as the live path does it.
+    const wins = ladder.filter((gym) => gym.act < raid.act);
+    expect(wins.length).toBeGreaterThan(0);
+
+    // LIVE: appendAction + awardBadge + enterPendingActs, the three calls OverworldScene.winGym makes.
+    let live: SaveEnvelope = {
+      ...fresh(),
+      questFlags: { ...fresh().questFlags, "story.opening.done": true },
+    };
+    const initial: SaveEnvelope = { ...live, actionLog: [] };
+    for (const gym of wins) {
+      live = appendAction(live, { t: "gymVictory", gymId: gym.id });
+      live = { ...live, ...awardBadge(live, gym.id, balance) };
+      live = { ...live, ...enterPendingActs(live, { balance, gyms: content.gyms }).save };
+    }
+    const target = raid.targets[0];
+    expect(target).toBeDefined();
+    if (!target) return;
+    const liveCount = live.nodeStates[raid.nodeId]?.populations[target.lineId]?.count;
+    expect(liveCount).toBeLessThan(
+      initial.nodeStates[raid.nodeId]?.populations[target.lineId]?.count ?? 0,
+    );
+
+    const replayed = replay(initial, live.actionLog, { gyms: content.gyms, species, balance, nodes });
+    expect(replayed.nodeStates[raid.nodeId]?.populations[target.lineId]?.count).toBe(liveCount);
+    expect(replayed.nodeStates[raid.nodeId]?.recentDeaths).toBe(live.nodeStates[raid.nodeId]?.recentDeaths);
+    for (const gym of wins) expect(hasBadge(replayed, gym.id, balance)).toBe(true);
+    expect(actOf(replayed, content.gyms, balance)).toBe(actOf(live, content.gyms, balance));
+    // L10 in full: byte-identical, ledger included.
+    expect(serialize({ ...replayed, actionLog: [] })).toBe(serialize({ ...live, actionLog: [] }));
+  });
+
+  it("does not re-apply the raid when the same victory is replayed twice", () => {
+    // `ACT_ENTERED_FLAG` is the latch on both paths; replay must lean on the same one live play does.
+    const ladder = [...content.gyms].sort((a, b) => a.act - b.act);
+    const raid = balance.yearEvents.raids[0];
+    if (!raid) return;
+    const wins = ladder.filter((gym) => gym.act < raid.act);
+    const initial: SaveEnvelope = {
+      ...fresh(),
+      questFlags: { ...fresh().questFlags, "story.opening.done": true },
+    };
+    const log: ActionLogEntry[] = [
+      ...wins.map((gym, i) => ({
+        seq: i,
+        year: 1,
+        tick: 0,
+        action: { t: "gymVictory" as const, gymId: gym.id },
+      })),
+      // The last victory logged a second time — a duplicated tape entry must not double-harvest.
+      {
+        seq: wins.length,
+        year: 1,
+        tick: 0,
+        action: { t: "gymVictory" as const, gymId: (wins[wins.length - 1] as GymLeader).id },
+      },
+    ];
+    const once = replay(initial, log.slice(0, wins.length), { gyms: content.gyms, species, balance, nodes });
+    const twice = replay(initial, log, { gyms: content.gyms, species, balance, nodes });
+    const target = raid.targets[0];
+    if (!target) return;
+    expect(twice.nodeStates[raid.nodeId]?.populations[target.lineId]?.count).toBe(
+      once.nodeStates[raid.nodeId]?.populations[target.lineId]?.count,
+    );
   });
 
   it("refuses a log whose numbering has a gap or a repeat", () => {
     const { initial, log } = timeline(stream(values));
     const gapped = log.map((e, i) => (i === 1 ? { ...e, seq: e.seq + 5 } : e));
-    expect(() => replay(initial, gapped, { species, balance, nodes })).toThrow(SaveCorruptError);
+    expect(() => replay(initial, gapped, { gyms: content.gyms, species, balance, nodes })).toThrow(SaveCorruptError);
   });
 
   it("refuses a catch or release naming a node or a line this save does not have", () => {
@@ -663,7 +763,7 @@ describe("build-doc §8.1 det_replay — refusals", () => {
     const nodeId = "r1";
     const lineId = Object.keys(initial.nodeStates[nodeId]?.populations ?? {})[0] as string;
     expect(() =>
-      replay(initial, [{ seq: 0, year: 1, tick: 0, action: { t: "catch", nodeId: "r99", lineId, uid: "x" } }], {
+      replay(initial, [{ seq: 0, year: 1, tick: 0, action: { t: "catch", nodeId: "r99", lineId, uid: "x" } }], { gyms: content.gyms,
         species,
         balance,
         nodes,
@@ -673,7 +773,7 @@ describe("build-doc §8.1 det_replay — refusals", () => {
       replay(
         initial,
         [{ seq: 0, year: 1, tick: 0, action: { t: "release", nodeId, lineId: "nibin-line", uid: "x" } }],
-        { species, balance, nodes },
+        { gyms: content.gyms, species, balance, nodes },
       ),
     ).toThrow(SaveCorruptError);
   });
@@ -692,7 +792,7 @@ describe("build-doc §8.1 det_replay — refusals", () => {
       tick: 0,
       action: { t: "catch" as const, nodeId, lineId, uid: `c${i}` },
     }));
-    const out = replay(initial, log, { species, balance: floored, nodes });
+    const out = replay(initial, log, { gyms: content.gyms, species, balance: floored, nodes });
     expect(out.nodeStates[nodeId]?.populations[lineId]?.count).toBe(floor);
   });
 
@@ -706,7 +806,7 @@ describe("build-doc §8.1 det_replay — refusals", () => {
     const log: ActionLogEntry[] = [
       { seq: 0, year: 1, tick: 0, action: { t: "seasonStep", season: balance.clock.seasonOrder[0] as never } },
     ];
-    const out = replay(initial, log, {
+    const out = replay(initial, log, { gyms: content.gyms,
       species,
       balance,
       nodes,
@@ -763,7 +863,7 @@ describe("build-doc §8.1 det_replay — the rest", () => {
 
   it("reaches the logged save whatever the stream says — the log fixes every choice", () => {
     const { initial, live, log } = timeline(stream(values));
-    const b = replay(initial, log, {
+    const b = replay(initial, log, { gyms: content.gyms,
       species,
       balance,
       nodes,
@@ -795,7 +895,7 @@ describe("build-doc §8.1 det_replay — the rest", () => {
         },
       },
     ];
-    expect(() => replay(initial, bogus, { species, balance, nodes })).toThrow(SaveCorruptError);
+    expect(() => replay(initial, bogus, { gyms: content.gyms, species, balance, nodes })).toThrow(SaveCorruptError);
   });
 
   it("applies the catch/release population delta build-doc §7.3 attributes to the action", () => {
@@ -808,7 +908,7 @@ describe("build-doc §8.1 det_replay — the rest", () => {
       { seq: 1, year: 1, tick: 1, action: { t: "catch", nodeId, lineId, uid: "c2" } },
       { seq: 2, year: 1, tick: 2, action: { t: "release", nodeId, lineId, uid: "c1" } },
     ];
-    const out = replay(initial, log, { species, balance, nodes });
+    const out = replay(initial, log, { gyms: content.gyms, species, balance, nodes });
     expect(out.nodeStates[nodeId]?.populations[lineId]?.count).toBe(before - 1);
     expect(out.actionLog).toHaveLength(3);
     // The initial save is never mutated.
@@ -822,7 +922,7 @@ describe("build-doc §8.1 det_replay — the rest", () => {
       { seq: 0, year: 1, tick: 0, action: { t: "travel", to: "r1" } },
       { seq: 1, year: 1, tick: 1, action: { t: "inn", townId: "hearthollow" } },
     ];
-    const out = replay(initial, log, {
+    const out = replay(initial, log, { gyms: content.gyms,
       species,
       balance,
       nodes,

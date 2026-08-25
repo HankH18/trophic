@@ -35,6 +35,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { actOf } from "@core/acts";
 import { startBattle, step as battleStep } from "@core/battle";
 import { advanceAction, seasonOf } from "@core/clock";
 import { defaultContext, stepRegionStates } from "@core/ecosim";
@@ -89,7 +90,8 @@ function contextFor(save: SaveEnvelope, nodeId: string): ForayContext {
     species,
     balance,
     season: seasonOf({ year: save.year, tick: save.tick }, balance),
-    year: save.year,
+    // The ACT, never the calendar year (game/encounters.ts `rollLevel`). These beats are act 1's.
+    act: actOf(save, content.gyms, balance),
   };
 }
 

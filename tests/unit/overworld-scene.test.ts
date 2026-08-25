@@ -297,7 +297,10 @@ vi.mock("phaser", () => {
     Scene,
     Input: {
       Keyboard: {
-        KeyCodes: { W: 87, A: 65, S: 83, D: 68, C: 67, ONE: 49, TWO: 50, THREE: 51, FOUR: 52, FIVE: 53, SIX: 54 },
+        KeyCodes: {
+          W: 87, A: 65, S: 83, D: 68, C: 67, G: 71, R: 82,
+          ONE: 49, TWO: 50, THREE: 51, FOUR: 52, FIVE: 53, SIX: 54,
+        },
         JustDown: (key: FakeKey): boolean => {
           if (!key.justDown) return false;
           key.justDown = false;
@@ -913,5 +916,264 @@ describe("§9 reading the mask does not warn about a texture that was never crea
     expect(phantom.map((r) => r.key), "removed a texture key that had not been created").toEqual([]);
     // …and the read still worked.
     expect(probe.collision.source).toBe("authored");
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §10 THE TWO CLOCKS, EXECUTED (docs/DEVIATIONS.md D-Q2-2 / D-Q3-1)
+ *
+ * Every test here is a defect that a green suite did not see, because the suite called core
+ * functions by hand at clocks and states the running game never reached.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+const KEY_G = 71;
+const KEY_R = 82;
+
+/** The leaders in act order — data/gyms.json's, never a list typed in here (G2). */
+const LADDER = [...content.gyms].sort((a, b) => a.act - b.act);
+
+describe("§10.1 the act ladder can be CLIMBED by playing — the never-cut slice", () => {
+  it("a brand-new save is not locked inside the first town", () => {
+    /*
+     * THE DEFECT. `travelTo` gained an act gate, and act 1's gate is `story.opening.done` — a flag
+     * only data/dialogue.json writes, which nothing in game/ reads (Q7). Measured through this rig
+     * before the fix: act 0, unlocked = ["hearthollow"], travelTo("r1") REFUSED. build-doc §16's
+     * never-cut vertical slice is Hearthollow → R1 → Brackwater → R2, and it stopped at the first
+     * step. A gate whose key does not exist is not a gate, it is a wall.
+     */
+    const h = mount();
+    expect(h.scene.save.currentNode).toBe(SLICE_NODE);
+    expect(h.scene.act()).toBeGreaterThanOrEqual(1);
+
+    const next = h.scene.node.adjacency[0];
+    expect(next, "the slice's first node has an exit").toBeDefined();
+    void h.scene.travelTo(next as string);
+    expect(h.scene.save.currentNode).toBe(next);
+  });
+
+  it("the prologue stand-in only fires when nothing else owns the opening beat", () => {
+    // C7 takes the hook and the scene writes NO story flag — the stand-in switches itself off.
+    let asked = 0;
+    const h = mount({
+      hooks: {
+        onOpeningBeat: () => {
+          asked += 1;
+          return true;
+        },
+      },
+    });
+    expect(asked).toBeGreaterThan(0);
+    expect(h.scene.act()).toBe(balance.acts.first);
+    for (const flag of balance.acts.gates.find((g) => g.act === balance.acts.first + 1)?.flags ?? []) {
+      expect(h.scene.save.questFlags[flag]).toBeUndefined();
+    }
+  });
+
+  it("[G] fights the town's leader and a WIN is the badge that opens the next act", () => {
+    /*
+     * THE OTHER HALF OF THE SAME DEFECT: `winGym` — the only writer of a badge flag — had no caller
+     * anywhere in the repo, so acts 2..6 were unreachable however long anyone played.
+     */
+    const first = LADDER[0];
+    expect(first).toBeDefined();
+    if (!first) return;
+    const h = mount({ save: { ...freshSave(first.town), currentNode: first.town } });
+    expect(h.scene.act()).toBe(1);
+    expect(h.hud()).toContain("[G] challenge");
+
+    h.press(KEY_G);
+    h.frame();
+    const launch = h.parts.launches.find((l) => l.key === "Battle");
+    expect(launch, "pressing [G] launched no battle").toBeDefined();
+    const data = launch?.data as BattleSceneData;
+    expect(data.input.kind).toBe("gym");
+    expect(data.input.enemyParty.length).toBe(first.slots.length + 1);
+    expect(data.input.playerParty.length).toBeGreaterThan(0);
+
+    // The reducer's own outcome, handed back the way BattleScene hands it back.
+    data.onFinished({ state: { outcome: "win" } as never, caught: null });
+    expect(h.scene.act()).toBe(2);
+    // …and the act the badge opened is now travelable.
+    expect(balance.acts.gates.find((g) => g.act === 2)?.nodes ?? []).not.toHaveLength(0);
+  });
+
+  it("a LOSS is not a badge, and neither is a flee", () => {
+    const first = LADDER[0];
+    if (!first) return;
+    for (const outcome of ["loss", "fled"] as const) {
+      const h = mount({ save: { ...freshSave(first.town), currentNode: first.town } });
+      h.press(KEY_G);
+      h.frame();
+      const data = h.parts.launches.find((l) => l.key === "Battle")?.data as BattleSceneData;
+      data.onFinished({ state: { outcome } as never, caught: null });
+      expect(h.scene.act(), outcome).toBe(1);
+    }
+  });
+
+  it("the whole never-cut slice is walkable: Hearthollow → R1 → Brackwater → R2", () => {
+    const first = LADDER[0];
+    if (!first) return;
+    const h = mount({ save: { ...freshSave(first.town), currentNode: first.town } });
+    const visited: string[] = [h.scene.save.currentNode];
+
+    // Act 1 opens the first route.
+    const r1 = h.scene.node.adjacency.find((id) => !id.startsWith(first.town));
+    void h.scene.travelTo(r1 as string);
+    visited.push(h.scene.save.currentNode);
+    expect(visited[1]).toBe(r1);
+
+    // Back to town, win the badge, and the second town opens.
+    void h.scene.travelTo(first.town);
+    h.press(KEY_G);
+    h.frame();
+    const data = h.parts.launches.find((l) => l.key === "Battle")?.data as BattleSceneData;
+    data.onFinished({ state: { outcome: "win" } as never, caught: null });
+    expect(h.scene.act()).toBe(2);
+
+    void h.scene.travelTo(r1 as string);
+    const townTwo = balance.acts.gates.find((g) => g.act === 2)?.nodes[0];
+    expect(townTwo).toBeDefined();
+    void h.scene.travelTo(townTwo as string);
+    expect(h.scene.save.currentNode).toBe(townTwo);
+  });
+});
+
+describe("§10.2 create() builds before it reports", () => {
+  it("a save with a pending act entry does not crash the scene at construction", () => {
+    /*
+     * THE DEFECT. `create()` called `advanceActs()` thirty lines above `this.banner = this.add...`,
+     * and `advanceActs` flashes a banner per raid event — so loading a save with three badges (the
+     * shipped act-4 Cullbrand raid) threw `TypeError: Cannot read properties of undefined (reading
+     * 'setText')` and the overworld never built.
+     */
+    const raid = balance.yearEvents.raids[0];
+    expect(raid).toBeDefined();
+    if (!raid) return;
+    let save = freshSave();
+    save = { ...save, questFlags: { ...save.questFlags, "story.opening.done": true } };
+    for (const gym of LADDER.filter((g) => g.act < raid.act)) {
+      save = {
+        ...save,
+        questFlags: { ...save.questFlags, [`gym.${gym.id}.beaten`]: true },
+      };
+    }
+    const before = save.nodeStates[raid.nodeId]?.populations[raid.targets[0]!.lineId]?.count ?? 0;
+
+    const h = mount({ save });
+    expect(h.scene.act()).toBe(raid.act);
+    // The raid actually fired, and it was REPORTED rather than thrown.
+    const after = h.scene.save.nodeStates[raid.nodeId]?.populations[raid.targets[0]!.lineId]?.count ?? 0;
+    expect(after).toBeLessThan(before);
+    expect(h.hud()).toContain(raid.nodeId);
+  });
+
+  it("a finished run does not crash the scene, and the ending is handed over exactly once", () => {
+    /*
+     * TWO DEFECTS AT ONE SITE. (a) the same construction-order crash, through `completeRun`;
+     * (b) `onRunComplete` was re-tested on every year turn with no latch, so a finished run replayed
+     * the epilogue annually — measured at 3 calls across 3 year turns.
+     */
+    let save = freshSave();
+    save = { ...save, questFlags: { ...save.questFlags, [balance.acts.runCompleteFlag]: true } };
+    const calls: number[] = [];
+    const h = mount({ save, hooks: { onRunComplete: (s) => calls.push(s.year) } });
+    expect(calls).toHaveLength(1);
+
+    // Spend a whole year through the inn — every year turn re-asks, and the latch answers.
+    for (let i = 0; i < balance.clock.ticksPerYear * 3; i += 1) {
+      h.press(KEY_R);
+      h.frame();
+    }
+    expect(h.scene.save.year).toBeGreaterThan(balance.clock.startYear);
+    expect(calls).toHaveLength(1);
+
+    // …and a reload of the finished save does not replay it either: the latch is IN the save.
+    const reloaded = mount({ save: h.scene.save, hooks: { onRunComplete: () => calls.push(-1) } });
+    expect(reloaded.scene.runIsOver()).toBe(true);
+    expect(calls).toHaveLength(1);
+  });
+
+  it("beating every leader completes the run, with no dialogue flag anywhere", () => {
+    // The shipped `runCompleteFlag` is `story.greaves.beaten`, which only data/dialogue.json writes.
+    // Without this the ending was unreachable in the shipped build — "the player reaches the ending
+    // and sees nothing".
+    let save = freshSave();
+    save = { ...save, questFlags: { ...save.questFlags, "story.opening.done": true } };
+    for (const gym of LADDER) {
+      save = { ...save, questFlags: { ...save.questFlags, [`gym.${gym.id}.beaten`]: true } };
+    }
+    expect(save.questFlags[balance.acts.runCompleteFlag]).toBeUndefined();
+    const calls: number[] = [];
+    const h = mount({ save, hooks: { onRunComplete: (s) => calls.push(s.year) } });
+    expect(h.scene.runIsOver()).toBe(true);
+    expect(calls).toHaveLength(1);
+  });
+});
+
+describe("§10.3 the published event flags follow the clock, including across the year turn", () => {
+  it("event.festival.open is open for 4 ticks, NOT 8 — it is retracted at the year turn", () => {
+    /*
+     * THE DEFECT, and the stub-blindness that hid it. `syncEvents()` was called only inside the
+     * `seasonBoundary` arm, and core/clock.ts deliberately emits NO `seasonBoundary` on the
+     * year-filling tick (integration defect I4) — so the festival flag survived into the next
+     * spring. Measured through this rig: 8 consecutive open ticks against a 4-tick window.
+     * The suite that certified the retraction called `syncEventFlags` BY HAND at {year+1, tick:0},
+     * a call the game never made.
+     */
+    const h = mount();
+    const runs: number[] = [];
+    let current = 0;
+    const seen: Array<{ year: number; tick: number; open: boolean }> = [];
+    for (let i = 0; i < balance.clock.ticksPerYear * 2; i += 1) {
+      const open = h.scene.save.questFlags["event.festival.open"] === true;
+      seen.push({ year: h.scene.save.year, tick: h.scene.save.tick, open });
+      if (open) current += 1;
+      else if (current > 0) {
+        runs.push(current);
+        current = 0;
+      }
+      h.press(KEY_R);
+      h.frame();
+    }
+    if (current > 0) runs.push(current);
+
+    expect(runs.length, "the festival never opened at all").toBeGreaterThan(0);
+    for (const run of runs) expect(run).toBeLessThanOrEqual(balance.clock.ticksPerSeason);
+    // And it is never open in the first season of a year — which is where the 8-tick run spilled to.
+    for (const row of seen) {
+      if (row.tick < balance.clock.ticksPerSeason) expect(row.open, `Y${row.year}t${row.tick}`).toBe(false);
+    }
+  });
+
+  it("the published flags always agree with the authoritative read", () => {
+    const h = mount();
+    for (let i = 0; i < balance.clock.ticksPerYear + 4; i += 1) {
+      const published = Object.keys(h.scene.save.questFlags)
+        .filter((k) => k.startsWith("event.") && k.endsWith(".open"))
+        .sort();
+      const derived = h.scene
+        .openEvents()
+        .map((w) => `event.${w.id}.open`)
+        .sort();
+      expect(published, `Y${h.scene.save.year}t${h.scene.save.tick}`).toEqual(derived);
+      h.press(KEY_R);
+      h.frame();
+    }
+  });
+});
+
+describe("§10.4 the wild level band follows the ACT, not the calendar", () => {
+  it("a player still in act 1 in year 12 meets act-1 creatures", () => {
+    const late = { ...freshSave(), year: 12, tick: 3 };
+    const h = mount({ save: late });
+    expect(h.scene.act()).toBe(1);
+    const band = balance.encounter.levelByYear;
+    const ceiling = (band[0] ?? 0) + balance.encounter.levelJitter;
+    for (let i = 0; i < 200; i += 1) {
+      walk(h, 1);
+      const met = h.scene.lastEncounterMet();
+      if (met) expect(met.level, `year ${h.scene.save.year}`).toBeLessThanOrEqual(ceiling);
+    }
+    expect(h.scene.save.year).toBeGreaterThanOrEqual(12);
   });
 });

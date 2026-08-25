@@ -144,7 +144,7 @@ describe("clock — season boundaries every 4 ticks (build-doc §4)", () => {
   });
 });
 
-describe("clock — the year ends at gym victory OR a full meter (L8)", () => {
+describe("clock — the year ends on a full meter and on NOTHING else (L8 as amended, D-Q2-1)", () => {
   it("ends the year at tick 16 with yearEnd → yearBegin and NO boundary of its own", () => {
     const { clock, events } = advance({ year: 1, tick: 12 }, ticksPerSeason, balance);
     // No `seasonBoundary`: core/lifecycle.ts `runYearTurn` runs seasonOrder[last] itself

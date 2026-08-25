@@ -51,8 +51,11 @@ export interface ForayContext {
   balance: Balance;
   /** From `core/clock.ts` `seasonOf(clock, balance)`. */
   season: Season;
-  /** From the save. Sets the wild level band (`balance.encounter.levelByYear`). */
-  year: number;
+  /**
+   * The ACT the player is in (`core/acts.ts` `actOf`), NEVER the calendar year. Sets the wild level
+   * band — see {@link rollLevel} for the measurement that moved it off the calendar.
+   */
+  act: number;
   /** Sign-chains the player has completed; gates the Ancients (bible §4). */
   unlockedSignChains?: ReadonlySet<string>;
 }
@@ -144,16 +147,29 @@ export function rollAge(balance: Balance, rng: Rng): AgeClass {
 }
 
 /**
- * Wild level for the given year: `levelByYear[year - startYear]`, jittered by ±`levelJitter`, held
- * inside [`minLevel`, `xp.levelCap`] (bible §2: "Levels 1–40").
+ * Wild level for the given ACT: `levelByYear[act - 1]`, jittered by ±`levelJitter`, held inside
+ * [`minLevel`, `xp.levelCap`] (bible §2: "Levels 1–40").
  *
- * Years past the end of the band table reuse its last entry rather than extrapolating — a six-entry
- * table for a six-year game is exact, and an epilogue projection past year 6 should not invent a
- * level ramp nobody tuned.
+ * ⚠ THIS USED TO READ THE CALENDAR, and under two clocks that was a fail state by the back door.
+ * The band was indexed `year - startYear`, so a player still in act 1 on Route 1 in calendar year 6
+ * met **level 34–38** wild creatures while their heirs entered at ~5 — measured across years 1–30:
+ * 6, 11, 20, 26, 31, 37, then 34–38 for ever. Q3's promise is that a slow player sees the whole
+ * story, and a level band that climbs with a clock the player does not control is exactly the
+ * countdown Q3 removed (docs/DEVIATIONS.md D-Q3-2 flagged the ambiguity; this is it resolved).
+ *
+ * The array's OTHER reader — `tools/harness/player.ts`, which decides what an UNTRAINED player
+ * walks into a gym with — has always indexed it by the leader's ACT, and D-A5-G3 tuned its six
+ * values against the gym ramp, which is an act ladder. So this is the two readings agreeing rather
+ * than a new opinion: the key keeps its shipped name (renaming it is data + schema + harness, and
+ * `_levelByYear` in data/balance.json now says what it really indexes).
+ *
+ * Acts past the end of the band table reuse its last entry rather than extrapolating, and act 0 —
+ * the prologue — reads the first: nobody tuned a seventh band and the prologue is not act 1's
+ * harder cousin.
  */
-export function rollLevel(balance: Balance, year: number, rng: Rng): number {
+export function rollLevel(balance: Balance, act: number, rng: Rng): number {
   const band = balance.encounter.levelByYear;
-  const index = Math.min(Math.max(0, year - balance.clock.startYear), band.length - 1);
+  const index = Math.min(Math.max(0, act - 1), band.length - 1);
   const base = band[index] ?? band[band.length - 1] ?? balance.encounter.minLevel;
   const jitter = balance.encounter.levelJitter;
   const rolled = base + rng.int(-jitter, jitter + 1);
@@ -173,7 +189,7 @@ export function rollEncounterAt(ctx: ForayContext, rng: Rng): Encounter | null {
   const lineId = rollEncounter(encounterTable(ctx), rng);
   if (lineId === null) return null;
   const age = rollAge(ctx.balance, rng);
-  const level = rollLevel(ctx.balance, ctx.year, rng);
+  const level = rollLevel(ctx.balance, ctx.act, rng);
   return {
     nodeId: ctx.node.id,
     lineId,

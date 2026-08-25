@@ -208,6 +208,7 @@ describe("SEAM — Hard Req 2: a real battle catch moves a real number in the le
     });
     const after = replay({ ...save, actionLog: [] }, save.actionLog, {
       species: content.species,
+      gyms: content.gyms,
       balance,
     });
     expect(after.nodeStates["r1"]?.populations["nibbin-line"]?.count).toBe(before - 1);
@@ -253,6 +254,7 @@ describe("SEAM — Hard Req 2: a real battle catch moves a real number in the le
       const withLog = appendAction(save, { t, nodeId: "r1", lineId: line, uid: "x" });
       const out = replay({ ...withLog, actionLog: [] }, withLog.actionLog, {
         species: content.species,
+      gyms: content.gyms,
         balance: b,
       });
       return out.nodeStates["r1"]?.populations[line]?.count as number;
@@ -294,7 +296,7 @@ describe("SEAM — Hard Req 2: a real battle catch moves a real number in the le
     for (let i = 0; i < 5; i++) {
       save = appendAction(save, { t: "release", nodeId: "r1", lineId: line, uid: `r${i}` });
     }
-    const out = replay({ ...save, actionLog: [] }, save.actionLog, { species: content.species, balance });
+    const out = replay({ ...save, actionLog: [] }, save.actionLog, { species: content.species, gyms: content.gyms, balance });
     expect(out.nodeStates["r1"]?.populations[line]?.count).toBe(cap);
   });
 

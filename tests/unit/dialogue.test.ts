@@ -30,10 +30,12 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
-  ACTS_TOTAL,
   ACT_GYM_IDS,
   DIALOGUE_KINDS,
   DialogueValidationError,
+  FIRST_ACT,
+  FIRST_YEAR,
+  LAST_ACT,
   NOMINAL_YEARS,
   actFromFlags,
   conditionHolds,
@@ -42,9 +44,11 @@ import {
   validateDialogueFile,
 } from "@core/dialogue-schema";
 import type { DialogueContext, DialogueEntry, DialogueFile, FlagValue } from "@core/dialogue-schema";
+import { actOf, awardBadge, badgeFlagFor, firstAct, lastAct } from "@core/acts";
 import { deriveFoodWeb, indexSpecies } from "@core/foodweb";
 import { validateContent } from "@core/schemas";
 import { ROLES, STATUS_NAMES, TYPE_NAMES } from "@core/types";
+import type { Balance, GymLeader } from "@core/types";
 
 /* ── shipped files, read off disk ────────────────────────────────────────── */
 
@@ -277,7 +281,22 @@ describe("dialogue schema", () => {
 
   it("rejects an act past the last act (there is no act 7)", () => {
     expectRejected((f) => {
-      f.entries.find((x) => (x.when?.act ?? []).length > 0)!.when!.act = [ACTS_TOTAL + 1];
+      f.entries.find((x) => (x.when?.act ?? []).length > 0)!.when!.act = [LAST_ACT + 1];
+    }, /when\.act\[0\]/);
+  });
+
+  it("rejects an act below the prologue, and ACCEPTS the prologue itself", () => {
+    // The bound is `balance.acts.first`, not 1. It was 1 — the gym COUNT stood in for the act
+    // ladder — and a prologue-only line was therefore unauthorable while every new save sat in
+    // the prologue. `maren.opening` ships `act: [0]`; if this bound ever creeps back up, the
+    // game's first scene stops existing and only this assertion says so.
+    expect(FIRST_ACT).toBe(firstAct(content.balance));
+    expect(LAST_ACT).toBe(lastAct(content.balance));
+    const ok = clone();
+    ok.entries.find((x) => (x.when?.act ?? []).length > 0)!.when!.act = [FIRST_ACT];
+    expect(() => validateDialogueFile(ok)).not.toThrow();
+    expectRejected((f) => {
+      f.entries.find((x) => (x.when?.act ?? []).length > 0)!.when!.act = [FIRST_ACT - 1];
     }, /when\.act\[0\]/);
   });
 
@@ -982,9 +1001,17 @@ const truthy = (v: FlagValue): boolean => v !== false;
 const earliestYear = (e: DialogueEntry): number =>
   e.when?.years !== undefined ? Math.min(...e.when.years) : (e.when?.yearMin ?? 1);
 
-/** The earliest act an entry can fire in. */
+/**
+ * The earliest act an entry can fire in.
+ *
+ * The default is `FIRST_ACT` (0 — the prologue), NOT 1. It was 1, which made this function return
+ * the same answer for `act: [1]` and for no act clause at all, so a table of floors could not tell
+ * "opens in act 1" from "has no act prerequisite" and a deleted `act: [1]` was invisible. The exact
+ * act CLAUSE is what the split is asserted on now (`ACT_GATE` below); this helper survives only for
+ * the chain-ordering and witness code, where a floor is the right question.
+ */
 const earliestAct = (e: DialogueEntry): number =>
-  e.when?.act !== undefined ? Math.min(...e.when.act) : (e.when?.actMin ?? 1);
+  e.when?.act !== undefined ? Math.min(...e.when.act) : (e.when?.actMin ?? FIRST_ACT);
 
 function flagsSetByDialogue(): Set<string> {
   const s = new Set<string>();
@@ -1173,7 +1200,7 @@ describe("Ancient lore chains — bible §4", () => {
       const steps = raw.entries
         .filter((e) => e.signChain === chain && e.chainStep !== undefined)
         .sort((a, b) => a.chainStep! - b.chainStep!);
-      let floor = 1;
+      let floor = FIRST_ACT;
       for (const e of steps) {
         expect(earliestAct(e), `${e.id} opens before its predecessor (act ${floor})`).toBeGreaterThanOrEqual(floor);
         floor = earliestAct(e);
@@ -1277,12 +1304,15 @@ describe("Ancient lore chains — bible §4", () => {
 
 const emptyCtx: DialogueContext = {
   act: 1,
-  year: 1,
+  year: FIRST_YEAR,
   season: "spring",
   flags: {},
   populations: {},
   floraStock: {},
 };
+
+/** The context a brand-new save actually hands the resolver: the prologue, year one, nothing set. */
+const newSaveCtx: DialogueContext = { ...emptyCtx, act: FIRST_ACT };
 
 describe("dialogue selection", () => {
   it("every greeting/ambient group ships an unconditional fallback, so nobody is ever mute", () => {
@@ -1344,17 +1374,121 @@ describe("dialogue selection", () => {
     expect(conditionHolds({ actMin: 4, yearMin: 3 }, { ...emptyCtx, act: 3, year: 3 })).toBe(false);
   });
 
-  it("actFromFlags is the badge ladder, clamped at the last act", () => {
+  it("a context off either clock throws instead of quietly answering false", () => {
+    // The failure this replaces: `ctx.act = 0` made every act clause evaluate false and every
+    // unclaused entry eligible, so the game rendered fallback lines everywhere and reported
+    // nothing. An unrepresentable act is a caller bug and must arrive as one.
+    for (const act of [FIRST_ACT - 1, LAST_ACT + 1, 1.5, Number.NaN]) {
+      expect(() => conditionHolds({ actMin: 1 }, { ...emptyCtx, act }), `act ${String(act)}`).toThrow(
+        DialogueValidationError,
+      );
+      expect(() =>
+        selectEntry(validateDialogue(), "maren", "hearthollow", "greeting", { ...emptyCtx, act }),
+      ).toThrow(DialogueValidationError);
+    }
+    for (const year of [FIRST_YEAR - 1, 0, -3, 2.5]) {
+      expect(() => conditionHolds({ yearMin: 1 }, { ...emptyCtx, year }), `year ${String(year)}`).toThrow(
+        DialogueValidationError,
+      );
+    }
+    // and the whole legal range is legal, including the prologue and a year far past the nominal span
+    for (let act = FIRST_ACT; act <= LAST_ACT; act += 1) {
+      expect(() => conditionHolds(undefined, { ...emptyCtx, act, year: NOMINAL_YEARS * 5 })).not.toThrow();
+    }
+  });
+
+  /**
+   * REPLACES "actFromFlags is the badge ladder, clamped at the last act" (deleted, not weakened).
+   *
+   * That test asserted `actFromFlags({}) === 1` — a brand-new save is in act 1 — which is FALSE of
+   * the game. `data/balance.json` ships `acts.first: 0` and `core/acts.ts` `actOf` returns 0 for a
+   * save that has not finished Maren's opening chain; `tests/unit/acts.test.ts` asserts exactly
+   * that. The dialogue lane had a second derivation (`1 + badgesBeaten`) that could never return 0,
+   * this test pinned it, and the two disagreed at precisely the point the whole opening chain was
+   * gated on. The corpus said `act: [1]`; the game said act 0; nothing was red; the game could not
+   * be started. So the contract asserted here is now AGREEMENT with the one authority, at every
+   * rung including the prologue.
+   */
+  it("the dialogue act axis is core/acts.ts and agrees with it at every rung, prologue included", () => {
+    const B: Balance = content.balance;
+    const G: GymLeader[] = content.gyms;
     const beat = (n: number): Record<string, FlagValue> =>
       Object.fromEntries(ACT_GYM_IDS.slice(0, n).map((id) => [`gym.${id}.beaten`, true]));
-    expect(actFromFlags({})).toBe(1);
-    for (let n = 0; n < ACTS_TOTAL; n += 1) expect(actFromFlags(beat(n)), `${String(n)} badges`).toBe(n + 1);
+
+    // the prologue: no flags at all is act 0, and it is the act a new save is in
+    expect(actFromFlags({})).toBe(FIRST_ACT);
+    expect(actOf({ questFlags: {} }, G, B)).toBe(FIRST_ACT);
+
+    // act 1 opens on the flag the opening chain writes, at zero badges
+    expect(actFromFlags({ "story.opening.done": true })).toBe(1);
+
+    // and every rung above it, both ways
+    for (let n = 0; n <= ACT_GYM_IDS.length; n += 1) {
+      const flags = { ...beat(n), "story.opening.done": true };
+      expect(actFromFlags(flags), `${String(n)} badges`).toBe(actOf({ questFlags: flags }, G, B));
+    }
     // beating the last act's leader is the finale, not a seventh act
-    expect(actFromFlags(beat(ACTS_TOTAL))).toBe(ACTS_TOTAL);
+    expect(actFromFlags({ ...beat(ACT_GYM_IDS.length), "story.opening.done": true })).toBe(LAST_ACT);
     // a falsy flag is not a badge
-    expect(actFromFlags({ [`gym.${ACT_GYM_IDS[0]!}.beaten`]: false })).toBe(1);
-    // the ladder is the shipped gym table, not a number typed into code
+    expect(actFromFlags({ [badgeFlagFor(ACT_GYM_IDS[0]!, B)]: false })).toBe(FIRST_ACT);
+    // the gym list is the shipped table, not a number typed into code — and it is NOT the ladder:
+    // six gyms, seven acts, because act 0 is the prologue. Conflating the two is the original bug.
     expect(ACT_GYM_IDS).toEqual(gymsRaw.gyms.map((g) => g.id));
+    expect(LAST_ACT - FIRST_ACT).toBe(ACT_GYM_IDS.length);
+    expect(ACT_GYM_IDS.length).not.toBe(LAST_ACT - FIRST_ACT + 1);
+    // the ladder is exactly balance.acts.gates, row for row — not a count of anything else
+    expect(content.balance.acts.gates.map((g) => g.act).sort((a, b) => a - b)).toEqual(
+      Array.from({ length: LAST_ACT - FIRST_ACT + 1 }, (_, i) => FIRST_ACT + i),
+    );
+  });
+
+  /**
+   * The bounds must be READ FROM `balance.acts`, not computed from the gym table.
+   *
+   * Numerically the two agree today — six gyms, `acts.last: 6` — so no value assertion can tell
+   * them apart, and `ACTS_TOTAL = ACT_GYM_IDS.length` standing in for the last act is precisely how
+   * the act ladder got its wrong floor in the first place. Add a seventh leader, or retune
+   * `acts.last`, and a gym-count bound silently disagrees with the game again. This is the only
+   * assertion that survives that day, so it reads the source rather than the numbers.
+   */
+  it("the act bounds are read from balance.acts, never counted off the gym table", () => {
+    const src = readFileSync("core/dialogue-schema.ts", "utf8");
+    const firstDecl = /export const FIRST_ACT: number = (.+);/.exec(src)?.[1];
+    const lastDecl = /export const LAST_ACT: number = (.+);/.exec(src)?.[1];
+    expect(firstDecl, "FIRST_ACT is not declared").toBeDefined();
+    expect(lastDecl, "LAST_ACT is not declared").toBeDefined();
+    for (const [name, decl] of [
+      ["FIRST_ACT", firstDecl!],
+      ["LAST_ACT", lastDecl!],
+    ] as const) {
+      expect(decl, `${name} is not derived from core/acts.ts over the shipped balance`).toMatch(
+        /^(firstAct|lastAct)\(ACT_BALANCE\)$/,
+      );
+      expect(decl, `${name} counts the gym table`).not.toMatch(/ACT_GYM_IDS|gyms/);
+    }
+    // and the gym count is not exported as an act total any more, under any name
+    expect(src).not.toMatch(/export const ACTS_TOTAL/);
+  });
+
+  /**
+   * The contract the dialogue lane DEPENDS ON, asserted from this side of the boundary.
+   *
+   * `core/acts.ts`'s own docstring says in bold that the clock is not an input, and every act gate
+   * in `data/dialogue.json` was re-written on that promise. If the calendar ever leaks back into
+   * `actOf`, every act-gated beat silently starts firing on a timetable again — which is the exact
+   * regression Q3 exists to remove — and the dialogue corpus would be wrong without changing.
+   */
+  it("the act a dialogue gate reads is never a function of the calendar", () => {
+    const B: Balance = content.balance;
+    const G: GymLeader[] = content.gyms;
+    const bare = actOf({ questFlags: {} }, G, B);
+    for (const year of [FIRST_YEAR, 2, NOMINAL_YEARS, NOMINAL_YEARS + 6, NOMINAL_YEARS * 5]) {
+      // a save carrying a calendar year, handed to the act model: the year must not move the act
+      const withYear = { questFlags: {}, year } as unknown as { questFlags: Record<string, FlagValue> };
+      expect(actOf(withYear, G, B), `year ${String(year)} moved the act`).toBe(bare);
+    }
+    // and one badge moves it, so the probe above is not passing because nothing moves it
+    expect(actOf(awardBadge({ questFlags: {} }, ACT_GYM_IDS[0]!, B), G, B)).toBeGreaterThan(bare);
   });
 
   it("conditionHolds respects year, season, flags and flag VALUES", () => {
@@ -1435,7 +1569,7 @@ function witnessFor(e: DialogueEntry, year: number): DialogueContext | undefined
 
   const act = earliestAct(e);
   if (w.actMax !== undefined && act > w.actMax) return undefined;
-  if (w.act !== undefined && w.act.some((a) => a < 1 || a > ACTS_TOTAL)) return undefined;
+  if (w.act !== undefined && w.act.some((a) => a < FIRST_ACT || a > LAST_ACT)) return undefined;
 
   const y = Math.max(year, earliestYear(e));
   const chosenYear = w.years !== undefined ? (w.years.includes(y) ? y : Math.max(...w.years)) : y;
@@ -1507,8 +1641,8 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
         bogus.push(`${e.id}: no witness at all`);
         continue;
       }
-      if (ctx.act < 1 || ctx.act > ACTS_TOTAL) bogus.push(`${e.id}: act ${String(ctx.act)}`);
-      if (!Number.isInteger(ctx.year) || ctx.year < 1) bogus.push(`${e.id}: year ${String(ctx.year)}`);
+      if (ctx.act < FIRST_ACT || ctx.act > LAST_ACT) bogus.push(`${e.id}: act ${String(ctx.act)}`);
+      if (!Number.isInteger(ctx.year) || ctx.year < FIRST_YEAR) bogus.push(`${e.id}: year ${String(ctx.year)}`);
       for (const k of Object.keys(ctx.flags)) {
         if (!acquired.has(k)) bogus.push(`${e.id}: flag ${k} is not reachable`);
       }
@@ -1557,11 +1691,99 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     }
   });
 
+  /* ── the game can be started: the opening, driven by the REAL act authority ── */
+
+  /**
+   * A save walked forward by `core/acts.ts`, not by a hand-written act number.
+   *
+   * Every other probe in this file supplies its own `act`, so all of them agreed with a corpus that
+   * disagreed with the game. This one never types an act: it builds a `SaveFile`-shaped bag of
+   * quest flags, asks `actOf()` what act that is — the same call `game/registry.ts` and
+   * `OverworldScene` make — and hands the answer to `selectEntry()`. It fails against the shipped
+   * `act: [1]` opening chain, because a brand-new save is in act 0, and the three entries that
+   * write `story.opening.done` were themselves behind the gate that flag opens: a deadlock whose
+   * only symptom was Maren having nothing to say.
+   */
+  const ctxForSave = (questFlags: Record<string, FlagValue>, year = FIRST_YEAR): DialogueContext => ({
+    ...emptyCtx,
+    act: actOf({ questFlags }, content.gyms, content.balance),
+    year,
+    flags: questFlags,
+  });
+
+  it("a brand-new save is in the prologue and Maren opens the game there", () => {
+    const fresh: Record<string, FlagValue> = {};
+    const ctx = ctxForSave(fresh);
+    expect(ctx.act, "a new save is not in the act the corpus gates the opening on").toBe(FIRST_ACT);
+    expect(selectEntry(file, "maren", "hearthollow", "cutscene", ctx)?.id).toBe("maren.opening");
+    // and the choice that starts the game is on it
+    expect(selectEntry(file, "maren", "hearthollow", "cutscene", ctx)?.choices?.length).toBe(3);
+  });
+
+  it("the whole opening chain is reachable, in order, from an empty save", () => {
+    // Each step takes the flags the previous one writes; the act is re-derived every time.
+    let flags: Record<string, FlagValue> = {};
+    const play = (id: string): void => {
+      const ctx = ctxForSave(flags);
+      const chosen = selectEntry(file, "maren", "hearthollow", "cutscene", ctx);
+      expect(chosen?.id, `stuck before ${id} at act ${String(ctx.act)}`).toBe(id);
+      flags = { ...flags, ...(chosen?.setFlags ?? {}) };
+    };
+    play("maren.opening");
+    // the player picks a starter — the goto target, evaluated in the act it is actually reached in
+    const starter = ENTRY.get("maren.starter.puddlisk")!;
+    expect(conditionHolds(starter.when, ctxForSave(flags)), "the starter branch is not reachable").toBe(true);
+    flags = { ...flags, ...(starter.setFlags ?? {}) };
+    expect(flags["story.opening.done"]).toBe(true);
+    // choosing a starter is what opens act 1
+    expect(ctxForSave(flags).act).toBe(1);
+    play("maren.tutorial.snare");
+    play("maren.tutorial.ledger");
+    // the ledger tutorial offers First Signs, and Maren's act-1 greeting is now the one she gives
+    expect(flags["quest.first-signs.offered"]).toBe(true);
+    const afterOpening = { ...ctxForSave(flags), floraStock: { r1: 78 } };
+    expect(selectEntry(file, "maren", "hearthollow", "greeting", afterOpening)?.id).toBe("maren.greeting.act1");
+  });
+
+  it("the prologue closes behind the player and cannot replay", () => {
+    const done = ctxForSave({ "story.opening.done": true, "story.starter": "puddlisk-line" });
+    expect(done.act).toBe(1);
+    for (const id of ["maren.opening", "maren.starter.cindril", "maren.starter.puddlisk", "maren.starter.thornlet"]) {
+      expect(conditionHolds(ENTRY.get(id)!.when, done), `${id} replays after the prologue`).toBe(false);
+    }
+  });
+
+  it("act-0 content lives only in the node act 0 opens, and act-gated content never opens early", () => {
+    // Act 0 opens hearthollow ALONE (balance.acts.gates), so an act-0 gate anywhere else would be a
+    // line written for a place the player cannot stand in yet.
+    const act0Entries = raw.entries.filter((e) => (e.when?.act ?? []).includes(FIRST_ACT));
+    expect(act0Entries.length, "the prologue lost its content").toBeGreaterThan(0);
+    expect(act0Entries.filter((e) => e.node !== "hearthollow").map((e) => e.id)).toEqual([]);
+
+    // and the other direction: every act clause in the corpus names an act whose gate row opens the
+    // node the entry stands in, so no beat can be gated to an act its own node is not open in.
+    const unlockAct = new Map<string, number>();
+    for (const gate of content.balance.acts.gates) {
+      for (const nodeId of gate.nodes) if (!unlockAct.has(nodeId)) unlockAct.set(nodeId, gate.act);
+    }
+    expect(
+      raw.entries
+        .filter((e) => e.when?.act !== undefined || e.when?.actMin !== undefined)
+        .filter((e) => (unlockAct.get(e.node) ?? FIRST_ACT) > earliestAct(e))
+        .map((e) => `${e.id}: gated act ${String(earliestAct(e))} but ${e.node} opens at ${String(unlockAct.get(e.node))}`),
+    ).toEqual([]);
+
+    // Wick is not on Meadow Reach during the prologue, because Meadow Reach is not open.
+    for (const kind of ["battle-pre", "battle-win", "battle-loss"] as const) {
+      expect(selectEntry(file, "wick", "r1", kind, newSaveCtx), "wick speaks on r1 in the prologue").toBeUndefined();
+    }
+  });
+
   /* ── the never-cut beats, named one by one ─────────────────────────────── */
 
   const finaleCtx = (year: number, flags: Record<string, FlagValue>): DialogueContext => ({
     ...emptyCtx,
-    act: ACTS_TOTAL,
+    act: LAST_ACT,
     year,
     flags,
   });
@@ -1608,13 +1830,56 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     }
   });
 
+  /**
+   * The ending is an ENDING — it plays once and then it is behind the player.
+   *
+   * `actMin: 6` is forward-open on a clock that never stops, so it terminates nothing on its own.
+   * The epilogues wrote `story.epilogue.shown` and no clause anywhere read it, which meant the last
+   * cutscene in the game replayed on every subsequent word with Maren at the Sanctum, in year 6 and
+   * in year 30 alike. The old `years: [6]` was the only thing that had ever ended them, and moving
+   * to the act axis removed it. `maren.finale` one entry away already had the pattern
+   * (`flagsUnset: story.finale.spoken` + `setFlags`); this asserts both epilogues now do too.
+   */
+  it("an epilogue plays once and is then over, in every calendar year", () => {
+    for (const year of FAR_YEARS) {
+      for (const outcome of ["caught", "released"] as const) {
+        const shown = finaleCtx(year, {
+          "story.vellsire.resolved": true,
+          "story.vellsire.outcome": outcome,
+          "story.epilogue.shown": true,
+        });
+        expect(
+          selectEntry(file, "maren", "sanctum", "cutscene", shown),
+          `${outcome} epilogue replays in year ${String(year)}`,
+        ).toBeUndefined();
+      }
+    }
+  });
+
+  it("every one-shot beat gates on the flag it writes, so none of them can loop", () => {
+    // Generalised from the chain-step rule, which only covered `signChain` entries and so could not
+    // see the epilogues. A cutscene that marks itself "shown/spoken/seen/done" and does not read
+    // that mark is a cutscene with no ending.
+    const ONE_SHOT_MARK = /\.(shown|spoken|seen|met|steppe|done)$/;
+    expect(
+      raw.entries
+        .filter((e) => e.kind === "cutscene")
+        .flatMap((e) =>
+          Object.keys(e.setFlags ?? {})
+            .filter((k) => ONE_SHOT_MARK.test(k))
+            .filter((k) => !(e.when?.flagsUnset ?? []).includes(k))
+            .map((k) => `${e.id} writes ${k} and never reads it`),
+        ),
+    ).toEqual([]);
+  });
+
   it("the finale does NOT fire before its act, however late the calendar runs", () => {
     // The other direction: decoupling must not turn the ending into something a year-30 player
     // gets for free without the badges. Each probe carries ONLY the flags its target needs, so it
     // is the ACT clause being tested and not a flag standing in for one.
     const early = (flags: Record<string, FlagValue>): DialogueContext => ({
       ...emptyCtx,
-      act: ACTS_TOTAL - 1,
+      act: LAST_ACT - 1,
       year: NOMINAL_YEARS * 5,
       flags,
     });
@@ -1632,17 +1897,71 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     }
   });
 
+  const RIVAL_NODE: Record<number, string> = { 1: "r1", 2: "r2", 3: "r3", 4: "r4", 5: "r5", 6: "sanctum-approach" };
+
   it("the rival arc fires in every act, in every calendar year", () => {
-    const rivalNode: Record<number, string> = { 1: "r1", 2: "r2", 3: "r3", 4: "r4", 5: "r5", 6: "sanctum-approach" };
-    for (let act = 1; act <= ACTS_TOTAL; act += 1) {
-      const node = rivalNode[act]!;
-      for (const year of [1, ...FAR_YEARS]) {
+    for (let act = 1; act <= LAST_ACT; act += 1) {
+      const node = RIVAL_NODE[act]!;
+      for (const year of [FIRST_YEAR, ...FAR_YEARS]) {
         const ctx: DialogueContext = { ...emptyCtx, act, year };
         expect(selectEntry(file, "wick", node, "battle-pre", ctx)?.id, `act ${String(act)} year ${String(year)}`).toBe(
           `wick.act${String(act)}.pre`,
         );
         expect(selectEntry(file, "wick", node, "battle-win", ctx)?.id).toBe(`wick.act${String(act)}.win`);
         expect(selectEntry(file, "wick", node, "battle-loss", ctx)?.id).toBe(`wick.act${String(act)}.loss`);
+      }
+    }
+  });
+
+  /**
+   * THE ROW THE DIAGONAL ABOVE CANNOT SEE, and the reason the arc is on `actMin` and not `act: [N]`.
+   *
+   * Wick's act-N encounter lives on route rN. `data/balance.json` `acts.gates` opens town N and
+   * route N in the SAME act, and town N+1 needs town N's badge — so beating gym N (which is in town
+   * N, not on rN) puts the save in act N+1 while the player may never have walked rN. Under an act
+   * EQUALITY that encounter is then gone for good: an unrecoverable dead-end reached by playing
+   * efficiently. Nothing else in the arc needed the equality — every `.pre` already carries
+   * `flagsUnset: rival.actN.fought`, and each route hosts exactly one Wick battle, so the `.win` /
+   * `.loss` pair cannot collide either.
+   */
+  it("an encounter the player walked past is still waiting on its route in a later act", () => {
+    for (let act = 1; act < LAST_ACT; act += 1) {
+      const node = RIVAL_NODE[act]!;
+      for (let later = act + 1; later <= LAST_ACT; later += 1) {
+        const ctx: DialogueContext = { ...emptyCtx, act: later, year: NOMINAL_YEARS * 3 };
+        expect(
+          selectEntry(file, "wick", node, "battle-pre", ctx)?.id,
+          `wick.act${String(act)}.pre lost at act ${String(later)}`,
+        ).toBe(`wick.act${String(act)}.pre`);
+        expect(selectEntry(file, "wick", node, "battle-win", ctx)?.id).toBe(`wick.act${String(act)}.win`);
+      }
+    }
+  });
+
+  it("...and is gone once it has actually been fought, in that act and in every later one", () => {
+    // The other direction, which is what `flagsUnset` buys: a floor must not re-offer a done fight.
+    for (let act = 1; act <= LAST_ACT; act += 1) {
+      const node = RIVAL_NODE[act]!;
+      const fought = { [`rival.act${String(act)}.fought`]: true };
+      for (let later = act; later <= LAST_ACT; later += 1) {
+        const ctx: DialogueContext = { ...emptyCtx, act: later, flags: fought };
+        expect(
+          selectEntry(file, "wick", node, "battle-pre", ctx),
+          `wick.act${String(act)}.pre re-offered at act ${String(later)}`,
+        ).toBeUndefined();
+      }
+    }
+  });
+
+  it("the rival is never on a route before that route is open", () => {
+    // The floor must still be a floor: `actMin: N` where route N unlocks at act N, from balance.
+    for (let act = 1; act <= LAST_ACT; act += 1) {
+      const node = RIVAL_NODE[act]!;
+      for (let earlier = FIRST_ACT; earlier < act; earlier += 1) {
+        const ctx: DialogueContext = { ...emptyCtx, act: earlier };
+        for (const kind of ["battle-pre", "battle-win", "battle-loss"] as const) {
+          expect(selectEntry(file, "wick", node, kind, ctx), `${node} ${kind} at act ${String(earlier)}`).toBeUndefined();
+        }
       }
     }
   });
@@ -1665,56 +1984,81 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
   /* ── the axis rules the split was made on ──────────────────────────────── */
 
   /**
-   * The whole story spine, by hand, with the act each beat opens in — the split this change made,
-   * published so it is reviewable here and not only in a JSON diff. A floor of 1 means "no act
-   * prerequisite at all", which is the right answer for the opening and for a quest offer that must
-   * never expire. Anything above 1 must carry a real `act`/`actMin` clause, asserted below.
+   * The whole story spine, by hand, with **the exact act clause each beat carries** — the split this
+   * change made, published so it is reviewable here and not only in a JSON diff.
+   *
+   * REPLACES a table of act FLOORS. A floor could not tell `act: [1]` from no act clause at all
+   * (both floor to 1), so every row that read `1` bound nothing: the verifier deleted `act: [1]`
+   * from BOTH tutorials and the whole suite stayed green. Worse, the floors it did assert were the
+   * wrong ladder — the opening chain shipped `act: [1]` while a new save is in act 0, and the table
+   * agreed with the corpus instead of with the game. The clause itself is asserted now, so a
+   * deleted gate, a drifted gate and an equality-where-a-floor-belongs are all three visible.
+   *
+   * `null` means "no act clause, deliberately": a beat whose only gate is a flag, because it must
+   * never expire. Every other row is the literal `when.act` / `when.actMin` the entry ships.
    */
-  const ACT_FLOOR: Record<string, number> = {
-    "maren.opening": 1,
-    "maren.starter.cindril": 1,
-    "maren.starter.puddlisk": 1,
-    "maren.starter.thornlet": 1,
-    "maren.tutorial.snare": 1,
-    "maren.tutorial.ledger": 1,
-    "maren.tutorial.release": 2,
-    "maren.quest.first-signs.offer": 1,
-    "maren.quest.first-signs.done": 1,
-    "maren.keystone.1": 1,
-    "maren.keystone.2": 2,
-    "maren.keystone.3": 3,
-    "maren.keystone.4": 4,
-    "maren.keystone.5": 5,
-    "maren.keystone.6": 6,
-    "maren.crash-survey": 4,
-    "maren.finale": 6,
-    "maren.epilogue.caught": 6,
-    "maren.epilogue.released": 6,
-    "greaves.act3.intro": 3,
-    "greaves.act4.steppe": 4,
-    "greaves.finale.pre": 6,
-    "greaves.finale.post": 6,
-    "sanctum.vellsire.approach": 6,
-    "prop.sanctum-antler-ring": 6,
-    "prop.sanctum-approach-antler-gate": 6,
-    "tolm.quest.fallow.offer": 1,
-    "sel.quest.wager.offer": 2,
-    "nessa.quest.restock.offer": 2,
-    "halder.quest.silk.offer": 3,
-    "pell.quest.lanternless.offer": 3,
-    "gerta.quest.crash.offer": 4,
-    "bram.quest.forge.offer": 4,
-    "ives.quest.census.offer": 5,
-    "orrin.quest.trail.offer": 5,
-    "amb.r4-worker.arrival": 4,
-    "amb.r4-worker.emptied": 4,
+  type ActGateShape = { act: number[] } | { actMin: number } | null;
+  const ACT_GATE: Record<string, ActGateShape> = {
+    // the prologue — act 0 is where a brand-new save is, and where these four alone may fire
+    "maren.opening": { act: [FIRST_ACT] },
+    "maren.starter.cindril": { act: [FIRST_ACT] },
+    "maren.starter.puddlisk": { act: [FIRST_ACT] },
+    "maren.starter.thornlet": { act: [FIRST_ACT] },
+    // the tutorials straddle the act 0 -> 1 boundary: their `goto` source is the starter entry that
+    // WRITES story.opening.done, so an act clause on either side of it can strand them. Flags only.
+    "maren.tutorial.snare": null,
+    "maren.tutorial.ledger": null,
+    "maren.tutorial.release": { actMin: 2 },
+    // must never expire — this was D2, the First Signs dead-end
+    "maren.quest.first-signs.offer": null,
+    "maren.quest.first-signs.done": null,
+    "maren.keystone.1": null,
+    "maren.keystone.2": { actMin: 2 },
+    "maren.keystone.3": { actMin: 3 },
+    "maren.keystone.4": { actMin: 4 },
+    "maren.keystone.5": { actMin: 5 },
+    "maren.keystone.6": { actMin: 6 },
+    "maren.crash-survey": { actMin: 4 },
+    "maren.finale": { actMin: 6 },
+    "maren.epilogue.caught": { actMin: 6 },
+    "maren.epilogue.released": { actMin: 6 },
+    "greaves.act3.intro": { actMin: 3 },
+    "greaves.act4.steppe": { actMin: 4 },
+    "greaves.finale.pre": { actMin: 6 },
+    "greaves.finale.post": { actMin: 6 },
+    "sanctum.vellsire.approach": { actMin: 6 },
+    "prop.sanctum-antler-ring": { actMin: 6 },
+    "prop.sanctum-approach-antler-gate": { actMin: 6 },
+    "tolm.quest.fallow.offer": null,
+    "sel.quest.wager.offer": { actMin: 2 },
+    "nessa.quest.restock.offer": { actMin: 2 },
+    "halder.quest.silk.offer": { actMin: 3 },
+    "pell.quest.lanternless.offer": { actMin: 3 },
+    "gerta.quest.crash.offer": { actMin: 4 },
+    "bram.quest.forge.offer": { actMin: 4 },
+    "ives.quest.census.offer": { actMin: 5 },
+    "orrin.quest.trail.offer": { actMin: 5 },
+    // the steppe arrival is a FLOOR and a one-shot: act 4 opens cindershelf AND r4, so Sable's
+    // badge is takeable without ever walking r4, and an equality would lose the only line that
+    // frames the crash for exactly the early arriver Q6 is written for.
+    "amb.r4-worker.arrival": { actMin: 4 },
+    "amb.r4-worker.emptied": { actMin: 4 },
+    // the rival: a FLOOR per act, never an equality — see the walked-past assertions above
     ...Object.fromEntries(
       [1, 2, 3, 4, 5, 6].flatMap((n) =>
-        ["pre", "win", "loss"].map((k) => [`wick.act${String(n)}.${k}`, n] as const),
+        ["pre", "win", "loss"].map((k) => [`wick.act${String(n)}.${k}`, { actMin: n }] as const),
       ),
     ),
   };
-  const STORY_SPINE = Object.keys(ACT_FLOOR);
+  const STORY_SPINE = Object.keys(ACT_GATE);
+
+  /** The act half of an entry's condition, and nothing else. */
+  const actClauseOf = (e: DialogueEntry): ActGateShape =>
+    e.when?.act !== undefined
+      ? { act: e.when.act }
+      : e.when?.actMin !== undefined
+        ? { actMin: e.when.actMin }
+        : null;
 
   it("the story spine names entries that all still exist", () => {
     expect(STORY_SPINE.filter((id) => !ENTRY.has(id))).toEqual([]);
@@ -1729,34 +2073,71 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     ).toEqual([]);
   });
 
-  it("every story beat opens at exactly the act the split put it in", () => {
-    // Catches BOTH directions: an act gate deleted (the beat becomes free) and an act gate moved.
+  it("every story beat carries exactly the act clause the split put on it", () => {
+    // Catches all four directions the floor table could not: a gate DELETED, a gate MOVED, an
+    // `actMin` silently narrowed to an `act` equality, and an `act` equality silently widened.
     expect(
-      Object.entries(ACT_FLOOR)
-        .filter(([id, floor]) => earliestAct(ENTRY.get(id)!) !== floor)
-        .map(([id, floor]) => `${id}: opens act ${String(earliestAct(ENTRY.get(id)!))}, split says ${String(floor)}`),
+      Object.entries(ACT_GATE)
+        .filter(([id, want]) => JSON.stringify(actClauseOf(ENTRY.get(id)!)) !== JSON.stringify(want))
+        .map(([id, want]) => `${id}: ships ${JSON.stringify(actClauseOf(ENTRY.get(id)!))}, split says ${JSON.stringify(want)}`),
     ).toEqual([]);
   });
 
-  it("a beat with an act prerequisite carries a real act clause, not an inherited floor of 1", () => {
-    expect(
-      Object.entries(ACT_FLOOR)
-        .filter(([, floor]) => floor > 1)
-        .filter(([id]) => {
-          const w = ENTRY.get(id)!.when ?? {};
-          return w.act === undefined && w.actMin === undefined;
-        })
-        .map(([id]) => id),
-    ).toEqual([]);
+  it("the exact-clause table bites where the floor table did not", () => {
+    // The verifier's sabotage, run against the assertion above rather than by hand: deleting
+    // `act: [0]` from a prologue entry, and swapping a rival floor for the equality that shipped.
+    const stripped: DialogueEntry = { ...ENTRY.get("maren.opening")!, when: { flagsUnset: ["story.opening.done"] } };
+    expect(JSON.stringify(actClauseOf(stripped))).not.toBe(JSON.stringify(ACT_GATE["maren.opening"]));
+    const pinned: DialogueEntry = { ...ENTRY.get("wick.act1.pre")!, when: { act: [1] } };
+    expect(JSON.stringify(actClauseOf(pinned))).not.toBe(JSON.stringify(ACT_GATE["wick.act1.pre"]));
   });
 
-  it("the rival meets you once per act, pinned to that act (act equality, not a floor)", () => {
-    // `actMin` would leave Wick's act-1 lines still firing at Meadow Reach in act 6.
-    for (let n = 1; n <= ACTS_TOTAL; n += 1) {
+  /**
+   * An `act` EQUALITY is a closing door, so the entries that carry one are enumerated by hand.
+   *
+   * Every equality outside this list is a bug of the shape the rival arc had: town N's gym and
+   * route N open in the same act, so a beat pinned to act N anywhere the player might not have gone
+   * yet is lost by anyone who takes the badge first. The eleven below are the two cases where
+   * "this act and no other" is the design — the prologue, which act 1 permanently closes, and each
+   * act's arrival greeting, whose successor takes over the moment the act advances.
+   */
+  const ACT_EQUALITY_IS_THE_DESIGN = [
+    "maren.opening",
+    "maren.starter.cindril",
+    "maren.starter.puddlisk",
+    "maren.starter.thornlet",
+    "maren.greeting.act1",
+    "maren.greeting.act2",
+    "maren.greeting.act3",
+    "maren.greeting.act4",
+    "maren.greeting.act5",
+    "maren.greeting.act6",
+  ] as const;
+
+  it("an act equality is only used where the door is meant to close", () => {
+    expect(raw.entries.filter((e) => e.when?.act !== undefined).map((e) => e.id).sort()).toEqual(
+      [...ACT_EQUALITY_IS_THE_DESIGN].sort(),
+    );
+  });
+
+  it("the rival meets you once per act — on a FLOOR, so walking past a route does not lose him", () => {
+    // WAS `expect(e.when?.act).toEqual([n])`. That equality was the defect, not the contract: it
+    // deleted each act's encounter at the moment the player earned a reason to cross that act's
+    // route. The stated reason for it — "`actMin` would leave his act-1 lines still firing at
+    // Meadow Reach in act 6" — is false: every `.pre` carries `flagsUnset: rival.actN.fought`
+    // (asserted below), and each route hosts exactly one Wick battle, so `.win`/`.loss` cannot
+    // collide. The behavioural consequences are asserted in the three tests above this section.
+    for (let n = 1; n <= LAST_ACT; n += 1) {
       for (const kind of ["pre", "win", "loss"]) {
         const e = ENTRY.get(`wick.act${String(n)}.${kind}`)!;
-        expect(e.when?.act, `wick.act${String(n)}.${kind}`).toEqual([n]);
+        expect(e.when?.actMin, `wick.act${String(n)}.${kind}`).toBe(n);
+        expect(e.when?.act, `wick.act${String(n)}.${kind} is pinned to one act`).toBeUndefined();
       }
+      // the guard that makes the floor safe, named rather than assumed
+      expect(ENTRY.get(`wick.act${String(n)}.pre`)!.when?.flagsUnset).toEqual([`rival.act${String(n)}.fought`]);
+      // and the route really does host exactly one Wick battle, which is why `.win`/`.loss` need none
+      const node = RIVAL_NODE[n]!;
+      expect(raw.entries.filter((e) => e.speaker === "wick" && e.node === node && e.kind === "battle-win")).toHaveLength(1);
     }
   });
 
@@ -1885,6 +2266,184 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
         .map(([id]) => id)
         .sort(),
     ).toEqual(["greaves.finale.pre", "maren.epilogue.released", "wick.act3.win", "wick.act6.win"]);
+  });
+
+  /**
+   * D19's OTHER half, which STORY-REVIEW does not name and the act split could not fix.
+   *
+   * A calendar-gated line that counts years is anchored at one end only: `yearMin: N` is
+   * forward-open, so the figure in the copy is true at exactly year N and drifts every year after.
+   * `amb.r1-forager.late` shipped *"Six years on the same four miles of Reach"* behind `yearMin: 5`
+   * and so was false at its own earliest firing — before Q3 as well as after. THE GATE was the
+   * defect there and the gate is fixed (5 → 6); the forward drift is a reword and the reword is
+   * Hank's ruling (D19), so it is enumerated rather than written.
+   *
+   * `floor` is the year the line first fires; `says` is the figure its copy names. Where they are
+   * equal the line is true at its floor, which is the most an unbounded calendar allows without a
+   * rewrite. `null` means the figure is a fact about Fallowmere and not about this run.
+   */
+  const CALENDAR_YEAR_CLAIMS: Record<string, { floor: number; says: number | null }> = {
+    "amb.brackwater-dockhand.rebuilt": { floor: 3, says: null }, // eleven years since new timber — the dock's history
+    "amb.bowerdeep-logger.thin": { floor: 4, says: null }, // nobody has cut there in four years — the canopy's
+    "amb.hearthollow-fenceman.late": { floor: 6, says: 6 }, // "Six years I've mended this line"
+    "amb.brackwater-netmender.late": { floor: 6, says: 6 }, // "three times in six years"
+    "amb.r1-forager.late": { floor: 6, says: 6 }, // "Six years on the same four miles"
+  };
+
+  it("every calendar-gated line that names a span in years has been read and classified", () => {
+    const SPAN =
+      /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|ninety|\d+)[- ]?years?\b/i;
+    const actual = raw.entries
+      .filter((e) => {
+        const w = e.when ?? {};
+        return w.years !== undefined || w.yearMin !== undefined || w.yearMax !== undefined;
+      })
+      .filter((e) => e.lines.some((l) => SPAN.test(l.text)))
+      .map((e) => e.id)
+      .sort();
+    expect(actual).toEqual(Object.keys(CALENDAR_YEAR_CLAIMS).sort());
+  });
+
+  it("a run-length claim on the calendar is true at the year it first fires", () => {
+    // The half of D19 that IS a defect rather than a ruling: a gate that disagrees with its own
+    // copy is wrong at every reading, not just the late ones.
+    expect(
+      Object.entries(CALENDAR_YEAR_CLAIMS)
+        .filter(([, r]) => r.says !== null)
+        .filter(([id, r]) => (ENTRY.get(id)!.when?.yearMin ?? FIRST_YEAR) !== r.says)
+        .map(([id, r]) => `${id}: says ${String(r.says)} years, fires from year ${String(ENTRY.get(id)!.when?.yearMin)}`),
+    ).toEqual([]);
+  });
+
+  /**
+   * Hard Req 2 and `docs/STORY-REVIEW.md` D12: the ledger shows real numbers, so NPC copy that
+   * quotes one must read the same state the ledger reads. A line that names a count with no
+   * `population` clause is a line the HUD can contradict on the same screen.
+   *
+   * `live` = quotes the live ledger and must carry the clause. `world` = the number is a fact about
+   * Fallowmere, an order book, an inventory or a biography, and no clause belongs on it.
+   */
+  const COUNT_CLAIM_REVIEW: Record<string, "live" | "world"> = {
+    "maren.tutorial.snare": "world", // "Snares. Three of them." — the player's kit, not a node
+    "wick.act6.win": "world", // "Six years." — D19 run-length, pinned above
+    "vesper.pre": "world", // Halder's ORDER is for three Webvern; the order is not the count
+    "noct.post.win": "world", // four people alive who have done that — a boast
+    "gerta.greeting": "world", // thirty-one years down the shaft — biography
+    "tolm.greeting": "world", // four fields — his farm, not a population
+    "tolm.quest.fallow.offer": "live", // "There are twenty-four of them my side of the fence"
+    "tolm.quest.fallow.done.kept": "live", // "Twenty-four, and two of them juveniles"
+    "halder.quest.silk.offer": "world", // "Three Webvern, adult, alive" — the ORDER size, not a count
+    "orrin.vanishing": "world", // two hundred and six margin entries across ninety years
+    "prop.r2-idol-shallows": "world", // "between the two of them" — the two idols
+    "amb.r1-forager.thin": "live", // "all morning for two Nibbin"
+    "amb.cindershelf-elder.base": "world", // sixty-two years, four contracts — biography
+  };
+
+  it("every line that names a count has been read and classified", () => {
+    const NUM = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|twenty-four|thirty|forty|fifty|sixty|ninety|hundred|\\d+)";
+    const COUNT = new RegExp(
+      `\\b${NUM}[- ](?:of them|of these|left|standing|nests?|head|Fenmaw|Mirefin|Nibbin|Loamunder|Stonewing|Cragmar|Pyrelisk|Webvern|Carricrow|Bramblehog)\\b` +
+        `|\\bthere (?:are|were) ${NUM}\\b|\\bcount is ${NUM}\\b|\\bdown to ${NUM}\\b`,
+      "i",
+    );
+    const actual = raw.entries
+      .filter((e) => e.lines.some((l) => COUNT.test(l.text)))
+      .map((e) => e.id)
+      .sort();
+    expect(actual).toEqual(Object.keys(COUNT_CLAIM_REVIEW).sort());
+  });
+
+  it("a line that quotes the live ledger reads the live ledger", () => {
+    // `tolm.quest.fallow.offer` quotes the Hearthollow Loamunder count and had NO clause at all —
+    // it lost its `years: [1]` in the re-gating and gained nothing, so it could assert a number the
+    // ledger contradicted, forever, on both clocks. Its own completion beat one entry away already
+    // carried the clause it needed.
+    expect(
+      Object.entries(COUNT_CLAIM_REVIEW)
+        .filter(([, kind]) => kind === "live")
+        .filter(([id]) => (ENTRY.get(id)!.when?.population ?? []).length === 0)
+        .map(([id]) => `${id} quotes a count with no population clause`),
+    ).toEqual([]);
+  });
+
+  /**
+   * The same rule on the abundance axis. `maren.greeting.act1` claimed Meadow Reach was "holding at
+   * a decent flora stock" with no `floraStock` clause; under `years: [1]` that was wrong for at most
+   * one in-game year, and under `act: [1]` — an act with no calendar bound at all — it was wrong for
+   * as long as the player stayed there. The threshold is DERIVED from the corpus rather than
+   * invented (G2): the shipped neighbours call r1 "thin" at `lte 45`, so "decent" is `gte 46` —
+   * the weakest claim consistent with the copy and with numbers already in the file.
+   */
+  const FLORA_CLAIM_REVIEW: Record<string, "live" | "world"> = {
+    "maren.greeting.act1": "live",
+    "amb.r1-forager.bloom": "live",
+    // Reviewed and deliberately left unclaused, both recorded in docs/DIALOGUE-NOTES.md §8:
+    "maren.keystone.4": "world", // "at a number I have never had cause to write before" — names no
+    // figure, and a live gate on a Vellsire CHAIN step could strand the chain if r4's flora recovers
+    "gerta.quest.crash.done": "world", // past tense, behind the survey turn-in: "Flora stock went first"
+  };
+
+  it("every line that names flora stock has been read and classified", () => {
+    const FLORA = /\bflora stock\b/i;
+    const actual = raw.entries
+      .filter((e) => e.lines.some((l) => FLORA.test(l.text)))
+      .map((e) => e.id)
+      .sort();
+    expect(actual).toEqual(Object.keys(FLORA_CLAIM_REVIEW).sort());
+  });
+
+  it("a line that quotes live flora reads live flora", () => {
+    expect(
+      Object.entries(FLORA_CLAIM_REVIEW)
+        .filter(([, kind]) => kind === "live")
+        .filter(([id]) => (ENTRY.get(id)!.when?.floraStock ?? []).length === 0)
+        .map(([id]) => `${id} claims an abundance with no floraStock clause`),
+    ).toEqual([]);
+  });
+
+  /**
+   * WRITTEN but never READ — the audit that would have caught the looping epilogue.
+   *
+   * `story.epilogue.shown` was written by both epilogues and read by nothing, which is what "the
+   * ending replays forever" looks like in the data. The remaining rows are real: they are the
+   * corpus's OUTPUT to the game layer (which starter, which rival result, which quest ending, which
+   * trail stone, which chain finished). Each one is named, so a new orphan is a decision.
+   */
+  const WRITE_ONLY_FLAGS: Record<string, string> = {
+    "chain.kilnback.step6": "terminal chain step — nothing follows it inside the corpus",
+    "chain.undermere.step7": "terminal chain step",
+    "chain.vellsire.complete": "the gate on the Vellsire hunt; the game layer reads it (Q3b/Q7)",
+    "lore.scavenger.unlocked": "a lore unlock the game layer reads",
+    "quest.fallow-field.result": "quest outcome, for the epilogue ledger",
+    "quest.silk-shortage.heard-vesper": "the Silk Shortage deferral (STORY-REVIEW D14, open)",
+    "quest.silk-shortage.result": "quest outcome, for the epilogue ledger",
+    "rival.act1.result": "rival outcome, for the epilogue ledger",
+    "rival.act2.result": "rival outcome, for the epilogue ledger",
+    "rival.act3.result": "rival outcome, for the epilogue ledger",
+    "rival.act4.result": "rival outcome, for the epilogue ledger",
+    "rival.act5.result": "rival outcome, for the epilogue ledger",
+    "rival.act6.result": "rival outcome, for the epilogue ledger",
+    "story.starter": "which starter was chosen — the Legacy beat reads it",
+    "story.vellsire.attempt": "the choice is made; the OUTCOME is the game layer's to write",
+    "trail.stone.r1": "Vellsire's Trail progress, counted by the game layer",
+    "trail.stone.r2": "Vellsire's Trail progress",
+    "trail.stone.sanctum-approach": "Vellsire's Trail progress",
+  };
+
+  it("every flag the corpus writes is either read by the corpus or a named output", () => {
+    const written = new Set<string>();
+    for (const e of raw.entries) {
+      for (const bag of [e.setFlags ?? {}, ...(e.choices ?? []).map((c) => c.setFlags ?? {})]) {
+        for (const k of Object.keys(bag)) written.add(k);
+      }
+    }
+    const read = new Set<string>();
+    for (const e of raw.entries) {
+      for (const k of e.when?.flagsSet ?? []) read.add(k);
+      for (const k of e.when?.flagsUnset ?? []) read.add(k);
+      for (const fe of e.when?.flagEquals ?? []) read.add(fe.key);
+    }
+    expect([...written].filter((k) => !read.has(k)).sort()).toEqual(Object.keys(WRITE_ONLY_FLAGS).sort());
   });
 });
 

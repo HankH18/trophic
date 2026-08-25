@@ -44,7 +44,7 @@ import {
   type RngStreams,
   type SaveEnvelope,
 } from "../../core/save";
-import type { Balance, Content, GameAction, NodeFile, Season } from "../../core/types";
+import type { Balance, Content, GameAction, GymLeader, NodeFile, Season } from "../../core/types";
 import {
   cellTopLeftWorld,
   chooseSpawnTile,
@@ -81,9 +81,19 @@ import {
 } from "../mapview";
 import { seasonTintLabel } from "../season-tint";
 import { SCENE_KEYS, sceneRegistered } from "../scene-keys";
-import { actOf, awardBadge, runIsComplete, unlockActOf } from "../../core/acts";
+import {
+  actOf,
+  awardBadge,
+  markRunCompleteShown,
+  prologueExitFlags,
+  runCompleteShown,
+  runIsComplete,
+  setQuestFlags,
+  unlockActOf,
+} from "../../core/acts";
 import { enterPendingActs } from "../../core/lifecycle";
 import { activeWindows, syncEventFlags } from "../../core/regional-events";
+import { buildGymBattle, gymAtNode, gymBattleProblem, gymBattleWon } from "../gym-battle";
 import {
   DEFAULT_SEASON_METER_STYLE,
   SeasonMeterHud,
@@ -94,6 +104,8 @@ import {
   type SeasonMeterStyle,
 } from "../ui/SeasonMeter";
 import {
+  actEntryBeats,
+  beatLines,
   driveYearTurn,
   finishYearTurn,
   yearTurnTrigger,
@@ -158,14 +170,40 @@ export interface OverworldHooks {
   /** C7/C9. The player travelled the adjacency graph. */
   onTravel?: (from: string, to: string, scene: OverworldScene) => void;
   /**
-   * C7. The six years of build-doc §1 are over — the turn out of the final year has committed and
-   * `core/clock.ts` `isOver` is true of the save. Nothing more can be spent: {@link
-   * OverworldScene.spendTicks} refuses, no encounter rolls, and no further year turn can run.
+   * C7. The PROLOGUE. Return `true` to say "I own the opening beat" — the overworld then writes no
+   * story flag of its own and the act ladder's first rung is entirely yours.
+   *
+   * ⚠ THIS SEAM EXISTS BECAUSE THE LADDER'S FIRST RUNG HAD NO WRITER. `balance.acts.gates` opens
+   * act 1 on `story.opening.done`, which only `data/dialogue.json` writes — and nothing in `game/`
+   * reads that file (docs/QUEUED-CHANGES.md Q7). Measured on a brand-new save through the real
+   * scene: act 0, `unlockedNodeIds` = `["hearthollow"]`, `travelTo("r1")` REFUSED. The act gate on
+   * travel had turned an open region into one the player could not leave. Absent this hook the
+   * scene writes {@link core/acts.prologueExitFlags} once the starter is in hand and SAYS SO on
+   * screen — the same declared stand-in `game/boot.ts` `startingParty` already ships for the
+   * starter itself (docs/DEVIATIONS-lane-c2.md C2-D6), and it switches off the moment a lane takes
+   * this hook.
+   */
+  onOpeningBeat?: (scene: OverworldScene) => boolean | void;
+  /**
+   * C3/C7. The player challenged the leader standing in this town. Return `true` to say "I launched
+   * the fight" — the overworld then does nothing further and the badge is yours to award through
+   * {@link OverworldScene.winGym}.
+   *
+   * Absent it the scene fights the leader itself, through `game/gym-battle.ts` and C3's battle
+   * scene, and writes the badge on a `"win"` and on nothing else.
+   */
+  onGymChallenge?: (gym: GymLeader, scene: OverworldScene) => boolean | void;
+  /**
+   * C7. The run's final beat has been earned — `core/acts.ts` `runIsComplete` of this save, which
+   * is an ACT condition and never a date. It fires ONCE per save: the hand-over is latched in
+   * `questFlags` (`RUN_COMPLETE_SHOWN_FLAG`), so a reload of a finished run does not replay it and
+   * neither does the next year turn.
    *
    * This is the seam the ending hangs off (Hard Req 7's epilogue ledger, the Vellsire choice). Until
-   * something takes it, the overworld says so on screen and stops, which is the honest minimum —
-   * before it, the shipped game simply kept going: Y7/6, Y8/6, Y9/6, with a festival and a
-   * retirement round in each.
+   * something takes it, the overworld says so on screen, which is the honest minimum. Nothing stops
+   * afterwards: the calendar is unbounded, the player may keep playing, and `isOver` — which used
+   * to answer "has the calendar passed year 6" and refused ticks, encounter rolls and year turns —
+   * is gone with the six-year cap it enforced (D-Q3-1).
    */
   onRunComplete?: (save: SaveEnvelope, scene: OverworldScene) => void;
 }
@@ -224,6 +262,7 @@ export class OverworldScene extends Phaser.Scene {
   private dirKeys: Array<{ dir: Direction; keys: Phaser.Input.Keyboard.Key[] }> = [];
   private overlayKey?: Phaser.Input.Keyboard.Key;
   private innKey?: Phaser.Input.Keyboard.Key;
+  private gymKey?: Phaser.Input.Keyboard.Key;
   private travelKeys: Phaser.Input.Keyboard.Key[] = [];
   /**
    * Directions held on the previous frame, so {@link chooseDirection} can tell a NEW press from a
@@ -349,6 +388,28 @@ export class OverworldScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(100);
 
+    /*
+     * BOTH CLOCKS ARE BROUGHT UP TO DATE BEFORE THE FIRST FRAME (D-Q2-2 / D-Q3-1) — AND AFTER THE
+     * BANNER EXISTS.
+     *
+     * ⚠ THE ORDER IS LOAD-BEARING. These two calls used to stand at the TOP of `create()`, thirty
+     * lines above `this.banner = this.add.text(...)`, and both of them flash banners: `advanceActs`
+     * once per raid event and again through `completeRun`. So loading any save with a pending act-4
+     * entry — three badges, i.e. the shipped Cullbrand raid — or a finished run threw
+     * `TypeError: Cannot read properties of undefined (reading 'setText')` out of `flashBanner`
+     * and the overworld never built. Reproduced twice with the repo's own Phaser recorder rig, and
+     * once in the whole suite. A scene's own hand-offs may not run before the objects they report
+     * through exist.
+     *
+     * `advanceActs` enters any act the save has earned and not yet entered — which for a brand-new
+     * save is the prologue, and for a loaded one is nothing at all (the entry is latched in
+     * `questFlags`, so this is idempotent and costs nothing). `syncEvents` republishes bible §9's
+     * open windows, because a save can be loaded standing in the middle of one and the flags are a
+     * projection of the clock, not state the save carries.
+     */
+    this.advanceActs();
+    this.syncEvents();
+
     this.bindKeys();
     this.syncPlayerSprite();
     this.refreshHud();
@@ -453,6 +514,10 @@ export class OverworldScene extends Phaser.Scene {
     // L8 prices three actions and the shell only ever spent two of them, so `clock.innTicks` was a
     // tunable nothing could reach and no player action could straddle a year boundary. [R] rests.
     this.innKey = keyboard.addKey(codes.R);
+    // [G] challenges the leader standing in this town. The act ladder's only numeric input is
+    // badges and `winGym` had no caller in the whole repo, so every act above the prologue was
+    // unreachable and the never-cut slice stopped at Route 1. See {@link challengeGym}.
+    this.gymKey = keyboard.addKey(codes.G);
   }
 
   private pressedDirections(): Direction[] {
@@ -473,6 +538,7 @@ export class OverworldScene extends Phaser.Scene {
   override update(_time: number, delta: number): void {
     if (this.overlayKey && Phaser.Input.Keyboard.JustDown(this.overlayKey)) this.toggleOverlay();
     if (this.innKey && Phaser.Input.Keyboard.JustDown(this.innKey)) this.restAtInn();
+    if (this.gymKey && Phaser.Input.Keyboard.JustDown(this.gymKey)) this.challengeGym();
 
     this.travelKeys.forEach((key, i) => {
       if (Phaser.Input.Keyboard.JustDown(key)) {
@@ -682,7 +748,9 @@ export class OverworldScene extends Phaser.Scene {
       species: this.species,
       balance: this.balance,
       season: this.currentSeason(),
-      year: this.save.year,
+      // THE ACT, NOT THE YEAR. The wild level band is act 1's band while the player is in act 1,
+      // whether that is calendar year 1 or year 20 — see game/encounters.ts `rollLevel`.
+      act: this.act(),
     };
     const unlocked = this.unlockedSignChains();
     if (unlocked.size > 0) ctx.unlockedSignChains = unlocked;
@@ -737,7 +805,7 @@ export class OverworldScene extends Phaser.Scene {
    * and a player who never earns it plays forever. Nothing here refuses a tick.
    */
   runIsOver(): boolean {
-    return runIsComplete(this.save, this.balance);
+    return runIsComplete(this.save, this.content.gyms, this.balance);
   }
 
   /** The act this save is in — badges and quest flags, never the calendar (`core/acts.ts`). */
@@ -783,6 +851,75 @@ export class OverworldScene extends Phaser.Scene {
    * node (bible §9). The gym itself, its roster and its dialogue are C3/C7's; this scene owns the
    * two clocks and hands the beats over.
    */
+  /**
+   * Fight the leader standing in this town — the act ladder's only source of badges.
+   *
+   * ⚠ WITHOUT THIS THE GAME HAD NO SECOND ACT. `winGym` is what writes a badge flag and it had no
+   * caller anywhere in the repo; `balance.acts.gates` opens Brackwater and Route 2 at one badge, so
+   * the never-cut vertical slice (build-doc §16: Hearthollow → R1 → Brackwater → R2) stopped dead
+   * at Route 1 and the finale was unreachable. The fight itself is `game/gym-battle.ts` +
+   * `core/battle.ts` through C3's scene, exactly as a wild encounter is; a lane that wants to own
+   * the challenge takes {@link OverworldHooks.onGymChallenge} and this stands down.
+   *
+   * EVERY REFUSAL IS SAID. A town with no leader, a badge already won, a leader whose act the
+   * player has not reached, an empty party and an unregistered battle scene each print their own
+   * sentence — a silent no-op here is indistinguishable from a key that is not bound.
+   */
+  challengeGym(nodeId: string = this.node.id): void {
+    if (this.isHandedOver() || this.travelling) return;
+
+    const gym = gymAtNode(this.content, nodeId);
+    if (!gym) {
+      this.flashBanner(`no leader at ${nodeId}`);
+      return;
+    }
+    if (this.hooks.onGymChallenge?.(gym, this) === true) return;
+
+    const problem = gymBattleProblem(this.save, gym, this.content);
+    if (problem) {
+      this.flashBanner(`${gym.id} — ${problem}`);
+      return;
+    }
+    if (!sceneRegistered(this, SCENE_KEYS.battle)) {
+      this.flashBanner(`${gym.id} — "${SCENE_KEYS.battle}" is not registered`);
+      return;
+    }
+
+    let build: ReturnType<typeof buildGymBattle>;
+    try {
+      build = buildGymBattle({
+        content: this.content,
+        save: this.save,
+        gym,
+        node: this.liveNode(gym.town),
+      });
+    } catch (err) {
+      this.flashBanner(`gym refused: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+
+    const data: BattleSceneData = {
+      ctx: build.ctx,
+      input: build.input,
+      rng: this.streamFor(BATTLE_STREAM),
+      projectedRetirementYears: this.projectedRetirementYears(),
+      onFinished: (result) => {
+        this.battleRunning = false;
+        this.scene.stop(SCENE_KEYS.battle);
+        this.scene.resume();
+        this.hudDirty = true;
+        // A badge on a WIN and on nothing else — `gymBattleWon` enumerates the outcome rather than
+        // reading "not a loss", so a fled fight is not a badge.
+        if (gymBattleWon(result.state)) this.winGym(gym.id);
+        else this.flashBanner(`${gym.id} — ${result.state.outcome ?? "unresolved"}`);
+      },
+    };
+
+    this.battleRunning = true;
+    this.scene.launch(SCENE_KEYS.battle, data);
+    this.scene.pause();
+  }
+
   winGym(gymId: string): void {
     if (this.isHandedOver() || this.travelling) return;
     const before = this.act();
@@ -808,29 +945,79 @@ export class OverworldScene extends Phaser.Scene {
    * costs nothing and cannot re-apply a decrement.
    */
   private advanceActs(): void {
+    this.openPrologue();
+    const before = this.save;
     const entry = enterPendingActs(this.save, {
       balance: this.balance,
       gyms: this.content.gyms,
     });
-    if (entry.actsEntered.length === 0) return;
-    this.save = entry.save;
-    for (const event of entry.events) {
-      if (event.t !== "raid") continue;
-      // Hard Req 2 — the real number, at the named node, with the arrow doing the work (G7).
-      this.flashBanner(
-        `${event.nodeId} · ${event.lineId} → ${String(event.remaining)} (−${String(event.removed)})`,
-      );
+    if (entry.actsEntered.length > 0) {
+      this.save = entry.save;
+      /*
+       * The act-entry beats, not a second formatting of the same numbers. `actEntryBeats` +
+       * `beatLines` (game/scenes/YearTurnScene.ts) is C6's presentation of a raid and it had no
+       * caller outside a test — so the running game hand-rolled its own one-liner and the presenter
+       * that was built for this moment was never exercised by it. Hard Req 2's numbers now reach
+       * the screen through the module that owns them (G7: identifiers and arithmetic, nothing else).
+       */
+      for (const beat of actEntryBeats(before, entry, this.content)) {
+        this.flashBanner(beatLines(beat).join(" · "));
+      }
+      this.syncEvents();
     }
-    this.syncEvents();
-    if (this.runIsOver()) this.completeRun();
+    this.maybeCompleteRun();
+  }
+
+  /**
+   * Open the prologue when nothing else will — the act ladder's first rung, and the one that had no
+   * writer in the shipped build.
+   *
+   * `balance.acts.gates` opens act 1 on `story.opening.done`, written only by `data/dialogue.json`,
+   * which nothing in `game/` reads (docs/QUEUED-CHANGES.md Q7). Measured through the real scene on
+   * a brand-new save: act 0, one unlocked node, `travelTo("r1")` refused — the act gate on travel
+   * had made build-doc §16's never-cut vertical slice unreachable by playing.
+   *
+   * So the scene stands in, on the same terms `game/boot.ts` `startingParty` already stands in for
+   * the starter itself (docs/DEVIATIONS-lane-c2.md C2-D6): only when no lane has taken
+   * {@link OverworldHooks.onOpeningBeat}, only once the prologue's shipped content has actually
+   * been handed over (a creature is in the party — bible §6's Hearthollow is "starter choice,
+   * bait-crafting intro, tutorial forage"), never inventing a flag NAME (they are read out of
+   * `balance.acts.gates` by `prologueExitFlags`), and always out loud. When C7's opening chain
+   * lands it writes those flags itself and this is simply not reached.
+   */
+  private openPrologue(): void {
+    if (this.hooks.onOpeningBeat?.(this) === true) return;
+    const flags = prologueExitFlags(this.balance).filter((f) => this.save.questFlags[f] !== true);
+    if (flags.length === 0) return;
+    if (this.save.party.length === 0) {
+      this.flashBanner(`act ${String(this.act())} · prologue open · ${flags.join(" ")} unwritten`);
+      return;
+    }
+    this.save = setQuestFlags(this.save, flags);
+    console.info(
+      `[overworld] no opening beat yet — granting ${flags.join(", ")} so the act ladder can be ` +
+        `climbed. Lane C7's opening chain replaces this by taking OverworldHooks.onOpeningBeat.`,
+    );
+    this.flashBanner(`opening beat stood in · ${flags.join(" ")} · act ${String(this.act())}`);
+    this.hooks.onSaveChanged?.(this.save, this);
   }
 
   /**
    * Republish bible §9's open event windows into the save's quest flags (D-Q2-2).
    *
-   * `data/dialogue.json` gates on `event.festival.open` and nothing has ever written it. Called at
-   * every season boundary and at every act entry, which are the only two moments a window can open
-   * or close.
+   * `data/dialogue.json` gates on `event.festival.open` and nothing has ever written it. This is
+   * that writer.
+   *
+   * ⚠ CALLED AFTER EVERY TICK SPEND, not "at every season boundary and every act entry". That
+   * sentence stood here and it was wrong by one moment — the most important one. `core/clock.ts`
+   * `advance` deliberately emits NO `seasonBoundary` on the year-filling tick (integration defect
+   * I4), so a scene syncing only inside the `seasonBoundary` arm never re-synced at the year turn:
+   * measured, `event.festival.open` stayed true for **8 consecutive ticks** — the whole final season
+   * of year N plus the whole first season of year N+1 — against a 4-tick window, with the festival's
+   * dialogue firing in spring. Deleting that one call site turned ZERO tests red, because the suite
+   * called `syncEventFlags` by hand at a clock the game never reached (stub blindness). It is asked
+   * from the three places the save can move — {@link create}, {@link spendTicks} and the year turn's
+   * own `finish` — plus act entry, which moves a raid latch.
    */
   private syncEvents(): void {
     this.save = syncEventFlags(this.save, this.clock(), {
@@ -859,6 +1046,10 @@ export class OverworldScene extends Phaser.Scene {
     const advanced = advanceAction(this.clock(), kind, this.balance);
     this.save = { ...this.save, year: advanced.clock.year, tick: advanced.clock.tick };
     this.handleClockEvents(advanced.events, tickBefore);
+    // Windows are a projection of the clock, so they are republished after EVERY tick spend and not
+    // only on the cue the clock happens to emit — see {@link syncEvents} for the 8-tick festival.
+    // Before `onSaveChanged`, so what is persisted carries the flags the clock actually implies.
+    this.syncEvents();
     this.hudDirty = true;
     this.hooks.onSaveChanged?.(this.save, this);
   }
@@ -879,8 +1070,6 @@ export class OverworldScene extends Phaser.Scene {
     for (const event of events) {
       if (event.t === "seasonBoundary") {
         this.runSeasonStep(event.seasonEnded);
-        // A season boundary is the only moment a derived window can open or close (D-Q2-2).
-        this.syncEvents();
       } else if (event.t === "yearBegin") {
         this.mapView.setYear(this.node, event.year);
         this.lastNote = `${this.mapView.status.note} · ${this.collision.note}`;
@@ -900,16 +1089,26 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * The run is over: say so, and hand it to whoever owns the ending.
+   * The run is over: say so, and hand it to whoever owns the ending — ONCE.
    *
-   * Called from {@link advanceActs} — an ACT condition (`core/acts.ts` `runIsComplete`), reached
-   * whenever the player earns it. It used to be called from the year turn's own completion, because
-   * the run ended when the calendar did; the calendar does not end (D-Q3-1). The year it happened
-   * in is reported because it is a real fact about this playthrough, not because it was a deadline.
+   * An ACT condition (`core/acts.ts` `runIsComplete`), reached whenever the player earns it. It used
+   * to be called from the year turn's own completion, because the run ended when the calendar did;
+   * the calendar does not end (D-Q3-1). The year it happened in is reported because it is a real
+   * fact about this playthrough, not because it was a deadline.
+   *
+   * ⚠ THE LATCH IS THE POINT. `runIsComplete` is a standing condition, not an edge: nothing clears
+   * `story.greaves.beaten` and nothing takes a badge back, so re-testing it on every year turn fired
+   * the ending once a year for ever — measured at three `onRunComplete` calls across three year
+   * turns of one finished run, i.e. C7/C9's epilogue ledger replaying annually. The latch is in the
+   * SAVE (`RUN_COMPLETE_SHOWN_FLAG`), so a reload of a finished run does not replay it either, and
+   * that is what makes it safe to ask this from every place the save may have changed.
    */
-  private completeRun(): void {
+  private maybeCompleteRun(): void {
+    if (!this.runIsOver() || runCompleteShown(this.save)) return;
+    this.save = markRunCompleteShown(this.save);
     this.flashBanner(`run complete · Y${String(this.save.year)} · act ${String(this.act())}`);
     this.hooks.onRunComplete?.(this.save, this);
+    this.hooks.onSaveChanged?.(this.save, this);
   }
 
   /* ── the year turn (build-doc §4 step 5 / §7.5) ───────────────────────── */
@@ -975,13 +1174,26 @@ export class OverworldScene extends Phaser.Scene {
       this.node = this.nodeFile(this.save.currentNode);
       this.mapView.setYear(this.node, this.save.year);
       this.mapView.setSeason(this.currentSeason());
-      this.lastNote = `${this.mapView.status.note} · ${this.collision.note}`;
+      /*
+       * THE YEAR TURN MOVES BOTH THINGS THE WINDOWS ARE DERIVED FROM, so it republishes them. The
+       * turn commits a save carrying the questFlags the year ENDED with — festival open — and it
+       * takes the year's fourth season step, which moves every node's flora. Without this the
+       * festival flag survived into the next spring and a bloom that closed at the turn stayed
+       * published. The clock emits no `seasonBoundary` here by design (I4), so nothing else would
+       * have asked.
+       */
+      this.syncEvents();
       this.hudDirty = true;
       this.refreshHud();
       this.hooks.onSaveChanged?.(this.save, this);
       this.flashBanner(`year ${endedYear} ended (${reason}) → Y${String(this.save.year)}`);
-      // build-doc §1 — the turn out of the final year is the last one. Nothing more is spent.
-      if (this.runIsOver()) this.completeRun();
+      /*
+       * NOT "the last year has turned". There is no last year (D-Q3-1) and a year turn cannot make
+       * a run complete — only an act condition can. It is asked here because another scene may have
+       * written the finale flag while this one was paused, and it is safe to ask from anywhere
+       * because {@link maybeCompleteRun} is latched in the save.
+       */
+      this.maybeCompleteRun();
     };
 
     /*
@@ -1044,6 +1256,13 @@ export class OverworldScene extends Phaser.Scene {
      * used to be the calendar's, and the reason the calendar could be decoupled without the region
      * opening all at once. A node no gate names is left open rather than closed: `core/acts.ts`
      * `ungatedNodeIds` reports that gap instead of this scene silently locking content (G2).
+     *
+     * ⚠ A GATE IS ONLY LEGITIMATE IF ITS KEY EXISTS. When this refusal was added, neither of the
+     * ladder's two inputs had a writer in the shipped build — `story.opening.done` is dialogue's
+     * and `winGym` had no caller — so it locked every new save inside Hearthollow for ever and took
+     * build-doc §16's never-cut vertical slice with it. Both writers exist now ({@link openPrologue},
+     * {@link challengeGym}); the gate stands because the ladder can be climbed, and if that ever
+     * stops being true this refusal is the first thing that must go.
      */
     const needed = unlockActOf(nodeId, this.balance);
     if (needed !== null && this.act() < needed) {
@@ -1161,6 +1380,16 @@ export class OverworldScene extends Phaser.Scene {
       const shut = needed !== null && this.act() < needed;
       lines.push(`[${i + 1}] travel → ${id}${shut ? ` · act ${String(needed)}` : ""}`);
     });
+    // The badge is the act ladder's only numeric input, so the key that earns one is on screen
+    // beside the two that spend ticks — and the leader is NAMED, because a key with nothing behind
+    // it reads exactly like a key that is not bound.
+    const gym = gymAtNode(this.content, this.node.id);
+    if (gym) {
+      const problem = gymBattleProblem(this.save, gym, this.content);
+      lines.push(
+        `[G] challenge ${gym.name} (${gym.id}) · act ${String(gym.act)}${problem ? ` · ${problem}` : ""}`,
+      );
+    }
     lines.push("[C] collision overlay · [R] inn");
     this.hud.setText(lines);
   }

@@ -15,16 +15,27 @@
  * and are stripped before parsing.
  *
  * **The condition model carries two independent clocks (Q3, the authorised L8 amendment).** ACTS —
- * `act` / `actMin` / `actMax`, derived from badges and quest flags by `actFromFlags()` — are the
- * story clock, and every story beat gates on them so it fires whenever the player earns it, in any
- * calendar year. The CALENDAR — `years` / `yearMin` / `yearMax` — is the world's clock: it is
- * unbounded, it never waits for the player, and only world-ageing copy should read it.
- * `conditionHolds()` / `selectEntry()` remain the single resolution path for both.
+ * `act` / `actMin` / `actMax` — are the story clock, and every story beat gates on them so it fires
+ * whenever the player earns it, in any calendar year. The CALENDAR — `years` / `yearMin` /
+ * `yearMax` — is the world's clock: it is unbounded, it never waits for the player, and only
+ * world-ageing copy should read it. `conditionHolds()` / `selectEntry()` remain the single
+ * resolution path for both.
+ *
+ * ⚠ **THIS MODULE OWNS NO ACT MODEL.** `core/acts.ts` is the repo's only authority on which act a
+ * save is in, and `actFromFlags()` below is a one-line delegation to it — not a second derivation.
+ * It used to be one (`1 + badgesBeaten`), and it disagreed with `actOf()` at exactly one point: the
+ * PROLOGUE. `balance.acts.first` is **0** — a brand-new save has not finished Maren's opening chain
+ * and act 1 opens on `story.opening.done` — while `1 + beaten` could never return 0. Every entry in
+ * the opening chain was therefore gated `act: [1]` against a game that hands this module act 0, and
+ * the chain that WRITES `story.opening.done` was inside the gate it needed: an unopenable game whose
+ * only symptom was silence. A second derivation of a value that already has an authority is the bug,
+ * every time; the fix is that there is now one implementation and this file is not it.
  */
 
 import { z } from "zod";
+import { actOf, firstAct, lastAct } from "./acts";
 import { SEASONS } from "./types";
-import type { Season } from "./types";
+import type { Balance, GymLeader, Season } from "./types";
 
 import balanceJson from "../data/balance.json";
 import dialogueJson from "../data/dialogue.json";
@@ -123,7 +134,14 @@ export interface FlagEquals {
  * entry may legitimately carry both (an act beat that also waits for the world to age).
  */
 export interface DialogueCondition {
-  /** Exact acts (1..ACTS_TOTAL) this entry belongs to. */
+  /**
+   * Exact acts (`FIRST_ACT..LAST_ACT`) this entry belongs to.
+   *
+   * An equality CLOSES the entry the moment the act advances, so it is only right where the beat is
+   * genuinely of that act and nowhere else — the prologue, and each act's arrival pointer. For
+   * anything a player can walk past and come back to, use `actMin`: town N's gym and route N open in
+   * the same act, so a beat pinned to act N on route N is lost by anyone who takes the badge first.
+   */
   act?: number[];
   actMin?: number;
   actMax?: number;
@@ -203,37 +221,67 @@ const zCompareOp = z.enum(COMPARE_OPS);
  * It is exported so callers and tests reason about pacing from the same number the sim uses.
  */
 export const NOMINAL_YEARS: number = balanceJson.clock.yearsTotal;
+
+/**
+ * The calendar's first year, read from `clock.startYear`. The calendar has no last year (D-Q3-1),
+ * so this is the only bound the year axis has, and it is a floor rather than a range.
+ */
+export const FIRST_YEAR: number = balanceJson.clock.startYear;
 const FLORA_MAX: number = balanceJson.ecosim.floraMax;
 
 /**
- * The acts, in order, taken from the shipped gym table — bible §6 gives each act exactly one gym,
- * and `data/gyms.json` is the file that says how many there are. Read as a COUNT and as ids, never
- * through the table's own act/year index field, so renaming that field (Q3) cannot reach in here.
+ * The two shipped files `core/acts.ts` reads, typed for it.
+ *
+ * A JSON import widens every string to `string`, so the raw modules do not structurally satisfy
+ * `Balance` / `GymLeader` even though they ARE those files. `core/schemas.ts` validates both against
+ * zod at boot (INV-3), and `actOf()` reads only `acts.*` off the balance and `id` off each gym, so
+ * the assertion is an adapter and not a claim about unvalidated data. Deliberately not an import of
+ * `core/schemas.ts`: that module validates the entire content bundle at load, which this one has no
+ * business doing.
  */
-export const ACT_GYM_IDS: readonly string[] = gymsJson.gyms.map((g) => g.id);
-export const ACTS_TOTAL: number = ACT_GYM_IDS.length;
+const ACT_BALANCE = balanceJson as unknown as Balance;
+const ACT_GYMS = gymsJson.gyms as unknown as readonly GymLeader[];
 
 /**
- * Q3: acts are driven by badges and quest flags, never by time. The badge ladder is the spine —
- * each gym beaten opens the next act — and the per-beat quest/story prerequisites are expressed as
- * ordinary `flagsSet` clauses on the entries themselves.
+ * The gym ids, in act order, taken from the shipped gym table — bible §6 gives each act exactly one
+ * gym. Read as ids only, never through the table's own act index field, so a rename of that field
+ * (Q3 moved it `year` → `act`) cannot reach in here.
  *
- * The final act's leader (Greaves) is the finale rather than a gate, so beating him cannot open an
- * act that does not exist; the clamp is what says so.
+ * ⚠ This is **not** the act ladder and its length is **not** the last act. There are six gyms and
+ * seven acts, because act 0 is the prologue. Using the gym count as an act bound is what made a
+ * prologue-only line unauthorable; the bounds below come from `balance.acts`, which is the file that
+ * actually defines the ladder.
+ */
+export const ACT_GYM_IDS: readonly string[] = gymsJson.gyms.map((g) => g.id);
+
+/**
+ * The act range, READ from `balance.acts` (G11/INV-4 — no act number is typed here).
+ *
+ * `FIRST_ACT` is the prologue: a save that has not finished Maren's opening chain. It is a real,
+ * reachable state that every new save starts in, so a condition must be able to name it — `zAct`
+ * admits it, and `data/dialogue.json` uses it for the opening cutscene, the three starter branches
+ * and nothing else. `LAST_ACT` is the last act the region HAS. Neither is a deadline: the calendar
+ * runs past both and nothing expires (D-Q3-1).
+ */
+export const FIRST_ACT: number = firstAct(ACT_BALANCE);
+export const LAST_ACT: number = lastAct(ACT_BALANCE);
+
+/**
+ * The act a set of quest flags puts a save in — **a delegation, not a derivation**.
+ *
+ * `core/acts.ts` `actOf()` is the repo's only act authority and this is a convenience signature over
+ * it for callers that hold a flag bag rather than a whole save. It must never grow a body: the
+ * previous body (`1 + badgesBeaten`, clamped at the gym count) was a second opinion that returned 1
+ * for a brand-new save where `actOf()` returns 0, which silently made the whole opening chain
+ * unreachable in the real game while every dialogue test passed.
  */
 export function actFromFlags(flags: Readonly<Record<string, FlagValue>>): number {
-  let beaten = 0;
-  for (const id of ACT_GYM_IDS) {
-    const v = flags[`gym.${id}.beaten`];
-    if (v !== undefined && v !== false) beaten += 1;
-  }
-  const act = 1 + beaten;
-  return act > ACTS_TOTAL ? ACTS_TOTAL : act;
+  return actOf({ questFlags: { ...flags } }, ACT_GYMS, ACT_BALANCE);
 }
 
 /** Q3 — the calendar is unbounded, so a year in a condition has a floor and no ceiling. */
-const zYear = z.number().int().min(1);
-const zAct = z.number().int().min(1).max(ACTS_TOTAL);
+const zYear = z.number().int().min(FIRST_YEAR);
+const zAct = z.number().int().min(FIRST_ACT).max(LAST_ACT);
 
 export const zDialogueSpeaker: z.ZodType<DialogueSpeaker> = z.strictObject({
   id: zId,
@@ -479,11 +527,18 @@ export const DIALOGUE: DialogueFile = validateDialogue();
 /** Live state a condition is evaluated against. Supplied by the caller; never read from here. */
 export interface DialogueContext {
   /**
-   * The STORY clock, 1..ACTS_TOTAL. Required, never optional: an act gate that silently passed
-   * because nobody supplied an act is how the finale stops firing without anything going red.
-   * `actFromFlags(flags)` is the canonical derivation — the game layer should call it rather than
-   * re-deriving the badge ladder, exactly as it must call `conditionHolds` rather than re-deriving
-   * condition resolution.
+   * The STORY clock, `FIRST_ACT..LAST_ACT` (0..6 as shipped — act 0 is the prologue).
+   *
+   * Required, never optional: an act gate that silently passed because nobody supplied an act is how
+   * the finale stops firing without anything going red. `core/acts.ts` `actOf(save, gyms, balance)`
+   * is the canonical derivation and `actFromFlags(flags)` is the same function under a flags-only
+   * signature — the game layer must call one of them rather than re-deriving the badge ladder,
+   * exactly as it must call `conditionHolds` rather than re-deriving condition resolution.
+   *
+   * **Out of range is an exception, not `false`.** `assertContext` below refuses an act outside the
+   * ladder, because the alternative — every `act` clause quietly evaluating false — is the identical
+   * silent failure the "required, never optional" rule above exists to prevent, and it is what an
+   * act model that started at 1 while the game started at 0 actually did.
    */
   act: number;
   /** The WORLD clock. Q3: unbounded — this may be any year ≥ 1, well past `NOMINAL_YEARS`. */
@@ -511,8 +566,32 @@ function compare(a: number, op: CompareOp, b: number): boolean {
   }
 }
 
+/**
+ * Fail loud on a context off either clock.
+ *
+ * An act outside `FIRST_ACT..LAST_ACT` makes every `act` / `actMin` clause false and every entry
+ * without one eligible — a game that renders the fallback line everywhere and reports nothing. A
+ * year below the calendar's first is the same shape on the other axis. Both are caller bugs and both
+ * are cheap to catch here, at the one function every lookup goes through.
+ */
+function assertContext(ctx: DialogueContext): void {
+  if (!Number.isInteger(ctx.act) || ctx.act < FIRST_ACT || ctx.act > LAST_ACT) {
+    throw new DialogueValidationError([
+      `DialogueContext.act is ${String(ctx.act)}, outside the act ladder ${String(FIRST_ACT)}..${String(LAST_ACT)} ` +
+        "(data/balance.json acts.first/acts.last). Derive it with core/acts.ts actOf(), never by counting badges.",
+    ]);
+  }
+  if (!Number.isInteger(ctx.year) || ctx.year < FIRST_YEAR) {
+    throw new DialogueValidationError([
+      `DialogueContext.year is ${String(ctx.year)}, before the calendar's first year ${String(FIRST_YEAR)} ` +
+        "(data/balance.json clock.startYear). The calendar has no upper bound; it does have a start.",
+    ]);
+  }
+}
+
 /** True when every clause of `when` holds against `ctx`. An absent `when` is always true. */
 export function conditionHolds(when: DialogueCondition | undefined, ctx: DialogueContext): boolean {
+  assertContext(ctx);
   if (when === undefined) return true;
   if (when.act !== undefined && !when.act.includes(ctx.act)) return false;
   if (when.actMin !== undefined && ctx.act < when.actMin) return false;
@@ -554,6 +633,9 @@ export function selectEntry(
   kind: DialogueKind,
   ctx: DialogueContext,
 ): DialogueEntry | undefined {
+  // Checked here as well as in conditionHolds: a (speaker, node, kind) with no entries at all never
+  // reaches conditionHolds, and "nothing to say" must not be how a bad act reports itself.
+  assertContext(ctx);
   let best: DialogueEntry | undefined;
   let bestPriority = -1;
   for (const e of file.entries) {

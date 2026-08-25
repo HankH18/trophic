@@ -13,8 +13,9 @@
  * THIS SCENE DRIVES core/lifecycle.ts — it does not reimplement it. Specifically:
  *   - aging, the J→A→E schedule, the metamorphic latch, the boxed-creature rule and the Ancient
  *     exemption (G10 / Hard Req 4) are `runYearTurn`'s, and this file never touches `yearsRemaining`;
- *   - the scripted raid is applied by `runYearTurn` from `balance.yearEvents.raids`; game/year-events.ts
- *     only reads the result (G6 — the raid is scripted, the cascade above it is not);
+ *   - the scripted raid is applied by `enterPendingActs` from `balance.yearEvents.raids` — on ACT
+ *     entry, not at a year turn (D-Q3-1); game/year-events.ts only reads the result (G6 — the raid
+ *     is scripted, the cascade above it is not);
  *   - the year-variant swap is `runYearTurn`'s `mapVariantSwaps`;
  *   - the retirement choice is game/scenes/RetirementScene.ts's `RetirementFlow`, which itself only
  *     calls `rollHeirChoice` / `retirementChoiceProblem` / `resolveRetirement`.
@@ -115,6 +116,16 @@ export type YearTurnBeat =
       /** The new year's four season readings — bible §12a's progressive darkening, in numbers. */
       seasons: SeasonTint[];
     }
+  /**
+   * Entering an act — NOT a festival.
+   *
+   * `actEntryBeats` used to push a `festival` beat to carry its harvest previews, so an act entry
+   * would have rendered under the header `FESTIVAL · Y<year>`: the year's closing celebration
+   * announcing a Cullbrand strip-harvest, in whatever calendar year the act happened to be entered.
+   * It was never seen because the function had no caller outside a test; it has one now
+   * (`game/scenes/OverworldScene.ts` `advanceActs`), so the beat says what it is.
+   */
+  | { t: "actEntry"; act: number; harvest: RaidPreview[] }
   | { t: "aging"; season: Season; entries: AgingEntry[] }
   | { t: "ancients"; entries: AncientEntry[] }
   | { t: "form"; change: FormChangeBeat }
@@ -153,26 +164,28 @@ export interface YearTurnDriveDeps {
   /**
    * The year the CLOCK says just ended — `ClockEvent {t:"yearEnd", year}`.
    *
-   * REQUIRED, and the guard that makes build-doc §4's two triggers safe. `canRunYearTurn` is keyed
-   * on the year the turn would BEGIN, and a completed turn has already moved `save.year` on, so it
-   * cannot tell "the meter and a gym victory both ended year 3" from "year 4 has now ended too": a
-   * second call with the post-turn save passed the check and ran a whole extra year — two festivals,
-   * two aging passes, two season steps, two retirement rounds and two raid applications, burning two
-   * of the six years on one player action. Naming the ended year stops the METER's second fire,
-   * because after the first turn the save is no longer standing in the year the meter ended. It is
-   * NOT enough on its own for build-doc §4's other trigger — a gym victory reports the year that has
-   * just begun as ended, which equals `save.year` and sails through. See
-   * {@link YearTurnDriveDeps.reason}, and the measurement in `driveYearTurn`.
+   * REQUIRED, and the guard that makes a re-entered turn safe. `canRunYearTurn` is keyed on the
+   * year the turn would BEGIN, and a completed turn has already moved `save.year` on, so it cannot
+   * tell "year 3 has ended" from "year 4 has now ended too": a second call with the post-turn save
+   * passed the check and ran a whole extra year — two festivals, two aging passes, two season
+   * steps, two retirement rounds and two raid applications, on one player action. Naming the ended
+   * year stops that, because after the first turn the save is no longer standing in the year the
+   * meter ended.
+   *
+   * It used to be documented as insufficient on its own, because build-doc §4's OTHER trigger — a
+   * gym victory — reported the year that had just begun as ended and sailed through. That trigger
+   * is gone (D-Q2-1): the meter is the only way a year ends, filling it costs `ticksPerYear` ticks
+   * by construction, and the state is now unreachable rather than refused.
    */
   endedYear: number;
   /**
-   * Which of build-doc §4's two triggers fired — `yearTurnTrigger(...).reason`.
+   * Why the year ended — `yearTurnTrigger(...).reason`.
    *
-   * Omitted ⇒ `"meter"`, which is what a headless driver stepping year after year is doing. It is
-   * read for ONE guard: `core/clock.ts` `gymVictory` reads the year off the clock it is handed, so a
-   * victory taken at tick 0 of a year a turn has just begun reports THAT year as ended — passing the
-   * `endedYear` check and `canRunYearTurn` both. Measured: a second full turn ran and the save
-   * jumped from year 1 to year 3 on one player action.
+   * Omitted ⇒ `"meter"`, which is also the only member `YearEndReason` still has: build-doc §4 gave
+   * the turn two triggers and the amended L8 leaves ONE (D-Q2-1, "At tick 16 — and at nothing else
+   * — the year turn runs"). It is CARRIED, never branched on — it reaches the banner and the beats
+   * and nothing reads it to decide anything. The guard it used to be read for is gone with the
+   * trigger it guarded; see the note in `driveYearTurn` about the third guard.
    */
   reason?: YearEndReason;
   /**
@@ -181,8 +194,8 @@ export interface YearTurnDriveDeps {
    * core/clock.ts: "Ticks beyond the boundary carry into the new year rather than being dropped, so
    * no player action is silently free." `runYearTurn` resets the meter to `balance.clock.startTick`
    * because it has no clock of its own — the caller does, and {@link finishYearTurn} puts the carry
-   * back. Omitted ⇒ `balance.clock.startTick`, which is right for a gym victory and for a headless
-   * driver that never straddled a boundary.
+   * back. Omitted ⇒ `balance.clock.startTick`, which is right for a headless driver that never
+   * straddled a boundary.
    */
   carryTick?: number;
   /**
@@ -611,10 +624,9 @@ export function actEntryBeats(
       );
     }
     beats.push({
-      t: "festival",
-      festival: festivalBeat(before.year, balance),
+      t: "actEntry",
+      act,
       harvest: raidPreviews(before.nodeStates, content.nodes, content.species, balance, act, yearEvents),
-      seasons: seasonTintsForYear(balance, before.year),
     });
   }
 
@@ -671,14 +683,10 @@ export function beatLines(beat: YearTurnBeat): string[] {
       return [
         `FESTIVAL · ${beat.festival.label}`,
         /*
-         * What the year's scripted harvest is reaching for, at which named node. G7: the minus does
-         * the work; nothing here characterises the harvest.
-         *
-         * The COUNT is deliberately not printed here. `raidPreviews` prices the year the turn began
-         * with, and `runYearTurn` runs the year's fourth season step BEFORE it applies the raid
-         * (build-doc §7.5 step 5), so the population has already moved by the time the harvest lands
-         * — measured on the shipped year-4 raid: preview 19, actual before 20. Two beats apart, that
-         * reads as a bug rather than as a season. The `raid` beat below owns the numbers.
+         * ALWAYS EMPTY ON A YEAR-TURN FESTIVAL, and kept so the two sequences share one renderer.
+         * The Cullbrand raids are not the year turn's any more — they fire on ACT ENTRY (D-Q3-1) and
+         * render under the `actEntry` beat, which is where this preview copy lives now. An empty
+         * array is how "no harvest is coming" is expressed, never an absent field.
          */
         ...beat.harvest.flatMap((preview) =>
           preview.targets.map(
@@ -687,6 +695,21 @@ export function beatLines(beat: YearTurnBeat): string[] {
         ),
         // bible §12a — "year aging progressively darkens". The scale IS the darkening, per season.
         `tint · ${beat.seasons.map((t) => `${t.season} ${t.scale.toFixed(2)}`).join(" · ")}`,
+      ];
+    case "actEntry":
+      return [
+        `ACT ${String(beat.act)}`,
+        /*
+         * What this act's scripted harvest is reaching for, at which named node. G7: the minus does
+         * the work; nothing here characterises the harvest. The COUNT is deliberately not printed —
+         * `raidPreviews` prices the save the act was entered ON, and the `raid` beat below owns the
+         * numbers that actually moved.
+         */
+        ...beat.harvest.flatMap((preview) =>
+          preview.targets.map(
+            (t) => `HARVEST · ${preview.nodeName} · ${t.ledgerName} (−${String(t.requested)})`,
+          ),
+        ),
       ];
     case "aging":
       return [

@@ -50,7 +50,7 @@ function nodeFile(id: string): NodeFile {
 
 function ctxFor(
   nodeId: string,
-  opts: { season?: Season; year?: number; counts?: Record<string, number>; unlocked?: string[] } = {},
+  opts: { season?: Season; act?: number; counts?: Record<string, number>; unlocked?: string[] } = {},
 ): ForayContext {
   const node: EcoNode = toEcoNode(nodeFile(nodeId));
   for (const [lineId, count] of Object.entries(opts.counts ?? {})) {
@@ -63,7 +63,9 @@ function ctxFor(
     species,
     balance,
     season: opts.season ?? "spring",
-    year: opts.year ?? balance.clock.startYear,
+    // THE ACT, never the calendar year — see game/encounters.ts `rollLevel`. Act 1 is the first act
+    // the player can reach the wild in; act 0 is the prologue and reads the same band.
+    act: opts.act ?? 1,
   };
   if (opts.unlocked) ctx.unlockedSignChains = new Set(opts.unlocked);
   return ctx;
@@ -285,12 +287,12 @@ describe("the individual met — balance.encounter", () => {
     }
   });
 
-  it("level sits in the year's band, inside [minLevel, xp.levelCap]", () => {
-    for (let year = balance.clock.startYear; year < balance.clock.startYear + balance.clock.yearsTotal; year += 1) {
-      const index = year - balance.clock.startYear;
-      const base = balance.encounter.levelByYear[Math.min(index, balance.encounter.levelByYear.length - 1)]!;
+  it("level sits in the ACT's band, inside [minLevel, xp.levelCap]", () => {
+    const band = balance.encounter.levelByYear;
+    for (let act = 1; act <= band.length; act += 1) {
+      const base = band[Math.min(act - 1, band.length - 1)]!;
       for (let seed = 1; seed <= 200; seed += 1) {
-        const level = rollLevel(balance, year, createRng(seed));
+        const level = rollLevel(balance, act, createRng(seed));
         expect(level).toBeGreaterThanOrEqual(balance.encounter.minLevel);
         expect(level).toBeLessThanOrEqual(balance.xp.levelCap);
         expect(level).toBeGreaterThanOrEqual(Math.min(base - balance.encounter.levelJitter, level));
@@ -299,10 +301,40 @@ describe("the individual met — balance.encounter", () => {
     }
   });
 
-  it("a year past the band table reuses its last entry rather than extrapolating", () => {
+  it("an act past the band table reuses its last entry rather than extrapolating", () => {
     const last = balance.encounter.levelByYear[balance.encounter.levelByYear.length - 1]!;
     const beyond = rollLevel(balance, balance.clock.startYear + 50, createRng(7));
     expect(beyond).toBeLessThanOrEqual(last + balance.encounter.levelJitter);
+  });
+
+  it("the prologue (act 0) reads the FIRST band, not a seventh nobody tuned", () => {
+    const first = balance.encounter.levelByYear[0]!;
+    for (let seed = 1; seed <= 50; seed += 1) {
+      expect(rollLevel(balance, 0, createRng(seed))).toBe(rollLevel(balance, 1, createRng(seed)));
+      expect(rollLevel(balance, 0, createRng(seed))).toBeLessThanOrEqual(
+        first + balance.encounter.levelJitter,
+      );
+    }
+  });
+
+  /*
+   * THE DEFECT THIS PINS. `rollLevel` indexed `levelByYear` by `year - startYear`, so the wild band
+   * climbed with a clock the player does not control: a player still in act 1 on Route 1 in calendar
+   * year 6 met level 34–38 creatures against heirs entering at ~5. Measured before the fix, years
+   * 1–30: 6, 11, 20, 26, 31, 37, then 34–38 for ever. Q3's promise is that a slow player sees the
+   * whole story; a level ramp on the calendar is the countdown Q3 removed, by the back door.
+   */
+  it("is INDIFFERENT to the calendar — the same act rolls the same band in year 1 and year 30", () => {
+    const ctx = ctxFor("r1", { act: 1 });
+    for (let seed = 1; seed <= 100; seed += 1) {
+      const met = rollEncounterAt(ctx, createRng(seed));
+      expect(met).not.toBeNull();
+      // The band is act 1's; there is no year in the context at all, which is the structural half.
+      expect(met!.level).toBeLessThanOrEqual(
+        balance.encounter.levelByYear[0]! + balance.encounter.levelJitter,
+      );
+    }
+    expect(Object.keys(ctx)).not.toContain("year");
   });
 
   it("an encounter names the node it happened at — the catch decrements THAT node (Hard Req 2)", () => {
