@@ -547,7 +547,7 @@ describe("species roster — bible §4", () => {
  * because a "coined" name that drifts silently is still a content change nobody approved.
  *
  * Three utility names below are the AMENDED bible (D-Q1-1 … D-Q1-4): Harden, Screech and Snarl were
- * real Pokémon moves, so §3 now reads Rootfast / Scoldcall / Baretooth, and the "Roost" alias on
+ * real Pokémon moves, so §3 now reads Bristle / Shriek / Daunt, and the "Roost" alias on
  * burrow-roost is gone. This list still transcribes the bible verbatim — the bible moved first.
  * The `id`s deliberately did NOT move (D-Q1-5): they are opaque keys no player ever sees.
  * ────────────────────────────────────────────────────────────────────────── */
@@ -573,11 +573,11 @@ const BIBLE_MOVE_NAMES: Array<[string, string]> = [
   ["ambush", "Ambush"],
   ["terrify", "Terrify"],
   ["scrounge", "Scrounge"],
-  ["harden", "Rootfast"],
+  ["harden", "Bristle"],
   ["quicken", "Quicken"],
-  ["screech", "Scoldcall"],
+  ["screech", "Shriek"],
   ["focus", "Focus"],
-  ["snarl", "Baretooth"],
+  ["snarl", "Daunt"],
   ["burrow-roost", "Burrow"],
   ["lure", "Lure"],
 ];
@@ -672,8 +672,8 @@ describe("move pool — bible §3", () => {
     expect(move("lure").effects).toEqual([{ kind: "catchOdds", multiplierKey: "lureMult" }]);
 
     // Every named bible move carries the name bible §3 gives it and is never flagged coined. The
-    // three D-Q1 renames are still bible names — §3 was amended first, so Rootfast / Scoldcall /
-    // Baretooth are transcribed, not coined, and `coined` must stay off them.
+    // three D-Q1 renames are still bible names — §3 was amended first, so Bristle / Shriek /
+    // Daunt are transcribed, not coined, and `coined` must stay off them.
     for (const id of BIBLE_NAMED_MOVES) {
       expect(move(id).coined, `${id} is a bible name, not a coined one`).toBeUndefined();
     }
@@ -698,9 +698,9 @@ describe("move pool — bible §3", () => {
       expect(surfaced, `"${banned}" is a real Pokémon move — see docs/IP-SWEEP.md`).not.toContain(banned);
     }
     // …and the replacements are actually in place, so this test cannot pass by the pool being empty.
-    expect(surfaced).toContain("Rootfast");
-    expect(surfaced).toContain("Scoldcall");
-    expect(surfaced).toContain("Baretooth");
+    expect(surfaced).toContain("Bristle");
+    expect(surfaced).toContain("Shriek");
+    expect(surfaced).toContain("Daunt");
     expect(surfaced).toContain("Burrow");
     expect(surfaced.length).toBe(28); // 28 names, 0 aliases — every alias is gone, not just Roost's
   });
@@ -708,13 +708,13 @@ describe("move pool — bible §3", () => {
   // The rename changed NAMES only. Effects are content and G2 protects them, so the seven utility
   // moves must still do exactly what bible §3's parentheses say they do, under their new names.
   it("changed names only — every renamed utility move keeps its bible effect and text", () => {
-    expect(move("harden").name).toBe("Rootfast");
+    expect(move("harden").name).toBe("Bristle");
     expect(move("harden").text).toBe("+Defense");
     expect(move("harden").power).toBe(0);
-    expect(move("screech").name).toBe("Scoldcall");
+    expect(move("screech").name).toBe("Shriek");
     expect(move("screech").text).toBe("−enemy Defense");
     expect(move("screech").power).toBe(0);
-    expect(move("snarl").name).toBe("Baretooth");
+    expect(move("snarl").name).toBe("Daunt");
     expect(move("snarl").text).toBe("−enemy Attack");
     expect(move("snarl").power).toBe(0);
     expect(move("burrow-roost").name).toBe("Burrow");
