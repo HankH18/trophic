@@ -917,6 +917,16 @@ export interface Balance {
    * axis the raids are keyed on has moved.
    */
   yearEvents: {
+    /**
+     * The fraction of a target's STANDING stock a strip-harvest takes (D-Q6-1).
+     *
+     * `targets[].remove` is a body count authored against the node's shipped state, and a node the
+     * act ladder has not opened yet still breeds every season — so once the raid was keyed on the
+     * act rather than the calendar, the same script that gutted r4 at an early arrival became a
+     * dent at a late one. The applied harvest is `max(remove, round(count × this))`: the authored
+     * number is the FLOOR of the harvest, and this is what carries it at any standing stock.
+     */
+    harvestFractionOfStanding: number;
     raids: Array<{
       id: string;
       act: number;

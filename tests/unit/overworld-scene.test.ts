@@ -315,7 +315,18 @@ vi.mock("phaser", () => {
 
 /* ── imports that must come AFTER vi.mock ─────────────────────────────────── */
 
+import { RUN_COMPLETE_SHOWN_FLAG, actOf, nodeUnlockedAt, runIsComplete } from "@core/acts";
 import { startBattle, step as battleStep, caughtIndividual } from "@core/battle";
+import { seasonOf } from "@core/clock";
+import {
+  DIALOGUE,
+  actFromFlags,
+  selectEntry,
+  type DialogueContext,
+  type DialogueEntry,
+  type DialogueKind,
+  type FlagValue,
+} from "@core/dialogue-schema";
 import { validateContent } from "@core/schemas";
 import { newSave, openStreams, type SaveEnvelope } from "@core/save";
 import { subsystemRng } from "@core/rng";
@@ -933,7 +944,7 @@ const KEY_R = 82;
 const LADDER = [...content.gyms].sort((a, b) => a.act - b.act);
 
 describe("§10.1 the act ladder can be CLIMBED by playing — the never-cut slice", () => {
-  it("a brand-new save is not locked inside the first town", () => {
+  it("a brand-new save is not locked inside the first town", async () => {
     /*
      * THE DEFECT. `travelTo` gained an act gate, and act 1's gate is `story.opening.done` — a flag
      * only data/dialogue.json writes, which nothing in game/ reads (Q7). Measured through this rig
@@ -947,7 +958,7 @@ describe("§10.1 the act ladder can be CLIMBED by playing — the never-cut slic
 
     const next = h.scene.node.adjacency[0];
     expect(next, "the slice's first node has an exit").toBeDefined();
-    void h.scene.travelTo(next as string);
+    await h.scene.travelTo(next as string);
     expect(h.scene.save.currentNode).toBe(next);
   });
 
@@ -1010,7 +1021,7 @@ describe("§10.1 the act ladder can be CLIMBED by playing — the never-cut slic
     }
   });
 
-  it("the whole never-cut slice is walkable: Hearthollow → R1 → Brackwater → R2", () => {
+  it("the whole never-cut slice is walkable: Hearthollow → R1 → Brackwater → R2", async () => {
     const first = LADDER[0];
     if (!first) return;
     const h = mount({ save: { ...freshSave(first.town), currentNode: first.town } });
@@ -1018,22 +1029,22 @@ describe("§10.1 the act ladder can be CLIMBED by playing — the never-cut slic
 
     // Act 1 opens the first route.
     const r1 = h.scene.node.adjacency.find((id) => !id.startsWith(first.town));
-    void h.scene.travelTo(r1 as string);
+    await h.scene.travelTo(r1 as string);
     visited.push(h.scene.save.currentNode);
     expect(visited[1]).toBe(r1);
 
     // Back to town, win the badge, and the second town opens.
-    void h.scene.travelTo(first.town);
+    await h.scene.travelTo(first.town);
     h.press(KEY_G);
     h.frame();
     const data = h.parts.launches.find((l) => l.key === "Battle")?.data as BattleSceneData;
     data.onFinished({ state: { outcome: "win" } as never, caught: null });
     expect(h.scene.act()).toBe(2);
 
-    void h.scene.travelTo(r1 as string);
-    const townTwo = balance.acts.gates.find((g) => g.act === 2)?.nodes[0];
+    await h.scene.travelTo(r1 as string);
+    const townTwo = balance.acts.gates.find((g) => g.act === 2)?.nodes.find((id) => id !== r1);
     expect(townTwo).toBeDefined();
-    void h.scene.travelTo(townTwo as string);
+    await h.scene.travelTo(townTwo as string);
     expect(h.scene.save.currentNode).toBe(townTwo);
   });
 });
@@ -1177,3 +1188,285 @@ describe("§10.4 the wild level band follows the ACT, not the calendar", () => {
     expect(h.scene.save.year).toBeGreaterThanOrEqual(12);
   });
 });
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §10.5 THE CROSS-STREAM SEAM — the act the SCENE produces is the act the
+ *       DIALOGUE reads, and the ending fires on it at any calendar year.
+ *
+ * WHY THIS SECTION EXISTS. Q3's two halves were built by lanes that could not see each other. The
+ * clock/act lane made `core/acts.ts` `actOf` the only act authority and wired `game/` to it; the
+ * dialogue lane re-gated 44 entries onto an act axis of its own and then made `actFromFlags` a
+ * delegation to `actOf`. BOTH suites were green, and neither of them ever asked the question that
+ * decides whether the change worked: **is the number the scene publishes the number the corpus
+ * reads?** A mismatch there is silent — every `actMin: 6` clause simply evaluates false and the
+ * player reaches the Sanctum to be told nothing — which is exactly the failure the earlier
+ * `1 + badgesBeaten` derivation caused at the OTHER end of the ladder, where it cost the prologue.
+ *
+ * So this section plays a SLOW run through the real scene — real inn ticks, real [G] gym wins, real
+ * act entries and real year turns — reaches act 6 in **calendar year 11**, five years past the year
+ * the whole design used to end at, and then resolves the finale, the Vellsire choice and an epilogue
+ * out of the shipped `data/dialogue.json` against the act the SCENE reports.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * The scenario: act 6 reached in calendar year 11.
+ *
+ * Not a gameplay constant (G11) — a test fixture, and deliberately past `clock.yearsTotal`, which is
+ * asserted below rather than assumed so that retuning nominal pacing upward cannot quietly turn this
+ * back into an ordinary in-pace run.
+ */
+const FINALE_YEAR = 11;
+
+/** Rest at the inn (`clock.innTicks`, through the scene's own [R]) until the calendar reaches `year`. */
+function restUntilYear(h: Harness, year: number): void {
+  let guard = 0;
+  while (h.scene.save.year < year) {
+    guard += 1;
+    if (guard > 5000) throw new Error(`the inn never reached year ${String(year)}`);
+    h.press(KEY_R);
+    h.frame();
+  }
+}
+
+/**
+ * The live context `core/dialogue-schema.ts` requires, built from the SAVE and — the point of the
+ * whole section — from `scene.act()`, the production act read. No act number is typed in here.
+ */
+function ctxOf(h: Harness, overrideYear?: number): DialogueContext {
+  const save = h.scene.save;
+  const populations: Record<string, Record<string, number>> = {};
+  const floraStock: Record<string, number> = {};
+  for (const [nodeId, state] of Object.entries(save.nodeStates)) {
+    const counts: Record<string, number> = {};
+    for (const [lineId, pop] of Object.entries(state.populations)) counts[lineId] = pop.count;
+    populations[nodeId] = counts;
+    floraStock[nodeId] = state.floraStock;
+  }
+  const year = overrideYear ?? save.year;
+  return {
+    act: h.scene.act(),
+    year,
+    season: seasonOf({ year, tick: save.tick }, balance),
+    flags: save.questFlags,
+    populations,
+    floraStock,
+  };
+}
+
+interface SlowRun {
+  save: SaveEnvelope;
+  /** The act the SCENE reported after each badge, in ladder order. */
+  actsSeen: number[];
+  /** The act `core/dialogue-schema.ts` derived from the same flags, after each badge. */
+  actsDerived: number[];
+  /** The calendar year each badge landed in. */
+  badgeYears: number[];
+  /** The calendar year the LAST act opened in. */
+  lastActYear: number;
+}
+
+let SLOW_RUN: SlowRun | null = null;
+
+/**
+ * Play a deliberately slow run through the real scene and return where it ended up.
+ *
+ * Two calendar years between badges, so the fifth badge — the one `balance.acts.gates` says opens
+ * the last act — lands in year 11 rather than in the year the old "six acts = six years" equation
+ * expected. Every tick is spent by `restAtInn`, every badge is written by `challengeGym` → `winGym`,
+ * and the only thing set by hand is where the player is STANDING, which is legitimate exactly when
+ * the act model has already opened that node — asserted per leader below. (Walking there is §10.1's
+ * job and it is proven there, through the same act gate.)
+ */
+function playSlowRun(): SlowRun {
+  if (SLOW_RUN) return SLOW_RUN;
+  const actsSeen: number[] = [];
+  const actsDerived: number[] = [];
+  const badgeYears: number[] = [];
+  let save: SaveEnvelope = freshSave(LADDER[0]!.town);
+  let lastActYear = -1;
+
+  for (const [i, leader] of LADDER.entries()) {
+    const target = Math.min(balance.clock.startYear + 2 * (i + 1), FINALE_YEAR);
+    const h = mount({ save: { ...save, currentNode: leader.town } });
+    // The placement is only legitimate because the act model has already opened this town.
+    expect(nodeUnlockedAt(leader.town, h.scene.act(), balance), `${leader.town} at act ${String(h.scene.act())}`).toBe(true);
+    restUntilYear(h, target);
+
+    h.press(KEY_G);
+    h.frame();
+    const launch = h.parts.launches.filter((l) => l.key === "Battle").pop();
+    expect(launch, `[G] launched no battle at ${leader.town}`).toBeDefined();
+    (launch!.data as BattleSceneData).onFinished({ state: { outcome: "win" } as never, caught: null });
+
+    save = h.scene.save;
+    actsSeen.push(h.scene.act());
+    actsDerived.push(actFromFlags(save.questFlags));
+    badgeYears.push(save.year);
+    if (h.scene.act() === balance.acts.last && lastActYear < 0) lastActYear = save.year;
+  }
+
+  SLOW_RUN = { save, actsSeen, actsDerived, badgeYears, lastActYear };
+  return SLOW_RUN;
+}
+
+describe("§10.5 the two clocks meet only through the player", () => {
+  it("the scenario is genuinely past the pacing the design used to END at", () => {
+    // If this ever fails the section below has stopped testing what it says it tests.
+    expect(FINALE_YEAR).toBeGreaterThan(balance.clock.startYear + balance.clock.yearsTotal - 1);
+  });
+
+  it("a slow player reaches the LAST act in calendar year 11, by playing", () => {
+    const run = playSlowRun();
+    expect(run.badgeYears).toEqual([3, 5, 7, 9, 11, 11]);
+    expect(run.lastActYear).toBe(FINALE_YEAR);
+    expect(run.save.year).toBe(FINALE_YEAR);
+    expect(actOf(run.save, content.gyms, balance)).toBe(balance.acts.last);
+    // …and the calendar did not stop, wrap, or refuse to move past nominal pacing.
+    expect(run.save.year).toBeGreaterThan(balance.clock.startYear + balance.clock.yearsTotal - 1);
+  });
+
+  it("the act the SCENE publishes is the act the DIALOGUE derives, at every rung", () => {
+    /*
+     * THE SEAM. `actFromFlags` is a delegation to `actOf` today; when it was a derivation of its own
+     * (`1 + badgesBeaten`) the two agreed at every rung EXCEPT the prologue, and nothing in either
+     * lane's suite compared them on a save the game had actually produced.
+     */
+    const run = playSlowRun();
+    expect(run.actsDerived).toEqual(run.actsSeen);
+    expect(run.actsSeen).toEqual([2, 3, 4, 5, 6, 6]);
+    // The prologue rung too — the one the old derivation got wrong — on a save the scene has not touched.
+    const brandNew = freshSave();
+    expect(actFromFlags(brandNew.questFlags)).toBe(balance.acts.first);
+    expect(actOf(brandNew, content.gyms, balance)).toBe(balance.acts.first);
+  });
+
+  it("the run is complete, and the ending was handed over exactly once — in year 11", () => {
+    const run = playSlowRun();
+    expect(runIsComplete(run.save, content.gyms, balance)).toBe(true);
+    const calls: number[] = [];
+    const h = mount({ save: { ...run.save, questFlags: { ...run.save.questFlags } }, hooks: { onRunComplete: (s) => calls.push(s.year) } });
+    // The slow run already latched it (the badge that completed the run was won inside the scene).
+    expect(h.scene.runIsOver()).toBe(true);
+    expect(calls).toHaveLength(0);
+    // A save that has NOT been handed over yet fires once, and reports the year it really happened in.
+    const unlatched = { ...run.save, questFlags: { ...run.save.questFlags } };
+    delete unlatched.questFlags[RUN_COMPLETE_SHOWN_FLAG];
+    const fresh = mount({ save: unlatched, hooks: { onRunComplete: (s) => calls.push(s.year) } });
+    expect(fresh.scene.runIsOver()).toBe(true);
+    expect(calls).toEqual([FINALE_YEAR]);
+  });
+
+  it("the finale, the Vellsire choice and an epilogue all resolve at act 6 in year 11", () => {
+    /*
+     * THE USER STORY, END TO END, against the SHIPPED corpus. Every lookup goes through
+     * `selectEntry` — the function Q7 must call — with the act coming from `scene.act()`.
+     */
+    const run = playSlowRun();
+    const h = mount({ save: run.save });
+    expect(h.scene.save.year).toBe(FINALE_YEAR);
+    expect(h.scene.act()).toBe(balance.acts.last);
+
+    const walked = walkTheEnding(h);
+    expect(walked.ids).toEqual([
+      "maren.finale",
+      "greaves.finale.pre",
+      "greaves.finale.post",
+      "sanctum.vellsire.approach",
+      "maren.epilogue.caught",
+    ]);
+    // The choice really is a choice: two options, and the epilogue keys off which one was taken.
+    expect(walked.choiceCount).toBe(2);
+    expect(walked.releasedEpilogue).toBe("maren.epilogue.released");
+    // …and the epilogue does not replay for ever.
+    expect(walked.epilogueAgain).toBeUndefined();
+  });
+
+  it("the same ending resolves identically in year 6 and in year 30 — the calendar is not an input", () => {
+    const run = playSlowRun();
+    const h = mount({ save: run.save });
+    const at11 = walkTheEnding(h).ids;
+    for (const year of [balance.clock.startYear + balance.clock.yearsTotal - 1, 30]) {
+      expect(walkTheEnding(h, year).ids, `year ${String(year)}`).toEqual(at11);
+    }
+  });
+
+  it("no entry the ending walks carries a calendar clause", () => {
+    /*
+     * Structural, so the ending cannot be re-coupled to the calendar by a later author without this
+     * going red. `years` / `yearMin` / `yearMax` on any of these is the Q3a defect returning.
+     */
+    const ids = [
+      "maren.finale",
+      "greaves.finale.pre",
+      "greaves.finale.post",
+      "sanctum.vellsire.approach",
+      "maren.epilogue.caught",
+      "maren.epilogue.released",
+    ];
+    for (const id of ids) {
+      const entry = DIALOGUE.entries.find((e) => e.id === id);
+      expect(entry, id).toBeDefined();
+      expect(entry?.when?.years, id).toBeUndefined();
+      expect(entry?.when?.yearMin, id).toBeUndefined();
+      expect(entry?.when?.yearMax, id).toBeUndefined();
+    }
+  });
+});
+
+/**
+ * Walk the shipped ending with the real resolver, from the state the scene is actually in.
+ *
+ * The one thing the corpus cannot do for itself is resolve the Vellsire ATTEMPT into an OUTCOME —
+ * `sanctum.vellsire.approach`'s choices write `story.vellsire.attempt`, and the epilogues read
+ * `story.vellsire.resolved` / `story.vellsire.outcome`, which nothing in `data/dialogue.json` writes.
+ * That is a DECLARED seam (docs/DIALOGUE-NOTES.md: "the encounter writes `story.vellsire.outcome`"),
+ * because bible §4 makes Ancients very hard catches and a snare may fail. It is the game layer's
+ * write and the game layer does not exist yet (Q7/C7), so it is done here explicitly and marked, and
+ * nothing else in this walk is stood in for.
+ */
+function walkTheEnding(
+  h: Harness,
+  year?: number,
+): { ids: string[]; choiceCount: number; releasedEpilogue: string | undefined; epilogueAgain: string | undefined } {
+  const base = ctxOf(h, year);
+  let flags: Record<string, FlagValue> = { ...base.flags };
+  const ids: string[] = [];
+  const at = (): DialogueContext => ({ ...base, flags });
+  const play = (speaker: string, node: string, kind: DialogueKind): DialogueEntry | undefined => {
+    const entry = selectEntry(DIALOGUE, speaker, node, kind, at());
+    if (entry) {
+      ids.push(entry.id);
+      flags = { ...flags, ...(entry.setFlags ?? {}) };
+    }
+    return entry;
+  };
+
+  // Wick loses on the approach and Maren sends the player through — the beat that sets up the finale.
+  flags = { ...flags, ...(DIALOGUE.entries.find((e) => e.id === "wick.act6.win")?.setFlags ?? {}) };
+  play("maren", "sanctum-approach", "cutscene");
+  play("greaves", "sanctum", "battle-pre");
+  play("greaves", "sanctum", "battle-win");
+  const approach = play("prop-antler-stone", "sanctum", "cutscene");
+  const choiceCount = approach?.choices?.length ?? 0;
+
+  // The player sets the snare (choice 0) …
+  const caught = { ...flags, ...(approach?.choices?.[0]?.setFlags ?? {}) };
+  // … and THE GAME LAYER resolves the attempt into an outcome. Declared stand-in; see above.
+  flags = { ...caught, "story.vellsire.resolved": true, "story.vellsire.outcome": "caught" };
+  play("maren", "sanctum", "cutscene");
+  const epilogueAgain = selectEntry(DIALOGUE, "maren", "sanctum", "cutscene", at())?.id;
+
+  // The other branch, from the same pre-choice state.
+  const released = selectEntry(DIALOGUE, "maren", "sanctum", "cutscene", {
+    ...base,
+    flags: {
+      ...flags,
+      "story.epilogue.shown": false,
+      ...(approach?.choices?.[1]?.setFlags ?? {}),
+      "story.vellsire.resolved": true,
+      "story.vellsire.outcome": "released",
+    },
+  })?.id;
+
+  return { ids, choiceCount, releasedEpilogue: released, epilogueAgain };
+}

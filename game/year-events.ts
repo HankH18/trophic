@@ -32,7 +32,12 @@
 
 import { actGates } from "@core/acts";
 import type { ActEntryEvent, RaidScript, YearTurnEvent } from "@core/lifecycle";
-import { indexSpecies, raidsForAct as coreRaidsForAct, yearEventsOf } from "@core/lifecycle";
+import {
+  indexSpecies,
+  raidRemovalAt,
+  raidsForAct as coreRaidsForAct,
+  yearEventsOf,
+} from "@core/lifecycle";
 import type { Balance, NodeFile, NodeState, SpeciesLine } from "@core/types";
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -141,7 +146,15 @@ export interface RaidTargetPreview {
   ledgerName: string;
   /** The live count right now, from `save.nodeStates` (build-doc §8.3: the ledger reads these). */
   before: number;
-  /** How many the script asks for. What actually dies is core's call — see the note below. */
+  /**
+   * How many the harvest reaches for, priced against {@link RaidTargetPreview.before}.
+   *
+   * ⚠ NOT `target.remove`. A strip-harvest takes the standing stock (D-Q6-1), so the number the
+   * script asks for depends on what is standing — `core/lifecycle.ts` `raidRemovalAt` is the one
+   * home of that rule and this reads it rather than restating it. It used to be the raw authored
+   * body count, which was the same number at the shipped state and a different one at every other.
+   * What actually dies is still core's call — see the note below.
+   */
   requested: number;
 }
 
@@ -158,10 +171,15 @@ export interface RaidPreview {
  * What the scripted raids will reach for, with the current numbers beside them.
  *
  * Deliberately does NOT predict the surviving count. `enterPendingActs` applies
- * `max(balance.ecosim.populationFloor, count − remove)` and credits `recentDeaths` with what
- * actually died; restating that arithmetic here would be a second implementation of a rule core
- * owns, and the two would drift the first time the floor is retuned (INV-3). The post-raid numbers
- * come back in act entry's own events — see {@link raidReportsFrom}.
+ * `max(balance.ecosim.populationFloor, count − raidRemovalAt(count, target, balance))` and credits
+ * `recentDeaths` with what actually died; restating that arithmetic here would be a second
+ * implementation of a rule core owns, and the two would drift the first time the floor is retuned
+ * (INV-3). The post-raid numbers come back in act entry's own events — see {@link raidReportsFrom}.
+ *
+ * The one piece of it this DOES call is `raidRemovalAt`, because "how many the script asks for" is
+ * no longer a field to copy: since D-Q6-1 the harvest is priced against the standing stock, and a
+ * preview that showed the authored body count would under-report every late arrival — the screen
+ * promising −11 and the ledger then reporting −32.
  */
 export function raidPreviews(
   states: Readonly<Record<string, NodeState>>,
@@ -177,11 +195,12 @@ export function raidPreviews(
     const state = states[raid.nodeId];
     const targets: RaidTargetPreview[] = raid.targets.map((target) => {
       const line = index.get(target.lineId);
+      const before = state?.populations[target.lineId]?.count ?? 0;
       return {
         lineId: target.lineId,
         ledgerName: line ? ledgerNameOf(line, balance) : target.lineId,
-        before: state?.populations[target.lineId]?.count ?? 0,
-        requested: target.remove,
+        before,
+        requested: raidRemovalAt(before, target, balance),
       };
     });
     return {

@@ -183,10 +183,12 @@ export function playerLevelFor(gym: GymLeader, balance: Balance, model: LevelMod
   /*
    * `balance.encounter.levelByYear` is indexed by the leader's ACT here, and always was — the array
    * was tuned against the gym ramp in data/gyms.json (its own `_levelByYear` note says so), which is
-   * an act ladder. The KEY keeps its shipped name because the wild level band a player meets in the
-   * overworld is read off the calendar year (`game/encounters.ts` `rollLevel`), and re-keying that
-   * would be a balance change, not a rename — flagged in docs/DEVIATIONS.md D-Q3-2 rather than taken
-   * silently. `rollLevel` clamps to the last band, so an unbounded calendar cannot index past it.
+   * an act ladder. `game/encounters.ts` `rollLevel` now indexes it by the ACT too (D-Q3-10): it used
+   * to read the CALENDAR YEAR, which under an unbounded decoupled calendar put a player still in
+   * act 1 against level 34–38 wild creatures by year 6. So the two readings agree and this model's
+   * UNTRAINED player is the one the overworld actually produces. The KEY keeps its shipped name —
+   * renaming it is data + core/types.ts + core/schemas.ts + this file, and is a mechanical
+   * follow-up rather than part of the change that found it.
    */
   const byAct = balance.encounter.levelByYear;
   const level = byAct[gym.act - 1] ?? byAct[byAct.length - 1];

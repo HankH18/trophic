@@ -448,8 +448,10 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * Sample the mask (once) and build the map image. ONE mask serves all six years (Hard Req 5) — the
-   * year only ever reaches `MapView`, never `loadCollision`.
+   * Sample the mask (once) and build the map image. ONE mask serves EVERY year (Hard Req 5, which
+   * says "one mask per node, reused by all year variants") — the year only ever reaches `MapView`,
+   * never `loadCollision`. It used to say "all six years"; the calendar has no sixth year to stop
+   * at (D-Q3-1), and the mask does not care.
    *
    * ⚠ IT RESPAWNS ONLY WHEN THE NODE CHANGED. This used to place the player at
    * `firstWalkableTile(...) ?? {col:0,row:0}` unconditionally, and `create()` runs it on every scene
@@ -947,10 +949,26 @@ export class OverworldScene extends Phaser.Scene {
   private advanceActs(): void {
     this.openPrologue();
     const before = this.save;
-    const entry = enterPendingActs(this.save, {
-      balance: this.balance,
-      gyms: this.content.gyms,
-    });
+    /*
+     * REPORTED, NEVER THROWN OUT OF `create()`. `enterPendingActs` fails loudly on a raid script
+     * naming a node or a line the save does not have (a one-letter typo would otherwise be a beat
+     * that quietly does not happen), and `actEntryBeats` fails loudly on a scheduled harvest that
+     * emitted no event. Both are right to fail — but this runs during scene construction, and an
+     * exception here is a black screen rather than a message. The act is NOT latched when the entry
+     * throws, so the next `create()` tries again: this is a deferral with a sentence on screen, not
+     * a swallow.
+     */
+    let entry: ReturnType<typeof enterPendingActs>;
+    try {
+      entry = enterPendingActs(this.save, {
+        balance: this.balance,
+        gyms: this.content.gyms,
+      });
+    } catch (err) {
+      this.flashBanner(`act entry refused: ${err instanceof Error ? err.message : String(err)}`);
+      this.maybeCompleteRun();
+      return;
+    }
     if (entry.actsEntered.length > 0) {
       this.save = entry.save;
       /*
@@ -960,8 +978,12 @@ export class OverworldScene extends Phaser.Scene {
        * that was built for this moment was never exercised by it. Hard Req 2's numbers now reach
        * the screen through the module that owns them (G7: identifiers and arithmetic, nothing else).
        */
-      for (const beat of actEntryBeats(before, entry, this.content)) {
-        this.flashBanner(beatLines(beat).join(" · "));
+      try {
+        for (const beat of actEntryBeats(before, entry, this.content)) {
+          this.flashBanner(beatLines(beat).join(" · "));
+        }
+      } catch (err) {
+        this.flashBanner(`act beats refused: ${err instanceof Error ? err.message : String(err)}`);
       }
       this.syncEvents();
     }
@@ -986,9 +1008,11 @@ export class OverworldScene extends Phaser.Scene {
    * lands it writes those flags itself and this is simply not reached.
    */
   private openPrologue(): void {
-    if (this.hooks.onOpeningBeat?.(this) === true) return;
+    // Asked only while the rung is actually unclimbed, so a lane owning the beat is not re-asked
+    // once its own flags are written and the question has no answer left to give.
     const flags = prologueExitFlags(this.balance).filter((f) => this.save.questFlags[f] !== true);
     if (flags.length === 0) return;
+    if (this.hooks.onOpeningBeat?.(this) === true) return;
     if (this.save.party.length === 0) {
       this.flashBanner(`act ${String(this.act())} · prologue open · ${flags.join(" ")} unwritten`);
       return;

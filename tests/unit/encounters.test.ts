@@ -307,6 +307,23 @@ describe("the individual met — balance.encounter", () => {
     expect(beyond).toBeLessThanOrEqual(last + balance.encounter.levelJitter);
   });
 
+  it("BINDS — the band does not move when balance.clock.startYear is retuned", () => {
+    /*
+     * The structural half of "it is not the calendar". The old reading was `year - startYear`, which
+     * is numerically identical to `act - 1` on the shipped `startYear: 1` — so no assertion about
+     * the NUMBERS could tell the two apart. Retuning the calendar's origin can: an act ladder does
+     * not know what year the world starts in.
+     */
+    const retuned: Balance = { ...balance, clock: { ...balance.clock, startYear: 100 } };
+    for (let act = 0; act <= balance.encounter.levelByYear.length + 1; act += 1) {
+      for (let seed = 1; seed <= 20; seed += 1) {
+        expect(rollLevel(retuned, act, createRng(seed)), `act ${String(act)}`).toBe(
+          rollLevel(balance, act, createRng(seed)),
+        );
+      }
+    }
+  });
+
   it("the prologue (act 0) reads the FIRST band, not a seventh nobody tuned", () => {
     const first = balance.encounter.levelByYear[0]!;
     for (let seed = 1; seed <= 50; seed += 1) {

@@ -21,7 +21,7 @@ npm run harness
 | full-run seeds per profile | 32 |
 | over-catch seeds per node | 128 |
 | candidate parties drafted per seed | 8 |
-| wall-clock | gym 826ms · gym.mirror 261ms · gym.levelSweep 1515ms · gym.ageControl 1023ms · gym.partySizeControl 413ms · chart 381ms · run.profiles 366ms · run.fixture 0ms · run.overcatch 258ms · probes 584ms |
+| wall-clock | gym 835ms · gym.mirror 250ms · gym.levelSweep 1562ms · gym.ageControl 1050ms · gym.partySizeControl 404ms · chart 395ms · run.profiles 384ms · run.fixture 1ms · run.overcatch 264ms · probes 594ms |
 
 **TWO CLOCKS (D-Q3-1).** The calendar (ticks → seasons → years) and the ACT (badges and quest flags)
 are independent, so a harness has to CHOOSE a pacing model rather than inherit one. Mode (c) drives
@@ -292,43 +292,49 @@ Three profiles, all bounded by shipped constants rather than by an invented rate
 
 | profile | seeds | mean catches | season steps | (node, line) pairs that reached zero | of which |
 |---|---|---|---|---|---|
-| **baseline** | 32 | 0.0 | 24 | 2 | all raid-attributable |
-| **dex** | 32 | 20.7 | 24 | 2 | all raid-attributable |
-| **collector** | 32 | 66.0 | 24 | 8 | 6 player-driven |
+| **baseline** | 32 | 0.0 | 24 | 4 | all raid-attributable |
+| **dex** | 32 | 20.6 | 24 | 4 | all raid-attributable |
+| **collector** | 32 | 66.0 | 24 | 10 | 6 player-driven |
 
 Every one of them, classified:
 
 | profile | node | line | opened at | seeds | first zero at season | cause |
 |---|---|---|---|---|---|---|
-| **baseline** | `r4` | Cragmar | 10 | 3/32 | 16 (yr 4) | **raid target** (content, bible §6) |
-| **baseline** | `r4` | Stonewing | 3 | 2/32 | 19 (yr 5) | **emergent** — raid node, not harvested |
-| **dex** | `r4` | Cragmar | 10 | 4/32 | 16 (yr 4) | **raid target** (content, bible §6) |
-| **dex** | `r4` | Stonewing | 3 | 2/32 | 19 (yr 5) | **emergent** — raid node, not harvested |
+| **baseline** | `r4` | Stonewing | 3 | 15/32 | 18 (yr 5) | **emergent** — raid node, not harvested |
+| **baseline** | `r4` | Cragmar | 10 | 14/32 | 14 (yr 4) | **raid target** (content, bible §6) |
+| **baseline** | `r4` | Ashvole | 14 | 7/32 | 15 (yr 4) | **raid target** (content, bible §6) |
+| **baseline** | `r4` | Pyrelisk | 14 | 5/32 | 19 (yr 5) | **emergent** — raid node, not harvested |
+| **dex** | `r4` | Stonewing | 3 | 16/32 | 17 (yr 5) | **emergent** — raid node, not harvested |
+| **dex** | `r4` | Cragmar | 10 | 14/32 | 14 (yr 4) | **raid target** (content, bible §6) |
+| **dex** | `r4` | Ashvole | 14 | 7/32 | 15 (yr 4) | **raid target** (content, bible §6) |
+| **dex** | `r4` | Pyrelisk | 14 | 6/32 | 17 (yr 5) | **emergent** — raid node, not harvested |
+| **collector** | `r4` | Stonewing | 3 | 15/32 | 18 (yr 5) | **emergent** — raid node, not harvested |
+| **collector** | `r4` | Cragmar | 10 | 14/32 | 14 (yr 4) | **raid target** (content, bible §6) |
 | **collector** | `hearthollow` | Carricrow | 2 | 9/32 | 1 (yr 1) | player-driven |
 | **collector** | `hearthollow` | Bramblehog | 6 | 9/32 | 1 (yr 1) | player-driven |
 | **collector** | `hearthollow` | Nibbin | 8 | 7/32 | 2 (yr 1) | player-driven |
+| **collector** | `r4` | Ashvole | 14 | 7/32 | 15 (yr 4) | **raid target** (content, bible §6) |
 | **collector** | `hearthollow` | Skir | 6 | 6/32 | 2 (yr 1) | player-driven |
+| **collector** | `r4` | Pyrelisk | 14 | 5/32 | 19 (yr 5) | **emergent** — raid node, not harvested |
 | **collector** | `r1` | Carricrow | 3 | 3/32 | 1 (yr 1) | player-driven |
-| **collector** | `r4` | Cragmar | 10 | 3/32 | 16 (yr 4) | **raid target** (content, bible §6) |
 | **collector** | `hearthollow` | Pollywisp | 4 | 2/32 | 20 (yr 5) | player-driven |
-| **collector** | `r4` | Stonewing | 3 | 2/32 | 19 (yr 5) | **emergent** — raid node, not harvested |
 
-**No unintended extinction under normal play.** The `dex` profile caught 20.7 individuals per six-year run across 32 seeds and drove nothing to zero outside the raid node.
+**No unintended extinction under normal play.** The `dex` profile caught 20.6 individuals per six-year run across 32 seeds and drove nothing to zero outside the raid node.
 
-**The baseline is not empty, and that is the point.** With *no player in the region at all*, `r4`/Cragmar (3/32 seeds), `r4`/Stonewing (2/32 seeds) still reach zero — because the shipped Cullbrand raid fires anyway (`balance.yearEvents.raids`, act 4 at `r4`, removing 11 + 8 individuals). **The raid script harvests only Grazers; the line above them starves on its own.** That is guardrail G6 working: the raid decrements what it harvests and the §7.3 rules produce the collapse above it, with nothing in `core/ecosim.ts` knowing a raid happened.
+**The baseline is not empty, and that is the point.** With *no player in the region at all*, `r4`/Stonewing (15/32 seeds), `r4`/Cragmar (14/32 seeds), `r4`/Ashvole (7/32 seeds), `r4`/Pyrelisk (5/32 seeds) still reach zero — because the shipped Cullbrand raid fires anyway (`balance.yearEvents.raids`, act 4 at `r4`, taking 80% of the standing stock of each harvested line, or the authored 11 + 8 individuals, whichever is larger — D-Q6-1). **The raid script harvests only Grazers; the line above them starves on its own.** That is guardrail G6 working: the raid decrements what it harvests and the §7.3 rules produce the collapse above it, with nothing in `core/ecosim.ts` knowing a raid happened.
 
 Closest calls that did *not* reach zero (worst surviving minimum as a fraction of the opening count):
 
 | node | line | opened at | lowest |
 |---|---|---|---|
-| `r4` | Ashvole | 14 | 1 |
-| `r4` | Pyrelisk | 14 | 1 |
 | `brackwater` | Reedrick | 18 | 5 |
 | `r2` | Reedrick | 24 | 7 |
 | `cindershelf` | Cragmar | 7 | 3 |
 | `bowerdeep` | Duskstalk | 2 | 1 |
 | `brackwater` | Fenmaw | 2 | 1 |
 | `cindershelf` | Stonewing | 2 | 1 |
+| `hearthollow` | Carricrow | 2 | 1 |
+| `hearthollow` | Pollywisp | 4 | 2 |
 
 ### 4.2 The recorded demo cascade — `fixtures/overcatch-script.json`
 

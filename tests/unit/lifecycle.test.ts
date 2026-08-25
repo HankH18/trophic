@@ -1185,6 +1185,24 @@ describe("build-doc §7.5 step 6 — map year-variant swap", () => {
     expect(mapAssetForYear(bare, 9, balance)).toBe(bare.mapAsset);
   });
 
+  /*
+   * HONESTY, PUBLISHED (docs/DEVIATIONS.md D-Q3-9). The §9.5 clamp above is correct code over EMPTY
+   * DATA: every one of the shipped node files ships `yearVariants: {}`, so `mapAssetForYear` returns
+   * the base map at every year and the year-turn map swap can never fire in the running game. The
+   * clamp is proven against synthetic fixtures only, and this test exists so the green above is not
+   * read as evidence about shipped behaviour. When the art lane ships a variant, this fails and
+   * whoever ships it decides what the claim becomes.
+   */
+  it("PUBLISHES that no shipped node has a year variant, so the clamp is untested by real data", () => {
+    const withVariants = content.nodes.filter((n) => Object.keys(n.yearVariants).length > 0);
+    expect(withVariants.map((n) => n.id)).toEqual([]);
+    for (const node of content.nodes) {
+      for (const year of [1, 2, 6, 9, 25]) {
+        expect(mapAssetForYear(node, year, balance), `${node.id} y${String(year)}`).toBe(node.mapAsset);
+      }
+    }
+  });
+
   it("emits a swap when the RESOLVED asset changes, and none while it is being reused", () => {
     /*
      * Step 6 used to ask "is there a variant for exactly this year", which under an unbounded

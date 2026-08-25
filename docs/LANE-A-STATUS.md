@@ -48,9 +48,11 @@ Test counts by file:
 | `core/foodweb.ts` | §7.3 derivation (the **only** place diet edges are computed), §7.2 encounter weights + bait lookup, migrant status | Complete. |
 | `core/ecosim.ts` | §7.3's six numbered steps, presence effects, region stepping, catch/release, region projection for the epilogue | Complete. |
 | `core/battle.ts` | §7.4 damage/status/catch/flee/XP, the pure reducer + event log, the enemy policy | Complete. |
-| `core/lifecycle.ts` | §7.5 year turn, aging (boxed included), metamorphosis, retirement heir-or-boon, scripted raids | Complete. |
-| `core/save.ts` | §7.8 save shape, 3 slots, versioning, deterministic replay of an action log, RNG stream snapshots | Complete. |
-| `core/clock.ts` | L8 16-tick meter, seasons, year end by meter **or** gym victory | Complete. |
+| `core/lifecycle.ts` | §7.5 year turn, aging (boxed included), metamorphosis, retirement heir-or-boon; the scripted raids fire on **act entry** (`enterPendingActs`), not at a year turn (D-Q3-1) | Complete. |
+| `core/save.ts` | §7.8 save shape, 3 slots, versioning (**v2** — the act latch, D-Q3-7), deterministic replay of an action log **including `gymVictory`**, RNG stream snapshots | Complete. |
+| `core/clock.ts` | L8 16-tick meter, seasons, **year end by full meter only** — a gym victory ends no year (D-Q2-1) | Complete. |
+| `core/acts.ts` | The SECOND clock (D-Q3-1): badges + quest flags → act, town/route unlocks, act entry, run completion | Complete. |
+| `core/regional-events.ts` | bible §9's four events as season-long windows; festival + migration derived, raid + bloom latched (D-Q2-2 / D-Q3-8) | Complete. |
 | `core/rng.ts` | §8.1 seeded xorshift128, per-subsystem streams, per-node child streams, stochastic rounding | Complete. |
 
 **`data/` — all content transcribed from the bible.** 27 species lines / 35 dex identities, 28

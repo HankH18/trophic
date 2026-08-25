@@ -1610,11 +1610,24 @@ describe("act events — scripted raids, from balance.json only", () => {
       expect(raidBeat.report.totalRemoved).toBeGreaterThanOrEqual(0);
       expect(beatLines(raidBeat).length).toBeGreaterThan(1);
     }
-    // The harvest preview rides on the festival beat of the act-entry sequence, not on a year turn's.
-    const festival = beats.find((b) => b.t === "festival");
-    expect(festival && festival.t === "festival" ? festival.harvest.map((h) => h.eventId) : []).toEqual([
+    /*
+     * The harvest preview rides on an `actEntry` beat, NOT on a festival one. It used to be a
+     * `festival` beat carrying the previews — so an act entry would have rendered under the header
+     * `FESTIVAL · Y<year>`, the year's closing celebration announcing a Cullbrand strip-harvest in
+     * whatever calendar year the act happened to fall in. Nothing caught it because `actEntryBeats`
+     * had no caller outside this file; `OverworldScene.advanceActs` calls it now.
+     */
+    const entryBeat = beats.find((b) => b.t === "actEntry");
+    expect(entryBeat && entryBeat.t === "actEntry" ? entryBeat.harvest.map((h) => h.eventId) : []).toEqual([
       "test-raid",
     ]);
+    expect(beats.some((b) => b.t === "festival")).toBe(false);
+    if (entryBeat && entryBeat.t === "actEntry") {
+      expect(entryBeat.act).toBe(act);
+      expect(beatLines(entryBeat)[0]).toBe(`ACT ${String(act)}`);
+      // G7 / D-Q2-2: no year, no festival label, nothing that reads as the calendar.
+      expect(beatLines(entryBeat).join(" ")).not.toMatch(/FESTIVAL|Y\d/u);
+    }
   });
 
   it("A YEAR TURN CARRIES NO HARVEST PREVIEW — the calendar schedules no raid (D-Q3-1)", () => {
@@ -2847,9 +2860,13 @@ describe("replaying the shipped path — build-doc §8.1's claim, for the run th
     expect(withClockFromLog(replayed, start, run.save.actionLog, balance)).toEqual(run.save);
   });
 
-  it("BINDS — a gym victory's year turn replays too, tick included", () => {
-    // The other of build-doc §4's two triggers spends no ticks, so the year turn itself is what
-    // moves the clock — `clockFromLog` reads that off the `yearTurn` entry rather than a tick cost.
+  it("BINDS — a gymVictory entry spends no tick, and a year turn beside it still replays", () => {
+    /*
+     * A gym victory is a BADGE and nothing else now (D-Q2-1): it costs no tick and ends no year, so
+     * the only thing that moves the clock in this log is the `yearTurn` entry, which `clockFromLog`
+     * reads off the entry rather than off a tick cost. This used to be documented as "the other of
+     * build-doc §4's two triggers", which no longer exists.
+     */
     const start = { year: balance.clock.startYear, tick: balance.clock.startTick };
     const log: ActionLogEntry[] = [
       { seq: 0, year: start.year, tick: 3, action: { t: "gymVictory", gymId: "g1" } },
@@ -2896,8 +2913,27 @@ describe("this lane is reached by playing, not only by testing", () => {
       ["raidLedgerLines", "game/scenes/YearTurnScene.ts"],
       ["hasRaids", "game/scenes/YearTurnScene.ts"],
       ["raidsForAct", "game/scenes/YearTurnScene.ts"],
+      // The act-entry PRESENTATION. `actEntryBeats` was built for this beat and had no caller
+      // outside this file, so the running game hand-rolled its own banner and the presenter was
+      // never exercised by the moment it exists for.
+      ["actEntryBeats", "game/scenes/OverworldScene.ts"],
+      ["beatLines", "game/scenes/OverworldScene.ts"],
+      // The act ladder's two WRITERS. Without these the gates above the prologue were unreachable:
+      // `story.opening.done` is dialogue's and `winGym` had no caller in the whole repo.
+      ["prologueExitFlags", "game/scenes/OverworldScene.ts"],
+      ["setQuestFlags", "game/scenes/OverworldScene.ts"],
+      ["buildGymBattle", "game/scenes/OverworldScene.ts"],
+      ["gymAtNode", "game/scenes/OverworldScene.ts"],
+      ["gymBattleWon", "game/scenes/OverworldScene.ts"],
+      ["markRunCompleteShown", "game/scenes/OverworldScene.ts"],
+      ["runCompleteShown", "game/scenes/OverworldScene.ts"],
       // Reached through the ones above, inside their own module.
       ["raidableActs", "game/year-events.ts"],
+      ["thrivingNodeIds", "core/regional-events.ts"],
+      ["syncBloomLatches", "core/regional-events.ts"],
+      ["latchedBloomWindows", "core/regional-events.ts"],
+      ["gymParty", "game/gym-battle.ts"],
+      ["gymBattleProblem", "game/scenes/OverworldScene.ts"],
     ];
     for (const [name, file] of callers) {
       const source = stripComments(read(file));
@@ -2927,7 +2963,9 @@ describe("this lane is reached by playing, not only by testing", () => {
     expect(overworld).toContain('t: "gymVictory"');
     expect(overworld).toContain("onRunComplete");
     // The run's end is an act condition, asked of the save's flags and never of its year.
-    expect(overworld).toMatch(/runIsOver\(\)[^{]*\{\s*return runIsComplete\(this\.save, this\.balance\);/u);
+    expect(overworld).toMatch(
+      /runIsOver\(\)[^{]*\{\s*return runIsComplete\(this\.save, this\.content\.gyms, this\.balance\);/u,
+    );
     expect(overworld).not.toContain("isOver(this.clock()");
     // NO calendar guard in either tick spender, nor in the encounter roll.
     expect(overworld).not.toMatch(/spendTicks\([\s\S]{0,600}if \(this\.runIsOver\(\)\) return/u);

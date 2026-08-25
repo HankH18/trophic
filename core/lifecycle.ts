@@ -158,6 +158,12 @@ export function nextAgeClass(age: AgeClass): AgeClass {
 /** build-doc §7.5 step 5 / bible §9 — "Cullbrand Harvest raids (scripted per act …)". */
 export interface RaidTarget {
   lineId: string;
+  /**
+   * The authored body count — the FLOOR of the harvest, not the whole of it (D-Q6-1).
+   *
+   * See {@link raidRemovalAt}: what a strip-harvest actually takes is the larger of this and
+   * `balance.yearEvents.harvestFractionOfStanding` of whatever is standing when it fires.
+   */
   remove: number;
 }
 
@@ -219,6 +225,45 @@ export function yearEventsOf(balance: Balance, override?: readonly RaidScript[])
     );
   }
   return raids;
+}
+
+/**
+ * What a strip-harvest actually takes from a population of `count` — D-Q6-1.
+ *
+ * ⚠ AN ABSOLUTE BODY COUNT CANNOT SURVIVE THE ACT MODEL, and this is where that was measured.
+ * `targets[].remove` was authored against the node's SHIPPED counts (the file as shipped IS the sim's
+ * initial state, build-doc §7.2). Once the raid was keyed on the ACT rather than the calendar
+ * (D-Q3-1) it fires whenever the player earns the act — and a node the act ladder has not opened yet
+ * is not frozen: `core/ecosim.ts` steps EVERY node at EVERY season boundary, so it breeds toward
+ * `carryCap` the whole time the player is elsewhere. Measured on the shipped `r4` through this
+ * module and `core/ecosim.ts`: entering act 4 at calendar year 1 left the Grazer tier at 5 of 24 and
+ * the Apex reached 0 in 39 of 64 seeds; at year 4 the SAME script left 14 of 33 standing and the
+ * Apex reached 0 in 1 of 64; by year 7 the node stood at carrying capacity and the Apex never went.
+ * So content-bible §6's "arrival mid-collapse" held at exactly one arrival, which is the failure
+ * act-keying was supposed to remove.
+ *
+ * The rule: **the authored number is the FLOOR of the harvest, and the fraction carries it at any
+ * standing stock.** Both halves are data (`balance.yearEvents.harvestFractionOfStanding`, G11); at
+ * the shipped state the two agree exactly, by construction — the fraction is read out of the
+ * authored script rather than chosen (0.8: `round(0.8 × 14) = 11`, `round(0.8 × 10) = 8`).
+ *
+ * G6 is untouched. This scales only what the script names; nothing above it in the web is touched
+ * here, and the collapse that follows still has to emerge from the §7.3 rules.
+ *
+ * Pure and RNG-free: act entry is a scripted beat, and `Math.round` keeps replay byte-identical
+ * (L10) where a stochastic round would not.
+ */
+export function raidRemovalAt(count: number, target: RaidTarget, balance: Balance): number {
+  const fraction = balance.yearEvents?.harvestFractionOfStanding;
+  if (typeof fraction !== "number" || !Number.isFinite(fraction) || fraction < 0 || fraction > 1) {
+    throw new LifecycleError(
+      `core/lifecycle.ts: balance.yearEvents.harvestFractionOfStanding is ${String(fraction)}, not a ` +
+        "fraction in [0,1]. It must be in data/balance.json AND declared in core/types.ts `Balance` " +
+        "and core/schemas.ts `zBalance` — z.object strips undeclared keys, so a key in the file the " +
+        "schema does not know about never reaches this reader (INV-3).",
+    );
+  }
+  return Math.max(target.remove, Math.round(Math.max(0, count) * fraction));
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -920,7 +965,11 @@ export function enterPendingActs(save: SaveFile, deps: ActEntryDeps): ActEntryRe
         // The floor decides how many individuals actually died: computing `removed` before applying
         // it over-reports the harvest and over-credits `recentDeaths`, which is the Scavenger
         // encounter weight (build-doc §7.2) and a ledger number (Hard Req 2).
-        const remaining = Math.max(balance.ecosim.populationFloor, pop.count - target.remove);
+        // What the harvest REACHES for is `raidRemovalAt` — the authored body count or the same
+        // fraction of whatever is standing, whichever is larger (D-Q6-1). One home for that rule:
+        // game/year-events.ts `raidPreviews` calls the same function to price the same harvest.
+        const reach = raidRemovalAt(pop.count, target, balance);
+        const remaining = Math.max(balance.ecosim.populationFloor, pop.count - reach);
         const removed = Math.max(0, pop.count - remaining);
         state.populations[target.lineId] = { ...pop, count: remaining };
         state.recentDeaths += removed;

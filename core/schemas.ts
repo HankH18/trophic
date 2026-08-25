@@ -475,6 +475,8 @@ const zBalanceShape = {
   }),
   // Merged at integration from data/balance.additions.A4.json — build-doc §7.5 step 5 raid scripts.
   yearEvents: z.object({
+    // D-Q6-1: a strip-harvest takes the standing stock. `max(remove, round(count × this))`.
+    harvestFractionOfStanding: zFrac,
     raids: z.array(
       z.object({
         id: z.string().min(1),

@@ -1,54 +1,51 @@
 # Queued changes — authorised, waiting on in-flight work
 
-## CURRENT STATE (loop tick, 07:38)
+## CURRENT STATE (loop tick, 08:38)
 
-**Build: `tsc` clean, 1957/1959 passing.** Both failures are in `tests/unit/year-turn-ux.test.ts`,
-owned by the time-model workflow which is writing `core/lifecycle.ts`, `game/year-events.ts`,
-`game/scenes/YearTurnScene.ts` and `data/balance.json` right now. Not ours to fix.
+**Build: GREEN.** `tsc` 0 errors · **2001/2001 tests passing**. Only `docs/BALANCE-REPORT.md` written
+recently — the time-model workflow is in its final measurement phase.
 
-**Nothing dispatchable this tick** — the workflow holds every remaining file.
+### Verified against the tree this tick, not taken on trust
 
-### BF-2 is being fixed by that workflow, in flight
-`game/gym-battle.ts` now exists and `game/scenes/OverworldScene.ts:913` carries a real production
-caller: `if (gymBattleWon(result.state)) this.winGym(gym.id)`. Its own comment records the finding —
-*"WITHOUT THIS THE GAME HAD NO SECOND ACT."* Verify it end to end once the workflow lands: a badge
-must be earnable in real play, and acts 2-6 must open from it.
+- **BF-2 FIXED.** `game/scenes/OverworldScene.ts:915` — `if (gymBattleWon(result.state))
+  this.winGym(gym.id)`. A badge is now earnable in real play, so acts 2-6 can open. The game is no
+  longer one node deep.
+- **BF-1 STILL OPEN.** Nothing in `game/` calls `selectEntry` or `conditionHolds`. Dialogue is still
+  never played, so the act-1 gate (`story.opening.done`) still cannot be written by play. **This is
+  Q7 and it is now the single largest remaining item.**
+- **BF-3 STILL OPEN, and larger than one test — 9 files** certify an absence:
+  `tests/integration/seams.test.ts:329`, `tests/unit/wild-battle.test.ts:5`,
+  `tests/integration/demo-beats.test.ts:241,359`, and five more.
 
-### BF-3 is STILL OPEN and is the reason BF-2 hid for so long
-`tests/integration/seams.test.ts:329` still reads
-`it("HONEST GAP: nothing in production wires battle's catch to the ledger yet", ...)` and still
-passes — because its source list omits `game/wild-battle.ts`, where the wiring actually landed. **A
-green test asserting the negation of the truth.** The same pattern in `year-turn-ux.test.ts` is why
-the act gate read healthy while no badge could be earned.
-**Dispatch as soon as the workflow releases `tests/`:** sweep the whole suite for tests that certify
-an ABSENCE — any test whose name or comment says "not yet", "no production", "HONEST GAP", "stub" —
-and check each against the current tree. Each one is a place the suite will keep reporting green
-after the gap closes.
+### BF-3 is a CLASS, and it is the mechanism that hid BF-2
+
+A test named "HONEST GAP: nothing in production wires battle's catch to the ledger yet" still passes
+because its source list omits `game/wild-battle.ts`, where the wiring landed. **A green test asserting
+the negation of the truth.** Every such test is a place the suite keeps reporting green after the gap
+it describes has closed — which is exactly how ~1900 green tests certified a one-node game.
+
+**Dispatch when `tests/` frees:** sweep all 9, check each against the current tree, and for each
+either delete it (the gap closed) or convert it into a test that fails when the gap closes rather
+than one that passes while it persists. Deliberately held this tick — the workflow may still touch
+`tests/` in its integration phase and a collision there costs more than the delay.
 
 > **`tools/harness/probe.ts` is a REAL MODULE** imported by `measure.ts`. NOT a scratch file.
-> Match `__*` under `game/` and `tests/unit/` only; never a bare `*probe*` across `tools/`.
 
 | Change | State |
 |---|---|
-| Q1 renames | blocked — workflow holds `data/gyms.json`, `content-bible.md`, `transcription.test.ts`. Replacements need screening against **Digimon**. |
-| Q2 / Q3 / Q3a / Q6 | **IN FLIGHT** |
-| Q4 / Q5 / Q8 | **DONE** |
-| BF-5 background tolerance | **DONE** `e4723cd7` — four missed call sites; the other four homes deleted, single source in `chain.ts`, no tolerance literal left under `tools/` |
-| BF-1 / BF-2 act gating | in flight (above) |
-| BF-3 false-gap tests | **OPEN — dispatch first when `tests/` frees** |
-| Q3b quest system + Q7 dialogue wiring | outstanding — the same missing layer (C7), still the largest remaining item |
-| 36 blocked findings total | `docs/BLOCKED-FINDINGS.md`, §8 splits dispatch-now vs blocked, with a six-way disjoint grouping. **Land BF-7 before BF-4** — the silent `textureFor` fallback is what makes BF-4's 12 missing sprite keys invisible. |
+| Q1 renames | blocked — workflow holds `data/gyms.json`, `content-bible.md`, `transcription.test.ts`. Needs **Digimon** screening. |
+| Q2 / Q3 / Q3a / Q6 | in final phase |
+| Q4 / Q5 / Q8 / BF-5 | **DONE** |
+| BF-2 | **DONE** (verified this tick) |
+| BF-1 / Q7 dialogue wiring + Q3b quest system | **OPEN — largest remaining item.** Ten quests have finished copy; all 12 turn-in flags are read by dialogue and written by nothing. |
+| BF-3 false-gap tests (9 files) | **OPEN — dispatch first when `tests/` frees** |
+| Palette evidence regeneration | **IN FLIGHT** |
+| 36 blocked findings | `docs/BLOCKED-FINDINGS.md` §8. **Land BF-7 before BF-4** — the silent `textureFor` fallback is what makes BF-4's 12 missing sprite keys invisible. |
 
-### Palette evidence needs regenerating before Hank judges it
-BF-5 revealed that `_palette-candidate/at-game-size/` was written at the old tolerance, so **every
-CANDIDATE and CLASS-EQUAL strip is a solid rectangle** while the frozen ones are correctly cut. The
-decision sheet is visually biased against the very palettes being compared. The measured ΔE numbers
-are unaffected (computed from raster data, not these previews) so **class-equal remains the
-recommendation** — but regenerate the evidence before judging by eye. Owner: whoever holds `assets/`.
-
-**Open for Hank:** palette variant (class-equal; regenerate evidence first) · B-D38, three images to
-de-risk the 154-sprite batch · five borderline G7 lines in `docs/DIALOGUE-NOTES.md` · every rename in
-`docs/IP-SWEEP.md` (G15).
+**Open for Hank:** palette variant (class-equal recommended — evidence being regenerated now, since the
+old sheet showed candidates as solid rectangles at the pre-fix tolerance) · **B-D38: three images
+(Fenmaw, Mirefin, Wispurr front) to de-risk the 154-sprite batch** · five borderline G7 lines in
+`docs/DIALOGUE-NOTES.md` · every rename in `docs/IP-SWEEP.md` (G15).
 
 **Never:** >=20-image batch (G13) · swap `data/palette.json` without Q4 (done) · weaken a test to go green.
 
