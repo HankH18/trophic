@@ -124,6 +124,33 @@ of it than a countdown.
 - **Bible §6's "Six acts = six years"** is amended to "six acts; the calendar runs independently."
   Six remains the *expected* year count under normal pacing — a correlation, not a rule.
 
+### Q3a — 44 dialogue entries gate on an exact calendar year and Q3 breaks them
+
+Found by the story review, not by me. `data/dialogue.json` was authored BEFORE Q3, against the
+bible's "six acts = six years" equation. **44 of 211 entries gate on `years: [N]`** — an exact
+calendar year — and that set includes **the entire rival arc, both Greaves cutscenes, the finale,
+the Vellsire choice and both epilogues.**
+
+Under Q3 the calendar is unbounded and decoupled from progress, so **a player who reaches the
+Sanctum in year 8 sees none of them.** The game's ending would silently not fire.
+
+This is the single largest piece of Q3's implementation and it is content work, not a code change:
+each of the 44 needs a decision between an **act** gate (story — most of them) and a **calendar**
+gate (world ageing — the town-decay lines legitimately stay on the calendar). The full list and a
+recommended split per entry are in `docs/STORY-REVIEW.md` §6 D1.
+
+**Do not ship Q3 without this.** A decoupled calendar with year-gated story copy is strictly worse
+than the coupled version it replaced.
+
+### Q3b — the quest system does not exist at all
+
+Also from the story review: all ten side quests have finished copy, and **all 12 `*.turnin` /
+milestone flags they gate on are flags that dialogue READS and nothing WRITES.** There is no quest
+tracker, no turn-in, no sign-chain reader, no prop interaction. Likewise nothing reads
+`chain.*.complete`, so the three Ancient hunts cannot currently be completed.
+
+Scope this with Q7 (wiring dialogue into `game/`) — they are the same missing layer.
+
 ### What does NOT change
 
 Aging, lifespans (J3/A2/E1), retirement, heirs, the ecosim, determinism, and the six-year property
