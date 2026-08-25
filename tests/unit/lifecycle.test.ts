@@ -30,6 +30,7 @@ import {
   boonMultiplier,
   boonTargetUids,
   canRunYearTurn,
+  enterPendingActs,
   heirLevelMin,
   indexSpecies,
   isNever,
@@ -46,11 +47,13 @@ import {
   runYearTurn,
   yearEventsOf,
   YEAR_TURN_FLAG,
+  type RaidScript,
   type RandomFn,
   type YearRetirementPrompt,
   type YearTurnEvent,
 } from "../../core/lifecycle";
 import { newSave, type SaveEnvelope } from "../../core/save";
+import { actGates, actOf, awardBadge } from "../../core/acts";
 
 const content = validateContent();
 const balance: Balance = content.balance;
@@ -95,6 +98,32 @@ function baseSave(party: OwnedCreature[], box: OwnedCreature[] = []): SaveEnvelo
 
 function deps(extra: Partial<Parameters<typeof runYearTurn>[1]> = {}) {
   return { species, balance, nodes, ...extra };
+}
+
+const gyms = content.gyms;
+
+/**
+ * A save standing in `act`, reached the only way the game reaches one: badges and quest flags.
+ *
+ * Deliberately builds the state through `core/acts.ts` rather than writing `ACT_ENTERED_FLAG`
+ * directly, so a test that says "at act 4" is asserting against the ladder the shipped balance.json
+ * actually defines (D-Q3-1). The CALENDAR is untouched — every save it returns is standing in the
+ * start year, which is the whole point: the act is not a date.
+ */
+function saveAtAct(act: number, party: OwnedCreature[] = []): SaveEnvelope {
+  let save = baseSave(party);
+  for (const gate of actGates(balance)) {
+    if (gate.act > act) break;
+    for (const flag of gate.flags) {
+      save = { ...save, questFlags: { ...save.questFlags, [flag]: true } };
+    }
+    const ordered = [...gyms].sort((a, b) => a.act - b.act);
+    for (const gym of ordered) {
+      if (gym.act >= gate.act) break;
+      save = { ...save, ...awardBadge(save, gym.id, balance) };
+    }
+  }
+  return save;
 }
 
 describe("balance schedule consistency (the table the aging rule is derived from)", () => {
@@ -996,7 +1025,7 @@ describe("build-doc §7.5 step 5 — node sims run their 4th season step, then y
     expect(turn.events.some((e) => e.t === "seasonStep")).toBe(false);
   });
 
-  it("fires the Cullbrand raid only in its scripted year, at its named node", () => {
+  it("fires the Cullbrand raid only on entry to its scripted ACT, at its named node", () => {
     const raids = yearEventsOf(balance);
     expect(raids.length).toBeGreaterThan(0);
     const raid = raids[0];
@@ -1010,15 +1039,19 @@ describe("build-doc §7.5 step 5 — node sims run their 4th season step, then y
       Object.entries((before as NonNullable<typeof before>).populations).map(([k, v]) => [k, v.count]),
     );
 
-    while (save.year < script.year) {
-      const turn = runYearTurn(save, deps());
-      save = turn.save;
-      const fired = turn.events.filter((e) => e.t === "raid");
-      if (save.year === script.year) {
-        expect(fired).toHaveLength(script.targets.length);
-      } else {
-        expect(fired).toHaveLength(0);
-      }
+    /*
+     * D-Q3-1: the trigger is ACT ENTRY, not a year turn. Climbing the ladder one act at a time, the
+     * raid fires on exactly one rung — and the CALENDAR never moves, which is the assertion that
+     * makes this a decoupling test rather than a rename: `save.year` is the start year throughout.
+     */
+    for (let act = balance.acts.first; act <= script.act; act += 1) {
+      const at = saveAtAct(act, []);
+      const entry = enterPendingActs({ ...at, nodeStates: save.nodeStates }, { balance, gyms });
+      save = entry.save;
+      const fired = entry.events.filter((e) => e.t === "raid");
+      expect(actOf(save, gyms, balance)).toBe(act);
+      expect(save.year).toBe(balance.clock.startYear);
+      expect(fired).toHaveLength(act === script.act ? script.targets.length : 0);
     }
 
     const after = save.nodeStates[script.nodeId] as NonNullable<typeof before>;
@@ -1054,8 +1087,8 @@ describe("build-doc §7.5 step 5 — node sims run their 4th season step, then y
     for (const raid of yearEventsOf(balance)) {
       const node = nodes.find((n) => n.id === raid.nodeId);
       expect(node, `raid "${raid.id}" names node "${raid.nodeId}", which is not in data/nodes/`).toBeDefined();
-      expect(raid.year).toBeGreaterThanOrEqual(balance.clock.startYear);
-      expect(raid.year).toBeLessThanOrEqual(balance.clock.yearsTotal);
+      expect(raid.act).toBeGreaterThanOrEqual(balance.acts.first);
+      expect(raid.act).toBeLessThanOrEqual(balance.acts.last);
       for (const target of raid.targets) {
         const l = line(target.lineId);
         expect(
@@ -1073,9 +1106,9 @@ describe("build-doc §7.5 step 5 — node sims run their 4th season step, then y
     const script = yearEventsOf(balance)[0];
     expect(script).toBeDefined();
     const target = script as NonNullable<typeof script>;
-    let save: SaveFile = baseSave([]);
-    const before = JSON.parse(JSON.stringify(save.nodeStates)) as typeof save.nodeStates;
-    while (save.year < target.year) save = runYearTurn(save, deps()).save;
+    const at = saveAtAct(target.act);
+    const before = JSON.parse(JSON.stringify(at.nodeStates)) as typeof at.nodeStates;
+    const save = enterPendingActs(at, { balance, gyms }).save;
     for (const nodeId of Object.keys(save.nodeStates)) {
       if (nodeId === target.nodeId) continue;
       expect(save.nodeStates[nodeId]).toEqual(before[nodeId]);
@@ -1084,11 +1117,14 @@ describe("build-doc §7.5 step 5 — node sims run their 4th season step, then y
 
   it("never mutates the save it was handed", () => {
     const script = yearEventsOf(balance)[0] as NonNullable<ReturnType<typeof yearEventsOf>[number]>;
-    let save: SaveFile = baseSave([]);
-    while (save.year < script.year - 1) save = runYearTurn(save, deps()).save;
-    const snapshot = JSON.stringify(save);
-    runYearTurn(save, deps());
-    expect(JSON.stringify(save)).toBe(snapshot);
+    const at = saveAtAct(script.act);
+    const snapshot = JSON.stringify(at);
+    enterPendingActs(at, { balance, gyms });
+    expect(JSON.stringify(at)).toBe(snapshot);
+    // …and the year turn, which no longer applies raids at all, moves no population by itself.
+    const before = JSON.stringify(baseSave([]).nodeStates);
+    runYearTurn(baseSave([]), deps());
+    expect(JSON.stringify(baseSave([]).nodeStates)).toBe(before);
   });
 });
 
@@ -1123,6 +1159,49 @@ describe("build-doc §7.5 step 6 — map year-variant swap", () => {
     expect(mapAssetForYear(node, 3, balance)).toBe("y2.png");
     expect(mapAssetForYear(node, 4, balance)).toBe("y4.png");
     expect(mapAssetForYear(node, 6, balance)).toBe("y4.png");
+  });
+
+  it("A YEAR-9 NODE RENDERS AS ITS YEAR-6 SELF — the clamp holds past the old cap (D-Q3-1)", () => {
+    /*
+     * `yearVariants` only ever holds keys 2–6 (build-doc §7.2) and the calendar is now unbounded, so
+     * every year past 6 asks for a key that cannot exist. build-doc §9.5 already settles it — "that
+     * year reuses the nearest passing variant" — and the failure this pins is the OTHER answer: a
+     * year-9 Hearthollow falling back to the BASE map, i.e. rendering younger than the year-6 art
+     * the player was already looking at, which is the aged-world thesis running backwards.
+     */
+    const full: NodeFile = {
+      ...base,
+      yearVariants: { 2: "y2.png", 3: "y3.png", 4: "y4.png", 5: "y5.png", 6: "y6.png" },
+    };
+    for (const year of [6, 7, 9, 12, 40, 999]) {
+      expect(mapAssetForYear(full, year, balance), `year ${String(year)}`).toBe("y6.png");
+      expect(mapAssetForYear(full, year, balance)).not.toBe(full.mapAsset);
+    }
+    // A sparse list clamps to its own highest, not to 6.
+    const sparse: NodeFile = { ...base, yearVariants: { 2: "y2.png", 4: "y4.png" } };
+    for (const year of [7, 9, 40]) expect(mapAssetForYear(sparse, year, balance)).toBe("y4.png");
+    // A node with no variants at all still answers with its base map rather than undefined.
+    const bare: NodeFile = { ...base, yearVariants: {} };
+    expect(mapAssetForYear(bare, 9, balance)).toBe(bare.mapAsset);
+  });
+
+  it("emits a swap when the RESOLVED asset changes, and none while it is being reused", () => {
+    /*
+     * Step 6 used to ask "is there a variant for exactly this year", which under an unbounded
+     * calendar answers null forever after year 6. It asks whether the §9.5 fallback resolves to a
+     * different asset than last year's — so year 3 over a {2,4} list reports nothing (it is still
+     * looking at the year-2 art, correctly) and so does year 9 over a {..6} list.
+     */
+    const node: NodeFile = { ...base, id: "fixture-node", yearVariants: { 2: "y2.png", 4: "y4.png" } };
+    const swapAt = (endedYear: number): string[] =>
+      runYearTurn({ ...baseSave([]), year: endedYear }, deps({ nodes: [node] })).mapVariantSwaps.map(
+        (s) => s.mapAsset,
+      );
+    expect(swapAt(1)).toEqual(["y2.png"]); // base → y2
+    expect(swapAt(2)).toEqual([]); // y2 → y2 (year 3 reuses it)
+    expect(swapAt(3)).toEqual(["y4.png"]); // y2 → y4
+    expect(swapAt(4)).toEqual([]); // y4 → y4
+    for (const endedYear of [6, 8, 11, 39]) expect(swapAt(endedYear)).toEqual([]);
   });
 
   it("ships every node with the Hard Req 5 single collision mask, unchanged by the year turn", () => {
@@ -1593,24 +1672,27 @@ describe("aging keeps the HP fraction it was handed", () => {
   });
 });
 
-describe("a scripted year event that names something absent fails loudly", () => {
+describe("a scripted act event that names something absent fails loudly", () => {
+  const enter = (act: number, yearEvents: RaidScript[]) =>
+    enterPendingActs(saveAtAct(act), { balance, gyms, yearEvents });
+
   it("refuses a raid whose node this save has no state for", () => {
-    const bad = [{ id: "typo-node", year: 2, nodeId: "r44", targets: [{ lineId: "ashvole-line", remove: 3 }] }];
-    expect(() => runYearTurn(baseSave([]), deps({ yearEvents: bad }))).toThrow(LifecycleError);
-    expect(() => runYearTurn(baseSave([]), deps({ yearEvents: bad }))).toThrow(/r44/);
+    const bad = [{ id: "typo-node", act: 2, nodeId: "r44", targets: [{ lineId: "ashvole-line", remove: 3 }] }];
+    expect(() => enter(2, bad)).toThrow(LifecycleError);
+    expect(() => enter(2, bad)).toThrow(/r44/);
   });
 
   it("refuses a raid whose target is not a population at that node", () => {
     // One letter dropped from a real line id — the shape that used to no-op in silence.
-    const bad = [{ id: "typo-line", year: 2, nodeId: "r1", targets: [{ lineId: "nibin-line", remove: 3 }] }];
-    expect(() => runYearTurn(baseSave([]), deps({ yearEvents: bad }))).toThrow(/nibin-line/);
+    const bad = [{ id: "typo-line", act: 2, nodeId: "r1", targets: [{ lineId: "nibin-line", remove: 3 }] }];
+    expect(() => enter(2, bad)).toThrow(/nibin-line/);
   });
 
   it("reports the number that actually died, not the number it asked for", () => {
     // With a population floor the harvest is truncated; `removed` and `recentDeaths` must follow the
     // truncation, because recentDeaths IS the Scavenger encounter weight (build-doc §7.2).
     const nodeId = "r1";
-    const save = baseSave([]);
+    const save = saveAtAct(2);
     const state = save.nodeStates[nodeId] as NonNullable<(typeof save.nodeStates)[string]>;
     const lineId = Object.keys(state.populations)[0] as string;
     const count = state.populations[lineId]?.count as number;
@@ -1619,28 +1701,51 @@ describe("a scripted year event that names something absent fails loudly", () =>
       ...balance,
       ecosim: { ...balance.ecosim, populationFloor: floor },
     };
-    const turn = runYearTurn(save, {
-      species,
+    const entry = enterPendingActs(save, {
       balance: floored,
-      nodes,
-      yearEvents: [{ id: "floored", year: 2, nodeId, targets: [{ lineId, remove: count }] }],
+      gyms,
+      yearEvents: [{ id: "floored", act: 2, nodeId, targets: [{ lineId, remove: count }] }],
     });
-    const raid = turn.events.find((e) => e.t === "raid");
+    const raid = entry.events.find((e) => e.t === "raid");
     expect(raid && raid.t === "raid" ? raid.remaining : -1).toBe(floor);
     expect(raid && raid.t === "raid" ? raid.removed : -1).toBe(count - floor);
-    expect(turn.save.nodeStates[nodeId]?.recentDeaths).toBe(count - floor);
+    expect(entry.save.nodeStates[nodeId]?.recentDeaths).toBe(count - floor);
   });
 
-  it("still applies the shipped Cullbrand raid exactly once, at its year", () => {
+  it("applies the shipped Cullbrand raid exactly once, however many times act entry is called", () => {
     const script = yearEventsOf(balance)[0] as NonNullable<ReturnType<typeof yearEventsOf>[number]>;
+    const target = script.targets[0] as NonNullable<(typeof script.targets)[number]>;
+    let save: SaveFile = saveAtAct(script.act);
+    const first = enterPendingActs(save, { balance, gyms });
+    save = first.save;
+    const after = save.nodeStates[script.nodeId]?.populations[target.lineId]?.count;
+    expect(first.events.filter((e) => e.t === "raid")).toHaveLength(script.targets.length);
+
+    // Called again on the post-entry save — a reload, a double call, a replay. The latch holds.
+    for (let i = 0; i < 3; i += 1) {
+      const again = enterPendingActs(save, { balance, gyms });
+      expect(again.actsEntered).toEqual([]);
+      expect(again.events).toEqual([]);
+      save = again.save;
+      expect(save.nodeStates[script.nodeId]?.populations[target.lineId]?.count).toBe(after);
+    }
+  });
+
+  it("A YEAR TURN NEVER FIRES A RAID — however many years pass (D-Q3-1)", () => {
+    /*
+     * The decoupling, asserted from the other side. Twelve year turns is twice the old six-year
+     * game and past the year the shipped raid used to fire in; not one raid event is emitted,
+     * because the calendar has no opinion about the plot any more.
+     */
     let save: SaveFile = baseSave([]);
-    let fired = 0;
-    while (save.year < script.year) {
+    let raidEvents = 0;
+    for (let i = 0; i < 12; i += 1) {
       const turn = runYearTurn(save, deps());
       save = turn.save;
-      fired += turn.events.filter((e) => e.t === "raid").length;
+      raidEvents += turn.events.filter((e) => e.t === "raid").length;
     }
-    expect(fired).toBe(script.targets.length);
+    expect(save.year).toBe(balance.clock.startYear + 12);
+    expect(raidEvents).toBe(0);
   });
 });
 
@@ -1662,15 +1767,22 @@ describe("the year turn refuses to run twice for the same year (build-doc §4's 
     expect(() => runYearTurn(stale, deps())).toThrow(LifecycleError);
   });
 
-  it("keeps the scripted raid from firing twice", () => {
-    const script = yearEventsOf(balance)[0] as NonNullable<ReturnType<typeof yearEventsOf>[number]>;
-    let save: SaveFile = baseSave([]);
-    while (save.year < script.year) save = runYearTurn(save, deps()).save;
-    const target = script.targets[0] as NonNullable<(typeof script.targets)[number]>;
-    const afterOne = save.nodeStates[script.nodeId]?.populations[target.lineId]?.count;
-    const replayed = { ...save, year: script.year - 1 };
-    expect(() => runYearTurn(replayed, deps())).toThrow(LifecycleError);
-    expect(save.nodeStates[script.nodeId]?.populations[target.lineId]?.count).toBe(afterOne);
+  it("keeps a second turn for the same year from re-aging the party", () => {
+    /*
+     * This test used to be "keeps the scripted raid from firing twice" and drove it through the
+     * year turn. The raid is act entry's now (D-Q3-1) and its own idempotence is asserted above;
+     * what remains here is the year turn's, which is aging — the other thing running the turn twice
+     * for one year would double.
+     */
+    const nib = line("nibbin-line");
+    const save = baseSave([
+      newOwnedCreature({ uid: "u", lineId: nib.id, age: "J", level: 8, caughtYear: 1 }, nib, balance),
+    ]);
+    const first = runYearTurn(save, deps());
+    const aged = first.save.party[0] as OwnedCreature;
+    const stale = { ...first.save, year: save.year, tick: save.tick };
+    expect(() => runYearTurn(stale, deps())).toThrow(LifecycleError);
+    expect((first.save.party[0] as OwnedCreature).yearsRemaining).toBe(aged.yearsRemaining);
   });
 
   it("survives the save round-trip that carries the flag", () => {

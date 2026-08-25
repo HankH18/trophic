@@ -20,9 +20,8 @@
  */
 
 import type { ClockActionKind, ClockEvent, ClockState } from "@core/clock";
-import { advanceAction, isOver, meter, seasonAt, ticksForAction } from "@core/clock";
+import { advanceAction, meter, seasonAt, ticksForAction } from "@core/clock";
 import type { Balance, Season } from "@core/types";
-import { finalYearOf } from "@game/year-events";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Model — pure, testable, engine-free
@@ -43,10 +42,16 @@ export interface SeasonMeterCell {
 
 export interface SeasonMeterModel {
   year: number;
-  /** balance.clock.yearsTotal — build-doc §1's six in-game years. */
+  /**
+   * `balance.clock.yearsTotal` — the EXPECTED year count under normal pacing, NOT a cap (D-Q3-1).
+   *
+   * Carried so a HUD can show pacing beside the count if it wants to. `finalYear`/`isFinalYear`
+   * used to sit here beside it and are gone with the six-year cap they described: the calendar is
+   * unbounded, so there is no final year to be in.
+   */
   yearsTotal: number;
-  finalYear: number;
-  isFinalYear: boolean;
+  /** True once the calendar has run past `yearsTotal`. A pacing readout, never an error. */
+  pastExpectedPace: boolean;
   tick: number;
   ticksPerYear: number;
   ticksPerSeason: number;
@@ -66,16 +71,13 @@ export interface SeasonMeterModel {
    * the moment it is true.
    */
   full: boolean;
-  /**
-   * `core/clock.ts` `isOver` — the clock is standing past the final year (build-doc §1's six).
-   *
-   * The turn out of the final year begins year 7, so this state is REACHED by playing, and while it
-   * was never asked the HUD read "Y7/6" and then "Y8/6". The meter reports the six-year game as
-   * complete instead of naming a seventh year: `year` below still carries the clock's raw number,
-   * and this flag is what explains the labels.
+  /*
+   * `over` USED TO LIVE HERE, reading `core/clock.ts` `isOver`, and it is gone with the cap (D-Q3-1).
+   * The calendar does not end, so there is no state for the meter to report as complete: year 11
+   * draws exactly like year 2. Whether the RUN is finished is `core/acts.ts` `runIsComplete`, an act
+   * condition, and it is not the season meter's question.
    */
-  over: boolean;
-  /** "Y2/6 · summer · 7/16", or "Y6/6 · complete" once the game is over — numbers only (G7). */
+  /** "Y2 · summer · 7/16" — numbers only (G7). */
   label: string;
   yearLabel: string;
   seasonLabel: string;
@@ -89,8 +91,6 @@ export interface SeasonMeterModel {
 export function seasonMeterModel(clock: ClockState, balance: Balance): SeasonMeterModel {
   const read = meter(clock, balance);
   const seasonsPerYear = balance.clock.seasonOrder.length;
-  const finalYear = finalYearOf(balance);
-  const over = isOver(clock, balance);
 
   /*
    * THE FULL METER IS A POSITION CORE IS NEVER ASKED ABOUT, AND THIS MODULE IS THE ONLY THING THAT
@@ -101,7 +101,7 @@ export function seasonMeterModel(clock: ClockState, balance: Balance): SeasonMet
    * every tick the clock can stand on; the inconsistency exists only in the state constructed here,
    * so it is resolved here: the full meter stands at the END of the last season, with nothing left.
    */
-  const spent = over ? read.ticksPerYear : read.tick;
+  const spent = read.tick;
   const full = spent >= read.ticksPerYear;
   const lastSeasonIndex = Math.max(0, seasonsPerYear - 1);
   const season = full ? seasonAt(read.ticksPerYear - 1, balance) : read.season;
@@ -117,17 +117,20 @@ export function seasonMeterModel(clock: ClockState, balance: Balance): SeasonMet
     });
   }
 
-  // Past the final year the six years are what there is to report; "Y7/6" names a year the game
-  // does not have (build-doc §1). The raw clock year stays on `year` below.
-  const yearLabel = `Y${over ? finalYear : read.year}/${balance.clock.yearsTotal}`;
+  /*
+   * THE LABEL LOST ITS DENOMINATOR (D-Q3-1). It read `Y${year}/${yearsTotal}` — and past year 6 it
+   * read "Y7/6", then "Y8/6", which is what a fraction of a total the calendar does not have looks
+   * like on screen. The clamp that replaced it ("report year 6 forever") was worse: it made the HUD
+   * lie about which year the player was in. The year is the year.
+   */
+  const yearLabel = `Y${read.year}`;
   const seasonLabel = season;
   const tickLabel = `${spent}/${read.ticksPerYear}`;
 
   return {
     year: read.year,
     yearsTotal: balance.clock.yearsTotal,
-    finalYear,
-    isFinalYear: read.year === finalYear,
+    pastExpectedPace: read.year - balance.clock.startYear >= balance.clock.yearsTotal,
     tick: read.tick,
     ticksPerYear: read.ticksPerYear,
     ticksPerSeason: read.ticksPerSeason,
@@ -139,8 +142,7 @@ export function seasonMeterModel(clock: ClockState, balance: Balance): SeasonMet
     ticksLeftInYear: full ? 0 : read.ticksLeftInYear,
     cells,
     full,
-    over,
-    label: over ? `${yearLabel} · complete` : `${yearLabel} · ${seasonLabel} · ${tickLabel}`,
+    label: `${yearLabel} · ${seasonLabel} · ${tickLabel}`,
     yearLabel,
     seasonLabel,
     tickLabel,

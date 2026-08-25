@@ -217,8 +217,10 @@ export const DEFAULT_CARD_STYLE: CombatantCardStyle = {
   cardH: 46,
   hpBarW: 92,
   hpBarH: 5,
-  spriteW: 72,
-  spriteH: 72,
+  // build-doc §9.3 — battle sprites are 96². See game/ui/BattleLayout.ts's SPRITE_W for why this is
+  // a literal (data/balance.json declares no battle-sprite size) and for the measured headroom.
+  spriteW: 96,
+  spriteH: 96,
   fontSize: "8px",
 };
 

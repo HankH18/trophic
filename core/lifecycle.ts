@@ -29,6 +29,7 @@ import type {
   AgeClass,
   Balance,
   Boon,
+  GymLeader,
   NodeFile,
   NodeState,
   OwnedCreature,
@@ -43,6 +44,12 @@ import type {
   TypeName,
 } from "./types";
 import { AGE_CLASSES } from "./types";
+/*
+ * The ACT model (D-Q3-1). One-way edge: core/acts.ts imports nothing but core/types.ts, so the
+ * second clock can be reasoned about — and driven headlessly by the harness — without the year turn.
+ */
+import { markActEntered, pendingActEntries } from "./acts";
+import { openRaidWindow } from "./regional-events";
 /*
  * build-doc §7.4 owns ONE metamorphic rule, and core/battle.ts is where it is written. Composing it
  * here (rather than restating it) is what keeps a wild-caught Adult of a metamorphic line worth the
@@ -156,7 +163,15 @@ export interface RaidTarget {
 
 export interface RaidScript {
   id: string;
-  year: number;
+  /**
+   * The ACT this raid fires on entry to — RE-KEYED from `year` (D-Q3-1).
+   *
+   * bible §9 always said "scripted per act"; the field said `year` because content-bible §6 equated
+   * the two. Under the amended L8 the calendar is unbounded and independent, so a raid keyed on a
+   * year would fire for a player who reaches Cindershelf in calendar year 4 and never for one who
+   * reaches it in year 11 — while bible §6 wants that town entered "mid-collapse" either way.
+   */
+  act: number;
   nodeId: string;
   targets: RaidTarget[];
 }
@@ -367,14 +382,20 @@ export function newOwnedCreature(
 
 /**
  * bible §12 / build-doc §15 C4 — the creature summary card shows a projected retirement year, and
- * an heir born late enough projects PAST the last year the game has (balance.clock.yearsTotal). The
- * number stays honest; this is the flag that lets the card render it as "beyond the league" rather
- * than promising a year 7 that never arrives. See docs/DEVIATIONS-lane-a4.md D-A4-14.
+ * a creature born late enough projects past `balance.clock.yearsTotal` years of play.
+ *
+ * ⚠ THE NAME OUTLIVED ITS MEANING AND THE MEANING IS NOW THE WEAKER ONE (D-Q3-1). It used to mean
+ * "past the last year the game HAS" — year 7 of a six-year game, a year that never arrived — so the
+ * card added "(past year 6)" rather than promising it. The calendar is unbounded now: year 7 arrives,
+ * and so does year 40. What survives is a PACING readout — this creature will still be alive after
+ * the six years normal pacing expects — which is worth showing beside a projection and is no longer
+ * a warning about a year that cannot happen. Kept under its old name because D-A4-14 records the
+ * decision under it and `game/ledger-view.ts` renders it; the sentence it renders was reworded.
  */
 export function retiresBeyondFinalYear(creature: OwnedCreature, balance: Balance): boolean {
   if (isNever(creature.projectedRetirementYear)) return false;
-  const finalYear = balance.clock.startYear + balance.clock.yearsTotal - 1;
-  return creature.projectedRetirementYear > finalYear;
+  const expectedLastYear = balance.clock.startYear + balance.clock.yearsTotal - 1;
+  return creature.projectedRetirementYear > expectedLastYear;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -759,55 +780,32 @@ export function runYearTurn(save: SaveFile, deps: YearTurnDeps): YearTurnResult 
     }
   }
 
-  // build-doc §7.5 step 5, second half — "year events fire (Cullbrand raid scripts decrement
-  // scripted node populations at named nodes)". G6: the script only removes what it harvests; any
-  // collapse above it in the web must emerge from the §7.3 rules on later season steps.
-  for (const raid of yearEventsOf(balance, deps.yearEvents)) {
-    if (raid.year !== newYear) continue;
-    const state = nodeStates[raid.nodeId];
-    /*
-     * A raid naming a node or a line that is not there used to be skipped in silence, which makes a
-     * one-letter typo in the raid script a beat that quietly does not happen ("populations visibly
-     * drop at a named node", bible §9). The raid list is authored data with no schema of its own, so
-     * this IS its validation, and it fails the same way core/save.ts fails a log that does not
-     * belong to its save.
-     */
-    if (!state) {
-      throw new LifecycleError(
-        `year event "${raid.id}" names node "${raid.nodeId}", which this save has no state for`,
-      );
-    }
-    for (const target of raid.targets) {
-      const pop = state.populations[target.lineId];
-      if (!pop) {
-        throw new LifecycleError(
-          `year event "${raid.id}" harvests "${target.lineId}" at "${raid.nodeId}", ` +
-            `which has no such population`,
-        );
-      }
-      // The floor decides how many individuals actually died: computing `removed` before applying
-      // it over-reports the harvest and over-credits `recentDeaths`, which is the Scavenger
-      // encounter weight (build-doc §7.2) and a ledger number (Hard Req 2).
-      const remaining = Math.max(balance.ecosim.populationFloor, pop.count - target.remove);
-      const removed = Math.max(0, pop.count - remaining);
-      state.populations[target.lineId] = { ...pop, count: remaining };
-      state.recentDeaths += removed;
-      events.push({
-        t: "raid",
-        eventId: raid.id,
-        nodeId: raid.nodeId,
-        lineId: target.lineId,
-        removed,
-        remaining,
-      });
-    }
-  }
+  /*
+   * build-doc §7.5 step 5's second half USED TO BE HERE — "year events fire (Cullbrand raid scripts
+   * decrement scripted node populations at named nodes)". It has moved to {@link applyActEntry}.
+   *
+   * The raids are keyed on the ACT now (D-Q3-1), and acts are not on the calendar: bible §6 wants
+   * Cindershelf entered "mid-collapse" whether the player arrives in calendar year 2 or year 11, so
+   * a year turn is the wrong trigger for it. Nothing else in step 5 moved — the fourth season step
+   * is still the year turn's, above.
+   */
 
-  // build-doc §7.5 step 6 — "map year-variant swap if present".
+  /*
+   * build-doc §7.5 step 6 — "map year-variant swap if present", THROUGH THE §9.5 FALLBACK.
+   *
+   * `yearVariants` only ever holds keys 2–6 (build-doc §7.2) and the calendar is now unbounded, so
+   * "the variant listed for exactly this year" answers null forever after year 6 and a year-9
+   * Hearthollow would silently fall back to the BASE map — younger than the year-6 art the player
+   * was already looking at. §9.5 already settles it ("that year reuses the nearest passing
+   * variant"), which is what `mapAssetForYear` implements, so the swap is reported when the
+   * RESOLVED asset changes rather than when a key happens to exist. Year 3 with variants at 2 and 4
+   * therefore reports no swap (it is still looking at the year-2 art, correctly), and year 9 with a
+   * variant at 6 reports no swap for the same reason: nothing changed.
+   */
   const mapVariantSwaps: MapVariantSwap[] = [];
   for (const node of deps.nodes ?? []) {
-    const mapAsset = variantForExactYear(node, newYear);
-    if (mapAsset === null) continue;
+    const mapAsset = mapAssetForYear(node, newYear, balance);
+    if (mapAsset === mapAssetForYear(node, save.year, balance)) continue;
     mapVariantSwaps.push({ nodeId: node.id, year: newYear, mapAsset });
     events.push({ t: "mapVariant", nodeId: node.id, year: newYear, mapAsset });
   }
@@ -824,6 +822,120 @@ export function runYearTurn(save: SaveFile, deps: YearTurnDeps): YearTurnResult 
 
   const partyEmpty = next.party.length === 0;
   return { save: next, prompts, retired, events, mapVariantSwaps, seasonStepRan, partyEmpty };
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Act entry — bible §9's "Cullbrand Harvest raids (scripted per ACT)"
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** The raids scripted for `act`, straight out of `balance.yearEvents.raids`. */
+export function raidsForAct(
+  balance: Balance,
+  act: number,
+  override?: readonly RaidScript[],
+): RaidScript[] {
+  return yearEventsOf(balance, override).filter((raid) => raid.act === act);
+}
+
+export type ActEntryEvent =
+  | { t: "actEnter"; act: number }
+  | Extract<YearTurnEvent, { t: "raid" }>;
+
+export interface ActEntryDeps {
+  balance: Balance;
+  /** data/gyms.json — the badge ladder the act model counts. */
+  gyms: readonly GymLeader[];
+  /** Overrides `balance.yearEvents.raids` (tests, harness scenarios). */
+  yearEvents?: readonly RaidScript[];
+}
+
+export interface ActEntryResult {
+  save: SaveFile;
+  /** The acts entered by this call, ascending. Empty when nothing had been earned. */
+  actsEntered: number[];
+  events: ActEntryEvent[];
+}
+
+/**
+ * Enter every act this save has earned and not yet entered, in order, applying each act's scripts.
+ *
+ * ⚠ THIS REPLACES THE YEAR TURN AS THE RAID'S TRIGGER (D-Q3-1). bible §9 says the raids are
+ * "scripted per act"; they were applied by the year turn that BEGAN the raid's year, which made
+ * bible §6's "arrival mid-collapse" true only for a player whose calendar happened to line up. Now
+ * the raid fires when the act is entered, so Cindershelf is entered mid-collapse in calendar year 2
+ * and in calendar year 11 — and a player who arrives early watches it happen rather than finding
+ * the node already crashed (Q6).
+ *
+ * ONCE, EVER, PER ACT. `core/acts.ts` `ACT_ENTERED_FLAG` records the highest act entered, exactly as
+ * `YEAR_TURN_FLAG` records the last year turn and for the same reason: a reload, a double call or a
+ * replay would otherwise re-apply the decrement. Several acts can be entered in one call when one
+ * flag write satisfies two gates; each still fires its own scripts, because a skipped act is a
+ * skipped beat.
+ *
+ * G6 — the script only removes what it harvests. Any collapse above it in the web must EMERGE from
+ * the build-doc §7.3 rules on later season steps; nothing here touches a predator.
+ *
+ * Pure: `save` is never mutated.
+ */
+export function enterPendingActs(save: SaveFile, deps: ActEntryDeps): ActEntryResult {
+  const { balance } = deps;
+  const pending = pendingActEntries(save, deps.gyms, balance);
+  if (pending.length === 0) return { save, actsEntered: [], events: [] };
+
+  const events: ActEntryEvent[] = [];
+  const nodeStates: Record<string, NodeState> = {};
+  for (const nodeId of Object.keys(save.nodeStates)) {
+    const state = save.nodeStates[nodeId];
+    if (state) nodeStates[nodeId] = cloneNodeState(state);
+  }
+
+  let next: SaveFile = save;
+  for (const act of pending) {
+    events.push({ t: "actEnter", act });
+    for (const raid of raidsForAct(balance, act, deps.yearEvents)) {
+      const state = nodeStates[raid.nodeId];
+      /*
+       * A raid naming a node or a line that is not there used to be skipped in silence, which makes
+       * a one-letter typo in the raid script a beat that quietly does not happen ("populations
+       * visibly drop at a named node", bible §9). The raid list is authored data with no schema of
+       * its own beyond core/schemas.ts's id cross-checks, so this IS its runtime validation.
+       */
+      if (!state) {
+        throw new LifecycleError(
+          `act event "${raid.id}" names node "${raid.nodeId}", which this save has no state for`,
+        );
+      }
+      for (const target of raid.targets) {
+        const pop = state.populations[target.lineId];
+        if (!pop) {
+          throw new LifecycleError(
+            `act event "${raid.id}" harvests "${target.lineId}" at "${raid.nodeId}", ` +
+              `which has no such population`,
+          );
+        }
+        // The floor decides how many individuals actually died: computing `removed` before applying
+        // it over-reports the harvest and over-credits `recentDeaths`, which is the Scavenger
+        // encounter weight (build-doc §7.2) and a ledger number (Hard Req 2).
+        const remaining = Math.max(balance.ecosim.populationFloor, pop.count - target.remove);
+        const removed = Math.max(0, pop.count - remaining);
+        state.populations[target.lineId] = { ...pop, count: remaining };
+        state.recentDeaths += removed;
+        events.push({
+          t: "raid",
+          eventId: raid.id,
+          nodeId: raid.nodeId,
+          lineId: target.lineId,
+          removed,
+          remaining,
+        });
+      }
+      // The raid is visible for the whole season it fired in, not for one tick (D-Q2-2).
+      next = openRaidWindow(next, raid.id, { year: next.year, tick: next.tick }, balance);
+    }
+    next = markActEntered(next, act);
+  }
+
+  return { save: { ...next, nodeStates }, actsEntered: pending, events };
 }
 
 /** Deep copy of one node's live sim state. Exported so replay can be as defensive as the year turn. */

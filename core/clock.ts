@@ -1,10 +1,27 @@
 /**
- * core/clock.ts — the season meter (locked decision L8).
+ * core/clock.ts — the season meter (locked decision L8, AMENDED — see below).
  *
- * "16-tick season meter; travel 1 / foray 1 / inn 2; year = gym victory or full meter."
+ * L8 now reads: "16-tick season meter; travel 1 / foray 1 / inn 2; **year = full meter**."
  * build-doc §4 runtime narrative: "Ticks accrue (travel/foray/inn). At each season boundary (every
- * 4 ticks) `ecosim.step()` runs the population update (§7.3). At gym victory or tick 16, the year
- * turn runs …".
+ * 4 ticks) `ecosim.step()` runs the population update (§7.3). At tick 16 the year turn runs …".
+ *
+ * ⚠ THE CALENDAR IS ONE OF TWO CLOCKS, AND IT DRIVES NEITHER THE OTHER NOR THE STORY.
+ * L8's "year = gym victory or full meter" was amended by Hank on 2026-08-25 (docs/DEVIATIONS.md
+ * D-Q2-1, quoted there): *"I don't want the passage of time to be forced based on gyms or stages. I
+ * want it to move forward based on ticks or actions exclusively."* So:
+ *
+ *   • a gym victory no longer ends a year — `YearEndReason` has one member and there is no
+ *     `gymVictory()` here any more. Under the old rule winning a gym COST the player the rest of
+ *     that year's ticks, which is a perverse incentive in a game whose thesis is that the world ages
+ *     whether or not you succeed;
+ *   • the calendar is UNBOUNDED. There is no final year, no year cap and no fail state; `year` may
+ *     be 9 or 40. Nothing in this module may assume a maximum, and `isOver()` — which used to say
+ *     the run was past `startYear + yearsTotal - 1` — is gone with the cap it enforced. Story
+ *     progression is `core/acts.ts`'s, and it is driven by badges and quest flags, never by time.
+ *
+ * `balance.clock.yearsTotal` survives as the EXPECTED year count under normal pacing (six acts at
+ * roughly a year each) — a correlation the HUD and the harness may quote, never a rule anything
+ * enforces.
  *
  * Pure TypeScript, zero engine imports (L11). Every number is read from `balance.clock` (G11):
  * this file contains no tick counts, no season names and no year totals of its own — the season
@@ -32,10 +49,10 @@ export type ClockActionKind = "travel" | "foray" | "inn";
  * §7.5 step 5 inlines it: the YEAR TURN runs "their 4th season step", and `core/lifecycle.ts`
  * `runYearTurn` does exactly that (it steps every node for `balance.clock.seasonOrder[last]` and
  * emits one `{t:"seasonStep"}` event per node). So this module must NOT also emit a cue for it.
- * It used to: `advance()` emitted `seasonBoundary(winter@16)` immediately before `yearEnd`, and
- * `gymVictory()` emitted a boundary of its own — so a caller doing the documented thing (step the
- * sim on every `seasonBoundary`, run the year turn on `yearEnd`) ran FIVE season steps per year
- * instead of four, silently inflating every six-year trajectory by 25%.
+ * It used to: `advance()` emitted `seasonBoundary(winter@16)` immediately before `yearEnd`, and the
+ * since-removed `gymVictory()` emitted a boundary of its own — so a caller doing the documented
+ * thing (step the sim on every `seasonBoundary`, run the year turn on `yearEnd`) ran FIVE season
+ * steps per year instead of four, silently inflating every six-year trajectory by 25%.
  *
  * The contract now: `seasonBoundary` fires only for a season the year turn will NOT run — ticks 4,
  * 8 and 12 of a 16-tick year. `yearEnd` means "the year turn owes this year its last season step",
@@ -55,7 +72,15 @@ export type ClockEvent =
   | { t: "yearEnd"; year: number; reason: YearEndReason }
   | { t: "yearBegin"; year: number };
 
-export type YearEndReason = "meter" | "gymVictory";
+/**
+ * Why a year ended. There is exactly ONE reason and there is meant to be exactly one.
+ *
+ * It stays a union rather than collapsing to a bare string because `{t:"yearEnd"}` consumers read
+ * `reason` and a future trigger (were one ever authorised) must add a member here — where every
+ * `switch` over it goes red — rather than appear as an untyped string. The member that was removed
+ * was `"gymVictory"`; see this file's header.
+ */
+export type YearEndReason = "meter";
 
 export interface ClockAdvance {
   clock: ClockState;
@@ -180,26 +205,32 @@ export function advanceAction(clock: ClockState, kind: ClockActionKind, balance:
 }
 
 /**
- * L8 — "year = gym victory or full meter". A gym win ends the year wherever the meter stands.
+ * Absolute tick since the start of the run: `(year - startYear) * ticksPerYear + tick`.
  *
- * NO `seasonBoundary` is emitted: build-doc §7.5 step 5 has the year turn run the node sims' last
- * season step, so a year ended early still advances the ecology exactly once — through
- * `runYearTurn`, not through a cue from here. Emitting one as well ran the season twice, and the
- * two disagreed about WHICH season it was (this module reported the one the player was standing
- * in; `runYearTurn` steps `seasonOrder[last]`). The year turn is authoritative and says so in its
- * own `{t:"seasonStep", season}` events.
+ * The one place a season window can be expressed without a year wrap-around special case
+ * (core/regional-events.ts), and the one arithmetic that stays correct when `year` exceeds
+ * `yearsTotal` — which it now may, without limit.
  */
-export function gymVictory(clock: ClockState, _balance: Balance): ClockAdvance {
-  const events: ClockEvent[] = [
-    { t: "yearEnd", year: clock.year, reason: "gymVictory" },
-    { t: "yearBegin", year: clock.year + 1 },
-  ];
-  return { clock: { year: clock.year + 1, tick: 0 }, events };
+export function absoluteTick(clock: ClockState, balance: Balance): number {
+  return (clock.year - balance.clock.startYear) * balance.clock.ticksPerYear + clock.tick;
 }
 
-/** True once the clock has run past the final year (build-doc §1 — six in-game years). */
-export function isOver(clock: ClockState, balance: Balance): boolean {
-  return clock.year > balance.clock.startYear + balance.clock.yearsTotal - 1;
+/** The absolute tick of the season boundary that OPENED the season `absTick` falls in. */
+export function seasonStartTick(absTick: number, balance: Balance): number {
+  const per = balance.clock.ticksPerSeason;
+  return Math.floor(absTick / per) * per;
+}
+
+/**
+ * The clock `absTick` ticks after the start of the run — the inverse of {@link absoluteTick}.
+ *
+ * Unbounded on purpose: absolute tick 1_000_000 is year 62_501 and that is a legal clock. Nothing
+ * here clamps, because the calendar has no end to clamp to.
+ */
+export function clockAtAbsoluteTick(absTick: number, balance: Balance): ClockState {
+  const { ticksPerYear, startYear } = balance.clock;
+  const t = Math.max(0, Math.floor(absTick));
+  return { year: startYear + Math.floor(t / ticksPerYear), tick: t % ticksPerYear };
 }
 
 /** Every season boundary of one full year, in order — what a headless run of the sim iterates. */

@@ -82,7 +82,7 @@ function buildProposals(loaded: LoadedContent, m: Omit<HarnessMeasurements, "pro
       1,
       (trained?.gyms[0]?.playerLevel ?? 0) - (m.gym?.find((g) => g.model === "untrained")?.gyms[0]?.playerLevel ?? 0),
     );
-    const bumped = byYear.map((v, i) => (tooHard.some((g) => g.year === i + 1) ? v + Math.ceil(gap / 2) : v));
+    const bumped = byYear.map((v, i) => (tooHard.some((g) => g.act === i + 1) ? v + Math.ceil(gap / 2) : v));
     if (bumped.some((v, i) => v !== byYear[i])) {
       out.push({ path: "encounter.levelByYear", from: byYear, to: bumped, probe: "gym", model: "untrained" });
     }

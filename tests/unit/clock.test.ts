@@ -1,10 +1,18 @@
 /**
- * tests/unit/clock.test.ts — locked decision L8, tested as stated:
- * "16-tick season meter; travel 1 / foray 1 / inn 2; year = gym victory or full meter."
+ * tests/unit/clock.test.ts — locked decision L8 AS AMENDED, tested as stated:
+ * "16-tick season meter; travel 1 / foray 1 / inn 2; **year = full meter**."
  *
  * Plus build-doc §4: "At each season boundary (every 4 ticks) `ecosim.step()` runs the population
- * update (§7.3). At gym victory or tick 16, the year turn runs …" — so the events this module emits
- * are the sim's and the year turn's only cue, and their ORDER is load-bearing.
+ * update (§7.3). At tick 16 the year turn runs …" — so the events this module emits are the sim's
+ * and the year turn's only cue, and their ORDER is load-bearing.
+ *
+ * ⚠ TWO ASSERTIONS IN THIS FILE WERE REWRITTEN BY AN AUTHORISED AMENDMENT, not by a failure
+ * (docs/DEVIATIONS.md D-Q2-1 / D-Q3-1, Hank's words quoted there):
+ *   • "a gym win ends the year wherever the meter stands" — the trigger is gone; the assertion is
+ *     now that a gym win leaves the meter EXACTLY where it stood, which is the opposite claim and
+ *     is checked against the shipped act model in tests/unit/acts.test.ts;
+ *   • "runs out after balance.clock.yearsTotal years" — nothing runs out; the calendar is unbounded
+ *     and year 12 is asserted to work.
  *
  * ⚠ WHO RUNS THE YEAR'S LAST SEASON STEP. Resolved at integration in favour of build-doc §7.5
  * step 5, which inlines it: the YEAR TURN runs "their 4th season step", and core/lifecycle.ts
@@ -21,17 +29,19 @@ import { describe, expect, it } from "vitest";
 import {
   advance,
   advanceAction,
+  absoluteTick,
+  clockAtAbsoluteTick,
   createClock,
-  gymVictory,
-  isOver,
   meter,
   seasonAt,
   seasonOf,
+  seasonStartTick,
   seasonsOfYear,
   ticksForAction,
   type ClockEvent,
   type ClockState,
 } from "../../core/clock";
+import * as clockModule from "../../core/clock";
 import type { Balance } from "../../core/types";
 import balanceJson from "../../data/balance.json";
 
@@ -144,33 +154,66 @@ describe("clock — the year ends at gym victory OR a full meter (L8)", () => {
     expect(clock).toEqual({ year: 2, tick: 0 });
   });
 
-  it("a gym win ends the year wherever the meter stands, and cues no season step of its own", () => {
-    for (const tick of [0, 1, 5, 9, 15]) {
-      const { clock, events } = gymVictory({ year: 2, tick }, balance);
-      expect(events.map((e) => e.t)).toEqual(["yearEnd", "yearBegin"]);
-      expect(events[0]).toMatchObject({ year: 2, reason: "gymVictory" });
-      expect(clock).toEqual({ year: 3, tick: 0 });
-      // The ecology still advances exactly once for the year — through the year turn, which steps
-      // `seasonOrder[last]` regardless of where the meter stood. This module used to report the
-      // season the player was standing in, which disagreed with what actually got stepped.
-      expect(seasonAt(tick, balance)).toBe(seasonOrder[Math.floor(tick / ticksPerSeason)]);
+  it("THE YEAR ENDS ON THE METER AND ON NOTHING ELSE — the module has no other year-end path", () => {
+    /*
+     * D-Q2-1. `gymVictory()` was the second path and it is gone. This asserts the absence
+     * structurally rather than by comment: over every tick of a year, and every action, the ONLY
+     * `yearEnd` the module can produce carries reason "meter", and it can only be produced by an
+     * advance that fills the meter.
+     */
+    const exported = Object.keys(clockModule);
+    expect(exported).not.toContain("gymVictory");
+    expect(exported).not.toContain("isOver");
+
+    for (let tick = 0; tick < ticksPerYear; tick += 1) {
+      for (const kind of ["travel", "foray", "inn"] as const) {
+        const { clock, events } = advanceAction({ year: 2, tick }, kind, balance);
+        const ends = yearEnds(events);
+        const fills = tick + ticksForAction(kind, balance) >= ticksPerYear;
+        expect(ends).toHaveLength(fills ? 1 : 0);
+        for (const end of ends) expect(end.reason).toBe("meter");
+        expect(clock.year).toBe(fills ? 3 : 2);
+      }
     }
   });
 
-  it("runs out after balance.clock.yearsTotal years", () => {
-    expect(isOver({ year: balance.clock.yearsTotal, tick: 0 }, balance)).toBe(false);
-    expect(isOver({ year: balance.clock.yearsTotal + 1, tick: 0 }, balance)).toBe(true);
+  it("THE CALENDAR IS UNBOUNDED — year 12, year 40 and year 999 all advance normally", () => {
+    // D-Q3-1: nothing runs out. `isOver` used to say the run was over past year 6 and it is gone.
+    for (const year of [7, 12, 40, 999]) {
+      const { clock, events } = advance({ year, tick: ticksPerYear - 1 }, 1, balance);
+      expect(clock).toEqual({ year: year + 1, tick: 0 });
+      expect(yearEnds(events)).toHaveLength(1);
+      expect(yearEnds(events)[0]).toMatchObject({ year, reason: "meter" });
+      // Seasons keep cycling: year 12 has the same four in the same order as year 1.
+      expect(seasonsOfYear(balance)).toEqual(seasonOrder);
+      expect(seasonAt(0, balance)).toBe(seasonOrder[0]);
+    }
+    // And walking there tick by tick from the start costs nothing but ticks.
+    let clock = createClock(balance);
+    while (clock.year < 12) clock = advanceAction(clock, "foray", balance).clock;
+    expect(clock).toEqual({ year: 12, tick: 0 });
   });
 
-  it("a six-year game is 24 season steps: 18 clock boundaries + 6 year turns", () => {
+  it("absolute ticks round-trip past the old cap, so a season window can straddle any year", () => {
+    for (const c of [{ year: 1, tick: 0 }, { year: 6, tick: 15 }, { year: 9, tick: 4 }, { year: 137, tick: 11 }]) {
+      const abs = absoluteTick(c, balance);
+      expect(clockAtAbsoluteTick(abs, balance)).toEqual(c);
+      expect(seasonStartTick(abs, balance) % ticksPerSeason).toBe(0);
+      expect(abs - seasonStartTick(abs, balance)).toBeLessThan(ticksPerSeason);
+    }
+  });
+
+  it("six years is 24 season steps: 18 clock boundaries + 6 year turns", () => {
     let clock = createClock(balance);
     const events: ClockEvent[] = [];
-    while (!isOver(clock, balance)) {
+    const years = balance.clock.yearsTotal;
+    // Bounded by the EXPECTED pacing, not by an end: the loop stops because the test asked for six
+    // years, not because the calendar refused a seventh (D-Q3-1).
+    while (clock.year < balance.clock.startYear + years) {
       const result = advanceAction(clock, "foray", balance);
       clock = result.clock;
       events.push(...result.events);
     }
-    const years = balance.clock.yearsTotal;
     expect(yearEnds(events)).toHaveLength(years);
     expect(boundaries(events)).toHaveLength(years * (seasonOrder.length - 1));
     // THE number that matters: one season step per season of the game, no more and no less. The

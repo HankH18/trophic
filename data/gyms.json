@@ -4,11 +4,12 @@
   "_schema": "build-doc §7.7 ghost-compatible: every leader ships source:\"fixed\". \"ghost\" is schema-only (Hard Req 9); building any ghost feature is guardrail G8.",
   "_levels": "bible §7 gives no levels. Ramp assigned by rule: roster level = 8 + 6×(gym−1) → 8/14/20/26/32/38; the signature is +2 → 16/22/28/34/40, so the last signature sits exactly on the level cap 40 (build-doc §7.4). EXCEPTION, gym 1 (DEVIATIONS D-A5-G2): Maribel's signature is +0, level 8. A flat +2 is a level premium that shrinks as a FRACTION of the player's level — 25% of a level-8 team, 5% of a level-38 one — so it lands hardest at the one gym the harness measured as the hardest in the game. Old Nib is still unambiguously the ace: Elder (×1.15) with Thick Pelt (+10% def) against level-parity Adults.",
   "_lineIds": "Juvenile line-forms are keyed by LINE id, not form name (build-doc §7.1): Bogling = mirefin-line age J, Gloomgrub = gloomoth-line age J.",
+  "_actNotYear": "`act` WAS `year` UNTIL 2026-08-25 (DEVIATIONS D-Q3-1, authorised by Hank). It was never a calendar year — tools/harness/player.ts has always read it as 'how far along the player is' (`actNodeIds`) — but content-bible §6's 'Six acts = six years' equation made the two indistinguishable, and 44 dialogue entries were written against the wrong one. Under the amended L8 the calendar is unbounded and independent, so Odo is the act-2 leader whether the player reaches him in calendar year 2 or year 11. The field is named for the axis it is on so nobody re-conflates them. bible §7 labels the column 'Yr'; the numbers are unchanged.",
   "gyms": [
     {
       "id": "maribel",
       "name": "Maribel",
-      "year": 1,
+      "act": 1,
       "town": "hearthollow",
       "type": "Beast",
       "source": "fixed",
@@ -27,7 +28,7 @@
     {
       "id": "odo",
       "name": "Odo",
-      "year": 2,
+      "act": 2,
       "town": "brackwater",
       "type": "Water",
       "source": "fixed",
@@ -41,7 +42,7 @@
     {
       "id": "vesper",
       "name": "Vesper",
-      "year": 3,
+      "act": 3,
       "town": "bowerdeep",
       "type": "Poison",
       "source": "fixed",
@@ -61,7 +62,7 @@
     {
       "id": "sable",
       "name": "Sable",
-      "year": 4,
+      "act": 4,
       "town": "cindershelf",
       "type": "Fire",
       "source": "fixed",
@@ -77,7 +78,7 @@
     {
       "id": "noct",
       "name": "Noct",
-      "year": 5,
+      "act": 5,
       "town": "duskhollow",
       "type": "Dark",
       "source": "fixed",
@@ -93,7 +94,7 @@
     {
       "id": "greaves",
       "name": "Magnate Greaves",
-      "year": 6,
+      "act": 6,
       "town": "sanctum",
       "type": "mixed",
       "source": "fixed",

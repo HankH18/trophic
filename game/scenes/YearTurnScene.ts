@@ -25,6 +25,7 @@ import { seasonsOfYear } from "@core/clock";
 import type { SimContext } from "@core/ecosim";
 import { stepRegionStates } from "@core/ecosim";
 import type {
+  ActEntryResult,
   AdvanceYearResult,
   Cohort,
   EcosimStepFn,
@@ -41,14 +42,13 @@ import type { AgeClass, Balance, Content, OwnedCreature, Role, Season, TypeName 
 import type { FestivalBeat, RaidPreview, RaidReport } from "@game/year-events";
 import {
   festivalBeat,
-  finalYearOf,
   hasRaids,
   ledgerNameOf,
   raidCoverage,
   raidLedgerLines,
   raidPreviews,
   raidReportsFrom,
-  raidsForYear,
+  raidsForAct,
 } from "@game/year-events";
 import type { SeasonTint } from "@game/season-tint";
 import { applySeasonOverlay, seasonTint, seasonTintsForYear } from "@game/season-tint";
@@ -100,10 +100,11 @@ export type YearTurnBeat =
       t: "festival";
       festival: FestivalBeat;
       /**
-       * What the year's scripted Cullbrand raids are about to reach for, priced on the numbers the
-       * year began with (game/year-events.ts `raidPreviews`). The `raid` beat below reports what
-       * actually died; this is the same lines BEFORE, so the ledger reads as a before and an after
-       * rather than a single number the player has nothing to compare.
+       * The Cullbrand raids are no longer the year turn's (D-Q3-1) — they fire on ACT ENTRY — so
+       * this list is EMPTY on a year-turn festival and carries the previews on an act-entry
+       * sequence ({@link actEntryBeats}). The field stays because the two sequences share one
+       * renderer, and an empty array is how "no harvest is coming" is expressed, never an absent
+       * field.
        */
       harvest: RaidPreview[];
       /** The new year's four season readings — bible §12a's progressive darkening, in numbers. */
@@ -226,23 +227,23 @@ export interface YearTurnTrigger {
 const warnedUnreachableRaids = new Set<string>();
 
 /**
- * A raid authored for a year no year turn can begin never fires, and says nothing when it doesn't.
+ * A raid authored for an act the region does not have never fires, and says nothing when it doesn't.
  *
- * `raidCoverage` has always been able to report it (`unreachableScriptedYears` — year 1, or year 7
- * of a six-year game) and nothing in the running game asked. A one-character typo in the raid year
- * otherwise buys a beat that silently does not happen, which is the same class of defect
- * `runYearTurn` throws on for a misspelled node id — but the raid list is authored data, so this is
- * a warning and not a refusal: the year turn is not the place to decide the content is wrong.
+ * `raidCoverage` has always been able to report it and nothing in the running game asked. A
+ * one-character typo in the raid's act otherwise buys a beat that silently does not happen, which
+ * is the same class of defect `enterPendingActs` throws on for a misspelled node id — but the raid
+ * list is authored data, so this is a warning and not a refusal: the runtime is not the place to
+ * decide the content is wrong.
  */
 function warnUnreachableRaids(balance: Balance, override?: readonly RaidScript[]): void {
-  const unreachable = raidCoverage(balance, override).unreachableScriptedYears;
+  const unreachable = raidCoverage(balance, override).unreachableScriptedActs;
   if (unreachable.length === 0) return;
   const key = unreachable.join(",");
   if (warnedUnreachableRaids.has(key)) return;
   warnedUnreachableRaids.add(key);
   console.warn(
-    `[year-turn] scripted raid(s) authored for year(s) ${key}, which no year turn begins — ` +
-      "no turn will ever apply them (game/year-events.ts raidCoverage)",
+    `[act-entry] scripted raid(s) authored for act(s) ${key}, which balance.acts.gates does not ` +
+      "have — nothing will ever apply them (game/year-events.ts raidCoverage)",
   );
 }
 
@@ -273,22 +274,18 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
   const { balance } = content;
 
   /*
-   * THE GAME IS SIX YEARS LONG (build-doc §1), AND THIS IS WHERE THAT ENDS.
+   * THE GAME IS NOT SIX YEARS LONG, AND THIS IS WHERE THAT STOPPED BEING TRUE (D-Q3-1).
    *
-   * `core/clock.ts` `isOver` has always been able to answer this and NOTHING called it: the shipped
-   * game ran a seventh year turn, and an eighth, printing "FESTIVAL · Y7/6" and "Y8/6" while the
-   * season meter agreed. The turn OUT of the final year still runs — it owes that year its fourth
-   * season step (build-doc §7.5 step 5), the sixth of the six turns the 24-season-step invariant
-   * counts (LANE-A-STATUS §5) — and it is the last one. A save already standing past the final year
-   * has had it.
+   * A refusal lived here: `save.year > finalYearOf(balance)` threw, because build-doc §1's "six
+   * in-game years" was read as a hard end. It is not one. The calendar is unbounded, has no final
+   * year and never ends, so the year turn out of year 11 is exactly as legal as the one out of
+   * year 2 and runs identically — the same aging, the same retirement round, the same fourth season
+   * step. The run ends on `core/acts.ts` `runIsComplete`, an ACT condition, and a player who never
+   * earns it plays on.
+   *
+   * The guards that DO remain below are all about running one turn once, which is still a real
+   * defect class; none of them is about how far the calendar has got.
    */
-  const finalYear = finalYearOf(balance);
-  if (save.year > finalYear) {
-    throw new YearTurnError(
-      `year ${String(save.year)} is past the final year (${String(finalYear)}) of a ` +
-        `${String(balance.clock.yearsTotal)}-year game — the turn out of the final year is the last one`,
-    );
-  }
 
   /*
    * ONE TURN PER YEAR, keyed on the year that ENDED.
@@ -318,37 +315,22 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
   }
 
   /*
-   * AND A YEAR NOBODY HAS PLAYED A TICK OF CANNOT END.
+   * A YEAR NOBODY HAS PLAYED A TICK OF CANNOT END — AND NOW IT STRUCTURALLY CANNOT (D-Q2-1).
    *
-   * The two checks above are keyed on the ENDED year and on the BEGUN year, and a gym victory slips
-   * between them: `core/clock.ts` `gymVictory` reads the year off the clock it is handed, so a
-   * victory taken immediately after a year turn reports the year that just BEGAN as ended — which
-   * equals `save.year`, so guard 1 passes, and the flag (N+1) is below `save.year + 1` (N+2), so
-   * `canRunYearTurn` passes too. Reproduced against the shipped content: a meter-triggered turn out
+   * A THIRD GUARD USED TO STAND HERE and it is gone with the trigger it guarded. The two checks
+   * above are keyed on the ENDED year and on the BEGUN year, and a gym victory slipped between
+   * them: `core/clock.ts` `gymVictory` read the year off the clock it was handed, so a victory taken
+   * immediately after a year turn reported the year that had just BEGUN as ended — which equalled
+   * `save.year`, so guard 1 passed, and the flag (N+1) was below `save.year + 1` (N+2), so
+   * `canRunYearTurn` passed too. Reproduced against the shipped content: a meter-triggered turn out
    * of year 1 followed by a gym victory ran a SECOND full turn and left the save in year 3, burning
-   * one of the six years with zero ticks played in it. The comment here used to call that
-   * "structurally impossible"; it was not.
+   * a year with zero ticks played in it. It needed a guard on the REASON (C56-D2).
    *
-   * What is actually impossible is a GYM VICTORY ending a year the player has not spent a tick in
-   * and which a year turn began. `save.tick` is the carry the shell put back (see
-   * {@link finishYearTurn}), so a year entered at `startTick` with the year-turn flag naming it is a
-   * year in which nothing has happened at all. A gym victory later in the same year — after one
-   * travel, one foray, one inn — is build-doc §4's second trigger working as specified and passes,
-   * and the meter trigger cannot reach this state by construction (the meter only fills after
-   * `ticksPerYear` ticks have been spent), which is why the check is on the reason and not on the
-   * tick alone: a headless driver that runs turns back to back is not the defect.
+   * Under the amended L8 a gym victory does not end a year at all, so the state is unreachable
+   * rather than refused: the meter is the only trigger, and filling it costs `ticksPerYear` ticks,
+   * which is the definition of a year that has been played. `YearEndReason` has one member and the
+   * compiler will not let a second appear without every reader going red.
    */
-  if (
-    deps.reason === "gymVictory" &&
-    save.tick === balance.clock.startTick &&
-    lastYearTurnOf(save) === save.year
-  ) {
-    throw new YearTurnError(
-      `year ${String(save.year)} began with a year turn and no tick has been spent in it — a gym ` +
-        "victory ending it would consume one of the " +
-        `${String(balance.clock.yearsTotal)} years of build-doc §1 with nothing played in it`,
-    );
-  }
 
   const seasons = seasonsOfYear(balance);
   const lastSeason = seasons[seasons.length - 1];
@@ -402,34 +384,15 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
   }
 
   /*
-   * THE SCRIPTED BEAT EITHER HAPPENS OR IT IS SAID OUT LOUD.
+   * THE RAID GUARD MOVED WITH THE RAID (D-Q3-1) — see {@link actEntryBeats}.
    *
-   * bible §9's raids are "scripted per act, populations visibly drop at a named node", and the ONE
-   * authored raid is the year-4 strip-harvest the demo's cascade reads off. `runYearTurn` emits one
-   * `raid` event per harvested line, so a year the raid list says has a raid and whose event log has
-   * none is a beat that quietly did not happen — the exact failure mode `raidCoverage` was written
-   * to report and which nothing in the running game asked. The most likely cause is the footgun the
-   * deps document: a different `yearEvents` list handed to the previews and to the turn.
+   * A check stood here that the year turn had actually emitted the raid events its year's script
+   * called for, because bible §9 promises "populations visibly drop at a named node" and a silent
+   * miss is a beat that did not happen. The raids are keyed on the ACT now, so a year turn emits
+   * none by construction and the guard belongs where the raid does. `warnUnreachableRaids` stays
+   * here as well as there: it is about the raid LIST, not about any one firing, and the year turn
+   * is a place a player reliably passes through.
    */
-  if (hasRaids(balance, turn.save.year, deps.yearEvents)) {
-    const scheduled = raidsForYear(balance, turn.save.year, deps.yearEvents).reduce(
-      (n, raid) => n + raid.targets.length,
-      0,
-    );
-    const emitted = turn.events.filter((e) => e.t === "raid").length;
-    if (scheduled > 0 && emitted === 0) {
-      throw new YearTurnError(
-        `year ${String(turn.save.year)} has ${String(scheduled)} scripted harvest target(s) and the ` +
-          "year turn emitted no raid event — the drop bible §9 promises at a named node did not happen",
-      );
-    }
-    if (emitted !== scheduled) {
-      console.warn(
-        `[year-turn] year ${String(turn.save.year)}: ${String(scheduled)} scripted harvest target(s), ` +
-          `${String(emitted)} raid event(s) — the previews and the turn were given different lists`,
-      );
-    }
-  }
   warnUnreachableRaids(balance, deps.yearEvents);
 
   const flow = new RetirementFlow(turn, { content, rng: deps.lifecycleRng });
@@ -481,10 +444,9 @@ export function beatsFor(
   beats.push({
     t: "festival",
     festival: festivalBeat(year, balance),
-    // Priced on the numbers the year BEGAN with — `before.nodeStates`, the save the turn ran on —
-    // so the harvest reads as a before against the `raid` beat's after. Same `yearEvents` list the
-    // turn was run with, or the two disagree about what is coming.
-    harvest: raidPreviews(before.nodeStates, content.nodes, content.species, balance, year, yearEvents),
+    // Empty, and it must stay empty: a raid fires on entry to its ACT, which the calendar does not
+    // schedule. Previewing one here would promise a harvest at a year turn that will not deliver it.
+    harvest: [],
     seasons: seasonTintsForYear(balance, year),
   });
 
@@ -589,6 +551,71 @@ export function beatsFor(
   }
 
   void year;
+  return beats;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Act entry — where the Cullbrand raid lives now (D-Q3-1)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Render an act entry: the harvest it is reaching for, then what actually died.
+ *
+ * bible §9's raids are "scripted per act, populations visibly drop at a named node", and they fire
+ * on entry to their act rather than at a year turn — so Cindershelf is entered mid-collapse whether
+ * the player arrives in calendar year 2 or year 11, and a player who arrives early WATCHES it
+ * happen instead of finding the node already crashed (Q6).
+ *
+ * THE SCRIPTED BEAT EITHER HAPPENS OR IT IS SAID OUT LOUD. `enterPendingActs` emits one `raid` event
+ * per harvested line, so an act whose script has targets and whose event log has none is a beat that
+ * quietly did not happen — the exact failure `raidCoverage` reports and which nothing in the running
+ * game used to ask. The most likely cause is the footgun the deps document: a different `yearEvents`
+ * list handed to the previews and to the entry.
+ *
+ * `before` is the save the entry ran ON, so the preview prices the numbers the act opened with and
+ * the `raid` beat reports the numbers after — a before and an after, not one number with nothing to
+ * compare it to.
+ */
+export function actEntryBeats(
+  before: SaveEnvelope,
+  entry: ActEntryResult,
+  content: Content,
+  yearEvents?: readonly RaidScript[],
+): YearTurnBeat[] {
+  const { balance } = content;
+  const beats: YearTurnBeat[] = [];
+
+  for (const act of entry.actsEntered) {
+    if (!hasRaids(balance, act, yearEvents)) continue;
+    const scheduled = raidsForAct(balance, act, yearEvents).reduce(
+      (n: number, raid: RaidScript) => n + raid.targets.length,
+      0,
+    );
+    const emitted = entry.events.filter((e) => e.t === "raid").length;
+    if (scheduled > 0 && emitted === 0) {
+      throw new YearTurnError(
+        `act ${String(act)} has ${String(scheduled)} scripted harvest target(s) and act entry ` +
+          "emitted no raid event — the drop bible §9 promises at a named node did not happen",
+      );
+    }
+    if (emitted !== scheduled) {
+      console.warn(
+        `[act-entry] act ${String(act)}: ${String(scheduled)} scripted harvest target(s), ` +
+          `${String(emitted)} raid event(s) — the previews and the entry were given different lists`,
+      );
+    }
+    beats.push({
+      t: "festival",
+      festival: festivalBeat(before.year, balance),
+      harvest: raidPreviews(before.nodeStates, content.nodes, content.species, balance, act, yearEvents),
+      seasons: seasonTintsForYear(balance, before.year),
+    });
+  }
+
+  for (const report of raidReportsFrom(entry.events, content.nodes, content.species, balance)) {
+    beats.push({ t: "raid", report });
+  }
+  warnUnreachableRaids(balance, yearEvents);
   return beats;
 }
 

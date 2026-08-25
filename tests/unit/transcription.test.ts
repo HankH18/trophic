@@ -755,7 +755,8 @@ describe("gym rosters — bible §7", () => {
     expect(gyms.every((g) => g.source === "fixed")).toBe(true); // Hard Req 9 / G8
     expect(gyms.map((g) => g.type)).toEqual(["Beast", "Water", "Poison", "Fire", "Dark", "mixed"]);
     expect(gyms.map((g) => g.town)).toEqual(["hearthollow", "brackwater", "bowerdeep", "cindershelf", "duskhollow", "sanctum"]);
-    expect(gyms.map((g) => g.year)).toEqual([1, 2, 3, 4, 5, 6]);
+    // bible §7 labels the column "Yr"; the field is `act` since D-Q3-1 and the numbers are the same.
+    expect(gyms.map((g) => g.act)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it("transcribes each roster line-for-line", () => {

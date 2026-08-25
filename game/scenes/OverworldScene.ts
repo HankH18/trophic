@@ -27,8 +27,6 @@
 import Phaser from "phaser";
 import {
   advanceAction,
-  gymVictory,
-  isOver,
   seasonOf,
   type ClockActionKind,
   type ClockEvent,
@@ -83,7 +81,9 @@ import {
 } from "../mapview";
 import { seasonTintLabel } from "../season-tint";
 import { SCENE_KEYS, sceneRegistered } from "../scene-keys";
-import { finalYearOf } from "../year-events";
+import { actOf, awardBadge, runIsComplete, unlockActOf } from "../../core/acts";
+import { enterPendingActs } from "../../core/lifecycle";
+import { activeWindows, syncEventFlags } from "../../core/regional-events";
 import {
   DEFAULT_SEASON_METER_STYLE,
   SeasonMeterHud,
@@ -539,9 +539,11 @@ export class OverworldScene extends Phaser.Scene {
    * tick §3 L8 prices a foray at.
    */
   private onStepCompleted(): void {
-    // build-doc §1's six years are over: nothing is rolled and nothing is spent. Rolling here would
-    // draw from the encounter stream in a year the game does not have (see {@link runIsOver}).
-    if (this.runIsOver()) return;
+    /*
+     * NO CALENDAR GUARD. A refusal used to stand here too — the encounter roll was skipped once
+     * `isOver` was true, "so nothing is drawn from the encounter stream in a year the game does not
+     * have". Every year is a year the game has (D-Q3-1).
+     */
     const encounter = rollForayStep(this.forayContext(), this.streamFor(ENCOUNTER_STREAM));
     if (encounter) {
       this.encountersMet += 1;
@@ -727,21 +729,28 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * The six years of build-doc §1 are behind the player — `core/clock.ts` `isOver` of this save.
+   * The run's final beat is behind the player — `core/acts.ts` `runIsComplete` of this save.
    *
-   * ⚠ NOTHING USED TO ASK THIS. `isOver` existed and had no caller outside the tests, so the year
-   * turn out of year 6 rolled straight into a seventh: a full festival, aging pass and retirement
-   * round labelled "FESTIVAL · Y7/6", then Y8/6, then Y9/6, with the season meter agreeing. The turn
-   * out of the FINAL year is the last one (it owes that year its fourth season step, build-doc §7.5
-   * step 5); after it commits, this is true and the overworld spends nothing more.
+   * ⚠ THIS USED TO BE A DATE. It read `core/clock.ts` `isOver` — "the calendar has passed year 6" —
+   * and it gated ticks, encounter rolls and the year turn on it, so the game had a deadline nobody
+   * designed (D-Q3-1). It is an ACT condition now: the finale fires whenever the player earns it,
+   * and a player who never earns it plays forever. Nothing here refuses a tick.
    */
   runIsOver(): boolean {
-    return isOver(this.clock(), this.balance);
+    return runIsComplete(this.save, this.balance);
   }
 
-  /** The last year of the game (build-doc §1) — `game/year-events.ts`, one home for the number. */
-  finalYear(): number {
-    return finalYearOf(this.balance);
+  /** The act this save is in — badges and quest flags, never the calendar (`core/acts.ts`). */
+  act(): number {
+    return actOf(this.save, this.content.gyms, this.balance);
+  }
+
+  /** bible §9's regional events open right now — each one a 4-tick season window (D-Q2-2). */
+  openEvents(): ReturnType<typeof activeWindows> {
+    return activeWindows(this.save, this.clock(), {
+      species: this.content.species,
+      nodeStates: this.save.nodeStates,
+    }, this.balance);
   }
 
   /**
@@ -756,35 +765,78 @@ export class OverworldScene extends Phaser.Scene {
    */
   restAtInn(townId: string = this.save.currentNode): void {
     if (this.isHandedOver() || this.travelling) return;
-    if (this.runIsOver()) {
-      this.flashBanner(`the ${String(this.balance.clock.yearsTotal)} years are over`);
-      return;
-    }
     this.spendTicks("inn", { t: "inn", townId });
     this.flashBanner(`inn at ${townId} · ${String(actionCosts(this.balance).inn)} ticks`);
   }
 
   /**
-   * build-doc §4 / L8's OTHER year-end trigger: "year = gym victory or full meter".
+   * A gym win: a BADGE, and the act it may advance. It does NOT end the year (D-Q2-1).
    *
-   * ⚠ THE HALF OF L8 THAT WAS NOT WIRED. `core/clock.ts` `gymVictory` had no caller anywhere in
-   * `game/` — the shipped game could only end a year by filling the meter, so the diegetic gym gate
-   * (bible §9's Annual Festival) closed nothing. C3/C7 call this when a leader is beaten; the gym
-   * itself, its roster and its dialogue are theirs, and this scene only owns the clock.
+   * ⚠ THIS USED TO END THE YEAR, and that was L8's second trigger: "year = gym victory or full
+   * meter". Hank dropped it — *"I don't want the passage of time to be forced based on gyms or
+   * stages"* — and the perverse incentive went with it: under the old rule, winning a gym COST the
+   * player the rest of that year's ticks, so the reward for succeeding was to lose up to fifteen
+   * forays of a year that had already been paid for.
+   *
+   * What a win does now is write the badge flag, which is the act model's only numeric input, and
+   * then enter every act that badge earned — firing that act's scripted Cullbrand raid at a named
+   * node (bible §9). The gym itself, its roster and its dialogue are C3/C7's; this scene owns the
+   * two clocks and hands the beats over.
    */
   winGym(gymId: string): void {
     if (this.isHandedOver() || this.travelling) return;
-    if (this.runIsOver()) {
-      this.flashBanner(`the ${String(this.balance.clock.yearsTotal)} years are over`);
-      return;
-    }
-    const tickBefore = this.save.tick;
+    const before = this.act();
     this.save = appendAction(this.save, { t: "gymVictory", gymId });
-    const advanced = gymVictory(this.clock(), this.balance);
-    this.save = { ...this.save, year: advanced.clock.year, tick: advanced.clock.tick };
-    this.handleClockEvents(advanced.events, tickBefore);
+    this.save = { ...this.save, ...awardBadge(this.save, gymId, this.balance) };
+    this.advanceActs();
+    const after = this.act();
+    this.flashBanner(
+      after === before
+        ? `badge ${gymId} · act ${String(after)}`
+        : `badge ${gymId} · act ${String(before)} → ${String(after)}`,
+    );
     this.hudDirty = true;
     this.hooks.onSaveChanged?.(this.save, this);
+  }
+
+  /**
+   * Enter every act the save has earned and not yet entered, playing each one's scripts.
+   *
+   * `core/lifecycle.ts` `enterPendingActs` owns the population floor and the `recentDeaths` credit,
+   * exactly as the year turn does for aging; this scene only decides WHEN, and reports what moved.
+   * Idempotent — the entered act is latched in `questFlags`, so calling it on every save change
+   * costs nothing and cannot re-apply a decrement.
+   */
+  private advanceActs(): void {
+    const entry = enterPendingActs(this.save, {
+      balance: this.balance,
+      gyms: this.content.gyms,
+    });
+    if (entry.actsEntered.length === 0) return;
+    this.save = entry.save;
+    for (const event of entry.events) {
+      if (event.t !== "raid") continue;
+      // Hard Req 2 — the real number, at the named node, with the arrow doing the work (G7).
+      this.flashBanner(
+        `${event.nodeId} · ${event.lineId} → ${String(event.remaining)} (−${String(event.removed)})`,
+      );
+    }
+    this.syncEvents();
+    if (this.runIsOver()) this.completeRun();
+  }
+
+  /**
+   * Republish bible §9's open event windows into the save's quest flags (D-Q2-2).
+   *
+   * `data/dialogue.json` gates on `event.festival.open` and nothing has ever written it. Called at
+   * every season boundary and at every act entry, which are the only two moments a window can open
+   * or close.
+   */
+  private syncEvents(): void {
+    this.save = syncEventFlags(this.save, this.clock(), {
+      species: this.content.species,
+      nodeStates: this.save.nodeStates,
+    }, this.balance);
   }
 
   /**
@@ -793,8 +845,12 @@ export class OverworldScene extends Phaser.Scene {
    */
   private spendTicks(kind: ClockActionKind, action: GameAction): void {
     if (this.yearTurnRunning) return;
-    // The game is six years long and they are over: no tick is spent past the end (build-doc §1).
-    if (this.runIsOver()) return;
+    /*
+     * NO GUARD ON THE CALENDAR. A refusal used to stand here — `if (this.runIsOver()) return` over
+     * `core/clock.ts` `isOver` — so the game stopped accepting player actions once the calendar
+     * passed year 6. There is no year 6 (D-Q3-1): the calendar is unbounded, ticks are always spent,
+     * and a player standing in year 20 forays exactly as one in year 2 does.
+     */
     this.save = appendAction(this.save, action);
     // The tick the action STARTED on, kept because the year turn has to be handed a save that is
     // still standing in the year the clock is about to end (build-doc §7.5 runs on year N and
@@ -823,6 +879,8 @@ export class OverworldScene extends Phaser.Scene {
     for (const event of events) {
       if (event.t === "seasonBoundary") {
         this.runSeasonStep(event.seasonEnded);
+        // A season boundary is the only moment a derived window can open or close (D-Q2-2).
+        this.syncEvents();
       } else if (event.t === "yearBegin") {
         this.mapView.setYear(this.node, event.year);
         this.lastNote = `${this.mapView.status.note} · ${this.collision.note}`;
@@ -843,12 +901,13 @@ export class OverworldScene extends Phaser.Scene {
   /**
    * The run is over: say so, and hand it to whoever owns the ending.
    *
-   * Called once, from the year turn's own completion — the only place `isOver` can become true.
+   * Called from {@link advanceActs} — an ACT condition (`core/acts.ts` `runIsComplete`), reached
+   * whenever the player earns it. It used to be called from the year turn's own completion, because
+   * the run ended when the calendar did; the calendar does not end (D-Q3-1). The year it happened
+   * in is reported because it is a real fact about this playthrough, not because it was a deadline.
    */
   private completeRun(): void {
-    this.flashBanner(
-      `${String(this.balance.clock.yearsTotal)} years complete · Y${String(this.finalYear())} ended`,
-    );
+    this.flashBanner(`run complete · Y${String(this.save.year)} · act ${String(this.act())}`);
     this.hooks.onRunComplete?.(this.save, this);
   }
 
@@ -977,6 +1036,19 @@ export class OverworldScene extends Phaser.Scene {
   async travelTo(nodeId: string): Promise<void> {
     if (this.travelling) return;
     if (!this.node.adjacency.includes(nodeId)) return;
+    /*
+     * ACT GATING (D-Q3-1). content-bible §6 lists the six towns and their routes in order and the
+     * bible labels that column "Yr"; it is an ACT, and `balance.acts.gates` is where it lives. A
+     * node whose act the player has not reached is not travelled to — which is the mechanism that
+     * used to be the calendar's, and the reason the calendar could be decoupled without the region
+     * opening all at once. A node no gate names is left open rather than closed: `core/acts.ts`
+     * `ungatedNodeIds` reports that gap instead of this scene silently locking content (G2).
+     */
+    const needed = unlockActOf(nodeId, this.balance);
+    if (needed !== null && this.act() < needed) {
+      this.flashBanner(`${nodeId} opens in act ${String(needed)} · act ${String(this.act())}`);
+      return;
+    }
     const from = this.node.id;
     this.travelling = true;
     try {
@@ -1062,9 +1134,7 @@ export class OverworldScene extends Phaser.Scene {
      * prices on screen and the world together (INV-3) — and the two functions that answer "what will
      * this cost and what will it cross", which nothing in the running game asked, are now on screen.
      */
-    if (this.runIsOver()) {
-      lines.push(`${String(this.balance.clock.yearsTotal)} years complete · no ticks remain`);
-    } else {
+    {
       const costs = actionCosts(this.balance);
       const next = previewAction(this.clock(), "foray", this.balance);
       const crossing = next.endsYear
@@ -1077,7 +1147,19 @@ export class OverworldScene extends Phaser.Scene {
           ` · next foray ${crossing}`,
       );
     }
-    this.node.adjacency.forEach((id, i) => lines.push(`[${i + 1}] travel → ${id}`));
+    // Two clocks on the HUD, side by side and never mixed: the act above, the year in the meter.
+    lines.push(`act ${String(this.act())}${this.runIsOver() ? " · run complete" : ""}`);
+    const open = this.openEvents();
+    if (open.length > 0) {
+      lines.push(
+        `events ${open.map((w) => `${w.id} (${String(w.closesAt - w.openedAt)}t ${w.season})`).join(" · ")}`,
+      );
+    }
+    this.node.adjacency.forEach((id, i) => {
+      const needed = unlockActOf(id, this.balance);
+      const shut = needed !== null && this.act() < needed;
+      lines.push(`[${i + 1}] travel → ${id}${shut ? ` · act ${String(needed)}` : ""}`);
+    });
     lines.push("[C] collision overlay · [R] inn");
     this.hud.setText(lines);
   }

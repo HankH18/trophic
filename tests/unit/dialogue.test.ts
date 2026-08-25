@@ -30,8 +30,12 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  ACTS_TOTAL,
+  ACT_GYM_IDS,
   DIALOGUE_KINDS,
   DialogueValidationError,
+  NOMINAL_YEARS,
+  actFromFlags,
   conditionHolds,
   selectEntry,
   validateDialogue,
@@ -69,6 +73,7 @@ const speciesRaw = readJson("data/species.json") as {
 };
 const gymsRaw = readJson("data/gyms.json") as {
   gyms: {
+    id: string;
     name: string;
     slots: { traits?: RawTrait[] }[];
     signature: { nickname?: string; traits?: RawTrait[] };
@@ -242,14 +247,47 @@ describe("dialogue schema", () => {
 
   it("rejects a condition that uses both `years` and a year range", () => {
     expectRejected((f) => {
-      f.entries.find((x) => (x.when?.years ?? []).length > 0)!.when!.yearMin = 2;
+      f.entries.find((x) => x.when?.yearMin !== undefined)!.when!.years = [2];
     }, /never both/);
   });
 
-  it("rejects an out-of-range year", () => {
+  it("rejects a condition that uses both `act` and an act range", () => {
     expectRejected((f) => {
-      f.entries.find((x) => (x.when?.years ?? []).length > 0)!.when!.years = [7];
-    }, /when\.years\[0\]/);
+      f.entries.find((x) => (x.when?.act ?? []).length > 0)!.when!.actMin = 2;
+    }, /never both/);
+  });
+
+  it("rejects a year below 1", () => {
+    expectRejected((f) => {
+      f.entries.find((x) => x.when?.yearMin !== undefined)!.when!.yearMin = 0;
+    }, /when\.yearMin/);
+  });
+
+  /**
+   * Q3 (the authorised L8 amendment): the calendar is UNBOUNDED. Year 7+ was rejected by the old
+   * `max(clock.yearsTotal)` bound, which is exactly the assumption that made a year-8 run lose the
+   * finale. A world-ageing line must be free to speak in year 12.
+   */
+  it("accepts a calendar year past the nominal span (Q3 — the calendar never ends)", () => {
+    const far = clone();
+    const target = far.entries.find((x) => x.when?.yearMin !== undefined)!;
+    target.when!.yearMin = NOMINAL_YEARS * 5;
+    expect(() => validateDialogueFile(far)).not.toThrow();
+  });
+
+  it("rejects an act past the last act (there is no act 7)", () => {
+    expectRejected((f) => {
+      f.entries.find((x) => (x.when?.act ?? []).length > 0)!.when!.act = [ACTS_TOTAL + 1];
+    }, /when\.act\[0\]/);
+  });
+
+  it("rejects actMin above actMax", () => {
+    expectRejected((f) => {
+      const e = f.entries.find((x) => x.when?.actMin !== undefined)!;
+      delete e.when!.actMin;
+      e.when!.actMin = 4;
+      e.when!.actMax = 2;
+    }, /actMin must not exceed actMax/);
   });
 });
 
@@ -940,6 +978,14 @@ const EXTERNAL_FLAGS = [
 
 const truthy = (v: FlagValue): boolean => v !== false;
 
+/** The earliest calendar year an entry can fire in. Q3: forward-open unless `yearMax` says otherwise. */
+const earliestYear = (e: DialogueEntry): number =>
+  e.when?.years !== undefined ? Math.min(...e.when.years) : (e.when?.yearMin ?? 1);
+
+/** The earliest act an entry can fire in. */
+const earliestAct = (e: DialogueEntry): number =>
+  e.when?.act !== undefined ? Math.min(...e.when.act) : (e.when?.actMin ?? 1);
+
 function flagsSetByDialogue(): Set<string> {
   const s = new Set<string>();
   const add = (bag: Record<string, FlagValue> | undefined): void => {
@@ -1105,17 +1151,34 @@ describe("Ancient lore chains — bible §4", () => {
 
   it("a chain step is never gated to an EARLIER year than its predecessor", () => {
     // The flag fixpoint cannot see years, so a step moved back in time would look reachable.
-    const earliest = (e: DialogueEntry): number =>
-      e.when?.years !== undefined ? Math.min(...e.when.years) : (e.when?.yearMin ?? 1);
     for (const chain of chains) {
       const steps = raw.entries
         .filter((e) => e.signChain === chain && e.chainStep !== undefined)
         .sort((a, b) => a.chainStep! - b.chainStep!);
       let floor = 1;
       for (const e of steps) {
-        expect(earliest(e), `${e.id} opens before its predecessor (year ${floor})`).toBeGreaterThanOrEqual(floor);
-        floor = earliest(e);
+        expect(earliestYear(e), `${e.id} opens before its predecessor (year ${floor})`).toBeGreaterThanOrEqual(floor);
+        floor = earliestYear(e);
       }
+    }
+  });
+
+  /**
+   * Q3 moved the chains off the calendar and onto the act axis, so the ordering invariant has to
+   * move with them or it stops biting: with every chain step's year floor now 1, the year form
+   * above passes for any arrangement whatsoever.
+   */
+  it("a chain step is never gated to an EARLIER act than its predecessor", () => {
+    for (const chain of chains) {
+      const steps = raw.entries
+        .filter((e) => e.signChain === chain && e.chainStep !== undefined)
+        .sort((a, b) => a.chainStep! - b.chainStep!);
+      let floor = 1;
+      for (const e of steps) {
+        expect(earliestAct(e), `${e.id} opens before its predecessor (act ${floor})`).toBeGreaterThanOrEqual(floor);
+        floor = earliestAct(e);
+      }
+      expect(earliestAct(steps.at(-1)!), `${chain} never reaches a late act`).toBeGreaterThan(1);
     }
   });
 
@@ -1212,7 +1275,14 @@ describe("Ancient lore chains — bible §4", () => {
  * 7. Selection is total and unambiguous
  * ──────────────────────────────────────────────────────────────────────────── */
 
-const emptyCtx: DialogueContext = { year: 1, season: "spring", flags: {}, populations: {}, floraStock: {} };
+const emptyCtx: DialogueContext = {
+  act: 1,
+  year: 1,
+  season: "spring",
+  flags: {},
+  populations: {},
+  floraStock: {},
+};
 
 describe("dialogue selection", () => {
   it("every greeting/ambient group ships an unconditional fallback, so nobody is ever mute", () => {
@@ -1248,12 +1318,43 @@ describe("dialogue selection", () => {
     const file = validateDialogue();
     const ctx = (mirefin: number): DialogueContext => ({
       ...emptyCtx,
+      act: 2,
       year: 4,
       populations: { r2: { "mirefin-line": mirefin } },
     });
     expect(selectEntry(file, "sel", "brackwater", "greeting", ctx(2))?.id).toBe("sel.docks.rotting");
     expect(selectEntry(file, "sel", "brackwater", "greeting", ctx(12))?.id).toBe("sel.docks.rebuilt");
     expect(selectEntry(file, "sel", "brackwater", "greeting", ctx(6))?.id).toBe("sel.greeting");
+  });
+
+  it("conditionHolds respects the act axis independently of the calendar", () => {
+    // The whole of Q3 in six assertions: an act clause ignores the year, a year clause ignores
+    // the act, and neither can stand in for the other.
+    expect(conditionHolds({ act: [6] }, { ...emptyCtx, act: 6, year: 1 })).toBe(true);
+    expect(conditionHolds({ act: [6] }, { ...emptyCtx, act: 6, year: 30 })).toBe(true);
+    expect(conditionHolds({ act: [6] }, { ...emptyCtx, act: 5, year: 6 })).toBe(false);
+    expect(conditionHolds({ actMin: 4 }, { ...emptyCtx, act: 4, year: 1 })).toBe(true);
+    expect(conditionHolds({ actMin: 4 }, { ...emptyCtx, act: 3, year: 99 })).toBe(false);
+    expect(conditionHolds({ actMax: 2 }, { ...emptyCtx, act: 3, year: 1 })).toBe(false);
+    expect(conditionHolds({ yearMin: 3 }, { ...emptyCtx, act: 6, year: 2 })).toBe(false);
+    expect(conditionHolds({ yearMin: 3 }, { ...emptyCtx, act: 1, year: 3 })).toBe(true);
+    // both axes at once — an act beat that also waits for the world to age
+    expect(conditionHolds({ actMin: 4, yearMin: 3 }, { ...emptyCtx, act: 4, year: 3 })).toBe(true);
+    expect(conditionHolds({ actMin: 4, yearMin: 3 }, { ...emptyCtx, act: 4, year: 2 })).toBe(false);
+    expect(conditionHolds({ actMin: 4, yearMin: 3 }, { ...emptyCtx, act: 3, year: 3 })).toBe(false);
+  });
+
+  it("actFromFlags is the badge ladder, clamped at the last act", () => {
+    const beat = (n: number): Record<string, FlagValue> =>
+      Object.fromEntries(ACT_GYM_IDS.slice(0, n).map((id) => [`gym.${id}.beaten`, true]));
+    expect(actFromFlags({})).toBe(1);
+    for (let n = 0; n < ACTS_TOTAL; n += 1) expect(actFromFlags(beat(n)), `${String(n)} badges`).toBe(n + 1);
+    // beating the last act's leader is the finale, not a seventh act
+    expect(actFromFlags(beat(ACTS_TOTAL))).toBe(ACTS_TOTAL);
+    // a falsy flag is not a badge
+    expect(actFromFlags({ [`gym.${ACT_GYM_IDS[0]!}.beaten`]: false })).toBe(1);
+    // the ladder is the shipped gym table, not a number typed into code
+    expect(ACT_GYM_IDS).toEqual(gymsRaw.gyms.map((g) => g.id));
   });
 
   it("conditionHolds respects year, season, flags and flag VALUES", () => {
@@ -1273,14 +1374,23 @@ describe("dialogue selection", () => {
     );
   });
 
-  it("the vertical slice is state-aware across years (bible §6 aging arcs)", () => {
+  /**
+   * AMENDED for Q3. This used to demand ≥3 year-conditioned entries per slice node, back when the
+   * calendar carried the story as well as the world. Under the L8 amendment those are two axes, so
+   * the assertion now demands BOTH — ≥2 act-conditioned (the story moves with the player) and ≥2
+   * year-conditioned (the world ages regardless) — which binds four entries per node where the old
+   * form bound three, and binds them on the axis each actually belongs to.
+   */
+  it("the vertical slice moves on BOTH clocks (Q3: acts for story, calendar for ageing)", () => {
     for (const node of ["hearthollow", "r1", "brackwater", "r2"]) {
       const here = raw.entries.filter((e) => e.node === node);
       const yearAware = here.filter((e) => e.when?.years !== undefined || e.when?.yearMin !== undefined);
+      const actAware = here.filter((e) => e.when?.act !== undefined || e.when?.actMin !== undefined);
       const stateAware = here.filter(
         (e) => (e.when?.population ?? []).length > 0 || (e.when?.floraStock ?? []).length > 0,
       );
-      expect(yearAware.length, `${node} has no year-conditioned dialogue`).toBeGreaterThanOrEqual(3);
+      expect(yearAware.length, `${node} has no calendar-conditioned dialogue`).toBeGreaterThanOrEqual(2);
+      expect(actAware.length, `${node} has no act-conditioned dialogue`).toBeGreaterThanOrEqual(2);
       expect(stateAware.length, `${node} has no population-conditioned dialogue`).toBeGreaterThanOrEqual(2);
     }
   });
@@ -1298,6 +1408,483 @@ describe("dialogue selection", () => {
       }
     }
     expect(offenders).toEqual([]);
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * 7b. Q3 — two clocks, and every entry reachable under both
+ *
+ * The defect this section exists for: `data/dialogue.json` was authored against content-bible §6's
+ * "six acts = six years" equation, so 44 entries — the whole rival arc, both Greaves cutscenes, the
+ * finale, the Vellsire choice and both epilogues — gated on an exact calendar year. Under the
+ * authorised L8 amendment the calendar is unbounded and does not carry progression, so a player who
+ * reached the Sanctum in year 8 saw NONE of the ending and nothing went red.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Populations/flora big enough to satisfy a `gte` and small enough to satisfy an `lte`. */
+const CARRY_CAP = new Map<string, Map<string, number>>(
+  content.nodes.map((n) => [n.id, new Map(Object.entries(n.populations).map(([k, v]) => [k, v.carryCap]))] as const),
+);
+
+/**
+ * Build the world a single entry needs, clause by clause, and hand it to the real `conditionHolds`.
+ * Returns undefined when the clauses CONTRADICT — which is the unreachability this is hunting.
+ */
+function witnessFor(e: DialogueEntry, year: number): DialogueContext | undefined {
+  const w = e.when ?? {};
+
+  const act = earliestAct(e);
+  if (w.actMax !== undefined && act > w.actMax) return undefined;
+  if (w.act !== undefined && w.act.some((a) => a < 1 || a > ACTS_TOTAL)) return undefined;
+
+  const y = Math.max(year, earliestYear(e));
+  const chosenYear = w.years !== undefined ? (w.years.includes(y) ? y : Math.max(...w.years)) : y;
+  if (w.yearMax !== undefined && chosenYear > w.yearMax) return undefined;
+
+  const flags: Record<string, FlagValue> = {};
+  for (const k of w.flagsSet ?? []) flags[k] = true;
+  for (const fe of w.flagEquals ?? []) flags[fe.key] = fe.value;
+  for (const k of w.flagsUnset ?? []) {
+    if (k in flags) return undefined; // required and forbidden at once
+  }
+
+  const populations: Record<string, Record<string, number>> = {};
+  for (const p of w.population ?? []) {
+    const cap = CARRY_CAP.get(p.node)?.get(p.lineId);
+    if (cap === undefined) return undefined;
+    const want =
+      p.op === "lt" ? p.value - 1 : p.op === "lte" || p.op === "eq" ? p.value : p.op === "gte" ? p.value : p.value + 1;
+    if (want < 0 || want > cap) return undefined;
+    const node = (populations[p.node] ??= {});
+    const prev = node[p.lineId];
+    if (prev !== undefined && prev !== want) return undefined; // two clauses disagree
+    node[p.lineId] = want;
+  }
+
+  const floraStock: Record<string, number> = {};
+  for (const f of w.floraStock ?? []) {
+    const want =
+      f.op === "lt" ? f.value - 1 : f.op === "lte" || f.op === "eq" ? f.value : f.op === "gte" ? f.value : f.value + 1;
+    if (want < 0 || want > content.balance.ecosim.floraMax) return undefined;
+    const prev = floraStock[f.node];
+    if (prev !== undefined && prev !== want) return undefined;
+    floraStock[f.node] = want;
+  }
+
+  return {
+    act,
+    year: chosenYear,
+    season: w.seasons?.[0] ?? "spring",
+    flags,
+    populations,
+    floraStock,
+  };
+}
+
+describe("Q3 — the calendar and the acts are two clocks", () => {
+  const file = validateDialogue();
+  /** Well past `NOMINAL_YEARS`, which is the pacing the file was authored against. */
+  const FAR_YEARS = [NOMINAL_YEARS, NOMINAL_YEARS + 2, NOMINAL_YEARS * 2, NOMINAL_YEARS * 5];
+
+  it("no entry anywhere is unreachable — every one has a world that fires it", () => {
+    // A constructive fixpoint over the whole condition space, not just the chain flags: for each
+    // entry, build a context from its own clauses and require the SHIPPED resolver to accept it.
+    const unreachable: string[] = [];
+    for (const e of raw.entries) {
+      const ctx = witnessFor(e, 1);
+      if (ctx === undefined || !conditionHolds(e.when, ctx)) unreachable.push(e.id);
+    }
+    expect(unreachable).toEqual([]);
+  });
+
+  it("the witness a reachability proof uses is a world a player could actually hold", () => {
+    // Otherwise the assertion above proves only that the builder can invent a context.
+    const acquired = reachableFlags();
+    const bogus: string[] = [];
+    for (const e of raw.entries) {
+      const ctx = witnessFor(e, 1);
+      if (ctx === undefined) {
+        bogus.push(`${e.id}: no witness at all`);
+        continue;
+      }
+      if (ctx.act < 1 || ctx.act > ACTS_TOTAL) bogus.push(`${e.id}: act ${String(ctx.act)}`);
+      if (!Number.isInteger(ctx.year) || ctx.year < 1) bogus.push(`${e.id}: year ${String(ctx.year)}`);
+      for (const k of Object.keys(ctx.flags)) {
+        if (!acquired.has(k)) bogus.push(`${e.id}: flag ${k} is not reachable`);
+      }
+      for (const [nodeId, lines] of Object.entries(ctx.populations)) {
+        for (const [lineId, n] of Object.entries(lines)) {
+          const cap = CARRY_CAP.get(nodeId)?.get(lineId);
+          if (cap === undefined || n < 0 || n > cap) bogus.push(`${e.id}: ${nodeId}.${lineId}=${String(n)}`);
+        }
+      }
+    }
+    expect(bogus).toEqual([]);
+  });
+
+  it("the unreachability probe bites — a contradictory condition is caught", () => {
+    const impossible: DialogueEntry = {
+      ...raw.entries.find((e) => (e.when?.population ?? []).length > 0)!,
+      when: {
+        population: [
+          { node: "r2", lineId: "mirefin-line", op: "gte", value: 9 },
+          { node: "r2", lineId: "mirefin-line", op: "lte", value: 4 },
+        ],
+      },
+    };
+    expect(witnessFor(impossible, 1)).toBeUndefined();
+    const overCap: DialogueEntry = {
+      ...impossible,
+      when: { population: [{ node: "r2", lineId: "mirefin-line", op: "gte", value: 9999 }] },
+    };
+    expect(witnessFor(overCap, 1)).toBeUndefined();
+    const selfBlocking: DialogueEntry = {
+      ...impossible,
+      when: { flagsSet: ["story.greaves.beaten"], flagsUnset: ["story.greaves.beaten"] },
+    };
+    expect(witnessFor(selfBlocking, 1)).toBeUndefined();
+  });
+
+  it("every entry still fires in a calendar year far past the nominal span", () => {
+    // The exact shape of the shipped defect: fine at year 6, silent at year 8.
+    for (const year of FAR_YEARS) {
+      const lost: string[] = [];
+      for (const e of raw.entries) {
+        const ctx = witnessFor(e, year);
+        if (ctx === undefined || !conditionHolds(e.when, ctx)) lost.push(e.id);
+      }
+      expect(lost, `entries lost in year ${String(year)}`).toEqual([]);
+    }
+  });
+
+  /* ── the never-cut beats, named one by one ─────────────────────────────── */
+
+  const finaleCtx = (year: number, flags: Record<string, FlagValue>): DialogueContext => ({
+    ...emptyCtx,
+    act: ACTS_TOTAL,
+    year,
+    flags,
+  });
+
+  it("the finale resolves at the last act in ANY calendar year", () => {
+    for (const year of FAR_YEARS) {
+      const beforeGreaves = finaleCtx(year, { "story.greaves.entered": true });
+      expect(selectEntry(file, "maren", "sanctum-approach", "cutscene", beforeGreaves)?.id, `year ${String(year)}`).toBe(
+        "maren.finale",
+      );
+      expect(selectEntry(file, "greaves", "sanctum", "battle-pre", finaleCtx(year, {}))?.id, `year ${String(year)}`).toBe(
+        "greaves.finale.pre",
+      );
+      expect(
+        selectEntry(file, "greaves", "sanctum", "battle-win", finaleCtx(year, {}))?.id,
+        `year ${String(year)}`,
+      ).toBe("greaves.finale.post");
+    }
+  });
+
+  it("the Vellsire choice resolves at the last act in ANY calendar year", () => {
+    for (const year of FAR_YEARS) {
+      const ctx = finaleCtx(year, { "story.greaves.beaten": true });
+      const chosen = selectEntry(file, "prop-antler-stone", "sanctum", "cutscene", ctx);
+      expect(chosen?.id, `year ${String(year)}`).toBe("sanctum.vellsire.approach");
+      expect(chosen?.choices?.length, "the choice itself must survive").toBe(2);
+    }
+  });
+
+  it("both epilogues resolve at the last act in ANY calendar year", () => {
+    for (const year of FAR_YEARS) {
+      for (const [outcome, id] of [
+        ["caught", "maren.epilogue.caught"],
+        ["released", "maren.epilogue.released"],
+      ] as const) {
+        const ctx = finaleCtx(year, {
+          "story.vellsire.resolved": true,
+          "story.vellsire.outcome": outcome,
+        });
+        expect(selectEntry(file, "maren", "sanctum", "cutscene", ctx)?.id, `${outcome} in year ${String(year)}`).toBe(
+          id,
+        );
+      }
+    }
+  });
+
+  it("the finale does NOT fire before its act, however late the calendar runs", () => {
+    // The other direction: decoupling must not turn the ending into something a year-30 player
+    // gets for free without the badges. Each probe carries ONLY the flags its target needs, so it
+    // is the ACT clause being tested and not a flag standing in for one.
+    const early = (flags: Record<string, FlagValue>): DialogueContext => ({
+      ...emptyCtx,
+      act: ACTS_TOTAL - 1,
+      year: NOMINAL_YEARS * 5,
+      flags,
+    });
+    expect(selectEntry(file, "greaves", "sanctum", "battle-pre", early({}))).toBeUndefined();
+    expect(selectEntry(file, "greaves", "sanctum", "battle-win", early({}))).toBeUndefined();
+    expect(
+      selectEntry(file, "prop-antler-stone", "sanctum", "cutscene", early({ "story.greaves.beaten": true })),
+    ).toBeUndefined();
+    expect(
+      selectEntry(file, "maren", "sanctum-approach", "cutscene", early({ "story.greaves.entered": true }))?.id,
+    ).not.toBe("maren.finale");
+    for (const outcome of ["caught", "released"]) {
+      const ctx = early({ "story.vellsire.resolved": true, "story.vellsire.outcome": outcome });
+      expect(selectEntry(file, "maren", "sanctum", "cutscene", ctx), outcome).toBeUndefined();
+    }
+  });
+
+  it("the rival arc fires in every act, in every calendar year", () => {
+    const rivalNode: Record<number, string> = { 1: "r1", 2: "r2", 3: "r3", 4: "r4", 5: "r5", 6: "sanctum-approach" };
+    for (let act = 1; act <= ACTS_TOTAL; act += 1) {
+      const node = rivalNode[act]!;
+      for (const year of [1, ...FAR_YEARS]) {
+        const ctx: DialogueContext = { ...emptyCtx, act, year };
+        expect(selectEntry(file, "wick", node, "battle-pre", ctx)?.id, `act ${String(act)} year ${String(year)}`).toBe(
+          `wick.act${String(act)}.pre`,
+        );
+        expect(selectEntry(file, "wick", node, "battle-win", ctx)?.id).toBe(`wick.act${String(act)}.win`);
+        expect(selectEntry(file, "wick", node, "battle-loss", ctx)?.id).toBe(`wick.act${String(act)}.loss`);
+      }
+    }
+  });
+
+  it("a world-ageing line still reads sensibly in a year the file was never written for", () => {
+    // Town ageing legitimately stays on the calendar (Q3), so it must not go mute or go exact.
+    const late = NOMINAL_YEARS * 2;
+    const rotting: DialogueContext = { ...emptyCtx, act: 2, year: late, populations: { r2: { "mirefin-line": 2 } } };
+    expect(selectEntry(file, "sel", "brackwater", "greeting", rotting)?.id).toBe("sel.docks.rotting");
+    const rebuilt: DialogueContext = { ...emptyCtx, act: 2, year: late, populations: { r2: { "mirefin-line": 12 } } };
+    expect(selectEntry(file, "sel", "brackwater", "greeting", rebuilt)?.id).toBe("sel.docks.rebuilt");
+    const mid: DialogueContext = { ...emptyCtx, act: 2, year: late, populations: { r2: { "mirefin-line": 6 } } };
+    expect(selectEntry(file, "sel", "brackwater", "greeting", mid)?.id).toBe("sel.greeting");
+    // and the calendar-gated ambient set is still speaking at that year
+    expect(
+      selectEntry(file, "hearthollow-fenceman", "hearthollow", "ambient", { ...emptyCtx, year: late })?.id,
+    ).toBe("amb.hearthollow-fenceman.late");
+  });
+
+  /* ── the axis rules the split was made on ──────────────────────────────── */
+
+  /**
+   * The whole story spine, by hand, with the act each beat opens in — the split this change made,
+   * published so it is reviewable here and not only in a JSON diff. A floor of 1 means "no act
+   * prerequisite at all", which is the right answer for the opening and for a quest offer that must
+   * never expire. Anything above 1 must carry a real `act`/`actMin` clause, asserted below.
+   */
+  const ACT_FLOOR: Record<string, number> = {
+    "maren.opening": 1,
+    "maren.starter.cindril": 1,
+    "maren.starter.puddlisk": 1,
+    "maren.starter.thornlet": 1,
+    "maren.tutorial.snare": 1,
+    "maren.tutorial.ledger": 1,
+    "maren.tutorial.release": 2,
+    "maren.quest.first-signs.offer": 1,
+    "maren.quest.first-signs.done": 1,
+    "maren.keystone.1": 1,
+    "maren.keystone.2": 2,
+    "maren.keystone.3": 3,
+    "maren.keystone.4": 4,
+    "maren.keystone.5": 5,
+    "maren.keystone.6": 6,
+    "maren.crash-survey": 4,
+    "maren.finale": 6,
+    "maren.epilogue.caught": 6,
+    "maren.epilogue.released": 6,
+    "greaves.act3.intro": 3,
+    "greaves.act4.steppe": 4,
+    "greaves.finale.pre": 6,
+    "greaves.finale.post": 6,
+    "sanctum.vellsire.approach": 6,
+    "prop.sanctum-antler-ring": 6,
+    "prop.sanctum-approach-antler-gate": 6,
+    "tolm.quest.fallow.offer": 1,
+    "sel.quest.wager.offer": 2,
+    "nessa.quest.restock.offer": 2,
+    "halder.quest.silk.offer": 3,
+    "pell.quest.lanternless.offer": 3,
+    "gerta.quest.crash.offer": 4,
+    "bram.quest.forge.offer": 4,
+    "ives.quest.census.offer": 5,
+    "orrin.quest.trail.offer": 5,
+    "amb.r4-worker.arrival": 4,
+    "amb.r4-worker.emptied": 4,
+    ...Object.fromEntries(
+      [1, 2, 3, 4, 5, 6].flatMap((n) =>
+        ["pre", "win", "loss"].map((k) => [`wick.act${String(n)}.${k}`, n] as const),
+      ),
+    ),
+  };
+  const STORY_SPINE = Object.keys(ACT_FLOOR);
+
+  it("the story spine names entries that all still exist", () => {
+    expect(STORY_SPINE.filter((id) => !ENTRY.has(id))).toEqual([]);
+  });
+
+  it("no story beat gates on the calendar — the finale cannot be lost to a slow run", () => {
+    expect(
+      STORY_SPINE.filter((id) => {
+        const w = ENTRY.get(id)!.when ?? {};
+        return w.years !== undefined || w.yearMin !== undefined || w.yearMax !== undefined;
+      }),
+    ).toEqual([]);
+  });
+
+  it("every story beat opens at exactly the act the split put it in", () => {
+    // Catches BOTH directions: an act gate deleted (the beat becomes free) and an act gate moved.
+    expect(
+      Object.entries(ACT_FLOOR)
+        .filter(([id, floor]) => earliestAct(ENTRY.get(id)!) !== floor)
+        .map(([id, floor]) => `${id}: opens act ${String(earliestAct(ENTRY.get(id)!))}, split says ${String(floor)}`),
+    ).toEqual([]);
+  });
+
+  it("a beat with an act prerequisite carries a real act clause, not an inherited floor of 1", () => {
+    expect(
+      Object.entries(ACT_FLOOR)
+        .filter(([, floor]) => floor > 1)
+        .filter(([id]) => {
+          const w = ENTRY.get(id)!.when ?? {};
+          return w.act === undefined && w.actMin === undefined;
+        })
+        .map(([id]) => id),
+    ).toEqual([]);
+  });
+
+  it("the rival meets you once per act, pinned to that act (act equality, not a floor)", () => {
+    // `actMin` would leave Wick's act-1 lines still firing at Meadow Reach in act 6.
+    for (let n = 1; n <= ACTS_TOTAL; n += 1) {
+      for (const kind of ["pre", "win", "loss"]) {
+        const e = ENTRY.get(`wick.act${String(n)}.${kind}`)!;
+        expect(e.when?.act, `wick.act${String(n)}.${kind}`).toEqual([n]);
+      }
+    }
+  });
+
+  it("no entry anywhere gates on an exact calendar year (Q3: prefer a floor to an equality)", () => {
+    expect(raw.entries.filter((e) => e.when?.years !== undefined).map((e) => e.id)).toEqual([]);
+  });
+
+  it("no calendar clause carries a ceiling that could silence it in a long run", () => {
+    // `yearMax` is legal and occasionally right, but nothing ships one, and a new one is a
+    // decision rather than an oversight.
+    expect(raw.entries.filter((e) => e.when?.yearMax !== undefined).map((e) => e.id)).toEqual([]);
+  });
+
+  /**
+   * The other half of the split: town ageing stays on the world's clock (Q3 says so explicitly), so
+   * these must NOT quietly migrate to the act axis the next time somebody re-gates something.
+   */
+  const CALENDAR_AGEING = [
+    "sel.docks.rotting",
+    "sel.docks.rebuilt",
+    "bram.mine.expanding",
+    "bram.mine.closing",
+    "amb.bowerdeep-logger.thin",
+    "amb.hearthollow-elder.bloom",
+    "amb.hearthollow-elder.thin",
+    "amb.hearthollow-child.older",
+    "amb.hearthollow-fenceman.late",
+    "amb.brackwater-dockhand.rot",
+    "amb.brackwater-dockhand.rebuilt",
+    "amb.brackwater-netmender.late",
+    "amb.r1-forager.late",
+    "maren.retirement",
+  ] as const;
+
+  it("town ageing and retirement stay on the calendar", () => {
+    for (const id of CALENDAR_AGEING) {
+      const e = ENTRY.get(id);
+      expect(e, `${id} is gone`).toBeDefined();
+      expect(e!.when?.yearMin, `${id} left the calendar`).toBeGreaterThanOrEqual(2);
+      expect(e!.when?.act, `${id} joined the act axis`).toBeUndefined();
+      expect(e!.when?.actMin, `${id} joined the act axis`).toBeUndefined();
+    }
+  });
+
+  /**
+   * D19, unresolved and Hank's to rule on: six lines state "six years" as the length of a run, and
+   * the calendar is now unbounded, so a year-12 player can be told they have been counting for six.
+   * This does not rewrite them — G2 — it pins the set, so the ruling has an exact checklist and a
+   * seventh cannot appear unnoticed. See docs/DIALOGUE-NOTES.md §8.
+   */
+  it("the lines that hardcode a run length are exactly the six already flagged (D19)", () => {
+    // "six YEARS" only. Greaves' "six-year contract" (greaves.act4.steppe) is the Cullbrand
+    // contract — a fixed historical fact, not the player's run — and it is pinned separately by
+    // the steppe-duration assertion. Vesper's "nine years" is her own argument with Halder.
+    const RUN_LENGTH = /\bsix years\b/i;
+    const found = raw.entries
+      .filter((e) => e.lines.some((l) => RUN_LENGTH.test(l.text)))
+      .map((e) => e.id)
+      .sort();
+    expect(found).toEqual([
+      "amb.brackwater-netmender.late",
+      "amb.hearthollow-fenceman.late",
+      "amb.r1-forager.late",
+      "greaves.finale.pre",
+      "maren.epilogue.released",
+      "wick.act6.win",
+    ]);
+  });
+
+  /**
+   * The wider version of D19, and the one that actually guards the change made here. Moving a beat
+   * onto the act axis frees it from the calendar — which is the fix — but it also means any year
+   * figure in its copy is no longer anchored to anything. So every act-gated line that names a
+   * span in years is enumerated, count for count (the pattern `DIET_LINE_REVIEW` uses), and each is
+   * classified: `world` = a fact about Fallowmere that is true whenever it is said; `run-length` =
+   * a claim about how long THIS run has been, which the unbounded calendar can falsify.
+   *
+   * Adding a year figure to an act-gated line fails here until it has been read and classified.
+   * Nothing is rewritten — D19 is Hank's ruling, see docs/DIALOGUE-NOTES.md §8.
+   */
+  const ACT_GATED_YEAR_CLAIMS: Record<string, { lines: number; kind: "world" | "run-length" }> = {
+    "gerta.warm.testimony": { lines: 1, kind: "world" }, // 31 years of shaft temperature log
+    "greaves.act4.steppe": { lines: 2, kind: "world" }, // the Cullbrand contract, closed in four
+    "greaves.finale.post": { lines: 1, kind: "world" }, // "forty years of records" — his career
+    "greaves.finale.pre": { lines: 1, kind: "run-length" }, // "you've been counting for six years"
+    "maren.epilogue.released": { lines: 1, kind: "run-length" }, // "spent six years finding"
+    "maren.keystone.2": { lines: 1, kind: "world" }, // the herd, thirty years gone
+    "maren.keystone.5": { lines: 1, kind: "world" }, // the vanishing, thirty years
+    "maren.opening": { lines: 2, kind: "world" }, // a juvenile's three-year lifespan
+    "orrin.vanishing": { lines: 2, kind: "world" }, // ninety years of margin entries
+    "prop.cindershelf-shrine-deep": { lines: 1, kind: "world" }, // thirty-one years of still air
+    "sel.quest.wager.offer": { lines: 1, kind: "world" }, // an Elder is one year from retiring
+    "wick.act2.pre": { lines: 1, kind: "world" }, // the fishery, indexed for sixty years
+    "wick.act3.win": { lines: 1, kind: "run-length" }, // "three years running" — act 3 may be year 1
+    "wick.act4.pre": { lines: 1, kind: "world" }, // Cullbrand paid out for four years
+    "wick.act6.win": { lines: 1, kind: "run-length" }, // "six years"
+  };
+
+  it("every act-gated line that names a span in years has been read and classified", () => {
+    const SPAN =
+      /\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|thirty|forty|fifty|sixty|ninety|\d+)[- ]?years?\b/i;
+    const actual = new Map<string, number>();
+    for (const e of raw.entries) {
+      const w = e.when ?? {};
+      if (w.act === undefined && w.actMin === undefined) continue;
+      const n = e.lines.filter((l) => SPAN.test(l.text)).length;
+      if (n > 0) actual.set(e.id, n);
+    }
+    const diff: string[] = [];
+    for (const [id, n] of actual) {
+      const want = ACT_GATED_YEAR_CLAIMS[id]?.lines;
+      if (want !== n) diff.push(`${id}: ${String(n)} year-span line(s), reviewed ${String(want ?? 0)}`);
+    }
+    for (const [id, row] of Object.entries(ACT_GATED_YEAR_CLAIMS)) {
+      if (!actual.has(id)) diff.push(`${id}: reviewed ${String(row.lines)} but names no year span now`);
+    }
+    expect(diff.sort()).toEqual([]);
+  });
+
+  it("the run-length claims an act gate can falsify are exactly the four named", () => {
+    // These say how long the PLAYER has been at it. Act-gated, so a fast run makes them false;
+    // they are load-bearing finale lines and the reword is D19, not this task's to make.
+    expect(
+      Object.entries(ACT_GATED_YEAR_CLAIMS)
+        .filter(([, r]) => r.kind === "run-length")
+        .map(([id]) => id)
+        .sort(),
+    ).toEqual(["greaves.finale.pre", "maren.epilogue.released", "wick.act3.win", "wick.act6.win"]);
   });
 });
 

@@ -130,25 +130,44 @@ export class SummaryScene extends Phaser.Scene {
 
     const card = this.card();
     if (!card) {
-      this.layer.add(this.text(PAD, PAD, "party 0", INK_DIM));
-      return;
+      /*
+       * THE EMPTY TEAM IS A SCREEN, NOT AN EARLY RETURN. This branch used to `return` before the
+       * footer below was drawn, so a player who opened TEAM with nothing in the party got one grey
+       * line and no way off the screen printed anywhere — the only exit is a key nothing named.
+       * G7: identifiers and counts, no comment on why the party is empty.
+       */
+      this.layer.add(
+        this.text(
+          PAD,
+          PAD,
+          `party ${String(this.args.party.length)}  box ${String((this.args.box ?? []).length)}`,
+          INK_DIM,
+        ),
+      );
+    } else {
+      this.layer.add(
+        this.text(PAD, PAD, `${this.cursor + 1}/${this.roster.length}${card.boxed ? " · box" : ""}`, INK_DIM),
+      );
+      this.layer.add(drawArtSlot(this, ART_BOX, card.artId));
+
+      const x = ART_BOX.x + ART_BOX.width + PAD;
+      const lines = this.cardLines();
+      lines.forEach((line, i) => {
+        // The retirement year is line 3 of the card (renderSummaryCard's order) and is drawn in its
+        // own colour: it is the bible §12 hard requirement and the Legacy beat's whole premise.
+        const isRetirement = i === 2;
+        this.layer.add(this.text(x, ART_BOX.y + LINE_H * i, line, isRetirement ? INK_FLAG : INK));
+      });
     }
 
     this.layer.add(
-      this.text(PAD, PAD, `${this.cursor + 1}/${this.roster.length}${card.boxed ? " · box" : ""}`, INK_DIM),
+      this.text(
+        PAD,
+        map.virtualHeight - LINE_H - PAD,
+        this.roster.length > 0 ? "←/→ creature  ESC" : "ESC",
+        INK_DIM,
+      ),
     );
-    this.layer.add(drawArtSlot(this, ART_BOX, card.artId));
-
-    const x = ART_BOX.x + ART_BOX.width + PAD;
-    const lines = this.cardLines();
-    lines.forEach((line, i) => {
-      // The retirement year is line 3 of the card (renderSummaryCard's order) and is drawn in its
-      // own colour: it is the bible §12 hard requirement and the Legacy beat's whole premise.
-      const isRetirement = i === 2;
-      this.layer.add(this.text(x, ART_BOX.y + LINE_H * i, line, isRetirement ? INK_FLAG : INK));
-    });
-
-    this.layer.add(this.text(PAD, map.virtualHeight - LINE_H - PAD, "←/→ creature  ESC", INK_DIM));
   }
 
   private text(x: number, y: number, value: string, color: string): Phaser.GameObjects.Text {

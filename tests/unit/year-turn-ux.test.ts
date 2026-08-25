@@ -24,11 +24,13 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { advanceAction, createClock, gymVictory, isOver, meter, seasonsOfYear } from "@core/clock";
+import { advanceAction, createClock, meter, seasonsOfYear } from "@core/clock";
+import { actGates, awardBadge, runIsComplete } from "@core/acts";
 import { effectiveStats } from "@core/battle";
 import { defaultContext, stepRegionStates } from "@core/ecosim";
 import {
   boonMultiplier,
+  enterPendingActs,
   indexSpecies,
   isNever,
   newOwnedCreature,
@@ -78,15 +80,13 @@ import {
 import { clockFromLog, replayRegionHooks, withClockFromLog } from "@game/year-replay";
 import {
   festivalBeat,
-  finalYearOf,
   hasRaids,
   raidCoverage,
   raidLedgerLines,
   raidPreviews,
   raidReportsFrom,
-  raidableYears,
-  raidsForYear,
-  yearTurnEndsRun,
+  raidableActs,
+  raidsForAct,
 } from "@game/year-events";
 import {
   RetirementFlow,
@@ -110,6 +110,7 @@ import { SCENE_KEYS, sceneRegistered } from "@game/scene-keys";
 import { dexArtId } from "@game/ledger-view";
 import { assetId } from "@game/placeholder";
 import {
+  actEntryBeats,
   beatLines,
   beatsAfterRetirement,
   beatsFor,
@@ -320,8 +321,16 @@ describe("season meter — L8 'travel 1 / foray 1 / inn 2'", () => {
     expect(model.cells.filter((c) => c.filled)).toHaveLength(0);
   });
 
-  it("a full meter and a gym victory each end the year, and the meter resets for both", () => {
-    // (a) full meter — L8's "year = … full meter".
+  it("THE FULL METER ENDS THE YEAR AND A GYM VICTORY LEAVES IT EXACTLY WHERE IT STOOD", () => {
+    /*
+     * REWRITTEN BY AN AUTHORISED AMENDMENT (D-Q2-1). This test used to be "a full meter and a gym
+     * victory EACH end the year"; the second trigger is gone and the assertion is inverted.
+     *
+     * The perverse incentive it removes, priced: a player who won a gym at tick 1 used to forfeit
+     * 15 of that year's 16 ticks. Below, the meter after the badge is byte-identical to the meter
+     * before it, at every tick of the year.
+     */
+    // (a) full meter — L8 as amended: "year = full meter".
     let clock = createClock(balance);
     let ended = 0;
     while (ended === 0) {
@@ -333,14 +342,16 @@ describe("season meter — L8 'travel 1 / foray 1 / inn 2'", () => {
     expect(meterEnd.year).toBe(balance.clock.startYear + 1);
     expect(meterEnd.tick).toBe(balance.clock.startTick);
 
-    // (b) gym victory — L8's "year = gym victory or full meter", at any point on the meter.
-    for (const tick of [0, 1, balance.clock.ticksPerYear - 1]) {
-      const win = gymVictory({ year: balance.clock.startYear, tick }, balance);
-      expect(win.events.filter((e) => e.t === "yearEnd")).toHaveLength(1);
-      const model = seasonMeterModel(win.clock, balance);
-      expect(model.year).toBe(balance.clock.startYear + 1);
-      expect(model.tick).toBe(balance.clock.startTick);
-      expect(model.cells.filter((c) => c.filled)).toHaveLength(0);
+    // (b) a gym victory: THE METER IS UNCHANGED, at every tick of the year.
+    for (let tick = 0; tick < balance.clock.ticksPerYear; tick += 1) {
+      const before = saveWith([creature({ uid: "p1", line: mortalLine(), age: "A", level: 10 })]);
+      const at = { ...before, year: balance.clock.startYear, tick };
+      const after = awardBadge(at, "maribel", balance);
+      expect(seasonMeterModel({ year: after.year, tick: after.tick }, balance)).toEqual(
+        seasonMeterModel({ year: at.year, tick: at.tick }, balance),
+      );
+      expect(after.tick).toBe(tick);
+      expect(after.year).toBe(balance.clock.startYear);
     }
   });
 
@@ -680,9 +691,9 @@ describe("year turn — G10 / Hard Req 4: boxed creatures age, caught Ancients d
     const first = drive.beats[0];
     expect(first?.t).toBe("festival");
     expect(first && first.t === "festival" ? first.festival.year : 0).toBe(save.year + 1);
-    expect(beatLines(first as (typeof drive.beats)[number])[0]).toContain(
-      String(balance.clock.yearsTotal),
-    );
+    // The label names the year that is beginning. It used to name `yearsTotal` as a denominator
+    // ("Y2/6") and no longer claims one — the calendar has no total (D-Q3-1).
+    expect(beatLines(first as (typeof drive.beats)[number])[0]).toBe(`FESTIVAL · Y${String(save.year + 1)}`);
   });
 
   it("the season step it hands core is the REAL region step, not a pass-through", () => {
@@ -764,25 +775,23 @@ describe("year turn — G10 / Hard Req 4: boxed creatures age, caught Ancients d
     ).toThrow(YearTurnError);
   });
 
-  it("collapses both of build-doc §4's triggers into ONE trigger per action", () => {
-    // The clock reports a full meter and a gym victory the same way, as `{t:"yearEnd"}`. Reading the
-    // trigger through one function is what stops a shell watching for both from firing two turns.
+  it("collapses the year end into ONE trigger per action", () => {
+    /*
+     * build-doc §4 used to give the turn TWO triggers and this test named the second. There is one
+     * (D-Q2-1), and `yearTurnTrigger` still collapses: a caller that somehow saw two `yearEnd`
+     * events in one action's log must still fire one turn.
+     */
     const atLastTick = { year: balance.clock.startYear, tick: balance.clock.ticksPerYear - 1 };
     const meterEnd = advanceAction(atLastTick, "foray", balance);
     const meterTrigger = yearTurnTrigger(meterEnd);
     expect(meterTrigger?.endedYear).toBe(balance.clock.startYear);
     expect(meterTrigger?.reason).toBe("meter");
-
-    const win = gymVictory({ year: balance.clock.startYear, tick: 3 }, balance);
-    const gymTrigger = yearTurnTrigger(win);
-    expect(gymTrigger?.endedYear).toBe(balance.clock.startYear);
-    expect(gymTrigger?.reason).toBe("gymVictory");
-    expect(gymTrigger?.carryTick).toBe(balance.clock.startTick);
+    expect(meterTrigger?.carryTick).toBe(balance.clock.startTick);
 
     // A pair of clock events carrying two yearEnds is still ONE trigger.
     const both = {
       clock: meterEnd.clock,
-      events: [...meterEnd.events, ...win.events],
+      events: [...meterEnd.events, ...meterEnd.events],
     };
     expect(yearTurnTrigger(both)?.endedYear).toBe(balance.clock.startYear);
 
@@ -1399,123 +1408,144 @@ describe("retirement flow — build-doc §7.5 step 3, HEIR or BOON", () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
- * C6 — scripted year events (Cullbrand raids)
+ * C6 — scripted ACT events (Cullbrand raids). RE-KEYED FROM YEARS: D-Q3-1.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-describe("year events — scripted raids, from balance.json only", () => {
+describe("act events — scripted raids, from balance.json only", () => {
   const scripted = yearEventsOf(balance);
+  const gyms = content.gyms;
+
+  /** A save standing in `act`, reached through badges and quest flags — never through the calendar. */
+  const atAct = (act: number, save = saveWith([creature({ uid: "p1", line: mortalLine(), age: "A", level: 10 })])) => {
+    let out = save;
+    for (const gate of actGates(balance)) {
+      if (gate.act > act) break;
+      for (const flag of gate.flags) out = { ...out, questFlags: { ...out.questFlags, [flag]: true } };
+      for (const gym of [...gyms].sort((a, b) => a.act - b.act)) {
+        if (gym.act >= gate.act) break;
+        out = { ...out, ...awardBadge(out, gym.id, balance) };
+      }
+    }
+    return out;
+  };
 
   it("reads its raids out of balance.yearEvents and invents none", () => {
     expect(scripted.length).toBeGreaterThan(0);
     for (const raid of scripted) {
-      expect(raidsForYear(balance, raid.year).map((r) => r.id)).toContain(raid.id);
-      expect(hasRaids(balance, raid.year)).toBe(true);
+      expect(raidsForAct(balance, raid.act).map((r: RaidScript) => r.id)).toContain(raid.id);
+      expect(hasRaids(balance, raid.act)).toBe(true);
     }
-    const authored = new Set(scripted.map((r) => r.year));
-    for (let i = 0; i < balance.clock.yearsTotal; i += 1) {
-      const year = balance.clock.startYear + i;
-      if (!authored.has(year)) expect(raidsForYear(balance, year)).toEqual([]);
+    const authored = new Set(scripted.map((r) => r.act));
+    for (const act of raidableActs(balance)) {
+      if (!authored.has(act)) expect(raidsForAct(balance, act)).toEqual([]);
     }
-    // The unwritten acts are REPORTED, not filled in (G2) — and reported over the years a raid can
-    // actually fire in, which is NOT the six years of the game.
+    // The unwritten acts are REPORTED, not filled in (G2).
     const coverage = raidCoverage(balance);
-    expect(coverage.scriptedYears).toEqual([...authored].sort((a, b) => a - b));
-    for (const year of coverage.unauthoredYears) expect(authored.has(year)).toBe(false);
+    expect(coverage.scriptedActs).toEqual([...authored].sort((a, b) => a - b));
+    for (const act of coverage.unauthoredActs) expect(authored.has(act)).toBe(false);
 
-    // The reachable set is startYear+1 … finalYear. `runYearTurn` computes `newYear = save.year + 1`
-    // and only applies raids whose year equals it, so no turn can ever fire one in the year the
-    // player starts in — reporting startYear as an unauthored act promised a beat the engine cannot
-    // produce. Asserted against the ENGINE, not against arithmetic repeated here.
-    const reachable = raidableYears(balance);
-    expect(reachable[0]).toBe(balance.clock.startYear + 1);
-    expect(reachable).not.toContain(balance.clock.startYear);
-    expect(coverage.unauthoredYears).not.toContain(balance.clock.startYear);
-    expect([...coverage.scriptedYears, ...coverage.unauthoredYears].sort((a, b) => a - b)).toEqual(
-      reachable,
-    );
-    expect(coverage.unreachableScriptedYears).toEqual([]);
+    /*
+     * The reachable set is EVERY act the region has, including the first. Under the old year model
+     * it was `startYear+1 … finalYear`: the raid was applied by the turn that BEGAN its year and no
+     * turn begins the start year, so a raid authored for act 1 could never fire and the coverage
+     * report had to exclude it. Act entry has no such hole (D-Q3-1) — which is a beat the region
+     * gained, not merely a rename.
+     */
+    const reachable = raidableActs(balance);
+    expect(reachable[0]).toBe(balance.acts.first);
+    expect(reachable).toContain(balance.acts.last);
+    expect([...coverage.scriptedActs, ...coverage.unauthoredActs].sort((a, b) => a - b)).toEqual(reachable);
+    expect(coverage.unreachableScriptedActs).toEqual([]);
   });
 
-  it("BINDS — the reported reachable years are exactly the years a turn can fire a raid in", () => {
-    // Drive every year turn of a whole six-year game and record which years actually saw a raid
-    // applied, using an override with one raid in EVERY year of the game plus the start year. What
-    // fires is the ground truth the coverage report has to match.
+  it("BINDS — the reported reachable acts are exactly the acts an entry can fire a raid in", () => {
+    /*
+     * Climb the whole act ladder with an override carrying one raid in EVERY act plus one act the
+     * region does not have. What fires is the ground truth the coverage report has to match.
+     */
     const node = content.nodes.find((n) => Object.keys(n.populations).length > 0);
     if (!node) throw new Error("no node with populations");
     const lineId = Object.keys(node.populations)[0] as string;
     const override: RaidScript[] = [];
-    for (let i = 0; i <= balance.clock.yearsTotal; i += 1) {
-      const year = balance.clock.startYear + i;
-      override.push({ id: `probe-${String(year)}`, year, nodeId: node.id, targets: [{ lineId, remove: 1 }] });
+    for (const act of [...raidableActs(balance), balance.acts.last + 1]) {
+      override.push({ id: `probe-${String(act)}`, act, nodeId: node.id, targets: [{ lineId, remove: 1 }] });
     }
 
-    const finalYear = balance.clock.startYear + balance.clock.yearsTotal - 1;
-    let save = saveWith([creature({ uid: "p1", line: mortalLine(), age: "J", level: 5 })]);
+    let save = saveWith([creature({ uid: "p1", line: mortalLine(), age: "A", level: 10 })]);
     const fired: number[] = [];
-    const turn = (): void => {
-      const drive = driveYearTurn(save, {
-        content,
-        simRng: simRng(save.seed),
-        lifecycleRng: countingRng(save.seed).fn,
-        endedYear: save.year,
+    for (const act of raidableActs(balance)) {
+      const entry = enterPendingActs({ ...atAct(act), nodeStates: save.nodeStates }, {
+        balance,
+        gyms,
         yearEvents: override,
       });
-      for (const event of drive.turn.events) {
-        if (event.t === "raid" && !fired.includes(drive.turn.save.year)) fired.push(drive.turn.save.year);
+      save = { ...save, ...entry.save } as typeof save;
+      for (const event of entry.events) {
+        if (event.t === "raid" && !fired.includes(act)) fired.push(act);
       }
-      while (!drive.flow.done()) drive.flow.chooseHeir();
-      save = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carryTick);
-    };
+      // THE CALENDAR NEVER MOVED. Every raid above fired in the start year.
+      expect(save.year).toBe(balance.clock.startYear);
+    }
+    expect(fired).toEqual(raidableActs(balance));
 
-    // Every year turn INSIDE the six-year game: the one that ends startYear, up to the one that
-    // begins the final year.
-    while (save.year < finalYear) turn();
-    expect(save.year).toBe(finalYear);
-    expect(isOver(save, balance)).toBe(false);
-    expect(fired).toEqual(raidableYears(balance));
-
-    // The turn out of the FINAL year begins a year the clock says the game is already past — so a
-    // raid authored there decorates a region the player has left, and the report calls it
-    // unreachable rather than counting it.
-    turn();
-    expect(isOver(save, balance)).toBe(true);
-    expect(fired).toContain(balance.clock.startYear + balance.clock.yearsTotal);
-    expect(raidableYears(balance)).not.toContain(balance.clock.startYear + balance.clock.yearsTotal);
-    // …and the coverage report agrees with what actually fired.
     const coverage = raidCoverage(balance, override);
-    expect(coverage.unauthoredYears).toEqual([]);
-    expect(coverage.unreachableScriptedYears).toEqual([
-      balance.clock.startYear,
-      balance.clock.startYear + balance.clock.yearsTotal,
-    ]);
+    expect(coverage.unauthoredActs).toEqual([]);
+    expect(coverage.unreachableScriptedActs).toEqual([balance.acts.last + 1]);
+  });
+
+  it("A CULLBRAND RAID FIRES ON ACT ENTRY IN ANY CALENDAR YEAR — year 2 and year 11 alike", () => {
+    /*
+     * The point of D-Q3-1, asserted directly. content-bible §6 wants Cindershelf entered
+     * "mid-collapse"; under the year-keyed model that was true only for a player whose calendar
+     * happened to line up, and a slow player found the town healthy forever. The same act entry is
+     * driven from two very different calendars and must produce the identical harvest.
+     */
+    const raid = scripted[0] as RaidScript;
+    const runAt = (year: number) => {
+      const base = atAct(raid.act);
+      const entry = enterPendingActs({ ...base, year, tick: 5 }, { balance, gyms });
+      const events = entry.events.filter((e) => e.t === "raid");
+      return {
+        events: events.map((e) => (e.t === "raid" ? `${e.lineId}:${String(e.removed)}→${String(e.remaining)}` : "")),
+        state: entry.save.nodeStates[raid.nodeId],
+        year: entry.save.year,
+      };
+    };
+    const early = runAt(balance.clock.startYear + 1);
+    const late = runAt(balance.clock.startYear + 10);
+    expect(early.events.length).toBe(raid.targets.length);
+    expect(late.events).toEqual(early.events);
+    expect(late.state).toEqual(early.state);
+    // Each ran in its own year and neither year moved.
+    expect(early.year).toBe(balance.clock.startYear + 1);
+    expect(late.year).toBe(balance.clock.startYear + 10);
   });
 
   it("the raid decrements the named node's real numbers, and the ledger rows are those numbers", () => {
     const raid = scripted[0] as RaidScript;
-    const save = saveWith([creature({ uid: "p1", line: mortalLine(), age: "A", level: 10 })]);
-    const before = { ...save, year: raid.year - 1 };
+    const before = atAct(raid.act);
 
     const previews = raidPreviews(
       before.nodeStates,
       content.nodes,
       content.species,
       balance,
-      raid.year,
+      raid.act,
     );
     expect(previews.map((p) => p.eventId)).toEqual([raid.id]);
     expect(previews[0]?.nodeId).toBe(raid.nodeId);
+    expect(previews[0]?.act).toBe(raid.act);
     expect(previews[0]?.targets.map((t) => t.requested)).toEqual(raid.targets.map((t) => t.remove));
 
-    // No ecosimStep: this isolates the raid from the season step so the arithmetic is checkable.
-    const turn = runYearTurn(before, { species: content.species, balance, nodes: content.nodes });
-    const reports = raidReportsFrom(turn.events, content.nodes, content.species, balance);
+    const entry = enterPendingActs(before, { balance, gyms });
+    const reports = raidReportsFrom(entry.events, content.nodes, content.species, balance);
     expect(reports).toHaveLength(1);
     const report = reports[0];
     if (!report) return;
     expect(report.nodeId).toBe(raid.nodeId);
 
     const stateBefore = before.nodeStates[raid.nodeId];
-    const stateAfter = turn.save.nodeStates[raid.nodeId];
+    const stateAfter = entry.save.nodeStates[raid.nodeId];
     for (const target of report.targets) {
       const start = stateBefore?.populations[target.lineId]?.count ?? -1;
       const end = stateAfter?.populations[target.lineId]?.count ?? -1;
@@ -1525,20 +1555,15 @@ describe("year events — scripted raids, from balance.json only", () => {
       expect(target.removed).toBeGreaterThan(0);
       expect(end).toBeGreaterThanOrEqual(balance.ecosim.populationFloor);
     }
-    expect(report.totalRemoved).toBe(
-      report.targets.reduce((sum, t) => sum + t.removed, 0),
-    );
+    expect(report.totalRemoved).toBe(report.targets.reduce((sum, t) => sum + t.removed, 0));
 
     // The rows on screen are those numbers, with an arrow and nothing else (G7).
     const lines = raidLedgerLines(reports);
     expect(lines).toHaveLength(report.targets.length);
     for (const line of lines) expect(line).toMatch(/\d+ → \d+ \(−\d+\)/u);
 
-    // And it fires in its year only.
-    const quiet = runYearTurn(
-      { ...save, year: raid.year },
-      { species: content.species, balance, nodes: content.nodes },
-    );
+    // And it fires on its act only: an act below it produces nothing.
+    const quiet = enterPendingActs(atAct(raid.act - 1), { balance, gyms });
     expect(quiet.events.some((e) => e.t === "raid" && e.eventId === raid.id)).toBe(false);
   });
 
@@ -1546,32 +1571,55 @@ describe("year events — scripted raids, from balance.json only", () => {
     const node = content.nodes.find((n) => Object.keys(n.populations).length > 0);
     if (!node) throw new Error("no node with populations");
     const lineId = Object.keys(node.populations)[0] as string;
+    const act = balance.acts.first + 1;
     const override: RaidScript[] = [
-      { id: "test-raid", year: balance.clock.startYear + 1, nodeId: node.id, targets: [{ lineId, remove: 1 }] },
+      { id: "test-raid", act, nodeId: node.id, targets: [{ lineId, remove: 1 }] },
     ];
-    const save = saveWith([creature({ uid: "p1", line: mortalLine(), age: "A", level: 10 })]);
-    const drive = driveYearTurn(save, {
-      content,
-      simRng: simRng(save.seed),
-      lifecycleRng: countingRng(save.seed).fn,
-      endedYear: save.year,
-      yearEvents: override,
-    });
-    const raidBeat = drive.beats.find((b) => b.t === "raid");
+    const before = atAct(act);
+    const entry = enterPendingActs(before, { balance, gyms, yearEvents: override });
+    const beats = actEntryBeats(before, entry, content, override);
+    const raidBeat = beats.find((b) => b.t === "raid");
     expect(raidBeat).toBeDefined();
     if (raidBeat && raidBeat.t === "raid") {
       expect(raidBeat.report.eventId).toBe("test-raid");
       expect(raidBeat.report.totalRemoved).toBeGreaterThanOrEqual(0);
       expect(beatLines(raidBeat).length).toBeGreaterThan(1);
     }
+    // The harvest preview rides on the festival beat of the act-entry sequence, not on a year turn's.
+    const festival = beats.find((b) => b.t === "festival");
+    expect(festival && festival.t === "festival" ? festival.harvest.map((h) => h.eventId) : []).toEqual([
+      "test-raid",
+    ]);
   });
 
-  it("the festival beat closes the year in numbers (bible §9)", () => {
-    const finalYear = balance.clock.startYear + balance.clock.yearsTotal - 1;
-    expect(festivalBeat(balance.clock.startYear, balance).isFinalYear).toBe(false);
-    expect(festivalBeat(finalYear, balance).isFinalYear).toBe(true);
-    expect(festivalBeat(finalYear, balance).yearsElapsed).toBe(balance.clock.yearsTotal - 1);
-    expect(festivalBeat(finalYear, balance).label).toBe(`Y${finalYear}/${balance.clock.yearsTotal}`);
+  it("A YEAR TURN CARRIES NO HARVEST PREVIEW — the calendar schedules no raid (D-Q3-1)", () => {
+    const save = saveWith([creature({ uid: "p1", line: mortalLine(), age: "A", level: 10 })]);
+    const drive = driveYearTurn(save, {
+      content,
+      simRng: simRng(save.seed),
+      lifecycleRng: countingRng(save.seed).fn,
+      endedYear: save.year,
+    });
+    const festival = drive.beats.find((b) => b.t === "festival");
+    expect(festival && festival.t === "festival" ? festival.harvest : ["not-a-festival-beat"]).toEqual([]);
+    expect(drive.turn.events.some((e) => e.t === "raid")).toBe(false);
+    expect(drive.beats.some((b) => b.t === "raid")).toBe(false);
+  });
+
+  it("the festival beat states the year in numbers and claims no denominator (bible §9, amended)", () => {
+    /*
+     * REWRITTEN BY AN AUTHORISED AMENDMENT (D-Q2-2). It used to assert `isFinalYear` and the label
+     * `Y6/6`; there is no final year and no total to be a fraction of. What it asserts now is that
+     * the label is true at ANY year the calendar can reach, including ones past the old cap.
+     */
+    for (const year of [balance.clock.startYear, 6, 9, 40]) {
+      const beat = festivalBeat(year, balance);
+      expect(beat.label).toBe(`Y${String(year)}`);
+      expect(beat.year).toBe(year);
+      expect(beat.yearsElapsed).toBe(year - balance.clock.startYear);
+      expect(beat.yearsTotal).toBe(balance.clock.yearsTotal);
+      expect(beat.pastExpectedPace).toBe(year - balance.clock.startYear >= balance.clock.yearsTotal);
+    }
   });
 });
 
@@ -1644,7 +1692,7 @@ describe("year-turn sequence — build-doc §4 'a renderer of its event log'", (
       creature({ uid: "junior", line: mortalLine(1), age: "J", level: 9 }),
     ]);
     const override: RaidScript[] = [
-      { id: "order-probe", year: save.year + 1, nodeId: node.id, targets: [{ lineId, remove: 1 }] },
+      { id: "order-probe", act: balance.acts.first, nodeId: node.id, targets: [{ lineId, remove: 1 }] },
     ];
     const drive = driveYearTurn(save, {
       content,
@@ -1659,8 +1707,13 @@ describe("year-turn sequence — build-doc §4 'a renderer of its event log'", (
     const at = (t: YearTurnBeat["t"]): number => order.indexOf(t);
     expect(at("aging")).toBeGreaterThan(at("festival"));
     expect(at("retirements")).toBeGreaterThan(at("aging"));
-    expect(at("raid")).toBeGreaterThan(at("retirements")); // §7.5 step 5 follows step 3
-    if (at("mapVariant") >= 0) expect(at("mapVariant")).toBeGreaterThan(at("raid"));
+    /*
+     * The raid beat is NO LONGER IN THIS SEQUENCE (D-Q3-1): it fires on act entry, so the year turn
+     * emits none however the raid list is overridden. The rest of §7.5's order stands, and the map
+     * swap — step 6 — is now the step that must follow the retirement flow.
+     */
+    expect(at("raid")).toBe(-1);
+    if (at("mapVariant") >= 0) expect(at("mapVariant")).toBeGreaterThan(at("retirements"));
     if (at("form") >= 0) expect(at("form")).toBeLessThan(at("retirements"));
   });
 
@@ -2435,80 +2488,83 @@ describe("the repairs — reproduced defects, and what stops them coming back", 
     expect(drive.flow.remaining()).toBe(pending - 1); // a deliberate press still answers it
   });
 
-  /* ── the six-year game ends (year-events.ts, YearTurnScene.ts, SeasonMeter.ts) ── */
+  /* ── the game does NOT end with the calendar (D-Q3-1) ── */
 
-  it("BINDS — the six-year game ends, and nothing on screen names a seventh year", () => {
+  it("BINDS — the calendar never ends: twelve year turns run, and nothing on screen names a total", () => {
     /*
-     * Measured before the fix, driving the real shipped path: "--- year turn 6 -> 7 (reason meter)
-     * --- / beat festival: FESTIVAL · Y7/6", then "turn 7->8 festival='Y8/6' isOver=true", then
-     * "Y9/6". `core/clock.ts` `isOver` existed and no production code called it.
+     * THIS TEST IS THE INVERSE OF THE ONE IT REPLACES, ON HANK'S AUTHORISATION (D-Q3-1).
+     *
+     * It used to be "BINDS — the six-year game ends, and nothing on screen names a seventh year",
+     * and it asserted that `driveYearTurn` THREW for a save past year 6, that the festival beat
+     * reported `beyondFinalYear`, and that the season meter clamped its label to "Y6/6". All three
+     * described a cap nobody designed: content-bible §6's "Six acts = six years" equation, read as
+     * a deadline. There is no final year now, so the assertions become: the turn out of year 11 is
+     * as ordinary as the one out of year 2, and no label anywhere claims a denominator.
+     *
+     * Twelve is deliberately DOUBLE the old cap.
      */
-    const finalYear = finalYearOf(balance);
-    expect(finalYear).toBe(balance.clock.startYear + balance.clock.yearsTotal - 1);
-    expect(yearTurnEndsRun(finalYear, balance)).toBe(true);
-    expect(yearTurnEndsRun(finalYear - 1, balance)).toBe(false);
-
     let save = soloElder(5);
     let turns = 0;
-    while (!isOver(save, balance)) {
+    const target = balance.clock.yearsTotal * 2;
+    while (turns < target) {
       const drive = driveOf(save);
-      if (save.year === finalYear) {
-        // The last turn: its copy reports the six years as complete, not a seventh as beginning.
-        const festival = drive.beats.find((b) => b.t === "festival");
-        if (!festival || festival.t !== "festival") throw new Error("no festival beat");
-        expect(festival.festival.beyondFinalYear).toBe(true);
-        expect(festival.festival.label).not.toContain(`Y${String(finalYear + 1)}`);
-        for (const line of beatLines(festival)) {
-          expect(line).not.toContain(`Y${String(finalYear + 1)}/`);
-        }
+      const festival = drive.beats.find((b) => b.t === "festival");
+      if (!festival || festival.t !== "festival") throw new Error("no festival beat");
+      // The copy states the year and nothing else — never "Y9/6", never "complete".
+      expect(festival.festival.label).toBe(`Y${String(drive.turn.save.year)}`);
+      for (const line of beatLines(festival)) {
+        expect(line).not.toMatch(/Y\d+\/\d+/u);
+        expect(line).not.toContain("complete");
       }
       while (!drive.flow.done()) drive.flow.chooseHeir();
       save = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carryTick);
       turns += 1;
-      expect(turns).toBeLessThanOrEqual(balance.clock.yearsTotal);
     }
-    // Six turns for six years — the invariant LANE-A-STATUS §5 counts season steps with.
-    expect(turns).toBe(balance.clock.yearsTotal);
-    expect(save.year).toBe(finalYear + 1);
+    expect(save.year).toBe(balance.clock.startYear + target);
+    // …and the thirteenth turn is not refused either. Nothing ends.
+    expect(() => driveOf(save)).not.toThrow();
 
-    // And the seventh turn is refused, by the guard rather than by luck.
-    expect(() => driveOf(save)).toThrow(YearTurnError);
-    expect(() => driveOf(save)).toThrow(/past the final year/u);
+    // The meter reads year 13 as year 13, with the same shape it reads year 1 with.
+    const late = seasonMeterModel(save, balance);
+    const early = seasonMeterModel({ year: balance.clock.startYear, tick: save.tick }, balance);
+    expect(late.yearLabel).toBe(`Y${String(save.year)}`);
+    expect(late.pastExpectedPace).toBe(true);
+    expect(early.pastExpectedPace).toBe(false);
+    expect(late.cells).toEqual(early.cells);
+    expect(late.ticksLeftInYear).toBe(early.ticksLeftInYear);
 
-    // The meter reads the completed game, never "Y7/6".
-    const over = seasonMeterModel(save, balance);
-    expect(over.over).toBe(true);
-    expect(over.label).not.toContain(`Y${String(finalYear + 1)}`);
-    expect(over.yearLabel).toBe(`Y${String(finalYear)}/${String(balance.clock.yearsTotal)}`);
-    expect(over.year).toBe(finalYear + 1); // the raw clock is still the raw clock
-    expect(seasonMeterModel({ year: finalYear, tick: 0 }, balance).over).toBe(false);
+    // The RUN is over on an act condition and this save has not earned it — that is not an error.
+    expect(runIsComplete(save, balance)).toBe(false);
   });
 
-  it("BINDS — a gym victory cannot end a year that a year turn has just begun", () => {
+  it("BINDS — aging and retirement keep working past the old cap: year 12 retires on schedule", () => {
     /*
-     * Measured before the fix: "A4 meter trigger {endedYear:1} / A4 after meter turn: year=2 tick=0
-     * / A4 gym trigger after meter turn: {endedYear:2,reason:'gymVictory'} / A4 SECOND TURN RAN —
-     * save year now 3". `gymVictory` reads the year off the already-advanced clock, so `endedYear`
-     * equalled `save.year` and both existing guards passed.
+     * The calendar's real job (D-Q3-1): it drives aging and retirement, and it must keep doing so
+     * when it runs past year 6. A creature caught in year 10 has the same J/A/E clock as one caught
+     * in year 1, and its projected retirement year is a real number rather than a clamped one.
      */
-    let save = soloElder(23);
-    const first = driveOf(save, { reason: "meter" });
-    while (!first.flow.done()) first.flow.chooseHeir();
-    save = finishYearTurn(first.flow.result(), first.tickBefore, first.carryTick);
-    expect(save.year).toBe(balance.clock.startYear + 1);
-    expect(save.tick).toBe(balance.clock.startTick);
+    const line = mortalLine();
+    const caughtLate = newOwnedCreature(
+      { uid: "late", lineId: line.id, age: "J", level: 5, caughtYear: 10 },
+      line,
+      balance,
+    );
+    expect(caughtLate.projectedRetirementYear).toBe(10 + balance.age.lifespanYears.J);
 
-    const trigger = yearTurnTrigger(gymVictory({ year: save.year, tick: save.tick }, balance));
-    expect(trigger?.endedYear).toBe(save.year); // …which is exactly why the old guards passed
-    expect(trigger?.reason).toBe("gymVictory");
-    expect(() => driveOf(save, { reason: "gymVictory" })).toThrow(YearTurnError);
-    expect(() => driveOf(save, { reason: "gymVictory" })).toThrow(/no tick has been spent/u);
-
-    // L8's second trigger still works the moment the player has actually played the year.
-    const played = { ...save, tick: advanceAction(save, "foray", balance).clock.tick };
-    expect(played.tick).toBeGreaterThan(balance.clock.startTick);
-    expect(() => driveOf(played, { reason: "gymVictory" })).not.toThrow();
+    let save: SaveEnvelope = { ...saveWith([caughtLate]), year: 10, tick: 0 };
+    const retired: string[] = [];
+    for (let i = 0; i < balance.age.lifespanYears.J; i += 1) {
+      const drive = driveOf(save, { endedYear: save.year });
+      for (const event of drive.turn.events) {
+        if (event.t === "retirementDue") retired.push(event.uid);
+      }
+      while (!drive.flow.done()) drive.flow.chooseHeir();
+      save = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carryTick);
+    }
+    expect(save.year).toBe(10 + balance.age.lifespanYears.J);
+    expect(retired).toContain("late");
   });
+
 
   /* ── the one-sided BOON, said before the card opens (YearTurnScene.ts) ──── */
 
@@ -2618,7 +2674,7 @@ function liveRun(
   let yearTurns = 0;
 
   for (const kind of actions) {
-    if (isOver(save, balance)) break;
+    // No calendar guard: the run does not end with the year (D-Q3-1) and `isOver` is gone.
     save = appendAction(save, actionFor(kind, save.currentNode));
     const tickBefore = save.tick;
     const advanced = advanceAction({ year: save.year, tick: save.tick }, kind, balance);
@@ -2797,46 +2853,58 @@ describe("this lane is reached by playing, not only by testing", () => {
     const callers: Array<[string, string]> = [
       ["previewAction", "game/scenes/OverworldScene.ts"],
       ["actionCosts", "game/scenes/OverworldScene.ts"],
-      ["finalYearOf", "game/scenes/OverworldScene.ts"],
-      ["isOver", "game/scenes/OverworldScene.ts"],
-      ["gymVictory", "game/scenes/OverworldScene.ts"],
+      // The second clock and its consequences, all reached by playing (D-Q3-1).
+      ["actOf", "game/scenes/OverworldScene.ts"],
+      ["awardBadge", "game/scenes/OverworldScene.ts"],
+      ["runIsComplete", "game/scenes/OverworldScene.ts"],
+      ["unlockActOf", "game/scenes/OverworldScene.ts"],
+      ["enterPendingActs", "game/scenes/OverworldScene.ts"],
+      ["activeWindows", "game/scenes/OverworldScene.ts"],
+      ["syncEventFlags", "game/scenes/OverworldScene.ts"],
       ["seasonTintsForYear", "game/scenes/YearTurnScene.ts"],
       ["applySeasonOverlay", "game/scenes/YearTurnScene.ts"],
       ["raidPreviews", "game/scenes/YearTurnScene.ts"],
       ["raidCoverage", "game/scenes/YearTurnScene.ts"],
       ["raidLedgerLines", "game/scenes/YearTurnScene.ts"],
       ["hasRaids", "game/scenes/YearTurnScene.ts"],
-      // Reached through the two above, inside their own module.
-      ["raidableYears", "game/year-events.ts"],
-      ["raidsForYear", "game/year-events.ts"],
+      ["raidsForAct", "game/scenes/YearTurnScene.ts"],
+      // Reached through the ones above, inside their own module.
+      ["raidableActs", "game/year-events.ts"],
     ];
     for (const [name, file] of callers) {
       const source = stripComments(read(file));
       expect(source.includes(`${name}(`), `${file} never calls ${name}()`).toBe(true);
     }
-    // …and the two intra-module ones really are reached from a scene, through a function that is.
-    expect(stripComments(read("game/year-events.ts")).includes("raidableYears(")).toBe(true);
-    expect(raidCoverage(balance).scriptedYears.length).toBeGreaterThan(0);
-    expect(raidPreviews({}, content.nodes, content.species, balance, balance.clock.startYear + 1)).toBeDefined();
+    expect(stripComments(read("game/year-events.ts")).includes("raidableActs(")).toBe(true);
+    expect(raidCoverage(balance).scriptedActs.length).toBeGreaterThan(0);
+    expect(raidPreviews({}, content.nodes, content.species, balance, balance.acts.first + 1)).toBeDefined();
   });
 
-  it("BINDS — L8's three actions and both year-end triggers are wired in the overworld", () => {
+  it("BINDS — L8's three actions are wired, and NO tick is gated on the calendar (D-Q3-1)", () => {
     /*
-     * Measured before: `grep -rn "gymVictory" game/` returned nothing at all, so half of L8 ("year =
-     * gym victory or full meter") could not be driven by playing; and `spendTicks` was declared
-     * `"travel" | "foray"` with two 1-tick call sites, so `clock.innTicks` was a tunable no action
-     * could reach and no player action could straddle a year boundary.
+     * Measured before: `spendTicks` was declared `"travel" | "foray"` with two 1-tick call sites, so
+     * `clock.innTicks` was a tunable no action could reach and no player action could straddle a
+     * year boundary. That half stands.
+     *
+     * The other half is INVERTED. This test used to require `runIsOver()` INSIDE `spendTicks` —
+     * "the year cap is enforced where the ticks are spent" — and that cap is exactly what Hank
+     * removed. It now requires the opposite: no tick-spending path may consult the run's end at
+     * all, so a player in year 20 forays as one in year 2 does. `runIsOver` survives as an ACT
+     * question and must not be reachable from the two spenders.
      */
     const overworld = stripComments(read("game/scenes/OverworldScene.ts"));
     expect(overworld).toContain("restAtInn");
     expect(overworld).toContain('t: "inn"');
     expect(overworld).toContain("winGym");
     expect(overworld).toContain('t: "gymVictory"');
-    expect(overworld).toContain("gymVictory(this.clock()");
-    expect(overworld).toContain("runIsOver");
     expect(overworld).toContain("onRunComplete");
-    // The year cap is enforced where the ticks are spent, not only where the turn is driven.
-    expect(overworld).toMatch(/spendTicks\([\s\S]{0,400}runIsOver\(\)/u);
+    // The run's end is an act condition, asked of the save's flags and never of its year.
+    expect(overworld).toMatch(/runIsOver\(\)[^{]*\{\s*return runIsComplete\(this\.save, this\.balance\);/u);
+    expect(overworld).not.toContain("isOver(this.clock()");
+    // NO calendar guard in either tick spender, nor in the encounter roll.
+    expect(overworld).not.toMatch(/spendTicks\([\s\S]{0,600}if \(this\.runIsOver\(\)\) return/u);
+    expect(overworld).not.toMatch(/onStepCompleted\([\s\S]{0,400}if \(this\.runIsOver\(\)\) return/u);
+    expect(overworld).not.toMatch(/restAtInn\([\s\S]{0,300}if \(this\.runIsOver\(\)\)/u);
     // …and the year turn is still handed the save standing in the ending year (build-doc §7.5).
     expect(overworld).toContain("year: endedYear, tick: tickBefore");
   });

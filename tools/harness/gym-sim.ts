@@ -31,7 +31,8 @@ import {
 export interface GymOutcome {
   gymId: string;
   gymName: string;
-  year: number;
+  /** The leader's ACT (data/gyms.json `act`, renamed from `year` — D-Q3-1). */
+  act: number;
   town: string;
   /** The leader's declared type, or "mixed" (bible §7). */
   type: string;
@@ -138,7 +139,7 @@ export function runOneGym(
   return {
     gymId: gym.id,
     gymName: gym.name,
-    year: gym.year,
+    act: gym.act,
     town: gym.town,
     type: gym.type,
     rosterSize: roster.length,
@@ -171,7 +172,7 @@ export function runGymSim(
   drafts: number,
   model: LevelModel,
 ): GymSimResult {
-  const gyms = [...loaded.gyms].sort((a, b) => a.year - b.year);
+  const gyms = [...loaded.gyms].sort((a, b) => a.act - b.act);
   return {
     model,
     seeds,
@@ -194,7 +195,7 @@ export interface AgeControlCell {
 }
 
 export function runAgeControl(loaded: LoadedContent, seeds: number, drafts: number): AgeControlCell[] {
-  const gyms = [...loaded.gyms].sort((a, b) => a.year - b.year);
+  const gyms = [...loaded.gyms].sort((a, b) => a.act - b.act);
   const out: AgeControlCell[] = [];
   gyms.forEach((gym, i) => {
     for (const age of AGE_CLASSES) {
@@ -229,7 +230,7 @@ export function runPartySizeControl(
 ): PartySizeControlCell[] {
   const full = loaded.balance.party.maxPartySize;
   return [...loaded.gyms]
-    .sort((a, b) => a.year - b.year)
+    .sort((a, b) => a.act - b.act)
     .map((gym, i) => {
       const outcome = runOneGym(gym, i, loaded, seeds, drafts, "trained", 0, undefined, full);
       return { gymId: gym.id, partySize: outcome.partySize, winRate: outcome.winRate };
@@ -257,7 +258,7 @@ export function runMirrorControl(loaded: LoadedContent, seeds: number): MirrorCo
   const tags = subsystemTags(loaded.balance);
   const policy = reasonablePolicy();
   return [...loaded.gyms]
-    .sort((a, b) => a.year - b.year)
+    .sort((a, b) => a.act - b.act)
     .map((gym) => {
       const enemy = gymParty(gym);
       const player = enemy.map((spec, i) => ({ ...spec, uid: `p${i}` }));
@@ -305,7 +306,7 @@ export function runLevelSweep(
   drafts: number,
 ): { gap: number; cells: LevelSweepCell[] } {
   const balance = loaded.balance;
-  const gyms = [...loaded.gyms].sort((a, b) => a.year - b.year);
+  const gyms = [...loaded.gyms].sort((a, b) => a.act - b.act);
   const first = gyms[0];
   const gap =
     first === undefined

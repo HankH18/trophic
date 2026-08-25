@@ -115,12 +115,18 @@ export type LevelModel = (typeof LEVEL_MODELS)[number];
  * Clause 1–2 — where the player has been, and what they could own
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/** Clause 1: the town of every gym up to `year`, plus each town's adjacent nodes. */
-export function actNodeIds(year: number, loaded: LoadedContent): string[] {
+/**
+ * Clause 1: the town of every gym up to `act`, plus each town's adjacent nodes.
+ *
+ * The parameter was called `year` and always meant this — the harness has read `gyms.json`'s index
+ * as "how far along the player is" since it was written, which is the evidence that the field was
+ * never a calendar year (D-Q3-1). It is named for what it is now.
+ */
+export function actNodeIds(act: number, loaded: LoadedContent): string[] {
   const byId = new Map(loaded.nodes.map((n) => [n.id, n]));
   const out = new Set<string>();
   for (const gym of loaded.gyms) {
-    if (gym.year > year) continue;
+    if (gym.act > act) continue;
     const town = byId.get(gym.town);
     if (!town) continue;
     out.add(town.id);
@@ -136,11 +142,11 @@ export function starterLines(loaded: LoadedContent): SpeciesLine[] {
   return loaded.content.species.filter((line) => !line.ancient && !wild.has(line.id));
 }
 
-/** Clause 2: the pool a reasonable player at gym `year` could have drawn their team from. */
-export function candidateLines(year: number, loaded: LoadedContent): SpeciesLine[] {
+/** Clause 2: the pool a reasonable player at gym `act` could have drawn their team from. */
+export function candidateLines(act: number, loaded: LoadedContent): SpeciesLine[] {
   const gatedTag = loaded.balance.encounter.signChainGatedHabitatTag;
   const ids = new Set<string>();
-  for (const nodeId of actNodeIds(year, loaded)) {
+  for (const nodeId of actNodeIds(act, loaded)) {
     const node = loaded.nodes.find((n) => n.id === nodeId);
     if (!node) continue;
     for (const [lineId, pop] of Object.entries(node.populations)) {
@@ -174,8 +180,16 @@ export function playerLevelFor(gym: GymLeader, balance: Balance, model: LevelMod
   if (model === "trained") {
     return gym.slots.reduce((best, slot) => Math.max(best, slot.level), 1);
   }
-  const byYear = balance.encounter.levelByYear;
-  const level = byYear[gym.year - 1] ?? byYear[byYear.length - 1];
+  /*
+   * `balance.encounter.levelByYear` is indexed by the leader's ACT here, and always was — the array
+   * was tuned against the gym ramp in data/gyms.json (its own `_levelByYear` note says so), which is
+   * an act ladder. The KEY keeps its shipped name because the wild level band a player meets in the
+   * overworld is read off the calendar year (`game/encounters.ts` `rollLevel`), and re-keying that
+   * would be a balance change, not a rename — flagged in docs/DEVIATIONS.md D-Q3-2 rather than taken
+   * silently. `rollLevel` clamps to the last band, so an unbounded calendar cannot index past it.
+   */
+  const byAct = balance.encounter.levelByYear;
+  const level = byAct[gym.act - 1] ?? byAct[byAct.length - 1];
   return Math.max(balance.encounter.minLevel, level ?? balance.encounter.minLevel);
 }
 
@@ -308,7 +322,7 @@ export function draftParty(
   forcedSize?: number,
 ): DraftedParty {
   const balance = loaded.balance;
-  const pool = candidateLines(gym.year, loaded);
+  const pool = candidateLines(gym.act, loaded);
   if (pool.length === 0) throw new Error(`tools/harness: no candidate species for gym "${gym.id}"`);
   const starters = starterLines(loaded);
   const size = Math.min(forcedSize ?? partySizeFor(gym, balance), pool.length, balance.party.maxPartySize);

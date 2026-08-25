@@ -2,7 +2,7 @@
   "_source": "docs/content-bible.md §4 (Ancient lore surfaces), §6 (towns + aging arcs), §7 (gym leaders), §8 (story spine), §9 (side quests), §10 (NPCs), §13.13 (dialogue budget) + build-doc §15 C7. Names of species, places, people and organisations are transcribed from the bible, never invented (G2); the coined quest-NPC given names are logged in docs/DIALOGUE-NOTES.md.",
   "_guardrail": "G7 — no moralizing copy about catching, anywhere. NPCs state facts, express their own livelihood interests, and disagree with each other. No line tells the player they did wrong, implies guilt, or delivers a lesson. Enforced by the pattern scan in tests/unit/dialogue.test.ts AND by a line-by-line human-style read documented in docs/DIALOGUE-NOTES.md — a regex cannot detect tone.",
   "_budget": "bible §13.13: ~10 lines per named NPC, ~3 per ambient, roughly 400–500 total. Shipped: see _counts. Named speakers that carry an Ancient lore chain or a six-act arc (Maren, Wick, Sel, Bram) run above 10; ambient speakers in the vertical-slice towns run above 3 because they carry year/population state variants the flat budget did not price in.",
-  "_conditionModel": "An entry fires when every clause of `when` holds. years/yearMin/yearMax gate the act; seasons gate the four migrant windows; flagsSet/flagsUnset/flagEquals read SaveFile.questFlags; population/floraStock read the LIVE node state (SaveFile.nodeStates), so a town's lines change as its web does. Among the entries that match a (speaker,node,kind) request the game takes the highest `priority` (default 0). Every greeting/ambient group ships an unconditional fallback, so a matching entry always exists.",
+  "_conditionModel": "An entry fires when every clause of `when` holds. TWO INDEPENDENT CLOCKS (Q3, the authorised L8 amendment): act/actMin/actMax are the STORY clock, derived from badges and quest flags by core/dialogue-schema.ts actFromFlags(), and every story beat gates on them so it fires whenever the player earns it, in any calendar year; years/yearMin/yearMax are the WORLD clock — unbounded, never waiting for the player — and only world-ageing copy reads it. seasons gate the four migrant windows; flagsSet/flagsUnset/flagEquals read SaveFile.questFlags; population/floraStock read the LIVE node state (SaveFile.nodeStates), so a town's lines change as its web does. Among the entries that match a (speaker,node,kind) request the game takes the highest `priority` (default 0). Every greeting/ambient group ships an unconditional fallback, so a matching entry always exists.",
   "_chains": {
     "vellsire-chain": "bible §4 'Maren's keystone lectures' + 'Duskhollow astronomers on the Vellsire's vanishing'. Steps 1..11 alternate NPC and antler-standing-stone props across Hearthollow → r1 → Brackwater → r2 → r3 → Bowerdeep → Cindershelf → Duskhollow (Orrin) → sanctum-approach → sanctum. Each step is gated on the previous step's flag, so the lore opens as it is earned rather than arriving as one block.",
     "undermere-chain": "bible §4 \"Sel's serpent tales\". Steps 1..7 alternate Sel and the sunken idols at brackwater/r2; step 5 additionally requires the Ferryman's Wager (bible §9) to be finished. Completing it sets chain.undermere.complete, the gate on the Undermere hunt.",
@@ -480,7 +480,7 @@
       "kind": "cutscene",
       "priority": 100,
       "when": {
-        "years": [
+        "act": [
           1
         ],
         "flagsUnset": [
@@ -525,7 +525,7 @@
       "node": "hearthollow",
       "kind": "cutscene",
       "when": {
-        "years": [
+        "act": [
           1
         ]
       },
@@ -549,7 +549,7 @@
       "node": "hearthollow",
       "kind": "cutscene",
       "when": {
-        "years": [
+        "act": [
           1
         ]
       },
@@ -573,7 +573,7 @@
       "node": "hearthollow",
       "kind": "cutscene",
       "when": {
-        "years": [
+        "act": [
           1
         ]
       },
@@ -597,7 +597,7 @@
       "node": "hearthollow",
       "kind": "cutscene",
       "when": {
-        "years": [
+        "act": [
           1
         ],
         "flagsUnset": [
@@ -626,7 +626,7 @@
       "node": "hearthollow",
       "kind": "cutscene",
       "when": {
-        "years": [
+        "act": [
           1
         ],
         "flagsUnset": [
@@ -657,9 +657,6 @@
       "quest": "first-signs",
       "priority": 60,
       "when": {
-        "years": [
-          1
-        ],
         "flagsSet": [
           "quest.first-signs.offered"
         ],
@@ -687,9 +684,6 @@
       "quest": "first-signs",
       "priority": 61,
       "when": {
-        "years": [
-          1
-        ],
         "flagsSet": [
           "quest.first-signs.turnin"
         ]
@@ -714,7 +708,7 @@
       "kind": "cutscene",
       "priority": 60,
       "when": {
-        "yearMin": 2,
+        "actMin": 2,
         "flagsUnset": [
           "tutorial.release.done"
         ]
@@ -735,12 +729,12 @@
       }
     },
     {
-      "id": "maren.greeting.y1",
+      "id": "maren.greeting.act1",
       "speaker": "maren",
       "node": "hearthollow",
       "kind": "greeting",
       "when": {
-        "years": [
+        "act": [
           1
         ]
       },
@@ -755,12 +749,12 @@
       "priority": 45
     },
     {
-      "id": "maren.greeting.y2",
+      "id": "maren.greeting.act2",
       "speaker": "maren",
       "node": "brackwater",
       "kind": "greeting",
       "when": {
-        "years": [
+        "act": [
           2
         ]
       },
@@ -772,12 +766,12 @@
       "priority": 45
     },
     {
-      "id": "maren.greeting.y3",
+      "id": "maren.greeting.act3",
       "speaker": "maren",
       "node": "bowerdeep",
       "kind": "greeting",
       "when": {
-        "years": [
+        "act": [
           3
         ]
       },
@@ -789,12 +783,12 @@
       "priority": 45
     },
     {
-      "id": "maren.greeting.y4",
+      "id": "maren.greeting.act4",
       "speaker": "maren",
       "node": "cindershelf",
       "kind": "greeting",
       "when": {
-        "years": [
+        "act": [
           4
         ]
       },
@@ -806,12 +800,12 @@
       "priority": 45
     },
     {
-      "id": "maren.greeting.y5",
+      "id": "maren.greeting.act5",
       "speaker": "maren",
       "node": "duskhollow",
       "kind": "greeting",
       "when": {
-        "years": [
+        "act": [
           5
         ]
       },
@@ -823,12 +817,12 @@
       "priority": 45
     },
     {
-      "id": "maren.greeting.y6",
+      "id": "maren.greeting.act6",
       "speaker": "maren",
       "node": "sanctum-approach",
       "kind": "greeting",
       "when": {
-        "years": [
+        "act": [
           6
         ]
       },
@@ -848,9 +842,6 @@
       "chainStep": 1,
       "priority": 50,
       "when": {
-        "years": [
-          1
-        ],
         "flagsSet": [
           "chain.vellsire.unlocked"
         ],
@@ -882,7 +873,7 @@
       "chainStep": 3,
       "priority": 50,
       "when": {
-        "yearMin": 2,
+        "actMin": 2,
         "flagsSet": [
           "chain.vellsire.step2"
         ],
@@ -914,7 +905,7 @@
       "chainStep": 5,
       "priority": 50,
       "when": {
-        "yearMin": 3,
+        "actMin": 3,
         "flagsSet": [
           "chain.vellsire.step4"
         ],
@@ -946,7 +937,7 @@
       "chainStep": 6,
       "priority": 50,
       "when": {
-        "yearMin": 4,
+        "actMin": 4,
         "flagsSet": [
           "chain.vellsire.step5"
         ],
@@ -975,7 +966,7 @@
       "chainStep": 8,
       "priority": 50,
       "when": {
-        "yearMin": 5,
+        "actMin": 5,
         "flagsSet": [
           "chain.vellsire.step7"
         ],
@@ -1007,7 +998,7 @@
       "chainStep": 10,
       "priority": 50,
       "when": {
-        "yearMin": 6,
+        "actMin": 6,
         "flagsSet": [
           "chain.vellsire.step9"
         ],
@@ -1068,7 +1059,7 @@
       "kind": "lore",
       "priority": 52,
       "when": {
-        "yearMin": 4,
+        "actMin": 4,
         "population": [
           {
             "node": "r4",
@@ -1094,9 +1085,7 @@
       "kind": "cutscene",
       "priority": 70,
       "when": {
-        "years": [
-          6
-        ],
+        "actMin": 6,
         "flagsSet": [
           "story.greaves.entered"
         ],
@@ -1123,7 +1112,7 @@
       "kind": "battle-pre",
       "priority": 80,
       "when": {
-        "years": [
+        "act": [
           1
         ],
         "flagsUnset": [
@@ -1149,7 +1138,7 @@
       "kind": "battle-win",
       "priority": 80,
       "when": {
-        "years": [
+        "act": [
           1
         ]
       },
@@ -1173,7 +1162,7 @@
       "kind": "battle-loss",
       "priority": 79,
       "when": {
-        "years": [
+        "act": [
           1
         ]
       },
@@ -1194,7 +1183,7 @@
       "kind": "battle-pre",
       "priority": 80,
       "when": {
-        "years": [
+        "act": [
           2
         ],
         "flagsUnset": [
@@ -1217,7 +1206,7 @@
       "kind": "battle-win",
       "priority": 80,
       "when": {
-        "years": [
+        "act": [
           2
         ]
       },
@@ -1241,7 +1230,7 @@
       "kind": "battle-loss",
       "priority": 79,
       "when": {
-        "years": [
+        "act": [
           2
         ]
       },
@@ -1262,7 +1251,7 @@
       "kind": "battle-pre",
       "priority": 80,
       "when": {
-        "years": [
+        "act": [
           3
         ],
         "flagsUnset": [
@@ -1288,7 +1277,7 @@
       "kind": "battle-win",
       "priority": 80,
       "when": {
-        "years": [
+        "act": [
           3
         ]
       },
@@ -1312,7 +1301,7 @@
       "kind": "battle-loss",
       "priority": 79,
       "when": {
-        "years": [
+        "act": [
           3
         ]
       },
@@ -1333,7 +1322,7 @@
       "kind": "battle-pre",
       "priority": 80,
       "when": {
-        "years": [
+        "act": [
           4
         ],
         "flagsUnset": [
@@ -1359,7 +1348,7 @@
       "kind": "battle-win",
       "priority": 80,
       "when": {
-        "years": [
+        "act": [
           4
         ]
       },
@@ -1383,7 +1372,7 @@
       "kind": "battle-loss",
       "priority": 79,
       "when": {
-        "years": [
+        "act": [
           4
         ]
       },
@@ -1404,7 +1393,7 @@
       "kind": "battle-pre",
       "priority": 80,
       "when": {
-        "years": [
+        "act": [
           5
         ],
         "flagsUnset": [
@@ -1427,7 +1416,7 @@
       "kind": "battle-win",
       "priority": 80,
       "when": {
-        "years": [
+        "act": [
           5
         ]
       },
@@ -1451,7 +1440,7 @@
       "kind": "battle-loss",
       "priority": 79,
       "when": {
-        "years": [
+        "act": [
           5
         ]
       },
@@ -1472,7 +1461,7 @@
       "kind": "battle-pre",
       "priority": 80,
       "when": {
-        "years": [
+        "act": [
           6
         ],
         "flagsUnset": [
@@ -1501,7 +1490,7 @@
       "kind": "battle-win",
       "priority": 80,
       "when": {
-        "years": [
+        "act": [
           6
         ]
       },
@@ -1526,7 +1515,7 @@
       "kind": "battle-loss",
       "priority": 79,
       "when": {
-        "years": [
+        "act": [
           6
         ]
       },
@@ -1562,9 +1551,7 @@
       "kind": "cutscene",
       "priority": 70,
       "when": {
-        "years": [
-          3
-        ],
+        "actMin": 3,
         "flagsUnset": [
           "story.greaves.met"
         ]
@@ -1594,9 +1581,7 @@
       "kind": "cutscene",
       "priority": 70,
       "when": {
-        "years": [
-          4
-        ],
+        "actMin": 4,
         "flagsUnset": [
           "story.greaves.steppe"
         ]
@@ -1623,9 +1608,7 @@
       "kind": "battle-pre",
       "priority": 90,
       "when": {
-        "years": [
-          6
-        ],
+        "actMin": 6,
         "flagsUnset": [
           "story.greaves.beaten"
         ]
@@ -1649,9 +1632,7 @@
       "kind": "battle-win",
       "priority": 90,
       "when": {
-        "years": [
-          6
-        ]
+        "actMin": 6
       },
       "lines": [
         {
@@ -2101,7 +2082,7 @@
       "chainStep": 1,
       "priority": 55,
       "when": {
-        "yearMin": 2,
+        "actMin": 2,
         "flagsUnset": [
           "chain.undermere.step1"
         ]
@@ -2133,7 +2114,7 @@
       "chainStep": 3,
       "priority": 55,
       "when": {
-        "yearMin": 2,
+        "actMin": 2,
         "flagsSet": [
           "chain.undermere.step2"
         ],
@@ -2165,7 +2146,7 @@
       "chainStep": 4,
       "priority": 55,
       "when": {
-        "yearMin": 2,
+        "actMin": 2,
         "flagsSet": [
           "quest.ferrymans-wager.done",
           "chain.undermere.step3"
@@ -2198,7 +2179,7 @@
       "chainStep": 6,
       "priority": 55,
       "when": {
-        "yearMin": 2,
+        "actMin": 2,
         "flagsSet": [
           "chain.undermere.step5"
         ],
@@ -2230,7 +2211,7 @@
       "chainStep": 7,
       "priority": 56,
       "when": {
-        "yearMin": 3,
+        "actMin": 3,
         "flagsSet": [
           "chain.undermere.step6"
         ],
@@ -2265,7 +2246,7 @@
       "quest": "ferrymans-wager",
       "priority": 58,
       "when": {
-        "yearMin": 2,
+        "actMin": 2,
         "flagsUnset": [
           "quest.ferrymans-wager.done",
           "quest.ferrymans-wager.taken"
@@ -2429,7 +2410,7 @@
       "chainStep": 1,
       "priority": 55,
       "when": {
-        "yearMin": 4,
+        "actMin": 4,
         "flagsUnset": [
           "chain.kilnback.step1"
         ]
@@ -2458,7 +2439,7 @@
       "chainStep": 3,
       "priority": 55,
       "when": {
-        "yearMin": 4,
+        "actMin": 4,
         "flagsSet": [
           "chain.kilnback.step2"
         ],
@@ -2487,7 +2468,7 @@
       "chainStep": 6,
       "priority": 56,
       "when": {
-        "yearMin": 4,
+        "actMin": 4,
         "flagsSet": [
           "chain.kilnback.step5"
         ],
@@ -2522,7 +2503,7 @@
       "quest": "forge-a-legacy",
       "priority": 58,
       "when": {
-        "yearMin": 4,
+        "actMin": 4,
         "flagsSet": [
           "lifecycle.first-retirement"
         ],
@@ -2642,7 +2623,7 @@
       "chainStep": 4,
       "priority": 54,
       "when": {
-        "yearMin": 4,
+        "actMin": 4,
         "flagsSet": [
           "chain.kilnback.step3"
         ],
@@ -2676,7 +2657,7 @@
       "quest": "after-the-crash",
       "priority": 58,
       "when": {
-        "yearMin": 4,
+        "actMin": 4,
         "flagsUnset": [
           "quest.after-the-crash.done",
           "quest.after-the-crash.taken"
@@ -2788,9 +2769,6 @@
       "quest": "fallow-field",
       "priority": 58,
       "when": {
-        "years": [
-          1
-        ],
         "flagsUnset": [
           "quest.fallow-field.done",
           "quest.fallow-field.taken"
@@ -2944,7 +2922,7 @@
       "quest": "restock-the-shallows",
       "priority": 58,
       "when": {
-        "yearMin": 2,
+        "actMin": 2,
         "flagsUnset": [
           "quest.restock-the-shallows.done",
           "quest.restock-the-shallows.taken"
@@ -3070,7 +3048,7 @@
       "quest": "silk-shortage",
       "priority": 58,
       "when": {
-        "yearMin": 3,
+        "actMin": 3,
         "flagsUnset": [
           "quest.silk-shortage.done",
           "quest.silk-shortage.taken"
@@ -3188,7 +3166,7 @@
       "quest": "lanternless-night",
       "priority": 58,
       "when": {
-        "yearMin": 3,
+        "actMin": 3,
         "seasons": [
           "autumn"
         ],
@@ -3302,7 +3280,7 @@
       "quest": "star-census",
       "priority": 58,
       "when": {
-        "yearMin": 5,
+        "actMin": 5,
         "flagsUnset": [
           "quest.star-census.offered"
         ]
@@ -3367,7 +3345,7 @@
       "chainStep": 7,
       "priority": 55,
       "when": {
-        "yearMin": 5,
+        "actMin": 5,
         "flagsSet": [
           "chain.vellsire.step6"
         ],
@@ -3404,7 +3382,7 @@
       "quest": "vellsires-trail",
       "priority": 58,
       "when": {
-        "yearMin": 5,
+        "actMin": 5,
         "flagsSet": [
           "chain.vellsire.step7"
         ],
@@ -3589,13 +3567,13 @@
       "chainStep": 2,
       "priority": 50,
       "when": {
+        "actMin": 2,
         "flagsSet": [
           "chain.undermere.step1"
         ],
         "flagsUnset": [
           "chain.undermere.step2"
-        ],
-        "yearMin": 2
+        ]
       },
       "lines": [
         {
@@ -3622,13 +3600,13 @@
       "chainStep": 5,
       "priority": 50,
       "when": {
+        "actMin": 2,
         "flagsSet": [
           "chain.undermere.step4"
         ],
         "flagsUnset": [
           "chain.undermere.step5"
-        ],
-        "yearMin": 2
+        ]
       },
       "lines": [
         {
@@ -3655,13 +3633,13 @@
       "chainStep": 4,
       "priority": 50,
       "when": {
+        "actMin": 2,
         "flagsSet": [
           "chain.vellsire.step3"
         ],
         "flagsUnset": [
           "chain.vellsire.step4"
-        ],
-        "yearMin": 2
+        ]
       },
       "lines": [
         {
@@ -3736,13 +3714,13 @@
       "chainStep": 2,
       "priority": 50,
       "when": {
+        "actMin": 4,
         "flagsSet": [
           "chain.kilnback.step1"
         ],
         "flagsUnset": [
           "chain.kilnback.step2"
-        ],
-        "yearMin": 4
+        ]
       },
       "lines": [
         {
@@ -3769,13 +3747,13 @@
       "chainStep": 5,
       "priority": 50,
       "when": {
+        "actMin": 4,
         "flagsSet": [
           "chain.kilnback.step4"
         ],
         "flagsUnset": [
           "chain.kilnback.step5"
-        ],
-        "yearMin": 4
+        ]
       },
       "lines": [
         {
@@ -3874,13 +3852,13 @@
       "chainStep": 9,
       "priority": 50,
       "when": {
+        "actMin": 6,
         "flagsSet": [
           "chain.vellsire.step8"
         ],
         "flagsUnset": [
           "chain.vellsire.step9"
-        ],
-        "yearMin": 6
+        ]
       },
       "lines": [
         {
@@ -3921,9 +3899,7 @@
       "chainStep": 11,
       "priority": 50,
       "when": {
-        "years": [
-          6
-        ]
+        "actMin": 6
       },
       "lines": [
         {
@@ -3945,9 +3921,7 @@
       "propId": "sanctum-antler-ring",
       "priority": 95,
       "when": {
-        "years": [
-          6
-        ],
+        "actMin": 6,
         "flagsSet": [
           "story.greaves.beaten"
         ],
@@ -3988,9 +3962,7 @@
       "kind": "cutscene",
       "priority": 95,
       "when": {
-        "years": [
-          6
-        ],
+        "actMin": 6,
         "flagsSet": [
           "story.vellsire.resolved"
         ],
@@ -4026,9 +3998,7 @@
       "kind": "cutscene",
       "priority": 95,
       "when": {
-        "years": [
-          6
-        ],
+        "actMin": 6,
         "flagsSet": [
           "story.vellsire.resolved"
         ],
@@ -5000,7 +4970,7 @@
       "kind": "ambient",
       "priority": 40,
       "when": {
-        "years": [
+        "act": [
           4
         ]
       },
@@ -5020,7 +4990,7 @@
       "kind": "ambient",
       "priority": 41,
       "when": {
-        "yearMin": 4,
+        "actMin": 4,
         "population": [
           {
             "node": "r4",

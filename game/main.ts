@@ -36,11 +36,15 @@ import { createYearTurnScene } from "./scenes/YearTurnScene";
  *     CONTINUE that routed without data would silently discard the slot it had just loaded.
  *   • `Ledger`, `Dex` and `Summary` are routed from the in-run menu (game/scenes/MenuScene.ts), each
  *     handed the session's content and its live `nodeStates`.
- *   • `Battle`, `YearTurn` and `Retirement` are registered and IDLE. Their drivers belong to the
- *     lanes that own them — a battle needs a party (build-doc §15 C7 hands the starter over) and the
- *     year turn needs the clock's `yearEnd` (C6). Neither is invented here: a router that fabricated
- *     a creature to have something to fight would break G2, and one that faked a year turn would
- *     break G6.
+ *   • `Battle` is DRIVEN BY THE OVERWORLD, not idle: `OverworldScene.beginWildBattle` launches it
+ *     with the encounter's `BattleInput`/`BattleContext` (game/wild-battle.ts) and pauses itself;
+ *     `finishWildBattle` stops it, resumes, and applies the catch to the ledger. Verified live —
+ *     r1 loamunder 32 → 31 with `{t:"catch"}` on the action log. Its party is still the PROVISIONAL
+ *     starter (game/boot.ts `startingParty`) until build-doc §15 C7's opening beat hands one over.
+ *   • `YearTurn` is launched by `OverworldScene.beginYearTurn` on the clock's `yearEnd`, and
+ *     `Retirement` by `YearTurnScene` when the turn produces a prompt. Neither is started from here:
+ *     a router that fabricated a creature to have something to fight would break G2, and one that
+ *     faked a year turn would break G6.
  *
  * ⚠ AND A SCENE THAT IS NOT IN THIS LIST DOES NOT EXIST. `YearTurn` and `Retirement` were built,
  * tested and left unregistered — so build-doc §1's never-cut Legacy beat, and Hard Requirement 6's

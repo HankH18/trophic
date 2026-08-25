@@ -26,7 +26,7 @@ import { Rng, createRng, deriveStream, subsystemRng } from "../../core/rng";
 import { canonicalStringify } from "../../core/save";
 import { validateContent } from "../../core/schemas";
 import type { NodePopulation, NodeState, Season } from "../../core/types";
-import { advanceAction, createClock, isOver } from "../../core/clock";
+import { advanceAction, createClock } from "../../core/clock";
 
 const content = validateContent();
 const ctx = defaultContext();
@@ -61,6 +61,26 @@ describe("det_sim — build-doc §10.2", () => {
     const distinct = new Set<string>();
     for (let seed = 1; seed <= 12; seed++) distinct.add(trajectory(seed, 2));
     expect(distinct.size).toBeGreaterThan(1);
+  });
+
+  it("HOLDS ACROSS AN UNBOUNDED CALENDAR — twenty years is as deterministic as six (D-Q3-1)", () => {
+    /*
+     * `det_sim` used to be stated over "a six-year trajectory" because six years WAS the game. The
+     * calendar has no end now, so the property has to hold over a span the old cap forbade — and it
+     * has to keep diverging by seed out there, or the sim would be settling into a fixed point that
+     * a six-year test could never see.
+     */
+    const long = balance.clock.yearsTotal * 3 + 2; // 20 years — well past the old cap
+    for (const seed of [1, 4919, 2 ** 31 - 1]) {
+      expect(trajectory(seed, long)).toBe(trajectory(seed, long));
+    }
+    const distinct = new Set<string>();
+    for (let seed = 1; seed <= 8; seed += 1) distinct.add(trajectory(seed, long));
+    expect(distinct.size).toBeGreaterThan(1);
+    // The long trajectory extends the short one rather than replacing it: the first six years of a
+    // twenty-year run are byte-identical to a six-year run on the same seed.
+    const short = trajectory(99);
+    expect(trajectory(99, long).startsWith(short.slice(0, -1))).toBe(true);
   });
 
   it("the trajectory depends on the seed only through the RNG, not on object identity", () => {
@@ -133,7 +153,14 @@ describe("determinism — a run resumes exactly where it was saved (build-doc §
       let clock = createClock(balance);
       let i = 0;
       const frames: unknown[] = [];
-      while (!isOver(clock, balance)) {
+      /*
+       * D-Q3-1: `isOver` is gone with the six-year cap it enforced, so the loop bound is now stated
+       * by the TEST rather than taken from the clock. The number is deliberately PAST the old cap:
+       * det_replay must hold over an unbounded calendar, and a run that stopped at year 6 could not
+       * have shown that.
+       */
+      const lastYear = balance.clock.startYear + balance.clock.yearsTotal * 2;
+      while (clock.year < lastYear) {
         const target = script[i % script.length] as string;
         i++;
         node = applyCatch(node, target, balance);

@@ -285,8 +285,26 @@ describe("corrupted balance.json is rejected", () => {
     rejects((b) => (b.balance.yearEvents.raids[0].nodeId = "moonbase"), /targets node "moonbase", which is not a node/));
   it("a raid aimed at a species line that does not exist", () =>
     rejects((b) => (b.balance.yearEvents.raids[0].targets[0].lineId = "dragon-line"), /targets "dragon-line", which is not a species line/));
-  it("a raid scheduled past the end of the run", () =>
-    rejects((b) => (b.balance.yearEvents.raids[0].year = 9), /fires in year 9, past the 6-year run/));
+  /*
+   * REWRITTEN BY AN AUTHORISED AMENDMENT (D-Q3-1). It used to be "a raid scheduled past the end of
+   * the run" and rejected `year: 9` as "past the 6-year run". There is no end of the run and no
+   * six-year cap — year 9 is an ordinary year — so the unreachable raid is now one keyed on an ACT
+   * the region does not have, which is the same defect on the axis that actually carries it.
+   */
+  it("a raid scheduled for an act the region does not have", () =>
+    rejects((b) => (b.balance.yearEvents.raids[0].act = 9), /fires in act 9, which has no acts\.gates row/));
+  it("an acts.gates row unlocking a node that does not exist", () =>
+    rejects((b) => (b.balance.acts.gates[2].nodes[0] = "moonbase"), /unlocks node "moonbase", which is not a node/));
+  it("an acts.gates ladder whose badge counts go backwards", () =>
+    rejects((b) => (b.balance.acts.gates[3].badges = 0), /fewer than the act below it/));
+  it("acts.gates rows that are not consecutive", () =>
+    rejects((b) => (b.balance.acts.gates[4].act = 9), /consecutive and ascending/));
+  it("a gym on an act with no gate", () =>
+    rejects((b) => b.balance.acts.gates.pop(), /gym greaves: act 6 has no acts\.gates row/));
+  it("a gym act outside the act range", () =>
+    rejects((b) => (b.gyms.gyms[5].act = 9), /act 9 is outside balance\.acts 0\.\.6/));
+  it("a badge ladder taller than the region has leaders", () =>
+    rejects((b) => (b.balance.acts.gates[6].badges = 99), /tops out at 99 badges but gyms\.json ships 6 leaders/));
   it("two raids under the same id", () =>
     rejects((b) => b.balance.yearEvents.raids.push(structuredClone(b.balance.yearEvents.raids[0])), /duplicate yearEvents\.raids id/));
 });

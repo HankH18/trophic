@@ -642,7 +642,10 @@ describe("summary card — the projected retirement year is core/lifecycle.ts's 
     expect(renderRetirementYear(card, balance)).toBe("retires: never");
   });
 
-  it("a projection past the final year keeps the number and says it is past the end", () => {
+  it("a projection beyond the expected pacing keeps the number and says so (D-Q3-1)", () => {
+    // Reworded with the model: the calendar is unbounded, so year 9 ARRIVES. The note is about
+    // pacing — this creature outlives the six years normal pacing expects — not about a year that
+    // never comes, which is what "(past year 6)" used to claim.
     const line = lineOf("nibbin-line");
     const lastYear = balance.clock.startYear + balance.clock.yearsTotal - 1;
     const creature = newOwnedCreature(
@@ -655,7 +658,7 @@ describe("summary card — the projected retirement year is core/lifecycle.ts's 
     expect(card.beyondFinalYear).toBe(true);
     const text = renderRetirementYear(card, balance);
     expect(text).toContain(`year ${card.projectedRetirementYear}`);
-    expect(text).toContain(`(past year ${lastYear})`);
+    expect(text).toContain(`(beyond year ${lastYear})`);
   });
 
   it("renders the rest of the card: age class, traits, relic slot and moves", () => {

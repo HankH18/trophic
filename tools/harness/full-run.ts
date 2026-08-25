@@ -61,7 +61,8 @@ import {
   toEcoNode,
   type EcoNode,
 } from "../../core/foodweb";
-import { runYearTurn } from "../../core/lifecycle";
+import { enterPendingActs, runYearTurn } from "../../core/lifecycle";
+import { actGates, awardBadge, badgeCount } from "../../core/acts";
 import { catchChance, makeBattler } from "../../core/battle";
 import { createRng, subsystemRng, type Rng } from "../../core/rng";
 import { newSave } from "../../core/save";
@@ -290,10 +291,56 @@ export function runFullRun(loaded: LoadedContent, seed: number, profile: PlayPro
     ledger.observe(save.nodeStates);
   };
 
+  /*
+   * ⚠ TWO CLOCKS, AND THE HARNESS DRIVES BOTH — see docs/DEVIATIONS.md D-Q3-1.
+   *
+   * The calendar is `clock` and it is unbounded; the ACT is `act` and it is driven by badges. They
+   * are independent in the game, so the harness has to CHOOSE a pacing model rather than inherit
+   * one, and this is that choice stated out loud: **one act per simulated year**, which is the
+   * "normal pacing" `balance.clock.yearsTotal` describes. The whole balance report is measured
+   * against that model; a slower player would see the same acts against older creatures, and
+   * `--years` is the lever that measures it.
+   *
+   * The badges are written rather than inferred so that `core/acts.ts` is the thing under test:
+   * entering act N fires act N's scripted Cullbrand raid through the same `enterPendingActs` the
+   * game calls, instead of the harness re-implementing the decrement.
+   */
+  const gatesByAct = new Map(actGates(balance).map((g) => [g.act, g] as const));
+  const gymsByAct = [...loaded.gyms].sort((a, b) => a.act - b.act);
+  const enterAct = (act: number): void => {
+    const gate = gatesByAct.get(act);
+    if (gate) {
+      const flags: SaveFile["questFlags"] = { ...save.questFlags };
+      for (const flag of gate.flags) flags[flag] = true;
+      save = { ...save, questFlags: flags };
+      // Badges up to the gate's requirement, taken from the leaders below this act in order.
+      for (const gym of gymsByAct) {
+        if (badgeCount(save, loaded.gyms, balance) >= gate.badges) break;
+        if (gym.act >= act) break;
+        save = awardBadge(save, gym.id, balance);
+      }
+    }
+    const entry = enterPendingActs(save, { balance, gyms: loaded.gyms });
+    save = entry.save;
+    for (const event of entry.events) {
+      if (event.t !== "raid") continue;
+      raids.push({
+        eventId: event.eventId,
+        nodeId: event.nodeId,
+        lineId: event.lineId,
+        removed: event.removed,
+        remaining: event.remaining,
+      });
+    }
+    ledger.observe(save.nodeStates);
+  };
+
   let clock = createClock(balance);
   for (let y = 0; y < balance.clock.yearsTotal; y++) {
     const year = clock.year;
-    const nodeIds = actNodeIds(year, loaded);
+    const act = balance.acts.first + 1 + y;
+    enterAct(act);
+    const nodeIds = actNodeIds(act, loaded);
     let forayIndex = 0;
     let yearEnded = false;
     while (!yearEnded) {
@@ -327,17 +374,7 @@ export function runFullRun(loaded: LoadedContent, seed: number, profile: PlayPro
     save = turn.save;
     ledger.markSeason();
     ledger.observe(save.nodeStates);
-    for (const event of turn.events) {
-      if (event.t === "raid") {
-        raids.push({
-          eventId: event.eventId,
-          nodeId: event.nodeId,
-          lineId: event.lineId,
-          removed: event.removed,
-          remaining: event.remaining,
-        });
-      }
-    }
+    // The raids are no longer the year turn's — they fire on ACT ENTRY, at the top of the loop.
   }
 
   return { profile, seed, ledger: ledger.finish(caughtTotal, caughtByLine), raids };

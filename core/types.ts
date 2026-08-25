@@ -513,9 +513,19 @@ export interface GymLeader {
   slots: GymTeamSlot[];
   signature: GymTeamSlot;
   source: "fixed" | "ghost";
-  /** [additive — DEVIATIONS D5] display name ("Magnate Greaves") and bible §7 year column. */
+  /** [additive — DEVIATIONS D5] display name ("Magnate Greaves"). */
   name: string;
-  year: number;
+  /**
+   * The ACT this leader belongs to — bible §7's leftmost column, which the bible labels "Yr".
+   *
+   * ⚠ RENAMED FROM `year` (D-Q3-1). It was never a calendar year: the harness has always read it as
+   * "how far along the player is" (`tools/harness/player.ts` `actNodeIds`), and content-bible §6's
+   * "Six acts = six years" equation is what made the two look like one axis. Under the amended L8
+   * the calendar is unbounded and story progression is `core/acts.ts`'s, so a leader beaten in
+   * calendar year 11 is still the act-4 leader. The field is named for the axis it is on so nobody
+   * re-conflates them.
+   */
+  act: number;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -835,15 +845,81 @@ export interface Balance {
      */
   };
   /**
-   * [merged at integration from data/balance.additions.A4.json] build-doc §7.5 step 5 — "year
-   * events (Cullbrand raid scripts decrement scripted node populations)". Data, never code: the
-   * year turn applies whatever this list says, and a raid may only decrement what it harvests —
-   * the predator collapse above it must EMERGE from the §7.3 rules (G6).
+   * The ACT MODEL (core/acts.ts) — the second of the game's two clocks.
+   *
+   * Acts are driven by badges and quest flags and NEVER by time. They gate town/route unlocks,
+   * story beats, the Cullbrand raids, rival encounters and the finale; the calendar drives aging,
+   * retirement, the ecosim's season steps, map year-variant art and the season tint, and the two do
+   * not touch. See docs/DEVIATIONS.md D-Q3-1.
+   *
+   * The gate ROWS are content-bible §6/§7 transcribed (which town, which route, which leader), and
+   * the thresholds are tunables — both live here because balance.json is the one file `core/` may
+   * read numbers from (G11) and because a gate is a rule, not a roster.
+   */
+  acts: {
+    /** The act a save satisfying no gate is in — the prologue. */
+    first: number;
+    /** The last act the region has. NOT a year, and nothing caps the calendar at it. */
+    last: number;
+    /** `${badgeFlagPrefix}${gym.id}${badgeFlagSuffix}` is the quest flag a beaten gym writes. */
+    badgeFlagPrefix: string;
+    badgeFlagSuffix: string;
+    /** The flag that says the run's final beat is behind the player. No calendar clause. */
+    runCompleteFlag: string;
+    /**
+     * One row per act, ascending. A save is in the HIGHEST act whose row is satisfied — every row
+     * below it must be satisfied too, which the schema checks by requiring the badge counts to be
+     * non-decreasing.
+     */
+    gates: Array<{
+      act: number;
+      /** Badges required — the count of gyms whose badge flag is set. */
+      badges: number;
+      /** Quest flags that must all be truthy. */
+      flags: string[];
+      /** Node ids this act opens (content-bible §6's town + route rows). */
+      nodes: string[];
+    }>;
+  };
+  /**
+   * bible §9's four regional events, as SEASON-LONG WINDOWS.
+   *
+   * Hank, 2026-08-25: *"events like that last for a whole season and not just for one in-game
+   * day."* A window opens on a season boundary, stays open for `clock.ticksPerSeason` ticks and
+   * closes at the next boundary. core/regional-events.ts owns the derivation.
+   */
+  regionalEvents: {
+    /**
+     * Fraction of `ecosim.floraMax` a node's flora must reach AT A SEASON BOUNDARY for that node to
+     * be in a Bloom Year window for the season — bible §9's "a route whose producers thrive".
+     * Latched at the boundary on purpose: re-reading it every tick would make the event flicker,
+     * which is the "one in-game day" failure the season window exists to fix.
+     */
+    bloomFloraFraction: number;
+    /**
+     * A window publishes itself as the quest flag `${windowFlagPrefix}${windowId}${windowFlagSuffix}`.
+     * The shipped names make the festival's flag `event.festival.open` — the flag data/dialogue.json
+     * already reads and which nothing wrote.
+     */
+    windowFlagPrefix: string;
+    windowFlagSuffix: string;
+  };
+  /**
+   * [merged at integration from data/balance.additions.A4.json] bible §9 — "Cullbrand Harvest raids
+   * (scripted per act, populations visibly drop at a named node)". Data, never code: act entry
+   * applies whatever this list says, and a raid may only decrement what it harvests — the predator
+   * collapse above it must EMERGE from the §7.3 rules (G6).
+   *
+   * ⚠ `raids[].year` was RENAMED to `act` (D-Q3-1). The raid used to be applied by the year turn
+   * that BEGAN its year; it is now applied on entry to its act, so Cindershelf is entered
+   * mid-collapse whether the player arrives in calendar year 2 or year 11 (content-bible §6).
+   * The group keeps the name `yearEvents` because build-doc §7.5 step 5 names it that; only the
+   * axis the raids are keyed on has moved.
    */
   yearEvents: {
     raids: Array<{
       id: string;
-      year: number;
+      act: number;
       nodeId: string;
       targets: Array<{ lineId: string; remove: number }>;
     }>;

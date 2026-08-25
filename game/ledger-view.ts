@@ -957,7 +957,12 @@ export interface SummaryCard {
   yearsRemaining: number | null;
   /** core/lifecycle.ts's answer at `currentYear`; null when the creature never retires. */
   projectedRetirementYear: number | null;
-  /** True when the projection lands past the last year the game has (balance.clock.yearsTotal). */
+  /**
+   * True when the projection lands past `balance.clock.yearsTotal` years of play.
+   *
+   * A PACING note, not a warning (D-Q3-1): the calendar is unbounded, so year 7 does arrive. It used
+   * to mean "past the last year the game has".
+   */
   beyondFinalYear: boolean;
   ancient: boolean;
   metamorphosed: boolean;
@@ -1033,13 +1038,13 @@ export function buildSummaryCard(args: SummaryArgs): SummaryCard {
  * The bible §12 hard-requirement line. Three honest answers, never a rounded-off one:
  *  - a year number, for anything with a countdown;
  *  - "never", for a caught Ancient (bible §4: Ancients do not age);
- *  - the year plus a note when it lands past the final year the game has (D-A4-14) — the number
- *    stays, because promising a year 7 that never arrives is worse than saying both things.
+ *  - the year plus a pacing note when it lands past the years normal pacing expects (D-A4-14, as
+ *    amended by D-Q3-1: that year DOES arrive now, so the note reads "beyond" rather than "past").
  */
 export function renderRetirementYear(card: SummaryCard, balance: Balance): string {
   if (card.projectedRetirementYear === null) return "retires: never";
-  const finalYear = balance.clock.startYear + balance.clock.yearsTotal - 1;
-  const beyond = card.beyondFinalYear ? ` (past year ${finalYear})` : "";
+  const expectedLastYear = balance.clock.startYear + balance.clock.yearsTotal - 1;
+  const beyond = card.beyondFinalYear ? ` (beyond year ${expectedLastYear})` : "";
   return `retires: year ${card.projectedRetirementYear}${beyond}`;
 }
 

@@ -176,7 +176,8 @@
     "releaseCoverageMinFraction": 0.25
   },
   "clock": {
-    "_source": "build-doc §3 L8 — 16-tick season meter; travel 1 / foray 1 / inn 2; year = gym victory or full meter; 4 ticks per season.",
+    "_source": "build-doc §3 L8, AMENDED 2026-08-25 (DEVIATIONS D-Q2-1, authorised by Hank) — 16-tick season meter; travel 1 / foray 1 / inn 2; year = FULL METER; 4 ticks per season. A gym victory no longer ends a year.",
+    "_yearsTotal": "NOT A CAP. The calendar is unbounded — year may be 9 or 40 and nothing stops it (D-Q3-1). yearsTotal is the EXPECTED year count under normal pacing: six acts at roughly a year each, which is what the HUD quotes, what the balance harness drives by default, and what the six-year property trajectories measure. Story progression is the ACT model's (see `acts`), and no code may read this key to decide whether the run is over.",
     "ticksPerSeason": 4,
     "ticksPerYear": 16,
     "travelTicks": 1,
@@ -186,6 +187,33 @@
     "startYear": 1,
     "startTick": 0,
     "yearsTotal": 6
+  },
+  "acts": {
+    "_source": "THE SECOND CLOCK (DEVIATIONS D-Q3-1, authorised by Hank: 'the game should progress based on the player going through the gyms and side events, not based on year progression. Simply switch out the time check points for event check points.'). Acts are driven by badges and quest flags and NEVER by time; the calendar (see `clock`) is driven by ticks and never by acts. The rows below transcribe content-bible §6 (the six towns and their one route each, in order) and §7 (the six leaders, in order) — no town, route or leader is invented here (G2). The flag names are the ones data/dialogue.json already reads: `gym.<id>.beaten`, `story.opening.done`, `story.greaves.beaten`.",
+    "_act0": "Act 0 is the prologue: a save that has not finished Maren's opening chain. It is a real, reachable state — a new save starts there — and it opens Hearthollow alone, which is bible §6's 'Warden Maren's field station: starter choice, bait-crafting intro, tutorial forage'. Act 1 opens when `story.opening.done` is set, at zero badges.",
+    "_noCap": "`last` is the last act the region HAS, not a deadline. Nothing fails, expires or ends when the calendar passes it, and a player may sit in act 1 for twenty years.",
+    "first": 0,
+    "last": 6,
+    "badgeFlagPrefix": "gym.",
+    "badgeFlagSuffix": ".beaten",
+    "runCompleteFlag": "story.greaves.beaten",
+    "gates": [
+      { "act": 0, "badges": 0, "flags": [], "nodes": ["hearthollow"] },
+      { "act": 1, "badges": 0, "flags": ["story.opening.done"], "nodes": ["hearthollow", "r1"] },
+      { "act": 2, "badges": 1, "flags": [], "nodes": ["brackwater", "r2"] },
+      { "act": 3, "badges": 2, "flags": [], "nodes": ["bowerdeep", "r3"] },
+      { "act": 4, "badges": 3, "flags": [], "nodes": ["cindershelf", "r4"] },
+      { "act": 5, "badges": 4, "flags": [], "nodes": ["duskhollow", "r5"] },
+      { "act": 6, "badges": 5, "flags": [], "nodes": ["sanctum-approach", "sanctum"] }
+    ]
+  },
+  "regionalEvents": {
+    "_source": "bible §9's four regional events, as SEASON-LONG WINDOWS. Hank, 2026-08-25: 'events like that last for a whole season and not just for one in-game day.' A window opens on a season boundary, stays open for clock.ticksPerSeason ticks and closes at the next boundary — core/regional-events.ts. The Annual Festival is the year's final season (bible §9 amended: it no longer CLOSES the year, it spans the season the meter fills in); the Great Migration is a migrant's seasonalWindow (data/species.json, already a season by construction); a Cullbrand raid's window is the season its ACT was entered in; a Bloom Year is a node whose flora clears the fraction below at a season boundary.",
+    "_bloomFraction": "bible §9 'a route whose producers thrive gets bonus spawns' names no number. Expressed as a FRACTION of ecosim.floraMax rather than an absolute so it cannot become a second copy of that ceiling (this file's _singleSource rule). The BONUS-SPAWN half of §9's sentence is deliberately NOT implemented here: it is story-review decision D10 and unruled, so this ships the window and nothing weights an encounter by it (G2/G3).",
+    "_flagNames": "A window publishes itself as the quest flag `<windowFlagPrefix><windowId><windowFlagSuffix>`. The names are chosen so the festival's flag is `event.festival.open` — the flag data/dialogue.json ALREADY reads and which, until now, nothing wrote (docs/STORY-REVIEW.md §5.1 lists it among the externally-granted flags). The other three publish the same shape: `event.migration.<lineId>.open`, `event.bloom.<nodeId>.open`, `event.raid.<raidId>.open`.",
+    "bloomFloraFraction": 0.88,
+    "windowFlagPrefix": "event.",
+    "windowFlagSuffix": ".open"
   },
   "encounter": {
     "_source": "build-doc §7.2 derivations — weight = live population count, migrants filtered by season, Scavenger weight × (1 + recentDeaths/scavengerRecentDeathsDivisor). Rates are build-doc-addition tunables.",
@@ -213,13 +241,14 @@
     "boonMaxStacksPerStat": 2
   },
   "yearEvents": {
-    "_source": "MERGED AT INTEGRATION from data/balance.additions.A4.json. build-doc §7.5 step 5: 'node sims run their 4th season step + year events (Cullbrand raid scripts decrement scripted node populations)'. bible §9 'Cullbrand Harvest raids (scripted per act, populations visibly drop at a named node)'. The raids are DATA, never code: the year turn only applies whatever this list says. G6 note — a raid may only decrement the harvested populations; it must never touch the predators above them. The predator collapse that makes Cindershelf's arrival read as 'mid-collapse' has to EMERGE from the build-doc §7.3 rules once the prey are gone, which is exactly why the numbers below stop at the two Grazer lines.",
+    "_source": "MERGED AT INTEGRATION from data/balance.additions.A4.json. build-doc §7.5 step 5: 'node sims run their 4th season step + year events (Cullbrand raid scripts decrement scripted node populations)'. bible §9 'Cullbrand Harvest raids (scripted per act, populations visibly drop at a named node)'. The raids are DATA, never code: the game only applies whatever this list says. G6 note — a raid may only decrement the harvested populations; it must never touch the predators above them. The predator collapse that makes Cindershelf's arrival read as 'mid-collapse' has to EMERGE from the build-doc §7.3 rules once the prey are gone, which is exactly why the numbers below stop at the two Grazer lines.",
+    "_actKeyed": "RE-KEYED FROM `year` TO `act` 2026-08-25 (DEVIATIONS D-Q3-1). bible §9 always said 'scripted per ACT'; the field said year because content-bible §6 equated the two. A raid now fires on ENTRY to its act, so Cindershelf is entered mid-collapse whether the player arrives in calendar year 2 or year 11. The group keeps the name `yearEvents` because build-doc §7.5 step 5 names it that.",
     "raids": [
       {
         "id": "cullbrand-strip-harvest-r4",
-        "year": 4,
+        "act": 4,
         "nodeId": "r4",
-        "_source": "bible §6 year 4, Cindershelf: 'arrival mid-collapse — Route 4's web already crashed by Cullbrand strip-harvest'. This is the only raid the bible pins to a named node and year; the remaining per-act raids are content another lane must author into this list, not numbers to invent here.",
+        "_source": "bible §6 act 4, Cindershelf: 'arrival mid-collapse — Route 4's web already crashed by Cullbrand strip-harvest'. This is the only raid the bible pins to a named node and act; the remaining per-act raids are content another lane must author into this list, not numbers to invent here.",
         "targets": [
           { "lineId": "ashvole-line", "remove": 11 },
           { "lineId": "cragmar-line", "remove": 8 }

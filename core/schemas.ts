@@ -235,7 +235,8 @@ export const zGymTeamSlot = z.strictObject({
 export const zGymLeader: z.ZodType<GymLeader> = z.strictObject({
   id: z.string().min(1),
   name: z.string().min(1),
-  year: zInt.min(1),
+  // RENAMED from `year` (D-Q3-1): this is an ACT index, and the calendar no longer bounds it.
+  act: zNonNegInt,
   town: z.string().min(1),
   type: z.union([zTypeName, z.literal("mixed")]),
   source: z.enum(["fixed", "ghost"]),
@@ -425,7 +426,32 @@ const zBalanceShape = {
     seasonOrder: z.array(zSeason).length(4),
     startYear: zInt.min(1),
     startTick: zNonNegInt,
+    // NOT a cap — the EXPECTED year count under normal pacing (D-Q3-1). The calendar is unbounded.
     yearsTotal: zInt.min(1),
+  }),
+  // The act model (core/acts.ts) — the second clock. Badges and flags only; never time.
+  acts: z.object({
+    first: zNonNegInt,
+    last: zNonNegInt,
+    badgeFlagPrefix: z.string().min(1),
+    badgeFlagSuffix: z.string().min(1),
+    runCompleteFlag: z.string().min(1),
+    gates: z
+      .array(
+        z.object({
+          act: zNonNegInt,
+          badges: zNonNegInt,
+          flags: z.array(z.string().min(1)),
+          nodes: z.array(z.string().min(1)),
+        }),
+      )
+      .min(1),
+  }),
+  // bible §9's four regional events as season-long windows (core/regional-events.ts).
+  regionalEvents: z.object({
+    bloomFloraFraction: zFrac,
+    windowFlagPrefix: z.string().min(1),
+    windowFlagSuffix: z.string().min(1),
   }),
   encounter: z.object({
     stepsPerForay: zInt.min(1),
@@ -452,7 +478,8 @@ const zBalanceShape = {
     raids: z.array(
       z.object({
         id: z.string().min(1),
-        year: zInt.min(1),
+        // RE-KEYED from `year` (D-Q3-1): a raid fires on ENTRY TO ITS ACT, not on a year turn.
+        act: zNonNegInt,
         nodeId: z.string().min(1),
         targets: z.array(z.object({ lineId: z.string().min(1), remove: zInt.min(1) })).min(1),
       }),
@@ -951,6 +978,11 @@ export function validateBundle(raw: RawContentBundle): Content {
       }
     }
     if (!nodeIds.has(g.town)) issues.push(`gym ${g.id}: town "${g.town}" is not a node`);
+    if (g.act < balance.acts.first || g.act > balance.acts.last) {
+      issues.push(
+        `gym ${g.id}: act ${g.act} is outside balance.acts ${balance.acts.first}..${balance.acts.last}`,
+      );
+    }
   }
 
   // ── node cross-checks ───────────────────────────────────────────────────
@@ -982,9 +1014,62 @@ export function validateBundle(raw: RawContentBundle): Content {
     if (propIds.size !== n.props.length) issues.push(`node ${n.id}: duplicate prop ids`);
   }
 
-  // ── year-event cross-checks (build-doc §7.5 step 5) ─────────────────────
+  // ── act-model cross-checks (D-Q3-1) ─────────────────────────────────────
+  // The act gates are the second clock's whole definition, and every id in them is a reference into
+  // data/nodes/. A gate naming a node that does not exist is a town that never unlocks; a gate list
+  // that is not ascending is an act a save can skip; a leader on an act with no gate is a gym the
+  // act model cannot reach. None of those raises an error anywhere else.
+  const actRows = balance.acts.gates;
+  if (balance.acts.last < balance.acts.first) {
+    issues.push(
+      `balance.json: acts.last ${balance.acts.last} is below acts.first ${balance.acts.first}`,
+    );
+  }
+  const gatedActs = new Set<number>();
+  let previousBadges = -1;
+  actRows.forEach((gate, i) => {
+    if (gatedActs.has(gate.act)) issues.push(`balance.json: duplicate acts.gates row for act ${gate.act}`);
+    gatedActs.add(gate.act);
+    if (gate.act < balance.acts.first || gate.act > balance.acts.last) {
+      issues.push(
+        `balance.json: acts.gates[${i}] is act ${gate.act}, outside acts ${balance.acts.first}..${balance.acts.last}`,
+      );
+    }
+    if (i > 0 && gate.act !== (actRows[i - 1]?.act ?? -1) + 1) {
+      issues.push(`balance.json: acts.gates must be consecutive and ascending; row ${i} is act ${gate.act}`);
+    }
+    // A save is in the HIGHEST satisfied act, so a later act asking for FEWER badges would be
+    // reachable before the act below it — the gates would no longer be a ladder.
+    if (gate.badges < previousBadges) {
+      issues.push(
+        `balance.json: acts.gates[${i}] (act ${gate.act}) needs ${gate.badges} badges, fewer than the act below it`,
+      );
+    }
+    previousBadges = gate.badges;
+    for (const nodeId of gate.nodes) {
+      if (!nodeIds.has(nodeId)) {
+        issues.push(`balance.json: acts.gates[${i}] unlocks node "${nodeId}", which is not a node`);
+      }
+    }
+  });
+  if (!gatedActs.has(balance.acts.first)) {
+    issues.push(`balance.json: acts.gates has no row for acts.first (${balance.acts.first})`);
+  }
+  for (const g of gyms) {
+    if (!gatedActs.has(g.act)) issues.push(`gym ${g.id}: act ${g.act} has no acts.gates row`);
+  }
+  // The badge ladder has to be climbable: the last act may not ask for more badges than the region
+  // has gyms below it, or the finale is unreachable no matter how long the player plays.
+  const topGate = actRows[actRows.length - 1];
+  if (topGate && topGate.badges > gyms.length) {
+    issues.push(
+      `balance.json: acts.gates tops out at ${topGate.badges} badges but gyms.json ships ${gyms.length} leaders`,
+    );
+  }
+
+  // ── raid cross-checks (bible §9 "scripted per act") ─────────────────────
   // The raids are DATA, and every id in them is a reference into two other files. A raid naming a
-  // node or a line that does not exist is a year turn that silently decrements nothing — the
+  // node or a line that does not exist is an act entry that silently decrements nothing — the
   // Cindershelf "mid-collapse" beat quietly not happening, with no error anywhere.
   const raidIds = new Set<string>();
   for (const raid of balance.yearEvents.raids) {
@@ -993,9 +1078,11 @@ export function validateBundle(raw: RawContentBundle): Content {
     if (!nodeIds.has(raid.nodeId)) {
       issues.push(`balance.json: raid "${raid.id}" targets node "${raid.nodeId}", which is not a node`);
     }
-    if (raid.year > balance.clock.yearsTotal) {
+    // Keyed on the ACT now, and the calendar no longer bounds anything: the only unreachable raid
+    // is one authored for an act the region does not have.
+    if (!gatedActs.has(raid.act)) {
       issues.push(
-        `balance.json: raid "${raid.id}" fires in year ${raid.year}, past the ${balance.clock.yearsTotal}-year run`,
+        `balance.json: raid "${raid.id}" fires in act ${raid.act}, which has no acts.gates row — no act entry can apply it`,
       );
     }
     for (const t of raid.targets) {

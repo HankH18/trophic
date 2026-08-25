@@ -21,7 +21,12 @@ npm run harness
 | full-run seeds per profile | 32 |
 | over-catch seeds per node | 128 |
 | candidate parties drafted per seed | 8 |
-| wall-clock | gym 845ms · gym.mirror 241ms · gym.levelSweep 1549ms · gym.ageControl 1037ms · gym.partySizeControl 413ms · chart 383ms · run.profiles 354ms · run.fixture 0ms · run.overcatch 254ms · probes 596ms |
+| wall-clock | gym 826ms · gym.mirror 261ms · gym.levelSweep 1515ms · gym.ageControl 1023ms · gym.partySizeControl 413ms · chart 381ms · run.profiles 366ms · run.fixture 0ms · run.overcatch 258ms · probes 584ms |
+
+**TWO CLOCKS (D-Q3-1).** The calendar (ticks → seasons → years) and the ACT (badges and quest flags)
+are independent, so a harness has to CHOOSE a pacing model rather than inherit one. Mode (c) drives
+**one act per simulated year**, which is what `balance.clock.yearsTotal` describes as normal pacing;
+mode (a) indexes the act directly. Neither number caps anything in the game.
 
 **MEASURED vs INFERRED.** Sections 2–4 are measurements: counts of battles and season steps that
 were actually run. Section 5 separates what those numbers say from what they merely suggest, and
@@ -37,8 +42,10 @@ The authoritative copy is the header of `tools/harness/player.ts`; nothing in it
 number — every clause reads from `data/balance.json`, `data/gyms.json`, `data/nodes/*.json` or
 `data/species.json`.
 
-1. **Where they have been.** At gym *Y*: the towns of gyms 1..*Y* plus every node adjacent to them
-   (`gyms.json.town` + `nodes/*.json.adjacency`). Nothing from a later act.
+1. **Where they have been.** At gym *A*: the towns of gyms 1..*A* plus every node adjacent to them
+   (`gyms.json.act` + `gyms.json.town` + `nodes/*.json.adjacency`). Nothing from a later act.
+   *A* is an **ACT**, not a calendar year (D-Q3-1): the two are independent clocks, and this whole
+   section indexes the act.
 2. **What they could own.** Every line with a live population at one of those nodes, minus the
    sign-chain-gated ones (`balance.encounter.signChainGatedHabitatTag`) and the Ancients, plus the
    starter lines — identified structurally as the lines that appear in no node's populations.
@@ -47,12 +54,18 @@ number — every clause reads from `data/balance.json`, `data/gyms.json`, `data/
    so 4/4/5/6/6/6. One slot is always a starter (bible §8: Maren hands you one).
 4. **Level.** Two models, both reported: **TRAINED** = the leader's rank-and-file level
    (`max` over `gym.slots`), i.e. parity with the team and two under the signature; **UNTRAINED** =
-   `balance.encounter.levelByYear[Y-1]` (6/12/18/24/30/36), the level the region's own
-   wild population sits at. On shipped data UNTRAINED is exactly four levels below TRAINED.
+   `balance.encounter.levelByYear[A-1]` (6/12/18/24/30/36), the level the region's own
+   wild population sits at. On shipped data UNTRAINED is exactly four levels below TRAINED. (The key
+   keeps its shipped name; it is indexed by the leader's ACT here and always was — the array was
+   tuned against the gym ramp, which is an act ladder. See DEVIATIONS D-Q3-2.)
 5. **Age.** Drawn from `balance.encounter.ageWeights` (J 0.5 / A 0.4 /
    E 0.1) — the shipped wild distribution. The team came out of the grass, so it is
-   aged like the grass. **This is not a modelling liberty: aging happens at year turns and the year
-   turn fires ON gym victory, so a year-*Y* team really is whatever year *Y*'s grass produced.**
+   aged like the grass. **This IS now a modelling assumption and it is stated as one (D-Q2-1):** the
+   justification used to be "the year turn fires ON gym victory, so a year-*Y* team really is whatever
+   year *Y*'s grass produced". A gym victory no longer ends a year, so act *A* and calendar year *A*
+   are only equal under the harness's own pacing model (one act per simulated year — see
+   `tools/harness/full-run.ts`). A slower player brings an OLDER team to the same leader, which the
+   `--years` lever is what would measure.
 6. **Traits.** `balance.traits.slotsPerWildCreature` (1) per creature from
    `balance.traits.pool`; Elders roll the rare pool at `traits.elderRareChance` (0.25),
    everyone else rolls common — including the five *negative* common traits.
@@ -77,7 +90,7 @@ price the last one exactly.
 
 ### 2.1 TRAINED player (level parity with the leader's rank and file) — 500 seeds per gym
 
-| yr | leader | type | lvl (player v top) | party | win rate | target | verdict | turns | coverage |
+| act | leader | type | lvl (player v top) | party | win rate | target | verdict | turns | coverage |
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | Maribel | Beast | 8 v 8 | 3 v 3 | **38.6%** | 80%–95% | **-41.4 pp** | 6.9 | 2.6/3 |
 | 2 | Odo | Water | 14 v 16 | 4 v 4 | **66.0%** | 80%–95% | **-14.0 pp** | 8.9 | 4.0/4 |
@@ -88,7 +101,7 @@ price the last one exactly.
 
 ### 2.2 UNTRAINED player (the act's wild level) — 500 seeds per gym
 
-| yr | leader | type | lvl (player v top) | party | win rate | target | verdict | turns | coverage |
+| act | leader | type | lvl (player v top) | party | win rate | target | verdict | turns | coverage |
 |---|---|---|---|---|---|---|---|---|---|
 | 1 | Maribel | Beast | 6 v 8 | 3 v 3 | **31.4%** | 80%–95% | **-48.6 pp** | 6.9 | 2.6/3 |
 | 2 | Odo | Water | 12 v 16 | 4 v 4 | **55.2%** | 80%–95% | **-24.8 pp** | 9.1 | 4.0/4 |
@@ -99,11 +112,11 @@ price the last one exactly.
 
 **Verdict (TRAINED, the generous model): 1 of 6 gyms is inside its build-doc §10.5 band.**
 
-- **Maribel** (year 1, Beast) measured **38.6%** against a target of 80%–95% — **-41.4 pp**. The player's drafted team covered 2.6 of the leader's 3 creatures super-effectively, so this is not a coverage failure.
-- **Odo** (year 2, Water) measured **66.0%** against a target of 80%–95% — **-14.0 pp**. The player's drafted team covered 4.0 of the leader's 4 creatures super-effectively, so this is not a coverage failure.
-- **Vesper** (year 3, Poison) measured **56.8%** against a target of 60%–80% — **-3.2 pp**. The player's drafted team covered 5.0 of the leader's 5 creatures super-effectively, so this is not a coverage failure.
-- **Sable** (year 4, Fire) measured **59.8%** against a target of 60%–80% — **-0.2 pp**. The player's drafted team covered 6.0 of the leader's 6 creatures super-effectively, so this is not a coverage failure.
-- **Magnate Greaves** (year 6, mixed) measured **36.2%** against a target of 45%–65% — **-8.8 pp**. The player's drafted team covered 6.0 of the leader's 6 creatures super-effectively, so this is not a coverage failure.
+- **Maribel** (act 1, Beast) measured **38.6%** against a target of 80%–95% — **-41.4 pp**. The player's drafted team covered 2.6 of the leader's 3 creatures super-effectively, so this is not a coverage failure.
+- **Odo** (act 2, Water) measured **66.0%** against a target of 80%–95% — **-14.0 pp**. The player's drafted team covered 4.0 of the leader's 4 creatures super-effectively, so this is not a coverage failure.
+- **Vesper** (act 3, Poison) measured **56.8%** against a target of 60%–80% — **-3.2 pp**. The player's drafted team covered 5.0 of the leader's 5 creatures super-effectively, so this is not a coverage failure.
+- **Sable** (act 4, Fire) measured **59.8%** against a target of 60%–80% — **-0.2 pp**. The player's drafted team covered 6.0 of the leader's 6 creatures super-effectively, so this is not a coverage failure.
+- **Magnate Greaves** (act 6, mixed) measured **36.2%** against a target of 45%–65% — **-8.8 pp**. The player's drafted team covered 6.0 of the leader's 6 creatures super-effectively, so this is not a coverage failure.
 
 
 #### 2.3 The seat control — is the player seat itself fair?
@@ -302,7 +315,7 @@ Every one of them, classified:
 
 **No unintended extinction under normal play.** The `dex` profile caught 20.7 individuals per six-year run across 32 seeds and drove nothing to zero outside the raid node.
 
-**The baseline is not empty, and that is the point.** With *no player in the region at all*, `r4`/Cragmar (3/32 seeds), `r4`/Stonewing (2/32 seeds) still reach zero — because the shipped Cullbrand raid fires anyway (`balance.yearEvents.raids`, year 4 at `r4`, removing 11 + 8 individuals). **The raid script harvests only Grazers; the line above them starves on its own.** That is guardrail G6 working: the raid decrements what it harvests and the §7.3 rules produce the collapse above it, with nothing in `core/ecosim.ts` knowing a raid happened.
+**The baseline is not empty, and that is the point.** With *no player in the region at all*, `r4`/Cragmar (3/32 seeds), `r4`/Stonewing (2/32 seeds) still reach zero — because the shipped Cullbrand raid fires anyway (`balance.yearEvents.raids`, act 4 at `r4`, removing 11 + 8 individuals). **The raid script harvests only Grazers; the line above them starves on its own.** That is guardrail G6 working: the raid decrements what it harvests and the §7.3 rules produce the collapse above it, with nothing in `core/ecosim.ts` knowing a raid happened.
 
 Closest calls that did *not* reach zero (worst surviving minimum as a fraction of the opening count):
 

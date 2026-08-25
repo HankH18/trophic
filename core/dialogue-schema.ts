@@ -13,6 +13,13 @@
  *
  * `_`-prefixed top-level keys are documentation (the same convention every other data file uses)
  * and are stripped before parsing.
+ *
+ * **The condition model carries two independent clocks (Q3, the authorised L8 amendment).** ACTS —
+ * `act` / `actMin` / `actMax`, derived from badges and quest flags by `actFromFlags()` — are the
+ * story clock, and every story beat gates on them so it fires whenever the player earns it, in any
+ * calendar year. The CALENDAR — `years` / `yearMin` / `yearMax` — is the world's clock: it is
+ * unbounded, it never waits for the player, and only world-ageing copy should read it.
+ * `conditionHolds()` / `selectEntry()` remain the single resolution path for both.
  */
 
 import { z } from "zod";
@@ -21,6 +28,7 @@ import type { Season } from "./types";
 
 import balanceJson from "../data/balance.json";
 import dialogueJson from "../data/dialogue.json";
+import gymsJson from "../data/gyms.json";
 import speciesJson from "../data/species.json";
 import hearthollowJson from "../data/nodes/hearthollow.json";
 import r1Json from "../data/nodes/r1.json";
@@ -107,9 +115,22 @@ export interface FlagEquals {
 /**
  * Every clause present must hold for the entry to be eligible. An absent clause is not a
  * constraint; an empty `when` object means "always eligible" (the fallback).
+ *
+ * **Two independent axes (Q3 / the L8 amendment).** `act*` is the STORY clock — badges and quest
+ * flags — and it is what a story beat must gate on, so the beat fires whenever the player earns it.
+ * `years*` is the WORLD clock — ticks → seasons → years — and it is unbounded, so a calendar clause
+ * must have a sensible reading at year 12 as well as year 6. Neither axis drives the other; an
+ * entry may legitimately carry both (an act beat that also waits for the world to age).
  */
 export interface DialogueCondition {
-  /** Exact in-game years (1–6) this entry belongs to. */
+  /** Exact acts (1..ACTS_TOTAL) this entry belongs to. */
+  act?: number[];
+  actMin?: number;
+  actMax?: number;
+  /**
+   * Exact in-game years this entry belongs to. Q3: the calendar is unbounded, so an exact-year
+   * equality is almost always wrong for anything but a one-off — prefer `yearMin` (forward-open).
+   */
   years?: number[];
   yearMin?: number;
   yearMax?: number;
@@ -173,14 +194,46 @@ const zFlagBag = z.record(zFlagKey, zFlagValue);
 const zCompareOp = z.enum(COMPARE_OPS);
 
 /**
- * G11 / INV-4 — the year range and the flora ceiling are gameplay constants, so they are READ from
- * data/balance.json rather than re-typed here. A retune that shortens the game or moves the flora
- * ceiling must not leave this schema validating dialogue against a different world than the sim.
+ * G11 / INV-4 — nothing gameplay-shaped is re-typed here; it is READ from the shipped content.
+ *
+ * **`clock.yearsTotal` no longer means "the last year".** Under Q3 (the authorised L8 amendment, see
+ * docs/DEVIATIONS.md) the calendar never ends: years advance on ticks alone, and story progression
+ * runs on the act axis instead. So `yearsTotal` is now the NOMINAL span — the year count a normally
+ * paced run reaches, a correlation and not a cap — and it is deliberately NOT a bound on `zYear`.
+ * It is exported so callers and tests reason about pacing from the same number the sim uses.
  */
-const YEARS_TOTAL: number = balanceJson.clock.yearsTotal;
+export const NOMINAL_YEARS: number = balanceJson.clock.yearsTotal;
 const FLORA_MAX: number = balanceJson.ecosim.floraMax;
 
-const zYear = z.number().int().min(1).max(YEARS_TOTAL);
+/**
+ * The acts, in order, taken from the shipped gym table — bible §6 gives each act exactly one gym,
+ * and `data/gyms.json` is the file that says how many there are. Read as a COUNT and as ids, never
+ * through the table's own act/year index field, so renaming that field (Q3) cannot reach in here.
+ */
+export const ACT_GYM_IDS: readonly string[] = gymsJson.gyms.map((g) => g.id);
+export const ACTS_TOTAL: number = ACT_GYM_IDS.length;
+
+/**
+ * Q3: acts are driven by badges and quest flags, never by time. The badge ladder is the spine —
+ * each gym beaten opens the next act — and the per-beat quest/story prerequisites are expressed as
+ * ordinary `flagsSet` clauses on the entries themselves.
+ *
+ * The final act's leader (Greaves) is the finale rather than a gate, so beating him cannot open an
+ * act that does not exist; the clamp is what says so.
+ */
+export function actFromFlags(flags: Readonly<Record<string, FlagValue>>): number {
+  let beaten = 0;
+  for (const id of ACT_GYM_IDS) {
+    const v = flags[`gym.${id}.beaten`];
+    if (v !== undefined && v !== false) beaten += 1;
+  }
+  const act = 1 + beaten;
+  return act > ACTS_TOTAL ? ACTS_TOTAL : act;
+}
+
+/** Q3 — the calendar is unbounded, so a year in a condition has a floor and no ceiling. */
+const zYear = z.number().int().min(1);
+const zAct = z.number().int().min(1).max(ACTS_TOTAL);
 
 export const zDialogueSpeaker: z.ZodType<DialogueSpeaker> = z.strictObject({
   id: zId,
@@ -211,6 +264,9 @@ export const zFlagEquals: z.ZodType<FlagEquals> = z.strictObject({
 
 export const zDialogueCondition: z.ZodType<DialogueCondition> = z
   .strictObject({
+    act: z.array(zAct).min(1).optional(),
+    actMin: zAct.optional(),
+    actMax: zAct.optional(),
     years: z.array(zYear).min(1).optional(),
     yearMin: zYear.optional(),
     yearMax: zYear.optional(),
@@ -228,6 +284,14 @@ export const zDialogueCondition: z.ZodType<DialogueCondition> = z
   .refine(
     (c) => c.years === undefined || (c.yearMin === undefined && c.yearMax === undefined),
     "use either an explicit `years` list or a yearMin/yearMax range, never both",
+  )
+  .refine(
+    (c) => c.actMin === undefined || c.actMax === undefined || c.actMin <= c.actMax,
+    "actMin must not exceed actMax",
+  )
+  .refine(
+    (c) => c.act === undefined || (c.actMin === undefined && c.actMax === undefined),
+    "use either an explicit `act` list or an actMin/actMax range, never both",
   );
 
 export const zDialogueLine: z.ZodType<DialogueLine> = z.strictObject({
@@ -414,6 +478,15 @@ export const DIALOGUE: DialogueFile = validateDialogue();
 
 /** Live state a condition is evaluated against. Supplied by the caller; never read from here. */
 export interface DialogueContext {
+  /**
+   * The STORY clock, 1..ACTS_TOTAL. Required, never optional: an act gate that silently passed
+   * because nobody supplied an act is how the finale stops firing without anything going red.
+   * `actFromFlags(flags)` is the canonical derivation — the game layer should call it rather than
+   * re-deriving the badge ladder, exactly as it must call `conditionHolds` rather than re-deriving
+   * condition resolution.
+   */
+  act: number;
+  /** The WORLD clock. Q3: unbounded — this may be any year ≥ 1, well past `NOMINAL_YEARS`. */
   year: number;
   season: Season;
   flags: Readonly<Record<string, FlagValue>>;
@@ -441,6 +514,9 @@ function compare(a: number, op: CompareOp, b: number): boolean {
 /** True when every clause of `when` holds against `ctx`. An absent `when` is always true. */
 export function conditionHolds(when: DialogueCondition | undefined, ctx: DialogueContext): boolean {
   if (when === undefined) return true;
+  if (when.act !== undefined && !when.act.includes(ctx.act)) return false;
+  if (when.actMin !== undefined && ctx.act < when.actMin) return false;
+  if (when.actMax !== undefined && ctx.act > when.actMax) return false;
   if (when.years !== undefined && !when.years.includes(ctx.year)) return false;
   if (when.yearMin !== undefined && ctx.year < when.yearMin) return false;
   if (when.yearMax !== undefined && ctx.year > when.yearMax) return false;

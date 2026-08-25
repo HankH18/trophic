@@ -63,8 +63,8 @@ import balanceJson from "../../data/balance.json";
 
 const loaded = loadContent();
 const balance = loaded.balance;
-const gym1 = [...loaded.gyms].sort((a, b) => a.year - b.year)[0];
-const gym6 = [...loaded.gyms].sort((a, b) => a.year - b.year)[5];
+const gym1 = [...loaded.gyms].sort((a, b) => a.act - b.act)[0];
+const gym6 = [...loaded.gyms].sort((a, b) => a.act - b.act)[5];
 if (!gym1 || !gym6) throw new Error("data/gyms.json must carry six leaders");
 
 /** A deep copy of the shipped balance file, for the override tests. */
@@ -280,7 +280,7 @@ describe("the reasonable player model (build-doc §10.5(a))", () => {
       const trained = playerLevelFor(gym, balance, "trained");
       const untrained = playerLevelFor(gym, balance, "untrained");
       expect(trained).toBe(Math.max(...gym.slots.map((s) => s.level)));
-      expect(untrained).toBe(balance.encounter.levelByYear[gym.year - 1]);
+      expect(untrained).toBe(balance.encounter.levelByYear[gym.act - 1]);
       expect(trained).toBeGreaterThan(untrained);
       const party = draftParty(gym, loaded, createRng(2), 2, "trained", 99);
       expect(party.level).toBeLessThanOrEqual(balance.xp.levelCap);

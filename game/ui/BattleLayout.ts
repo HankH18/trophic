@@ -75,8 +75,22 @@ const EDGE = 4;
 const MESSAGE_H = 46;
 const MESSAGE_PADDING = 6;
 const MESSAGE_FONT = "8px";
-const SPRITE_W = 72;
-const SPRITE_H = 72;
+/**
+ * build-doc §9.3 — "nearest-neighbor downscale to target (battle 96², overworld chars 32×48,
+ * minis 32²)". The battle slot is the size the art pipeline is going to hand it, not a size the
+ * layout picked: a 72² slot drew every finished 96² sprite at 0.75 and made the placeholder's own
+ * label a lie about what Lane B is producing.
+ *
+ * It is a literal here on purpose, and it is the only honest place for it today: `data/balance.json`
+ * `map` declares `playerSpriteW/H` for the overworld and has NO battle-sprite key, so there is no
+ * tunable to read (adding one is a core/types.ts + core/schemas.ts + balance.json change, which is
+ * not Lane C's to make). Reported as a gap rather than papered over with a private constant table.
+ *
+ * HEADROOM, measured before changing it at the shipped 480×320: the 96² rects are player y131..227
+ * and enemy y42..138 against `message.y = 274`, so neither sprite reaches the message box.
+ */
+const SPRITE_W = 96;
+const SPRITE_H = 96;
 
 /**
  * The whole screen, bottom-up.

@@ -16,7 +16,10 @@
  *     integration defect I4 is what that costs. Same for the balance, which is read off `content`.
  */
 
+import { actOf, nodeUnlockedAt, runIsComplete, unlockedNodeIds } from "@core/acts";
 import type { ClockState } from "@core/clock";
+import type { EventWindow } from "@core/regional-events";
+import { activeWindows } from "@core/regional-events";
 import { indexSpecies, type SpeciesIndex } from "@core/lifecycle";
 import type { RngStreams, SaveEnvelope, StorageLike } from "@core/save";
 import type { Balance, Content, GymLeader, NodeFile, SpeciesLine } from "@core/types";
@@ -226,6 +229,50 @@ class GameRegistry {
   clock(): ClockState {
     const save = this.save();
     return { year: save.year, tick: save.tick };
+  }
+
+  /**
+   * THE OTHER CLOCK (D-Q3-1) — the act, derived from the save's badges and quest flags.
+   *
+   * Derived for exactly the reason {@link clock} is: a second copy is a second thing to keep in
+   * sync, and integration defect I4 is what that costs. Scenes READ this; none of them computes an
+   * act, and none of them may reach for `save.year` to answer a story question. The two clocks meet
+   * nowhere — this method takes no year and `clock()` takes no act.
+   */
+  act(): number {
+    return actOf(this.save(), this.content().gyms, this.balance());
+  }
+
+  /** The nodes the act model has opened. Cumulative — reaching act 4 does not close act 1's. */
+  unlockedNodes(): string[] {
+    return unlockedNodeIds(this.act(), this.balance());
+  }
+
+  /** True when `nodeId` is open at the save's current act. */
+  nodeUnlocked(nodeId: string): boolean {
+    return nodeUnlockedAt(nodeId, this.act(), this.balance());
+  }
+
+  /**
+   * The run's final beat is behind the player — an ACT condition, never a date.
+   *
+   * There is no calendar equivalent to ask: the year is unbounded and a save in year 20 with one
+   * badge is a legal, supported game in progress.
+   */
+  runComplete(): boolean {
+    return runIsComplete(this.save(), this.balance());
+  }
+
+  /** bible §9's regional events open right now, each a `ticksPerSeason` window (D-Q2-2). */
+  openEvents(): EventWindow[] {
+    const save = this.save();
+    const content = this.content();
+    return activeWindows(
+      save,
+      this.clock(),
+      { species: content.species, nodeStates: save.nodeStates },
+      content.balance,
+    );
   }
 
   /** Drop everything. Tests and "back to title" both need it; nothing else should call it. */

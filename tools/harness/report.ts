@@ -65,6 +65,11 @@ npm run harness${m.balancePath ? ` -- --balance ${m.balancePath}` : ""}
 | candidate parties drafted per seed | ${m.params.partyDrafts} |
 | wall-clock | ${Object.entries(m.timingsMs).map(([k, v]) => `${k} ${v}ms`).join(" · ") || "—"} |
 
+**TWO CLOCKS (D-Q3-1).** The calendar (ticks → seasons → years) and the ACT (badges and quest flags)
+are independent, so a harness has to CHOOSE a pacing model rather than inherit one. Mode (c) drives
+**one act per simulated year**, which is what \`balance.clock.yearsTotal\` describes as normal pacing;
+mode (a) indexes the act directly. Neither number caps anything in the game.
+
 **MEASURED vs INFERRED.** Sections 2–4 are measurements: counts of battles and season steps that
 were actually run. Section 5 separates what those numbers say from what they merely suggest, and
 section 6's proposed deltas are inferences — they are *suggestions*, not applied. \`data/balance.json\`
@@ -96,8 +101,10 @@ The authoritative copy is the header of \`tools/harness/player.ts\`; nothing in 
 number — every clause reads from \`data/balance.json\`, \`data/gyms.json\`, \`data/nodes/*.json\` or
 \`data/species.json\`.
 
-1. **Where they have been.** At gym *Y*: the towns of gyms 1..*Y* plus every node adjacent to them
-   (\`gyms.json.town\` + \`nodes/*.json.adjacency\`). Nothing from a later act.
+1. **Where they have been.** At gym *A*: the towns of gyms 1..*A* plus every node adjacent to them
+   (\`gyms.json.act\` + \`gyms.json.town\` + \`nodes/*.json.adjacency\`). Nothing from a later act.
+   *A* is an **ACT**, not a calendar year (D-Q3-1): the two are independent clocks, and this whole
+   section indexes the act.
 2. **What they could own.** Every line with a live population at one of those nodes, minus the
    sign-chain-gated ones (\`balance.encounter.signChainGatedHabitatTag\`) and the Ancients, plus the
    starter lines — identified structurally as the lines that appear in no node's populations.
@@ -106,12 +113,18 @@ number — every clause reads from \`data/balance.json\`, \`data/gyms.json\`, \`
    so 4/4/5/6/6/6. One slot is always a starter (bible §8: Maren hands you one).
 4. **Level.** Two models, both reported: **TRAINED** = the leader's rank-and-file level
    (\`max\` over \`gym.slots\`), i.e. parity with the team and two under the signature; **UNTRAINED** =
-   \`balance.encounter.levelByYear[Y-1]\` (${b.encounter.levelByYear.join("/")}), the level the region's own
-   wild population sits at. On shipped data UNTRAINED is exactly four levels below TRAINED.
+   \`balance.encounter.levelByYear[A-1]\` (${b.encounter.levelByYear.join("/")}), the level the region's own
+   wild population sits at. On shipped data UNTRAINED is exactly four levels below TRAINED. (The key
+   keeps its shipped name; it is indexed by the leader's ACT here and always was — the array was
+   tuned against the gym ramp, which is an act ladder. See DEVIATIONS D-Q3-2.)
 5. **Age.** Drawn from \`balance.encounter.ageWeights\` (J ${b.encounter.ageWeights.J} / A ${b.encounter.ageWeights.A} /
    E ${b.encounter.ageWeights.E}) — the shipped wild distribution. The team came out of the grass, so it is
-   aged like the grass. **This is not a modelling liberty: aging happens at year turns and the year
-   turn fires ON gym victory, so a year-*Y* team really is whatever year *Y*'s grass produced.**
+   aged like the grass. **This IS now a modelling assumption and it is stated as one (D-Q2-1):** the
+   justification used to be "the year turn fires ON gym victory, so a year-*Y* team really is whatever
+   year *Y*'s grass produced". A gym victory no longer ends a year, so act *A* and calendar year *A*
+   are only equal under the harness's own pacing model (one act per simulated year — see
+   \`tools/harness/full-run.ts\`). A slower player brings an OLDER team to the same leader, which the
+   \`--years\` lever is what would measure.
 6. **Traits.** \`balance.traits.slotsPerWildCreature\` (${b.traits.slotsPerWildCreature}) per creature from
    \`balance.traits.pool\`; Elders roll the rare pool at \`traits.elderRareChance\` (${b.traits.elderRareChance}),
    everyone else rolls common — including the five *negative* common traits.
@@ -136,7 +149,7 @@ price the last one exactly.`,
 
 function gymRow(g: GymOutcome): string[] {
   return [
-    `${g.year}`,
+    `${g.act}`,
     `${g.gymName}`,
     `${g.type}`,
     `${g.playerLevel} v ${g.topLevel}`,
@@ -152,7 +165,8 @@ function gymRow(g: GymOutcome): string[] {
 function renderGymSim(loaded: LoadedContent, m: HarnessMeasurements): string {
   const gym = m.gym;
   if (!gym) return "";
-  const headers = ["yr", "leader", "type", "lvl (player v top)", "party", "win rate", "target", "verdict", "turns", "coverage"];
+  // "act", not "yr": the column is data/gyms.json's `act` (D-Q3-1), and the two axes are separate.
+  const headers = ["act", "leader", "type", "lvl (player v top)", "party", "win rate", "target", "verdict", "turns", "coverage"];
   const blocks: string[] = [];
 
   for (const run of gym) {
@@ -175,7 +189,7 @@ function renderGymSim(loaded: LoadedContent, m: HarnessMeasurements): string {
           : misses
               .map(
                 (g) =>
-                  `- **${g.gymName}** (year ${g.year}, ${g.type}) measured **${pct(g.winRate)}** against a target of ` +
+                  `- **${g.gymName}** (act ${g.act}, ${g.type}) measured **${pct(g.winRate)}** against a target of ` +
                   `${pct(g.band[0], 0)}–${pct(g.band[1], 0)} — **${pp(g.bandMiss)}**. ` +
                   (g.bandMiss < 0
                     ? `The player's drafted team covered ${n1(g.meanCoverage)} of the leader's ${g.rosterSize} creatures super-effectively, so this is not a coverage failure.`
@@ -378,7 +392,10 @@ function renderFullRun(loaded: LoadedContent, m: HarnessMeasurements): string {
   const classify = (nodeId: string, lineId: string, firstSeason: number): string => {
     if (raidLines.has(`${nodeId}|${lineId}`)) return "**raid target** (content, bible §6)";
     const raid = b.yearEvents.raids.find((r) => r.nodeId === nodeId);
-    if (raid && firstSeason >= raid.year * seasonsPerYear) return "**emergent** — raid node, not harvested";
+    // The raid fires on ENTRY TO ITS ACT (D-Q3-1). The full-run profile advances one act per
+    // simulated year, so the act index is still the season offset the raid lands at in THIS harness
+    // — a pacing assumption of the harness, not a rule of the game (see `runProfile`).
+    if (raid && firstSeason >= raid.act * seasonsPerYear) return "**emergent** — raid node, not harvested";
     return "player-driven";
   };
   const extinctionRows = profiles.flatMap((p) =>
@@ -482,7 +499,7 @@ ${
 }
 ${
   baseline && baseline.extinctions.length > 0
-    ? `\n**The baseline is not empty, and that is the point.** With *no player in the region at all*, ${baseline.extinctions.map((e) => `\`${e.nodeId}\`/${e.formName} (${e.seeds}/${baseline.seeds} seeds)`).join(", ")} still reach zero — because the shipped Cullbrand raid fires anyway (\`balance.yearEvents.raids\`, year ${b.yearEvents.raids[0]?.year ?? "?"} at \`${b.yearEvents.raids[0]?.nodeId ?? "?"}\`, removing ${b.yearEvents.raids[0]?.targets.map((t) => t.remove).join(" + ") ?? "?"} individuals). **The raid script harvests only Grazers; the line above them starves on its own.** That is guardrail G6 working: the raid decrements what it harvests and the §7.3 rules produce the collapse above it, with nothing in \`core/ecosim.ts\` knowing a raid happened.`
+    ? `\n**The baseline is not empty, and that is the point.** With *no player in the region at all*, ${baseline.extinctions.map((e) => `\`${e.nodeId}\`/${e.formName} (${e.seeds}/${baseline.seeds} seeds)`).join(", ")} still reach zero — because the shipped Cullbrand raid fires anyway (\`balance.yearEvents.raids\`, act ${b.yearEvents.raids[0]?.act ?? "?"} at \`${b.yearEvents.raids[0]?.nodeId ?? "?"}\`, removing ${b.yearEvents.raids[0]?.targets.map((t) => t.remove).join(" + ") ?? "?"} individuals). **The raid script harvests only Grazers; the line above them starves on its own.** That is guardrail G6 working: the raid decrements what it harvests and the §7.3 rules produce the collapse above it, with nothing in \`core/ecosim.ts\` knowing a raid happened.`
     : `\n**The baseline is clean**: with no player in the region at all, nothing reached zero in ${baseline?.seeds ?? 0} six-year runs.`
 }
 
@@ -757,7 +774,7 @@ function renderDeltas(loaded: LoadedContent, m: HarnessMeasurements): string {
 
   if (tooHard.length > 0) {
     const byYear = [...b.encounter.levelByYear];
-    const bumped = byYear.map((v, i) => (tooHard.some((g) => g.year === i + 1) ? v + 2 : v));
+    const bumped = byYear.map((v, i) => (tooHard.some((g) => g.act === i + 1) ? v + 2 : v));
     if (bumped.some((v, i) => v !== byYear[i])) {
       json["encounter.levelByYear"] = bumped;
       proposals.push(

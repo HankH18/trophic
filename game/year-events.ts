@@ -24,8 +24,9 @@
  * Engine-free at runtime (`import type` only): vitest's node environment cannot import phaser.
  */
 
-import type { RaidScript, YearTurnEvent } from "@core/lifecycle";
-import { indexSpecies, yearEventsOf } from "@core/lifecycle";
+import { actGates } from "@core/acts";
+import type { ActEntryEvent, RaidScript, YearTurnEvent } from "@core/lifecycle";
+import { indexSpecies, raidsForAct as coreRaidsForAct, yearEventsOf } from "@core/lifecycle";
 import type { Balance, NodeFile, NodeState, SpeciesLine } from "@core/types";
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -46,109 +47,82 @@ export function ledgerNameOf(line: SpeciesLine, balance: Balance): string {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * How long the game is (build-doc §1 — six in-game years)
+ * How long the game is — IT ISN'T (D-Q3-1)
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/**
- * The last year of the game: `startYear + yearsTotal − 1`, 6 on the shipped clock.
+/*
+ * `finalYearOf` AND `yearTurnEndsRun` USED TO LIVE HERE, and they are gone with the cap they
+ * enforced. There is no final year: the calendar is unbounded (`core/clock.ts`), it never ends and
+ * it never waits, and a save in year 20 with one badge is legal. The run ends on an ACT condition
+ * — `core/acts.ts` `runIsComplete` — whenever the player earns it, and on nothing else. No fail
+ * state, no time limit, no year cap.
  *
- * ONE home for the arithmetic. It was written out three times in this lane (here, in the season
- * meter, in the festival beat) and NOWHERE was it used to stop anything: `core/clock.ts` `isOver`
- * existed and no production code called it, so the shipped game ran a full year turn out of year 6
- * and printed "FESTIVAL · Y7/6", then "Y8/6", then "Y9/6" — a six-year game with no end. The cap is
- * enforced in `game/scenes/YearTurnScene.ts` `driveYearTurn` (the turn refuses to run for a save
- * already past the final year) and in `game/scenes/OverworldScene.ts` (no ticks are spent once
- * `isOver` is true); this function is what both of them ask.
+ * `balance.clock.yearsTotal` survives as the EXPECTED year count under normal pacing, which is what
+ * {@link festivalBeat} quotes and what the balance harness drives by default. It is a correlation,
+ * not a rule, and nothing may read it to decide whether the run is over.
  */
-export function finalYearOf(balance: Balance): number {
-  return balance.clock.startYear + balance.clock.yearsTotal - 1;
-}
-
-/**
- * True for the year turn that ENDS the game: the one out of the final year.
- *
- * `endedYear` is the year the clock says just finished (`ClockEvent {t:"yearEnd", year}`). The turn
- * still runs — it owes the final year its fourth season step (build-doc §7.5 step 5), which is the
- * sixth of the six turns the 24-season-step invariant counts (LANE-A-STATUS §5) — and the run is
- * over when it completes.
- */
-export function yearTurnEndsRun(endedYear: number, balance: Balance): boolean {
-  return endedYear >= finalYearOf(balance);
-}
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Which raids fire
+ * Which raids fire — on ACT, never on a year (bible §9 "scripted per act")
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
- * The raids scripted for `year`, straight out of balance.json.
+ * The raids scripted for `act`, straight out of balance.json.
  *
- * `override` exists for the harness and for tests, exactly as `YearTurnDeps.yearEvents` does — pass
+ * `override` exists for the harness and for tests, exactly as `ActEntryDeps.yearEvents` does — pass
  * the same list to both or the screen and the world disagree.
  */
-export function raidsForYear(
+export function raidsForAct(
   balance: Balance,
-  year: number,
+  act: number,
   override?: readonly RaidScript[],
 ): RaidScript[] {
-  return yearEventsOf(balance, override).filter((raid) => raid.year === year);
+  return coreRaidsForAct(balance, act, override);
 }
 
-/** True when the year turn into `year` will fire at least one scripted raid. */
-export function hasRaids(balance: Balance, year: number, override?: readonly RaidScript[]): boolean {
-  return raidsForYear(balance, year, override).length > 0;
+/** True when entering `act` will fire at least one scripted raid. */
+export function hasRaids(balance: Balance, act: number, override?: readonly RaidScript[]): boolean {
+  return raidsForAct(balance, act, override).length > 0;
 }
 
 /**
- * The years a raid can actually fire in, in order.
+ * The acts a raid can actually fire in, in order — every act the region has.
  *
- * NOT the six years of the game. `core/lifecycle.ts` `runYearTurn` computes `newYear = save.year + 1`
- * and applies only the raids whose `year` equals it, so a raid is applied by the turn that BEGINS
- * its year — and no turn ever begins `balance.clock.startYear`, because the game starts there. The
- * last reachable year is the final year (`startYear + yearsTotal − 1`): the turn after that one ends
- * the six-year game, and `core/clock.ts` `isOver` says so.
- *
- * So over the shipped 1..6 clock the reachable set is 2..6, and a raid authored for year 1 or year 7
- * would never fire — see {@link raidCoverage}, which reports exactly that rather than letting the
- * beat quietly not happen.
+ * ⚠ THIS USED TO BE `raidableYears`, AND IT EXCLUDED THE FIRST ONE. The raid was applied by the
+ * year turn that BEGAN its year, and no turn ever begins the start year, so a raid authored for
+ * year 1 could never fire. Act entry has no such hole: `core/lifecycle.ts` `enterPendingActs` fires
+ * every act the save reaches INCLUDING the first, so bible §9's act-1 raid is now authorable — it
+ * is simply unwritten (see {@link raidCoverage}).
  */
-export function raidableYears(balance: Balance): number[] {
-  const years: number[] = [];
-  for (let year = balance.clock.startYear + 1; year <= finalYearOf(balance); year += 1) {
-    years.push(year);
-  }
-  return years;
+export function raidableActs(balance: Balance): number[] {
+  return actGates(balance).map((gate) => gate.act);
 }
 
 /**
  * Honest coverage of bible §9's "scripted per act".
  *
- * Only ONE raid is authored — the year-4 Route 4 strip-harvest the bible pins to a named node and
- * year (bible §6, Cindershelf: "arrival mid-collapse — Route 4's web already crashed by Cullbrand
+ * Only ONE raid is authored — the act-4 Route 4 strip-harvest the bible pins to a named node and
+ * act (bible §6, Cindershelf: "arrival mid-collapse — Route 4's web already crashed by Cullbrand
  * strip-harvest"). The other acts' raids are unwritten CONTENT; inventing them here would be G2, so
  * this reports the gap instead of filling it. A UI can use it to avoid promising a beat that has no
  * data behind it.
  *
- * The gap is reported over {@link raidableYears}, not over the six years of the game. Reporting
- * `startYear` as an unauthored act was a promise the engine could never keep: the year turn always
- * ends year N and begins N+1, so nothing can fire a raid in the year the player starts in. A raid
- * authored for an unreachable year is the mirror-image failure and comes back in
- * `unreachableScriptedYears` — a one-character typo in the raid list otherwise buys a beat that
- * silently does not happen, which is the same class of defect `runYearTurn` throws on for a
- * misspelled node id.
+ * A raid authored for an act the region does not have comes back in `unreachableScriptedActs` — a
+ * one-character typo in the raid list otherwise buys a beat that silently does not happen, which is
+ * the same class of defect `enterPendingActs` throws on for a misspelled node id.
  */
 export function raidCoverage(
   balance: Balance,
   override?: readonly RaidScript[],
-): { scriptedYears: number[]; unauthoredYears: number[]; unreachableScriptedYears: number[] } {
-  const scripted = new Set(yearEventsOf(balance, override).map((raid) => raid.year));
-  const reachable = raidableYears(balance);
-  const unauthored = reachable.filter((year) => !scripted.has(year));
-  const unreachable = [...scripted].filter((year) => !reachable.includes(year));
+): { scriptedActs: number[]; unauthoredActs: number[]; unreachableScriptedActs: number[] } {
+  const scripted = new Set(yearEventsOf(balance, override).map((raid) => raid.act));
+  const reachable = raidableActs(balance);
+  const unauthored = reachable.filter((act) => !scripted.has(act));
+  const unreachable = [...scripted].filter((act) => !reachable.includes(act));
   return {
-    scriptedYears: [...scripted].sort((a, b) => a - b),
-    unauthoredYears: unauthored,
-    unreachableScriptedYears: unreachable.sort((a, b) => a - b),
+    scriptedActs: [...scripted].sort((a, b) => a - b),
+    unauthoredActs: unauthored,
+    unreachableScriptedActs: unreachable.sort((a, b) => a - b),
   };
 }
 
@@ -167,7 +141,8 @@ export interface RaidTargetPreview {
 
 export interface RaidPreview {
   eventId: string;
-  year: number;
+  /** The ACT the raid fires on entry to — never a calendar year (D-Q3-1). */
+  act: number;
   nodeId: string;
   nodeName: string;
   targets: RaidTargetPreview[];
@@ -176,23 +151,23 @@ export interface RaidPreview {
 /**
  * What the scripted raids will reach for, with the current numbers beside them.
  *
- * Deliberately does NOT predict the surviving count. `runYearTurn` applies
+ * Deliberately does NOT predict the surviving count. `enterPendingActs` applies
  * `max(balance.ecosim.populationFloor, count − remove)` and credits `recentDeaths` with what
  * actually died; restating that arithmetic here would be a second implementation of a rule core
  * owns, and the two would drift the first time the floor is retuned (INV-3). The post-raid numbers
- * come back in the year turn's own events — see {@link raidReportsFrom}.
+ * come back in act entry's own events — see {@link raidReportsFrom}.
  */
 export function raidPreviews(
   states: Readonly<Record<string, NodeState>>,
   nodes: readonly NodeFile[],
   species: readonly SpeciesLine[],
   balance: Balance,
-  year: number,
+  act: number,
   override?: readonly RaidScript[],
 ): RaidPreview[] {
   const index = indexSpecies(species);
   const nodeNames = new Map(nodes.map((node) => [node.id, node.name] as const));
-  return raidsForYear(balance, year, override).map((raid) => {
+  return raidsForAct(balance, act, override).map((raid) => {
     const state = states[raid.nodeId];
     const targets: RaidTargetPreview[] = raid.targets.map((target) => {
       const line = index.get(target.lineId);
@@ -205,7 +180,7 @@ export function raidPreviews(
     });
     return {
       eventId: raid.id,
-      year: raid.year,
+      act: raid.act,
       nodeId: raid.nodeId,
       nodeName: nodeNames.get(raid.nodeId) ?? raid.nodeId,
       targets,
@@ -235,13 +210,15 @@ export interface RaidReport {
 }
 
 /**
- * Turn the year turn's `raid` events into ledger rows.
+ * Turn act entry's `raid` events into ledger rows.
  *
- * build-doc §4 makes the scene "a renderer of its event log", and this is that read for step 5: the
- * numbers on screen are the numbers the sim moved, not a recomputation of them.
+ * build-doc §4 makes the scene "a renderer of its event log", and this is that read: the numbers on
+ * screen are the numbers the sim moved, not a recomputation of them. Typed over the union of the
+ * two producers' events so a caller can hand it either log — the `raid` member is byte-identical in
+ * both, because `core/lifecycle.ts` emits exactly one shape for it.
  */
 export function raidReportsFrom(
-  events: readonly YearTurnEvent[],
+  events: readonly (YearTurnEvent | ActEntryEvent)[],
   nodes: readonly NodeFile[],
   species: readonly SpeciesLine[],
   balance: Balance,
@@ -296,43 +273,55 @@ export function raidLedgerLines(reports: readonly RaidReport[]): string[] {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * The festival — bible §9: "Annual Festival (diegetic gym gate, closes the year)"
+ * The festival — bible §9 as amended (D-Q2-2): it no longer closes the year
  * ──────────────────────────────────────────────────────────────────────────── */
 
 export interface FestivalBeat {
   /** The year that is BEGINNING — the turn ends year N and begins N+1 (core/lifecycle.ts). */
   year: number;
-  yearsTotal: number;
-  /** How many years of the six are now behind the player. */
-  yearsElapsed: number;
-  isFinalYear: boolean;
   /**
-   * True for the turn out of the FINAL year, whose beginning year is past the game.
+   * `balance.clock.yearsTotal` — the EXPECTED year count under normal pacing, NOT a cap.
    *
-   * `runYearTurn` always begins `save.year + 1`, so the sixth of the six turns begins year 7 — a
-   * year `core/clock.ts` `isOver` calls past the game and the player never gets to play. The label
-   * used to announce it as `Y7/6`, and the season meter agreed, and nothing stopped the next turn
-   * from announcing `Y8/6`. See {@link finalYearOf}.
+   * Quoted so a player can see roughly where they are against six acts at a year each. Nothing
+   * enforces it and the label never claims a denominator (see below).
    */
-  beyondFinalYear: boolean;
-  /** "Y3/6", or "Y6/6 · complete" for the turn that ends the game — the whole festival's copy. */
+  yearsTotal: number;
+  /** How many years are behind the player. Unbounded. */
+  yearsElapsed: number;
+  /**
+   * True when the calendar has run past the expected pacing — year 7 and beyond.
+   *
+   * ⚠ NOT AN ERROR, AND NOT AN ENDING. It used to be `beyondFinalYear` and it used to mean the
+   * game was over; there is no final year any more (D-Q3-1). This is a pacing readout: the player
+   * is taking longer than six years, which is a legal, supported and interesting way to play.
+   */
+  pastExpectedPace: boolean;
+  /** "Y3" — the whole festival's copy. G7: a number, not a verdict. */
   label: string;
 }
 
+/**
+ * The year-turn beat that closes the festival window.
+ *
+ * ⚠ THE LABEL LOST ITS DENOMINATOR, deliberately. It used to read "Y3/6", and past year 6 it read
+ * "Y7/6" and then "Y8/6" — a fraction of a total the calendar no longer has. `yearsTotal` is still
+ * carried on the struct for a HUD that wants to show expected pacing beside the count, but the copy
+ * states the year and stops, because that is the only number that is true without qualification.
+ *
+ * THE FESTIVAL IS A SEASON, NOT THIS FRAME. bible §9 called it a "diegetic gym gate, closes the
+ * year"; under the amended L8 a gym victory closes nothing, and per Hank's constraint the event
+ * lasts a whole season rather than one in-game day. `core/regional-events.ts` `festivalWindow` is
+ * the event — the year's final season, open for `ticksPerSeason` ticks. This beat is the moment it
+ * ends, which is the meter filling.
+ */
 export function festivalBeat(year: number, balance: Balance): FestivalBeat {
-  const finalYear = finalYearOf(balance);
-  const beyondFinalYear = year > finalYear;
   const yearsTotal = balance.clock.yearsTotal;
+  const yearsElapsed = Math.max(0, year - balance.clock.startYear);
   return {
     year,
     yearsTotal,
-    yearsElapsed: Math.max(0, year - balance.clock.startYear),
-    isFinalYear: year === finalYear,
-    beyondFinalYear,
-    // Past the final year the six years are what there is to report; naming a seventh states a year
-    // the game does not have.
-    label: beyondFinalYear
-      ? `Y${String(finalYear)}/${String(yearsTotal)} · complete`
-      : `Y${String(year)}/${String(yearsTotal)}`,
+    yearsElapsed,
+    pastExpectedPace: yearsElapsed >= yearsTotal,
+    label: `Y${String(year)}`,
   };
 }

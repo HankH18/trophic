@@ -35,11 +35,10 @@ import {
   advance,
   advanceAction,
   createClock,
-  gymVictory,
-  isOver,
   seasonsOfYear,
   type ClockEvent,
 } from "../../core/clock";
+import { actOf, awardBadge } from "../../core/acts";
 import { createRng, subsystemRng, deriveStream } from "../../core/rng";
 import {
   asBattleRng,
@@ -408,21 +407,32 @@ describe("SEAM — the fourth season runs exactly once (build-doc §7.5 step 5)"
     expect(new Set(stepped.map((s) => s.nodeId)).size).toBe(content.nodes.length);
   });
 
-  it("a year ended early by a gym win still advances the ecology exactly once", () => {
-    // L8: "year = gym victory or full meter". The gym path must not lose the season step, and must
-    // not double it either — the two failure modes are symmetric and both were reachable.
+  it("A GYM WIN ENDS NOTHING — no clock event, no season step, no year (D-Q2-1)", () => {
+    /*
+     * The amended L8: "year = full meter", and nothing else. This test used to assert the opposite
+     * ("a year ended early by a gym win still advances the ecology exactly once") and is inverted
+     * on Hank's authorisation, quoted in docs/DEVIATIONS.md D-Q2-1.
+     *
+     * Asserted through the SEAM rather than by the absence of an export: for every tick of a year,
+     * awarding the badge that a gym win writes moves neither half of the clock and produces no
+     * ecology step at all — and the act it advances is a different axis entirely.
+     */
     for (const tick of [0, 3, 7, 11, 15]) {
-      const { events } = gymVictory({ year: 2, tick }, balance);
-      expect(events.filter((e) => e.t === "seasonBoundary")).toHaveLength(0);
-      expect(events.filter((e) => e.t === "yearEnd")).toHaveLength(1);
+      const before = { ...newSave({ seed: 7, currentNode: "hearthollow", nodes: content.nodes }, balance), year: 2, tick };
+      const after = awardBadge(before, "maribel", balance);
+      expect({ year: after.year, tick: after.tick }).toEqual({ year: 2, tick });
+      expect(after.nodeStates).toEqual(before.nodeStates);
+      // The ONE thing it moves: the act.
+      expect(actOf(after, content.gyms, balance)).toBeGreaterThan(actOf(before, content.gyms, balance));
     }
   });
 
-  it("a six-year game is 24 season steps, not 30", () => {
+  it("six years is 24 season steps, not 30", () => {
     let clock = createClock(balance);
     let boundaries = 0;
     let yearTurns = 0;
-    while (!isOver(clock, balance)) {
+    const lastYear = balance.clock.startYear + balance.clock.yearsTotal;
+    while (clock.year < lastYear) {
       const r = advanceAction(clock, "foray", balance);
       clock = r.clock;
       for (const e of r.events) {
@@ -620,7 +630,8 @@ describe("SEAM — the year turn's season step runs WITH presence effects on", (
     let clock = createClock(balance);
     let steps = 0;
 
-    while (!isOver(clock, balance)) {
+    const lastYear = balance.clock.startYear + balance.clock.yearsTotal;
+    while (clock.year < lastYear) {
       const r = advance(clock, 1, balance);
       clock = r.clock;
       for (const e of r.events) {
