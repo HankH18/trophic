@@ -24,11 +24,12 @@
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, rm, readFile, writeFile, mkdir } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname, resolve } from 'node:path';
 import type { Raster } from '../../tools/postprocess/raster.ts';
 import { blankRaster, cloneRaster, idx, rastersEqual, readRaster, writeRaster } from '../../tools/postprocess/raster.ts';
+import type { Rgb } from '../../tools/postprocess/steps.ts';
 import {
   WHITE,
   fitResample,
@@ -38,11 +39,12 @@ import {
   sampleBackgroundKey,
   trimBackground,
 } from '../../tools/postprocess/steps.ts';
+import type { PaletteRgb } from '../../tools/postprocess/palette.ts';
 import { loadPalette, loadPaletteFile, parseHex, paletteIsFrozen, PALETTE_PATH, REPO_ROOT } from '../../tools/postprocess/palette.ts';
 import { classOf, finalPathOf, processRaster, processRow, rawPathOf, recipeFor } from '../../tools/postprocess/chain.ts';
 import { atlasDescriptor, packAtlas } from '../../tools/postprocess/atlas.ts';
 import { fontScale, makePlaceholder, wrapLabel } from '../../tools/postprocess/placeholder.ts';
-import { loadManifest, type ManifestFile, type ManifestRow } from '../../tools/comfy/comfy-batch.ts';
+import { loadManifest, type ClassSpec, type ManifestFile, type ManifestRow } from '../../tools/comfy/comfy-batch.ts';
 
 const PALETTE = loadPalette();
 const BG = { key: WHITE, tolerance: 12 };
@@ -320,6 +322,183 @@ describe('palette.json is read live, not compiled in', () => {
     expect(() => loadPalette(bad)).toThrow();
     expect(() => parseHex('#12345')).toThrow(/not a #rrggbb/);
   });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §9.3 step 3 is COUPLED TO THE PALETTE — the invariant a palette freeze can break
+ * (DEVIATIONS-lane-b B-D22 / B-D33, QUEUED-CHANGES Q4)
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * WHY THIS SECTION EXISTS AND WHY A NUMBER ALONE WOULD NOT DO.
+ *
+ * §9.3 runs background removal (step 3) AFTER quantize (step 2). Removal matches a DECLARED key —
+ * white, because every §9.2 prompt ends in `plain white background` — but by the time it runs, no
+ * pixel is white any more: the whole frame has been snapped to `data/palette.json`. So what step 3
+ * must actually match is not white, it is *whatever the palette maps white to*, and that colour
+ * moves every time the palette is re-fit.
+ *
+ * It moved. `backgroundTolerance` was 12; the frozen palette's white-image is `#fdfdfb`, 4 off
+ * white, and passed by luck. Both re-freeze candidates put their white-image at 13 and 20 — outside
+ * 12 — and removal then cleared ZERO pixels on real art (measured through this chain on the
+ * approved player and on two 1024² creature trials: the entire fitted subject box stayed opaque,
+ * i.e. every sprite would ship with an opaque off-white rectangle behind it).
+ *
+ * The tolerance is now 24, which restores removal under all three palettes. But 24 is not the fix —
+ * the fix is the INVARIANT below, because the next palette freeze can move the white-image again and
+ * a number in a config file cannot notice. Two conditions, and they pull in opposite directions:
+ *
+ *   1. the palette's image of the background key must be INSIDE the tolerance, or step 3 removes
+ *      nothing and the background ships;
+ *   2. every OTHER swatch must be OUTSIDE it, or the flood fill spreads into a second colour and
+ *      eats light content.
+ *
+ * Condition 2 is the reason the tolerance cannot simply be raised until it always works.
+ * The palettes are discovered from disk rather than listed, so a palette added by a future freeze
+ * is bound by this the moment it lands.
+ */
+
+/** Max per-channel deviation — exactly what `isBackgroundPixel` thresholds. */
+function channelDeviation(a: { r: number; g: number; b: number }, b: { r: number; g: number; b: number }): number {
+  return Math.max(Math.abs(a.r - b.r), Math.abs(a.g - b.g), Math.abs(a.b - b.b));
+}
+
+/** What the palette maps a colour to, computed by the REAL quantizer rather than a re-implementation. */
+function paletteImageOf(colour: { r: number; g: number; b: number }, palette: readonly PaletteRgb[]): Rgb {
+  const one = blankRaster(1, 1);
+  px(one, 0, 0, [colour.r, colour.g, colour.b, 255]);
+  const q = quantize(one, palette);
+  return { r: q.data[0]!, g: q.data[1]!, b: q.data[2]! };
+}
+
+/** Every palette file the repo carries, found on disk — data/ and the trial proposals alike. */
+function discoverPalettes(): Array<{ label: string; path: string }> {
+  const found: Array<{ label: string; path: string }> = [];
+  const walk = (dir: string): void => {
+    if (!existsSync(dir)) return;
+    for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (/^palette.*\.json$/.test(entry.name)) found.push({ label: full.slice(REPO_ROOT.length + 1), path: full });
+    }
+  };
+  walk(resolve(REPO_ROOT, 'data'));
+  walk(resolve(REPO_ROOT, 'assets/approved-trials'));
+  return found;
+}
+
+/** A subject that does NOT fill its own bounding box, so trim leaves real background for step 3. */
+function discSprite(size = 128): Raster {
+  const r = blankRaster(size, size);
+  for (let y = 0; y < size; y++) for (let x = 0; x < size; x++) px(r, x, y, [255, 255, 255, 255]);
+  const c = (size - 1) / 2;
+  const rad = size * 0.45;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      if ((x - c) ** 2 + (y - c) ** 2 > rad * rad) continue;
+      px(r, x, y, [40 + ((x * 7) % 160), 30 + ((y * 5) % 170), 60 + ((x + y) % 140), 255]);
+    }
+  }
+  // A white highlight enclosed by the subject: the flood fill must never reach it, at any tolerance.
+  for (let y = Math.floor(c) - 3; y <= Math.floor(c) + 3; y++) {
+    for (let x = Math.floor(c) - 3; x <= Math.floor(c) + 3; x++) px(r, x, y, [255, 255, 255, 255]);
+  }
+  return r;
+}
+
+describe('§9.3 step 3 survives a palette swap (B-D22)', () => {
+  const palettes = discoverPalettes();
+
+  /** The classes step 3 actually runs for. Read inside the test bodies: `manifest` is async. */
+  const removalClasses = (): Array<[string, ClassSpec]> =>
+    Object.entries(manifest.classes).filter(([, s]) => s.postprocess.removeBackground);
+
+  it('finds the palettes on disk, including the frozen one', () => {
+    expect(palettes.map((p) => p.label)).toContain('data/palette.json');
+    // The two re-freeze proposals are bound by everything below exactly as the frozen palette is.
+    expect(palettes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('at least one class actually runs background removal — otherwise this suite proves nothing', () => {
+    expect(removalClasses().length).toBeGreaterThan(0);
+    expect(removalClasses().map(([n]) => n)).toContain('creature-battle');
+  });
+
+  for (const { label, path } of palettes) {
+    describe(label, () => {
+      it('maps the background key INSIDE every removing class’s tolerance — or step 3 is a no-op', () => {
+        const palette = loadPalette(path);
+        for (const [name, spec] of removalClasses()) {
+          const key = parseHex(spec.postprocess.backgroundKey);
+          const image = paletteImageOf(key, palette);
+          const dev = channelDeviation(image, key);
+          expect(
+            dev,
+            `${label}: ${name} declares key ${spec.postprocess.backgroundKey}; this palette maps it to ` +
+              `rgb(${image.r},${image.g},${image.b}), ${dev} off — outside backgroundTolerance ` +
+              `${spec.postprocess.backgroundTolerance}, so removeFlatBackground would clear NOTHING and ` +
+              `every ${name} sprite would ship with an opaque rectangle behind it.`,
+          ).toBeLessThanOrEqual(spec.postprocess.backgroundTolerance);
+        }
+      });
+
+      it('keeps every OTHER swatch OUTSIDE the tolerance — or the fill eats light content', () => {
+        const palette = loadPalette(path);
+        for (const [name, spec] of removalClasses()) {
+          const tol = spec.postprocess.backgroundTolerance;
+          const key = parseHex(spec.postprocess.backgroundKey);
+          const image = paletteImageOf(key, palette);
+          const inside = palette.filter((c) => channelDeviation(c, key) <= tol);
+          expect(
+            inside.map((c) => c.hex),
+            `${label}: ${name} tolerance ${tol} admits ${inside.length} swatches. Exactly one — the ` +
+              'palette’s image of the background key — may be inside it, or the fill spreads into a ' +
+              'second colour and eats light content.',
+          ).toEqual([palette.find((c) => c.r === image.r && c.g === image.g && c.b === image.b)!.hex]);
+          // The second-lightest swatch's margin, asserted rather than assumed: a freeze that merely
+          // gets close is the same defect one step later.
+          const outside = palette
+            .map((c) => channelDeviation(c, key))
+            .filter((d) => d > tol)
+            .sort((a, b) => a - b);
+          expect(outside[0]!, `${label}: ${name}'s second-lightest swatch is only ${outside[0]} off the key`).toBeGreaterThan(tol);
+        }
+      });
+
+      it('really does clear the background through the whole chain, and only the background', () => {
+        const palette = loadPalette(path);
+        for (const [name, spec] of removalClasses()) {
+          const recipe = { ...recipeFor(spec), targetW: 64, targetH: 64 };
+          const src = discSprite();
+          const withRemoval = processRaster(src, recipe, palette);
+          const withoutRemoval = processRaster(src, { ...recipe, removeBackground: false }, palette);
+          const image = paletteImageOf(parseHex(spec.postprocess.backgroundKey), palette);
+          const bgColour = `${image.r},${image.g},${image.b}`;
+
+          let cleared = 0;
+          let enclosedBackgroundKept = 0;
+          const clearedColours = new Set<string>();
+          for (let i = 0; i < withRemoval.data.length; i += 4) {
+            if (withoutRemoval.data[i + 3]! === 0) continue;
+            const colour = `${withoutRemoval.data[i]},${withoutRemoval.data[i + 1]},${withoutRemoval.data[i + 2]}`;
+            if (withRemoval.data[i + 3]! === 0) {
+              cleared++;
+              clearedColours.add(colour);
+            } else if (colour === bgColour) {
+              enclosedBackgroundKept++;
+            }
+          }
+          expect(cleared, `${label}: ${name} removal cleared nothing — the background would ship`).toBeGreaterThan(0);
+          expect([...clearedColours], `${label}: ${name} removal reached a colour that is not the background`).toEqual([
+            bgColour,
+          ]);
+          // The corner is background and must go; the highlight the subject encloses must not.
+          expect(withRemoval.data[idx(withRemoval, 0, 0) + 3], `${label}: ${name} corner`).toBe(0);
+          expect(enclosedBackgroundKept, `${label}: ${name} enclosed highlight was punched out`).toBeGreaterThan(0);
+        }
+      });
+    });
+  }
 });
 
 /* ════════════════════════════════════════════════════════════════════════════

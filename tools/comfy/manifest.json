@@ -58,6 +58,12 @@
       "spec": "build-doc §9.2 / locked decision L6",
       "finding": "L6 says the string `green shirt, ranger cap with star badge, leather satchel, walking boots` appears VERBATIM in every player prompt. The prompt that actually produced the gate-B0-approved sprite does not contain it verbatim — it elaborates: `a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots`.",
       "action": "The approved prompt wins, and this is why: §8.4 and G5 make an approved asset's prompt+seed its identity, and the approved sprite is the one Hank signed off at a SUPERVISED gate. Substituting the L6 string would generate a different character while claiming to be a regeneration — the exact failure G5 exists to prevent. Every L6 ELEMENT is present (green shirt · ranger cap · star badge · leather satchel · walking boots) and the cape ban is enforced on the negative side (B-D7), so L6's intent holds; only its 'verbatim' clause does not. `_player.l6Verbatim` keeps the spec string on the record, and tests/unit/manifest.test.ts asserts the elements plus byte-equality with manifest-b0.json's approved row."
+    },
+    {
+      "id": "LB-M9",
+      "spec": "build-doc §9.2 fidelity rule",
+      "finding": "§9.2 says 'front-load and repeat distinctive anatomy (Fenmaw's gharial snout class of failure)'. The derivation did exactly that and Fenmaw STILL came back a generic crocodile — the subject already read `bulk gharial with a long narrow gharial snout` twice (assets/raw/palette-trials/pt-fenmaw.png). Repetition is not the missing piece: this model reads the SPECIES TERM `gharial` as its common relative `crocodile`, so repeating the term repeats the wrong animal. Confirmed by one generation per hypothesis: replacing the term with the SHAPE — `an extremely long thin tube-shaped snout, a narrow needle-like jaw far longer than the head is wide` — produced a true gharial (pt-fenmaw-b.png). The same collapse is visible in every other trial whose identity rests on a specialist term: `lungfish` rendered a generic bipedal fish blob (pt-mirefin.png), the `wyrm` of `spider-wyrm` vanished and left a plain spider (pt-webvern.png), `spore-antlered` rendered plain deer antlers (pt-sporantle.png), `eyeless` rendered a serpent with large eyes (pt-undermere.png), `will-o-wisp` rendered nothing at all (pt-wispurr.png), `dusk moth` rendered butterfly filaments (pt-gloomoth.png), `mudball tadpole` rendered a bipedal blob with no tail (pt-bogling.png).",
+      "action": "§9.2's fidelity rule gains a second clause, and `_concepts` is where it is applied: NAME DISTINCTIVE ANATOMY BY ITS SHAPE, NEVER BY ITS SPECIES TERM — the term stays (it is the bible's word and G2 protects it), the shape is added beside it and both are then front-loaded and repeated by the derivation. Rewritten: Fenmaw, Mirefin, Webvern, Sporantle, Undermere, Bogling, Wispurr, Gloomoth (each measured above) and Stonewing (reasoned, not measured — no trial exists). Deliberately NOT rewritten: Pyrelisk, because 'basilisk' fixes no anatomy in the bible and a shape restatement would have to invent one. THIS IS A PROMPT CHANGE, NOT A CONTENT CHANGE: every bible name, type, role, habitat and concept term is untouched and still appears verbatim in the subject; only the wording that steers the generator is added. Rewriting what Fenmaw IS would be a G2 violation; describing the gharial's snout by its geometry is a pipeline fidelity fix. Seeds are unaffected — `deriveSeed` is pure in (id, version), so no row's seed moves and G5 is not engaged. Recorded in docs/DEVIATIONS-lane-b.md as B-D33 and in tools/comfy/README.md so the next agent building subjects does not reintroduce it."
     }
   ],
   "_deviationsNote": "These are staged HERE, with an LB-M prefix, because docs/DEVIATIONS-lane-b.md is held by a concurrent workflow that is appending its own B-D numbers — two lanes numbering into the same sequence produced a collision once already. They fold into DEVIATIONS.md with B-D numbers at Lane B integration. Every one of them is a departure from build-doc §9 that a reviewer should see before trusting a count, a prompt or a post-process step.",
@@ -92,7 +98,7 @@
         "quantize": true,
         "removeBackground": true,
         "atlas": "creatures",
-        "backgroundTolerance": 12,
+        "backgroundTolerance": 24,
         "backgroundKey": "#ffffff"
       }
     },
@@ -116,7 +122,7 @@
         "quantize": false,
         "removeBackground": false,
         "atlas": null,
-        "backgroundTolerance": 12,
+        "backgroundTolerance": 24,
         "backgroundKey": "#ffffff"
       }
     },
@@ -139,7 +145,7 @@
         "quantize": true,
         "removeBackground": false,
         "atlas": null,
-        "backgroundTolerance": 12,
+        "backgroundTolerance": 24,
         "backgroundKey": "#ffffff"
       }
     },
@@ -162,7 +168,7 @@
         "quantize": true,
         "removeBackground": false,
         "atlas": null,
-        "backgroundTolerance": 12,
+        "backgroundTolerance": 24,
         "backgroundKey": "#ffffff"
       }
     },
@@ -186,7 +192,7 @@
         "quantize": true,
         "removeBackground": false,
         "atlas": null,
-        "backgroundTolerance": 12,
+        "backgroundTolerance": 24,
         "backgroundKey": "#ffffff"
       }
     },
@@ -209,7 +215,7 @@
         "quantize": true,
         "removeBackground": true,
         "atlas": "minis",
-        "backgroundTolerance": 12,
+        "backgroundTolerance": 24,
         "backgroundKey": "#ffffff"
       }
     },
@@ -232,7 +238,7 @@
         "quantize": true,
         "removeBackground": true,
         "atlas": "trainers",
-        "backgroundTolerance": 12,
+        "backgroundTolerance": 24,
         "backgroundKey": "#ffffff"
       }
     },
@@ -255,7 +261,7 @@
         "quantize": true,
         "removeBackground": true,
         "atlas": "npcs",
-        "backgroundTolerance": 12,
+        "backgroundTolerance": 24,
         "backgroundKey": "#ffffff"
       }
     },
@@ -278,7 +284,7 @@
         "quantize": true,
         "removeBackground": true,
         "atlas": "props",
-        "backgroundTolerance": 12,
+        "backgroundTolerance": 24,
         "backgroundKey": "#ffffff"
       }
     },
@@ -301,7 +307,7 @@
         "quantize": true,
         "removeBackground": false,
         "atlas": "ui",
-        "backgroundTolerance": 12,
+        "backgroundTolerance": 24,
         "backgroundKey": "#ffffff"
       },
       "_postprocessNote": "The one class that SHOULD stretch. A nine-slice frame is meant to be scaled non-uniformly, and letterboxing a square 1024² generation into a 480×96 dialogue box would leave a 96×96 frame floating in the middle of it. So: trim the white margin, then resample to the exact box (fit:false). Background removal is off for the same reason — after the trim there is no exterior background left, and the 'empty interior' is the panel body, not a hole."
@@ -334,7 +340,7 @@
         "quantize": true,
         "removeBackground": true,
         "atlas": "player",
-        "backgroundTolerance": 12,
+        "backgroundTolerance": 24,
         "backgroundKey": "#ffffff"
       }
     }
@@ -405,40 +411,40 @@
       "source": "bible §4 row 8 — 'walking sod clump, seeds fields'"
     },
     "Bogling": {
-      "text": "mudball tadpole",
-      "source": "bible §4 row 9"
+      "text": "mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail",
+      "source": "bible §4 row 9 — 'mudball tadpole'; tadpole anatomy restated as SHAPE per LB-M9. Measured: assets/raw/palette-trials/pt-bogling.png rendered a bipedal blob with arms, legs and no tail. Fix not verified generatively"
     },
     "Reedrick": {
       "text": "stilt-legged reed wader",
       "source": "bible §4 row 10"
     },
     "Mirefin": {
-      "text": "stalking lungfish",
-      "source": "bible §4 row 11"
+      "text": "stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins",
+      "source": "bible §4 row 11 — 'stalking lungfish'; the lungfish body plan restated as SHAPE per LB-M9. Measured: assets/raw/palette-trials/pt-mirefin.png rendered a generic bipedal fish blob with no elongated body and no limb-like fins. Fix not verified generatively"
     },
     "Fenmaw": {
-      "text": "bulk gharial with a long narrow gharial snout",
-      "source": "bible §4 row 12 — 'bulk gharial'; the snout is repeated per §9.2's fidelity rule, which names this exact failure"
+      "text": "bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide",
+      "source": "bible §4 row 12 — 'bulk gharial'; the snout is stated as SHAPE (LB-M9) and repeated per §9.2's fidelity rule, which names this exact failure. CONFIRMED generatively: 'a long narrow gharial snout' renders a generic crocodile (pt-fenmaw.png), this phrasing renders a true gharial (pt-fenmaw-b.png). 'extremely long thin tube-shaped gharial snout' is the confirmed trial's own repeat clause, verbatim — the term sits BESIDE the geometry rather than standing in for it, and it keeps 'gharial' twice per concept so the §9.2 repetition assertion holds on the single-concept dex row too"
     },
     "Sporantle": {
-      "text": "spore-antlered fungus beast, a decomposer",
-      "source": "bible §4 row 13"
+      "text": "spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps",
+      "source": "bible §4 row 13 — 'spore-antlered fungus beast (decomposer)'; 'spore-antlered' restated as SHAPE per LB-M9. Measured: assets/raw/palette-trials/pt-sporantle.png rendered plain brown deer antlers with nothing fungal about them. Fix not verified generatively"
     },
     "Mosslet": {
       "text": "moss-backed hare",
       "source": "bible §4 row 14"
     },
     "Webvern": {
-      "text": "canopy weaver spider-wyrm",
-      "source": "bible §4 row 15"
+      "text": "canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs",
+      "source": "bible §4 row 15 — 'canopy weaver spider-wyrm'; the wyrm half restated as SHAPE per LB-M9. Measured: assets/raw/palette-trials/pt-webvern.png rendered a plain spider — the serpentine body was absent entirely. Fix not verified generatively"
     },
     "Gloomgrub": {
       "text": "Poison and Plant grub, the larval form of the dusk moth",
       "source": "bible §4 row 16 + the metamorphic paragraph — 'Gloomgrub (Poison/Plant) grub'"
     },
     "Gloomoth": {
-      "text": "migratory dusk moth",
-      "source": "bible §4 row 16 — 'dusk moth, migratory'"
+      "text": "migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings",
+      "source": "bible §4 row 16 — 'dusk moth, migratory'; moth anatomy restated as SHAPE per LB-M9. Measured: assets/raw/palette-trials/pt-gloomoth.png rendered bare straight butterfly filaments and a smooth hard-edged body. Fix not verified generatively"
     },
     "Duskstalk": {
       "text": "long-limbed shadow cat",
@@ -454,15 +460,15 @@
     },
     "Pyrelisk": {
       "text": "vent basilisk",
-      "source": "bible §4 row 20"
+      "source": "bible §4 row 20 — 'vent basilisk'. AUDITED under LB-M9 and deliberately LEFT: unlike gharial/lungfish/wyrm, 'basilisk' encodes no single anatomy the bible fixes — it reads as a mythic serpent or as a crested lizard, and the bible names neither. A shape restatement would have to CHOOSE one, which is inventing anatomy (G2). No Pyrelisk trial exists. Flagged for a supervised look at the first Pyrelisk generation instead"
     },
     "Cragmar": {
       "text": "boulder ram",
       "source": "bible §4 row 21"
     },
     "Stonewing": {
-      "text": "obsidian condor",
-      "source": "bible §4 row 22"
+      "text": "obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head",
+      "source": "bible §4 row 22 — 'obsidian condor'; 'condor' restated as SHAPE per LB-M9. NOT measured — no Stonewing trial was ever generated; rewritten on the rule because 'condor' is the same kind of specialist term that collapsed for gharial, lungfish and wyrm, and its collapse target ('a big bird of prey') loses the vulture silhouette"
     },
     "Carricrow": {
       "text": "carrion crow",
@@ -473,8 +479,8 @@
       "source": "bible §4 row 24"
     },
     "Wispurr": {
-      "text": "will-o-wisp cat",
-      "source": "bible §4 row 25"
+      "text": "will-o-wisp cat wreathed in pale drifting ghost-light",
+      "source": "bible §4 row 25 — 'will-o-wisp cat'; 'will-o-wisp' restated as SHAPE per LB-M9. Measured: assets/raw/palette-trials/pt-wispurr.png rendered an ordinary black house cat with no light, glow or vapour anywhere. Fix not verified generatively"
     },
     "Vellsire": {
       "text": "vanished keystone stag",
@@ -485,8 +491,8 @@
       "source": "bible §4 row 27"
     },
     "Undermere": {
-      "text": "eyeless serpent",
-      "source": "bible §4 row 28"
+      "text": "eyeless serpent with a smooth blank head, no eyes and no eye sockets",
+      "source": "bible §4 row 28 — 'eyeless serpent of the lake-beneath-the-lake'; eyelessness restated as SHAPE per LB-M9. Measured: assets/raw/palette-trials/pt-undermere.png rendered a serpent with large prominent eyes — the one identifying feature was an absence, and absences do not render. Fix not verified generatively"
     }
   },
   "_nodes": {
@@ -1485,9 +1491,9 @@
     {
       "id": "battle-mirefin-j-front",
       "class": "creature-battle",
-      "subject": "Bogling, mudball tadpole, juvenile Water creature, mudball tadpole",
+      "subject": "Bogling, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail, juvenile Water creature, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Bogling, mudball tadpole, juvenile Water creature, mudball tadpole, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Bogling, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail, juvenile Water creature, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1500,9 +1506,9 @@
     {
       "id": "battle-mirefin-j-back",
       "class": "creature-battle",
-      "subject": "Bogling, mudball tadpole, juvenile Water creature, mudball tadpole",
+      "subject": "Bogling, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail, juvenile Water creature, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Bogling, mudball tadpole, juvenile Water creature, mudball tadpole, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Bogling, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail, juvenile Water creature, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1515,9 +1521,9 @@
     {
       "id": "battle-mirefin-a-front",
       "class": "creature-battle",
-      "subject": "Mirefin, stalking lungfish, adult Water and Poison creature, stalking lungfish",
+      "subject": "Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, adult Water and Poison creature, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Mirefin, stalking lungfish, adult Water and Poison creature, stalking lungfish, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, adult Water and Poison creature, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1530,9 +1536,9 @@
     {
       "id": "battle-mirefin-a-back",
       "class": "creature-battle",
-      "subject": "Mirefin, stalking lungfish, adult Water and Poison creature, stalking lungfish",
+      "subject": "Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, adult Water and Poison creature, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Mirefin, stalking lungfish, adult Water and Poison creature, stalking lungfish, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, adult Water and Poison creature, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1545,9 +1551,9 @@
     {
       "id": "battle-mirefin-e-front",
       "class": "creature-battle",
-      "subject": "Mirefin, stalking lungfish, elder Water and Poison creature, stalking lungfish",
+      "subject": "Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, elder Water and Poison creature, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Mirefin, stalking lungfish, elder Water and Poison creature, stalking lungfish, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, elder Water and Poison creature, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1560,9 +1566,9 @@
     {
       "id": "battle-mirefin-e-back",
       "class": "creature-battle",
-      "subject": "Mirefin, stalking lungfish, elder Water and Poison creature, stalking lungfish",
+      "subject": "Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, elder Water and Poison creature, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Mirefin, stalking lungfish, elder Water and Poison creature, stalking lungfish, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, elder Water and Poison creature, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1665,9 +1671,9 @@
     {
       "id": "battle-fenmaw-j-front",
       "class": "creature-battle",
-      "subject": "Fenmaw, bulk gharial with a long narrow gharial snout, juvenile Water creature, bulk gharial with a long narrow gharial snout",
+      "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, juvenile Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with a long narrow gharial snout, juvenile Water creature, bulk gharial with a long narrow gharial snout, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, juvenile Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1680,9 +1686,9 @@
     {
       "id": "battle-fenmaw-j-back",
       "class": "creature-battle",
-      "subject": "Fenmaw, bulk gharial with a long narrow gharial snout, juvenile Water creature, bulk gharial with a long narrow gharial snout",
+      "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, juvenile Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with a long narrow gharial snout, juvenile Water creature, bulk gharial with a long narrow gharial snout, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, juvenile Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1695,9 +1701,9 @@
     {
       "id": "battle-fenmaw-a-front",
       "class": "creature-battle",
-      "subject": "Fenmaw, bulk gharial with a long narrow gharial snout, adult Water creature, bulk gharial with a long narrow gharial snout",
+      "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, adult Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with a long narrow gharial snout, adult Water creature, bulk gharial with a long narrow gharial snout, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, adult Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1710,9 +1716,9 @@
     {
       "id": "battle-fenmaw-a-back",
       "class": "creature-battle",
-      "subject": "Fenmaw, bulk gharial with a long narrow gharial snout, adult Water creature, bulk gharial with a long narrow gharial snout",
+      "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, adult Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with a long narrow gharial snout, adult Water creature, bulk gharial with a long narrow gharial snout, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, adult Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1725,9 +1731,9 @@
     {
       "id": "battle-fenmaw-e-front",
       "class": "creature-battle",
-      "subject": "Fenmaw, bulk gharial with a long narrow gharial snout, elder Water creature, bulk gharial with a long narrow gharial snout",
+      "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, elder Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with a long narrow gharial snout, elder Water creature, bulk gharial with a long narrow gharial snout, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, elder Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1740,9 +1746,9 @@
     {
       "id": "battle-fenmaw-e-back",
       "class": "creature-battle",
-      "subject": "Fenmaw, bulk gharial with a long narrow gharial snout, elder Water creature, bulk gharial with a long narrow gharial snout",
+      "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, elder Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with a long narrow gharial snout, elder Water creature, bulk gharial with a long narrow gharial snout, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, elder Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1755,9 +1761,9 @@
     {
       "id": "battle-sporantle-j-front",
       "class": "creature-battle",
-      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, juvenile Poison and Plant creature, spore-antlered fungus beast, a decomposer",
+      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, juvenile Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, juvenile Poison and Plant creature, spore-antlered fungus beast, a decomposer, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, juvenile Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1770,9 +1776,9 @@
     {
       "id": "battle-sporantle-j-back",
       "class": "creature-battle",
-      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, juvenile Poison and Plant creature, spore-antlered fungus beast, a decomposer",
+      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, juvenile Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, juvenile Poison and Plant creature, spore-antlered fungus beast, a decomposer, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, juvenile Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1785,9 +1791,9 @@
     {
       "id": "battle-sporantle-a-front",
       "class": "creature-battle",
-      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, adult Poison and Plant creature, spore-antlered fungus beast, a decomposer",
+      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, adult Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, adult Poison and Plant creature, spore-antlered fungus beast, a decomposer, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, adult Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1800,9 +1806,9 @@
     {
       "id": "battle-sporantle-a-back",
       "class": "creature-battle",
-      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, adult Poison and Plant creature, spore-antlered fungus beast, a decomposer",
+      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, adult Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, adult Poison and Plant creature, spore-antlered fungus beast, a decomposer, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, adult Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1815,9 +1821,9 @@
     {
       "id": "battle-sporantle-e-front",
       "class": "creature-battle",
-      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, elder Poison and Plant creature, spore-antlered fungus beast, a decomposer",
+      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, elder Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, elder Poison and Plant creature, spore-antlered fungus beast, a decomposer, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, elder Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1830,9 +1836,9 @@
     {
       "id": "battle-sporantle-e-back",
       "class": "creature-battle",
-      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, elder Poison and Plant creature, spore-antlered fungus beast, a decomposer",
+      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, elder Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, elder Poison and Plant creature, spore-antlered fungus beast, a decomposer, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, elder Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1935,9 +1941,9 @@
     {
       "id": "battle-webvern-j-front",
       "class": "creature-battle",
-      "subject": "Webvern, canopy weaver spider-wyrm, juvenile Poison creature, canopy weaver spider-wyrm",
+      "subject": "Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, juvenile Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, juvenile Poison creature, canopy weaver spider-wyrm, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, juvenile Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1950,9 +1956,9 @@
     {
       "id": "battle-webvern-j-back",
       "class": "creature-battle",
-      "subject": "Webvern, canopy weaver spider-wyrm, juvenile Poison creature, canopy weaver spider-wyrm",
+      "subject": "Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, juvenile Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, juvenile Poison creature, canopy weaver spider-wyrm, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, juvenile Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1965,9 +1971,9 @@
     {
       "id": "battle-webvern-a-front",
       "class": "creature-battle",
-      "subject": "Webvern, canopy weaver spider-wyrm, adult Poison creature, canopy weaver spider-wyrm",
+      "subject": "Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, adult Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, adult Poison creature, canopy weaver spider-wyrm, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, adult Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1980,9 +1986,9 @@
     {
       "id": "battle-webvern-a-back",
       "class": "creature-battle",
-      "subject": "Webvern, canopy weaver spider-wyrm, adult Poison creature, canopy weaver spider-wyrm",
+      "subject": "Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, adult Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, adult Poison creature, canopy weaver spider-wyrm, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, adult Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -1995,9 +2001,9 @@
     {
       "id": "battle-webvern-e-front",
       "class": "creature-battle",
-      "subject": "Webvern, canopy weaver spider-wyrm, elder Poison creature, canopy weaver spider-wyrm",
+      "subject": "Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, elder Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, elder Poison creature, canopy weaver spider-wyrm, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, elder Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2010,9 +2016,9 @@
     {
       "id": "battle-webvern-e-back",
       "class": "creature-battle",
-      "subject": "Webvern, canopy weaver spider-wyrm, elder Poison creature, canopy weaver spider-wyrm",
+      "subject": "Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, elder Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, elder Poison creature, canopy weaver spider-wyrm, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, elder Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2055,9 +2061,9 @@
     {
       "id": "battle-gloomoth-a-front",
       "class": "creature-battle",
-      "subject": "Gloomoth, migratory dusk moth, adult Dark and Wind creature, migratory dusk moth",
+      "subject": "Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, adult Dark and Wind creature, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Gloomoth, migratory dusk moth, adult Dark and Wind creature, migratory dusk moth, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, adult Dark and Wind creature, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2070,9 +2076,9 @@
     {
       "id": "battle-gloomoth-a-back",
       "class": "creature-battle",
-      "subject": "Gloomoth, migratory dusk moth, adult Dark and Wind creature, migratory dusk moth",
+      "subject": "Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, adult Dark and Wind creature, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Gloomoth, migratory dusk moth, adult Dark and Wind creature, migratory dusk moth, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, adult Dark and Wind creature, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2085,9 +2091,9 @@
     {
       "id": "battle-gloomoth-e-front",
       "class": "creature-battle",
-      "subject": "Gloomoth, migratory dusk moth, elder Dark and Wind creature, migratory dusk moth",
+      "subject": "Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, elder Dark and Wind creature, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Gloomoth, migratory dusk moth, elder Dark and Wind creature, migratory dusk moth, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, elder Dark and Wind creature, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2100,9 +2106,9 @@
     {
       "id": "battle-gloomoth-e-back",
       "class": "creature-battle",
-      "subject": "Gloomoth, migratory dusk moth, elder Dark and Wind creature, migratory dusk moth",
+      "subject": "Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, elder Dark and Wind creature, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Gloomoth, migratory dusk moth, elder Dark and Wind creature, migratory dusk moth, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, elder Dark and Wind creature, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2565,9 +2571,9 @@
     {
       "id": "battle-stonewing-j-front",
       "class": "creature-battle",
-      "subject": "Stonewing, obsidian condor, juvenile Earth and Wind creature, obsidian condor",
+      "subject": "Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, juvenile Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, juvenile Earth and Wind creature, obsidian condor, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, juvenile Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2580,9 +2586,9 @@
     {
       "id": "battle-stonewing-j-back",
       "class": "creature-battle",
-      "subject": "Stonewing, obsidian condor, juvenile Earth and Wind creature, obsidian condor",
+      "subject": "Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, juvenile Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, juvenile Earth and Wind creature, obsidian condor, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, juvenile Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2595,9 +2601,9 @@
     {
       "id": "battle-stonewing-a-front",
       "class": "creature-battle",
-      "subject": "Stonewing, obsidian condor, adult Earth and Wind creature, obsidian condor",
+      "subject": "Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, adult Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, adult Earth and Wind creature, obsidian condor, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, adult Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2610,9 +2616,9 @@
     {
       "id": "battle-stonewing-a-back",
       "class": "creature-battle",
-      "subject": "Stonewing, obsidian condor, adult Earth and Wind creature, obsidian condor",
+      "subject": "Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, adult Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, adult Earth and Wind creature, obsidian condor, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, adult Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2625,9 +2631,9 @@
     {
       "id": "battle-stonewing-e-front",
       "class": "creature-battle",
-      "subject": "Stonewing, obsidian condor, elder Earth and Wind creature, obsidian condor",
+      "subject": "Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, elder Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, elder Earth and Wind creature, obsidian condor, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, elder Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2640,9 +2646,9 @@
     {
       "id": "battle-stonewing-e-back",
       "class": "creature-battle",
-      "subject": "Stonewing, obsidian condor, elder Earth and Wind creature, obsidian condor",
+      "subject": "Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, elder Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, elder Earth and Wind creature, obsidian condor, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, elder Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2835,9 +2841,9 @@
     {
       "id": "battle-wispurr-j-front",
       "class": "creature-battle",
-      "subject": "Wispurr, will-o-wisp cat, juvenile Dark and Beast creature, will-o-wisp cat",
+      "subject": "Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, juvenile Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat, juvenile Dark and Beast creature, will-o-wisp cat, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, juvenile Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2850,9 +2856,9 @@
     {
       "id": "battle-wispurr-j-back",
       "class": "creature-battle",
-      "subject": "Wispurr, will-o-wisp cat, juvenile Dark and Beast creature, will-o-wisp cat",
+      "subject": "Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, juvenile Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat, juvenile Dark and Beast creature, will-o-wisp cat, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, juvenile Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2865,9 +2871,9 @@
     {
       "id": "battle-wispurr-a-front",
       "class": "creature-battle",
-      "subject": "Wispurr, will-o-wisp cat, adult Dark and Beast creature, will-o-wisp cat",
+      "subject": "Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, adult Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat, adult Dark and Beast creature, will-o-wisp cat, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, adult Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2880,9 +2886,9 @@
     {
       "id": "battle-wispurr-a-back",
       "class": "creature-battle",
-      "subject": "Wispurr, will-o-wisp cat, adult Dark and Beast creature, will-o-wisp cat",
+      "subject": "Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, adult Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat, adult Dark and Beast creature, will-o-wisp cat, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, adult Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2895,9 +2901,9 @@
     {
       "id": "battle-wispurr-e-front",
       "class": "creature-battle",
-      "subject": "Wispurr, will-o-wisp cat, elder Dark and Beast creature, will-o-wisp cat",
+      "subject": "Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, elder Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat, elder Dark and Beast creature, will-o-wisp cat, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, elder Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2910,9 +2916,9 @@
     {
       "id": "battle-wispurr-e-back",
       "class": "creature-battle",
-      "subject": "Wispurr, will-o-wisp cat, elder Dark and Beast creature, will-o-wisp cat",
+      "subject": "Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, elder Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat, elder Dark and Beast creature, will-o-wisp cat, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, elder Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -2985,9 +2991,9 @@
     {
       "id": "battle-undermere-e-front",
       "class": "creature-battle",
-      "subject": "Undermere, eyeless serpent, ancient elder Water and Dark creature, eyeless serpent",
+      "subject": "Undermere, eyeless serpent with a smooth blank head, no eyes and no eye sockets, ancient elder Water and Dark creature, eyeless serpent with a smooth blank head, no eyes and no eye sockets",
       "view": "front",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Undermere, eyeless serpent, ancient elder Water and Dark creature, eyeless serpent, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Undermere, eyeless serpent with a smooth blank head, no eyes and no eye sockets, ancient elder Water and Dark creature, eyeless serpent with a smooth blank head, no eyes and no eye sockets, facing the viewer, battle stance, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -3000,9 +3006,9 @@
     {
       "id": "battle-undermere-e-back",
       "class": "creature-battle",
-      "subject": "Undermere, eyeless serpent, ancient elder Water and Dark creature, eyeless serpent",
+      "subject": "Undermere, eyeless serpent with a smooth blank head, no eyes and no eye sockets, ancient elder Water and Dark creature, eyeless serpent with a smooth blank head, no eyes and no eye sockets",
       "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Undermere, eyeless serpent, ancient elder Water and Dark creature, eyeless serpent, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Undermere, eyeless serpent with a smooth blank head, no eyes and no eye sockets, ancient elder Water and Dark creature, eyeless serpent with a smooth blank head, no eyes and no eye sockets, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "96x96",
       "version": 1,
@@ -3090,9 +3096,9 @@
     {
       "id": "mini-mirefin",
       "class": "overworld-mini",
-      "subject": "Mirefin, stalking lungfish, small Water and Poison creature seen from above and in front, stalking lungfish",
+      "subject": "Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, small Water and Poison creature seen from above and in front, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins",
       "view": "front",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Mirefin, stalking lungfish, small Water and Poison creature seen from above and in front, stalking lungfish, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, small Water and Poison creature seen from above and in front, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "32x32",
       "version": 1,
@@ -3120,9 +3126,9 @@
     {
       "id": "mini-fenmaw",
       "class": "overworld-mini",
-      "subject": "Fenmaw, bulk gharial with a long narrow gharial snout, small Water creature seen from above and in front, bulk gharial with a long narrow gharial snout",
+      "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, small Water creature seen from above and in front, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide",
       "view": "front",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with a long narrow gharial snout, small Water creature seen from above and in front, bulk gharial with a long narrow gharial snout, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, small Water creature seen from above and in front, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "32x32",
       "version": 1,
@@ -3135,9 +3141,9 @@
     {
       "id": "mini-sporantle",
       "class": "overworld-mini",
-      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, small Poison and Plant creature seen from above and in front, spore-antlered fungus beast, a decomposer",
+      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, small Poison and Plant creature seen from above and in front, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps",
       "view": "front",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, small Poison and Plant creature seen from above and in front, spore-antlered fungus beast, a decomposer, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, small Poison and Plant creature seen from above and in front, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "32x32",
       "version": 1,
@@ -3165,9 +3171,9 @@
     {
       "id": "mini-webvern",
       "class": "overworld-mini",
-      "subject": "Webvern, canopy weaver spider-wyrm, small Poison creature seen from above and in front, canopy weaver spider-wyrm",
+      "subject": "Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, small Poison creature seen from above and in front, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs",
       "view": "front",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, small Poison creature seen from above and in front, canopy weaver spider-wyrm, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, small Poison creature seen from above and in front, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "32x32",
       "version": 1,
@@ -3180,9 +3186,9 @@
     {
       "id": "mini-gloomoth",
       "class": "overworld-mini",
-      "subject": "Gloomoth, migratory dusk moth, small Dark and Wind creature seen from above and in front, migratory dusk moth",
+      "subject": "Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, small Dark and Wind creature seen from above and in front, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings",
       "view": "front",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Gloomoth, migratory dusk moth, small Dark and Wind creature seen from above and in front, migratory dusk moth, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, small Dark and Wind creature seen from above and in front, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "32x32",
       "version": 1,
@@ -3270,9 +3276,9 @@
     {
       "id": "mini-stonewing",
       "class": "overworld-mini",
-      "subject": "Stonewing, obsidian condor, small Earth and Wind creature seen from above and in front, obsidian condor",
+      "subject": "Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, small Earth and Wind creature seen from above and in front, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head",
       "view": "front",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, small Earth and Wind creature seen from above and in front, obsidian condor, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, small Earth and Wind creature seen from above and in front, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "32x32",
       "version": 1,
@@ -3315,9 +3321,9 @@
     {
       "id": "mini-wispurr",
       "class": "overworld-mini",
-      "subject": "Wispurr, will-o-wisp cat, small Dark and Beast creature seen from above and in front, will-o-wisp cat",
+      "subject": "Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, small Dark and Beast creature seen from above and in front, will-o-wisp cat wreathed in pale drifting ghost-light",
       "view": "front",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat, small Dark and Beast creature seen from above and in front, will-o-wisp cat, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, small Dark and Beast creature seen from above and in front, will-o-wisp cat wreathed in pale drifting ghost-light, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "32x32",
       "version": 1,
@@ -3360,9 +3366,9 @@
     {
       "id": "mini-undermere",
       "class": "overworld-mini",
-      "subject": "Undermere, eyeless serpent, small Water and Dark creature seen from above and in front, eyeless serpent",
+      "subject": "Undermere, eyeless serpent with a smooth blank head, no eyes and no eye sockets, small Water and Dark creature seen from above and in front, eyeless serpent with a smooth blank head, no eyes and no eye sockets",
       "view": "front",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Undermere, eyeless serpent, small Water and Dark creature seen from above and in front, eyeless serpent, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
+      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, Undermere, eyeless serpent with a smooth blank head, no eyes and no eye sockets, small Water and Dark creature seen from above and in front, eyeless serpent with a smooth blank head, no eyes and no eye sockets, standing facing forward, full body, small chibi proportions, plain white background, crisp clean pixel edges, 2D game asset",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "32x32",
       "version": 1,
@@ -3599,9 +3605,9 @@
     {
       "id": "dex-bogling",
       "class": "dex-painted",
-      "subject": "Bogling, mudball tadpole, Water creature",
+      "subject": "Bogling, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail, Water creature",
       "view": "plate",
-      "prompt": "painted storybook illustration, natural-history field-guide style, Bogling, mudball tadpole, Water creature, soft watercolor texture, muted palette",
+      "prompt": "painted storybook illustration, natural-history field-guide style, Bogling, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail, Water creature, soft watercolor texture, muted palette",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "1024x1024",
       "version": 1,
@@ -3615,9 +3621,9 @@
     {
       "id": "dex-mirefin",
       "class": "dex-painted",
-      "subject": "Mirefin, stalking lungfish, Water and Poison creature",
+      "subject": "Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, Water and Poison creature",
       "view": "plate",
-      "prompt": "painted storybook illustration, natural-history field-guide style, Mirefin, stalking lungfish, Water and Poison creature, soft watercolor texture, muted palette",
+      "prompt": "painted storybook illustration, natural-history field-guide style, Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, Water and Poison creature, soft watercolor texture, muted palette",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "1024x1024",
       "version": 1,
@@ -3647,9 +3653,9 @@
     {
       "id": "dex-fenmaw",
       "class": "dex-painted",
-      "subject": "Fenmaw, bulk gharial with a long narrow gharial snout, Water creature",
+      "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, Water creature",
       "view": "plate",
-      "prompt": "painted storybook illustration, natural-history field-guide style, Fenmaw, bulk gharial with a long narrow gharial snout, Water creature, soft watercolor texture, muted palette",
+      "prompt": "painted storybook illustration, natural-history field-guide style, Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, Water creature, soft watercolor texture, muted palette",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "1024x1024",
       "version": 1,
@@ -3663,9 +3669,9 @@
     {
       "id": "dex-sporantle",
       "class": "dex-painted",
-      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, Poison and Plant creature",
+      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, Poison and Plant creature",
       "view": "plate",
-      "prompt": "painted storybook illustration, natural-history field-guide style, Sporantle, spore-antlered fungus beast, a decomposer, Poison and Plant creature, soft watercolor texture, muted palette",
+      "prompt": "painted storybook illustration, natural-history field-guide style, Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, Poison and Plant creature, soft watercolor texture, muted palette",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "1024x1024",
       "version": 1,
@@ -3695,9 +3701,9 @@
     {
       "id": "dex-webvern",
       "class": "dex-painted",
-      "subject": "Webvern, canopy weaver spider-wyrm, Poison creature",
+      "subject": "Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, Poison creature",
       "view": "plate",
-      "prompt": "painted storybook illustration, natural-history field-guide style, Webvern, canopy weaver spider-wyrm, Poison creature, soft watercolor texture, muted palette",
+      "prompt": "painted storybook illustration, natural-history field-guide style, Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, Poison creature, soft watercolor texture, muted palette",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "1024x1024",
       "version": 1,
@@ -3727,9 +3733,9 @@
     {
       "id": "dex-gloomoth",
       "class": "dex-painted",
-      "subject": "Gloomoth, migratory dusk moth, Dark and Wind creature",
+      "subject": "Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, Dark and Wind creature",
       "view": "plate",
-      "prompt": "painted storybook illustration, natural-history field-guide style, Gloomoth, migratory dusk moth, Dark and Wind creature, soft watercolor texture, muted palette",
+      "prompt": "painted storybook illustration, natural-history field-guide style, Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, Dark and Wind creature, soft watercolor texture, muted palette",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "1024x1024",
       "version": 1,
@@ -3823,9 +3829,9 @@
     {
       "id": "dex-stonewing",
       "class": "dex-painted",
-      "subject": "Stonewing, obsidian condor, Earth and Wind creature",
+      "subject": "Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, Earth and Wind creature",
       "view": "plate",
-      "prompt": "painted storybook illustration, natural-history field-guide style, Stonewing, obsidian condor, Earth and Wind creature, soft watercolor texture, muted palette",
+      "prompt": "painted storybook illustration, natural-history field-guide style, Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, Earth and Wind creature, soft watercolor texture, muted palette",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "1024x1024",
       "version": 1,
@@ -3871,9 +3877,9 @@
     {
       "id": "dex-wispurr",
       "class": "dex-painted",
-      "subject": "Wispurr, will-o-wisp cat, Dark and Beast creature",
+      "subject": "Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, Dark and Beast creature",
       "view": "plate",
-      "prompt": "painted storybook illustration, natural-history field-guide style, Wispurr, will-o-wisp cat, Dark and Beast creature, soft watercolor texture, muted palette",
+      "prompt": "painted storybook illustration, natural-history field-guide style, Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, Dark and Beast creature, soft watercolor texture, muted palette",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "1024x1024",
       "version": 1,
@@ -3919,9 +3925,9 @@
     {
       "id": "dex-undermere",
       "class": "dex-painted",
-      "subject": "Undermere, eyeless serpent, Water and Dark creature",
+      "subject": "Undermere, eyeless serpent with a smooth blank head, no eyes and no eye sockets, Water and Dark creature",
       "view": "plate",
-      "prompt": "painted storybook illustration, natural-history field-guide style, Undermere, eyeless serpent, Water and Dark creature, soft watercolor texture, muted palette",
+      "prompt": "painted storybook illustration, natural-history field-guide style, Undermere, eyeless serpent with a smooth blank head, no eyes and no eye sockets, Water and Dark creature, soft watercolor texture, muted palette",
       "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
       "targetSize": "1024x1024",
       "version": 1,

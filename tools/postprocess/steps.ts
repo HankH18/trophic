@@ -252,6 +252,17 @@ export function quantize(src: Raster, palette: readonly PaletteRgb[]): Raster {
  *
  * Flood-fill from the border rather than "clear every white pixel": a white highlight enclosed by
  * the subject is part of the subject, and keying on colour alone punches holes in eyes and teeth.
+ *
+ * THE TOLERANCE IS NOT A PROPERTY OF THIS STEP — IT IS A PROPERTY OF THE PALETTE. §9.3 runs this
+ * AFTER quantize, so by the time it runs no pixel is white any more; what it has to match is the
+ * palette's IMAGE of the declared key. `data/palette.json` maps white to `#fdfdfb`, 4 off — which is
+ * why a tolerance of 12 worked, and it worked by luck, not by choice. Both re-freeze candidates put
+ * their white-image at 13 and 20, and at 12 this function then cleared ZERO pixels on real art: the
+ * whole subject box shipped opaque. The tolerance is 24 in `manifest.classes.<c>.postprocess`
+ * (G11 — it is config, not a literal), and the invariant that makes 24 the right number rather than
+ * a lucky one is asserted per palette in tests/unit/postprocess.test.ts: the palette's image of the
+ * key must be INSIDE the tolerance, and every other swatch OUTSIDE it. A future palette freeze that
+ * moves the white-image turns that test red instead of shipping 154 sprites in boxes.
  */
 export function removeFlatBackground(src: Raster, opts: BackgroundOptions): Raster {
   assertWellFormed(src, 'removeFlatBackground');

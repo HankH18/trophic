@@ -15,8 +15,8 @@ HEAD `88bf97d`, remote verified. No leftover scratch probes.
 | Q1 renames | not started — needs `tests/unit/transcription.test.ts` |
 | Q2 tick-only time | **blocked** — Lanes B+C holds `game/` |
 | Q3 act decoupling (+ Q3a, Q3b) | **blocked** — needs `game/`; largest item, needs its own verification pass |
-| Q4 backgroundTolerance | **IN FLIGHT** |
-| Q5 Fenmaw shape-not-species | **IN FLIGHT** |
+| Q4 backgroundTolerance | **DONE** — 12 → 24 on all 11 classes, reproduced first (0 pixels cleared under both candidates) and pinned by a per-palette invariant test that goes red at 12 *and* at 50. Evidence in the Q4 section below and `DEVIATIONS-lane-b` B-D33/B-D34. One sibling flagged, not fixed: `tools/comfy/player-views.ts:411` still hardcodes `tolerance: 12` (B-D35, out of that change's file scope) |
+| Q5 Fenmaw shape-not-species | **DONE** — 9 subjects rewritten via `_concepts` + `rebuild`, no seed moved. Only Fenmaw's fix is confirmed generatively; the other 8 have a MEASURED failure and a REASONED fix. B-D36/B-D37/B-D38 |
 | Q6 r4 mid-collapse | not started |
 | Q7 wire dialogue into `game/` | **blocked** — Lanes B+C holds `game/` |
 | Q8 dialogue-schema allowance | **DONE** — landed, verified legitimate (the two real gameplay constants read from `balance.json`) |
@@ -220,6 +220,46 @@ margin (each palette's second-lightest swatch sits at deviation 41-45, well clea
 **This must land in the same change as any palette swap.** A swap without it ships every sprite with a
 visible box around it.
 
+### LANDED 2026-08-25 — reproduced, fixed, and the class of bug closed
+
+**Reproduced first, through `chain.ts::processRaster` on real art** (approved player at 32×48;
+`pt-puddlisk` and `pt-fenmaw-b` at 96²). Isolating step 3 — same trim, same fit, same quantize, only
+the removal tolerance varying:
+
+| sprite | palette | tol 12 | tol 24 |
+|---|---|---|---|
+| player | frozen | 311 cleared → 985 opaque | 311 cleared → 998 opaque |
+| player | candidate | **0 cleared → 1296/1296 opaque** | 311 cleared → 998 opaque |
+| player | class-equal | **0 cleared → 1296/1296 opaque** | 311 cleared → 998 opaque |
+| Puddlisk | frozen | 2327 cleared → 6025 opaque | 2327 cleared → 6131 opaque |
+| Puddlisk | candidate | **0 cleared → 8352/8352 opaque** | 2330 cleared → 6121 opaque |
+| Puddlisk | class-equal | **0 cleared → 8352/8352 opaque** | 2330 cleared → 6119 opaque |
+| Fenmaw | frozen | 4413 cleared → 4707 opaque | 4413 cleared → 4707 opaque |
+| Fenmaw | candidate | **0 cleared → 9120/9120 opaque** | 4414 cleared → 4704 opaque |
+| Fenmaw | class-equal | **0 cleared → 9120/9120 opaque** | 4423 cleared → 4701 opaque |
+
+(1296 / 8352 / 9120 is the *whole fitted subject box* — trim runs before quantize on genuinely white
+raw pixels, so it still works; what fails is step 3, and it fails completely. B-D22 reported the frame
+totals 1536 / 9216; the letterbox padding is transparent either way and the conclusion is identical.)
+
+**Margin at 24, measured on the swatches themselves:** the palette's image of white sits at **4**
+(frozen `#fdfdfb`) / **13** (candidate `#fbfaf2`) / **20** (class-equal `#faf7eb`); the *second*-lightest
+at **44** (`#f7ebd3`) / **41** (`#d6d9e2`) / **45** (`#d2e0e2`). So 24 clears the key by 4–20 and stays
+clear of the next swatch by 17–21. **It cannot eat content:** every pixel the fill clears is the
+palette's white-image and nothing else (1 distinct colour in all nine palette×sprite runs), and on the
+frozen palette 12 and 24 clear byte-identical sets — the change is a no-op on today's shipped palette.
+
+**The number is not the fix; the invariant is.** `tests/unit/postprocess.test.ts` now asserts, per
+palette discovered on disk and per class that runs removal: the palette's image of the background key
+is INSIDE `backgroundTolerance`, and **every other swatch is OUTSIDE it**. Proved it bites in both
+directions — reverting to 12 turns **6** tests red (3 per candidate palette); raising to 50 turns **3**
+red as the second-lightest swatch enters tolerance. `backgroundTolerance` was already config
+(`manifest.classes.<c>.postprocess`), so G11 needed no change.
+
+**Still open — a sibling this change did not own:** `tools/comfy/player-views.ts:411` hardcodes
+`const BG = { key: WHITE, tolerance: 12 }` as a literal and runs the same chain with it. Same bug, plus
+a G11 literal. One-line fix for whoever next owns `tools/comfy/*.ts`. See B-D35.
+
 ---
 
 ## Q5 — Fenmaw's snout: the model reads "gharial" as "crocodile"
@@ -241,6 +281,51 @@ derivation: **name distinctive anatomy by its SHAPE, never by its species term.*
 subjects for the same failure mode before the 154-sprite batch — likely candidates are any line whose
 identity rests on a term the model may collapse to a common relative (basilisk, condor, gharial,
 lungfish, wyrm).
+
+### LANDED 2026-08-25 — rule generalised, roster audited against the trials on disk
+
+**Diagnosis verified independently before implementing.** `pt-fenmaw.png` is a broad blunt-muzzled
+crocodilian; `pt-fenmaw-b.png`, same seed and graph, has a genuinely long thin tube-shaped snout far
+longer than the head is wide. Confirmed.
+
+**The rule, now in `tools/comfy/README.md` and `manifest._deviations` LB-M9:** name distinctive
+anatomy by its SHAPE, never by its species term. The bible's term STAYS in the string — G2 protects
+it — the shape is added beside it, and the derivation front-loads and repeats both.
+
+**Audited every creature concept against the trial PNGs actually on disk.** Rewritten (in
+`_concepts`, then `comfy-batch rebuild`; **no seed moved** — `deriveSeed` is pure in `(id, version)`):
+
+| line | was | now | evidence |
+|---|---|---|---|
+| Fenmaw | `bulk gharial with a long narrow gharial snout` | `…with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide` | **CONFIRMED generatively** (`pt-fenmaw` vs `pt-fenmaw-b`) |
+| Mirefin | `stalking lungfish` | `…, a long eel-shaped fish body that walks on four stubby limb-like fins` | failure measured (`pt-mirefin`: generic bipedal fish blob) |
+| Webvern | `canopy weaver spider-wyrm` | `…, a long serpentine dragon body carried on eight spider legs` | failure measured (`pt-webvern`: a plain spider, no wyrm) |
+| Sporantle | `spore-antlered fungus beast, a decomposer` | `…, its antlers branching mushroom stalks tipped with round spore caps` | failure measured (`pt-sporantle`: plain deer antlers) |
+| Undermere | `eyeless serpent` | `…with a smooth blank head, no eyes and no eye sockets` | failure measured (`pt-undermere`: large prominent eyes) |
+| Bogling | `mudball tadpole` | `…, a legless round mud-brown body tapering into one broad paddle tail` | failure measured (`pt-bogling`: bipedal blob, arms, legs, no tail) |
+| Wispurr | `will-o-wisp cat` | `…wreathed in pale drifting ghost-light` | failure measured (`pt-wispurr`: ordinary black cat, no light at all) |
+| Gloomoth | `migratory dusk moth` | `…, a broad furred moth body with wide feathered antennae and soft scalloped wings` | failure measured (`pt-gloomoth`: bare butterfly filaments, smooth body) |
+| Stonewing | `obsidian condor` | `…, a vast vulture with enormous broad wings, long fingered wingtips and a bare head` | **neither** — no Stonewing trial exists; rewritten on the rule alone |
+
+**Deliberately NOT rewritten — `Pyrelisk`, `vent basilisk`.** This is the G2 line and it is recorded in
+`_concepts.Pyrelisk.source`: a shape restatement is legitimate only where the term already fixes the
+anatomy. `gharial` fixes a snout, `lungfish` a body plan, `condor` a wingspan. `basilisk` fixes
+nothing — mythic serpent or crested lizard, and bible §4 row 20 names neither — so choosing one would
+be inventing anatomy, which is the violation. Flagged for a supervised first generation instead.
+Every other concept (`stag`, `crow`, `vole`, `hare`, `tortoise`, `boar`, `ram`, `kestrel`, `newt`,
+`hedgehog`, `elk`, `rat`, `shadow cat`, `sod clump`, `reed wader`, `wisp-moth`, `grub`, `fox kit`) is a
+common word the model renders correctly — `pt-duskstalk` confirms this directly — and was left alone.
+
+**Not verified, and it should not be claimed:** only Fenmaw's fix has been through the generator.
+The other eight have a measured failure and a reasoned fix. **No verification generation was run** —
+G13 caps batches at 20 and the credits are Hank's.
+
+**A second, larger failure mode was found while auditing and is NOT fixed by any of this (B-D38):**
+Bogling, Puddlisk, Mirefin and Wispurr all render as the same chibi bipedal mascot regardless of what
+the subject says, and Gloomoth lost its six insect legs to the same stance. That prior looks like the
+§9.2-locked class skeleton, not the subject — so it is a spec deviation and Hank's call. **At the
+first supervised B3 batch, generate Fenmaw, Mirefin and Wispurr front views and look at them before
+the remaining 148 rows are billed.**
 
 ---
 
