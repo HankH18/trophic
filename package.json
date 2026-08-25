@@ -1,0 +1,39 @@
+{
+  "name": "trophic",
+  "version": "0.1.0",
+  "description": "Trophic — a monster-catching RPG where the region is a living ecosystem.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "harness": "tsx tools/harness/run.ts",
+    "collision": "vite --config tools/collision-editor/vite.config.ts",
+    "factory": "tsx tools/comfy/comfy-batch.ts",
+    "postprocess": "tsx tools/postprocess/run.ts",
+    "overlay-diff": "tsx tools/overlay-diff/run.ts",
+    "gates": "vitest run tests/gates",
+    "predev": "node tools/sync-assets.mjs",
+    "prebuild": "node tools/sync-assets.mjs"
+  },
+  "type": "module",
+  "dependencies": {
+    "phaser": "^3.90.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^26.3.0",
+    "fast-check": "^4.9.0",
+    "sharp": "^0.35.3",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}

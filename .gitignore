@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.env
+.DS_Store
+*.log
+.codegraph/
+assets/raw/**
+!assets/raw/manifest.json
+!assets/raw/.gitkeep
+coverage/
+.vite/
+public/assets/
