@@ -1678,6 +1678,15 @@ function walkTheEnding(
     }
     return entry;
   };
+  /** The same step for a PROP, through `propDialogueFor` — the selector `OverworldScene` calls. */
+  const playProp = (propId: string, node: string): DialogueEntry | undefined => {
+    const entry = propDialogueFor(DIALOGUE, propId, node, at());
+    if (entry) {
+      ids.push(entry.id);
+      flags = { ...flags, ...(entry.setFlags ?? {}) };
+    }
+    return entry;
+  };
 
   /*
    * Wick is met on the approach and Maren sends the player through. The flag that opens her
@@ -1702,7 +1711,16 @@ function walkTheEnding(
    * no longer eligible and this asserts the flag rather than replaying the fight.
    */
   expect(flags["story.greaves.beaten"], "playSlowRun's sixth badge did not play greaves.finale.post").toBe(true);
-  const approach = play("prop-antler-stone", "sanctum", "cutscene");
+  /*
+   * THE RING IS A PROP, so it is asked the way the scene asks it. This walk used `play(...)` —
+   * `selectEntry` on (speaker, node, kind) — which made the step depend on the entry's SPEAKER;
+   * `OverworldScene:931` reaches every prop through `propDialogueFor`, which discriminates on
+   * `propId` and never reads the speaker. The prose pass moved this beat onto the `narration`
+   * speaker (it is a description of the stag, not the stone speaking) and only the hand-written
+   * lookup noticed. The id asserted in the walk is unchanged, and so is everything downstream of
+   * it: the choice count, both branches, and the epilogue that keys off which one was taken.
+   */
+  const approach = playProp("sanctum-antler-ring", "sanctum");
   const choiceCount = approach?.choices?.length ?? 0;
 
   // The player sets the snare (choice 0) …

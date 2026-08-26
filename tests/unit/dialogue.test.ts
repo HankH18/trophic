@@ -40,6 +40,7 @@ import {
   actFromFlags,
   conditionHolds,
   selectEntry,
+  selectPropEntry,
   validateDialogue,
   validateDialogueFile,
 } from "@core/dialogue-schema";
@@ -448,6 +449,27 @@ const BIBLE_NAMES = [
  *  `nessa.*` entry id deliberately did not move; only the display name did (D-Q4-5). */
 const COINED_NPC_NAMES = ["Tolm", "Hetty", "Halder", "Pell", "Gerta", "Ives", "Orrin"] as const;
 
+/**
+ * THE CAST, coined in `docs/CAST-AND-VOICE.md` §4 and enumerated verbatim in its Appendix D.
+ * Appendix C5 required this as a THIRD capped list rather than a raise of `COINED_NPC_NAMES`,
+ * whose cap of 8 is the property that stops the corpus inventing quest-givers: raising 7 -> 48
+ * would void the assertion instead of extending it. Both original lists keep their exact values.
+ *
+ * The list gates the prose; the prose never gates the list. It is written out here rather than
+ * derived from `raw.speakers`, because a speaker table that whitelists its own display names
+ * would let the file certify its own inventions — `dialogue.test.ts` has a test for exactly that.
+ *
+ * Rule A scans line text, so strictly only names actually SPOKEN need to be here (today that is
+ * Corbett, whom the Brackwater dockhand and Hetty's nephew both name). All 41 are listed anyway,
+ * so a later cross-reference does not red the suite for a writer who had no way to know.
+ */
+const CAST_NAMES = [
+  "Aldis", "Kett", "Judd", "Tibb", "Rask", "Tamsin", "Mott", "Elsbet", "Hild", "Gunn",
+  "Parnel", "Jem", "Ulla", "Corbett", "Yule", "Zeb", "Garrow", "Cass", "Fitch", "Dunstan",
+  "Whit", "Berit", "Annis", "Snell", "Nunn", "Ebba", "Cob", "Rowe", "Effie", "Hesk",
+  "Bly", "Idony", "Fay", "Ingram", "Alwin", "Isbel", "Vann", "Hurst", "Slade", "Pinder", "Dorn",
+] as const;
+
 /** Capitalised domain nouns that are game vocabulary rather than names. Capped. */
 const DOMAIN_NOUNS = [
   "Instinct", // bible §2 — the fifth stat
@@ -464,43 +486,27 @@ const DOMAIN_NOUNS = [
 /**
  * Ordinary English words that appear only sentence-initially in this corpus, so rule (c) cannot
  * clear them. NOTHING that is a name, or part of one, may be added here — asserted below. Capped.
+ *
+ * RECOMPUTED against the rewritten corpus rather than extended. The list stood at 36 and 23 of
+ * those words no longer appear anywhere in the copy, so keeping them would have been 23 live
+ * escape hatches earning their place by history. It is now exactly the set rule A cannot clear on
+ * its own: emptying the list and reading back the offenders yields these thirteen and nothing else.
+ * Shrinking an allow-list is the direction that tightens the assertion — headroom under the cap is
+ * a side effect, not the reason.
  */
 const ORDINARY_WORDS = [
-  "Apprenticeship",
-  "Astronomers",
-  "Beat",
   "Beaten",
-  "Bed",
-  "Breeding",
+  "Bitten",
+  "Children",
   "Coarse",
-  "Cooled",
-  "Corrections",
-  "Deck",
   "Drought",
-  "Drove",
-  "Eyeless",
-  "Fair",
-  "Fewer",
   "Forage",
-  "Fought",
-  "Kiln",
-  "Knowing",
-  "Laid",
-  "Later",
-  "Miners",
-  "Noted",
-  "Painted",
-  "Pick",
+  "Instructions",
+  "Invoices",
   "Pinned",
-  "Pressed",
-  "Rooms",
-  "Salvage",
-  "Slow",
-  "Somebody",
-  "Sounds",
-  "Suit",
-  "Twenty",
-  "Unsentimental",
+  "Poisonous",
+  "Rent",
+  "Wear",
   "Win",
 ] as const;
 
@@ -520,6 +526,7 @@ const KNOWN_NAMES = new Set<string>([
   ...gymTraitNames.flatMap(words),
   ...BIBLE_NAMES,
   ...COINED_NPC_NAMES,
+  ...CAST_NAMES,
   ...DOMAIN_NOUNS,
   ...ORDINARY_WORDS,
   ...TYPE_NAMES,
@@ -622,7 +629,16 @@ describe("G2 — no invented names in dialogue", () => {
     expect(BIBLE_NAMES.length).toBeLessThanOrEqual(8);
     expect(COINED_NPC_NAMES.length).toBeLessThanOrEqual(8);
     expect(DOMAIN_NOUNS.length).toBeLessThanOrEqual(12);
+    expect(CAST_NAMES.length).toBeLessThanOrEqual(48);
     expect(ORDINARY_WORDS.length).toBeLessThanOrEqual(45);
+    for (const n of CAST_NAMES) {
+      expect(SPECIES_NAMES.has(n), `${n} is a species name`).toBe(false);
+      expect(PLACE_HEADS.has(n), `${n} is a place head`).toBe(false);
+      expect(
+        gymTraitNames.some((t) => words(t).includes(n)),
+        `${n} is part of a trait name`,
+      ).toBe(false);
+    }
     for (const w of ORDINARY_WORDS) {
       expect(
         gymTraitNames.some((t) => words(t).includes(w)),
@@ -643,6 +659,7 @@ describe("G2 — no invented names in dialogue", () => {
       ...gymTraitNames.flatMap(words),
       ...BIBLE_NAMES,
       ...COINED_NPC_NAMES,
+      ...CAST_NAMES,
       ...DOMAIN_NOUNS,
       ...ORDINARY_WORDS,
       ...TYPE_NAMES,
@@ -1921,9 +1938,20 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
   });
 
   it("the Vellsire choice resolves at the last act in ANY calendar year", () => {
+    /*
+     * ASKED THROUGH THE SELECTOR THE GAME ACTUALLY USES. This reached the beat by
+     * `selectEntry(file, "prop-antler-stone", …)` — a (speaker, node, kind) lookup — and so it was
+     * pinned to the entry's SPEAKER, which is not how any prop reaches the screen:
+     * `OverworldScene` calls `propDialogueFor` (= `selectPropEntry`), which discriminates on
+     * `propId` and never looks at the speaker at all. The prose pass moved this beat's speaker to
+     * `narration` — three lines of third-person description of a stag walking into the ring, which
+     * is not the standing stone talking — and this went red while the shipped path was untouched.
+     * A test that goes red for a change the player cannot observe was reading the wrong key.
+     * `validateDialogueFile` already pins a `propId` to its own node, so the pair is exact.
+     */
     for (const year of FAR_YEARS) {
       const ctx = finaleCtx(year, { "story.greaves.beaten": true });
-      const chosen = selectEntry(file, "prop-antler-stone", "sanctum", "cutscene", ctx);
+      const chosen = selectPropEntry(file, "sanctum-antler-ring", "sanctum", ctx);
       expect(chosen?.id, `year ${String(year)}`).toBe("sanctum.vellsire.approach");
       expect(chosen?.choices?.length, "the choice itself must survive").toBe(2);
     }
@@ -2344,11 +2372,29 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     "maren.keystone.5": { lines: 1, kind: "world" }, // the vanishing, thirty years
     "maren.opening": { lines: 2, kind: "world" }, // a juvenile's three-year lifespan
     "orrin.vanishing": { lines: 2, kind: "world" }, // ninety years of margin entries
-    "prop.cindershelf-shrine-deep": { lines: 1, kind: "world" }, // thirty-one years of still air
     "sel.quest.wager.offer": { lines: 1, kind: "world" }, // an Elder is one year from retiring
     "wick.act2.pre": { lines: 1, kind: "world" }, // the fishery, indexed for sixty years
     "wick.act3.win": { lines: 1, kind: "run-length" }, // "three years running" — act 3 may be year 1
     "wick.act4.pre": { lines: 1, kind: "world" }, // Cullbrand paid out for four years
+    /*
+     * ADDED by the prose pass, each read before it was classified. Neither is a claim about how
+     * long the PLAYER has been counting, which is the only thing an act gate can falsify:
+     *   maren.greeting.act3 "Two years since I walked this canopy properly" — how stale HER board
+     *     is, anchored to her last survey and not to the run; the beat exists to hand the canopy
+     *     figures to Vesper, so the span is the reason for the handover.
+     *   wick.act5.pre "Two years I've looked for the answer to that" — anchored to the corridor
+     *     where Greaves gave him the argument, which happened inside Cullbrand before act 1.
+     * Both stay `world`, so the four-name run-length pin below is untouched.
+     */
+    "maren.greeting.act3": { lines: 1, kind: "world" },
+    "wick.act5.pre": { lines: 1, kind: "world" },
+    /*
+     * REMOVED: `prop.cindershelf-shrine-deep` was a row for "thirty-one years of still air", and
+     * the deep-shrine copy no longer names a span — it counts wax cuts instead. The thirty-one
+     * years moved to `gerta.warm.testimony`, which is already reviewed above and still matches at
+     * one line. Recorded rather than dropped: a register row whose entry stops matching goes
+     * silently dead in one direction, which is the failure this whole block exists to catch.
+     */
     "wick.act6.win": { lines: 1, kind: "run-length" }, // "six years"
   };
 
@@ -2441,10 +2487,7 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
    */
   const COUNT_CLAIM_REVIEW: Record<string, "live" | "world"> = {
     "maren.tutorial.snare": "world", // "Snares. Three of them." — the player's kit, not a node
-    "wick.act6.win": "world", // "Six years." — D19 run-length, pinned above
     "vesper.pre": "world", // Halder's ORDER is for three Webvern; the order is not the count
-    "noct.post.win": "world", // four people alive who have done that — a boast
-    "gerta.greeting": "world", // thirty-one years down the shaft — biography
     "tolm.greeting": "world", // four fields — his farm, not a population
     "tolm.quest.fallow.offer": "live", // "There are twenty-four of them my side of the fence"
     "tolm.quest.fallow.done.kept": "live", // "Twenty-four, and two of them juveniles"
@@ -2452,7 +2495,23 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     "orrin.vanishing": "world", // two hundred and six margin entries across ninety years
     "prop.r2-idol-shallows": "world", // "between the two of them" — the two idols
     "amb.r1-forager.thin": "live", // "all morning for two Nibbin"
-    "amb.cindershelf-elder.base": "world", // sixty-two years, four contracts — biography
+    "amb.cindershelf-elder.base": "world", // "One of them kept his gloves on" — company men in a front room
+    /*
+     * ADDED by the prose pass. Every one of the four is a `world` row and not one of them could
+     * have been anything else: `live` demands a `population` clause, and the pass was forbidden
+     * from touching a `when` object, so a genuinely live count arriving here would have been a
+     * corpus defect to fix rather than a row to write. Each was read against its whole beat:
+     */
+    "gerta.warm.testimony": "world", // "the two of them compare" — the two SHAFTS, a depth pair
+    "maribel.greeting": "world", // "Two Bramblehog, two jobs" — her own stock, named, in her shed
+    "odo.greeting": "world", // "no buyer for one of them" — the market, not a figure off the marsh
+    "orrin.quest.trail.declined": "world", // "the four you walked" — of the six standing stones
+    /*
+     * REMOVED, and named so the removals are decisions rather than drift: `wick.act6.win`,
+     * `gerta.greeting` and `noct.post.win` were rows for copy that no longer names a count.
+     * A row whose entry stops matching is invisible to the set-equality assertion in only one
+     * direction, so the deletions are recorded here rather than silently dropped.
+     */
   };
 
   it("every line that names a count has been read and classified", () => {
@@ -2491,21 +2550,63 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
    * the weakest claim consistent with the copy and with numbers already in the file.
    */
   const FLORA_CLAIM_REVIEW: Record<string, "live" | "world"> = {
-    "maren.greeting.act1": "live",
-    "amb.r1-forager.bloom": "live",
-    // Reviewed and deliberately left unclaused, both recorded in docs/DIALOGUE-NOTES.md §8:
-    "maren.keystone.4": "world", // "at a number I have never had cause to write before" — names no
-    // figure, and a live gate on a Vellsire CHAIN step could strand the chain if r4's flora recovers
-    "gerta.quest.crash.done": "world", // past tense, behind the survey turn-in: "Flora stock went first"
+    "maren.greeting.act1": "live", // "The green's holding up out there this year"
+    "amb.r1-forager.bloom": "live", // "The Reach has never come up this thick for me"
+    "amb.hearthollow-elder.bloom": "live", // "come up green right down to the fence line"
+    "amb.hearthollow-elder.thin": "live", // "The Reach is short this year"
+    // Reviewed and deliberately left unclaused, the first recorded in docs/DIALOGUE-NOTES.md §8:
+    "maren.keystone.4": "world", // "There's less green up on that steppe than there is on the Reach"
+    // — a comparison between two places, not a reading of one, and a live gate on a Vellsire CHAIN
+    // step could strand the chain if r4's flora recovers
+    "gerta.quest.crash.offer": "world", // the ASSIGNMENT: "How far up the green gets now, measured
+    // off the old cairn" — she is sending the player to take the reading, not quoting one
+    "gerta.quest.crash.done": "world", // where the reading gets FILED: "The green off the cairn goes
+    // in the front" — a sentence about the log book, not about the scarp
+    "festival.hearthollow": "world", // "The lanterns are up on the green" — the village green
+    "maribel.post.win": "world", // "the whole green goes up in lanterns" — the same village green
   };
 
-  it("every line that names flora stock has been read and classified", () => {
-    const FLORA = /\bflora stock\b/i;
+  /**
+   * THE DETECTOR WENT DEAD AND THE REGISTER KEPT REPORTING GREEN, which is the failure mode this
+   * whole file exists to prevent. It keyed on the literal string "flora stock" — `nodeState.floraStock`
+   * spoken aloud by a character — and the prose rewrite correctly deleted every instance of it as
+   * system vocabulary. Four rows then matched nothing, and a scan that matches nothing cannot fail.
+   *
+   * Its first replacement was a closed list of the six SENTENCES the copy then happened to use, and
+   * that lasted exactly one more prose pass: two of the six were reworded and their rows went dead
+   * the same silent way. A detector keyed on sentences is a detector that expires.
+   *
+   * So it is keyed on the corpus's own ground-cover NOUN instead. "The green" is what every voice in
+   * Fallowmere calls the stuff growing on a node — Maren, the warden, the Hearthollow elder and
+   * Gerta all use it — with the two phrases that name a level without using the noun bolted on
+   * (`amb.r1-forager.bloom` and `amb.hearthollow-elder.thin` are both `floraStock`-gated and neither
+   * says "green"). This DOES catch the lanterns on the village green, which the sentence list was
+   * built to dodge. Catching them is the point: two honest `world` rows cost nothing, and the reason
+   * the previous detector could die is that it was tuned to match only what someone had already
+   * read. Cheap false positives are what keeps a review register alive.
+   *
+   * The second assertion is the half that cannot go dead, because it is driven by DATA rather than
+   * by prose: every entry carrying a `floraStock` clause must appear here. A clause can no longer
+   * be added to an entry without someone reading what that entry actually says.
+   */
+  const FLORA = /\bgreen\b|\bcome up this thick\b|\bis short this year\b/i;
+
+  it("every line that names ground cover has been read and classified", () => {
     const actual = raw.entries
       .filter((e) => e.lines.some((l) => FLORA.test(l.text)))
       .map((e) => e.id)
       .sort();
     expect(actual).toEqual(Object.keys(FLORA_CLAIM_REVIEW).sort());
+  });
+
+  it("every entry gated on floraStock has had its copy read", () => {
+    expect(
+      raw.entries
+        .filter((e) => (e.when?.floraStock ?? []).length > 0)
+        .map((e) => e.id)
+        .filter((id) => FLORA_CLAIM_REVIEW[id] !== "live")
+        .sort(),
+    ).toEqual([]);
   });
 
   it("a line that quotes live flora reads live flora", () => {
