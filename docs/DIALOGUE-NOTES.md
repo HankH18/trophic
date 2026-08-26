@@ -1,38 +1,61 @@
 # Dialogue notes — `data/dialogue.json`
 
-> # ⚠ THE CORPUS IS MID-REWRITE. THIS DOCUMENT'S LINE-LEVEL ANALYSIS IS PENDING.
+> # ⚠ THE REWRITE LANDED. THE CORPUS THIS DOCUMENT READ NO LONGER EXISTS.
 >
-> **Status 2026-08-25.** Every line in `data/dialogue.json` is being rewritten against an amended
-> prose standard. **While that is in flight, treat §4 (*G7 — the read-through*), its five borderline
-> lines, and §8's *G7 re-read* as HISTORICAL: they analyse copy that is being replaced as you read
-> them.** They are deliberately **not** being updated yet — re-doing a line-by-line read against a
-> corpus that is still moving would throw the work away twice. **They will be redone once the rewrite
-> settles.** Until then:
+> **Status 2026-08-26.** `data/dialogue.json` was **fully rewritten** and landed (`94111b1`, fifth
+> pass). The previous header promised that §4's line-by-line read would be redone once the rewrite
+> settled. It has settled. **The read has NOT been redone, and this header does not pretend it has.**
 >
-> - **Every quoted line in this document is a verbatim quotation of the corpus as it stood when the
->   read was done.** Quotations are not being edited to match later copy — a quote rewritten to say
->   what its source does not say is a fabrication. The *feature* is called the **survey** everywhere
->   now (`docs/DEVIATIONS.md` D-SURV-1…D-SURV-10), but **three** quotations containing **"ledger"**
->   survive in this document on purpose: **two are in-world dialogue quotations** (§4's *"I do not need the
->   ledger to know which way you walked"*, §4's `maren.keystone.6`), and **one is the verbatim title
->   of a live test** (`tests/unit/dialogue.test.ts` — *"a line that quotes the live ledger reads the
->   live ledger"*), which still reads that way in the source. Editing any of the three would make
->   this document misquote its own source. **The fourth was not a quotation and has been fixed:** §8's
->   entry id `maren.tutorial.ledger` is now `maren.tutorial.survey`, along with the flag
->   `tutorial.ledger.done` → `tutorial.survey.done` (D-SURV-10).
-> - **The counts below are stale by construction.** §1's "211 rows / 499 lines / 62 speakers" was
->   true at the read; the corpus has moved since and will move again. Re-measure before quoting.
->   The **entry ids are stable** and are the reliable handle.
-> - **§2 IS current** — it was updated on 2026-08-25 and carries an amendment block that supersedes
->   the naming convention D-1 and D-2 originally recorded.
+> **What changed, measured.** The corpus is now **212 entries / 500 lines / 63 speakers** (its own
+> `_counts` key agrees, and `prose-lint.py` independently reports the same). The rewrite's contract
+> was byte-for-byte structural preservation: **only `lines[].text` and `choices[].text` changed** —
+> ids, `speaker`, `node`, `kind`, `priority`, `when`, `setFlags` and line counts are identical
+> (`docs/DEVIATIONS.md` **D-PR-1**).
+>
+> - ⚠ **Every dialogue line quoted in §4, §5 and §8 of this document quotes text that is GONE.**
+>   Spot-checked: of 43 verbatim quotations extracted from this file and from
+>   `docs/PROSE-DIAGNOSIS.md` and matched against the live corpus, **41 are absent outright**, and the
+>   remaining 2 survive only as a fragment reused inside a new and differently-shaped sentence — see
+>   the trap warning at the head of §4. **No quotation in this document still reads as quoted.**
+>   **The quotations are deliberately
+>   NOT edited to match the new copy** — a quotation rewritten to say what its source does not say is
+>   a fabrication. They stand as the record of what was read, clearly marked as historical.
+> - **The entry IDs are the stable handle.** All 21 ids cited in this document still exist. Use an id
+>   to find the current line; never quote this document's words as current copy.
+> - ⚠ **The "ledger" note in the previous header is now wrong and is withdrawn.**
+>   `grep -c ledger data/dialogue.json` returns **0** — the word is absent from the shipped corpus,
+>   so the two in-world quotations it defended are quotations of deleted text. **One third of it
+>   survives audit:** the test title *"a line that quotes the live ledger reads the live ledger"* is
+>   still the literal name of a live test in `tests/unit/dialogue.test.ts`, and must not be
+>   "corrected".
+> - ⚠ **§2's "NOT YET IN THE DATA" amendment block is also stale.** The previous header asserted
+>   "§2 IS current"; that is no longer true — the 41 cast names have landed.
+> - **§1's counts are stale** (it says 211 / 499 / 62). The live figures are in this block.
 > - **The line budget band moved 400–500 → 400–560** (bible §13.13, `docs/DEVIATIONS.md` D-BUDGET-1).
->   The per-speaker ceilings did not.
-> - **What is NOT pending:** §6 (what the tests bind) and §7 (the gate interaction) describe
->   mechanisms, not copy, and two new permanent gates now sit above them —
+>   The per-speaker ceilings did not. *(`data/dialogue.json`'s own `_budget` string still says
+>   "roughly 400–500" and was not updated; at 500 lines nothing is violated either way.)*
+> - **What is NOT stale:** §3 (the Ancient lore chains), §6 (what the tests bind), §7 (the gate
+>   interaction) and §8's mechanism subsections describe **structure, not copy**, and the rewrite
+>   preserved structure byte-for-byte. Two permanent gates sit above them —
 >   `tests/gates/reachability.test.ts` (build-doc §10.7) and `tests/gates/quest-layer.test.ts` (§10.8),
->   both under the invariant at build-doc §8.5.
->   Since those landed, **"authored content must be reachable" is enforced**, which is a stronger
->   guarantee than anything §6 describes.
+>   both under the invariant at build-doc §8.5. Since those landed, **"authored content must be
+>   reachable" is enforced**, which is a stronger guarantee than anything §6 describes.
+>
+> ## The gates that now stand over the corpus, and exactly what each one proves
+>
+> Three separate mechanisms check the prose. **None of them is a G7 read**, and the distinction is
+> the whole point of §4:
+>
+> | Mechanism | Scope | What a green means |
+> |---|---|---|
+> | `tools/prose/prose-lint.py` | `data/dialogue.json` | **9 word-level checks** (`@check`) and **6 shape-level checks** (`@corpus`), with **16 adversarial controls** — a positive and a negative fixture for each of the 6 structural checks plus a pair for the per-beat layer. Controls run **before any corpus is read**, and a control failure exits **2**, distinct from a dirty corpus exiting 1, so the tool reports its own breakage rather than a false clean. Currently: **0 per-beat flags, 0 structural failures.** ⚠ Of the 6 shape checks only **5 can fail** — `G13-NOUN-CARRIED` is diagnostic-only by design and reports 53% of lines noun-carried. ⚠ **It is wired into nothing** — no npm script, no CI (`.github/` does not exist), no git hook, no test shells out to it. It is a green nobody runs automatically. |
+> | `tests/gates/guardrails.test.ts` — the new G7 gate | **`game/` and `core/` only** | No string or template literal in either tree moralises about catching (`COPY_SCAN_DIRS` at `:745`; core assertion at `:904`). Comments are deliberately excluded, because engineering notes must be able to name the banned vocabulary. It is bound by a per-file positive control that smuggles a moralizing line into a copy of **every** guarded file and requires a hit. ⚠ **It does NOT scan `data/dialogue.json`** — the gate's own header says so, explains that the omission was a decision taken while the prose lane held that file, and instructs the next holder to widen `COPY_SCAN_DIRS` to `data/` **"once that rewrite has landed."** *The rewrite has now landed; that widening is an open, author-sanctioned TODO.* |
+> | `tests/unit/dialogue.test.ts` §8 | `data/dialogue.json` | The vocabulary tripwire over the corpus itself — a pattern list with positive and negative controls, an epilogue-specific check, and a cross-speaker chorus check. **This is a unit test, not a gate.** |
+>
+> **A fresh line-by-line G7 read of the landed 500 lines is OWED and has not been done.** All three
+> mechanisms above are pattern matchers. The caveat this document has always carried is unchanged and
+> is the reason the read is not optional: **a regex cannot detect tone or placement. Treat a green as
+> "no banned vocabulary", NEVER as "G7 satisfied."**
 
 Companion to the dialogue content (build-doc §15 C7, bible §13.13). Four things live here that
 cannot live in the JSON: the bible gaps that had to be filled, the G7 read-through, the exact limits
@@ -49,13 +72,16 @@ another lane, so every gap below is recorded here and needs a DEVIATIONS row add
 ```
 data/dialogue.json
 ├─ _source / _guardrail / _budget / _conditionModel / _chains / _counts   ← documentation keys
-├─ speakers[]   62 rows: id, name, kind (named|generic|ambient|prop), role?, home?, portrait
-└─ entries[]   211 rows: id, speaker, node, kind, quest?, signChain?, chainStep?, propId?,
+├─ speakers[]   63 rows: id, name, kind (named|generic|ambient|prop), role?, home?, portrait
+└─ entries[]   212 rows: id, speaker, node, kind, quest?, signChain?, chainStep?, propId?,
                          priority?, when?, lines[], choices?, setFlags?, goto?
 ```
 
-**499 lines across 62 speakers** — 300 across 17 named NPCs, 129 across 31 ambient, 45 across 4 prop
-readers, 25 across 10 innkeepers/vendors. `portrait` is a row id in `tools/comfy/manifest.json`, so
+**500 lines across 63 speakers** — 301 across 17 named NPCs, 129 across 31 ambient, 42 across 4 prop
+readers, 28 across 11 generic (innkeepers/vendors, plus the `narration` row).
+*(Re-measured 2026-08-26 against the landed corpus; the previous figures — 211 / 499 / 62, and a
+45/25 prop-generic split — were the pre-rewrite snapshot. The +1 speaker is `narration`, added so the
+Vellsire's arrival is not attributed to a standing stone: `docs/DEVIATIONS.md` **D-PR-7**.)* `portrait` is a row id in `tools/comfy/manifest.json`, so
 every speaker is drawable with art the asset lane has already planned; nothing here implies a new
 sprite class.
 
@@ -125,11 +151,16 @@ Two proper nouns appear in dialogue that exist in the bible but in no shipped da
 > CHILDREN-diminutives). The full convention and its mechanical collision rules are in bible §10;
 > `docs/DEVIATIONS.md` D-W4-3 logs the departure.
 >
-> **⚠ NOT YET IN THE DATA.** Verified against `data/dialogue.json` on 2026-08-25: **not one of the 41
+> ~~**⚠ NOT YET IN THE DATA.** Verified against `data/dialogue.json` on 2026-08-25: **not one of the 41
 > has landed.** Every affected speaker still carries its trade label — `innkeeper-duskhollow` →
 > `"Innkeeper"`, `duskhollow-elder` → `"Vale Elder"`, `brackwater-netmender` → `"Net-Mender"`. The
 > prose lane is applying them as part of the corpus rewrite. **Until they land, D-2 above still
-> describes the shipped state**, which is precisely why it has not been deleted.
+> describes the shipped state**, which is precisely why it has not been deleted.~~
+>
+> **✅ THEY LANDED, 2026-08-26.** Re-verified against `data/dialogue.json` rather than assumed: the
+> three examples above now read `innkeeper-duskhollow` → **`"Effie"`**, `duskhollow-elder` →
+> **`"Idony"`**, `brackwater-netmender` → **`"Parnel"`**. **D-2 above is therefore now the
+> HISTORICAL convention, not the shipped state** — and it is kept for exactly that reason.
 >
 > **A finding from screening those 41 that binds any future name.** All 41 were run against the
 > Pokémon corpora on Hank's stated bar (*"I'm really only concerned about using actual pokemon
@@ -228,6 +259,41 @@ the catch. Treat a green scan as "no banned vocabulary", never as "G7 satisfied"
 
 ### The read
 
+> ⚠ **THE READ BELOW IS HISTORICAL. IT DESCRIBES A CORPUS THAT NO LONGER EXISTS, AND IT HAS NOT BEEN
+> REDONE.**
+>
+> **A fresh line-by-line G7 read of the landed 500 lines is OWED.** It is not started, and nothing in
+> this document should be read as if it were. The corpus was fully rewritten (`94111b1`); every
+> `lines[].text` is new. Spot-checked against the live file, **not one of the quotations below still
+> reads as quoted** — including all five of the borderline lines.
+>
+> ⚠ **Two fragments survive inside different sentences, and they are traps, not survivals.** The
+> Cullbrand worker's line — cited three times across §4 and §8 as the load-bearing proof that "the
+> Company owns its own history" — was *"I was on the crew. I'm not going to tell you I wasn't."* The
+> second sentence, which is the half carrying the finding, is **gone**; the clause "I was on the
+> crew" survives inside a new and differently-shaped line in `amb.r4-worker.arrival`. The same holds
+> for *"Three years running"* in `wick.act3.win`. **A grep for a fragment will tell you the line
+> survived. It did not.** Match on the entry id and read the whole beat.
+>
+> **The quotations are deliberately left verbatim.** Editing them to match the new copy would make
+> this document misquote its own source, which is the one thing a read-through may never do. They
+> stand as the record of what was read and why the calls were made — the *reasoning* is the part
+> worth keeping, and it transfers to the new corpus even though the sentences do not.
+>
+> **Use the entry ids, not the words.** All 21 ids cited in this section still exist and still point
+> at the right beat; the text under them is different.
+>
+> **One substantive thing the rewrite did to this section, worth recording rather than losing:** the
+> five borderline lines were awaiting a keep/trim/cut ruling. That ruling is now **moot as posed**.
+> The most borderline of them, `maren.keystone.6`, was flagged for its watched-by-the-warden motif
+> (*"I will be reading it"*); the replacement beat does not carry that motif at all. The rewrite
+> resolved the flag independently rather than the flag being ruled on. **This is not a finding that
+> the new copy is clean** — it is a finding that the old question no longer has a subject. The new
+> copy has not been read.
+
+<details>
+<summary><b>⏸ HISTORICAL — the read as it was done against the pre-rewrite corpus. Superseded; kept as the record.</b></summary>
+
 **Every one of the 499 lines was read individually against one question: is this an observation, or
 a judgement?** An independent adversarial audit then re-read all of them and found five I had
 cleared. All five were fixed; the reasoning is recorded because the calls are close.
@@ -297,6 +363,8 @@ cleared. All five were fixed; the reasoning is recorded because the calls are cl
   wasn't."*
 - **Population-triggered lines report, they do not comment.** *"Walked the tussock line all morning
   for two Nibbin. It used to take about ten minutes."*
+
+</details>
 
 ### Rule for anyone adding lines later
 
@@ -620,6 +688,15 @@ legitimately carry an act EQUALITY are enumerated by hand, so an eleventh is a d
 
 ### G7 re-read of every entry whose firing context changed
 
+> ⚠ **HISTORICAL, like §4's read — and for the same reason.** This re-read was done against the
+> pre-rewrite corpus. Every dialogue line quoted below is absent from the landed
+> `data/dialogue.json`; one three-word phrase (*"Three years running"* in `wick.act3.win`) survives
+> by coincidence inside a different sentence, which is not a surviving finding. **The re-gating
+> analysis itself still stands** — `when` clauses and `setFlags` were preserved byte-for-byte by the
+> rewrite (`docs/DEVIATIONS.md` D-PR-1), so *which* entries fire in *which* context is unchanged, and
+> that is what this subsection is actually about. **What does not stand is any judgement about the
+> WORDS.** Those judgements are owed again, with §4's read.
+
 G7 is absolute and the vocabulary scan cannot see *placement* (§4), so every re-gated entry was read
 again against the same question: is this an observation, or a judgement? **No line was rewritten and
 none needed to be.** Two are worth recording because their context genuinely moved:
@@ -655,4 +732,7 @@ still clean, and these are the placement questions a regex cannot answer:
   claim the survey contradicts. It is **not a dead-end** — Loamunder breed, so the offer returns
   when the field does, which is exactly the arithmetic the quest is about.
 
-The five borderline lines in §4 are untouched and still await Hank's *keep / trim / cut*.
+~~The five borderline lines in §4 are untouched and still await Hank's *keep / trim / cut*.~~
+**Superseded 2026-08-26:** the five lines were rewritten with the rest of the corpus, so the
+keep/trim/cut question is moot as posed. What replaces it is a **fresh line-by-line G7 read of the
+landed 500 lines, which is owed and has not been done** — see the banner at the head of §4.

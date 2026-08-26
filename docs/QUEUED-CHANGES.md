@@ -2,8 +2,8 @@
 
 ## ✅ THE PAUSE IS OVER — that session happened. READ THIS FIRST.
 
-**Updated 2026-08-25. Build: GREEN, measured, not assumed.** `npx tsc --noEmit` silent ·
-**48 test files / 2254 tests passing** · `npm run build` clean.
+**Updated 2026-08-26. Build: GREEN, measured, not assumed.** `npx tsc --noEmit` silent ·
+**50 test files / 2341 tests passing** · `npm run build` clean.
 
 **The `trophic-quest-layer` workflow the pause section below was written for has RUN.** Q7 dialogue
 wiring, Q3b quest system, BF-3's false-gap sweep and the Q1 move renames all landed, and a further
@@ -16,9 +16,14 @@ wiring wave landed on top of them. **Do not re-dispatch it.** What has changed s
   otherwise lock the player inside Hearthollow for ever.
 - **The quest layer exists** (`core/quests.ts` + `game/quests.ts`): the ten quests open and close,
   the turn-in flags have writers, and the three Ancient chains can be completed.
-- **The rival exists.** All eighteen Wick entries (`wick.act<N>.{pre,win,loss}`, six acts × three
-  kinds) now have a trigger and a module (`game/rival.ts`), backed by **six** rosters — one per act,
-  `rival[]` in `data/gyms.json`, shared by that act's three entries. Before this he had none of it.
+- **The rival exists.** All eighteen Wick battle entries (`wick.act<N>.{pre,win,loss}`, six acts ×
+  three kinds) now have a trigger and a module (`game/rival.ts`), backed by **six** rosters — one per
+  act, `rival[]` in `data/gyms.json`, shared by that act's three entries. Before this he had none of
+  it. *(Updated 2026-08-26: Wick now carries **19** entries — the fourth prose pass added
+  `wick.greeting.town`, his first line that reads world state. Two further population-gated greetings
+  were authored and then **withdrawn** — `docs/DEVIATIONS.md` **D-PR-2** and **D-PR-6** — because a
+  text-only pass had shipped a selection change that would shadow `wick.greeting.town` in exactly the
+  depleted world the cascade produces.)*
 - **Both epilogues fire.** `game/finale.ts` writes `story.vellsire.resolved` / `.outcome`, which
   nothing in the repo used to write.
 - **A large slice of the corpus was unreachable and now is not** — the wiring lane reported 39 of 211
@@ -38,12 +43,40 @@ wiring wave landed on top of them. **Do not re-dispatch it.** What has changed s
 was closed by any of the above. **The creature sprite batch is still unbuilt**, still gated on decision 2. ⚠ The pause note below says
 "154"; `docs/DEVIATIONS.md` **D2** corrects build-doc §9.7's "154 battle sprites" and tells asset lanes
 to read it as **150**. Use 150.
-**Land BF-7 before BF-4** — the silent `textureFor` fallback is what makes BF-4's 12 missing sprite
-keys invisible. `docs/STORY-REVIEW.md` §6 now opens with a status table for all twenty story
-decisions, so you can see at a glance which are rulings and which are open work.
+~~**Land BF-7 before BF-4**~~ — **both landed 2026-08-26**; that ordering directive is spent.
+`docs/STORY-REVIEW.md` §6 opens with a status table for all twenty story decisions, so you can see at
+a glance which are rulings and which are open work.
 
-**⚠ `data/dialogue.json` is being rewritten line by line right now.** Any line count, entry count or
-quoted line anywhere in this document is a snapshot, not a live figure.
+~~**⚠ `data/dialogue.json` is being rewritten line by line right now.** Any line count, entry count or
+quoted line anywhere in this document is a snapshot, not a live figure.~~ **The rewrite LANDED
+2026-08-26.** The corpus is **212 entries / 500 lines / 63 speakers** and every `lines[].text` is
+new; ids, `when`, `setFlags` and line counts were preserved byte-for-byte (`docs/DEVIATIONS.md`
+**D-PR-1**). ⚠ **Any quoted dialogue line anywhere in this document, or in `docs/DIALOGUE-NOTES.md`
+§4/§8, or in `docs/PROSE-DIAGNOSIS.md`, now quotes text that no longer exists** — the entry **ids**
+are the stable handle, not the words.
+
+### Landed 2026-08-26, after the tick below was written
+
+- **`e9cd4ea` — the gym verdict is now reported at the party size the game allows.** 4 of 6 gyms are
+  in their §10.5 band, not 1 of 6: Maribel 3v3 38.6% → 6v3 **93.4%**, Odo **91.2%**, Vesper **66.6%**.
+  **This retires the queued "gym 1 is still 38.6% against an 80–95% target" task as MIS-SCOPED** —
+  tuning Maribel toward 38.6% would have made the shipped fight easier than §10.5 asks. No
+  `balance.json` key moved. (`docs/DEVIATIONS.md` **D-BAL-1**.)
+- **`8953061` — BF-7 and BF-4 landed** (stand-in census; Ancients always roll Elder).
+- **`cf7d205` / `f8d510d` / `94111b1` — the prose lane finished.** `tools/prose/prose-lint.py` gained
+  a structural corpus layer: **9 word-level checks and 6 shape-level checks, with 16 adversarial
+  controls** that run before any corpus is read (a control failure exits **2**, distinct from a dirty
+  corpus exiting 1). The landed corpus reports **0 per-beat flags and 0 structural failures**.
+  `cf7d205` also created `docs/CASCADE-RELEASE.md` and added the `narration` speaker — the Vellsire's
+  arrival had been narrated by a standing stone (**D-PR-5**, closed by **D-PR-7**).
+- **`1709452` — the §10.2 release clause now counts the mesopredator**, and it **reopens** the cascade
+  risk that `BALANCE-REPORT` had briefly declared closed. See `docs/DEVIATIONS.md` **D-BAL-2** /
+  **D-BAL-3**, `docs/CASCADE-RELEASE.md`, and `docs/LANE-A-STATUS.md` §6.2.
+- **`53b2678` — BLOCKED-FINDINGS wave 1**, five disjoint batches, adversarially verified. ⚠ The
+  "36 confirmed findings" figure below is stale; see `docs/BLOCKED-FINDINGS.md` for current status.
+  **The transferable lesson from that wave is the DECOY KNOB** — three repairs moved a constant into
+  `data/balance.json` while production kept reading a hard-coded literal, each shipped with a green
+  test asserting a helper nothing called. A green test proves only what it exercises.
 
 ---
 
@@ -90,8 +123,13 @@ player sprite and five style trials.
    same chibi bipedal mascot regardless of subject; Gloomoth lost its six legs. Q5 rewrote those
    prompts, ruling them out as sole cause and pointing at the §9.2-locked class skeleton.
    **Three images (Fenmaw, Mirefin, Wispurr front) settle it before 154 sprites are billed.**
-3. **Five borderline G7 lines**, quoted in `docs/DIALOGUE-NOTES.md`. Read Maren's epilogue line
-   first — it is the only place anything leans on the scale.
+3. ~~**Five borderline G7 lines**, quoted in `docs/DIALOGUE-NOTES.md`. Read Maren's epilogue line
+   first — it is the only place anything leans on the scale.~~ **MOOT as posed, 2026-08-26 — and it
+   needs re-posing, not deleting.** All five lines were rewritten by the corpus rewrite; the text you
+   were being asked to rule on no longer exists (the entry ids do). **What replaces it:** a fresh
+   line-by-line G7 read of the landed 500 lines is **owed and has not been done** — the automated
+   scans are green, and a green scan means "no banned vocabulary", never "G7 satisfied". See
+   `docs/DIALOGUE-NOTES.md` §4.
 4. **The IP renames** in `docs/IP-SWEEP.md` — 18 RED, 37 AMBER. G15 makes it Hank's call; urgent
    only before anything ships publicly.
 
@@ -103,6 +141,11 @@ SELECTIVELY while workflows are live** — `add -A` sweeps their mid-run artifac
 ---
 
 ## CURRENT STATE (INTEGRATOR tick — Q2 / Q3 / Q3a / Q6 landed)
+
+⚠ **This section is a dated snapshot of THAT tick, not the current state.** Its build figures below
+are the tick's own measurement and are kept as the record; the live numbers are at the top of this
+file (2026-08-26: **50 files / 2341 tests**). Individual rows that later became false are struck
+through in place rather than deleted.
 
 **Build: GREEN, measured after everything below was in place.** `npx tsc --noEmit` silent ·
 `npx vitest run` **39 files, 2012/2012 passing** · `npm run build` clean · `npm run harness` re-run and
@@ -147,7 +190,9 @@ years", "year 6", or treats `clock.yearsTotal` as a deadline is superseded.
   rig had never completed a single year turn — the stub registers `YearTurn`, nothing answered it, and
   `isHandedOver()` stayed true for ever. Measured: 5000 `[R]` presses bought **one** year. Every §10.2 /
   §10.3 claim about behaviour "across the year turn" was evidence about the tick before it.
-- **BF-1 STILL OPEN.** Nothing in `game/` calls `selectEntry` or `conditionHolds`. This is Q7.
+- ~~**BF-1 STILL OPEN.** Nothing in `game/` calls `selectEntry` or `conditionHolds`. This is Q7.~~
+  **RESOLVED** — `game/dialogue-runner.ts` imports and calls `selectEntry` (`:30`), and
+  `docs/BLOCKED-FINDINGS.md` carries BF-1's resolution block.
 
 > **`tools/harness/probe.ts` is a REAL MODULE** imported by `measure.ts`. NOT a scratch file.
 
@@ -158,12 +203,16 @@ years", "year 6", or treats `clock.yearsTotal` as a deadline is superseded.
 | **Q3a** the 44 year-gated entries | **DONE for the gates**, and cross-checked against the real act producer. Copy that states a run length the unbounded calendar can falsify is Hank's D19 ruling and was NOT rewritten (G2) — the list is below. |
 | **Q6** r4 crashed by the raid, not shipped crashed | **DONE**, and the defect was not the one Q6 describes: the authored `remove` values were priced against r4's SHIPPED counts, so by the time anyone arrived the raid was too small (apex reached 0 in 39/64 seeds at the shipped state, 1/64 after twelve seasons of world). The harvest now takes the standing stock. Harness re-run. D-Q6-1 … D-Q6-3. |
 | Q4 / Q5 / Q8 / BF-5 / BF-2 / BF-3 | **DONE** |
-| **Q1** renames | **OUTSTANDING and now dispatchable** — `tests/`, `data/gyms.json` and `docs/content-bible.md` are free. Needs **Digimon** screening. |
-| **Q7** dialogue wiring (C7) + **Q3b** quest system | **OUTSTANDING — the largest remaining item in the repo**, and three concrete consequences are named below. |
-| Palette evidence regeneration | unchanged by this wave |
-| 36 blocked findings | `docs/BLOCKED-FINDINGS.md` §8. **Land BF-7 before BF-4.** |
+| **Q1** renames | ~~**OUTSTANDING and now dispatchable**~~ **DONE.** Landed, then corrected a second time — the three utility moves are **Bristle / Shriek / Daunt** (`64b04b5`); Rootfast/Scoldcall/Baretooth were withdrawn. See the Q1 section below. |
+| **Q7** dialogue wiring (C7) + **Q3b** quest system | ~~**OUTSTANDING — the largest remaining item in the repo**~~ **BOTH DONE.** The corpus is played by `game/dialogue-runner.ts`; `core/quests.ts` + `game/quests.ts` exist and the turn-in flags have writers. All three consequences named below are discharged — see the LANDED notes in the Q7 and Q3b sections. |
+| Palette evidence regeneration | unchanged by this wave; `data/palette.json` still untouched and decision 1 still open |
+| ~~36~~ blocked findings | `docs/BLOCKED-FINDINGS.md` §8. **Count is stale** — wave 1 (`53b2678`) plus `8953061` closed a large batch. Read that file's own status markers; do not quote a total from here. |
 
 ### What Q7 owes, concretely — found by integrating, not by reading
+
+✅ **All three are DISCHARGED as of 2026-08-26** — kept because *how* they were found (by playing the
+game rather than by reading it) is the reusable part. Item 1's two flags are written by
+`game/finale.ts:157`.
 
 1. **`story.vellsire.resolved` and `story.vellsire.outcome` have NO WRITER ANYWHERE.** The Vellsire
    choice writes `story.vellsire.attempt` (`"catch"` / `"release"`), which nothing reads; both

@@ -12,8 +12,13 @@ Per build-doc §16 G12, nothing here is stated in human engineering-hours.
 
 ## 0. READ THIS FIRST — the time model changed, and it is the largest change in the repo
 
-*Written by the INTEGRATOR of Q2 / Q3 / Q3a / Q6, 2026-08-25. Everything below §1 predates it; where
-an older section contradicts this one, this one is current.*
+*Written by the INTEGRATOR of Q2 / Q3 / Q3a / Q6, 2026-08-25, and amended 2026-08-26.*
+
+⚠ **Currency rule, corrected 2026-08-26.** This section used to claim "everything below §1 predates
+it", and that is **no longer true** — §0, §1, §2, §6.2, §6.3 and §6.6 have all been amended since.
+**Read each section's own date stamp**, not this one. Sections carry their currency inline as
+`CLOSED` / `RETRACTED` / `**Stale.**` markers with strikethrough over the superseded text; where a
+section carries none, treat it as of this file's last commit and re-derive before quoting it.
 
 **TROPHIC has two clocks and neither drives the other.** Locked decision L8 was amended by Hank in
 writing (quoted verbatim in `docs/DEVIATIONS.md` §"Q2 + Q3 — the two clocks", rows D-Q2-1 / D-Q3-1 / D-Q3A-8), so this is him overriding
@@ -57,12 +62,17 @@ his own lock, not a lane relitigating it.
 - The run completes on an ACT condition, hands the ending over exactly once, and **nothing stops
   afterwards** — ticks are still spent, years still turn, encounters still roll.
 
-**What is NOT proven, and is the last break in the ending:** `story.vellsire.resolved` and
+~~**What is NOT proven, and is the last break in the ending:** `story.vellsire.resolved` and
 `story.vellsire.outcome` — the two flags both epilogues require — have **no writer anywhere in the
 repo**. The choice writes `story.vellsire.attempt`, which nothing reads. This is a declared seam
 (the encounter owes the outcome, because an Ancient can refuse the snare), it belongs to Q7/C7, and
-until C7 exists the epilogue cannot fire in a real session. §10.5 walks it with that one write done
-explicitly and labelled. See `docs/DEVIATIONS.md` D-INT-4.
+until C7 exists the epilogue cannot fire in a real session.~~
+
+**CLOSED 2026-08-26 — both flags have a real writer and this was the most misleading paragraph in
+§0.** `game/finale.ts` declares `VELLSIRE_RESOLVED_FLAG = "story.vellsire.resolved"` (`:97`) and
+`VELLSIRE_OUTCOME_FLAG` (`:100`), and writes both (`:157`). C7 exists: the corpus is played by
+`game/dialogue-runner.ts`, not merely validated. §10.5 no longer needs the explicit labelled write.
+See `docs/DEVIATIONS.md` D-INT-4 for the original seam.
 
 **If you are about to touch anything that says "year", read `core/acts.ts`'s header first.**
 
@@ -72,8 +82,8 @@ explicitly and labelled. See `docs/DEVIATIONS.md` D-INT-4.
 
 | | |
 |---|---|
-| `npx tsc --noEmit` | **silent** (exit 0) — re-verified 2026-08-25 after Q2/Q3/Q3a/Q6 |
-| `npx vitest run` | **39 files, 2012 tests, 2012 passing, 0 failing, 0 skipped** (2026-08-25). The 17-file / 788-test figure below is the Lane A merge snapshot and is kept for the history, not as a current count. |
+| `npx tsc --noEmit` | **silent** (exit 0) — re-verified 2026-08-26 |
+| `npx vitest run` | **50 files, 2341 tests, 2341 passing, 0 failing, 0 skipped** (2026-08-26, measured not assumed). The 17-file / 788-test figure below is the Lane A merge snapshot and is kept for the history, not as a current count; the per-file block below it is a snapshot of the same vintage and is **stale** — it lists 17 of the 50 files and none of `tests/gates/{reachability,quest-layer}.test.ts`. Re-derive with `find tests -name '*.test.ts'` rather than reading it. |
 | `npm run build` / `npm run harness` | both clean; the harness report regenerates reproducibly (`docs/BALANCE-REPORT.md`) |
 | Core suite with **Phaser physically uninstalled** (`node_modules/phaser` moved aside) | **17 files, 788 tests passing**, `tsc --noEmit` also silent — locked decision L11 proven the strong way, not by grep |
 | `data/balance.additions.*.json` | **deleted**; every key merged into `data/balance.json` and declared in `Balance` + `zBalance` |
@@ -98,7 +108,9 @@ Test counts by file:
 
 ## 2. What is built
 
-**`core/` — 7,173 lines of pure TypeScript, zero engine imports.**
+**`core/` — 10,086 lines of pure TypeScript, zero engine imports.** *(Re-counted 2026-08-26 with
+`wc -l core/*.ts`; the previous figure of 7,173 predated `acts.ts`, `quests.ts`,
+`dialogue-schema.ts` and `regional-events.ts`.)*
 
 | Module | Covers | State |
 |---|---|---|
@@ -129,7 +141,7 @@ palette, and `balance.json` carrying every tunable in one place.
 | `pop_bounds` | §10.2 | `property/ecosim.test.ts`, `integration/seams.test.ts` | **passes** — integer, within `[populationFloor, carryCap]`, on the live path AND the replay path |
 | `det_sim` | §10.2 | `property/ecosim.test.ts`, `property/determinism.test.ts` | **passes** |
 | `det_replay` | §8.1, §10.2 | `property/determinism.test.ts`, `unit/save.test.ts`, `property/lifecycle.test.ts` | **passes** — including a mid-run save/load/continue that reproduces the uninterrupted run's draw sequence |
-| `cascade_emerges` | §10.2 | `property/ecosim.test.ts`, `unit/transcription.test.ts` | **passes, with a documented weakening** — see §6 below. This is the most important caveat in this file. |
+| `cascade_emerges` | §10.2 | `property/ecosim.test.ts`, `unit/transcription.test.ts`, `integration/demo-beats.test.ts` | **passes, with a documented weakening** — see **§6.2** below and **`docs/CASCADE-RELEASE.md`** for the mechanism and the 128-seed table. This is the most important caveat in this file. |
 | `migrant_legibility` | §10.2 | `property/foodweb.test.ts` | **passes** |
 | `ext_add_species` (INV-1) | §6, §10.3 | `gates/extensibility.test.ts` | **passes** — written at integration; did not previously exist |
 | `ext_add_node` (INV-2) | §6, §10.3 | `gates/extensibility.test.ts` | **passes** — written at integration; **it found a real defect** (see §7, I10) |
@@ -281,15 +293,35 @@ mesopredator **co-extincts** rather than being released. What is asserted instea
 Consequence for the demo: **the complete beat (apex gone AND the tier below released and rising)
 occurs at exactly one shipped node, `r4`**, and `fixtures/overcatch-script.json` targets it with a
 recorded seed (12) chosen for legibility. Reproducing the beat at a *vertical-slice* node
-(Hearthollow/R1/Brackwater/R2, which is where the video is shot per build-doc §1) is **not
+(Hearthollow/R1/Brackwater/R2 — the walkable stretch build-doc §1 makes never-cut) is **not
 demonstrated**. Closing it needs either a release-scale `breedRate` on mesopredator lines in
 `data/nodes/*.json` or larger shipped counts — both content edits under DEVIATIONS D9's licence, and
 both properly the balance harness's call (A5). See `docs/DEVIATIONS-lane-a2.md` A2-D1 and A2-D10.
 
-**CLOSED by the harness, and not the way this paragraph expected** — no content edit was needed.
+~~**CLOSED by the harness, and not the way this paragraph expected** — no content edit was needed.
 Measured over 128 seeds per node, `r2` (Fenmaw over Reedrick + Mirefin) produces the complete beat in
-**43%** of seeds against `r4`'s 13%, and `r2` is on the walkable slice. `docs/BALANCE-REPORT.md` §5
-INFERRED names this section by name as the risk it closes. See §6.3.
+**43%** of seeds against `r4`'s 13%, and `r2` is on the walkable slice.~~
+
+**RETRACTED 2026-08-26 — the risk is STILL OPEN, and it is now measured on the clause §10.2 actually
+states.** See **`docs/CASCADE-RELEASE.md`** for the mechanism and the full 128-seed table, and
+`docs/DEVIATIONS.md` **D-BAL-2** for the correction itself. The 43% above was scored as a bare
+existential over every prey line of the collapsed apex **of any role**, so a rebounding Grazer counted
+as a mesopredator release. At `r2` the line credited with that 43% is **Reedrick — a Grazer, and one of
+the over-caught targets** — recovering once nothing hunts it, while **Mirefin, the mesopredator §10.2
+names, rises in 0 of 128 seeds**. Restricted to Mesopredator-role prey, `r2`'s best rate is **8%**
+(`primary` × `hold`) against `r4`'s **13%**, so:
+
+- **the vertical slice is not the better stage on §10.2's own clause**, and this paragraph's original
+  finding — that reproducing the beat on the slice is **not demonstrated** — stands;
+- **`r4` remains the only shipped node whose release is the animal the spec names**, and structurally
+  so: it is the only node where the apex's sole prey pool IS its mesopredator, so the forcing that
+  starves the apex is applied *to the mesopredator* and it is still standing afterwards;
+- the closing options are unchanged from the paragraph above — a release-scale `breedRate` on
+  mesopredator lines in `data/nodes/*.json`, or larger shipped counts. Both are **content** (G2) and
+  neither is the harness's to take. `docs/CASCADE-RELEASE.md` §7 enumerates them.
+
+`docs/BALANCE-REPORT.md` §5 INFERRED now names this section as a risk that **stays open** rather than
+one it closes. See §6.3.
 
 ### 6.3 The balance harness exists, and every §10.5 mode has been run. (Lane A5.)
 
@@ -299,9 +331,15 @@ line in this file — all four bullets under it were false.** `tools/harness/` h
 imports (L11), and it writes `docs/BALANCE-REPORT.md`, last regenerated 2026-08-26. Each former
 bullet, replaced by what was actually measured:
 
-- the §10.5 gym win-rate bands are **measured**, 500 seeds per gym, and **1 of 6 is inside its band**
-  on the TRAINED model: Maribel 38.6% (-41.4 pp), Odo 66.0% (-14.0 pp), Vesper 56.8% (-3.2 pp),
-  Sable 59.8% (-0.2 pp), Noct 60.6% (in band), Magnate Greaves 36.2% (-8.8 pp). The ramp is no longer
+- the §10.5 gym win-rate bands are **measured**, 500 seeds per gym. **Read the verdict at the party
+  size the game allows: 4 of 6 gyms are inside their band** (`docs/BALANCE-REPORT.md` §2;
+  `docs/DEVIATIONS.md` **D-BAL-1**). The harness's headline convention fields a party MATCHED to the
+  leader's roster and reports **1 of 6** — Maribel 38.6% (-41.4 pp), Odo 66.0% (-14.0 pp), Vesper
+  56.8% (-3.2 pp), Sable 59.8% (-0.2 pp), Noct 60.6% (in band), Magnate Greaves 36.2% (-8.8 pp) —
+  but the shipped game lets the player bring six to every gym and gyms 1–3 field 3, 4 and 5, so those
+  three rows measure a fight the player never has: Maribel 3v3 38.6% → **6v3 93.4%**, Odo → **91.2%**,
+  Vesper → **66.6%**, all in band. **The only real misses under both conventions are Sable -0.2 pp and
+  Greaves -8.8 pp.** The ramp is no longer
   purely assigned: D-A5-G1 (gym 1's roster 4 → 3), D-A5-G2 (gym 1's signature premium +2 → +0, so the
   signature ladder is `[8,16,22,28,34,40]` and the rank-and-file ramp 8/14/20/26/32/38 is untouched)
   and D-A5-G3 (`encounter.levelByYear` → 6/12/18/24/30/36) were each decided by measurement. **Gym 1
@@ -322,12 +360,16 @@ bullet, replaced by what was actually measured:
   the heaviest load the rules permit without releasing, reached zero on 6 player-driven (node, line)
   pairs. The `baseline` profile with no player in the region at all still loses four `r4` lines,
   which is G6 working: the raid decrements what it harvests and §7.3 starves the tier above it.
-- the over-catch beat is **a played rate now, not an upper-bound calculation** — 128 seeds per node —
-  and it closes §6.2's open risk from the other side. `r2` (Fenmaw over Reedrick + Mirefin) produces
-  the complete beat in 43% of seeds against `r4`'s 13%, and `r2` is on the walkable slice where
-  build-doc §1 says the video is shot. `fixtures/overcatch-script.json` still reproduces its recorded
-  trace exactly at seed 12, but that seed is a winner rather than a representative: re-run at `r4`
-  over 128 seeds under the fixture's own protocol shape, the complete beat lands in 0% of them.
+- the over-catch beat is **a played rate now, not an upper-bound calculation** — 128 seeds per node.
+  ~~It closes §6.2's open risk from the other side. `r2` (Fenmaw over Reedrick + Mirefin) produces the
+  complete beat in 43% of seeds against `r4`'s 13%, and `r2` is on the walkable slice.~~ **Retracted
+  with §6.2 on 2026-08-26 (`docs/CASCADE-RELEASE.md`, DEVIATIONS D-BAL-2):** that 43% was any prey
+  line of any role, and the line credited at `r2` is a Grazer while its mesopredator rises in 0 of 128
+  seeds. On §10.2's clause the best row in the game is **`r4` at 13%** and `r2`'s best is **8%**, so
+  §6.2 stays open. §4.3 of the report now prints both columns side by side and marks which one is the
+  beat. `fixtures/overcatch-script.json` still reproduces its recorded trace exactly at seed 12, but
+  that seed is a winner rather than a representative: re-run at `r4` over 128 seeds under the
+  fixture's own protocol shape, the complete beat lands in 0% of them.
 
 Every number in `balance.json` should now be read as **measured where `docs/BALANCE-REPORT.md` says
 it was measured, and plausible-but-untuned everywhere else.** The report draws that line itself: its
@@ -361,11 +403,18 @@ scope for the G15 IP sweep.
 - ~~`tools/harness/` … are empty directories.~~ **Stale for all three.** `npm run harness` runs and
   writes `docs/BALANCE-REPORT.md` (§6.3); `tools/overlay-diff/` holds 6 modules behind
   `npm run overlay-diff`; `tools/collision-editor/` holds a Vite app behind `npm run collision`.
-- ~~`data/dialogue.json` (build-doc §5) **does not exist**~~ **Stale.** It exists: 211 entries, 62
+- ~~`data/dialogue.json` (build-doc §5) **does not exist**~~ ~~**Stale.** It exists: 211 entries, 62
   speakers, re-gated onto the act axis by Q3a. **But nothing in `game/` reads it** — that is Q7/C7 and
   it is the largest remaining item in the repo. Two of the shipped build's story flags are written by
   provisional stand-ins in `OverworldScene` (`onOpeningBeat` for `story.opening.done`) rather than by
-  the corpus, and two more (`story.vellsire.resolved` / `.outcome`) are written by nobody at all.
+  the corpus, and two more (`story.vellsire.resolved` / `.outcome`) are written by nobody at all.~~
+  **Stale on every clause, corrected 2026-08-26.** The corpus is **212 entries / 500 lines / 63
+  speakers** (measured from `data/dialogue.json`; its own `_counts` key agrees), fully rewritten and
+  landed. **`game/` reads it**: `game/dialogue-runner.ts` is the runtime and resolves every entry
+  through `core/dialogue-schema.ts`'s `selectEntry` / `selectEntryWhere`. `story.vellsire.resolved`
+  and `.outcome` are written by `game/finale.ts:157` (see §0). The `onOpeningBeat` stand-in survives
+  **only as a declared last resort** behind the corpus — a corpus that failed to load would otherwise
+  lock the player inside Hearthollow permanently — not as the normal path.
 - `yearVariants` is `{}` on all 12 nodes — no year-2..6 map art has passed overlay-diff. ~~because
   overlay-diff does not exist.~~ **Stale on the reason:** `tools/overlay-diff/` holds 6 modules,
   `npm run overlay-diff` is wired, and `tests/unit/overlay-diff.test.ts` passes 65 tests. The gap is

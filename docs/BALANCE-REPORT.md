@@ -21,7 +21,7 @@ npm run harness
 | full-run seeds per profile | 32 |
 | over-catch seeds per node | 128 |
 | candidate parties drafted per seed | 8 |
-| wall-clock | gym 833ms · gym.mirror 241ms · gym.levelSweep 1510ms · gym.ageControl 1021ms · gym.partySizeControl 412ms · chart 370ms · run.profiles 387ms · run.fixture 1ms · run.overcatch 269ms · probes 580ms |
+| wall-clock | gym 841ms · gym.mirror 250ms · gym.levelSweep 1534ms · gym.ageControl 1020ms · gym.partySizeControl 420ms · chart 377ms · run.profiles 381ms · run.fixture 0ms · run.overcatch 258ms · probes 584ms |
 
 **TWO CLOCKS (D-Q3-1).** The calendar (ticks → seasons → years) and the ACT (badges and quest flags)
 are independent, so a harness has to CHOOSE a pacing model rather than inherit one. Mode (c) drives
@@ -381,76 +381,92 @@ Nothing here is scripted into the sim (G6). The harness issues `applyCatch` — 
 snare makes — and then lets `core/ecosim.ts` run its own arithmetic.
 
 Columns: **apex → 0** is the first half of the beat. **throne refilled** is something alive sitting at
-the top of the node's *live* web afterwards. **and rising** additionally requires that tier to be
-strictly above where it stood when the apex hit zero, within `cascade.mesoReleaseSeasons` (4) seasons —
-build-doc §10.2's strict clause, and the full never-cut beat.
+the top of the node's *live* web afterwards. The two **rising** columns both ask whether a line the
+dead predator used to eat ended strictly above where it stood when the apex hit zero, and alive,
+within `cascade.mesoReleaseSeasons` (4) seasons. They differ in exactly one thing — **which lines are
+eligible** — and that difference decides what the row means:
+
+- **any prey rising** — any prey line, of any role, with the line most often credited named in
+  brackets. A diagnostic. It is **not** build-doc §10.2's clause.
+- **and rising (meso)** — §10.2's clause as written: "**mesopredator** count strictly rising within
+  4 seasons". Only prey whose `webRole` (`core/foodweb.ts`) is `Mesopredator` can satisfy it; the
+  eligible line is named in brackets. **This is the full never-cut beat, and it is the only one of
+  the two that is.** A `—` here is not a zero: it means the row's top of web has no
+  Mesopredator-role prey at all, so §10.2's two-tier clause is undefined there.
 
 **Read "throne refilled" carefully.** It asks only that *something* sits at the top of the live web
 afterwards, and a Grazer inherits the throne by default once every predator above it is gone. A row
 with a refilled throne AND a high co-extinction rate is a two-tier collapse that left the herbivores
-in charge, not a mesopredator release. The column that means the demo beat is **and rising**.
+in charge, not a mesopredator release. The column that means the demo beat is **and rising (meso)**.
+
+**And read "any prey rising" with the same suspicion.** A row that is high there and 0% under
+**and rising (meso)** is that same two-tier collapse seen from the other side: what rebounded is a
+Grazer — often one of the over-caught targets themselves, recovering once nothing hunts it — while
+the mesopredator the clause names never moves off zero. Four of the six apex sites can produce that
+row, because at those four the apex eats a Grazer as well as its mesopredator (bible §5's
+large-Grazer rule, and its authored diet exception).
 
 #### reading `primary` × shape `hold`
 
-| node | slice? | top of web | over-caught | apex → 0 | throne refilled | **and rising** | tier co-extinct | caught |
-|---|---|---|---|---|---|---|---|---|
-| `hearthollow` | **yes** | Skir | Nibbin | 0% | 0% | **0%** | 100% | 8.0 |
-| `r1` | **yes** | Skir | Nibbin | 0% | 0% | **0%** | 1% | 10.0 |
-| `brackwater` | **yes** | Fenmaw | Reedrick | 100% | 13% | **2%** | 87% | 17.0 |
-| `r2` | **yes** | Fenmaw | Reedrick | 92% | 27% | **9%** | 67% | 22.0 |
-| `bowerdeep` |  | Duskstalk | Barkhide | 0% | 0% | **0%** | 100% | 6.0 |
-| `r3` |  | Duskstalk | Barkhide | 0% | 0% | **0%** | 7% | 9.0 |
-| `cindershelf` |  | Stonewing | Pyrelisk | 100% | 0% | **0%** | 100% | 8.0 |
-| `r4` |  | Stonewing | Pyrelisk | 100% | 61% | **13%** | 39% | 13.0 |
-| `duskhollow` |  | Wispurr | Umbrat | 77% | 0% | **0%** | 82% | 17.0 |
-| `r5` |  | Wispurr | Umbrat | 46% | 0% | **0%** | 53% | 22.0 |
+| node | slice? | top of web | over-caught | apex → 0 | throne refilled | any prey rising | **and rising (meso)** | tier co-extinct | caught |
+|---|---|---|---|---|---|---|---|---|---|
+| `hearthollow` | **yes** | Skir | Nibbin | 0% | 0% | 0% | — _(no meso)_ | 100% | 8.0 |
+| `r1` | **yes** | Skir | Nibbin | 0% | 0% | 0% | — _(no meso)_ | 1% | 10.0 |
+| `brackwater` | **yes** | Fenmaw | Reedrick | 100% | 13% | 2% (Mirefin) | **2%** (Mirefin) | 87% | 17.0 |
+| `r2` | **yes** | Fenmaw | Reedrick | 92% | 27% | 9% (Mirefin) | **8%** (Mirefin) | 67% | 22.0 |
+| `bowerdeep` |  | Duskstalk | Barkhide | 0% | 0% | 0% | **0%** (Webvern) | 100% | 6.0 |
+| `r3` |  | Duskstalk | Barkhide | 0% | 0% | 0% | **0%** (Webvern) | 7% | 9.0 |
+| `cindershelf` |  | Stonewing | Pyrelisk | 100% | 0% | 0% | **0%** (Pyrelisk) | 100% | 8.0 |
+| `r4` |  | Stonewing | Pyrelisk | 100% | 61% | 13% (Pyrelisk) | **13%** (Pyrelisk) | 39% | 13.0 |
+| `duskhollow` |  | Wispurr | Umbrat | 77% | 0% | 0% | — _(no meso)_ | 82% | 17.0 |
+| `r5` |  | Wispurr | Umbrat | 46% | 0% | 0% | — _(no meso)_ | 53% | 22.0 |
 
 #### reading `primary` × shape `effort`
 
-| node | slice? | top of web | over-caught | apex → 0 | throne refilled | **and rising** | tier co-extinct | caught |
-|---|---|---|---|---|---|---|---|---|
-| `hearthollow` | **yes** | Skir | Nibbin | 0% | 0% | **0%** | 92% | 8.0 |
-| `r1` | **yes** | Skir | Nibbin | 0% | 0% | **0%** | 100% | 11.1 |
-| `brackwater` | **yes** | Fenmaw | Reedrick | 100% | 0% | **0%** | 100% | 18.0 |
-| `r2` | **yes** | Fenmaw | Reedrick | 98% | 0% | **0%** | 100% | 23.9 |
-| `bowerdeep` |  | Duskstalk | Barkhide | 0% | 0% | **0%** | 98% | 6.0 |
-| `r3` |  | Duskstalk | Barkhide | 0% | 0% | **0%** | 96% | 10.0 |
-| `cindershelf` |  | Stonewing | Pyrelisk | 100% | 6% | **0%** | 94% | 8.0 |
-| `r4` |  | Stonewing | Pyrelisk | 100% | 5% | **0%** | 95% | 14.0 |
-| `duskhollow` |  | Wispurr | Umbrat | 83% | 0% | **0%** | 98% | 18.0 |
-| `r5` |  | Wispurr | Umbrat | 29% | 0% | **0%** | 99% | 24.0 |
+| node | slice? | top of web | over-caught | apex → 0 | throne refilled | any prey rising | **and rising (meso)** | tier co-extinct | caught |
+|---|---|---|---|---|---|---|---|---|---|
+| `hearthollow` | **yes** | Skir | Nibbin | 0% | 0% | 0% | — _(no meso)_ | 92% | 8.0 |
+| `r1` | **yes** | Skir | Nibbin | 0% | 0% | 0% | — _(no meso)_ | 100% | 11.1 |
+| `brackwater` | **yes** | Fenmaw | Reedrick | 100% | 0% | 0% | **0%** (Mirefin) | 100% | 18.0 |
+| `r2` | **yes** | Fenmaw | Reedrick | 98% | 0% | 0% | **0%** (Mirefin) | 100% | 23.9 |
+| `bowerdeep` |  | Duskstalk | Barkhide | 0% | 0% | 0% | **0%** (Webvern) | 98% | 6.0 |
+| `r3` |  | Duskstalk | Barkhide | 0% | 0% | 0% | **0%** (Webvern) | 96% | 10.0 |
+| `cindershelf` |  | Stonewing | Pyrelisk | 100% | 6% | 0% | **0%** (Pyrelisk) | 94% | 8.0 |
+| `r4` |  | Stonewing | Pyrelisk | 100% | 5% | 0% | **0%** (Pyrelisk) | 95% | 14.0 |
+| `duskhollow` |  | Wispurr | Umbrat | 83% | 0% | 0% | — _(no meso)_ | 98% | 18.0 |
+| `r5` |  | Wispurr | Umbrat | 29% | 0% | 0% | — _(no meso)_ | 99% | 24.0 |
 
 #### reading `limiting` × shape `hold`
 
-| node | slice? | top of web | over-caught | apex → 0 | throne refilled | **and rising** | tier co-extinct | caught |
-|---|---|---|---|---|---|---|---|---|
-| `hearthollow` | **yes** | Skir | Nibbin + Bramblehog + Pollywisp | 100% | 0% | **0%** | 100% | 18.0 |
-| `r1` | **yes** | Skir | Nibbin + Bramblehog + Pollywisp | 91% | 0% | **0%** | 96% | 23.0 |
-| `brackwater` | **yes** | Fenmaw | Reedrick + Mirefin | 100% | 85% | **15%** | 15% | 23.0 |
-| `r2` | **yes** | Fenmaw | Reedrick + Mirefin | 100% | 98% | **43%** | 2% | 30.0 |
-| `bowerdeep` |  | Duskstalk | Barkhide + Webvern | 100% | 100% | **0%** | 100% | 12.0 |
-| `r3` |  | Duskstalk | Barkhide + Webvern | 100% | 100% | **14%** | 42% | 17.0 |
-| `cindershelf` |  | Stonewing | Pyrelisk | 100% | 0% | **0%** | 100% | 8.0 |
-| `r4` |  | Stonewing | Pyrelisk | 100% | 61% | **13%** | 39% | 13.0 |
-| `duskhollow` |  | Wispurr | Umbrat | 77% | 0% | **0%** | 82% | 17.0 |
-| `r5` |  | Wispurr | Umbrat | 46% | 0% | **0%** | 53% | 22.0 |
+| node | slice? | top of web | over-caught | apex → 0 | throne refilled | any prey rising | **and rising (meso)** | tier co-extinct | caught |
+|---|---|---|---|---|---|---|---|---|---|
+| `hearthollow` | **yes** | Skir | Nibbin + Bramblehog + Pollywisp | 100% | 0% | 0% | — _(no meso)_ | 100% | 18.0 |
+| `r1` | **yes** | Skir | Nibbin + Bramblehog + Pollywisp | 91% | 0% | 0% | — _(no meso)_ | 96% | 23.0 |
+| `brackwater` | **yes** | Fenmaw | Reedrick + Mirefin | 100% | 85% | 15% (Reedrick) | **0%** (Mirefin) | 15% | 23.0 |
+| `r2` | **yes** | Fenmaw | Reedrick + Mirefin | 100% | 98% | 43% (Reedrick) | **0%** (Mirefin) | 2% | 30.0 |
+| `bowerdeep` |  | Duskstalk | Barkhide + Webvern | 100% | 100% | 0% | **0%** (Webvern) | 100% | 12.0 |
+| `r3` |  | Duskstalk | Barkhide + Webvern | 100% | 100% | 14% (Barkhide) | **0%** (Webvern) | 42% | 17.0 |
+| `cindershelf` |  | Stonewing | Pyrelisk | 100% | 0% | 0% | **0%** (Pyrelisk) | 100% | 8.0 |
+| `r4` |  | Stonewing | Pyrelisk | 100% | 61% | 13% (Pyrelisk) | **13%** (Pyrelisk) | 39% | 13.0 |
+| `duskhollow` |  | Wispurr | Umbrat | 77% | 0% | 0% | — _(no meso)_ | 82% | 17.0 |
+| `r5` |  | Wispurr | Umbrat | 46% | 0% | 0% | — _(no meso)_ | 53% | 22.0 |
 
 #### reading `limiting` × shape `effort`
 
-| node | slice? | top of web | over-caught | apex → 0 | throne refilled | **and rising** | tier co-extinct | caught |
-|---|---|---|---|---|---|---|---|---|
-| `hearthollow` | **yes** | Skir | Nibbin + Bramblehog + Pollywisp | 87% | 0% | **0%** | 98% | 18.0 |
-| `r1` | **yes** | Skir | Nibbin + Bramblehog + Pollywisp | 31% | 0% | **0%** | 99% | 24.0 |
-| `brackwater` | **yes** | Fenmaw | Reedrick + Mirefin | 100% | 14% | **5%** | 86% | 24.0 |
-| `r2` | **yes** | Fenmaw | Reedrick + Mirefin | 100% | 13% | **4%** | 87% | 32.0 |
-| `bowerdeep` |  | Duskstalk | Barkhide + Webvern | 100% | 100% | **1%** | 90% | 12.0 |
-| `r3` |  | Duskstalk | Barkhide + Webvern | 100% | 100% | **4%** | 88% | 18.0 |
-| `cindershelf` |  | Stonewing | Pyrelisk | 100% | 6% | **0%** | 94% | 8.0 |
-| `r4` |  | Stonewing | Pyrelisk | 100% | 5% | **0%** | 95% | 14.0 |
-| `duskhollow` |  | Wispurr | Umbrat | 83% | 0% | **0%** | 98% | 18.0 |
-| `r5` |  | Wispurr | Umbrat | 29% | 0% | **0%** | 99% | 24.0 |
+| node | slice? | top of web | over-caught | apex → 0 | throne refilled | any prey rising | **and rising (meso)** | tier co-extinct | caught |
+|---|---|---|---|---|---|---|---|---|---|
+| `hearthollow` | **yes** | Skir | Nibbin + Bramblehog + Pollywisp | 87% | 0% | 0% | — _(no meso)_ | 98% | 18.0 |
+| `r1` | **yes** | Skir | Nibbin + Bramblehog + Pollywisp | 31% | 0% | 0% | — _(no meso)_ | 99% | 24.0 |
+| `brackwater` | **yes** | Fenmaw | Reedrick + Mirefin | 100% | 14% | 5% (Reedrick) | **1%** (Mirefin) | 86% | 24.0 |
+| `r2` | **yes** | Fenmaw | Reedrick + Mirefin | 100% | 13% | 4% (Reedrick) | **2%** (Mirefin) | 87% | 32.0 |
+| `bowerdeep` |  | Duskstalk | Barkhide + Webvern | 100% | 100% | 1% (Webvern) | **1%** (Webvern) | 90% | 12.0 |
+| `r3` |  | Duskstalk | Barkhide + Webvern | 100% | 100% | 4% (Barkhide) | **1%** (Webvern) | 88% | 18.0 |
+| `cindershelf` |  | Stonewing | Pyrelisk | 100% | 6% | 0% | **0%** (Pyrelisk) | 94% | 8.0 |
+| `r4` |  | Stonewing | Pyrelisk | 100% | 5% | 0% | **0%** (Pyrelisk) | 95% | 14.0 |
+| `duskhollow` |  | Wispurr | Umbrat | 83% | 0% | 0% | — _(no meso)_ | 98% | 18.0 |
+| `r5` |  | Wispurr | Umbrat | 29% | 0% | 0% | — _(no meso)_ | 99% | 24.0 |
 
-**The best node in the game for the complete beat is `r2`** (Fenmaw over Reedrick + Mirefin, reading `limiting`, shape `hold`): apex → 0 in 100% of seeds, the throne refilled in 98%, and the tier below strictly rising in **43%**.
+**The best node in the game for the complete beat is `r4`** (Stonewing over Pyrelisk, reading `primary`, shape `hold`): apex → 0 in 100% of seeds, the throne refilled in 61%, and **Pyrelisk** — the mesopredator §10.2 names — strictly rising in **13%**. It is **not** the highest row in the table: `r2` (reading `limiting`, shape `hold`) reaches 43% under **any prey rising**, but the line credited there is Reedrick and its mesopredator (Mirefin) rises in 0% of the same seeds. Ranking on that column ranks the wrong animal.
 
 ---
 
@@ -468,7 +484,8 @@ in charge, not a mesopredator release. The column that means the demo beat is **
 - **Every non-Ancient line spends exactly 300 base-stat points**, so the round-robin is measuring an ALLOCATION, not a quality gap. The base-stat total correlates with win rate at r = 0.000, exactly as a fixed budget must.
 - **The strongest single predictor of a line's peer win rate is ins, r = -0.582** — and it is **NEGATIVE**. Per stat: ins -0.58, atk 0.34, spd 0.09, def -0.05, hp 0.01. Best composite: Attack 0.343.
 - **Instinct is a stat that costs win rate to buy** (r = -0.582, range 30–70 across the roster). bible §2 gives Instinct three jobs — "crit chance, bait success, sign-reading quality" — but `core/battle.ts` reads it for exactly one: `critChanceBase + critChancePerInstinct × instinct` inside `computeDamage`. `catchChance` never looks at it, so **bait success does not use Instinct at all** in the shipped reducer. At the level cap, the roster's Instinct spread of 40 base points buys about 2.9% of extra expected damage; the same points in Attack would buy several times that. Against a fixed 300-point budget, every point of Instinct is a point taken from something that works.
-- **The cascade's FIRST half is reliable and its SECOND half is not.** Across every node × reading × shape, the top of the web reaches zero in a mean 69% of seeds; the complete beat — the tier below alive *and strictly rising* — peaks at **43%**.
+- **The cascade's FIRST half is reliable and its SECOND half is not.** Across every node × reading × shape, the top of the web reaches zero in a mean 69% of seeds; the complete beat as build-doc §10.2 words it — the **mesopredator** alive *and strictly rising* — peaks at **13%**.
+- **Restricting the release to the animal §10.2 names changes the answer, not just the wording.** Scored as a bare existential over every prey line of any role, the same sweep peaks at 43%; scored on Mesopredator-role prey only, it peaks at 13%. The widest gap is `r2` (Fenmaw, reading `limiting`, shape `hold`), where 43% of seeds rebound Reedrick — a line the apex eats, but not its mesopredator — while Mirefin rises in 0%. A single merged "and rising" column published the first number under the second number's claim; §4.3 now prints both, separately.
 - **`fixtures/overcatch-script.json` still reproduces its recorded trace exactly** at seed 12 — the apex gone, nothing hunting the tier below, and that tier off its floor.
 - **The §7.4 predation bonus cannot influence a greedy attacker's move choice.** It is a function of (attacker line, defender line) only, so it multiplies every one of an attacker's moves by the same factor. An earlier version of the player model handicapped the player by hiding the food web from its scorer; the handicap changed nothing and was removed. Anyone reasoning about "learning the web" as a skill expression should know it currently is not one — it changes damage, never decisions.
 
@@ -477,7 +494,7 @@ in charge, not a mesopredator release. The column that means the demo beat is **
 - **Most of the round-robin tail is the Instinct tail, and the rest is frailty.** Of the weak lines, Loamunder (ins 60), Sporantle (ins 65), Carricrow (ins 70) sit above the roster's median Instinct of 45; Skir (ins 40, hp 55, def 50) does not, and is instead among the frailest animals in the game. Against a fixed 300-point budget the honest reading is that the tail is not badly TYPED, it is badly SPENT. There are levers on both sides of the INV-3 line and §6.1 measures one of each: `damage.critChancePerInstinct` is a balance-file key and raising it moves the tail in the right direction, but not far enough to reach the band; reallocating `baseStats` in `data/species.json`, or giving the two 0-power role moves (Regrow, Scrounge) something to do, is content and would move it properly.
 - **In a roster that is 59% decided, a type-multiplier retune reorders nothing.** Every `balance.types.*` multiplier applies to both sides of every matchup, so moving one rescales how fast a decided matchup resolves without changing who wins it. That rules the whole `types` group out as a fix for §3's tails, whatever it does to the feel of a fight.
 - **The fixture's seed is doing more work than the fixture claims.** `fixtures/overcatch-script.json` says the beat "holds for a majority of low seeds". Re-run at `r4` with the fixture's own protocol shape over 128 seeds, the complete beat lands in 0% of them and the tier below co-extincts in 95%. Seed 12 is a winner, not a representative. The recorded demo is safe — it is a recording — but the claim that the beat is robust at that node is not supported.
-- **A vertical-slice node is the better demo stage.** `r2` (Fenmaw over Reedrick + Mirefin, reading `limiting`, shape `hold`) produces the complete beat in 43% of seeds and refills the throne in 98% — against `r4`'s 13%. `r2` is walkable, which is where build-doc §1 says the video is shot. This closes the open risk in `docs/LANE-A-STATUS.md` §6.2, which recorded that reproducing the beat on the slice was "not demonstrated".
+- **The vertical slice is NOT the better demo stage on §10.2's own clause.** `r2` (Fenmaw over Reedrick, reading `primary`, shape `hold`) releases Mirefin in 8% of seeds and refills the throne in 27%, against `r4`'s best of 13% (Pyrelisk, reading `primary`, shape `hold`). So the open risk in `docs/LANE-A-STATUS.md` §6.2 — that reproducing the beat on the slice is "not demonstrated" — **stays open**, and `r4` remains the node whose release is the animal the spec names. The walkable rows do read much higher on the broader **any prey rising** column — `r2` reaches 43% (reading `limiting`, shape `hold`) — but the line credited there is Reedrick, and Mirefin rises in 0% of those same seeds. That column is not the beat, and choosing a stage on it chooses the wrong animal. The choice in front of the owner is therefore between shooting the beat off the walkable slice at 8%, shooting it at `r4` at 13%, and the content/spec options in `docs/CASCADE-RELEASE.md` §7 — none of which this harness may take (G2).
 
 ---
 
@@ -517,7 +534,7 @@ are, not to make them flattering. Re-run against a candidate file with
 
 4. **No FURTHER delta is proposed for the round-robin tail, and that is the finding.** Skir 34%, Loamunder 27%, Sporantle 13%, Carricrow 8% are outside the band. Beyond the crit lever above, §3 shows why a balance retune cannot reach them: 59% of matchups are decided outright, so every `balance.types.*` multiplier applies to both sides and rescales the chart without reordering it. The remaining levers are `baseStats` in `data/species.json` and the role move pool in `data/moves.json` — **content**. That belongs in `docs/DEVIATIONS.md`, not in a balance retune.
 
-5. **`cascade.mesoReleaseSeasons`: 4 → 6.** The strict "rising" clause is measured over this many seasons from the moment the apex hits zero. At the shipped breed rates (0, 0.03, 0.045, 0.05, 0.06, 0.09 per season) a population of one or two needs several seasons to add an individual, so the window and not the ecology may be what is failing the clause. **This is a claim-widening delta, and it must not be applied to make a red measurement green** — apply it only if the wider window is the honest reading of "released". The number lives in `balance.json` precisely so this decision is visible.
+5. **`cascade.mesoReleaseSeasons`: 4 → 6.** The strict "rising" clause is measured over this many seasons from the moment the apex hits zero, on the MESOPREDATOR (§4.3's **and rising (meso)** column; the best row in the game is `r4` at 13%). At the shipped breed rates (0, 0.03, 0.045, 0.05, 0.06, 0.09 per season) a population of one or two needs several seasons to add an individual, so the window and not the ecology may be what is failing the clause. **This is a claim-widening delta, and it must not be applied to make a red measurement green** — apply it only if the wider window is the honest reading of "released". The number lives in `balance.json` precisely so this decision is visible.
 
 6. **A `breedRate` lift on the released tier would be the real fix, and it is NOT a balance delta.** Per-line breed rates live in `data/nodes/*.json` (build-doc §7.2 — the node file is the single source of truth). Raising the mesopredator breed rate at the demo node is the change that would turn "the throne is refilled" into "and it is visibly rising", and it is a content edit under `docs/DEVIATIONS.md`.
 

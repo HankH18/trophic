@@ -7,12 +7,26 @@ not. This file is the durable record so they can be dispatched.
 
 **Every entry has been re-verified against the tree as it stands now** — after the repair passes
 landed. Entries are marked `STILL PRESENT` or `ALREADY FIXED`, and the already-fixed ones are in
-§7 at the end so nobody re-investigates them.
+§7 at the end so nobody re-investigates them. *(Two further markers have since joined those two:
+`RESOLVED` and `PARTIALLY RESOLVED`, both dated. An entry closed after this file was written keeps
+its original diagnosis verbatim and carries the correction beside it — never in place of it.)*
 
 Provenance: 102 `blockers` entries from 16 build/repair agents, plus 209 findings from 24 auditor
 agents (66 of them confirmed critical/major or silent-failure minors) were extracted from the
-workflow journal and checked one by one. **36 distinct findings are still present. 68 are already
-fixed.**
+workflow journal and checked one by one. At that triage, **36 distinct findings were still present
+and 68 were already fixed** — *that pair of numbers is a 2026-08-25 timestamp and is no longer the
+state of the tree.* It is kept because it is the record of what the extraction found.
+
+**Current tally, re-derived from the entries below on 2026-08-26.** Of the 36 numbered findings,
+**16 are RESOLVED** — BF-1, BF-2, BF-3, BF-4, BF-5, BF-6, BF-7, BF-11, BF-13, BF-15, BF-16, BF-19,
+BF-20, BF-21, BF-25, BF-26 — and **20 remain open.** Two of those twenty, **BF-14** and **BF-18**,
+are *partially* resolved and are counted as open because a named remainder is still in the tree.
+**Do not quote a single total as this document's state.** Two entries are half-closed, one closed by
+a different route than it specified (BF-20), and the numbered entries are not the whole ledger —
+`D-SWEEP-1`…`D-SWEEP-4` under BF-3 are findings in their own right, and this wave added five more
+that live *inside* otherwise-closed entries: **four now-false comments** (on BF-4, BF-7, BF-14 and
+BF-15) and **BF-18's growth by four files it never listed**. None of the five has an owner.
+**Read the per-entry `Status:` markers.** §8 lists what is actually left.
 
 ---
 
@@ -27,6 +41,11 @@ both written and tested, and `winGym` has no caller anywhere in the repo (**BF-2
 Cindershelf/`r4`, the only node where the cascade beat occurs. The suite is green through both
 because the two tests that would catch them assert *source text* — that the method exists — rather
 than that anything calls it.
+**BF-1 and BF-2 are both RESOLVED (2026-08-25)** — the Lane C7 dialogue runtime ships and plays the
+corpus, and `winGym` has its caller at `game/scenes/OverworldScene.ts:1392`. The paragraph above is
+kept verbatim because it is the record of why the slice was unplayable and of how a green suite
+certified it as fine; see the resolution blocks on both entries. **The failure mode it describes is
+not retired** — this wave found three more instances of it, in a new disguise, and they are §1.1.
 
 The same failure mode has a third instance that is worse, because it is a test whose green means the
 **negation** of what it says: `tests/integration/seams.test.ts:327` is named *"HONEST GAP: nothing in
@@ -40,6 +59,11 @@ resolution block on that entry. And a fourth, **BF-4**: a wild Ancient can be ro
 J or A, which is 12 sprite keys with no manifest row — while
 `tests/unit/battle-view.test.ts:1706-1716` asserts the manifest matches "the keys the running game
 can ask for" by *computing that set from the invariant the encounter roll violates*.
+**BF-4 is RESOLVED (2026-08-26)** — the clamp is at `game/encounters.ts:198-199`, and it still
+consumes `rollAge`'s draw so the seed-replay contract is intact. The test no longer derives that set
+from the invariant: `tests/unit/battle-view.test.ts:1826` asks the roll and subtracts the manifest,
+and requires the difference to be empty. See the resolution block on that entry — which also records
+a now-false comment the repair left behind at `:1786-1791`, still telling readers the defect is live.
 
 One pipeline defect would ship visibly broken art: **BF-5** (B-D35), the `backgroundTolerance: 12`
 literal that survived the repo-wide `12 → 24` fix, on the live command that produces the player's
@@ -49,6 +73,85 @@ other homes, and the invariant extended to fail any call site that hardcodes its
 the resolution block on that entry; closed as B-D50.
 
 **Nothing here is fixed by this document. It records only.**
+
+### 1.1 · DECOY KNOBS — the reusable finding of the 2026-08-26 wave
+
+**Read this before repairing any G11 finding, and before writing the test that closes one.** It is
+the one lesson from this wave that transfers to work that has nothing to do with these entries.
+
+Three adversarial verifiers — **each of which did not do the work it checked** — came back with three
+repairs that shared one shape. Commit `53b2678` groups them under *"DECOY KNOBS"*. **Only one of the
+three — BF-14 — is literally a decoy knob**, and saying otherwise would be the same error this
+section is about:
+naming a pattern more confidently than the evidence supports. What the three genuinely share is
+narrower and more useful — *two authorities for one value, and a green test that binds the wrong
+one.*
+
+**1 · BF-14 — the exact decoy.** `data/balance.json` gained `map.battleSpritePx`, the schema and the
+type were updated, and **production kept its literal**: `game/ui/BattleHud.ts:222-223` still read
+`spriteW: 96` / `spriteH: 96` inside `DEFAULT_CARD_STYLE` — the object `CombatantPanel` hands to
+`placeholderImage`, i.e. the number the battle screen actually draws with. `BattleLayout.ts` had been
+moved onto the key; **the drawer had not.** The helper nothing called was `spriteRect`: at
+`53b2678^`, its only references outside its own declaration were **two test call sites and zero
+production callers.** The test asserting all this was green — `tests/unit/balance-inv3.test.ts:326`,
+*"BINDS — a retune of `battleSpritePx` moves the box the layout reports"*. It was telling the truth
+about the layout and nothing about the game: **setting the key to 48 moved nothing on screen and
+reddened only that one assertion.**
+
+**2 · BF-11 — the same shape with the stale literal in the TESTS.** Here production was moved
+correctly and **nothing bound it**, so the copy that went stale was on the other side: two replay
+harnesses kept a hard-coded copy of the old stream name — `tests/unit/year-turn-ux.test.ts` and, more
+seriously, `tests/integration/demo-beats.test.ts`, **the Legacy beat**. Both stayed green while
+replaying a stream the game had stopped opening. `heirStreamKey` did not exist before the repair, so
+there was no shared spelling for the two sides to agree on; each held its own literal, and the tests
+went on passing against a game that had moved.
+
+**3 · BF-25 — no balance key exists at all; the two authorities were a naming convention.**
+`tools/postprocess/run.ts` passed `row.id` (`battle-fenmaw-e-front`) where the game's runtime
+`assetId` used the path form (`creature-battle/battle-fenmaw-e-front`). The stand-in's block colour
+is hashed from the label, so **one missing asset had two names and two colours.** `placeholderLabel`
+did not exist before the repair, and the repair's four tests compared **two pure functions, neither
+of which the writer called** — recorded in the test file's own header at
+`tests/unit/postprocess-run.test.ts:20-24`: **reverting the writer's repair left all four cases
+green.** This is why the shape is not really about `data/balance.json`: it needs only two places that
+must agree and a test that watches one of them.
+
+#### The lesson, stated so it can be reused
+
+**Moving a constant into `data/balance.json` satisfies G11 on paper only.** The key, the type and the
+schema are the mechanical part; what makes the move real is that **the SHIPPED call path reads it** — the
+function that draws, the function that writes the file, the process the operator actually runs. Until
+that is true, the balance file holds a knob wired to nothing and the literal still governs the game.
+
+**A test that exercises a helper the production path never calls is evidence about the helper, not
+about the game.** The green tests in cases 1 and 3 were each honest about their own subject; neither
+subject was on the path that ships. Before trusting one, ask what its green is evidence *of*, and check that the
+symbol under test has a production caller at all — `spriteRect` had none, and that fact was
+recoverable by grep at any point.
+
+**The repair pattern that works, and that all three now use: retune a COPY of the balance file and
+read the effect back through the shipped function.** Not "assert the computed value" — *observe the
+consequence where it lands*. The five worked examples now in the tree, two from the repairs above and
+three from sibling entries in this document:
+
+- **off a display list** — `tests/unit/battle-view.test.ts:3168` opens a real `BattleScene`, halves
+  the key, and reads the drawn size off the display list's texture key (BF-14);
+- **out of a written PNG** — `tests/unit/postprocess-run.test.ts:201` runs the real writer into a temp
+  root and reads the file back, asserting the modal fill is the asset-id hash (BF-25);
+- **through a real CLI child process** — `tests/unit/postprocess-run.test.ts:67-106` runs the actual
+  command with `execFile` and asserts the exit code a human would get (BF-6);
+- **through the shipped tint call** — `tests/unit/balance-inv3.test.ts:264` retunes a hue in a copy
+  and asserts the 24-bit value handed to `setTint` moves (BF-13);
+- **through `update`** — `tests/unit/balance-inv3.test.ts:480` retunes a copy and asserts the player
+  walks faster (BF-16).
+
+#### The pattern is not closed — a fourth instance is already in the tree
+
+Recorded so nobody reads the three above as an exhaustive list. `docs/DEVIATIONS.md` **D-BAL-3**
+self-reports that `tools/harness/fixture.ts:142` and `:144` are **bound by no test — reverting them
+leaves the suite green** — because the fixture's only test caller runs at `r4`, where the repair is a
+provable no-op. It is the same family, found in a different commit, and it was caught by the same
+question: *what does the green prove?* Ask it of every knob this document sends anyone to move.
 
 ---
 
@@ -388,7 +491,12 @@ ways, and all three are present here:
    mean opposite things. Added a test of all four branches. **RED/GREEN:** collapsing
    `opts.caught === undefined ? … : opts.caught` to `opts.caught ?? …` fails it.
 
-##### REAL DEFECTS THE SWEEP UNCOVERED — none is fixed here; all are in source this scope may not touch
+##### REAL DEFECTS THE SWEEP UNCOVERED — none was fixed here; all were in source this scope may not touch
+
+> **Heading corrected 2026-08-26.** It used to read *"none is fixed here"*, present tense, which
+> stopped being true of the tree once D-SWEEP-2 and D-SWEEP-3 closed. The sentence was accurate about
+> **this sweep's own scope** and is kept in that sense: none of these was fixed *by the sweep*. Their
+> current state is on each bullet.
 
 - **D-SWEEP-1 · `G7` is not enforced anywhere repo-wide, and was not before this change.** It is a
   fail-the-task guardrail (*"NO moralising copy about catching, anywhere, in any string"*) and
@@ -397,15 +505,42 @@ ways, and all three are present here:
   **the right home is the gates file**, alongside `no_magic_numbers` and the `Math.random` ban, and it
   should cover `data/*.json` copy too — which item 5 deliberately does not, because dialogue copy is
   Hank's ruling (G2). Owner: whoever next holds `tests/gates/guardrails.test.ts`.
+
+  **Status: PARTIALLY RESOLVED 2026-08-26 — and its stated expiry condition has NOW BEEN MET.** The
+  gate exists and it is a real one: `tests/gates/guardrails.test.ts:745` `COPY_SCAN_DIRS =
+  ["game","core"]`, the rule at `:875-933`, with a known-bad positive control (`:895`), a **per-file**
+  control that smuggles a moralizing line into a copy of *every* guarded file so no file can be
+  silently skipped (`:903`), a not-over-broad negative control (`:899`), and an anti-vacuity check
+  (`:876`). It moved to the right home, as this bullet asked.
+  **What is still open is the deliberate half.** The gate covers `game/` + `core/` only, and its own
+  header at `:709-723` carries a *"⚠ READ THE SCOPE BEFORE TRUSTING THIS GREEN"* block deferring
+  `data/**` and saying *"the next holder of this file should widen `COPY_SCAN_DIRS` to `data/` once
+  that rewrite has landed."* **That rewrite landed in commit `94111b1`, the very next commit** —
+  `feat(story): land the rewritten dialogue corpus`. So the precondition is met and nobody has acted
+  on it: `data/dialogue.json` — where, in the gate's own words, the overwhelming majority of the
+  player-facing copy actually lives — is still covered only by the lane-scoped tripwire in
+  `tests/unit/dialogue.test.ts` §8. **The widening is the named open remainder of this finding.**
 - **D-SWEEP-2 · `SurveyScene.setStates` and `SurveyScene.webLines` are dead public API.**
   `grep -rn "setStates\|webLines" game/ core/ tests/` returns their declarations **and nothing else**.
   `webLines`'s own doc says it exists "in a form a test can assert" and no test asserts it — and it is
   the only other caller of `renderWebEdge`, the symbol whose deadness §13 was written about. Pinned by
   the census in item 8, so a third one fails immediately. Fix is in `game/scenes/SurveyScene.ts`:
   wire them or delete them, then shorten the pinned list.
+
+  **Status: RESOLVED 2026-08-26 — by deletion, which was the second of the two options offered.**
+  `game/scenes/SurveyScene.ts:167-175` and `:346-354` are tombstone comments where `setStates` and
+  `webLines` were, and the now-unused `renderWebEdge` import went with them. Bound by
+  `tests/unit/survey-view.test.ts:2167`, a census asserting that `"setStates("`, `"webLines("` and
+  `"renderWebEdge"` are **all absent from the scene source** — so the other option is closed too:
+  re-adding a caller instead of deleting also fails it. The dead API cannot come back in either
+  direction without turning a test red.
 - **D-SWEEP-3 · BF-4 is confirmed live and now measured through the real roll**, not inferred: ~90 %
   of unlocked-Ancient encounters are J or A. See item 4 for the per-line numbers. Unchanged verdict,
   first hard evidence.
+
+  **Status: RESOLVED 2026-08-26 — this is BF-4, and BF-4 is closed.** The clamp is at
+  `game/encounters.ts:198-199`; see BF-4's resolution block. The measurement above is the *pre-fix*
+  distribution and is kept as the record of what was happening.
 - **D-SWEEP-4 · `game/quests.ts` fails `no_shadow_tables`.** Landing from the concurrent Q7/Q3b
   stream while this sweep ran: `npx vitest run` reports
   `game/quests.ts names "Webvern" — content belongs in data/, not in code (G2/G3)`
@@ -435,7 +570,12 @@ ways, and all three are present here:
 **Scope:** `game/encounters.ts` (preferred) or `tools/comfy/manifest.json`; plus
 `tests/unit/battle-view.test.ts`
 **Reported by:** C3 repair (blocker #0, logged C3-G8) and the integrator (blocker #7)
-**Status: STILL PRESENT**
+**Status: RESOLVED 2026-08-26.** `game/encounters.ts:198-199` clamps Ancients to `"E"` **while still
+consuming `rollAge`'s draw**, so constraint 1 — the seed-replay contract — is preserved rather than
+traded away, and the measurement is recorded in-comment at `:190-197`. Constraint 3 was met too: the
+blind spot is now covered by a test that asks the encounter path instead of restating the invariant.
+The diagnosis below is left verbatim as the record; the resolution block at the end of the entry
+carries the evidence and one stale comment it left behind.
 
 ```
 game/encounters.ts
@@ -468,6 +608,32 @@ must uphold it.**
    change required.**
 3. Fixing this without also making `battle-view.test.ts:1706-1716` derive its set from the encounter
    path leaves the same blind spot.
+
+#### RESOLUTION — clamped without changing draw order, and the blind spot is closed from the roll side
+
+**Status: RESOLVED 2026-08-26.** All three of the fixer's constraints were respected, and the third
+one — the easiest to skip, because the code is already correct without it — was not skipped.
+
+- **The clamp.** `game/encounters.ts:198-199` forces `"E"` for Ancient lines. `rollAge` is still
+  *called* and its draw still consumed; the result is overridden afterwards. The seed-replay contract
+  at `:190-197` holds, and the measurement behind it is written in-comment there rather than left in
+  a report.
+- **The behavioural witness.** `tests/unit/encounters.test.ts:264` drives the real `rollEncounterAt`.
+  This is the test D-SWEEP-3 wrote in its OPEN-GAP form, now inverted by the fix landing — the same
+  file, asking the same question, with the answer changed by production and not by the assertion.
+- **The blind spot (constraint 3).** `tests/unit/battle-view.test.ts:1826` no longer derives "the keys
+  the running game can ask for" from the invariant. It **asks the roll, subtracts the manifest, and
+  requires `missing` to be empty** — so if the clamp is ever removed, the twelve unmanifested
+  `(line, age, facing)` keys reappear as a failure instead of being certified absent by the very
+  invariant they violate.
+
+> ⚠ **A now-FALSE comment survives at `tests/unit/battle-view.test.ts:1786-1791` — open work for
+> whoever owns that file.** It claims the test *"is green today while `rollEncounterAt` fields
+> Ancients at J and A"* and that the next test *"goes red when the clamp lands"*. **Both clauses are
+> false now**: the clamp landed, Ancients are not fielded at J or A, and the next test did not go red
+> because it was rewritten in the same change. The code fix is solid and this is only a comment — but
+> it is a comment that tells a reader the defect is still live, which is the exact failure mode
+> **BF-3** was written about, surviving inside BF-3's own sweep territory.
 
 ---
 
@@ -578,7 +744,15 @@ still execute, then those directories were restored byte-for-byte.
 
 ### BF-6 · `tools/postprocess/run.ts` exits 0 on a mistyped filter
 **Scope:** `tools/postprocess/run.ts` · **Reported by:** Lane B repair (blocker #2), integrator (#7)
-**Status: STILL PRESENT** — reproduced live through the real CLI.
+**Status: RESOLVED 2026-08-26.** `tools/postprocess/run.ts:116` calls `assertFiltersMatch` (import at
+`:30`), so the twin now guards the way `comfy-batch.ts` always did — **and the repair went one step
+past the fix as written**: `:122-125` additionally catches the filter-**COMBINATION** case
+`assertFiltersMatch` structurally cannot see, because it validates each filter alone and a `--class`
+and an `--id` that are each individually real can still select nothing together. Bound by
+`tests/unit/postprocess-run.test.ts:67-106`, which runs **the real CLI as a child process** through
+`execFile` and asserts a non-zero exit plus the *"Did you mean creature-battle"* hint — the same
+defect the entry reproduced live is now reproduced live by the suite. The diagnosis below is left
+verbatim as the record of what was wrong.
 
 ```
 $ npx tsx tools/postprocess/run.ts --class=creature-batle --no-atlas
@@ -608,7 +782,21 @@ line 103 with the same optional-spread shape used at `comfy-batch.ts:1747`. One 
 
 ### BF-7 · `textureFor` falls back to a stand-in silently
 **Scope:** `game/placeholder.ts` (+ a dev-gate in `tests/unit/game-placeholder.test.ts`)
-**Reported by:** C3 repair (blocker #1), integrator (#7) · **Status: STILL PRESENT**
+**Reported by:** C3 repair (blocker #1), integrator (#7)
+**Status: RESOLVED 2026-08-26.** The silence is gone: `game/placeholder.ts:704-708` keeps a dedup
+census keyed by asset key with warnings **opt-in** (API at `:678`, `:683`, `:691`), and the running
+game turns them on at `game/main.ts:92` `warnOnStandIns(true)`. Bound by
+`tests/unit/game-placeholder.test.ts:521-560`, which asserts both halves — that the census records,
+**and that it is silent by default**. That second assertion is the entry's own caveat answered: the
+two deliberately-absent-key calls at `tests/unit/game-placeholder.test.ts:446-453` stay quiet because
+the warnings are opt-in, rather than because someone remembered to dev-gate them. **BF-4 closed in
+the same commit** (`8953061`), which is the order this entry argued for. The diagnosis below is left
+verbatim as the record.
+
+> ⚠ **A now-false comment survives at `game/placeholder.ts:669`** — it says *"`game/boot.ts` turns
+> warnings on for the running game"*. It is **`game/main.ts:92`**. `boot.ts` exists and is a
+> plausible-looking place to look, so this sends the next reader to the wrong file and they find
+> nothing. Minor, real, and open.
 
 ```ts
 game/placeholder.ts
@@ -703,7 +891,15 @@ that these are open gaps with honest view-layer workarounds rather than recomput
 
 ### BF-11 · No `lifecycle` subsystem RNG tag ⚠ CONCURRENT
 **Scope:** `data/balance.json` + `core/types.ts` `Balance` + `core/schemas.ts` `zBalance` (one change)
-**Reported by:** C56 repair (#3, C56-D10), C2, integrator (#6) · **Status: STILL PRESENT**
+**Reported by:** C56 repair (#3, C56-D10), C2, integrator (#6)
+**Status: RESOLVED 2026-08-26.** The tag exists and the heir stream is derived from it rather than
+spelled out: `core/lifecycle.ts:191` `LIFECYCLE_STREAM` and `:212-217` `heirStreamKey`, which
+**throws if the tag is absent** instead of quietly falling back, with the shipped consumer at
+`game/scenes/OverworldScene.ts:1922`. The INV-3 three-file change is complete —
+`data/balance.json:352`, `core/types.ts:1073`, `core/schemas.ts:671`. *(The ⚠ CONCURRENT tag on the
+heading has expired: that workflow landed.)* The diagnosis below is left verbatim as the record; the
+resolution block at the end of the entry carries the evidence **and the near-miss**, which is the
+second of the three cases §1.1 is written about.
 
 `data/balance.json` → `"subsystemTags": ["battle", "sim", "encounter"]`.
 `game/scenes/OverworldScene.ts:966` derives the heir stream instead:
@@ -712,6 +908,32 @@ const heirStream = subsystemRng(this.save.seed, `${SIM_STREAM}:heir:y${String(en
 ```
 with the note at `:951` *"THERE IS NO 'lifecycle' SUBSYSTEM STREAM."* Interacts with BF-12's replay
 rng. **Must be a 3-file INV-3 change** — see the `zBalance` note under §5.
+
+#### RESOLUTION — the tag is real, and the two tests that would have kept the old name are gone
+
+**Status: RESOLVED 2026-08-26.** `core/lifecycle.ts:191` declares `LIFECYCLE_STREAM` and `:212-217`
+`heirStreamKey` builds the stream key from it, **throwing if the tag is absent from the balance
+file** — a missing tag is a crash, not a silent reversion to the derived `sim:heir:y…` spelling.
+`game/scenes/OverworldScene.ts:1922` is the consumer. Data at `data/balance.json:352`, type at
+`core/types.ts:1073`, schema at `core/schemas.ts:671`; the §5 `zBalance` rule was respected.
+
+**What binds it, and why the second test matters more than the first:**
+
+- `tests/unit/balance-inv3.test.ts:172-178` drives `heirStreamKey`, and `:120` establishes — by
+  measurement, with a positive control — that **appending the tag moved no existing stream**. A new
+  subsystem tag is exactly the kind of change that silently re-keys every other stream and invalidates
+  every recorded fixture; that was checked rather than assumed.
+- `:192-232` is a **repo-wide sweep forbidding anyone from hand-spelling the key**. That is the rule
+  that actually holds, because the defect this entry is really about was never the missing tag.
+
+> ⚠ **The near-miss, recorded because it is the reason §1.1 exists.** Production was moved onto the
+> tag correctly and **nothing bound it**, while two replay harnesses kept a hard-coded copy of the
+> **old** stream name — `tests/unit/year-turn-ux.test.ts` and, far more seriously,
+> `tests/integration/demo-beats.test.ts`, **the Legacy beat**. Both stayed green while replaying a
+> stream the game had stopped opening. `heirStreamKey` did not exist before this repair, so there was
+> no single spelling for a test to share with the game; each side had its own literal and they had
+> quietly stopped agreeing. This is the same shape as **BF-14** and **BF-25** with the stale copy on
+> the *other* side of the boundary — the tests, not the production path.
 
 ---
 
@@ -752,7 +974,14 @@ per year turn (`OverworldScene.ts:966`).
 
 ### BF-13 · No `balance.seasonTint` group — season hues are provisional
 **Scope:** `data/balance.json` ⚠ CONCURRENT + `core/types.ts` + `core/schemas.ts`; consumer `game/season-tint.ts`
-**Reported by:** C5/C6 build (#0). Logged as blocker 1 in `docs/DEVIATIONS-lane-c56.md`. · **STILL PRESENT**
+**Reported by:** C5/C6 build (#0). Logged as blocker 1 in `docs/DEVIATIONS-lane-c56.md`.
+**Status: RESOLVED 2026-08-26.** The group exists across all three files and the season hues are no
+longer provisional — `game/season-tint.ts:122-128` `seasonTintTable(balance)` reads
+`balance.seasonTint` and reports `provisional: false`. The part that makes it real rather than
+decorative: it is the **default argument** at `:304`, `:344` and `:353`, and the shipped callers pass
+no table at all (`game/scenes/YearTurnScene.ts:469` and `:888`), so the data is what the game tints
+with. *(The ⚠ CONCURRENT tag on the scope line has expired: that workflow landed.)* The diagnosis
+below is left verbatim as the record; evidence in the resolution block at the end of the entry.
 ```ts
 game/season-tint.ts:117-121
 export const PROVISIONAL_SEASON_TINTS: SeasonTintTable = {
@@ -765,8 +994,31 @@ export const PROVISIONAL_SEASON_TINTS: SeasonTintTable = {
 three.** Default at three call sites (`:270, :310, :319`); `console.warn` at `:162` still fires. The
 *magnitudes* (`audio.seasonBrightness`, `audio.yearDarkenPerYear`) already are data and are read.
 
+#### RESOLUTION — the data is the default, and the test reads the tint back off `setTint`
+
+**Status: RESOLVED 2026-08-26.** The INV-3 three-file change is complete —
+`data/balance.json:319-325`, `core/types.ts:1045`, `core/schemas.ts:626` — and, unusually for this
+class, the consumer was moved onto it in the same breath rather than left with a literal:
+`game/season-tint.ts:122-128` `seasonTintTable(balance)` returns the table with `provisional: false`,
+and it is the **default argument** at `:304`, `:344` and `:353`. Both shipped callers
+(`game/scenes/YearTurnScene.ts:469`, `:888`) pass nothing, so the default is the live path and not a
+fallback nobody reaches.
+
+**What binds it:** `tests/unit/balance-inv3.test.ts:264` retunes a hue **in a copy** of the balance
+file and asserts the **24-bit value handed to `setTint`** moves — through the shipped
+`applySeasonTint`, not through a re-implementation of the colour maths. A companion check at `:294`
+refuses an all-zero preset at validation time, so the data cannot be blanked into a silent no-op.
+This is the pattern §1.1 recommends, and it is worth noting it was applied here first.
+
 ### BF-14 · No `balance.map.battleSpritePx` / `miniSpritePx`
-**Scope:** as above; consumer `game/ui/BattleLayout.ts` · **Reported by:** B1 build (#3) · **STILL PRESENT**
+**Scope:** as above; consumer `game/ui/BattleLayout.ts` · **Reported by:** B1 build (#3)
+**Status: PARTIALLY RESOLVED 2026-08-26 — the `battleSpritePx` half is genuinely wired; the
+`miniSpritePx` half has NO production reader.** Both names now exist in `data/balance.json:290-291`,
+`core/types.ts:1009-1011` and `core/schemas.ts:565-566`, so the INV-3 three-file change was made
+correctly — but a key existing is not a key being read, and only one of the two reaches shipped code.
+This entry is **not closed.** The diagnosis below is left verbatim as the record; the split is
+detailed in the resolution block at the end of the entry, and the shape of the first repair attempt
+is the reason §1.1 exists.
 Current `balance.map` keys: `virtualWidth, virtualHeight, mapNativePx, mapRenderScale,
 collisionCellPx, collisionCols, collisionRows, playerSpriteW, playerSpriteH, tileStepPx,
 propInteractionRadiusDefault`. Repo-wide grep for the two names returns **exactly one hit — the
@@ -774,9 +1026,53 @@ manifest asking for them** (`tools/comfy/manifest.json:36`). Consequence:
 `game/ui/BattleLayout.ts:92-93` `const SPRITE_W = 96; const SPRITE_H = 96;` are code literals with
 their reason written beside them.
 
+#### RESOLUTION — one half wired through the drawer, one half read by nothing that ships
+
+**Status: PARTIALLY RESOLVED 2026-08-26.**
+
+**`battleSpritePx` — wired, and wired at the point that draws.** `game/ui/BattleHud.ts:240-241`
+`defaultCardStyle()` resolves `battleSpritePx(balance)` and `:249` is `DEFAULT_CARD_STYLE`;
+`game/scenes/BattleScene.ts:183` and `game/ui/BattleLayout.ts:151` come off the same value.
+**Zero `96` literals remain** anywhere on the path — every surviving hit in the repo is a comment.
+Bound by `tests/unit/battle-view.test.ts:3168`, which opens a **real `BattleScene`**, halves the key
+in a copy of the balance file, and reads the drawn size back off the display list's texture key. That
+is the shape that binds: the number is observed where it is drawn, not where it is computed.
+
+**⚠ `miniSpritePx` — NO production reader.** Repo-wide, the key is read by exactly one thing:
+`tests/unit/balance-inv3.test.ts:387-388`, which binds it to `tools/comfy/manifest.json`'s
+`overworld-mini.targetW`/`targetH`. **The value reaches the art pipeline through a test-enforced
+data-to-data link, not through code.** That is a real and deliberate instrument — it will go red if
+the manifest and the balance file drift apart — but it is not the same claim as "the game reads it",
+and this entry should not be closed as though both halves were done. Retuning `miniSpritePx` changes
+nothing that runs; it changes what the manifest is allowed to say.
+
+> ⚠ **A now-false comment survives at `tests/unit/manifest.test.ts:637`** — *"The two §9.3 art-only
+> sizes have no balance home; they are pinned here so a drift is visible"* — with `:638-639`
+> asserting `96` and `32` as bare literals directly beneath it. **They do have a balance home now.**
+> `tools/comfy/manifest.json:40` carries the matching stale text (*"Raised for Lane A:
+> `balance.map.battleSpritePx` and `balance.map.miniSpritePx` would close it"*). This is the same
+> class of defect as **BF-19** — a comment left asserting the absence of a thing that has since
+> arrived — and it is open in a file this repair did not own.
+
 ### BF-15 · No `balance.overlayDiff.driftFootprintCells`
 **Scope:** as above; consumer `tools/overlay-diff/config.ts` · **Reported by:** Lane B repair (#0);
-predicted by B-D25 · **STILL PRESENT**
+predicted by B-D25
+**Status: RESOLVED 2026-08-26.** `tools/overlay-diff/config.ts:45-48` now reads
+`overlayDiff.driftFootprintCells`, and both production callers go through it —
+`tools/overlay-diff/run.ts:87` and `tools/comfy/comfy-batch.ts:1222`. It **shipped at the derived
+value (2 × 3), which makes the move a provable no-op**: nothing about the current criterion changed,
+only who owns the number, so B-D25's prediction can now be answered by a retune instead of a code
+edit. Bound by `tests/unit/balance-inv3.test.ts:405`, `:420` and `:436`, the last of which holds the
+floor at the player's own footprint so the key cannot be tuned below what the player occupies. The
+diagnosis below is left verbatim as the record.
+
+> ⚠ **A now-false doc comment survives and was not swept — open work, in a file this repair owned.**
+> `tools/overlay-diff/diff.ts:129-131` still documents the `driftFootprint` field as *"Derived from
+> `balance.map` by `overlayDiffConfig()`"*. It is **not** derived any more; it is read from the
+> balance key, and the player's footprint is only the enforced floor. `config.ts:36-44` was updated
+> correctly; this second site was missed. Behaviour is right, the comment is wrong, and the next
+> reader of `diff.ts` will conclude the key does not exist.
+
 Current `balance.overlayDiff` keys: `iouThreshold, sobelThreshold, dilatePx, denoiseStart,
 denoiseStep, denoiseFloor, maxRegenAttempts`. The limit is derived, so **INV-3 cannot reach it**:
 ```ts
@@ -791,7 +1087,16 @@ export function driftFootprint(balance?: Balance): CellFootprint {
 criterion is too tight (see BF-26), this is the blocker on responding.
 
 ### BF-16 · No walk-pace key ⚠ CONCURRENT
-**Scope:** as above; consumer `game/movement.ts` · **Reported by:** C2 build (#2) · **STILL PRESENT**
+**Scope:** as above; consumer `game/movement.ts` · **Reported by:** C2 build (#2)
+**Status: RESOLVED 2026-08-26.** The key exists and the shipped walk reads it:
+`game/movement.ts:111` is now `movementConfig(balance, msPerTile = balance.map.walkMsPerTile)`, and
+`DEFAULT_MS_PER_TILE` is **gone** rather than merely unused. The default is the path the game
+actually takes — `game/scenes/OverworldScene.ts:413` passes `this.msPerTile`, which is
+`number | undefined` (`:303`), so the balance value is what walks. Bound by
+`tests/unit/balance-inv3.test.ts:453`, `:463` and `:480`, the last of which retunes a **copy** of the
+balance file and asserts the player actually walks faster through `update` — not that a helper
+returns a different number. *(The ⚠ CONCURRENT tag on the heading has expired: that workflow landed.)*
+The diagnosis below is left verbatim as the record.
 `grep -oiE '"[a-z]*(walk|pace|speed|movement|msPerTile)[a-z]*"' data/balance.json` → zero hits.
 `game/movement.ts:104` `const DEFAULT_MS_PER_TILE = 160;` (flagged in that file at `:26-29`).
 
@@ -843,7 +1148,16 @@ stale on arrival.
 
 ### BF-18 · 33 inlined non-swatch hex literals still ship in 7 files
 **Scope:** the seven files below, plus their lanes' engine-free modules
-**Reported by:** C1 repair (#4), C3 build (#4), integrator (#7) · **STILL PRESENT**
+**Reported by:** C1 repair (#4), C3 build (#4), integrator (#7)
+**Status: PARTIALLY RESOLVED 2026-08-26 — 5 of 7 files fixed, and the finding GREW by four files it
+never listed. Do not read this as closed.** The five fixed files hold **0** hex literals each and the
+first three moved their ids into the engine-free `game/survey-view.ts` exactly as the fix note
+prescribed; `game/scenes/YearTurnScene.ts` and `game/scenes/OverworldScene.ts` are untouched, and
+`game/boot.ts`, `game/mapview.ts`, `game/placeholder.ts` and `game/scenes/DialogueScene.ts` were
+found to carry 13 more between them. **The old blocking reason has expired** — §8 blocked the last
+two files on the concurrent time-model workflow, and that workflow has landed; they are now simply
+open work with no owner. The diagnosis below is left verbatim as the record; the remainder is
+enumerated in the resolution block at the end of this entry.
 
 `data/palette.json` is `"frozen": true, "frozenAt": "2026-08-25"`, 32 swatches `c00`–`c31`. **Every
 one of the 33 literals below was checked against those 32 hexes; not one is a swatch.** None of the
@@ -879,11 +1193,64 @@ already exist per lane: `game/survey-view.ts` serves Dex/Survey/Summary (it alre
   `data/` being broken, and `Palette.ts` resolves `palette.json` at module scope, so making it
   palette-dependent would re-create the silent-black-page failure the watchdog exists to prevent.
 
+#### RESOLUTION — 5 of 7 done; the entry also grew, and the ban is now real independently of the fix
+
+**Status: PARTIALLY RESOLVED 2026-08-26.** Three things happened and they need to be read separately:
+five files were fixed, four unlisted files were discovered, and a repo-wide scan landed that makes
+the rule enforceable whatever anyone does to the remainder.
+
+**FIXED — 0 hex literals remaining, each a tombstone comment where the block was:**
+
+| file | line | where the ids went |
+|---|---|---|
+| `game/scenes/DexScene.ts` | `:66` | `game/survey-view.ts` — `SCREEN_SWATCH_ID` / `SCREEN_HEX` / `SCREEN_COLOR` |
+| `game/scenes/SurveyScene.ts` | `:93` | same |
+| `game/scenes/SummaryScene.ts` | `:54` | same |
+| `game/scenes/RetirementScene.ts` | `:911-912` | in-lane |
+| `game/ui/SeasonMeter.ts` | `:245-246` | in-lane |
+
+The first three landed in the engine-free module **exactly as the fix note prescribed**, so a node
+test can assert every id is a real swatch without touching Phaser. Bound by
+`tests/unit/survey-view.test.ts:2365`, `:2394`, `:2414`.
+
+**NOT FIXED — still shipping:**
+
+- `game/scenes/YearTurnScene.ts:814-816` — 3 literals (`0x101317`, `"#e8e4c9"`, `"#7d8478"`).
+- `game/scenes/OverworldScene.ts:2284-2293` — 4 literals.
+- `game/scenes/BootScene.ts:36-40` keeps its 5, and **that is correct** — the C1-D10 permanent
+  exception, honoured deliberately, not overlooked.
+
+**⚠ THE FINDING GREW — four files this entry never listed, 13 more literals.** `game/boot.ts` (4),
+`game/mapview.ts` (1), `game/placeholder.ts` (4), `game/scenes/DialogueScene.ts` (4), enumerated at
+`tests/unit/survey-view.test.ts:2544-2552`. `boot.ts` probably shares BootScene's C1-D10 exemption —
+it is the same watchdog path — but that has not been ruled, and the other three are unowned work.
+**The entry's original count of 33 in 7 files was an undercount of the class, not of the files it
+named.**
+
+**The ban is now real, not just the fix.** `tests/unit/survey-view.test.ts:2530` walks **every** `.ts`
+under `game/` and fails on any non-swatch hex outside a named ceiling — so this is no longer a list
+somebody has to remember to extend. Two properties of that scan matter:
+
+- The `EXEMPT` map at `:2554-2562` pins `OverworldScene: 4` and `YearTurnScene: 3` at their **current
+  debt** with `toBeLessThanOrEqual`, so the remainder is a ratchet: it can be paid down, it cannot
+  grow. Whoever fixes those two files must lower the ceiling in the same change.
+- The five fixed files are **named** at `:2586-2593`, so *"it passed"* cannot quietly mean *"the scan
+  did not look at them"*. That is the same instrument this document keeps asking for and it is worth
+  copying.
+
 ---
 
 ### BF-19 · A comment and its mirrored test comment now assert something false
 **Scope:** `game/menu-model.ts`, `tests/unit/game-menu-model.test.ts`
-**Reported by:** C3 repair (#2) — *"caused by my fix"* · **STILL PRESENT, and false on both clauses**
+**Reported by:** C3 repair (#2) — *"caused by my fix"*
+**Status: RESOLVED 2026-08-26.** `game/menu-model.ts:41-53` was **rewritten, not deleted**, exactly as
+the fix required, and now states the true reason the two tables are separate: `text` is `c18` in
+**both**, so that was never the difference — they differ on **ground** (`c05` plate versus `c00`
+void) and on four roles `UI_SWATCH` does not carry. The mirrored test comment went with it, and
+`tests/unit/game-menu-model.test.ts:281` binds the claim by **reading both tables out of
+`Palette.ts`** instead of restating a swatch id, so the comment cannot go stale again the next time a
+role is repurposed. The diagnosis below is left verbatim as the record of what the comments used to
+claim.
 ```
 game/menu-model.ts:41-43
  * 11.0 : 1 (ok). `game/ui/Palette.ts`'s `UI_SWATCH` is deliberately NOT reused: its roles are tuned
@@ -907,7 +1274,15 @@ are computed live by the test at `:258+`, so they are self-verifying and need no
 ### BF-20 · Lane B's deviations are staged in a manifest and never merged
 **Scope:** `tools/comfy/manifest.json`, `docs/DEVIATIONS-lane-b.md`, `docs/DEVIATIONS.md`,
 `tools/comfy/README.md`
-**Reported by:** B1 build (#6), Lane B repair (#4) · **STILL PRESENT — worse than reported**
+**Reported by:** B1 build (#6), Lane B repair (#4)
+**Status: RESOLVED 2026-08-26 — but by a DIFFERENT route than this entry specified, and the
+difference is on correction #2.** The nine staged deviations were merged and renumbered
+(`mergedAs: B-D54`…`B-D62`, not the `B-D50`…`B-D58` predicted here — the range had moved). The
+duplicated `B-D18`…`B-D25` ids that correction #2 demanded be **renumbered were not renumbered**;
+`docs/DEVIATIONS.md` **B-D63** instead records the duplication as a defect and mandates qualified
+citation. That is a defensible, reasoned decision taken in-tree, and it is not the fix this entry
+asked for — see the resolution block at the end of the entry. The diagnosis below is left verbatim as
+the record.
 
 `tools/comfy/manifest.json:13-68` still carries **nine** (not eight) `_deviations` with `LB-M` ids
 (`LB-M1`…`LB-M9`), with `_deviationsNote` at `:69`.
@@ -926,11 +1301,54 @@ Three corrections to the original blocker:
 `tools/comfy/README.md:52` also references `manifest._deviations` **LB-M9** and needs updating with
 the renumber.
 
+#### RESOLUTION — corrections #1 and #3 applied as written; **correction #2 was answered, not performed**
+
+**Status: RESOLVED 2026-08-26.** Two of the three corrections landed the way this entry specified.
+The third did not, and the distinction is recorded here rather than smoothed over, because a reader
+who trusts the entry will otherwise expect ids that do not exist.
+
+**Done as specified:**
+
+- **The merge (correction #3).** `tools/comfy/manifest.json` now carries `mergedAs:` on all nine
+  staged rows — `B-D54`…`B-D62` at `:16, :23, :30, :37, :44, :51, :58, :65, :72` — and
+  `_deviationsNote` at `:78` marks them MERGED and names `docs/DEVIATIONS.md` canonical. The manifest
+  is no longer a second deviations register.
+- **The renumber (correction #1), at a different range.** The target is `B-D54`…`B-D62`, **not** the
+  `B-D50`…`B-D58` this entry predicted: `B-D50` had already been consumed closing BF-5, and the
+  lane-b file had grown past `B-D49` in between. `tools/comfy/README.md:52` is renumbered to `B-D62`.
+  The entry's arithmetic was right when it was written and wrong by the time it was used — which is
+  the ordinary hazard of pinning a next-free id in a document rather than reading it at merge time.
+
+**NOT done as specified — correction #2.** This entry required the duplicated `B-D18`…`B-D25` ids to
+be **renumbered** so the merged file could not carry two rows per id. They were **not renumbered.**
+Instead:
+
+- `docs/DEVIATIONS.md` **B-D63** records the duplication as *"a defect recorded, not repaired"* and
+  mandates qualified citation — `B-D18@views`, `B-D23@palette` — for every future reference;
+- `docs/DEVIATIONS-lane-b.md:238-262` carries the disambiguation table the convention needs.
+
+**Say plainly what that means.** The collision this entry called *"must be resolved in the same pass
+or the merged file carries two rows per id"* is still in the file; what changed is that it is now
+declared, indexed, and citable without ambiguity. That is a real answer and it is reasoned in-tree —
+renumbering a published id breaks every existing citation, which is a cost this entry did not price.
+It is also, unambiguously, **a different resolution from the one specified**, and anyone who reads
+correction #2 and goes looking for renumbered ids will not find them.
+
 ---
 
 ### BF-21 · Stale "not yet built" / "UNVERIFIED" text, one of it in a runtime error message
 **Scope:** `tools/comfy/README.md`, `tools/comfy/img2img.ts`
-**Reported by:** Lane B repair (#5) · **STILL PRESENT**
+**Reported by:** Lane B repair (#5)
+**Status: RESOLVED 2026-08-26 — as a DOCUMENTATION change, not a code fix, and it must be read that
+way.** `tools/comfy/README.md:54` is retitled *"Built and executed — but NOT approved for the two uses
+build-doc asks for"*, and `tools/comfy/img2img.ts:8`, `:26-33` and the runtime message a human reads
+at `:147` now say the endpoint is **verified** (B-D18) instead of contradicting the file's own header.
+The fix's two refusals were both honoured: `manifest.json:775` `"trialled": false` was **left alone**
+(with `_enforcement` at `:777`) because B-D19 established a limit and not an approval, and item 3 is
+honestly kept STILL UNVERIFIED at `img2img.ts:34`. **Nothing executable changed, and the only thing
+binding any of it is `tests/unit/manifest.test.ts`'s README-quotation sweep** — there is no
+behavioural test here, because there is no behaviour. The diagnosis below is left verbatim as the
+record of what the text used to say.
 
 ```
 tools/comfy/README.md:54-61
@@ -1013,7 +1431,13 @@ longer blocked on it. Note that the at-game-size evidence committed under
 re-run `tools/palette/at-game-size-compare.mjs` before reading it as a comparison.
 
 ### BF-25 · Two placeholder helpers, each documented as "the one"
-**Reported by:** B1 build (#8) · **STILL PRESENT — and recorded in no doc until now**
+**Reported by:** B1 build (#8)
+**Status: RESOLVED 2026-08-26.** The id/label convention — the shared surface the fix named, not the
+drawing — is unified: `tools/postprocess/run.ts:93` now derives `placeholderLabel(row.finalFile)` and
+hands it to `makePlaceholder` at `:94`, so a written stand-in and a runtime stand-in hash to the same
+colour, and both headers were rewritten to name the other and say why they are NOT merged. The
+diagnosis below is left verbatim as the record; the resolution block at the end of this entry carries
+the evidence, **and a warning about the shape of the first attempt** that is the reason §1.1 exists.
 ```
 tools/postprocess/placeholder.ts:2  * … the one honest-placeholder helper.
 game/placeholder.ts:2               * … the ONE helper the whole game uses for art that does not exist yet.
@@ -1028,8 +1452,37 @@ boundary:** `tools/postprocess/run.ts:24` imports the tools one while
 exist (offline PNG producer vs runtime canvas drawer). **The shared surface worth unifying is the
 id/label convention, not the drawing** — so that a screenshot and a built asset agree.
 
+#### RESOLUTION — the convention is unified and the WRITER is bound; the two helpers stay separate
+
+**Status: RESOLVED 2026-08-26.** The entry's own reading was right: the merge would have been wrong,
+and it was not attempted.
+
+- **The convention.** `tools/postprocess/run.ts:93` computes `placeholderLabel(row.finalFile)` and
+  passes it into `makePlaceholder` at `:94`. Before the repair the writer passed `row.id` —
+  `battle-fenmaw-e-front` — where the game's runtime `assetId` uses the path form,
+  `creature-battle/battle-fenmaw-e-front`. The block colour is hashed from the label, so **one
+  missing asset had two names and two colours**, and a screenshot never matched the built stand-in.
+- **The two headers were rewritten, not merged.** `tools/postprocess/placeholder.ts:1-28` and
+  `game/placeholder.ts:1-20` each name the other and state why two exist — offline PNG producer on
+  `sharp`/`Raster` versus runtime canvas drawer on Phaser. Neither still claims to be "the one".
+- **The binding test is the load-bearing part.** `tests/unit/postprocess-run.test.ts:201`, titled
+  *"BINDS THE WRITER"*, runs the **real writer into a temp root and reads the PNG back**, asserting
+  the modal fill is the asset-id hash and not the row-id hash. It fails if the writer stops calling
+  the convention, whatever the helpers agree about between themselves.
+
+> ⚠ **Read this before writing a test like the first attempt's.** The repair's original four tests
+> compared **two pure functions, neither of which the writer called** — recorded in the test file's
+> own header at `tests/unit/postprocess-run.test.ts:20-24`: reverting the writer's repair left all
+> four cases green. `placeholderLabel` did not exist before the repair, so the tests were evidence
+> about a brand-new helper and about nothing that ships. This is the third instance of the pattern in
+> §1.1 and the only one where **no balance key was involved at all** — the two authorities here were
+> a naming convention, which shows the shape is not really about `data/balance.json`.
+
 ### BF-26 · overlay-diff's residual is declared in a doc, not in the code or a test
-**Reported by:** Lane B repair (#2) · **DOCUMENTED LIMIT — with one real gap**
+**Reported by:** Lane B repair (#2)
+**Status: RESOLVED 2026-08-26.** The residual now stands in the code beside the positive result and
+is pinned by a characterisation test, exactly as the fix asked. The diagnosis below is left verbatim
+as the record of what was wrong; the evidence is in the resolution block at the end of this entry.
 The limit is honestly stated and measured in `docs/DEVIATIONS-lane-b.md:170` (B-D39): a **32px**
 feature (2×2 cells) displaced one cell still passes at **8 of 25** (map, position) pairs; a **48px**
 feature at **1 of 25**; and the tightest true positive kept has **one pixel of margin** (151 lost
@@ -1050,6 +1503,28 @@ behaviour**. A reader of `tools/overlay-diff/` alone would not learn the limit �
 carries it is the same unmerged lane-b file from **BF-20**.
 **Fix:** restate B-D39's residual in `diff.ts`'s header beside the 25-of-25 claim, and add a
 characterisation test pinning the 32px case so a future retune cannot silently move it.
+
+#### RESOLUTION — the residual is in the code and in a test; the doc is no longer the only holder
+
+**Status: RESOLVED 2026-08-26.** Both halves of the fix landed, and the second one is the part worth
+reading.
+
+- **`tools/overlay-diff/diff.ts:76-86`** now states B-D39's residual *beside* the 25-of-25 claim
+  rather than after it in another file: **32px accepted at 8 of 25** (map, position) pairs, 48px at
+  1 of 25, and the tightest true positive kept at **151 lost against a limit of 150** — one pixel of
+  margin. B-D25's other half is stated next to it: the false-**REJECT** rate on real aged variants is
+  still unmeasured. A reader of `tools/overlay-diff/` alone now learns the limit.
+- **`tests/unit/overlay-diff.test.ts:844`** is the characterisation test. It does not restate the
+  figure — it **re-measures the 32px sweep across all five real maps** and pins `accepted = 8`, so a
+  retune that moves the residual turns it red in either direction. Its own comment says the green is
+  **not** a claim that the residual is acceptable, only that it has not moved unnoticed. That
+  distinction is the whole point of the entry and it survived into the test.
+
+**What this does NOT close:** the residual itself. 32px displacement still passes at 8 of 25, and
+B-D25's false-REJECT half is still unmeasured because the img2img graph has never been run for §9.5.
+This entry asked for the limit to be *declared where the code lives*, and that is what was done —
+see **BF-15**, which is the blocker on responding if a supervised §9.5 run says the criterion is
+wrong.
 
 ### BF-27 · The starter's schedule contradicts bible §4 ⚠ CONCURRENT
 **Reported by:** C56 repair (#0, C56-D11 / D-A4-9) and an auditor · **STILL PRESENT**
@@ -1314,33 +1789,67 @@ publishes an out-of-range `seasonIndex`; `assertCoversSeasonOrder` only throws o
 
 ## 8. Dispatch order
 
-**Clear to dispatch now** (no concurrent owner): ~~BF-3~~ *(RESOLVED 2026-08-25 — the sweep is done;
-its four new findings are D-SWEEP-1…4 on that entry)*, BF-4, ~~BF-5~~ *(RESOLVED 2026-08-25)*,
-BF-6, BF-7, BF-9 *(the `game/`
-half)*, BF-10a–f, BF-12, BF-13 *(consumer)*, BF-14, BF-15, BF-18 *(5 of 7 files)*, BF-19,
-BF-20, BF-21, BF-22, BF-23, BF-24, BF-25, BF-26, BF-30, BF-32, BF-33, BF-34, BF-35, BF-36.
+**Rewritten 2026-08-26, because the old order had become the most misleading thing in this file.**
+It listed twelve entries as "clear to dispatch" that are now closed, and it carried a whole tier
+"blocked on the concurrent time-model workflow" — **that workflow has landed. Nothing in this
+document is blocked on another workflow any more.** The tier is gone rather than emptied, so nobody
+re-derives it. What follows is what is actually left.
 
-**Blocked on the concurrent time-model workflow** — needs `data/balance.json`, `data/dialogue.json`,
-`data/gyms.json`, `core/clock.ts`, `core/lifecycle.ts`, `core/acts.ts`, `game/scenes/OverworldScene.ts`,
-`game/scenes/YearTurnScene.ts`, `game/year-events.ts`, `game/registry.ts` or `tools/harness/**`:
-~~BF-1~~ *(RESOLVED 2026-08-25 — the Lane C7 dialogue runtime shipped; see its resolution block)*,
-~~BF-2~~ *(RESOLVED 2026-08-25 — `winGym` has its caller at `OverworldScene.ts:1392`)*,
-**BF-8, BF-9 *(the harness half)*, BF-11, BF-13 *(the balance half)*, BF-16, BF-17, BF-18
-*(YearTurnScene, OverworldScene)*, BF-27, BF-29**.
+**Closed — do not dispatch, do not re-investigate:** BF-1, BF-2, BF-3, BF-4, BF-5, BF-6, BF-7, BF-11,
+BF-13, BF-15, BF-16, BF-19, BF-20 *(by a different route than the entry specified — read its
+resolution block before assuming the entry's fix was applied)*, BF-21, BF-25, BF-26, and
+**D-SWEEP-2**. Each carries a `Status: RESOLVED` line naming the file:line that proves it and, where
+there was more to say, a `#### RESOLUTION` block. The diagnosis text under each is historical and is
+kept deliberately.
 
-*(BF-17 moved into this list at 07:00 — `tests/gates/guardrails.test.ts` went dirty under that
-workflow after its verification; see the note on that entry.)*
+**Open remainders inside an otherwise-closed entry — dispatch these first.** For each one the
+diagnosis is already done and the boundary is already measured, so nothing has to be re-derived.
+They are also the ones most likely to be *missed*, because the entry above them says RESOLVED.
 
-**Suggested grouping for a repair wave**, by disjoint file scope:
-1. `tools/comfy/**` + `tools/palette/**` + `tools/postprocess/**` — ~~BF-5~~ *(done)*, BF-6, BF-20, BF-21, (BF-22 evidence)
-2. `game/encounters.ts` + `game/placeholder.ts` + `tests/unit/battle-view.test.ts` — **BF-7 then BF-4**
-   *(in that order — BF-7's warning surfaces BF-4 and anything else in its class)*
-3. ~~`tests/integration/seams.test.ts` + `tests/unit/year-turn-ux.test.ts` — BF-3 and its sibling
-   source-list-grep assertions~~ *(DONE 2026-08-25, and it reached nine files, not two)*
-4. `core/types.ts` + `core/battle.ts` + `core/foodweb.ts` + `core/save.ts` — BF-10, BF-12
-5. the five non-concurrent scene files + `game/ui/SeasonMeter.ts` — BF-18
-6. `docs/**` — BF-34, BF-20's merge, BF-26's doc half
+1. **BF-18** — 2 of the 7 original files are unfixed (`game/scenes/YearTurnScene.ts` 3 literals,
+   `game/scenes/OverworldScene.ts` 4) **plus four files the entry never listed** (`game/boot.ts` 4,
+   `game/mapview.ts` 1, `game/placeholder.ts` 4, `game/scenes/DialogueScene.ts` 4), enumerated at
+   `tests/unit/survey-view.test.ts:2544-2552`. `game/scenes/BootScene.ts` stays as it is — C1-D10.
+2. **D-SWEEP-1** — widen `COPY_SCAN_DIRS` in `tests/gates/guardrails.test.ts` to `data/`. **Its own
+   stated precondition has been met**; `data/dialogue.json` is where the copy actually lives and the
+   repo-wide G7 gate still does not read it.
+3. **BF-14** — `miniSpritePx` has no production reader. The value reaches the art pipeline through a
+   test-enforced data-to-data link, not through code.
+4. **The stale-comment residue this wave left behind.** Four now-false comments survive in files the
+   repairs did not own: `tests/unit/battle-view.test.ts:1786-1791`, `game/placeholder.ts:669`,
+   `tools/overlay-diff/diff.ts:129-131`, and `tests/unit/manifest.test.ts:637` together with its
+   twin at `tools/comfy/manifest.json:40`. Each is described on the entry that produced it. None
+   changes behaviour; every one of them sends the next reader to a wrong conclusion, which is the
+   defect class §1.1 is about.
 
-**Whoever takes BF-1 or BF-2 should first re-read §2's warning about `core/acts.ts`.** An edit making
-`actOf` read the calendar year would make both *look* fixed without a badge or a quest flag ever
-existing.
+**Open, untouched by this wave:** BF-8, BF-9, BF-10a–f, BF-12, BF-17, BF-22, BF-23, BF-24, BF-27,
+BF-28, BF-29, BF-30, BF-31, BF-32, BF-33, BF-34, BF-35, BF-36. **Several of these are not agent work
+at all** — BF-24, BF-27 and BF-28 are Hank's or A5's call; BF-23 and BF-29 need authored content;
+BF-31 is a content decision. Do not dispatch those as repairs.
+
+**Suggested grouping for the next wave**, by disjoint file scope. Groups 1, 2, 3, 5 and 6 of the old
+list are done and are not restated:
+
+1. `core/types.ts` + `core/battle.ts` + `core/foodweb.ts` + `core/save.ts` — BF-10, BF-12
+2. `game/scenes/YearTurnScene.ts` + `game/scenes/OverworldScene.ts` + `game/boot.ts` +
+   `game/mapview.ts` + `game/placeholder.ts` + `game/scenes/DialogueScene.ts` + `game/survey-view.ts`
+   — BF-18's remainder. `tests/unit/survey-view.test.ts:2554-2562` pins each file's current debt, so
+   lower the `EXEMPT` ceiling in the same change or the scan stops being a ratchet.
+3. `tests/gates/guardrails.test.ts` — D-SWEEP-1's widening, and BF-17. The workflow that contested
+   this file has landed, so it is dispatchable again; **it rewrote the `MAGIC_NUMBER_ALLOWANCE` row
+   for `core/dialogue-schema.ts`, so re-read the allowance table before editing it** rather than
+   trusting BF-17's transcription.
+4. `game/wild-battle.ts` + `tools/harness/player.ts` — BF-8, BF-9. No longer blocked;
+   `tools/harness/**` has no concurrent owner. ⚠ **BF-8 also needs `game/scenes/OverworldScene.ts`,
+   which group 2 holds — these two groups are NOT disjoint. Run them in series, or split
+   `OverworldScene.ts` to one of them by name before dispatching.**
+5. `docs/**` — BF-34, and BF-20's residual if the `B-D18@views` qualified-citation convention is ever
+   to be replaced by a real renumber.
+6. the four stale comments above — `tests/unit/battle-view.test.ts`, `game/placeholder.ts`,
+   `tools/overlay-diff/diff.ts`, and `tests/unit/manifest.test.ts` with its twin in
+   `tools/comfy/manifest.json`. One file each, no shared state — **except `game/placeholder.ts`,
+   which group 2 also claims.** Fold that one into group 2 rather than dispatching it here.
+
+**§2's warning about `core/acts.ts` still stands, and closing BF-1 and BF-2 did not retire it.** An
+edit making `actOf` read the calendar year would re-couple the act ladder to the clock and make the
+badge gate fictional again — this time with two resolution blocks above it saying the ladder works.
