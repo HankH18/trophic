@@ -25,7 +25,7 @@
  * A successful catch ends the battle with `outcome:"caught"`. This scene does NOT decrement the
  * node's population — `core/battle.ts` deliberately never touches node state (G3: one writer for the
  * single source of truth). It reports `caughtIndividual(state, ctx)` through `onFinished`, and the
- * overworld/ledger lane applies it. See LANE-A-STATUS §6.1.
+ * overworld/survey lane applies it. See LANE-A-STATUS §6.1.
  *
  * ART (build-doc §9.7, gate B0)
  * ─────────────────────────────

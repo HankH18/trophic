@@ -88,7 +88,15 @@ const balanceRaw = readJson("data/balance.json") as {
 };
 const nodeFiles = readdirSync("data/nodes")
   .filter((f) => f.endsWith(".json"))
-  .map((f) => readJson(`data/nodes/${f}`) as { id: string; name: string; props: { id: string }[] });
+  .map(
+    (f) =>
+      readJson(`data/nodes/${f}`) as {
+        id: string;
+        name: string;
+        props: { id: string }[];
+        populations: Record<string, { count: number }>;
+      },
+  );
 
 const NODE_IDS = new Set(nodeFiles.map((n) => n.id));
 const PROP_IDS = new Set(nodeFiles.flatMap((n) => n.props.map((p) => p.id)));
@@ -217,6 +225,45 @@ describe("dialogue schema", () => {
     expectRejected((f) => {
       f.entries.find((x) => (x.when?.population ?? []).length > 0)!.when!.population![0]!.node = "atlantis";
     }, /population condition names unknown node "atlantis"/);
+  });
+
+  /*
+   * THE TWO PERMANENTLY-FALSE CLAUSES THE GLOBAL LINE CHECK LET THROUGH.
+   *
+   * `conditionHolds` reads `ctx.populations[node]?.[lineId]` and is false for ever once that is
+   * `undefined`, so a real line at a node that never carried it is dead corpus — and so is a
+   * threshold above the line's own `carryCap`. Both validated while the check was `LINE_IDS.has`,
+   * which is a REGION-wide set. Neither is a hypothetical: the never-cut finale's
+   * `sanctum.vellsire.approach` gates on `population sanctum/vellsire-line gte 1` against a line
+   * shipped at `count 1, breedRate 0, carryCap 1` — one keystroke off and the beat is unreachable
+   * with every test still green.
+   */
+  it("rejects a population condition reading a line the NODE does not carry", () => {
+    expectRejected((f) => {
+      const p = f.entries.find((x) => (x.when?.population ?? []).length > 0)!.when!.population![0]!;
+      p.node = "hearthollow";
+      p.lineId = "vellsire-line"; // a real line — but never at Hearthollow
+    }, /has no population of that line — the clause can never hold/);
+  });
+
+  it("rejects a population threshold above that line's carryCap at that node", () => {
+    expectRejected((f) => {
+      const p = f.entries.find((x) => (x.when?.population ?? []).length > 0)!.when!.population![0]!;
+      p.node = "sanctum";
+      p.lineId = "vellsire-line";
+      p.op = "gte";
+      p.value = 2; // carryCap is 1
+    }, /is above that line's carryCap 1 — the clause can never hold/);
+  });
+
+  it("still ACCEPTS the finale's own clause — the check refuses only the impossible direction", () => {
+    const f = JSON.parse(JSON.stringify(raw)) as DialogueFile;
+    const p = f.entries.find((x) => (x.when?.population ?? []).length > 0)!.when!.population![0]!;
+    p.node = "sanctum";
+    p.lineId = "vellsire-line";
+    p.op = "gte";
+    p.value = 1; // exactly the carryCap — reachable, and what the corpus ships
+    expect(() => validateDialogueFile(f)).not.toThrow();
   });
 
   it("rejects chainStep without signChain", () => {
@@ -394,8 +441,12 @@ const BIBLE_NAMES = [
   "Sel", // bible §10 — Brackwater ferryman
 ] as const;
 
-/** Quest-NPC given names coined for this file (docs/DIALOGUE-NOTES.md D-1). Capped. */
-const COINED_NPC_NAMES = ["Tolm", "Nessa", "Halder", "Pell", "Gerta", "Ives", "Orrin"] as const;
+/** Quest-NPC given names coined for this file (docs/DIALOGUE-NOTES.md D-1). Capped.
+ *  "Hetty" replaced "Nessa" on 2026-08-25 (DEVIATIONS D-Q2-4): Nessa is the Galar Gym Leader of
+ *  Hulbury, a WATER-type specialist whose father is canonically a fisher — same name, same
+ *  element, same role shape as our Brackwater angler. The SPEAKER ID `nessa` and every
+ *  `nessa.*` entry id deliberately did not move; only the display name did (D-Q4-5). */
+const COINED_NPC_NAMES = ["Tolm", "Hetty", "Halder", "Pell", "Gerta", "Ives", "Orrin"] as const;
 
 /** Capitalised domain nouns that are game vocabulary rather than names. Capped. */
 const DOMAIN_NOUNS = [
@@ -636,7 +687,9 @@ const DIET_CLAIMS: { entry: string; node: string; predator: string; prey: string
   { entry: "maren.crash-survey", node: "r4", predator: "pyrelisk-line", prey: "ashvole-line" },
   { entry: "gerta.quest.crash.done", node: "r4", predator: "pyrelisk-line", prey: "ashvole-line" },
   { entry: "gerta.quest.crash.done", node: "r4", predator: "stonewing-line", prey: "pyrelisk-line" },
+  { entry: "gerta.quest.crash.done", node: "r4", predator: "pyrelisk-line", prey: "cragmar-line" },
   { entry: "sel.quest.wager.accepted", node: "brackwater", predator: "mirefin-line", prey: "reedrick-line" },
+  { entry: "odo.post.win", node: "brackwater", predator: "mirefin-line", prey: "reedrick-line" },
   { entry: "nessa.quest.restock.accepted", node: "brackwater", predator: "fenmaw-line", prey: "mirefin-line" },
   { entry: "amb.brackwater-buyer.base", node: "brackwater", predator: "fenmaw-line", prey: "mirefin-line" },
   { entry: "amb.hearthollow-elder.base", node: "hearthollow", predator: "skir-line", prey: "nibbin-line" },
@@ -912,7 +965,13 @@ describe("dialogue budget — bible §13.13", () => {
 
   it('is "roughly 400–500 lines total"', () => {
     expect(LINE_COUNT).toBeGreaterThanOrEqual(400);
-    expect(LINE_COUNT).toBeLessThanOrEqual(500);
+    expect(LINE_COUNT).toBeLessThanOrEqual(560);
+    // RAISED 400-500 -> 400-560 (docs/DEVIATIONS.md D-BUDGET-1, authorised by Hank this
+    // session). Two measured reasons: wiring the 39 unreachable entries added a finale loss
+    // branch, which pinned the corpus at exactly 500/500 with no headroom; and the amended
+    // prose standard (cast-and-voice.md Appendix F) favours plainer, baggier speech, which
+    // sometimes means splitting one cramped line into two. The per-speaker ceilings below
+    // are UNCHANGED, so the bound stays real — this raises the total, not the shape.
   });
 
   it('named NPCs sit around "~10 lines" each', () => {
@@ -991,9 +1050,28 @@ const EXTERNAL_FLAGS = [
   "quest.silk-shortage.turnin",
   "quest.star-census.milestone",
   "quest.vellsires-trail.turnin",
-  "story.vellsire.outcome",
-  "story.vellsire.resolved",
+  /*
+   * ⚠ `story.vellsire.resolved` and `story.vellsire.outcome` USED TO STAND HERE, and their standing
+   * here was the defect rather than the contract: nothing in the repo wrote either one, so both
+   * epilogues — build-doc §16's never-cut Vellsire beat — were unreachable while this list called
+   * the gap "external" and every test stayed green. `sanctum.vellsire.approach`'s stand-aside branch
+   * now resolves itself in its own `setFlags`, so the corpus writes both keys and neither is owed to
+   * anybody; `game/finale.ts` resolves the snare branch, which the corpus structurally cannot.
+   */
 ] as const;
+
+/**
+ * Keys the corpus DOES write, but for which the GAME supplies a value the corpus structurally
+ * cannot.
+ *
+ * Exactly one: `story.vellsire.outcome`. `sanctum.vellsire.approach`'s stand-aside branch writes
+ * `"released"` in its own `setFlags` — standing aside is complete the moment it is chosen — but only
+ * a snare that actually HOLDS can write `"caught"`, and whether it holds is `core/battle.ts`'s
+ * report, resolved by `game/finale.ts` `resolveVellsireCatch`. So the KEY is not owed to anybody
+ * (which is why it is not in {@link EXTERNAL_FLAGS}) while one of its VALUES still is. Seeded as a
+ * wildcard below, or the value-aware fixpoint reports the caught epilogue dead for the wrong reason.
+ */
+const GAME_VALUED_FLAGS = ["story.vellsire.outcome"] as const;
 
 const truthy = (v: FlagValue): boolean => v !== false;
 
@@ -1041,7 +1119,7 @@ function flagsRequiredByDialogue(): Set<string> {
  */
 function reachableFlags(): Set<string> {
   const acquired = new Set<string>();
-  for (const f of EXTERNAL_FLAGS) {
+  for (const f of [...EXTERNAL_FLAGS, ...GAME_VALUED_FLAGS]) {
     acquired.add(f);
     acquired.add(`${f}=*`);
   }
@@ -1738,7 +1816,7 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     // choosing a starter is what opens act 1
     expect(ctxForSave(flags).act).toBe(1);
     play("maren.tutorial.snare");
-    play("maren.tutorial.ledger");
+    play("maren.tutorial.survey");
     // the ledger tutorial offers First Signs, and Maren's act-1 greeting is now the one she gives
     expect(flags["quest.first-signs.offered"]).toBe(true);
     const afterOpening = { ...ctxForSave(flags), floraStock: { r1: 78 } };
@@ -1781,16 +1859,54 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
 
   /* ── the never-cut beats, named one by one ─────────────────────────────── */
 
+  /*
+   * ⚠ THE POPULATIONS ARE NOT DECORATION HERE. `sanctum.vellsire.approach` carries
+   * `population: [{node:"sanctum", lineId:"vellsire-line", op:"gte", value:1}]` so the cutscene
+   * cannot narrate a stag that is not standing in the ring — before that clause a player could
+   * snare the Vellsire in an ordinary foray and then be shown it arriving. A `populations: {}`
+   * context reads every count as ABSENT, so the finale has to be resolved against the shipped
+   * node file, which is what a save at the ring actually carries. Read, never typed in (G2).
+   */
+  const shippedPopulations = (): Record<string, Record<string, number>> => {
+    const out: Record<string, Record<string, number>> = {};
+    for (const n of nodeFiles) {
+      const counts: Record<string, number> = {};
+      for (const [lineId, pop] of Object.entries(n.populations)) counts[lineId] = pop.count;
+      out[n.id] = counts;
+    }
+    return out;
+  };
+
   const finaleCtx = (year: number, flags: Record<string, FlagValue>): DialogueContext => ({
     ...emptyCtx,
     act: LAST_ACT,
     year,
     flags,
+    populations: shippedPopulations(),
   });
 
   it("the finale resolves at the last act in ANY calendar year", () => {
     for (const year of FAR_YEARS) {
-      const beforeGreaves = finaleCtx(year, { "story.greaves.entered": true });
+      /*
+       * ⚠ THE SEND-OFF WAITS FOR THE FIGHT, and that is a corpus fact worth asserting in every
+       * year. `story.greaves.entered` is written by `wick.act6.pre`, so gating `maren.finale` on
+       * it ALONE made her "Go on. I'll hold the page." eligible the instant Wick finished speaking
+       * — and `finishDialogue` plays a queued cutscene before the continuation that opens the
+       * battle, so the send-off was delivered between the challenge and the fight and then latched
+       * on `story.finale.spoken` for ever. `rival.act6.playerResult` is written by BOTH
+       * `wick.act6.win` and `wick.act6.loss`, so this waits for the fight to have HAPPENED without
+       * requiring the player to have won it (B5 / D-Q8-4).
+       */
+      const midFight = finaleCtx(year, { "story.greaves.entered": true });
+      expect(
+        selectEntry(file, "maren", "sanctum-approach", "cutscene", midFight)?.id,
+        `year ${String(year)}: the send-off interposed before the act-6 fight`,
+      ).toBeUndefined();
+
+      const beforeGreaves = finaleCtx(year, {
+        "story.greaves.entered": true,
+        "rival.act6.playerResult": "loss",
+      });
       expect(selectEntry(file, "maren", "sanctum-approach", "cutscene", beforeGreaves)?.id, `year ${String(year)}`).toBe(
         "maren.finale",
       );
@@ -2007,7 +2123,7 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     // the tutorials straddle the act 0 -> 1 boundary: their `goto` source is the starter entry that
     // WRITES story.opening.done, so an act clause on either side of it can strand them. Flags only.
     "maren.tutorial.snare": null,
-    "maren.tutorial.ledger": null,
+    "maren.tutorial.survey": null,
     "maren.tutorial.release": { actMin: 2 },
     // must never expire — this was D2, the First Signs dead-end
     "maren.quest.first-signs.offer": null,
@@ -2417,12 +2533,16 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     "quest.fallow-field.result": "quest outcome, for the epilogue ledger",
     "quest.silk-shortage.heard-vesper": "the Silk Shortage deferral (STORY-REVIEW D14, open)",
     "quest.silk-shortage.result": "quest outcome, for the epilogue ledger",
-    "rival.act1.result": "rival outcome, for the epilogue ledger",
-    "rival.act2.result": "rival outcome, for the epilogue ledger",
-    "rival.act3.result": "rival outcome, for the epilogue ledger",
-    "rival.act4.result": "rival outcome, for the epilogue ledger",
-    "rival.act5.result": "rival outcome, for the epilogue ledger",
-    "rival.act6.result": "rival outcome, for the epilogue ledger",
+    "rival.act1.playerResult": "rival outcome, for the epilogue ledger",
+    "rival.act2.playerResult": "rival outcome, for the epilogue ledger",
+    "rival.act3.playerResult": "rival outcome, for the epilogue ledger",
+    "rival.act4.playerResult": "rival outcome, for the epilogue ledger",
+    "rival.act5.playerResult": "rival outcome, for the epilogue ledger",
+    /*
+     * `rival.act6.playerResult` USED TO BE HERE and is deliberately gone: `maren.finale` now READS
+     * it, which is what makes her send-off wait for the act-6 fight instead of interposing before
+     * it. A write-only flag that acquires a reader leaves this list — that is the list working.
+     */
     "story.starter": "which starter was chosen — the Legacy beat reads it",
     "story.vellsire.attempt": "the choice is made; the OUTCOME is the game layer's to write",
     "trail.stone.r1": "Vellsire's Trail progress, counted by the game layer",

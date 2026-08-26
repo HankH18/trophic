@@ -239,7 +239,7 @@ const FLORA_ROLE_TAGS: ReadonlySet<string> = new Set(
  * A line participates only if it is PRESENT in this node's populations (the node JSON is the single
  * source of truth for who is here) AND its habitat admits the node's biome (bible §5 "in its
  * habitat"; "roaming" admits every biome). Lines with count 0 keep their structural edges — an
- * extinct predator still tells the ledger what it used to eat — but contribute 0 prey units.
+ * extinct predator still tells the survey what it used to eat — but contribute 0 prey units.
  */
 export function deriveFoodWeb(node: EcoNode, idx: SpeciesIndex, balance: Balance): FoodWeb {
   const present: SpeciesLine[] = [];

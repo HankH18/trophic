@@ -23,7 +23,7 @@ import { activeWindows } from "@core/regional-events";
 import { indexSpecies, type SpeciesIndex } from "@core/lifecycle";
 import type { RngStreams, SaveEnvelope, StorageLike } from "@core/save";
 import type { Balance, Content, GymLeader, NodeFile, SpeciesLine } from "@core/types";
-import { ledgerHistory } from "./ledger-history";
+import { surveyHistory } from "./survey-history";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Settings (bible §12 "Plumbing: save slots …, settings, text-speed")
@@ -165,15 +165,15 @@ class GameRegistry {
 
   startSession(session: Session): void {
     this.#session = { ...session };
-    // A different slot is a different ecology, so the ledger's readings start over with this run's
-    // opening season as its first one (game/ledger-history.ts).
-    ledgerHistory.clear();
-    this.#observeForLedger(session.save);
+    // A different slot is a different ecology, so the survey's readings start over with this run's
+    // opening season as its first one (game/survey-history.ts).
+    surveyHistory.clear();
+    this.#observeForSurvey(session.save);
   }
 
   endSession(): void {
     this.#session = null;
-    ledgerHistory.clear();
+    surveyHistory.clear();
   }
 
   sessionOrNull(): Session | null {
@@ -198,27 +198,27 @@ class GameRegistry {
   /**
    * Replace the live save. Every mutation in `core/` is pure — it hands back a NEW save — so this is
    * the single place the running game adopts one, and the only place to look when a number on
-   * screen disagrees with the ledger.
+   * screen disagrees with the survey.
    */
   setSave(save: SaveEnvelope): void {
     this.#session = { ...this.session(), save };
-    this.#observeForLedger(save);
+    this.#observeForSurvey(save);
   }
 
   /**
-   * Take the ledger's reading of this save, if its season is one no reading has been taken in.
+   * Take the survey's reading of this save, if its season is one no reading has been taken in.
    *
    * It hangs off `setSave` because `setSave` is the single place the running game adopts a save —
    * which makes it the single place a season change can be noticed, whichever scene caused it (the
    * overworld's season boundary and the year turn's fourth season step are two different callers,
    * build-doc §7.5 step 5). Idempotent within a season, so ordinary saves cost nothing. The store
-   * holds no gameplay state: it is a record of readings the ledger's trend column draws, and a run
+   * holds no gameplay state: it is a record of readings the survey's trend column draws, and a run
    * with no readings yet draws one number and `net —` rather than a fabricated slope.
    */
-  #observeForLedger(save: SaveEnvelope): void {
+  #observeForSurvey(save: SaveEnvelope): void {
     // `balance()` throws before BootScene has validated content; a reading is not worth a crash.
     const balance = this.#content?.balance;
-    if (balance) ledgerHistory.observe(save, balance);
+    if (balance) surveyHistory.observe(save, balance);
   }
 
   streams(): RngStreams {
@@ -277,7 +277,7 @@ class GameRegistry {
 
   /** Drop everything. Tests and "back to title" both need it; nothing else should call it. */
   reset(): void {
-    ledgerHistory.clear();
+    surveyHistory.clear();
     this.#content = null;
     this.#storage = null;
     this.#settings = { ...DEFAULT_SETTINGS };

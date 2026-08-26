@@ -16,7 +16,13 @@ decision.**
 
 ## Read this first
 
-Eighteen names are RED and thirty-seven are AMBER, out of ~100 coined names checked.
+Nineteen names are RED and thirty-seven are AMBER, out of ~100 coined names checked.
+**Eight of the nineteen REDs are closed** (see the two status notes below). The nineteenth RED,
+**Nessa**, was found on 2026-08-25 and closed in the same pass: the quest-NPC given names were
+coined in `docs/DIALOGUE-NOTES.md` D-1 *after* this document's original sweep ran, so they had
+never been screened at all. **The four status names had never been screened either** — see
+"Statuses" below, where `Soak` turns out to be an exact Pokémon move name that Hank has ruled
+**kept**.
 
 **The single most urgent item is the game title.** There is already a game called exactly
 **Trophic** on itch.io — the same storefront TROPHIC is shipping to — and it is an
@@ -37,15 +43,23 @@ indie developer of the *Tallowmere* roguelikes, which sell on Steam and itch.io 
 storefronts we target. Fallowmere is also a commercial tabletop terrain range sold by Warbases
 in the UK. Those two are the names I would move first after the title decision.
 
-**Four of the eighteen REDs are now closed.** On 2026-08-25 Hank authorised the move renames and they shipped: **Harden → Rootfast**, **Screech → Scoldcall**, **Snarl → Baretooth**, and the `Roost` alias deleted outright. Evidence, corpora and caveats are in **"The Q1 move renames"** below; the changes are logged as `docs/DEVIATIONS.md` D-Q1-1 … D-Q1-6 and amended into `docs/content-bible.md` §3. Nothing else in this document has been acted on.
+**Eight of the nineteen REDs are now closed, in two passes.**
 
-After that, the concentrated damage is in two places. **Five of the 28 move names and two
-of the 15 trait names are literally Pokémon content** — `Harden`, `Screech`, `Snarl` and
+**Q1, the four RED moves.** On 2026-08-25 Hank authorised the move renames and they shipped: **Harden → Bristle**, **Screech → Shriek**, **Snarl → Daunt**, and the `Roost` alias deleted outright. Evidence, corpora and caveats are in **"The Q1 move renames"** below; logged as `docs/DEVIATIONS.md` D-Q1-1 … D-Q1-6 and amended into `docs/content-bible.md` §3.
+
+> **⚠️ Correction, 2026-08-25.** Q1 renamed those three moves **twice**. The first pass adopted **Rootfast / Scoldcall / Baretooth**; Hank withdrew all three the same day in commit `64b04b5` ("rename the three utility moves to the bible's own register") because compounds fought the bible's actual register, which is single plain words — Quicken, Focus, Burrow, Lure, Regrow, Trample, Ambush, Terrify, Scrounge. **What ships is Bristle / Shriek / Daunt.** That commit updated only `docs/content-bible.md`, so this document, `docs/DEVIATIONS.md` D-Q1-1…3, `data/moves.json` `_renamed` and `data/species.json` `_movePoolRule` all carried the withdrawn names until now — and worse, the candidate tables below listed **Shriek** and **Daunt** as *rejected* candidates, so this document argued against the names the game shipped. Every such site is corrected in this pass and the correction is logged as `docs/DEVIATIONS.md` D-Q4-6. **The second rename is Hank's call and is not re-litigated here.**
+
+**Q2, the four exact Pokémon-name collisions.** On 2026-08-25 Hank authorised a second, narrower batch on an explicitly light bar — *"The pokemon IP check should be very light, and I'm really only concerned about using actual pokemon names."* Four names were exact matches for real Pokémon names and were moved: the move **Overgrow** (a Pokémon Ability), the traits **Keen Eye** and **Strong Jaw** (Pokémon Abilities #51 and #173), and the Brackwater quest NPC **Nessa** (the Galar Water-type Gym Leader). Evidence is in **"The Q2 renames"** below; logged as `docs/DEVIATIONS.md` D-Q4-1 … D-Q4-8. **Ids did not move in either pass.** Nothing else in this document has been acted on.
+
+After that, the concentrated damage was in two places. **Five of the 28 move names and two
+of the 15 trait names were literally Pokémon content** — `Harden`, `Screech`, `Snarl` and
 `Roost` are real Pokémon moves (Harden and Screech are the same name *and the same effect* as
 ours), `Overgrow` is the signature Ability of Pokémon's Grass starter line, and `Keen Eye` and
 `Strong Jaw` are real Pokémon Abilities. In a Pokémon-adjacent game that is the most visible
 possible lift, and it is also the **cheapest** category to fix — renaming a move touches four
-files and no art. **Five creature names collide with shipping commercial games**: `Umbrat` and
+files and no art. **All seven are now closed** — four in Q1, three in Q2 — and the eighth
+closure, the NPC `Nessa`, is a Pokémon Gym Leader's name that this document had never listed
+because the quest-NPC cast postdates the original sweep. **Five creature names collide with shipping commercial games**: `Umbrat` and
 `Wispurr` are creatures in other monster-taming games *right now*, `Mirefin` is a Blizzard
 murloc tribe, `Gloomoth` is a Square Enix Mana-series monster, and `Undermere` is the town the
 *Strange Horticulture* franchise is set in. A sixth, `Bramblore`, is RED for a different
@@ -138,9 +152,12 @@ knowledge of small indie games and trademark registers is stale and was treated 
 
 ---
 
-## 🔴 RED — recommend renaming (18 — **4 of them resolved 2026-08-25**)
+## 🔴 RED — recommend renaming (19 — **8 of them resolved 2026-08-25**)
 
-> **Status update.** The four RED *move* collisions — `Harden`, `Screech`, `Snarl`, `Roost` — were renamed on 2026-08-25 on Hank's authorisation and are struck through below. **The other fourteen REDs are untouched and still open**, including the title, `Fallowmere`, `Duskhollow`, the five RED creatures, `Overgrow`, and the two RED traits. The replacement screening is recorded in "The Q1 move renames" below.
+> **Status update.** Two authorised passes have closed eight REDs, all of them exact Pokémon-name collisions and all struck through below.
+> **Q1** moved the four RED *moves* — `Harden` → **Bristle**, `Screech` → **Shriek**, `Snarl` → **Daunt**, and the `Roost` alias deleted. *(Corrected: Q1 first adopted Rootfast / Scoldcall / Baretooth and Hank withdrew all three the same day — see the correction note in "Read this first". Bristle / Shriek / Daunt is what ships.)*
+> **Q2** moved the move `Overgrow`, the traits `Keen Eye` and `Strong Jaw`, and the NPC `Nessa` — the last of which is a **new nineteenth RED found in this pass**, because the quest-NPC given names were coined in `docs/DIALOGUE-NOTES.md` D-1 after the original sweep and had never been screened.
+> **The other eleven REDs are untouched and still open**, including the title, `Fallowmere`, `Duskhollow` and the five RED creatures. Replacement screening is in "The Q1 move renames" and "The Q2 renames" below.
 
 | Name | Category | What was found | Sources |
 |---|---|---|---|
@@ -154,14 +171,44 @@ knowledge of small indie games and trademark registers is stale and was treated 
 | **Umbrat** | Creature (Dark) | **Loomian Legacy — one of the largest monster-taming games by player count — has a Loomian named Umbrat.** Dark-type quadruped rodent; the wiki's own etymology is *"umbra, the Latin word for shadow, and rat."* That is our name character-for-character, our etymology, our typing and our species, in a shipping creature-collector. Page existence confirmed by direct MediaWiki query with controls. A separate Umbrat fakemon exists in *Pokémon Pisces*. Not a strong Umbreon homophone — the Loomian hit alone is the problem. | [Umbrat — Loomian Legacy Wiki](https://loomian-legacy.fandom.com/wiki/Umbrat) |
 | **Wispurr** | Creature (Dark/Beast) | Four collisions. (1) **Kādomon: Hyper Auto Battlers** (Steam app 2125540, Dino Rocket, 2025 — "Collect and battle over 200 unique creatures") has a creature named **Wispurr**, with a live Steam Community Market listing under that exact name — verified HTTP 200, page title "Wispurr - Steam Community Market". (2) Loomian Legacy has **Wispur**. (3) Monstronauts has a Wispurr. (4) Near-homophone of **Espurr**, a real Gen-6 cat Pokémon — same name space *and* same species. Trademarks: two US marks literally named WISPURR exist but **both are Ended**, in classes 10 and 5/42/44 — dead and unrelated, so trademarks are not the driver here. | [Steam Market: Wispurr](https://steamcommunity.com/market/listings/753/2125540-Wispurr) · [Kādomon on Steam](https://store.steampowered.com/app/2125540/) · [Wispur — Loomian Legacy](https://loomian-legacy.fandom.com/wiki/Wispur) |
 | **Bramblore** | Starter, Plant adult | Two compounding problems. Bramblin (#946) and Brambleghast (#947) are real Gen IX **Grass** Pokémon and the only species sharing a 5-character prefix. More tellingly, **two unconnected hobby monster-collector projects already use "Bramblore" for exactly this slot** — source confirmed as `{ id: 2, key: 'bramblore', name: 'Bramblore', types: ['Grass'] }`, the level-15 evolution of a Grass starter. Neither is commercial so neither blocks us legally, but two strangers independently landing on this word for this creature in this slot proves it is the *obvious* coinage, not a distinctive one. | [Brambleghast — Bulbapedia](https://bulbapedia.bulbagarden.net/wiki/Brambleghast_(Pok%C3%A9mon)) · [PocketMockster](https://github.com/KeigoShimadaCC/PocketMockster) |
-| ~~**Harden**~~ → **Rootfast** ✅ | Move (utility) | **RESOLVED 2026-08-25 — renamed (DEVIATIONS D-Q1-1); see "The Q1 move renames" below.** **A real Pokémon move.** Normal / Status / *"Raises the user's Defense by one stage."* Ours: `"+Defense"`. **Same name and same effect.** The worst single case in the move set. | [Harden — Pokémon DB](https://pokemondb.net/move/harden) |
-| ~~**Screech**~~ → **Scoldcall** ✅ | Move (utility) | **RESOLVED 2026-08-25 — renamed (DEVIATIONS D-Q1-2).** **A real Pokémon move.** Normal / Status / *"Lowers the target's Defense by two stages."* Ours: `"−enemy Defense"`. **Same name and same effect.** | [Screech — Pokémon DB](https://pokemondb.net/move/screech) |
-| ~~**Snarl**~~ → **Baretooth** ✅ | Move (utility) | **RESOLVED 2026-08-25 — renamed (DEVIATIONS D-Q1-3).** **A real Pokémon move.** Dark / Special / 55 power / lowers the target's Sp. Atk. Ours: `"−enemy Attack"` — same name, closely analogous effect. | [Snarl — Pokémon DB](https://pokemondb.net/move/snarl) |
+| ~~**Harden**~~ → **Bristle** ✅ | Move (utility) | **RESOLVED 2026-08-25 — renamed (DEVIATIONS D-Q1-1); see "The Q1 move renames" below.** *(First adopted as `Rootfast`, withdrawn the same day — D-Q4-6.)* **A real Pokémon move.** Normal / Status / *"Raises the user's Defense by one stage."* Ours: `"+Defense"`. **Same name and same effect.** The worst single case in the move set. | [Harden — Pokémon DB](https://pokemondb.net/move/harden) |
+| ~~**Screech**~~ → **Shriek** ✅ | Move (utility) | **RESOLVED 2026-08-25 — renamed (DEVIATIONS D-Q1-2).** *(First adopted as `Scoldcall`, withdrawn the same day — D-Q4-6.)* **A real Pokémon move.** Normal / Status / *"Lowers the target's Defense by two stages."* Ours: `"−enemy Defense"`. **Same name and same effect.** | [Screech — Pokémon DB](https://pokemondb.net/move/screech) |
+| ~~**Snarl**~~ → **Daunt** ✅ | Move (utility) | **RESOLVED 2026-08-25 — renamed (DEVIATIONS D-Q1-3).** *(First adopted as `Baretooth`, withdrawn the same day — D-Q4-6.)* **A real Pokémon move.** Dark / Special / 55 power / lowers the target's Sp. Atk. Ours: `"−enemy Attack"` — same name, closely analogous effect. | [Snarl — Pokémon DB](https://pokemondb.net/move/snarl) |
 | ~~**Roost**~~ → *deleted* ✅ | Move (`burrow-roost` altName) | **RESOLVED 2026-08-25 — the `altName` field is gone; the move is "Burrow" alone (DEVIATIONS D-Q1-4).** **A real Pokémon move.** Flying / Status / recovers half max HP. Ours is the alternate display name on Burrow (*"skip turn, +evasion"*) — same name, different effect. **Cheapest fix in the entire sweep: delete the `altName` field and keep "Burrow".** | [Roost — Pokémon DB](https://pokemondb.net/move/roost) |
-| **Overgrow** | Move (Plant, heavy) — `coined: true` | **A real Pokémon *Ability*** — the signature Ability of the **Grass starter line** (Bulbasaur and successors), *"Powers up Grass-type moves in a pinch."* Aggravating factor: TROPHIC also has a Plant starter line, so the collision lands in the same slot in the design. | [Overgrow — Pokémon DB](https://pokemondb.net/ability/overgrow) |
-| **Keen Eye** | Trait (`data/balance.json`) | **A real Pokémon Ability** (#51), *"Prevents other Pokémon from lowering accuracy."* Ours is a stat trait. Coined in DEVIATIONS D16 and explicitly flagged for this sweep. | [Keen Eye — Pokémon DB](https://pokemondb.net/ability/keen-eye) |
-| **Strong Jaw** | Trait (`data/balance.json`) | **A real Pokémon Ability** (#173), *"Boosts the power of biting moves."* Coined in DEVIATIONS D16. | [Strong Jaw — Pokémon DB](https://pokemondb.net/ability/strong-jaw) |
+| ~~**Overgrow**~~ → **Thicket** ✅ | Move (Plant, heavy) — `coined: true` | **RESOLVED 2026-08-25 — renamed (DEVIATIONS D-Q4-1); see "The Q2 renames" below.** **A real Pokémon *Ability*** — index **#65**, the Ability every **Grass starter line** carries (Bulbasaur and successors), *"Powers up Grass-type moves in a pinch."* Aggravating factor: TROPHIC also has a Plant starter line, so the collision landed in the same slot in the design. *(Precision note: Bulbapedia reserves "signature Ability" for one-line exclusives; Overgrow is shared across all Grass starter lines, so this document's original "signature Ability of the Grass starter line" was right in spirit and loose in the term.)* | [Overgrow — Pokémon DB](https://pokemondb.net/ability/overgrow) |
+| ~~**Keen Eye**~~ → **Bright Eye** ✅ | Trait (`data/balance.json`) | **RESOLVED 2026-08-25 — renamed (DEVIATIONS D-Q4-2).** **A real Pokémon Ability** (#51), *"Prevents other Pokémon from lowering accuracy."* Ours is a stat trait. Coined in DEVIATIONS D16 and explicitly flagged for this sweep. **Bright Eye** is the positive of *Dulled Sense* and sits beside *Long Memory* in the 5×3 lattice. The trait `id` `keen-eye` did not move. | [Keen Eye — Pokémon DB](https://pokemondb.net/ability/keen-eye) |
+| ~~**Strong Jaw**~~ → **Broad Jaw** ✅ | Trait (`data/balance.json`) | **RESOLVED 2026-08-25 — renamed (DEVIATIONS D-Q4-3).** **A real Pokémon Ability** (#173), *"Boosts the power of biting moves."* Coined in DEVIATIONS D16. **Broad Jaw** is the positive of *Soft Bite* and sits beside *Ember-Heart*. The trait `id` `strong-jaw` did not move. | [Strong Jaw — Pokémon DB](https://pokemondb.net/ability/strong-jaw) |
+| ~~**Nessa**~~ → **Hetty** ✅ | Quest NPC (Brackwater) — `data/dialogue.json` | **NEW RED, found and RESOLVED 2026-08-25 (DEVIATIONS D-Q4-4).** **Nessa is a Pokémon Gym Leader** — Hulbury Stadium, Galar, the **second** Gym of the Sword/Shield Gym Challenge, and a **Water-type** specialist. Ours was the quest NPC of **Brackwater**, the marsh and fishery town, running a shallows survey. Same name, same element, same role shape — and Bulbapedia records that **Nessa's father is a fisher**, which closes the last gap. **This name was never in this document** because the quest-NPC cast was coined in `docs/DIALOGUE-NOTES.md` D-1 *after* the original sweep ran; the other six coined NPC names (Tolm, Halder, Pell, Gerta, Ives, Orrin) were screened in the same pass and are clean. The speaker `id` `nessa` did not move. | [Nessa — Bulbapedia](https://bulbapedia.bulbagarden.net/wiki/Nessa) |
 | **Cragmar** | Creature (Earth) | Two components, and Hank should weigh them separately. (1) **Near-homophone of Magmar**, a Gen-1 Pokémon — a perfect rhyme sharing the six-letter run "agmar". This is a judgement call, not a literal collision: `cragmar` returns 404 on the Pokédex, `magmar` returns 200. (2) A real prior creature use: **"Cragmar, Man of Stone"**, issue #16 of the 1993 UK partwork *The Ancestral Trail* — an existing stone creature by that exact name — plus an EverQuest NPC and an AdventureQuest boss. Rated RED on the combination; on the Pokémon axis alone it would be AMBER. | [The Ancestral Trail — Wikipedia](https://en.wikipedia.org/wiki/The_Ancestral_Trail) · [EverQuest bestiary](https://everquest.allakhazam.com/db/npc.html?id=21335) |
+
+---
+
+## ✅ SCREENED AND KEPT — exact Pokémon-name matches Hank has ruled on (2026-08-25)
+
+> **This is a ruling, not an omission.** Every name in this section is an **exact match** for a real
+> Pokémon name. Hank screened each one and chose to keep it. Recording them here means the next
+> reader — or the next agent — does not "discover" them again and quietly rename something Hank
+> already decided. The bar he set for this pass, verbatim: *"The pokemon IP check should be very
+> light, and I'm really only concerned about using actual pokemon names."* These are actual Pokémon
+> names. They stay anyway.
+
+| Name | Ours | The Pokémon name it matches | Ruling |
+|---|---|---|---|
+| **Soak** | Our **Water status** — *"−Speed"* (bible §2). On screen in battle. | **A real Pokémon move**, Generation V, Water/Status (Japanese みずびたし). Theirs changes the target's type to Water; ours cuts Speed — **different effect, identical name.** [Soak (move) — Bulbapedia](https://bulbapedia.bulbagarden.net/wiki/Soak_(move)) | **KEPT.** ⚠️ Note how this one was found: **status names had never been screened at all.** Before this pass the word "Soak" appeared **zero times** in this document — the original sweep covered moves, traits, creatures, places and characters, and the four status names fell between the categories. Burn, Toxin and Daze are clean. |
+| **Maren** | Bible §8 — the mentor, Warden of the region. | **A real minor Pokémon character** — the boat owner who ferries Ash, Misty, Tracey and Togepi in ***Pokémon the Movie 2000: The Power of One*** (Japanese ミチコ *Michiko*). [Maren — Bulbapedia](https://bulbapedia.bulbagarden.net/wiki/Maren) | **KEPT.** Already recorded in "Characters" below as an AMBER; now explicitly ruled. A one-scene anime-movie NPC against a genuine Scandinavian/German given name. |
+| **Maribel** | Bible §7 — gym leader 1 (Beast). | **A real minor Pokémon character** — a member of **Club Look-See** (みてみて☆クラブ), the visiting ranch owners in ***My Pokémon Ranch*** (Japanese メリコ *Meriko*; her ranch theme is Mareep). [Club Look-See — Bulbapedia](https://bulbapedia.bulbagarden.net/wiki/Club_Look-See) | **KEPT.** *(The stronger hit on this name remains Maribel Mayde of* Dragon Quest VII *— see "Characters" below. Hank keeps it against both.)* |
+| **Vesper** | Bible §7 — gym leader (the one whose signature carries a rare trait). | **A real minor Pokémon character** — a lower member of the **Diamond Clan** in ***Pokémon Legends: Arceus***, one of a set of Latin time-words (Aetas, Alman, Bruma, Calens, Cember, Era, Ides, Kron, Lux, Martia, Messis, Minit, Nones, Peren, Prima, Quin, Sept, Serotina, Solis). Also the European-Spanish name (*Vésper*) of Battle Chatelaine Evelyn. [Diamond Clan — Bulbapedia](https://bulbapedia.bulbagarden.net/wiki/Diamond_Clan) | **KEPT.** |
+| **Odo** | Bible §10 — named NPC. | **A real minor Pokémon character** in ***Pokémon Legends: Arceus*** — gives Request 36 *"Watering with Care"* at the Bogbound Camp. *(Precision: Bulbapedia calls him "a fresh Construction Corps recruit" but notes he does not wear the uniform and is still called a villager, so "Construction Corps member" overstates it.)* | **KEPT.** Independent medieval provenance — Odo of Bayeux, Odo of France — which is exactly our register. |
+| **Bram** | Bible §10 — the Cindershelf forge-smith. | **A real minor Pokémon character** — **Pokémon Breeder ♂, entry #108** in the Battle Maison trainer roster (XY / ORAS). [List of Battle Maison Trainers](https://bulbapedia.bulbagarden.net/wiki/List_of_Battle_Maison_Trainers) | **KEPT.** A numbered rental-battle trainer against Bram Stoker's actual first name. |
+| **Harry** | Our **Wind LIGHT move** (40, 20% −Instinct) — `coined: true`. | **A real minor Pokémon character** — an anime character-of-the-day. Not a move, not an ability, not an item. | **KEPT.** *"Harry"* is also an ordinary English verb meaning exactly what the move does (to harass, to raid repeatedly), which is why it was coined. Note this **corrects the "🟢 GREEN moves" list below**, which cleared Harry on the move and ability lists alone and never checked characters. |
+| **Lure** | Our **utility move** — *"raise catch odds on this target this battle"*. | **A real Pokémon ITEM.** [Lure](https://bulbapedia.bulbagarden.net/wiki/Lure) (Japanese むしよせコロン) — introduced in ***Let's Go, Pikachu! / Let's Go, Eevee!***, used from the Bag to raise wild-encounter rates of rarer Pokémon for 100 steps. **Aggravating factor: both manipulate encounter/catch odds** — the same name doing broadly the same job. *(Two disambiguations worth having right: Pokémon GO's item is the **Lure Module**, a different thing; and **Lure Ball** is its own separate Apricorn item.)* | **KEPT.** An ordinary English word used as a functional descriptor for the function it descriptively names. |
+
+**One open finding this section did NOT close — it is a rename decision, and only Hank makes those.**
+
+| Name | Ours | What was found | Status |
+|---|---|---|---|
+| **Daunt** | Our **utility move** — *"−enemy Attack"*, move id `snarl`. Shipping since commit `64b04b5`. | **An exact Pokémon name: [Daunt (skill)](https://bulbapedia.bulbagarden.net/wiki/Daunt_(skill))** (Japanese ひるませる) is a real skill in ***Pokémon Shuffle***, and the bare Bulbapedia title "Daunt" redirects to it. A Shuffle *skill* is that game's Ability analogue, so it lands squarely inside the corpus this pass was told to screen. Separately, **Dauntless Shield** is a real main-series Ability (Zamazenta). | **🔴 OPEN — recorded, not fixed (DEVIATIONS D-Q4-7).** Nobody knew this when `Daunt` was adopted: commit `64b04b5` said in its own message that the three names were *"NOT yet screened against Digimon or the Pokemon ABILITY list"*, and no later pass closed that gap until now. **Hank authorised four renames in this pass and this is not one of them**, and G2 forbids an agent deciding it. The other two names from that commit, **Bristle** and **Shriek**, screened clean of exact matches (see "The Q2 renames"). |
+
 
 ---
 
@@ -227,6 +274,14 @@ swept, and the D&D/Pathfinder/Elder Scrolls/Warhammer/RuneScape/Elden Ring sweep
 
 ### Characters
 
+> **Two updates, 2026-08-25.** (1) **`Nessa` was never in this table** — the quest-NPC cast was coined
+> in `docs/DIALOGUE-NOTES.md` D-1 after this sweep ran, and Nessa turned out to be a Pokémon Gym
+> Leader. It is now a RED, renamed to **Hetty**; see the RED table above and "The Q2 renames" below.
+> The other six coined quest-NPC names — Tolm, Halder, Pell, Gerta, Ives, Orrin — were screened
+> against Pokémon in the same pass and are clean. (2) **`Maren`, `Maribel`, `Vesper`, `Odo` and
+> `Bram` are all exact matches for real minor Pokémon characters, and Hank has ruled every one
+> KEPT** — see "SCREENED AND KEPT" above, which also carries the precise identification of each.
+
 | Name | Finding |
 |---|---|
 | **Sable** | The strongest character hit. ***Sable*** **(2021, Shedworks / Raw Fury) is a well-known indie game whose title *and* protagonist are both "Sable"** — same medium, same storefronts, same audience, ~3,900 Steam reviews at 86%, with a film/TV option deal. Also *Sable's Grimoire*, Marvel's Silver Sable, and the WWE performer. Against that, "sable" is a dictionary word (the animal; heraldic black), heavily diluted. A distinctiveness problem, not a legal one — but reviewers will think of *Sable*. [Steam](https://store.steampowered.com/app/757310/Sable/) |
@@ -261,7 +316,7 @@ passing controls, and for the Digimon entries by reading the raw wiki source dir
 | **Trample** | A **Temtem** technique — and specifically the **signature technique of Magmut**, not a generic filler entry. (Also a core MTG keyword, though that is generic combat vocabulary.) |
 | **Focus** *(re-verified 2026-08-25, unchanged — D-Q1-6)* | A **Cassette Beasts** move — re-read from the wiki's raw page source this pass: *"Raises the user's accuracy by 2 stages via Accuracy Up"*. Ours raises Instinct/crit — the same concept as Pokémon's *Focus Energy*, and *Focus Blast* / *Focus Punch* also exist, so the whole "Focus" space is Pokémon-adjacent even though "Focus" alone is not a Pokémon move. |
 | **Quicken** | A **Monster Sanctuary** entry. |
-| **Lure** | A **Temtem** *gear item*, not a technique (see below). |
+| **Lure** *(ruled KEPT 2026-08-25 — see "SCREENED AND KEPT" above)* | A **Temtem** *gear item*, not a technique (see below). **And, found in the Q2 pass: `Lure` is a real Pokémon ITEM too** — introduced in *Let's Go, Pikachu!/Eevee!*, used from the Bag to raise wild-encounter rates of rarer Pokémon. **Both manipulate encounter/catch odds**, so this is a closer hit than the Temtem one. Hank ruled it kept. |
 | **Miasma** *(re-verified 2026-08-25, unchanged — D-Q1-6)* | `coined: true`. Not a Pokémon move or ability — but **Ordinemon's attack in *Digimon Masters Online* is named exactly "Miasma"**. Confirmed in the raw wiki source: `*'''Miasma''': Spreads miasma from its wings, eventually ending all life in the World.` An exact bare-name match in a same-genre creature-collector. Trademarks: one exact US word mark ever, IC 028, abandoned 2016. |
 | **Shade** *(re-verified 2026-08-25, unchanged — D-Q1-6; the exact line was re-found on the page `Miyuki (Kenzoku)`)* | `coined: true`. Not a Pokémon move (though *Night Shade* is). **Digimon Survive has an attack named exactly "Shade"** (人影 *Hitokage*, "Shadow Figure") — verified in source: `*{{nihongo|'''Shade'''|人影|Hitokage}}: Fires dark fog at the enemy.` **Same name and the same dark-fog function as our Dark move.** |
 | **Pyre** | Bible-verbatim (not coined), and clean as a move name in every game checked — but **Supergiant Games holds live registered trademarks in Nice class 9 ("video game software") and class 41**, verified in the US (Registered), the UK (two registrations) and WIPO (two registrations), for their game *Pyre*. A move named Pyre inside a battle UI is very unlikely to infringe — trademarks attach to source identifiers, and this use is descriptive of a fire effect — but **keep "Pyre" away from anything title-adjacent: the game title, a subtitle, the logo, or a Steam/itch listing headline.** |
@@ -278,21 +333,40 @@ reads as generic. **My honest rating is low-AMBER bordering GREEN, and I would n
 rename on these before spending it on the RED list.** Recorded because it was asked for, rated
 on the evidence.
 
-**🟢 GREEN moves (16 of 28):** Gnaw, Maul, Singe, Dous, Riptide, Bramble, Sunder, Upheave,
+**🟢 GREEN moves (16 of 28):** Gnaw, Maul, Singe, Douse, Riptide, Bramble, Sunder, Upheave,
 Harry, Squall, Blight, Eclipse, Regrow, Ambush, Terrify, Scrounge — all 404 on both the
 Pokémon move list *and* the Pokémon ability list, and no exact page on Cassette Beasts,
 Temtem, Coromon or Monster Sanctuary. **This clears 9 of the 12 names flagged `"coined": true`
-in `data/moves.json`** (D6 in DEVIATIONS): `Overgrow` is RED, `Miasma` and `Shade` are AMBER on
-Digimon hits. `Eclipse` has a heavy Digimon *near*-field (Eclipse Finger, Eclipse Impact,
+in `data/moves.json`** (D6 in DEVIATIONS): `Overgrow` was RED and is now **Thicket** (D-Q4-1);
+`Miasma` and `Shade` are AMBER on Digimon hits.
+
+> **⚠️ Two corrections to this GREEN list, 2026-08-25.** This list was built by probing the Pokémon
+> **move** and **ability** lists only. It did not probe **characters** or **items**, and two of its
+> sixteen names hit there. **`Harry`** is an anime character-of-the-day, and **`Lure`** is a real
+> Pokémon item that raises wild-encounter rates — the same job ours does. **Hank screened both and
+> ruled both KEPT**; see "SCREENED AND KEPT" above. Neither is downgraded from GREEN as a *move*
+> name, because neither is a move — but "404 on the move and ability lists" is not the same claim as
+> "not a Pokémon name", and this list stated the first while reading like the second. `Eclipse` has a heavy Digimon *near*-field (Eclipse Finger, Eclipse Impact,
 Eclipse Eraser, Necro Eclipse) but never appears bare, and Monster Sanctuary's "Eclipse Sword"
 is a different name. Two footnotes on the GREEN list: **Riptide** is fine as a move but
 should not become the *game's* title (Vector Unit holds a live RIPTIDE GP mark), and **Gnaw**'s
 only Palworld hit is a bounty NPC, not a skill.
 
-**🟢 GREEN traits (13 of 15):** Thick Pelt (bible-verbatim; the nearest real Abilities are
-*Thick Fat* and *Grass Pelt*, neither of which is ours), Fleet Step, Deep Lungs, Brittle Hide,
-Dulled Sense, Heavy-Footed, Soft Bite, Frail Frame, Stoneblood, Ember-Heart, Long Memory,
-Old Growth, Silk-Spun. All 404 on both the Pokémon move and ability lists.
+**🟢 GREEN traits (all 15 of 15, as of 2026-08-25):** Thick Pelt (bible-verbatim; the nearest real
+Abilities are *Thick Fat* and *Grass Pelt*, neither of which is ours), Fleet Step, Deep Lungs,
+Brittle Hide, Dulled Sense, Heavy-Footed, Soft Bite, Frail Frame, Stoneblood, Ember-Heart,
+Long Memory, Old Growth, Silk-Spun — all 404 on both the Pokémon move and ability lists — **plus
+the two Q2 replacements, `Bright Eye` (was Keen Eye) and `Broad Jaw` (was Strong Jaw)**, screened
+against Pokémon species, moves, abilities, items and characters with no exact match. The two REDs
+this list used to exclude are gone; see "The Q2 renames" below for the near-misses, which are
+recorded rather than treated as clearances.
+
+### Statuses — **never screened until 2026-08-25**
+
+The four status names (bible §2: **Burn**, **Toxin**, **Soak**, **Daze**) were not in the original
+sweep at all — they are neither moves, traits, creatures, places nor characters, and they fell
+between the categories. `Soak` **is an exact Pokémon move name** and **Hank has ruled it kept**; the
+other three are clean. Full row in "SCREENED AND KEPT" above.
 
 ---
 
@@ -347,11 +421,11 @@ register is short, plain, slightly archaic naturalist English.
 
 | Rename | Ours does | Candidates |
 |---|---|---|
-| ~~**Harden**~~ ✅ **ADOPTED: Rootfast** | +Defense | Was: Stiffen, Callus, Hunker — all three are single common words, which is the failure mode this sweep documents. **`Rootfast` was adopted instead** (compound; attested English dialect for *rooted immovably*; `harden` is the Producer role's utility). |
-| ~~**Screech**~~ ✅ **ADOPTED: Scoldcall** | −enemy Defense | Was: Shriek, Caterwaul, Gnash. **Caterwaul is now disqualified** — it is an AD&D2e *Fiend Folio* monster, a NetHack monster, and TMview shows live **CATERWAUL marks in US class 41 (entertainment)**. **`Scoldcall` was adopted** (a *scold call* is the real ornithological term for a mobbing alarm cry; `screech` is the Scavenger role's utility and Carricrow is the only Scavenger). |
-| ~~**Snarl**~~ ✅ **ADOPTED: Baretooth** | −enemy Attack | Was: Cow, Daunt, Menace — three single common words. **`Baretooth` was adopted** (the threat display a snarl is; `snarl` is the Apex role's utility). Caveat recorded in D-Q1-3: one vowel from the band/mountains *Beartooth*. |
-| ~~**Roost**~~ ✅ **ADOPTED: deleted** | skip turn, +evasion | **Done — the field is gone and `tests/unit/transcription.test.ts` asserts its absence.** The original recommendation stands as written: **Delete the `altName` outright** — "Burrow" alone already carries it. If a flier variant is wanted: **Hunker** or **Bristle**. (Note "Burrow" itself is AMBER — a Temtem/Coromon/Monster Sanctuary skill — so **Warren** or **Thicket** would clear both at once.) |
-| **Overgrow** (Plant, heavy, 70) | 70 power Plant | **Verdure**, **Wither**, **Thicket** |
+| ~~**Harden**~~ ✅ **ADOPTED: Bristle** | +Defense | Originally: Stiffen, Callus, Hunker — dismissed here as "single common words", which this document treated as a failure mode. `Rootfast` was adopted on that reasoning and **withdrawn the same day**: Hank ruled the compound fought the bible's own register, which *is* single plain words (Quicken, Focus, Burrow, Lure, Regrow…). **`Bristle` ships** — an animal raising its hackles, and `harden` is the Producer role's utility. |
+| ~~**Screech**~~ ✅ **ADOPTED: Shriek** | −enemy Defense | Originally: Shriek, Caterwaul, Gnash. **Caterwaul is disqualified** — an AD&D2e *Fiend Folio* monster, a NetHack monster, and TMview shows live **CATERWAUL marks in US class 41 (entertainment)**. `Scoldcall` was adopted over the three and **withdrawn the same day** on the register ruling. **`Shriek` — the first candidate on this row's own list — ships**: a cry that breaks a guard, and `screech` is the Scavenger role's utility (Carricrow is the only Scavenger). It was never dropped on a collision, only on style. |
+| ~~**Snarl**~~ ✅ **ADOPTED: Daunt** | −enemy Attack | Originally: Cow, Daunt, Menace — dismissed as "three single common words". `Baretooth` was adopted over them and **withdrawn the same day** on the register ruling; its *Beartooth* caveat died with it. **`Daunt` — from this row's own list — ships**: cow it out of pressing, and `snarl` is the Apex role's utility. Never dropped on a collision, only on style. |
+| ~~**Roost**~~ ✅ **ADOPTED: deleted** | skip turn, +evasion | **Done — the field is gone and `tests/unit/transcription.test.ts` asserts its absence.** The original recommendation stands as written: **Delete the `altName` outright** — "Burrow" alone already carries it. If a flier variant is ever wanted: **Hunker** (this row used to suggest *Bristle* too — that name is now the `harden` move, so it is no longer available). (Note "Burrow" itself is AMBER — a Temtem/Coromon/Monster Sanctuary skill — so **Warren** would clear both at once; *Thicket*, the other suggestion here, is now the `overgrow` move.) |
+| ~~**Overgrow**~~ ✅ **ADOPTED: Thicket** | 70 power Plant | Candidates were: Verdure, Wither, Thicket. **`Thicket` was adopted** — Bramble is one thorny stem, Thicket is the whole stand, so the Plant light/heavy pair now scales the way Singe/Pyre and Douse/Riptide do. Also screened and clean: **Verdure**, **Smother**, **Bracken**, **Choke**. **Dropped: `Strangle`** — it is an exact **Pokémon TCG attack** name (Arbok δ, *EX Dragon Frontiers* 13). |
 | **Trample** (Grazer role, 50) | 50 power, +25 vs Producer | **Overrun**, **Tread**, **Bluster** |
 | **Focus** (utility, +Instinct/crit) | +Instinct/crit | **Keen**, **Mark**, **Steady** |
 | **Quicken** (utility, +Speed) | +Speed | **Hasten**, **Fleet**, **Spur** |
@@ -359,8 +433,8 @@ register is short, plain, slightly archaic naturalist English.
 | **Miasma** (Poison, heavy, 70) | 70 power Poison | **Fester**, **Canker**, **Taint** |
 | **Shade** (Dark, light, 40) | 40, 20% Daze | **Umbra**, **Dusk**, **Gloam** — *note Umbra is Temtem's shiny-tier rarity term, so Dusk or Gloam are the safer two* |
 | **Pyre** (Fire, heavy, 70) | 70 power Fire | **Swelter**, **Roil** (and if the pair moves together, Singe → **Sear** or **Blanch**) — *only needed if "Pyre" ever migrates toward the title; it is fine as a move* |
-| **Keen Eye** (trait) | +Instinct | **Sharp Sight**, **Far Sight**, **Long Sight** |
-| **Strong Jaw** (trait) | +Attack | **Hard Bite**, **Iron Bite**, **Set Jaw** |
+| ~~**Keen Eye**~~ ✅ **ADOPTED: Bright Eye** | +Instinct | This row's original candidates were Sharp Sight / Far Sight / Long Sight; **none was adopted**. *Long Sight* collides with the rare Instinct trait *Long Memory* sitting next to it, and **`Far Sight` is disqualified** — it is a live Bulbapedia redirect to **Frisk (Ability)**, having been Serebii's pre-localisation name for it. **`Bright Eye` was adopted**: *bright* is the exact antonym of *dulled*, so it reads as the positive of **Dulled Sense** at a glance, and it keeps the eye/sense noun contrast the lattice already had. Also screened: Clear Eye, Sharp Sense, Quick Ear — all clean of exact matches, all with heavier near-neighbours (*Clear Body*, *Sharpness*, *Quick Feet*/*Quick Claw*/*Quick Draw*). |
+| ~~**Strong Jaw**~~ ✅ **ADOPTED: Broad Jaw** | +Attack | This row's original candidates were Hard Bite / Iron Bite / Set Jaw. **`Hard Bite` is disqualified** — it is an exact **Pokémon TCG attack** name (Mightyena, Sharpedo, Drednaw), indexed by Bulbapedia under *Moves not in the Pokémon games/In the TCG*. *Iron Bite* sits in the crowded *Iron Fist* / *Iron Head* / *Iron Tail* field. **`Broad Jaw` was adopted**: it is an anatomical measurement, like *Thick Pelt* and *Deep Lungs* on the other rows of the lattice, and a broad jaw is literally more bite force — so it reads as the positive of **Soft Bite**. Also screened: Set Jaw, Deep Jaw, Sure Bite — clean of exact matches; *Deep Jaw* was dropped only because *Deep* is already spent on *Deep Lungs*. |
 
 **Screening status of the move candidates.** A separate screen ran 62 candidate words against
 Cassette Beasts (moves.json @1.8.0, 290 moves), Monster Sanctuary, Temtem (316 techniques) and
@@ -400,8 +474,17 @@ clean pass.
 status of the move candidates" note above **for these three names only** — every other candidate in
 this document still carries that note's four caveats.*
 
-**The three adopted names: `Rootfast` (was Harden) · `Scoldcall` (was Screech) · `Baretooth` (was
-Snarl).** The `Roost` alias was deleted rather than replaced, so it needed no screen.
+> **⚠️ Read this section as history, not as the current state.** Everything below screens
+> **`Rootfast` / `Scoldcall` / `Baretooth`**, the names Q1 adopted **first**. Hank withdrew all
+> three the same day (commit `64b04b5`) and the game ships **`Bristle` / `Shriek` / `Daunt`**.
+> The corpora, controls and caveats below are still the best account of *how* this project screens
+> a name, and the negatives for the three withdrawn names are real — they are just negatives about
+> names nobody uses. **The screen for the three names that actually ship is in "The Q2 renames"
+> below.** Logged as `docs/DEVIATIONS.md` D-Q4-6.
+
+**The three names screened here: `Rootfast` (was Harden) · `Scoldcall` (was Screech) · `Baretooth`
+(was Snarl) — all three subsequently withdrawn.** The `Roost` alias was deleted rather than
+replaced, so it needed no screen.
 
 **Corpora queried, each with a live positive control that fired in this session.** Every negative
 below is a negative from a source that had just proved it can produce a positive.
@@ -424,7 +507,7 @@ below is a negative from a source that had just proved it can produce a positive
 | Fandom **cross-wiki** index | `services.fandom.com/unified-search` | ~all Fandom wikis | `Bristleback` returns Dota 2, Anthem, Horizon, Artifact |
 | GitHub code search | REST code search | all public code | **`Bramblore` reproduces this document's own PocketMockster finding** |
 
-**Result, per name.**
+**Result, per name** — again, all three of these names were later withdrawn.
 
 | Name | Everything above | The only things found anywhere |
 |---|---|---|
@@ -433,7 +516,13 @@ below is a negative from a source that had just proved it can produce a positive
 | **Baretooth** | zero exact hits | TMview 0 marks, Steam 0, itch.io 0, GitHub 0, Wikipedia 0, Wikidata 0, OpenLibrary 0. **Recorded honestly: it is one vowel from *Beartooth*** (a signed metalcore band; a Montana range/highway). Every "hit" the Fandom cross-wiki index returned was *Beartooth*, not *Baretooth* — a stem match, not a collision. |
 
 **Candidates that were screened and REJECTED — recorded so nobody re-suggests them.** All of these
-were on the shortlist and were dropped on evidence found in this pass:
+were on the shortlist and were dropped on evidence found in this pass.
+
+> **⚠️ Two entries in the tables above are not rejections any more.** This pass's shortlists listed
+> **Shriek** and **Daunt** as also-rans dismissed as "single common words" — and single common words
+> are exactly what Hank then chose, because that is the bible's register. **Shriek and Daunt ship.**
+> Neither was ever rejected on a *collision*; both were dropped on a style preference Hank reversed.
+> Nothing in the list below is affected: every name in it was dropped on evidence, not on style.
 
 - **Caterwaul** — AD&D2e *Fiend Folio* monster, NetHack monster, and **live TMview marks in US class 41**.
 - **Carapace** — an exact Monster Sanctuary passive (`Carapace (Passive)`).
@@ -452,21 +541,174 @@ were on the shortlist and were dropped on evidence found in this pass:
 
 **What this screen could NOT establish — do not read the table above as a clearance.**
 
-1. **General web search was unavailable.** The session's 200-call search budget was exhausted (the
+1. **These caveats attach to `Rootfast`/`Scoldcall`/`Baretooth`, which no longer ship.** They are
+   left in place because the *method* limits they describe apply to every screen in this document.
+2. **General web search was unavailable.** The session's 200-call search budget was exhausted (the
    same wall this document's original sweep hit), DuckDuckGo served a CAPTCHA, Mojeek returned 403
-   and every public SearXNG instance rate-limited. **Of the three adopted names only `Rootfast` got a working
+   and every public SearXNG instance rate-limited. **Of the three names screened here only `Rootfast` got a working
    DuckDuckGo pass before the block** — that pass is where *ATA Rootfast* and the Warriors cat
    names for the rejected `Rookcall`/`Crowcall` came from. **`Scoldcall` and `Baretooth` got no
    open-web pass at all**, and rest entirely on the API-backed sources in the table. The Fandom cross-wiki index and GitHub code search
    are good substitutes for the *games* half of that gap; they are not substitutes for the open web.
-2. **In-game location and item names inside shipping titles** remain the systematic blind spot this
+3. **In-game location and item names inside shipping titles** remain the systematic blind spot this
    document already names. `Gapejaw Bog` was caught only because a wiki indexes it.
-3. **Common-law rights and non-English collisions**, as before.
-4. **Coromon** is materially better covered than in the original sweep — 1,082 pages instead of a
+4. **Common-law rights and non-English collisions**, as before.
+5. **Coromon** is materially better covered than in the original sweep — 1,082 pages instead of a
    79-member category — but the wiki is still not the game files.
-5. **Fandom's own search is fuzzy in both directions.** It returned eight results for the nonsense
+6. **Fandom's own search is fuzzy in both directions.** It returned eight results for the nonsense
    control string `Qzzxvwmtplop` and zero for the real term `Hitokage`. Every Fandom hit above was
    opened and read; no Fandom *negative* was treated as proof on its own.
+
+### The Q2 renames — Overgrow, Keen Eye, Strong Jaw, Nessa (2026-08-25)
+
+*This is the evidence half of `docs/DEVIATIONS.md` D-Q4-1 … D-Q4-8.*
+
+**The bar was set narrower than Q1's, deliberately, by Hank:** *"The pokemon IP check should be very
+light, and I'm really only concerned about using actual pokemon names."* So this screen ran against
+**one corpus only — actual Pokémon names**: species, moves, abilities, items and named characters,
+via Bulbapedia's MediaWiki API (exact-title, exact-phrase and full-text probes) plus PokéAPI for
+ability index numbers. **Digimon, Temtem, Cassette Beasts, Coromon, Monster Sanctuary, TMview,
+Steam, itch.io, Scryfall and GitHub were NOT queried in this pass**, on instruction. Every "clean"
+below therefore means *"clean of exact Pokémon names"* and nothing wider. That is a real limit and
+it is not a defect — it is the scope Hank chose.
+
+**What moved.** Four names, display names only, **no `id` moved** (D-Q4-5):
+
+| Was | Is | Where | The exact Pokémon name it collided with |
+|---|---|---|---|
+| **Overgrow** | **Thicket** | `data/moves.json`, Plant heavy, id `overgrow` | **Ability #65** — the Ability every Grass starter line carries. TROPHIC has a Plant starter line. |
+| **Keen Eye** | **Bright Eye** | `data/balance.json` `.traits.pool`, id `keen-eye` | **Ability #51**, *"Prevents other Pokémon from lowering accuracy."* |
+| **Strong Jaw** | **Broad Jaw** | `data/balance.json` `.traits.pool`, id `strong-jaw` | **Ability #173**, *"Boosts the power of biting moves."* |
+| **Nessa** | **Hetty** | `data/dialogue.json` speaker `nessa` + 3 lines of prose | **Gym Leader of Hulbury**, Galar, second Gym of the Sword/Shield challenge, **Water-type specialist, and her father is canonically a fisher.** |
+
+**Result, per adopted name.**
+
+| Name | Verdict against Pokémon species / moves / abilities / items / characters |
+|---|---|
+| **Thicket** | **CLEAN.** The only neighbour is the Paldean location *Tagtree Thicket* (Scarlet/Violet). A place, not a name in our namespace. |
+| **Bright Eye** | **CLEAN of exact matches; near-misses recorded:** *Keen Eye* is the Ability we are leaving, and **Bright Powder** is a real held item (rendered "BrightPowder" before Gen VI). Zero exact-phrase hits for "Bright Eye". |
+| **Broad Jaw** | **CLEAN of exact matches; near-misses recorded:** *Strong Jaw* (the Ability we are leaving), *Jaw Lock* (move), *Jaw Fossil* (item). Zero exact-phrase hits for "Broad Jaw". |
+| **Hetty** | **CLEAN of any in-universe Pokémon name.** The only Bulbapedia hits are **Hetty Heyting**, a real-world Dutch voice actress who dubs Cassidy, Zoey and Dexter. A voice actor is a real person, not a character — recorded rather than treated as a collision. *(Non-Pokémon provenance, outside this pass's scope but worth knowing: Hetty Sorrel is the dairymaid in George Eliot's* Adam Bede *— which is exactly the archaic English pastoral register the coined NPC cast is written in.)* |
+
+**Candidates screened and REJECTED in this pass, on evidence:**
+
+- **Enid** — **an exact Pokémon character name.** A named Trainer in the Pokémon World Tournament (Black 2 / White 2), on the Driftveil, Rental and Mix Tournament rosters.
+- **Wren** — **an exact Pokémon character name.** `Clerk ♀ Wren` (Japanese アツコ *Atsuko*), a named Trainer at Big Stadium and Small Court in Black 2 / White 2.
+- **Strangle** — **an exact Pokémon TCG attack name** (Arbok δ, *EX Dragon Frontiers* 13; also *Serpentine Strangle* on Servine). Not a main-series move or ability.
+- **Hard Bite** — **an exact Pokémon TCG attack name** (Mightyena, Sharpedo, Drednaw), indexed by Bulbapedia under *Moves not in the Pokémon games/In the TCG*. This was one of the three candidates this document itself recommended for Strong Jaw.
+- **Far Sight** — technically not an official English name, and dropped anyway: the Bulbapedia title "Far Sight" is a **live redirect to Frisk (Ability)**, because it was Serebii's pre-localisation name for Frisk. *Foresight* and *Future Sight* are both real moves on top of that. This was also one of this document's own three recommendations for Keen Eye.
+- **Verdure · Smother · Bracken · Choke** — all clean; not adopted, kept as fallbacks for the Plant heavy slot.
+- **Tamsin · Prue · Idony · Merrit · Tarn** — all clean of any Bulbapedia hit; not adopted, kept as fallbacks for the Brackwater angler.
+- **Clear Eye · Sharp Sense · Quick Ear · Set Jaw · Deep Jaw · Sure Bite** — all clean of exact matches; not adopted.
+
+**The Q1 gap this pass closed — and the one thing it found.** Commit `64b04b5`, which renamed the
+three utility moves the second time, said in its own message that Bristle / Shriek / Daunt were
+**"NOT yet screened against Digimon or the Pokemon ABILITY list"**. That gap stayed open until now.
+Screened in this pass against Pokémon species, moves, abilities, items and characters:
+
+| Name | Verdict |
+|---|---|
+| **Bristle** | **Clean of exact matches.** Near-miss recorded: the bare Bulbapedia title "Bristle" redirects to **Mt. Bristle**, a dungeon in *Mystery Dungeon: Explorers of Time/Darkness/Sky*. A location, not a move/ability/item/species/character. The word is also common Pokédex flavour text (Nidorino, Poochyena, Spewpa). |
+| **Shriek** | **Clean.** No page of its own. *Dragon Shriek* is a Pokémon Shuffle skill, and *Screech* is the real move we renamed away from — "Shriek" alone is unused. |
+| **Daunt** | **🔴 EXACT MATCH — an open finding, recorded not fixed.** [Daunt (skill)](https://bulbapedia.bulbagarden.net/wiki/Daunt_(skill)) is a real **Pokémon Shuffle** skill (ひるませる) and the bare title "Daunt" redirects to it. A Shuffle *skill* is that game's Ability analogue. Also *Dauntless Shield* is a real main-series Ability. **Not renamed:** Hank authorised four renames in this pass and this is not one of them, and G2 forbids an agent making that call. Logged as `docs/DEVIATIONS.md` D-Q4-7. |
+
+**What this pass could NOT establish — do not read the tables above as a clearance.**
+
+1. **One corpus only.** By instruction, nothing outside actual Pokémon names was queried. A name
+   clean here may still collide in Digimon, Temtem, Cassette Beasts, Coromon, Monster Sanctuary, a
+   trademark register, Steam or itch.io — the corpora Q1 used and this pass did not.
+2. **The Pokémon namespace itself was swept unevenly.** Species, main-series moves, abilities, items
+   and characters got exact-title, exact-phrase and full-text probes. **TCG attack names, and the
+   Masters EX / UNITE / Conquest / spin-off namespaces, were only spot-checked** — and they are
+   exactly what caught `Strangle`, `Hard Bite` and `Daunt`, which means they are productive ground
+   that was not swept systematically. **A full pass over them is the highest-yield remaining
+   Pokémon check in this document.**
+3. **Near-misses are recorded, not discarded on.** *Bright Powder*, *Sharpness*, *Jaw Lock*,
+   *Quick Claw*, *Tagtree Thicket* and *Mt. Bristle* are all real names near an adopted one. None is
+   an exact match, and on Hank's stated bar none is disqualifying — but a reader may still see them.
+4. **"Clean" here means "no exact match found", not "does not exist"** — the same caveat this
+   document opens with, unchanged.
+
+> **📝 Spelling correction, 2026-08-25 (`docs/DEVIATIONS.md` D-W4-1).** The GREEN moves list above
+> used to read **`Dous`**. That was the move `id` leaking into a list of *display names*; the shipped
+> `data/moves.json` `name` is **`Douse`** and always has been. The verdict does not change: **"Douse"
+> alone is an exact match for no Pokémon species, move, ability, item or character.** The nearest
+> neighbour is the **Douse Drive** — a real Pokémon *item*, Genesect's Water-type drive — which is a
+> two-word item name, and on Hank's stated bar for this sweep is **recorded, not actioned**. The `id`
+> `dous` stands (D-Q1-5 / D-Q4-5: an id is opaque and never renders).
+
+
+### Ordinary English given names are a dense Pokémon-collision space — the 2026-08-25 cast screen
+
+*This is the evidence half of `docs/DEVIATIONS.md` D-W4-3 / D-W4-4. Its source is the design
+work now committed as **`docs/IP-SCREEN-POKEMON.md`** and **`docs/CAST-AND-VOICE.md`**
+§4 + Appendix E, so every figure below is re-derivable from this tree — but from those documents,
+not from this repo's shipped data; see the applicability note at the end.*
+
+`docs/DIALOGUE-NOTES.md` D-2 originally gave background townsfolk **trade labels rather than personal
+names** ("Old Drover", "Net-Mender", "Shaft-Hand", "Fishery Buyer"), explicitly to keep the coined-name
+surface as small as possible. That convention has been replaced: **41 background speakers — 10 generic
+(innkeepers, vendors) and 31 ambient — were given real given names.** Every one of those 41 was then
+screened against the Pokémon corpora on Hank's stated bar, and the result is the single most
+transferable finding in this document.
+
+**The bar, verbatim from Hank:** *"The pokemon IP check should be very light, and I'm really only
+concerned about using actual pokemon names."* Nothing else was screened — no trademarks, no
+storefronts, no other monster-collector games, no real people.
+
+**Result 1 — the in-universe namespace is clean; the *character* namespace is not.**
+**Zero of the screened names matched any Pokémon species, move, ability, item or form.** Every single
+hit was a **character** — overwhelmingly a Trainer in a per-route Trainer table. That is the shape of
+the risk: our coined *creature* and *move* vocabulary has been the focus of this whole document, and
+it turns out the exposure sits in the part nobody was screening.
+
+**Result 2 — the standing constraint.** Screening **54 replacement candidates** turned up **15 further
+exact Trainer/character hits** — a **~28% strike rate on ordinary short English given names**
+(15 ÷ 54 = 27.8%).
+
+> **⚠️ Two caveats on that 15/54, recorded rather than smoothed over.** The percentage is arithmetically
+> right, but the source document's own numbers do not fully reconcile and I could not close the gap
+> from the files: (1) it states 33 candidates passed clean, and 33 + 15 = **48**, leaving **six of the
+> 54 unaccounted for** — the doc never says whether they were dropped on a hit or on register;
+> (2) **only 13 of the 15 hits are ever enumerated** (*Nellie, Ethel, Dilly, Pippa, Agnes, Winnie,
+> Tansy, Gilly, Osanna, Tilly, Cissy, Poppy, Jinny* — the last four being Brock's sibling, the Mikan
+> Gym Leader, a Paldea Elite Four member and an anime character). The remaining two are not identified
+> anywhere. **Quote this finding as "~28%, 13 of 15 enumerated", or re-derive it before asserting it.**
+
+**Result 3 — the disposition rule that was applied**, and which any future name should reuse:
+
+> **Renamed** if the Pokémon character has their own page or recurs across several appearances.
+> **Kept** if it is a single anonymous row in a Trainer table — the same tier as Bram.
+
+Applying it to the 41-name cast produced **11 confirmed hits: 5 renamed, 6 kept.**
+
+| Was | Now | Slot | The collision |
+|---|---|---|---|
+| ~~**Enid**~~ | **Idony** ✅ | `duskhollow-elder` | Nursery Aide Enid — a named Trainer recurring across three PWT rosters (B2W2) |
+| ~~**Meg**~~ | **Effie** ✅ | `innkeeper-duskhollow` | Three referents, including a POKÉTOON lead |
+| ~~**Ada**~~ | **Annis** ✅ | `vendor-cindershelf` | Own page plus a disambiguation page |
+| ~~**Rhoda**~~ | **Parnel** ✅ | `brackwater-netmender` | Own page; anime character of the day |
+| ~~**Arley**~~ | **Alwin** ✅ | `duskhollow-shepherd` | Own page; Societea member in *Ranger: Guardian Signs* |
+
+**Kept on the rule above, all six exact matches:** **Jem** (School Kid Jem, Unova Route 12), **Rask**
+(Cooltrainer Rask, Tower Colosseum), **Fay** (Beauty Fay, Mossdeep), **Dorn** (Roller Boy Dorn,
+Mt. Battle), **Dunstan** (a surname-only Cullbrand slot; the referent is a reporter's *surname*),
+**Cass** (a localization-only match — the European-Spanish name of Kieran).
+
+**Not a sixth rename:** *Nessa → Hetty* appears in the same source table but is the **Q2** rename
+recorded above (D-Q4-4) and had already shipped; this screen only re-confirmed **Hetty** clean.
+
+**⚠️ APPLICABILITY — none of the 41 names is in the game yet.** Verified against
+`data/dialogue.json`: every one of the five renamed names returns **zero** hits, and the affected
+speaker ids still carry their trade labels (`innkeeper-duskhollow` → `"Innkeeper"`, `duskhollow-elder`
+→ `"Vale Elder"`). **Hetty is the only name from this whole family that has landed.** Treat the cast
+table as a proposal the prose lane is applying, and do not let this section be read as a claim about
+shipped data.
+
+**The rule that outlives the task:** *plain human names are not safe by default in this space.* Any
+name added to this cast later must be run through both Pokémon corpora before it ships — a clean
+creature-name sweep says nothing at all about it.
+
 
 ### If the title changes
 
@@ -515,11 +757,19 @@ touch `data/species.json` (its `movePool` references are `id`s, and the ids did 
 `data/gyms.json` (which carries no move slots at all) or `data/dialogue.json` (which mentions no move
 by name — the only near-hits are the ordinary words "kiln-hardened" and "burrow"). The estimate below
 was made when a rename was assumed to move the `id` too; **renaming the display name alone is
-cheaper still**, and that is what shipped (D-Q1-5). `overgrow` appears only in
-`data/moves.json`, `data/species.json`, `fixtures/battle-scripts/gym-01-maribel.json` and
-`tests/unit/{battle,transcription}.test.ts`. A **trait** rename is cheaper still:
-`data/balance.json` plus `data/gyms.json` for the two traits attached to signatures.
-**This is why the move and trait REDs should be fixed first — they are the highest-severity
+cheaper still**, and that is what shipped (D-Q1-5).
+
+**Q2 then measured the other three, and every estimate above held.** Renaming the Plant heavy
+move's *display name* `Overgrow` → `Thicket` touched **`data/moves.json` and
+`tests/unit/transcription.test.ts` only.** The id `overgrow` appears in `data/species.json`
+(six `movePool.type2` slots), `fixtures/battle-scripts/gym-01-maribel.json` (six `moveId` values)
+and `tests/unit/battle.test.ts` — **none of which needed editing, because the id did not move.**
+The **trait** renames were cheaper again: **`data/balance.json` alone.** `data/gyms.json` carries
+only `thick-pelt` and `silk-spun` on its two signature slots, so neither RED trait was in it.
+The **NPC** rename cost `data/dialogue.json` (one speaker `name` + three lines of prose that say
+her name out loud, found by grep — other characters mention her) and the capped allow-list in
+`tests/unit/dialogue.test.ts`; all fourteen `nessa.*` entry ids stayed put.
+**This is why the move, trait and NPC REDs were fixed first — they are the highest-severity
 collisions and the lowest-cost fixes in the sweep.**
 
 ### The region and the Yr-5 town
@@ -590,8 +840,11 @@ These are for Hank or a lawyer. None of them is something more searching would r
    Castle all block automated access, and that is precisely where fakemon are posted. Manual
    searches for the surviving creature names would close the biggest remaining gap.
 5. **Screen the replacement names before adopting them — against Digimon above all.**
-   *(Done for the three Q1 move names — see "The Q1 move renames". Still owed for every creature and
-   place candidate.)* They
+   *(Done for the three names Q1 first adopted — see "The Q1 move renames"; those three were then
+   withdrawn. **Bristle / Shriek / Daunt and the four Q2 names have had a Pokémon-only screen and
+   NOT a Digimon one** — see "The Q2 renames", which also records that `Daunt` turned out to be an
+   exact Pokémon Shuffle skill name and is an open decision for Hank. Still owed for every creature
+   and place candidate.)* They
    passed the Pokédex, Steam, itch.io, Scryfall and four creature-collector wikis. They have
    **not** been through TMview, the fantasy-wiki sweep, the fan forums, or Digimon — and Digimon
    was the source of the two latest exact hits in this sweep (Miasma, Shade), so it is the
@@ -648,7 +901,28 @@ These are for Hank or a lawyer. None of them is something more searching would r
 - **The item and system vocabulary** (`Snare`, `Bait`, `Lure`, `Tonic`, `Relics`, `Medicines`,
   the snare tiers base/weighted/master). Checked against four creature-collectors only — no
   trademark or storefront pass. Given that these are unprotectable functional descriptors,
-  I judged deeper checking to be low value; Hank can overrule that judgement.
+  I judged deeper checking to be low value; Hank can overrule that judgement. **Partly corrected
+  2026-08-25:** `Lure` was then checked against Pokémon specifically and **is a real Pokémon item**
+  that raises wild-encounter rates — the same job ours does. Hank ruled it kept.
+- **The Pokémon TCG, and the spin-off namespaces.** The Q2 pass swept Pokémon species, main-series
+  moves, abilities, items and characters properly, but **TCG attack names and the Masters EX /
+  UNITE / Conquest / Shuffle / Mystery Dungeon namespaces were only spot-checked, not swept.**
+  Saying so plainly matters, because the spot-checks are where three of the pass's hits came from:
+  `Strangle` and `Hard Bite` are TCG attacks, `Daunt` is a Pokémon Shuffle skill, and `Bristle` and
+  `Far Sight` were near-missed on Mystery Dungeon and a Serebii redirect. **A systematic pass over
+  those namespaces is the single highest-yield Pokémon check still owed.**
+- **Status names, before 2026-08-25 — not shallow, absent.** Burn / Toxin / Soak / Daze were never
+  screened at all by the original sweep. They have been now; `Soak` is a real Pokémon move and is
+  KEPT by ruling.
+- **Quest-NPC given names, before 2026-08-25 — also absent.** Tolm / Nessa / Halder / Pell / Gerta /
+  Ives / Orrin were coined in `docs/DIALOGUE-NOTES.md` D-1 after this sweep ran, so none of them was
+  ever in it. `Nessa` was a Gym Leader.
+- **Background-NPC given names — screened separately, and only against Pokémon.** The 41 names that
+  replace D-2's trade labels got their own pass on 2026-08-25; see *"Ordinary English given names are
+  a dense Pokémon-collision space"* above. That pass was **Pokémon-only by instruction** — no
+  trademark search, no storefront check, no other monster-collector game. So those 41 sit in the same
+  position as every AMBER creature name in this document: clean of the one corpus that was checked,
+  unchecked against the rest. **None of them is in `data/dialogue.json` yet.**
 
 **Not reached:**
 

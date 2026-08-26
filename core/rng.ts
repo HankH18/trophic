@@ -217,8 +217,8 @@ export function stochasticRound(value: number, rng: Rng): number {
  * This is what keeps causally unrelated work causally unrelated. A single shared stream threaded
  * through many independent consumers means the number of draws one consumer happens to make
  * phase-shifts every consumer after it — so a change at one node silently moves the numbers at a
- * node six graph hops away, and the ledger stops being readable as cause and effect (build-doc §2
- * Hard Req 2, Hard Req 7's epilogue ledger). Determinism (L10) is preserved either way; legibility
+ * node six graph hops away, and the survey stops being readable as cause and effect (build-doc §2
+ * Hard Req 2, Hard Req 7's epilogue survey). Determinism (L10) is preserved either way; legibility
  * is not.
  *
  * The child is a pure function of (parent draw, tag), so replay from a saved parent state

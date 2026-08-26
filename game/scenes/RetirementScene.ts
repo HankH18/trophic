@@ -817,7 +817,7 @@ export function clampLines(lines: readonly string[], maxLines: number): string[]
  * ──────────────────────────────────────────────────────────────────────────── */
 
 import type PhaserNS from "phaser";
-import { dexArtId } from "@game/ledger-view";
+import { dexArtId } from "@game/survey-view";
 import { placeholderImage } from "@game/placeholder";
 import { SCENE_KEYS } from "@game/scene-keys";
 
@@ -906,7 +906,7 @@ export interface RetirementSceneStyle {
  * The card's layout at the virtual resolution balance.json states.
  *
  * A function rather than a constant because the two numbers that size it are DATA: every other scene
- * in the repo reads `balance.map.virtualWidth`/`virtualHeight` (BattleScene, DexScene, LedgerScene,
+ * in the repo reads `balance.map.virtualWidth`/`virtualHeight` (BattleScene, DexScene, SurveyScene,
  * SummaryScene all do), and `game/boot.ts` states the rule verbatim. A retune of the virtual
  * resolution (INV-3) has to move this card with it or the demo's one full-screen choice is drawn to
  * a canvas that is no longer that size.
@@ -1283,7 +1283,7 @@ export function createRetirementScene(
       /*
        * The retiree, portrait first — a labelled placeholder rectangle, never a stand-in image.
        *
-       * The label is an ASSET ID (`game/ledger-view.ts` `dexArtId`, the same key the dex and the
+       * The label is an ASSET ID (`game/survey-view.ts` `dexArtId`, the same key the dex and the
        * summary card ask for), not the creature's save-local uid. game/placeholder.ts resolves the
        * id against `assets/final/` and writes it on the stand-in so "a reviewer can say WHICH asset
        * is missing" — and a uid like "starter" names no file, so it could never resolve to real art

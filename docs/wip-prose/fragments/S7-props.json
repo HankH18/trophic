@@ -1,0 +1,495 @@
+{
+ "_slice": "S7-props",
+ "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
+ "entries": [
+  {
+   "id": "prop.hearthollow-signpost",
+   "speaker": "prop-sign-card",
+   "node": "hearthollow",
+   "kind": "prop",
+   "propId": "hearthollow-signpost",
+   "when": {},
+   "lines": [
+    {
+     "text": "FIELD STATION — HEARTHOLLOW. Survey sheets go up at first light. Pencil and blanks in the tin by the door. Sign for the sheet you take."
+    },
+    {
+     "text": "In pencil underneath: north gate for the Reach, not the west track. The west track's been under water since the thaw. / Scratched in with a nail: pencil's gone from the tin again, and that was the last one."
+    }
+   ]
+  },
+  {
+   "id": "prop.r1-sign-forage",
+   "speaker": "prop-sign-card",
+   "node": "r1",
+   "kind": "prop",
+   "propId": "r1-sign-forage",
+   "when": {},
+   "lines": [
+    {
+     "text": "FORAGE SIGN — MEADOW REACH. Know four signs: tracks, scrapes, castings, browse line."
+    },
+    {
+     "text": "In pencil down the side: MIGRATING means the animal's season is the one either side of this one. DORMANT means further off than that. / Another hand: neither of those, and no sign on the ground, means the animal's gone."
+    }
+   ]
+  },
+  {
+   "id": "prop.r1-antler-north",
+   "speaker": "prop-antler-stone",
+   "node": "r1",
+   "kind": "prop",
+   "propId": "r1-antler-north",
+   "signChain": "vellsire-chain",
+   "chainStep": 2,
+   "priority": 50,
+   "when": {
+    "flagsSet": [
+     "chain.vellsire.step1"
+    ],
+    "flagsUnset": [
+     "chain.vellsire.step2"
+    ]
+   },
+   "lines": [
+    {
+     "text": "On the north rise: one block of granite cut into branching antlers, taller than a person, set deep. The turf has grown over the foot."
+    },
+    {
+     "text": "On the sheltered side, cut shallow, a herd of six figures. A line runs north out of the herd and off the edge of the stone."
+    },
+    {
+     "text": "The weather side is worn round and pale. Where the meadow grass banks up against the foot of the stone, the stone is warm to the hand."
+    }
+   ],
+   "setFlags": {
+    "chain.vellsire.step2": true,
+    "trail.stone.r1": true
+   }
+  },
+  {
+   "id": "prop.r1-antler-south",
+   "speaker": "prop-antler-stone",
+   "node": "r1",
+   "kind": "prop",
+   "propId": "r1-antler-south",
+   "when": {},
+   "lines": [
+    {
+     "text": "The southern stone is snapped off at about half its height."
+    },
+    {
+     "text": "The break carries the same lichen as the rest of the stone. What is left of the carving is hooves and the bottom of a line, and the line runs off the broken edge, north, toward the high ground."
+    }
+   ]
+  },
+  {
+   "id": "prop.brackwater-idol-dock",
+   "speaker": "prop-sunken-idol",
+   "node": "brackwater",
+   "kind": "prop",
+   "propId": "brackwater-idol-dock",
+   "signChain": "undermere-chain",
+   "chainStep": 2,
+   "priority": 50,
+   "when": {
+    "actMin": 2,
+    "flagsSet": [
+     "chain.undermere.step1"
+    ],
+    "flagsUnset": [
+     "chain.undermere.step2"
+    ]
+   },
+   "lines": [
+    {
+     "text": "A stone figure stands in the water off the dock rim, turned out toward the channel."
+    },
+    {
+     "text": "The shallows round it are clear to the bottom. The water directly under it is not, and the face does not come clear from the rim."
+    },
+    {
+     "text": "Only the crown of the head is above water, and the carving there is finished down to the parting in the hair. The stone is dark and close-grained, and nothing in the dock wall behind it is the same stone."
+    }
+   ],
+   "setFlags": {
+    "chain.undermere.step2": true
+   }
+  },
+  {
+   "id": "prop.r2-idol-shallows",
+   "speaker": "prop-sunken-idol",
+   "node": "r2",
+   "kind": "prop",
+   "propId": "r2-idol-shallows",
+   "signChain": "undermere-chain",
+   "chainStep": 5,
+   "priority": 50,
+   "when": {
+    "actMin": 2,
+    "flagsSet": [
+     "chain.undermere.step4"
+    ],
+    "flagsUnset": [
+     "chain.undermere.step5"
+    ]
+   },
+   "lines": [
+    {
+     "text": "The second figure stands where the reeds thin, in shallower water than the one at the dock. It is turned back to face that one, and the carving is the same, so far as the dock figure can be seen at all."
+    },
+    {
+     "text": "The eyes on this one were never cut."
+    },
+    {
+     "text": "Between the two figures the reed stops growing in a band about a boat wide. The water inside the band is darker than the water on either side of it."
+    }
+   ],
+   "setFlags": {
+    "chain.undermere.step5": true
+   }
+  },
+  {
+   "id": "prop.r2-antler-causeway",
+   "speaker": "prop-antler-stone",
+   "node": "r2",
+   "kind": "prop",
+   "propId": "r2-antler-causeway",
+   "signChain": "vellsire-chain",
+   "chainStep": 4,
+   "priority": 50,
+   "when": {
+    "actMin": 2,
+    "flagsSet": [
+     "chain.vellsire.step3"
+    ],
+    "flagsUnset": [
+     "chain.vellsire.step4"
+    ]
+   },
+   "lines": [
+    {
+     "text": "The causeway stone leans downhill toward the water, and peat has banked against the uphill side of it, about as high as a knee."
+    },
+    {
+     "text": "The weather has taken the top of the carving away. Below that there are six figures, and a line running east out of them."
+    },
+    {
+     "text": "The groove of that line has two depths. The shallower cut runs the full length of it. The deeper cut starts a hand's width in from the figures and stops before the edge."
+    }
+   ],
+   "setFlags": {
+    "chain.vellsire.step4": true,
+    "trail.stone.r2": true
+   }
+  },
+  {
+   "id": "prop.bowerdeep-sign-market",
+   "speaker": "prop-sign-card",
+   "node": "bowerdeep",
+   "kind": "prop",
+   "propId": "bowerdeep-sign-market",
+   "when": {},
+   "lines": [
+    {
+     "text": "NIGHT MARKET — open dusk to dawn. Stalls sell silk, thread, dye, lamp oil, relight kits. Rent falls due the first night of the month, in coin."
+    },
+    {
+     "text": "Pinned under it on a scrap: the Webvern figure for the town canopy, midsummer — eleven struck out, nine struck out, seven. / Across it in ink, another hand: Vesper's been up there since. Stop writing on my notice."
+    }
+   ]
+  },
+  {
+   "id": "prop.r3-antler-canopy",
+   "speaker": "prop-antler-stone",
+   "node": "r3",
+   "kind": "prop",
+   "propId": "r3-antler-canopy",
+   "signChain": "vellsire-chain",
+   "priority": 50,
+   "when": {
+    "flagsSet": [
+     "chain.vellsire.step4"
+    ],
+    "flagsUnset": [
+     "trail.stone.r3"
+    ]
+   },
+   "lines": [
+    {
+     "text": "The forest has grown up around this stone. Two trunks stand hard against its sides, and both trunks have gone flat where they touch it."
+    },
+    {
+     "text": "It is cut from the same granite as the stones out on the meadow. There is no granite anywhere in these woods."
+    },
+    {
+     "text": "Six figures again on the sheltered side, in the same order as the six on the marsh stone. The line runs east out of them and off the edge, level with the flattened place on the nearer trunk."
+    }
+   ],
+   "setFlags": {
+    "trail.stone.r3": true
+   }
+  },
+  {
+   "id": "prop.cindershelf-shrine-mine",
+   "speaker": "prop-shell-kiln-shrine",
+   "node": "cindershelf",
+   "kind": "prop",
+   "propId": "cindershelf-shrine-mine",
+   "signChain": "kilnback-chain",
+   "chainStep": 2,
+   "priority": 50,
+   "when": {
+    "actMin": 4,
+    "flagsSet": [
+     "chain.kilnback.step1"
+    ],
+    "flagsUnset": [
+     "chain.kilnback.step2"
+    ]
+   },
+   "lines": [
+    {
+     "text": "A low structure at the shaft head, built of curved plates fitted without mortar."
+    },
+    {
+     "text": "The plates have the colour of fired clay. They are not clay. Up close the grain runs the way bone runs, fired hard enough to come out that colour, and each plate is thicker through than a door."
+    },
+    {
+     "text": "Candles have been set into the joins for years. They have worn hollows into the plate underneath, and every hollow is black with soot."
+    }
+   ],
+   "setFlags": {
+    "chain.kilnback.step2": true
+   }
+  },
+  {
+   "id": "prop.cindershelf-shrine-deep",
+   "speaker": "prop-shell-kiln-shrine",
+   "node": "cindershelf",
+   "kind": "prop",
+   "propId": "cindershelf-shrine-deep",
+   "signChain": "kilnback-chain",
+   "chainStep": 5,
+   "priority": 50,
+   "when": {
+    "actMin": 4,
+    "flagsSet": [
+     "chain.kilnback.step4"
+    ],
+    "flagsUnset": [
+     "chain.kilnback.step5"
+    ]
+   },
+   "lines": [
+    {
+     "text": "The second shrine is at the bottom of the deep workings. The air here does not move, and the shrine is warmer than the rock it stands on."
+    },
+    {
+     "text": "This one has no joins anywhere. It is a single plate, curving away on both sides, shoulder height, with no tool mark on the outside."
+    },
+    {
+     "text": "Cut across the face, in a lettering the mine gave up using: KILNBACK. The wax below the letters has built up, been cut back with a knife, and built up again. There is a candle standing in it now, still soft."
+    }
+   ],
+   "setFlags": {
+    "chain.kilnback.step5": true
+   }
+  },
+  {
+   "id": "prop.r4-antler-vent",
+   "speaker": "prop-antler-stone",
+   "node": "r4",
+   "kind": "prop",
+   "propId": "r4-antler-vent",
+   "signChain": "vellsire-chain",
+   "priority": 50,
+   "when": {
+    "flagsSet": [
+     "chain.vellsire.step4"
+    ],
+    "flagsUnset": [
+     "trail.stone.r4"
+    ]
+   },
+   "lines": [
+    {
+     "text": "Vent heat has glazed the windward face of this stone to a skin of glass, and the glass has crazed and lifted in patches. The sheltered face has none of that, and the cutting there is sharp."
+    },
+    {
+     "text": "Six figures on the sharp face, the line out of them running south-east. Ash lies thick out here. None of it has caught in the cutting."
+    }
+   ],
+   "setFlags": {
+    "trail.stone.r4": true
+   }
+  },
+  {
+   "id": "prop.duskhollow-sign-observatory",
+   "speaker": "prop-sign-card",
+   "node": "duskhollow",
+   "kind": "prop",
+   "propId": "duskhollow-sign-observatory",
+   "when": {},
+   "lines": [
+    {
+     "text": "STAR CENSUS — ground animals, named and dated. One painted plate to each name, painted here by hand, one at a time. Plates issued this year: nine."
+    },
+    {
+     "text": "At the foot, small: plates go out when the illustrators have time, and asking again does not move you up the list. / In a slower hand signed Orrin: the margin book is no part of this census. Read it where it sits."
+    }
+   ]
+  },
+  {
+   "id": "prop.r5-antler-vale",
+   "speaker": "prop-antler-stone",
+   "node": "r5",
+   "kind": "prop",
+   "propId": "r5-antler-vale",
+   "signChain": "vellsire-chain",
+   "priority": 50,
+   "when": {
+    "flagsSet": [
+     "chain.vellsire.step4"
+    ],
+    "flagsUnset": [
+     "trail.stone.r5"
+    ]
+   },
+   "lines": [
+    {
+     "text": "This stone stands in open ground, with nothing higher than the grass for a quarter mile round it. There is no sheltered side."
+    },
+    {
+     "text": "The cutting is shallow the whole way round. Six figures again, and the line out of them runs up the face and off the top edge instead of across it. Where it leaves the stone it points at the caldera rim."
+    }
+   ],
+   "setFlags": {
+    "trail.stone.r5": true
+   }
+  },
+  {
+   "id": "prop.sanctum-approach-antler-gate",
+   "speaker": "prop-antler-stone",
+   "node": "sanctum-approach",
+   "kind": "prop",
+   "propId": "sanctum-approach-antler-gate",
+   "signChain": "vellsire-chain",
+   "chainStep": 9,
+   "priority": 50,
+   "when": {
+    "actMin": 6,
+    "flagsSet": [
+     "chain.vellsire.step8"
+    ],
+    "flagsUnset": [
+     "chain.vellsire.step9"
+    ]
+   },
+   "lines": [
+    {
+     "text": "The gate stone is the largest on the road up, about double the height of the one out in the vale. It is set into cut rock rather than into ground."
+    },
+    {
+     "text": "This stone carries the herd on both faces, and none of the other stones does. On the outward face the six are walking in. On the inward face they are standing still, with a line cut under their feet."
+    }
+   ],
+   "setFlags": {
+    "chain.vellsire.step9": true,
+    "trail.stone.sanctum-approach": true
+   }
+  },
+  {
+   "id": "prop.sanctum-approach-antler-inner",
+   "speaker": "prop-antler-stone",
+   "node": "sanctum-approach",
+   "kind": "prop",
+   "propId": "sanctum-approach-antler-inner",
+   "when": {},
+   "lines": [
+    {
+     "text": "A second stone further up the road, left unfinished. The antlers are roughed out to about half their depth, and the face where the herd would go has not been cut at all."
+    },
+    {
+     "text": "Tools lie at the foot of it under the ash: a hammer and three wedges, side by side. The ash over them takes a boot in to the ankle."
+    }
+   ]
+  },
+  {
+   "id": "prop.sanctum-antler-ring",
+   "speaker": "prop-antler-stone",
+   "node": "sanctum",
+   "kind": "prop",
+   "propId": "sanctum-antler-ring",
+   "signChain": "vellsire-chain",
+   "chainStep": 11,
+   "priority": 50,
+   "when": {
+    "actMin": 6
+   },
+   "lines": [
+    {
+     "text": "Nine stones at the caldera heart, evenly spaced, every one facing in toward the middle."
+    },
+    {
+     "text": "Every one of them is carved, and the carving on these is not a herd. Each stone carries one animal on its own, cut to double the size of the six figures on the stones outside."
+    },
+    {
+     "text": "The grass inside the ring is short and even. It is the only grass in the Sanctum Fallow that anything has been at, and the dung lying in it has not dried out."
+    }
+   ]
+  },
+  {
+   "id": "sanctum.vellsire.approach",
+   "speaker": "prop-antler-stone",
+   "node": "sanctum",
+   "kind": "cutscene",
+   "propId": "sanctum-antler-ring",
+   "priority": 95,
+   "when": {
+    "actMin": 6,
+    "flagsSet": [
+     "story.greaves.beaten"
+    ],
+    "flagsUnset": [
+     "story.vellsire.resolved"
+    ],
+    "population": [
+     {
+      "node": "sanctum",
+      "lineId": "vellsire-line",
+      "op": "gte",
+      "value": 1
+     }
+    ]
+   },
+   "lines": [
+    {
+     "text": "The stag comes down into the ring from the high side of the caldera. It does not hurry. It is bigger than any of the animals cut on the stones."
+    },
+    {
+     "text": "It is a Vellsire. The branching on its antlers is the branching cut on every stone from Meadow Reach up to here, and the spread of them is wider than a person is tall."
+    },
+    {
+     "text": "It stops in the middle of the ring, on the short grass, and puts its head up. It has not moved off, and it is not looking back at the way it came in."
+    }
+   ],
+   "choices": [
+    {
+     "text": "Set the snare.",
+     "setFlags": {
+      "story.vellsire.attempt": "catch"
+     }
+    },
+    {
+     "text": "Leave it where it stands.",
+     "setFlags": {
+      "story.vellsire.attempt": "release",
+      "story.vellsire.resolved": true,
+      "story.vellsire.outcome": "released"
+     }
+    }
+   ]
+  }
+ ]
+}

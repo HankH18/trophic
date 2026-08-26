@@ -520,7 +520,7 @@ describe("bait match — derived from the target's diet (build-doc §7.2, G3)", 
 
 /**
  * "Grep/AST gate: no file other than `core/foodweb.ts` may compute diet edges; no encounter-weight
- * literal tables anywhere; ledger UI reads `nodeStates` objects directly." (build-doc §8.3)
+ * literal tables anywhere; survey UI reads `nodeStates` objects directly." (build-doc §8.3)
  *
  * The gate build-doc §10.3 names did not exist anywhere in the repo. It does now, and it binds the
  * three things a shadow table would have to do: name a species, restate the role→role diet, or ship

@@ -1,16 +1,16 @@
 /**
- * game/wild-battle.ts — the join between meeting a wild creature and the ledger moving.
+ * game/wild-battle.ts — the join between meeting a wild creature and the survey moving.
  *
  * ══ WHAT WAS MISSING, AND WHY IT MATTERED MOST ══
  * build-doc §1's first never-cut demo beat is: hammer a prey species in year 1, open year 2 with its
  * predator gone. Every piece of that existed and none of them touched: `core/battle.ts` reported a
  * catch through `caughtIndividual`, `core/ecosim.ts` could apply one through `applyCatch`, and
- * `tests/integration/seams.test.ts` joined them BY HAND and proved the ledger goes 11 → 10. But
+ * `tests/integration/seams.test.ts` joined them BY HAND and proved the survey goes 11 → 10. But
  * nothing in the shipping game did: `OverworldScene` exposed an `onEncounter` seam that
  * `game/boot.ts` never supplied, no file in `game/` started the battle scene, and no file in `game/`
  * ever wrote a catch into `save.nodeStates`. Driven headlessly, the real overworld met 56 wild
  * creatures across two in-game years and moved not one population; the ecology moved only on season
- * boundaries. The catch→ledger loop was proven in core and reachable from nowhere.
+ * boundaries. The catch→survey loop was proven in core and reachable from nowhere.
  *
  * This module is that join, and it is the ONLY one. It is where an `Encounter` becomes a
  * `BattleInput`, and where a `CaughtIndividual` becomes a decremented count and a creature in the
@@ -201,7 +201,7 @@ export function buildWildBattle(opts: {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Battle outcome → the ledger (Hard Req 2)
+ * Battle outcome → the survey (Hard Req 2)
  * ──────────────────────────────────────────────────────────────────────────── */
 
 export interface CatchApplication {
@@ -329,7 +329,7 @@ export function applyCatchToSave(
  * `caughtIndividual` is core/battle.ts's own reporter and is non-null exactly when the outcome is
  * `"caught"` — this file does not decide whether a catch happened, it only carries out the one that
  * did. A fled, won or lost battle changes no population, which is the correct reading of §7.2: the
- * ledger counts what the player took, not what the player fought.
+ * survey counts what the player took, not what the player fought.
  */
 export function applyWildBattleOutcome(opts: {
   save: SaveEnvelope;

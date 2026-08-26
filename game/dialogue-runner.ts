@@ -27,6 +27,7 @@ import { actOf } from "@core/acts";
 import { seasonOf } from "@core/clock";
 import {
   DIALOGUE,
+  selectEntry,
   selectEntryWhere,
   type DialogueContext,
   type DialogueEntry,
@@ -56,7 +57,7 @@ export { DIALOGUE };
  * rather than `false` precisely so a caller that guessed is caught at the first lookup.
  *
  * The populations come through `liveNodeOf` — the SAME resolver the encounter roll, the HUD and the
- * catch use — so a population clause in a line and the number on the ledger cannot disagree
+ * catch use — so a population clause in a line and the number on the survey cannot disagree
  * (build-doc §8.3; this is the "two answers to one number" defect, on the numbers Hard Req 2 is
  * about).
  */
@@ -100,9 +101,60 @@ export const AUTOPLAY_KINDS: readonly DialogueKind[] = ["cutscene"];
  * the game unreachable while the corpus stayed green. Ambient last for the same reason.
  *
  * `prop` is absent: a prop entry is read off its placement, not off a speaker (see
- * {@link propDialogueFor}). `battle-*` are absent because a battle scene selects them.
+ * {@link propDialogueFor}). `battle-*` are absent because a battle SELECTS them — see
+ * {@link BATTLE_KINDS} / {@link battleEntryFor}, and note that they must not be walked here: a
+ * `battle-pre` reachable from the interact key is a pre-fight speech with no fight after it.
  */
 export const TALK_KINDS: readonly DialogueKind[] = ["quest", "lore", "service", "greeting", "ambient"];
+
+/**
+ * The kinds a BATTLE asks for, and the third selector surface in this module.
+ *
+ * ⚠ NOTHING IN `game/` EVER ASKED FOR ONE OF THESE. Measured before this existed: 35 entries and 70
+ * lines — every gym leader's pre- and post-battle speech, both Greaves finale entries and all
+ * eighteen Wick entries — had no code path to the screen, and the three strings appeared outside
+ * `data/dialogue.json` exactly once, in `core/dialogue-schema.ts`'s own kind enum. The corpus's
+ * comment on {@link TALK_KINDS} said "`battle-*` are absent because a battle scene selects them",
+ * and no battle scene did. That is also why `story.greaves.beaten` had no writer: `greaves.finale
+ * .post` is the only entry in the repo that writes it, and it is a `battle-win`.
+ *
+ * The ORDER of a battle's beats is the caller's, not this list's, and it is load-bearing: the badge
+ * is written FIRST and the `battle-win` played second, because `maribel.post.win` and its five
+ * siblings write `gym.<id>.beaten` themselves — playing before `awardBadge` would advance the act
+ * in the middle of the scene that is announcing it.
+ */
+export const BATTLE_KINDS: readonly DialogueKind[] = ["battle-pre", "battle-win", "battle-loss"];
+
+/** The kind a finished fight asks for. Enumerated, so a new outcome is a decision and not a default. */
+export function battleOutcomeKind(won: boolean): DialogueKind {
+  return won ? "battle-win" : "battle-loss";
+}
+
+/**
+ * What this fighter says at this moment of this fight.
+ *
+ * A THIN DELEGATION TO `selectEntry`, exactly as {@link talkEntryFor} is to `selectEntryWhere` —
+ * there is no second resolver here and there must not be one. The entry's own `when` is what
+ * decides whether the encounter is still standing: `wick.act3.pre` carries
+ * `flagsUnset: ["rival.act3.fought"]`, so "has the player already fought him on Route 3" is a
+ * question the CORPUS answers and not a second model in `game/rival.ts`.
+ *
+ * Refuses a non-battle kind rather than quietly answering it: this is the seam a caller reaches for
+ * inside a battle callback, and a `greeting` returned there would play a townsperson's line over a
+ * fight.
+ */
+export function battleEntryFor(
+  file: DialogueFile,
+  speaker: string,
+  node: string,
+  kind: DialogueKind,
+  ctx: DialogueContext,
+): DialogueEntry | undefined {
+  if (!BATTLE_KINDS.includes(kind)) {
+    throw new Error(`dialogue: "${kind}" is not a battle kind — ${BATTLE_KINDS.join(", ")}`);
+  }
+  return selectEntry(file, speaker, node, kind, ctx);
+}
 
 /** The cutscene that should be playing right now at this node, if any. */
 export function autoplayEntryFor(

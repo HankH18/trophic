@@ -7,7 +7,7 @@
  * year for every creature, and it renders `core/lifecycle.ts`'s answer — the projection has one
  * implementation, and a card that recomputed it would be the second one.
  *
- * A renderer only: the card's numbers come from `game/ledger-view.ts` `buildSummaryCard`, which
+ * A renderer only: the card's numbers come from `game/survey-view.ts` `buildSummaryCard`, which
  * composes `core/lifecycle.ts` (projection, aging) and `core/battle.ts` (effective stats, the moves
  * a level knows). Nothing here does stat or lifespan arithmetic.
  *
@@ -24,13 +24,13 @@ import {
   buildSummaryCard,
   renderSummaryCard,
   type SummaryCard,
-} from "../ledger-view";
+} from "../survey-view";
 import { SCENE_KEYS } from "../scene-keys";
 import { drawArtSlot } from "./DexScene";
 import type { Content, OwnedCreature } from "../../core/types";
 
 /**
- * The scene key, READ from the registry rather than spelled again here (as `LedgerScene` does).
+ * The scene key, READ from the registry rather than spelled again here (as `SurveyScene` does).
  * `game/scene-keys.ts` is engine-free — `import type` only — so there is no reason for this file to
  * hold a second copy of the string, and two spellings of one key is the exact failure that registry
  * exists to prevent. It carried its own literal while the registry had no `summary` entry; the
@@ -53,7 +53,7 @@ const INK_DIM = "#8a8676";
 const INK_FLAG = "#d8a24a";
 const BACKDROP = 0x14140f;
 
-// The screen's text metrics have one home, in game/ledger-view.ts (see LedgerScene).
+// The screen's text metrics have one home, in game/survey-view.ts (see SurveyScene).
 const FONT = SCREEN_TEXT.fontFamily;
 const BODY_PX = SCREEN_TEXT.fontPx;
 const LINE_H = SCREEN_TEXT.lineHeight;

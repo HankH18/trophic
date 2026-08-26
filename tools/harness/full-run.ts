@@ -72,7 +72,7 @@ import { seedFor, subsystemTags, type LoadedContent } from "./content";
 import { actNodeIds } from "./player";
 
 /* ════════════════════════════════════════════════════════════════════════════
- * Shared: the ledger the mode reports
+ * Shared: the survey the mode reports
  * ════════════════════════════════════════════════════════════════════════════ */
 
 export interface PopulationTrack {
@@ -86,7 +86,7 @@ export interface PopulationTrack {
   extinctAtSeason: number | null;
 }
 
-export interface RunLedger {
+export interface RunSurvey {
   tracks: PopulationTrack[];
   extinctions: PopulationTrack[];
   catches: number;
@@ -94,7 +94,7 @@ export interface RunLedger {
   seasonSteps: number;
 }
 
-class Ledger {
+class Survey {
   private readonly track = new Map<string, PopulationTrack>();
   private season = 0;
 
@@ -140,7 +140,7 @@ class Ledger {
     }
   }
 
-  finish(catches: number, byLine: Map<string, number>): RunLedger {
+  finish(catches: number, byLine: Map<string, number>): RunSurvey {
     const tracks = [...this.track.values()].sort(
       (a, b) => a.nodeId.localeCompare(b.nodeId) || a.lineId.localeCompare(b.lineId),
     );
@@ -222,7 +222,7 @@ export type PlayProfile = (typeof PLAY_PROFILES)[number];
 export interface FullRunResult {
   profile: PlayProfile;
   seed: number;
-  ledger: RunLedger;
+  survey: RunSurvey;
   /** Cullbrand raid events the year turns fired (data, from `balance.yearEvents.raids`). */
   raids: Array<{ eventId: string; nodeId: string; lineId: string; removed: number; remaining: number }>;
 }
@@ -256,7 +256,7 @@ export function runFullRun(loaded: LoadedContent, seed: number, profile: PlayPro
   const firstNode = files[0];
   if (!firstNode) throw new Error("tools/harness: the region has no nodes");
   let save: SaveFile = newSave({ seed, currentNode: firstNode.id, nodes: files }, balance);
-  const ledger = new Ledger(loaded, save.nodeStates);
+  const survey = new Survey(loaded, save.nodeStates);
 
   const seenLines = new Set<string>();
   const caughtByLine = new Map<string, number>();
@@ -287,8 +287,8 @@ export function runFullRun(loaded: LoadedContent, seed: number, profile: PlayPro
   const regionStep = (season: Season): void => {
     const result = stepRegionStates(files, save.nodeStates, season, simRng, loaded.sim);
     save = { ...save, nodeStates: result.states };
-    ledger.markSeason();
-    ledger.observe(save.nodeStates);
+    survey.markSeason();
+    survey.observe(save.nodeStates);
   };
 
   /*
@@ -332,7 +332,7 @@ export function runFullRun(loaded: LoadedContent, seed: number, profile: PlayPro
         remaining: event.remaining,
       });
     }
-    ledger.observe(save.nodeStates);
+    survey.observe(save.nodeStates);
   };
 
   let clock = createClock(balance);
@@ -348,7 +348,7 @@ export function runFullRun(loaded: LoadedContent, seed: number, profile: PlayPro
       const nodeId = nodeIds[forayIndex % Math.max(1, nodeIds.length)];
       forayIndex += 1;
       if (nodeId !== undefined) forayAt(nodeId, season, year);
-      ledger.observe(save.nodeStates);
+      survey.observe(save.nodeStates);
 
       const advanced = advanceAction(clock, "foray", balance);
       clock = advanced.clock;
@@ -372,12 +372,12 @@ export function runFullRun(loaded: LoadedContent, seed: number, profile: PlayPro
       ecosimStep: (nodeId, state) => stepped[nodeId] ?? state,
     });
     save = turn.save;
-    ledger.markSeason();
-    ledger.observe(save.nodeStates);
+    survey.markSeason();
+    survey.observe(save.nodeStates);
     // The raids are no longer the year turn's — they fire on ACT ENTRY, at the top of the loop.
   }
 
-  return { profile, seed, ledger: ledger.finish(caughtTotal, caughtByLine), raids };
+  return { profile, seed, survey: survey.finish(caughtTotal, caughtByLine), raids };
 }
 
 export interface ProfileSummary {
@@ -414,14 +414,14 @@ export function summariseProfile(
 
   for (let i = 0; i < seeds; i++) {
     const run = runFullRun(loaded, seedFor(loaded.balance, i), profile);
-    totalCatches += run.ledger.catches;
-    seasonSteps = run.ledger.seasonSteps;
-    for (const entry of run.ledger.catchesByLine) {
+    totalCatches += run.survey.catches;
+    seasonSteps = run.survey.seasonSteps;
+    for (const entry of run.survey.catchesByLine) {
       const found = catches.get(entry.lineId);
       if (found) found.caught += entry.caught;
       else catches.set(entry.lineId, { ...entry });
     }
-    for (const track of run.ledger.tracks) {
+    for (const track of run.survey.tracks) {
       if (track.start <= 0) continue;
       const key = `${track.nodeId}|${track.lineId}`;
       const seen = minima.get(key);

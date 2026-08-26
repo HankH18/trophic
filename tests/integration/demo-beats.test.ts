@@ -25,7 +25,7 @@
  *
  * WHAT IT IS NOT EVIDENCE OF: no Phaser scene is constructed, so nothing here proves a pixel, an
  * input binding or a scene transition. The live drive of Title → Overworld → Battle → catch →
- * Ledger → year turn is recorded in docs/LANE-BC-STATUS.md, not here.
+ * Survey → year turn is recorded in docs/LANE-BC-STATUS.md, not here.
  *
  * G6: nothing below scripts a population, a predator or an heir. The catches are the ones the
  * recorded demo script (`fixtures/overcatch-script.json`) names; everything after them is the sim.
@@ -147,7 +147,7 @@ interface CascadeRun {
  *
  * `floor` is what the PLAYER does, not what the sim does: build-doc §10.2 asks for the prey below
  * 10%, and extinction is permanent (core/ecosim.ts), so a catch that takes the last individual
- * removes the animal the release is supposed to happen to. A player watching the ledger stops at 1.
+ * removes the animal the release is supposed to happen to. A player watching the survey stops at 1.
  */
 function runCascade(seed: number, floor: number): CascadeRun {
   const NODE = script.nodeId;
@@ -229,7 +229,7 @@ describe("I2 — over-catching a prey line through the production catch starves 
     expect(run.opening.prey, "fixtures/overcatch-script.json _expected").toBe(14);
     expect(run.opening.apex).toBe(3);
     // Every catch is a decrement of exactly one, in an unbroken chain from the opening count. A
-    // catch that failed to move the ledger would show as a repeated `n→n` pair.
+    // catch that failed to move the survey would show as a repeated `n→n` pair.
     let expected = run.opening.prey;
     for (const line of run.catches) {
       expect(line).toBe(`${PREY} ${String(expected)}→${String(expected - 1)}`);

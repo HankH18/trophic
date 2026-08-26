@@ -1,11 +1,11 @@
 /**
- * tests/unit/ledger-view.test.ts — the C4 screens: the ecology ledger, the food-web view, the dex
+ * tests/unit/survey-view.test.ts — the C4 screens: the ecology survey, the food-web view, the dex
  * and the creature summary card.
  *
  * What these tests are FOR. Three of the project's hard requirements are claims about text on a
  * screen, and a claim about text is only checkable if something can call the renderer:
  *
- *   Hard Req 2  "the in-game ledger shows real numbers, never proxies" — so the exact rendered
+ *   Hard Req 2  "the in-game survey shows real numbers, never proxies" — so the exact rendered
  *               characters are asserted against a fixture save, and every row is bound to the live
  *               `nodeStates` object it was read from (build-doc §8.3).
  *   Hard Req 10 "dex + sign cards flag migrants dormant/migrating out of season, so seasonal
@@ -43,20 +43,20 @@ import {
   SCREEN_TEXT,
   SUMMARY_ART_BOX,
   buildDexEntries,
-  buildLedgerPage,
+  buildSurveyPage,
   buildSummaryCard,
   columnBudget,
   dexArtId,
   effectiveRates,
-  ledgerPageForSave,
+  surveyPageForSave,
   recordSample,
   regionalCount,
   renderDexEntry,
   renderDexFlags,
   renderDexSeasonStatus,
-  renderLedgerPage,
-  renderLedgerPresence,
-  renderLedgerRow,
+  renderSurveyPage,
+  renderSurveyPresence,
+  renderSurveyRow,
   renderNumber,
   renderRate,
   renderSeasonalNote,
@@ -65,10 +65,10 @@ import {
   sampleNodeState,
   seasonsPerYear,
   textLeftOf,
-  type LedgerRegion,
-  type LedgerSample,
-} from "../../game/ledger-view";
-import { ledgerHistory } from "../../game/ledger-history";
+  type SurveyRegion,
+  type SurveySample,
+} from "../../game/survey-view";
+import { surveyHistory } from "../../game/survey-history";
 import { registry } from "../../game/registry";
 import { SCENE_KEYS } from "../../game/scene-keys";
 import {
@@ -106,20 +106,20 @@ function miniNodeFile(): NodeFile {
 
 const MINI = miniNodeFile();
 
-/** A content bundle whose only node is the fixture, so `ledgerPageForSave` can resolve it. */
+/** A content bundle whose only node is the fixture, so `surveyPageForSave` can resolve it. */
 const miniContent: Content = { ...content, nodes: [MINI] };
 
 function miniSave() {
   return newSave({ seed: 1234, currentNode: MINI.id, nodes: [MINI] }, balance);
 }
 
-/** The fixture as a one-node region — the shape `buildLedgerPage` needs (see `LedgerRegion`). */
-function miniRegion(state: NodeState): LedgerRegion {
+/** The fixture as a one-node region — the shape `buildSurveyPage` needs (see `SurveyRegion`). */
+function miniRegion(state: NodeState): SurveyRegion {
   return { files: [MINI], states: { [MINI.id]: state } };
 }
 
 /** The shipped region out of a save. */
-function regionOf(save: { nodeStates: Record<string, NodeState> }): LedgerRegion {
+function regionOf(save: { nodeStates: Record<string, NodeState> }): SurveyRegion {
   return { files: content.nodes, states: save.nodeStates };
 }
 
@@ -129,21 +129,21 @@ function lineOf(id: string): SpeciesLine {
   return line;
 }
 
-/** Every line the ledger, the web view, the dex and the summary card can print, for one save. */
-function everyLedgerLine(
+/** Every line the survey, the web view, the dex and the summary card can print, for one save. */
+function everySurveyLine(
   states: Record<string, NodeState>,
   year: number,
   season: Season,
-  histories?: Record<string, LedgerSample[]>,
+  histories?: Record<string, SurveySample[]>,
 ): string[] {
   const out: string[] = [];
-  const region: LedgerRegion = { files: content.nodes, states };
+  const region: SurveyRegion = { files: content.nodes, states };
   for (const file of content.nodes) {
     if (!states[file.id]) continue;
     const history = histories?.[file.id];
     out.push(
-      ...renderLedgerPage(
-        buildLedgerPage({
+      ...renderSurveyPage(
+        buildSurveyPage({
           nodeId: file.id,
           region,
           species: content.species,
@@ -164,15 +164,15 @@ function everyLedgerLine(
 }
 
 /** Four real season steps over the shipped region — the state every fixture test never sees. */
-function steppedRegion(seed: number, steps: number): { states: Record<string, NodeState>; histories: Record<string, LedgerSample[]> } {
+function steppedRegion(seed: number, steps: number): { states: Record<string, NodeState>; histories: Record<string, SurveySample[]> } {
   const save = newSave({ seed, currentNode: "hearthollow", nodes: content.nodes }, balance);
   let states: Record<string, NodeState> = save.nodeStates;
-  const histories: Record<string, LedgerSample[]> = {};
+  const histories: Record<string, SurveySample[]> = {};
   const rng = createRng(seed);
   for (let i = 0; i < steps; i += 1) {
     const season = SEASONS[i % SEASONS.length] as Season;
     states = stepRegionStates(content.nodes, states, season, rng).states;
-    // The wiring game/ledger-view.ts documents: whoever steps the season records the sample.
+    // The wiring game/survey-view.ts documents: whoever steps the season records the sample.
     for (const file of content.nodes) {
       const state = states[file.id];
       if (!state) continue;
@@ -187,17 +187,17 @@ function steppedRegion(seed: number, steps: number): { states: Record<string, No
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
- * 1. Hard Req 2 — the ledger renders the real integers, exactly
+ * 1. Hard Req 2 — the survey renders the real integers, exactly
  * ════════════════════════════════════════════════════════════════════════════ */
 
-describe("ledger — Hard Req 2: real integers from the save's nodeStates", () => {
+describe("survey — Hard Req 2: real integers from the save's nodeStates", () => {
   it("renders the fixture save character for character", () => {
     const save = miniSave();
-    const page = ledgerPageForSave(save, MINI.id, miniContent);
+    const page = surveyPageForSave(save, MINI.id, miniContent);
 
     // Row order is data/species.json's order (core/foodweb.ts `orderedLineIds`): nibbin, skir,
     // loamunder — NOT the order the JSON happens to list them in, and not alphabetical.
-    expect(renderLedgerPage(page)).toEqual([
+    expect(renderSurveyPage(page)).toEqual([
       "Mini Node — year 1 · spring",
       "flora 45/100 · recent deaths 0 · lines 3 · individuals 40 · at 0: 0",
       // No Ancient is in range of the fixture, so `presence:` is empty — but the `breed` column is
@@ -216,7 +216,7 @@ describe("ledger — Hard Req 2: real integers from the save's nodeStates", () =
     const save = miniSave();
     for (const nodeId of Object.keys(save.nodeStates)) {
       const state = save.nodeStates[nodeId] as NodeState;
-      const page = ledgerPageForSave(save, nodeId, miniContent);
+      const page = surveyPageForSave(save, nodeId, miniContent);
       expect(page.rows.length).toBe(Object.keys(state.populations).length);
       for (const row of page.rows) {
         const live = state.populations[row.lineId];
@@ -224,18 +224,18 @@ describe("ledger — Hard Req 2: real integers from the save's nodeStates", () =
         expect(row.carryCap).toBe(live?.carryCap);
         // …and the integer is actually in the text a player reads. A row with no number would
         // still satisfy the two assertions above; this is the one that makes it a NUMBER on screen.
-        expect(renderLedgerRow(row).split(/\s+/)).toContain(String(row.count));
+        expect(renderSurveyRow(row).split(/\s+/)).toContain(String(row.count));
       }
     }
   });
 
   it("BINDS — moving a number in the save moves the rendered text", () => {
     const save = miniSave();
-    const before = renderLedgerPage(ledgerPageForSave(save, MINI.id, miniContent));
+    const before = renderSurveyPage(surveyPageForSave(save, MINI.id, miniContent));
     const pop = save.nodeStates[MINI.id]?.populations["nibbin-line"];
     if (!pop) throw new Error("fixture save lost its nibbin population");
     pop.count -= 1;
-    const after = renderLedgerPage(ledgerPageForSave(save, MINI.id, miniContent));
+    const after = renderSurveyPage(surveyPageForSave(save, MINI.id, miniContent));
     expect(after).not.toEqual(before);
     expect(after[4]).toBe("Nibbin           19   60  0.040→0.050  19  net —");
     // …and the totals line moved with it, so nothing on the page is a stale copy.
@@ -245,20 +245,20 @@ describe("ledger — Hard Req 2: real integers from the save's nodeStates", () =
   it("BINDS — building a page moves nothing in the state it was handed", () => {
     // The breed column is answered by running core/ecosim.ts's own `step` (see `effectiveRates`),
     // and a step that leaked into the caller's state would advance the sim every time the player
-    // opened the ledger. The projected counts are discarded; this is what says so.
+    // opened the survey. The projected counts are discarded; this is what says so.
     const save = newSave({ seed: 21, currentNode: "hearthollow", nodes: content.nodes }, balance);
     const snapshot = JSON.stringify(save.nodeStates);
-    for (const file of content.nodes) renderLedgerPage(ledgerPageForSave(save, file.id, content));
+    for (const file of content.nodes) renderSurveyPage(surveyPageForSave(save, file.id, content));
     expect(JSON.stringify(save.nodeStates)).toBe(snapshot);
   });
 
   it("never renders a band word where a number belongs", () => {
-    // Hard Req 2's other half: "never proxies". A ledger that says a species is "sparse" has
+    // Hard Req 2's other half: "never proxies". A survey that says a species is "sparse" has
     // replaced the number the whole game is about with an adjective.
     const BANDS =
       /\b(healthy|unhealthy|sparse|abundant|plentiful|scarce|thriving|dwindling|endangered|stable|critical|low|high|many|few)\b/i;
     const save = newSave({ seed: 9, currentNode: "hearthollow", nodes: content.nodes }, balance);
-    const lines = everyLedgerLine(save.nodeStates, 1, "spring");
+    const lines = everySurveyLine(save.nodeStates, 1, "spring");
     // …including every line of every dex card, which is where the flag words live.
     for (const season of SEASONS) {
       for (const entry of buildDexEntries(content.species, season, balance)) {
@@ -275,7 +275,7 @@ describe("ledger — Hard Req 2: real integers from the save's nodeStates", () =
     const save = newSave({ seed: 7, currentNode: "hearthollow", nodes: content.nodes }, balance);
     for (const file of content.nodes) {
       const state = save.nodeStates[file.id] as NodeState;
-      const page = ledgerPageForSave(save, file.id, content);
+      const page = surveyPageForSave(save, file.id, content);
       let total = 0;
       for (const row of page.rows) {
         expect(row.count).toBe(state.populations[row.lineId]?.count);
@@ -287,11 +287,11 @@ describe("ledger — Hard Req 2: real integers from the save's nodeStates", () =
   });
 });
 
-describe("ledger — the trend across recent seasons", () => {
+describe("survey — the trend across recent seasons", () => {
   it("the window is one year of seasons, derived from the clock (INV-3)", () => {
     expect(seasonsPerYear(balance)).toBe(balance.clock.ticksPerYear / balance.clock.ticksPerSeason);
     const state = miniSave().nodeStates[MINI.id] as NodeState;
-    let history: readonly LedgerSample[] = [];
+    let history: readonly SurveySample[] = [];
     const seasons = balance.clock.seasonOrder;
     for (let i = 0; i < seasonsPerYear(balance) + 2; i += 1) {
       const season = seasons[i % seasons.length] as Season;
@@ -302,7 +302,7 @@ describe("ledger — the trend across recent seasons", () => {
 
   it("renders the actual counts of each retained season, and the signed net", () => {
     const state = miniSave().nodeStates[MINI.id] as NodeState;
-    const history: LedgerSample[] = [8, 5, 2].map((count, i) => ({
+    const history: SurveySample[] = [8, 5, 2].map((count, i) => ({
       year: 1,
       season: (balance.clock.seasonOrder[i] ?? "spring") as Season,
       counts: { "skir-line": count },
@@ -310,7 +310,7 @@ describe("ledger — the trend across recent seasons", () => {
     }));
     (state.populations["skir-line"] as { count: number }).count = 0;
 
-    const page = buildLedgerPage({
+    const page = buildSurveyPage({
       nodeId: MINI.id,
       region: miniRegion(state),
       species: content.species,
@@ -320,18 +320,18 @@ describe("ledger — the trend across recent seasons", () => {
       history,
     });
     const skir = page.rows.find((r) => r.lineId === "skir-line");
-    if (!skir) throw new Error("the ledger dropped a line that is in the state");
+    if (!skir) throw new Error("the survey dropped a line that is in the state");
     expect(skir.trend).toEqual([8, 5, 2, 0]);
     expect(skir.delta).toBe(-8);
-    expect(renderLedgerRow(skir)).toBe("Skir              0   30  0.100  8 5 2 0  net -8");
+    expect(renderSurveyRow(skir)).toBe("Skir              0   30  0.100  8 5 2 0  net -8");
   });
 
   it("with no history the net is the no-value mark, never a fabricated slope", () => {
-    const page = ledgerPageForSave(miniSave(), MINI.id, miniContent);
+    const page = surveyPageForSave(miniSave(), MINI.id, miniContent);
     for (const row of page.rows) {
       expect(row.delta).toBeNull();
       expect(row.trend).toEqual([row.count]);
-      expect(renderLedgerRow(row)).toContain("net —");
+      expect(renderSurveyRow(row)).toContain("net —");
     }
   });
 });
@@ -364,7 +364,7 @@ describe("web view — a population at 0", () => {
     const state = miniSave().nodeStates[MINI.id] as NodeState;
     (state.populations["skir-line"] as { count: number }).count = 0;
 
-    const ledger = buildLedgerPage({
+    const survey = buildSurveyPage({
       nodeId: MINI.id,
       region: miniRegion(state),
       species: content.species,
@@ -372,12 +372,12 @@ describe("web view — a population at 0", () => {
       year: 1,
       season: "spring",
     });
-    const row = ledger.rows.find((r) => r.lineId === "skir-line");
+    const row = survey.rows.find((r) => r.lineId === "skir-line");
     expect(row?.count).toBe(0);
     expect(row?.extinct).toBe(true);
     // The integer 0 — not a dash, not a word, not an empty cell.
-    expect(renderLedgerRow(row!)).toBe("Skir              0   30  0.100  0  net —");
-    expect(ledger.atZero).toBe(1);
+    expect(renderSurveyRow(row!)).toBe("Skir              0   30  0.100  0  net —");
+    expect(survey.atZero).toBe(1);
 
     const page = webFor(state);
     const vertex = page.vertices.find((v) => v.id === "skir-line");
@@ -517,7 +517,7 @@ describe("dex — Hard Req 10 seasonal legibility", () => {
     const state = save.nodeStates["r1"] as NodeState;
     const count = state.populations["pollywisp-line"]?.count ?? 0;
     expect(count).toBeGreaterThan(0);
-    const row = buildLedgerPage({
+    const row = buildSurveyPage({
       nodeId: "r1",
       region: regionOf(save),
       species: content.species,
@@ -527,7 +527,7 @@ describe("dex — Hard Req 10 seasonal legibility", () => {
     }).rows.find((r) => r.lineId === "pollywisp-line");
     expect(row?.count).toBe(count);
     expect(row?.dormantReason).toBe(entry?.dormantReason);
-    expect(renderLedgerRow(row!)).toContain(entry?.dormantReason as string);
+    expect(renderSurveyRow(row!)).toContain(entry?.dormantReason as string);
   });
 
   it("prints the regional count beside the flag, summed live out of nodeStates", () => {
@@ -715,12 +715,12 @@ describe("summary card — the projected retirement year is core/lifecycle.ts's 
 describe("epilogue reuse — the same renderer over a different state", () => {
   it("renders a projected region with no special case, and the numbers move", () => {
     const save = newSave({ seed: 42, currentNode: "r1", nodes: content.nodes }, balance);
-    const before = renderLedgerPage(ledgerPageForSave(save, "r1", content));
+    const before = renderSurveyPage(surveyPageForSave(save, "r1", content));
 
     const projected = stepRegionStates(content.nodes, save.nodeStates, "spring", createRng(42)).states;
     const file = content.nodes.find((n) => n.id === "r1") as NodeFile;
-    const after = renderLedgerPage(
-      buildLedgerPage({
+    const after = renderSurveyPage(
+      buildSurveyPage({
         nodeId: "r1",
         region: { files: content.nodes, states: projected },
         species: content.species,
@@ -751,7 +751,7 @@ describe("epilogue reuse — the same renderer over a different state", () => {
  * 6. G7 — no moralizing copy about catching, anywhere these screens can print
  * ════════════════════════════════════════════════════════════════════════════ */
 
-describe("G7 — the ledger is the moral, and it is numbers", () => {
+describe("G7 — these screens print counts and say nothing about them", () => {
   const JUDGMENT =
     /\b(shame|ashamed|guilt|guilty|cruel|greed|greedy|remorse|regret|sorry|mercy|merciless|wicked|evil|sin|blame|selfish|ruthless|deserve|should have|too many|slaughter|massacre)\b/i;
 
@@ -760,7 +760,7 @@ describe("G7 — the ledger is the moral, and it is numbers", () => {
     const save = newSave({ seed: 5, currentNode: "hearthollow", nodes: content.nodes }, balance);
     for (const file of content.nodes) {
       const state = save.nodeStates[file.id] as NodeState;
-      out.push(...renderLedgerPage(ledgerPageForSave(save, file.id, content)));
+      out.push(...renderSurveyPage(surveyPageForSave(save, file.id, content)));
       out.push(...renderWebPage(buildWebPage({ file, state, species: content.species, balance, year: 1 })));
     }
     for (const season of balance.clock.seasonOrder) {
@@ -811,10 +811,10 @@ describe("G7 — the ledger is the moral, and it is numbers", () => {
 
 describe("stepped states — what a fixture save can never catch", () => {
   /** Text drawn at the left pad has the whole canvas less one pad on the right. */
-  const LEDGER_COLS = columnBudget(balance, SCREEN_TEXT.padPx);
+  const SURVEY_COLS = columnBudget(balance, SCREEN_TEXT.padPx);
 
   it("the budget is the real canvas, not a number invented here", () => {
-    expect(LEDGER_COLS).toBe(
+    expect(SURVEY_COLS).toBe(
       Math.floor((balance.map.virtualWidth - SCREEN_TEXT.padPx * 2) / SCREEN_TEXT.advancePx),
     );
     expect(balance.map.virtualWidth).toBeGreaterThan(0);
@@ -822,20 +822,20 @@ describe("stepped states — what a fixture save can never catch", () => {
 
   it("no rendered line overruns the canvas — fresh, stepped, or a full year of history", () => {
     const fresh = newSave({ seed: 12, currentNode: "hearthollow", nodes: content.nodes }, balance);
-    const cases: string[][] = [everyLedgerLine(fresh.nodeStates, 1, "spring")];
+    const cases: string[][] = [everySurveyLine(fresh.nodeStates, 1, "spring")];
     // One season in (the state the totals line first became 99 characters wide at) and a full
     // six-year run (24 season steps), where every populated node overflowed.
     for (const steps of [1, 4, 24]) {
       const run = steppedRegion(12, steps);
-      cases.push(everyLedgerLine(run.states, 1 + Math.floor(steps / SEASONS.length), "spring", run.histories));
+      cases.push(everySurveyLine(run.states, 1 + Math.floor(steps / SEASONS.length), "spring", run.histories));
     }
-    const over = cases.flat().filter((line) => line.length > LEDGER_COLS);
-    expect(over, `lines wider than the ${LEDGER_COLS}-column canvas:\n${over.join("\n")}`).toEqual([]);
+    const over = cases.flat().filter((line) => line.length > SURVEY_COLS);
+    expect(over, `lines wider than the ${SURVEY_COLS}-column canvas:\n${over.join("\n")}`).toEqual([]);
   });
 
   it("BINDS — the width sweep catches a line one character too long", () => {
-    const tooLong = "x".repeat(LEDGER_COLS + 1);
-    expect(tooLong.length > LEDGER_COLS).toBe(true);
+    const tooLong = "x".repeat(SURVEY_COLS + 1);
+    expect(tooLong.length > SURVEY_COLS).toBe(true);
   });
 
   it("no rendered line carries a raw float", () => {
@@ -844,7 +844,7 @@ describe("stepped states — what a fixture save can never catch", () => {
     const LONG_FLOAT = /\d+\.\d{4,}/;
     const run = steppedRegion(7, 8);
     const lines = [
-      ...everyLedgerLine(run.states, 3, "spring", run.histories),
+      ...everySurveyLine(run.states, 3, "spring", run.histories),
       ...content.species.flatMap((line) =>
         SEASONS.flatMap((season) =>
           buildDexEntries([line], season, balance).flatMap((e) =>
@@ -944,7 +944,7 @@ describe("stepped states — what a fixture save can never catch", () => {
     for (const file of content.nodes) {
       const state = run.states[file.id];
       if (!state) continue;
-      const page = buildLedgerPage({
+      const page = buildSurveyPage({
         nodeId: file.id,
         region: { files: content.nodes, states: run.states },
         species: content.species,
@@ -978,11 +978,11 @@ describe("breed rate — the number on the row is the number driving the sim", (
      *
      * It quoted core/ecosim.ts §7.3 step 1's four-factor product and then asserted a two-factor
      * one, which is the defect it was written to catch, blessed as the contract. Measured against
-     * the UNTOUCHED shipped year-1 state: 34 rows across 10 nodes where the ledger's `breed` column
+     * the UNTOUCHED shipped year-1 state: 34 rows across 10 nodes where the survey's `breed` column
      * was not the number the sim uses, in both directions (hearthollow nibbin 0.060 shown vs 0.075
      * used; cindershelf stonewing 0.030 shown vs 0.020 used). During the cascade beat at r4 it
      * printed a starving apex breeding at its RAISED rate (0.045→0.056) in the season the sim gave
-     * it zero births and 4.2 starvation deaths. `LedgerRow.breedRate` is documented as "the rate
+     * it zero births and 4.2 starvation deaths. `SurveyRow.breedRate` is documented as "the rate
      * this line will actually breed at this season", and Hard Req 2 asks for the real number.
      *
      * What replaces it is stronger than the four-factor product, because it does not restate the
@@ -991,14 +991,14 @@ describe("breed rate — the number on the row is the number driving the sim", (
      * term, and it cannot be satisfied by copying whatever the renderer happens to compute.
      */
     const save = newSave({ seed: 12, currentNode: "hearthollow", nodes: content.nodes }, balance);
-    const region: LedgerRegion = regionOf(save);
+    const region: SurveyRegion = regionOf(save);
     let lifted = 0;
     let starved = 0;
     let foodMoved = 0;
     for (const season of SEASONS) {
       const reports = reportsFor(save.nodeStates, season, 12);
       for (const report of reports) {
-        const page = buildLedgerPage({
+        const page = buildSurveyPage({
           nodeId: report.nodeId,
           region,
           species: content.species,
@@ -1008,7 +1008,7 @@ describe("breed rate — the number on the row is the number driving the sim", (
         });
         for (const species of report.species) {
           const row = page.rows.find((r) => r.lineId === species.lineId);
-          if (!row) throw new Error(`the ledger dropped ${species.lineId} at ${report.nodeId}`);
+          if (!row) throw new Error(`the survey dropped ${species.lineId} at ${report.nodeId}`);
           const where = `${report.nodeId}/${species.lineId} in ${season}`;
           expect(row.count * row.breedRate, `${where}: rate × count is not the sim's births`).toBeCloseTo(
             species.births,
@@ -1052,7 +1052,7 @@ describe("breed rate — the number on the row is the number driving the sim", (
     expect(apex.starving).toBe(true);
     expect(apex.births).toBe(0);
 
-    const page = buildLedgerPage({
+    const page = buildSurveyPage({
       nodeId: "r4",
       region: regionOf(save),
       species: content.species,
@@ -1061,12 +1061,12 @@ describe("breed rate — the number on the row is the number driving the sim", (
       season: "spring",
     });
     const row = page.rows.find((r) => r.lineId === "pyrelisk-line");
-    if (!row) throw new Error("the ledger dropped the apex line");
+    if (!row) throw new Error("the survey dropped the apex line");
     expect(row.count).toBeGreaterThan(0);
     expect(row.starving).toBe(true);
     expect(row.breedRate).toBe(0);
     // …and it reaches the glyphs a player reads, as a number, falling.
-    expect(renderLedgerRow(row)).toContain(`${row.baseBreedRate.toFixed(3)}→0.000`);
+    expect(renderSurveyRow(row)).toContain(`${row.baseBreedRate.toFixed(3)}→0.000`);
   });
 
   it("the lifted rows are exactly the ones with an Ancient in range, and the row shows both numbers", () => {
@@ -1076,7 +1076,7 @@ describe("breed rate — the number on the row is the number driving the sim", (
     const presence = derivePresence(nodes, idx, balance, ecoConstants(balance));
 
     for (const file of content.nodes) {
-      const page = buildLedgerPage({
+      const page = buildSurveyPage({
         nodeId: file.id,
         region: regionOf(save),
         species: content.species,
@@ -1093,7 +1093,7 @@ describe("breed rate — the number on the row is the number driving the sim", (
       if (!hasAncientInRange) expect(lifted.length).toBe(0);
       for (const row of page.rows) {
         // Both numbers on the row: what it breeds at alone, and what it breeds at now.
-        const shown = renderLedgerRow(row);
+        const shown = renderSurveyRow(row);
         if (row.breedRate.toFixed(3) === row.baseBreedRate.toFixed(3)) {
           expect(shown, `${row.lineId} draws an arrow between one number and itself`).not.toContain("→");
         } else {
@@ -1102,7 +1102,7 @@ describe("breed rate — the number on the row is the number driving the sim", (
       }
       // …and the page names who is doing it, from derivePresence's own `sources`.
       expect(page.presenceSources.length).toBe(presence[file.id]?.sources.length ?? 0);
-      expect(renderLedgerPresence(page)).toBe(
+      expect(renderSurveyPresence(page)).toBe(
         page.presenceSources.length > 0 ? `presence: ${page.presenceSources.join(", ")}` : `presence: ${NO_PRESENCE}`,
       );
     }
@@ -1119,7 +1119,7 @@ describe("breed rate — the number on the row is the number driving the sim", (
       year: 1,
       season: "spring" as Season,
     };
-    const before = buildLedgerPage(args);
+    const before = buildSurveyPage(args);
     expect(before.presenceSources.length).toBeGreaterThan(0);
     const liftedBefore = before.rows.filter((r) => r.presenceBreedRate !== r.baseBreedRate);
     expect(liftedBefore.length).toBeGreaterThan(0);
@@ -1130,9 +1130,9 @@ describe("breed rate — the number on the row is the number driving the sim", (
       const pop = save.nodeStates[nodeId]?.populations["undermere-line"];
       if (pop) pop.count = 0;
     }
-    const after = buildLedgerPage(args);
+    const after = buildSurveyPage(args);
     expect(after.presenceSources).toEqual([]);
-    expect(renderLedgerPresence(after)).toBe(`presence: ${NO_PRESENCE}`);
+    expect(renderSurveyPresence(after)).toBe(`presence: ${NO_PRESENCE}`);
     // WAS `expect(row.breedRate).toBe(row.baseBreedRate)` + `not.toContain("→")`. The claim being
     // asserted — the Ancient's lift is gone from every rate — is unchanged and still exact; it now
     // names the field that carries the lift, because `breedRate` also carries the food term and
@@ -1144,7 +1144,7 @@ describe("breed rate — the number on the row is the number driving the sim", (
     let moved = 0;
     for (const row of before.rows) {
       const now = after.rows.find((r) => r.lineId === row.lineId);
-      if (!now) throw new Error(`the ledger dropped ${row.lineId} when the Ancient was caught`);
+      if (!now) throw new Error(`the survey dropped ${row.lineId} when the Ancient was caught`);
       if (now.breedRate !== row.breedRate) {
         moved += 1;
         expect(now.breedRate, `${row.lineId} did not fall when the Ancient was caught`).toBeLessThan(
@@ -1181,7 +1181,7 @@ describe("breed rate — the number on the row is the number driving the sim", (
     // ask for one.
     const save = newSave({ seed: 5, currentNode: "r2", nodes: content.nodes }, balance);
     expect(() =>
-      buildLedgerPage({
+      buildSurveyPage({
         nodeId: "r2",
         region: { files: content.nodes, states: { r2: save.nodeStates["r2"] as NodeState } },
         species: content.species,
@@ -1191,7 +1191,7 @@ describe("breed rate — the number on the row is the number driving the sim", (
       }),
     ).not.toThrow();
     expect(() =>
-      buildLedgerPage({
+      buildSurveyPage({
         nodeId: "nowhere",
         region: regionOf(save),
         species: content.species,
@@ -1214,34 +1214,34 @@ describe("trend — one reading per season, and the live one only once", () => {
     // trend with a flat step that no season produced.
     const run = steppedRegion(12, SEASONS.length);
     const season = SEASONS[SEASONS.length - 1] as Season;
-    const page = buildLedgerPage({
+    const page = buildSurveyPage({
       nodeId: "hearthollow",
       region: { files: content.nodes, states: run.states },
       species: content.species,
       balance,
       year: 1,
       season,
-      history: run.histories["hearthollow"] as LedgerSample[],
+      history: run.histories["hearthollow"] as SurveySample[],
     });
-    expect((run.histories["hearthollow"] as LedgerSample[]).length).toBe(seasonsPerYear(balance));
+    expect((run.histories["hearthollow"] as SurveySample[]).length).toBe(seasonsPerYear(balance));
     for (const row of page.rows) {
       expect(row.trend.length).toBeLessThanOrEqual(seasonsPerYear(balance));
       expect(row.trend[row.trend.length - 1]).toBe(row.count);
       // The last two readings are the last two SEASONS, so they agree only if the season was flat.
-      const sample = (run.histories["hearthollow"] as LedgerSample[]).slice(-2)[0]?.counts[row.lineId];
+      const sample = (run.histories["hearthollow"] as SurveySample[]).slice(-2)[0]?.counts[row.lineId];
       if (typeof sample === "number") expect(row.trend[row.trend.length - 2]).toBe(sample);
     }
   });
 
   it("never renders more numbers than recordSample keeps, however many are fed in", () => {
     const state = miniSave().nodeStates[MINI.id] as NodeState;
-    let history: readonly LedgerSample[] = [];
+    let history: readonly SurveySample[] = [];
     for (let i = 0; i < seasonsPerYear(balance) * 3; i += 1) {
       const season = SEASONS[i % SEASONS.length] as Season;
       history = recordSample(history, sampleNodeState(state, 1, season), balance);
     }
     expect(history.length).toBe(seasonsPerYear(balance));
-    const page = buildLedgerPage({
+    const page = buildSurveyPage({
       nodeId: MINI.id,
       region: miniRegion(state),
       species: content.species,
@@ -1259,11 +1259,11 @@ describe("trend — one reading per season, and the live one only once", () => {
 
   it("a sample from an EARLIER season is kept as its own reading, not overwritten", () => {
     const state = miniSave().nodeStates[MINI.id] as NodeState;
-    const history: LedgerSample[] = [
+    const history: SurveySample[] = [
       { year: 1, season: SEASONS[0] as Season, counts: { "skir-line": 9 }, floraStock: 45 },
       { year: 1, season: SEASONS[1] as Season, counts: { "skir-line": 7 }, floraStock: 45 },
     ];
-    const page = buildLedgerPage({
+    const page = buildSurveyPage({
       nodeId: MINI.id,
       region: miniRegion(state),
       species: content.species,
@@ -1281,7 +1281,7 @@ describe("trend — one reading per season, and the live one only once", () => {
    * …and the wiring that makes the column exist at all in the running game.
    *
    * The trend was DEAD on every screen: `recordSample` / `sampleNodeState` had no caller outside
-   * this file, and the one launcher that opens `LedgerScene` passed no `histories`, so every row in
+   * this file, and the one launcher that opens `SurveyScene` passed no `histories`, so every row in
    * play and in the epilogue rendered one number and `net —` forever. Everything above this point
    * was green throughout, because every test above hands the history in by hand. So these drive the
    * REAL path: the store, the seam it hangs off, and the scene data the menu builds.
@@ -1294,8 +1294,8 @@ describe("trend — one reading per season, and the live one only once", () => {
     registry.startSession({ slot: 1, save, streams: openStreams(save, balance) });
 
     // The run's opening season is its first reading, so a trend starts the moment a game does.
-    expect(ledgerHistory.stamp()).toBe(`1/${seasonAt(save.tick, balance)}`);
-    const opening = ledgerHistory.historyFor("hearthollow");
+    expect(surveyHistory.stamp()).toBe(`1/${seasonAt(save.tick, balance)}`);
+    const opening = surveyHistory.historyFor("hearthollow");
     expect(opening.length).toBe(1);
     expect(opening[0]?.counts["nibbin-line"]).toBe(
       save.nodeStates["hearthollow"]?.populations["nibbin-line"]?.count,
@@ -1306,7 +1306,7 @@ describe("trend — one reading per season, and the live one only once", () => {
     const caught = JSON.parse(JSON.stringify(save)) as typeof save;
     (caught.nodeStates["hearthollow"]?.populations["nibbin-line"] as { count: number }).count -= 1;
     registry.setSave(caught);
-    expect(ledgerHistory.historyFor("hearthollow").length).toBe(1);
+    expect(surveyHistory.historyFor("hearthollow").length).toBe(1);
 
     // A season boundary does.
     const seasons = balance.clock.seasonOrder;
@@ -1317,7 +1317,7 @@ describe("trend — one reading per season, and the live one only once", () => {
         .states,
     };
     registry.setSave(stepped);
-    const history = ledgerHistory.historyFor("hearthollow");
+    const history = surveyHistory.historyFor("hearthollow");
     expect(history.length).toBe(2);
     expect(history[0]?.season).toBe(seasons[0]);
     expect(history[1]?.season).toBe(seasonAt(stepped.tick, balance));
@@ -1327,7 +1327,7 @@ describe("trend — one reading per season, and the live one only once", () => {
     );
 
     // Which is a real trend on a real row: two numbers and a signed net, not `net —`.
-    const page = buildLedgerPage({
+    const page = buildSurveyPage({
       nodeId: "hearthollow",
       region: { files: content.nodes, states: stepped.nodeStates },
       species: content.species,
@@ -1339,7 +1339,7 @@ describe("trend — one reading per season, and the live one only once", () => {
     for (const row of page.rows) {
       expect(row.trend.length).toBe(2);
       expect(row.delta).not.toBeNull();
-      expect(renderLedgerRow(row)).not.toContain(`net ${NO_VALUE}`);
+      expect(renderSurveyRow(row)).not.toContain(`net ${NO_VALUE}`);
     }
     registry.reset();
   });
@@ -1350,23 +1350,23 @@ describe("trend — one reading per season, and the live one only once", () => {
     const first = newSave({ seed: 1, currentNode: "hearthollow", nodes: content.nodes }, balance);
     registry.startSession({ slot: 1, save: first, streams: openStreams(first, balance) });
     registry.setSave({ ...first, tick: balance.clock.ticksPerSeason });
-    expect(ledgerHistory.historyFor("hearthollow").length).toBe(2);
+    expect(surveyHistory.historyFor("hearthollow").length).toBe(2);
 
     const second = newSave({ seed: 2, currentNode: "hearthollow", nodes: content.nodes }, balance);
     registry.startSession({ slot: 2, save: second, streams: openStreams(second, balance) });
-    expect(ledgerHistory.historyFor("hearthollow").length).toBe(1);
+    expect(surveyHistory.historyFor("hearthollow").length).toBe(1);
     registry.reset();
-    expect(ledgerHistory.historyFor("hearthollow")).toEqual([]);
+    expect(surveyHistory.historyFor("hearthollow")).toEqual([]);
   });
 
   it("the record handed to the scene is the LIVE one, not a copy taken when the menu opened", () => {
-    // `LedgerScene` reads `this.args.histories?.[nodeId]` on every redraw and Phaser does not re-run
+    // `SurveyScene` reads `this.args.histories?.[nodeId]` on every redraw and Phaser does not re-run
     // `init` on wake, so a copy would freeze the trend at whatever it held when the menu was opened.
     registry.reset();
     registry.setContent(content);
     const save = newSave({ seed: 12, currentNode: "hearthollow", nodes: content.nodes }, balance);
     registry.startSession({ slot: 1, save, streams: openStreams(save, balance) });
-    const handedOver = ledgerHistory.histories();
+    const handedOver = surveyHistory.histories();
     expect(handedOver["hearthollow"]?.length).toBe(1);
     registry.setSave({ ...save, tick: balance.clock.ticksPerSeason });
     expect(handedOver["hearthollow"]?.length).toBe(2);
@@ -1376,14 +1376,14 @@ describe("trend — one reading per season, and the live one only once", () => {
   it("the live count REPLACES the newest sample when it is the same reading", () => {
     const state = miniSave().nodeStates[MINI.id] as NodeState;
     const skirPop = state.populations["skir-line"] as { count: number };
-    const history: LedgerSample[] = [
+    const history: SurveySample[] = [
       { year: 1, season: SEASONS[0] as Season, counts: { "skir-line": 9 }, floraStock: 45 },
       { year: 1, season: SEASONS[1] as Season, counts: { "skir-line": skirPop.count }, floraStock: 45 },
     ];
     // A catch after the sample was taken: the reading for THIS season is the live number, and the
     // trend must show one reading for this season, not two.
     skirPop.count -= 3;
-    const page = buildLedgerPage({
+    const page = buildSurveyPage({
       nodeId: MINI.id,
       region: miniRegion(state),
       species: content.species,
@@ -1409,10 +1409,10 @@ describe("trend — one reading per season, and the live one only once", () => {
  * false one — a crash the player caused, reading as the calendar.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-describe("ledger — a seasonal word never stands in front of a real 0", () => {
-  const region = (states: Record<string, NodeState>): LedgerRegion => ({ files: content.nodes, states });
+describe("survey — a seasonal word never stands in front of a real 0", () => {
+  const region = (states: Record<string, NodeState>): SurveyRegion => ({ files: content.nodes, states });
   function rowFor(states: Record<string, NodeState>, nodeId: string, lineId: string, season: Season) {
-    const page = buildLedgerPage({
+    const page = buildSurveyPage({
       nodeId,
       region: region(states),
       species: content.species,
@@ -1421,7 +1421,7 @@ describe("ledger — a seasonal word never stands in front of a real 0", () => {
       season,
     });
     const row = page.rows.find((r) => r.lineId === lineId);
-    if (!row) throw new Error(`the ledger dropped ${lineId} at ${nodeId}`);
+    if (!row) throw new Error(`the survey dropped ${lineId} at ${nodeId}`);
     return row;
   }
 
@@ -1459,7 +1459,7 @@ describe("ledger — a seasonal word never stands in front of a real 0", () => {
         flagged += 1;
         expect(renderSeasonalNote(row)).toBe(status.dormantReason);
         // …and the real count is still the integer on the row beside it, never a 0.
-        expect(renderLedgerRow(row).split(/\s+/)).toContain(String(row.count));
+        expect(renderSurveyRow(row).split(/\s+/)).toContain(String(row.count));
         expect(row.count).toBeGreaterThan(0);
       }
     }
@@ -1480,11 +1480,11 @@ describe("ledger — a seasonal word never stands in front of a real 0", () => {
         // Not the word that describes where a population is…
         expect(note, `${nodeId}/${lineId} in ${season}`).not.toBe("dormant");
         expect(note, `${nodeId}/${lineId} in ${season}`).not.toBe("migrating");
-        expect(renderLedgerRow(row)).not.toMatch(/\b(dormant|migrating)\b/);
-        // …but the calendar fact is still on the row, so the card and the ledger agree that this is
+        expect(renderSurveyRow(row)).not.toMatch(/\b(dormant|migrating)\b/);
+        // …but the calendar fact is still on the row, so the card and the survey agree that this is
         // a migrant and say when it is catchable.
         expect(note).toBe(`window ${row.seasonalWindow as string}`);
-        expect(renderLedgerRow(row)).toContain(note);
+        expect(renderSurveyRow(row)).toContain(note);
       }
     }
     expect(checked).toBe(migrantSites.length * SEASONS.length);
@@ -1515,18 +1515,18 @@ describe("ledger — a seasonal word never stands in front of a real 0", () => {
     for (const season of SEASONS) {
       for (const file of content.nodes) {
         if (!run.states[file.id]) continue;
-        const page = buildLedgerPage({
+        const page = buildSurveyPage({
           nodeId: file.id,
           region: region(run.states),
           species: content.species,
           balance,
           year: 6,
           season,
-          history: run.histories[file.id] as LedgerSample[],
+          history: run.histories[file.id] as SurveySample[],
         });
         for (const row of page.rows) {
           for (const variant of [row, { ...row, count: 0, extinct: true }]) {
-            const text = renderLedgerRow(variant);
+            const text = renderSurveyRow(variant);
             if (text.length > cols) over.push(text);
           }
         }
@@ -1891,7 +1891,7 @@ describe("web diagram — every label is legible, not merely present", () => {
   });
 
   it("the modelled box is the box the ENGINE draws, to the pixel", () => {
-    // Measured off the live scene (LedgerScene in Chrome, `Text.getBounds()` read back): a Phaser
+    // Measured off the live scene (SurveyScene in Chrome, `Text.getBounds()` read back): a Phaser
     // Text at this face and size is `characters × advancePx + 1` wide and `lineHeight` tall —
     // 14ch→85, 16ch→97, 17ch→103, 20ch→121, 32ch→193. One pixel does not matter until it is the
     // pixel two labels share, and a model narrower than the engine calls a real overlap clear.
@@ -1964,10 +1964,10 @@ describe("web diagram — every label is legible, not merely present", () => {
 describe("guards driven directly, not by luck of the shipped data", () => {
   it("the trend window clips a history longer than recordSample would ever keep", () => {
     // `recordSample` keeps `seasonsPerYear`, but nothing stops a caller assembling its own array —
-    // and the ledger renders a fixed-width column, so the window has to be enforced where it is
+    // and the survey renders a fixed-width column, so the window has to be enforced where it is
     // DRAWN as well as where it is stored.
     const state = miniSave().nodeStates[MINI.id] as NodeState;
-    const overlong: LedgerSample[] = [];
+    const overlong: SurveySample[] = [];
     for (let i = 0; i < seasonsPerYear(balance) + 3; i += 1) {
       overlong.push({
         year: 1,
@@ -1976,7 +1976,7 @@ describe("guards driven directly, not by luck of the shipped data", () => {
         floraStock: 45,
       });
     }
-    const page = buildLedgerPage({
+    const page = buildSurveyPage({
       nodeId: MINI.id,
       region: miniRegion(state),
       species: content.species,
@@ -2064,7 +2064,7 @@ describe("guards driven directly, not by luck of the shipped data", () => {
  *
  * So this section is source-reading BY DEFAULT, not by necessity, and it says so. It is aimed at
  * the one class of defect it can actually catch: a renderer that imports something and never draws
- * it. `LedgerScene` did precisely that — it imported `renderWebEdge` for a method `redraw` never
+ * it. `SurveyScene` did precisely that — it imported `renderWebEdge` for a method `redraw` never
  * called, so the word "collapsed" and its reason existed only for tests while the screen showed an
  * unexplained dashed line. The dead-method census below is that class asserted directly rather than
  * one instance of it re-checked by name.
@@ -2074,11 +2074,11 @@ describe("C4 scenes — what the source proves", () => {
   const read = (rel: string): string =>
     require("node:fs").readFileSync(new URL(`../../game/scenes/${rel}`, import.meta.url), "utf8") as string;
 
-  const LEDGER = read("LedgerScene.ts");
+  const SURVEY = read("SurveyScene.ts");
   const DEX = read("DexScene.ts");
   const SUMMARY = read("SummaryScene.ts");
   const ALL: Array<[string, string]> = [
-    ["LedgerScene.ts", LEDGER],
+    ["SurveyScene.ts", SURVEY],
     ["DexScene.ts", DEX],
     ["SummaryScene.ts", SUMMARY],
   ];
@@ -2107,12 +2107,12 @@ describe("C4 scenes — what the source proves", () => {
      * in the file, or a Phaser lifecycle hook the engine calls.
      *
      * MEASURED, and this is a REAL DEFECT this sweep uncovered rather than a hypothetical:
-     * `LedgerScene.setStates` and `LedgerScene.webLines` are declared public for callers that do not
+     * `SurveyScene.setStates` and `SurveyScene.webLines` are declared public for callers that do not
      * exist — `grep -rn "setStates\|webLines" game/ core/ tests/` returns their declarations and
      * nothing else. `webLines`'s own doc says it is "in a form a test can assert" and no test
      * asserts it; it is also the only other caller of `renderWebEdge`, the symbol whose deadness
      * this whole section was written about. Fixing that is a change to
-     * `game/scenes/LedgerScene.ts`, which this sweep does not own, so it is PINNED instead: a new
+     * `game/scenes/SurveyScene.ts`, which this sweep does not own, so it is PINNED instead: a new
      * dead method fails immediately, and wiring or deleting either of these two also fails and
      * whoever does it shortens this list.
      */
@@ -2136,14 +2136,14 @@ describe("C4 scenes — what the source proves", () => {
       "a C4 scene method is reached by nothing — either wire it or delete it. If one of the two " +
         "named below now HAS a caller, that is the repair landing: shorten this list.",
     ).toEqual({
-      "LedgerScene.ts": ["setStates", "webLines"],
+      "SurveyScene.ts": ["setStates", "webLines"],
       "DexScene.ts": [],
       "SummaryScene.ts": [],
     });
   });
 
-  it("every drawing helper the ledger imports is CALLED from a method redraw reaches", () => {
-    const drawWeb = methodBody(LEDGER, "private drawWeb");
+  it("every drawing helper the survey imports is CALLED from a method redraw reaches", () => {
+    const drawWeb = methodBody(SURVEY, "private drawWeb");
     // Named with their arguments, not merely mentioned: the defect being guarded against is an
     // import that appears in the file and never runs, so "the file contains this word" is exactly
     // the assertion that already passed while the screen showed nothing.
@@ -2158,30 +2158,30 @@ describe("C4 scenes — what the source proves", () => {
     // …and both label sets reach a text object rather than being computed and dropped.
     expect(drawWeb.match(/this\.text\(label\.x, label\.y, label\.text/g)?.length).toBe(2);
     // …and redraw really does reach drawWeb, so the labels are on a path the player can open.
-    expect(methodBody(LEDGER, "private redraw")).toContain("this.drawWeb()");
+    expect(methodBody(SURVEY, "private redraw")).toContain("this.drawWeb()");
   });
 
-  it("the ledger anchors each label with the origin the label carries", () => {
+  it("the survey anchors each label with the origin the label carries", () => {
     // game/web-view.ts places labels so their BOXES do not touch, and a box is only the box it
     // computed if the scene anchors the text the same way. Two hard-coded `setOrigin(0.5, 0.5)` /
     // `setOrigin(0.5, 0)` calls are a second copy of that assumption, free to drift out of step
     // with the placement — which is exactly how the collapse labels came to print through the
     // counts in the first place.
-    const drawWeb = methodBody(LEDGER, "private drawWeb");
+    const drawWeb = methodBody(SURVEY, "private drawWeb");
     expect(drawWeb.match(/setOrigin\(0\.5, label\.originY\)/g)?.length).toBe(2);
     expect(drawWeb).not.toMatch(/setOrigin\(0\.5, (0|0\.5)\)/);
   });
 
-  it("the menu hands the ledger its histories, so the trend column has something to draw", () => {
-    // The defect: nothing outside game/ledger-view.ts ever called `recordSample`, and the only
-    // caller that opens LedgerScene passed no `histories` — so every row of every screen, in play
+  it("the menu hands the survey its histories, so the trend column has something to draw", () => {
+    // The defect: nothing outside game/survey-view.ts ever called `recordSample`, and the only
+    // caller that opens SurveyScene passed no `histories` — so every row of every screen, in play
     // and in the epilogue, rendered one number and `net —` forever. The store is driven directly a
     // few sections up; this is the half of the wiring that only the scene data can show.
     const menu = require("node:fs").readFileSync(
       new URL("../../game/scenes/MenuScene.ts", import.meta.url),
       "utf8",
     ) as string;
-    expect(menu).toContain("histories: ledgerHistory.histories()");
+    expect(menu).toContain("histories: surveyHistory.histories()");
     // …taken live from the store rather than copied, for the reason the scene re-reads it.
     expect(menu).not.toMatch(/histories:\s*\{/);
     // …and the reading is taken at the one place the running game adopts a save, so no scene has to
@@ -2190,32 +2190,32 @@ describe("C4 scenes — what the source proves", () => {
       new URL("../../game/registry.ts", import.meta.url),
       "utf8",
     ) as string;
-    expect(reg).toContain("#observeForLedger(save)");
-    expect(reg).toContain("ledgerHistory.observe(save, balance)");
+    expect(reg).toContain("#observeForSurvey(save)");
+    expect(reg).toContain("surveyHistory.observe(save, balance)");
   });
 
-  it("the ledger draws every line the renderer produces, in order", () => {
+  it("the survey draws every line the renderer produces, in order", () => {
     // The page grew a line (`presence:`) during this repair. A scene that sliced a fixed number of
     // lines off the front, or coloured by a hard-coded index, would silently drop or mis-ink one.
-    const redraw = methodBody(LEDGER, "private redraw");
-    expect(redraw).toContain("renderLedgerPage(page)");
+    const redraw = methodBody(SURVEY, "private redraw");
+    expect(redraw).toContain("renderSurveyPage(page)");
     expect(redraw).not.toContain(".slice(");
     expect(redraw).toContain("lines.length - page.rows.length");
   });
 
-  it("the ledger re-reads the states on every redraw rather than the record it was opened with", () => {
+  it("the survey re-reads the states on every redraw rather than the record it was opened with", () => {
     // `stepRegionStates` returns a NEW record each season, and Phaser does not re-run init on wake.
-    expect(LEDGER).toContain("private statesNow()");
-    expect(LEDGER).toContain("Phaser.Scenes.Events.WAKE");
+    expect(SURVEY).toContain("private statesNow()");
+    expect(SURVEY).toContain("Phaser.Scenes.Events.WAKE");
     for (const method of ["page", "webPage"]) {
-      expect(methodBody(LEDGER, `  ${method}`), `${method} reads a captured record`).toContain("statesNow()");
+      expect(methodBody(SURVEY, `  ${method}`), `${method} reads a captured record`).toContain("statesNow()");
     }
     // Nothing indexes the raw scene data — that is the read that goes stale.
-    expect(LEDGER).not.toContain("this.args.states[");
+    expect(SURVEY).not.toContain("this.args.states[");
   });
 
-  it("the ledger hands the whole region to the page, which is what the breed rates need", () => {
-    expect(methodBody(LEDGER, "  page")).toContain("files: this.args.content.nodes");
+  it("the survey hands the whole region to the page, which is what the breed rates need", () => {
+    expect(methodBody(SURVEY, "  page")).toContain("files: this.args.content.nodes");
   });
 
   it("the dex colours every flag the renderer emits, not the last line", () => {
@@ -2275,26 +2275,26 @@ describe("C4 scene keys", () => {
     // `summary: "Summary"`, game/main.ts registers all three scenes and MenuScene routes to them,
     // so that ground was false and the conditional made the check a no-op that could never fail
     // while the literals stayed literals — which is the second spelling scene-keys.ts exists to
-    // prevent. The scenes now read the registry, so this asserts what LedgerScene's half always
+    // prevent. The scenes now read the registry, so this asserts what SurveyScene's half always
     // asserted, for all three, with nothing conditional left in it.
     for (const [file, name, field] of [
-      ["LedgerScene.ts", "LEDGER_SCENE_KEY", "ledger"],
+      ["SurveyScene.ts", "SURVEY_SCENE_KEY", "survey"],
       ["DexScene.ts", "DEX_SCENE_KEY", "dex"],
       ["SummaryScene.ts", "SUMMARY_SCENE_KEY", "summary"],
     ] as const) {
       expect(keyIn(source(file), name), `${file} spells its own key`).toBe(`SCENE_KEYS.${field}`);
     }
-    expect(SCENE_KEYS.ledger).toBe("Ledger");
+    expect(SCENE_KEYS.survey).toBe("Survey");
     expect(SCENE_KEYS.dex).toBe("Dex");
     expect(SCENE_KEYS.summary).toBe("Summary");
   });
 
   it("the three C4 keys are distinct, and no other scene answers to one of them", () => {
     const registry = SCENE_KEYS as Record<string, string>;
-    const keys: string[] = [SCENE_KEYS.ledger, SCENE_KEYS.dex, SCENE_KEYS.summary];
+    const keys: string[] = [SCENE_KEYS.survey, SCENE_KEYS.dex, SCENE_KEYS.summary];
     expect(new Set(keys).size).toBe(keys.length);
     for (const [field, key] of Object.entries(registry)) {
-      if (keys.includes(key)) expect(["ledger", "dex", "summary"]).toContain(field);
+      if (keys.includes(key)) expect(["survey", "dex", "summary"]).toContain(field);
     }
   });
 
@@ -2302,7 +2302,7 @@ describe("C4 scene keys", () => {
     // The defect the registry exists to prevent, asserted directly: a literal here and an entry
     // there is two spellings of one name, and the menu routes to the one the scene does not answer
     // to. Every key in these three files must be a read of game/scene-keys.ts.
-    for (const file of ["LedgerScene.ts", "DexScene.ts", "SummaryScene.ts"]) {
+    for (const file of ["SurveyScene.ts", "DexScene.ts", "SummaryScene.ts"]) {
       const src = source(file);
       for (const key of Object.values(SCENE_KEYS)) {
         expect(src, `${file} spells "${key}" as a literal`).not.toContain(`"${key}"`);

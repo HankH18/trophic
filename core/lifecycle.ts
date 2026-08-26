@@ -435,7 +435,7 @@ export function newOwnedCreature(
  * and so does year 40. What survives is a PACING readout — this creature will still be alive after
  * the six years normal pacing expects — which is worth showing beside a projection and is no longer
  * a warning about a year that cannot happen. Kept under its old name because D-A4-14 records the
- * decision under it and `game/ledger-view.ts` renders it; the sentence it renders was reworded.
+ * decision under it and `game/survey-view.ts` renders it; the sentence it renders was reworded.
  */
 export function retiresBeyondFinalYear(creature: OwnedCreature, balance: Balance): boolean {
   if (isNever(creature.projectedRetirementYear)) return false;
@@ -964,7 +964,7 @@ export function enterPendingActs(save: SaveFile, deps: ActEntryDeps): ActEntryRe
         }
         // The floor decides how many individuals actually died: computing `removed` before applying
         // it over-reports the harvest and over-credits `recentDeaths`, which is the Scavenger
-        // encounter weight (build-doc §7.2) and a ledger number (Hard Req 2).
+        // encounter weight (build-doc §7.2) and a survey number (Hard Req 2).
         // What the harvest REACHES for is `raidRemovalAt` — the authored body count or the same
         // fraction of whatever is standing, whichever is larger (D-Q6-1). One home for that rule:
         // game/year-events.ts `raidPreviews` calls the same function to price the same harvest.

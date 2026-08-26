@@ -1,0 +1,688 @@
+{
+ "_slice": "S6-quest-npcs",
+ "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
+ "entries": [
+  {
+   "id": "tolm.greeting",
+   "speaker": "tolm",
+   "node": "hearthollow",
+   "kind": "greeting",
+   "when": {},
+   "lines": [
+    {
+     "text": "Four fields, and one of them has to lie fallow every year whether I want it that way or not. It's the west field this year. It was the west field two years back as well, which is not how the rotation is meant to run."
+    },
+    {
+     "text": "Mind the gate on the way through — it wants lifting and shoving at once."
+    }
+   ]
+  },
+  {
+   "id": "tolm.quest.fallow.offer",
+   "speaker": "tolm",
+   "node": "hearthollow",
+   "kind": "quest",
+   "quest": "fallow-field",
+   "priority": 58,
+   "when": {
+    "flagsUnset": [
+     "quest.fallow-field.done",
+     "quest.fallow-field.taken"
+    ],
+    "population": [
+     {
+      "node": "hearthollow",
+      "lineId": "loamunder-line",
+      "op": "gte",
+      "value": 24
+     }
+    ]
+   },
+   "lines": [
+    {
+     "text": "The Loamunder work my west field for me. They go through the soil all season, and the ground they've been through comes up better than the ground they haven't. I didn't put them there. I don't feed them. They just do it."
+    },
+    {
+     "text": "Twenty-four my side of the fence. I counted them myself, walking the field, week before last."
+    },
+    {
+     "text": "So: leave them alone until harvest, twenty-four still there when I walk it, and I pay you a share of the crop. When the crop comes in, mind, not before — that's when I've got anything to pay anybody with."
+    },
+    {
+     "text": "You can take the Loamunder instead. There are buyers in Hearthollow paying coin for one of them today, and that's money in your hand tonight. What I've got is a share of a crop that isn't cut yet."
+    }
+   ],
+   "choices": [
+    {
+     "text": "I'll leave the field alone.",
+     "setFlags": {
+      "quest.fallow-field.taken": true
+     },
+     "goto": "tolm.quest.fallow.accepted"
+    },
+    {
+     "text": "Let me think it over.",
+     "goto": "tolm.quest.fallow.declined"
+    }
+   ]
+  },
+  {
+   "id": "tolm.quest.fallow.accepted",
+   "speaker": "tolm",
+   "node": "hearthollow",
+   "kind": "quest",
+   "quest": "fallow-field",
+   "when": {
+    "flagsSet": [
+     "quest.fallow-field.taken"
+    ],
+    "flagsUnset": [
+     "quest.fallow-field.done"
+    ]
+   },
+   "lines": [
+    {
+     "text": "Good. Twenty-four now, twenty-four at harvest, and the share comes off the crop, not out of my pocket. I'll walk the fence at the turn and see how many are still my side of it."
+    },
+    {
+     "text": "The Reach has its own Loamunder past the north gate. Those aren't mine, and this arrangement says nothing about them."
+    }
+   ]
+  },
+  {
+   "id": "tolm.quest.fallow.declined",
+   "speaker": "tolm",
+   "node": "hearthollow",
+   "kind": "quest",
+   "quest": "fallow-field",
+   "when": {
+    "flagsUnset": [
+     "quest.fallow-field.done",
+     "quest.fallow-field.taken"
+    ],
+    "population": [
+     {
+      "node": "hearthollow",
+      "lineId": "loamunder-line",
+      "op": "gte",
+      "value": 24
+     }
+    ]
+   },
+   "lines": [
+    {
+     "text": "Fair enough. Offer stands till harvest, and next year as well if you want it. Tell me either way. I've the west field to settle before the frost."
+    }
+   ]
+  },
+  {
+   "id": "tolm.quest.fallow.done.kept",
+   "speaker": "tolm",
+   "node": "hearthollow",
+   "kind": "quest",
+   "quest": "fallow-field",
+   "priority": 60,
+   "when": {
+    "flagsSet": [
+     "quest.fallow-field.turnin"
+    ],
+    "population": [
+     {
+      "node": "hearthollow",
+      "lineId": "loamunder-line",
+      "op": "gte",
+      "value": 24
+     }
+    ],
+    "flagsUnset": [
+     "quest.fallow-field.done"
+    ]
+   },
+   "lines": [
+    {
+     "text": "You've left me my twenty-four. Two out there are young ones that weren't there in the spring. Here's your share — it came out heavier than I quoted you, so take the difference."
+    },
+    {
+     "text": "West field came in at full weight. It hasn't done that in three years."
+    },
+    {
+     "text": "Same arrangement next year, if you're still walking this way. I walk the fence at the turn, you leave them alone till the crop's in."
+    }
+   ],
+   "setFlags": {
+    "quest.fallow-field.done": true,
+    "quest.fallow-field.result": "kept"
+   }
+  },
+  {
+   "id": "tolm.quest.fallow.done.short",
+   "speaker": "tolm",
+   "node": "hearthollow",
+   "kind": "quest",
+   "quest": "fallow-field",
+   "priority": 59,
+   "when": {
+    "flagsSet": [
+     "quest.fallow-field.turnin"
+    ],
+    "flagsUnset": [
+     "quest.fallow-field.done"
+    ]
+   },
+   "lines": [
+    {
+     "text": "The field came in short of twenty-four, so the share doesn't come off the crop this year. That was the arrangement. There's tea in the house if you want it before you go on."
+    },
+    {
+     "text": "West field goes fallow another year, then. I'll sow the east heavier and make it up somewhere."
+    },
+    {
+     "text": "Offer's the same next spring, if you want it then. I'll be walking that fence at the turn either way."
+    }
+   ],
+   "setFlags": {
+    "quest.fallow-field.done": true,
+    "quest.fallow-field.result": "short"
+   }
+  },
+  {
+   "id": "halder.greeting",
+   "speaker": "halder",
+   "node": "bowerdeep",
+   "kind": "greeting",
+   "when": {},
+   "lines": [
+    {
+     "text": "Silk and thread here, and finished bolt if you want it woven already. I pay on the day, in coin."
+    },
+    {
+     "text": "Webvern silk takes a dye nothing else in Fallowmere will take, so a bolt goes out at four or five times what the timber fetches. A fifth of that comes to me and it's my whole living. I'll tell anybody that."
+    }
+   ]
+  },
+  {
+   "id": "halder.quest.silk.offer",
+   "speaker": "halder",
+   "node": "bowerdeep",
+   "kind": "quest",
+   "quest": "silk-shortage",
+   "priority": 58,
+   "when": {
+    "actMin": 3,
+    "flagsUnset": [
+     "quest.silk-shortage.done",
+     "quest.silk-shortage.taken"
+    ]
+   },
+   "lines": [
+    {
+     "text": "You're after work? I have work. Three Webvern, full-grown, alive, delivered to the winding house."
+    },
+    {
+     "text": "There's an awkward part and I'll say it before you say yes. Vesper has been at the council about that order all season. Her case is that three grown Webvern is more than the canopy puts back in a year."
+    },
+    {
+     "text": "I want the order filled and she wants them left where they are. We've argued it for years, a good deal of it at her own kitchen table. She's been up counting them herself; I've no figure of my own, so I'll not pick holes in hers."
+    },
+    {
+     "text": "So: three Webvern, at my price, paid the day they reach the winding house. Or go and hear Vesper out first — she's at the council table until dark."
+    }
+   ],
+   "choices": [
+    {
+     "text": "I'll bring you the three.",
+     "setFlags": {
+      "quest.silk-shortage.taken": true
+     },
+     "goto": "halder.quest.silk.accepted"
+    },
+    {
+     "text": "I'll hear Vesper first.",
+     "setFlags": {
+      "quest.silk-shortage.heard-vesper": true
+     },
+     "goto": "halder.quest.silk.deferred"
+    }
+   ]
+  },
+  {
+   "id": "halder.quest.silk.accepted",
+   "speaker": "halder",
+   "node": "bowerdeep",
+   "kind": "quest",
+   "quest": "silk-shortage",
+   "when": {
+    "flagsSet": [
+     "quest.silk-shortage.taken"
+    ],
+    "flagsUnset": [
+     "quest.silk-shortage.done"
+    ]
+   },
+   "lines": [
+    {
+     "text": "Full-grown only. A young one spins a thread you can pull apart with your fingers."
+    },
+    {
+     "text": "The Webvern hang in the high lines out in Bowerdeep Wilds, above where the loggers are cutting. They're poisonous, all of them — the lads at the winding house get bitten inside their first month."
+    }
+   ]
+  },
+  {
+   "id": "halder.quest.silk.deferred",
+   "speaker": "halder",
+   "node": "bowerdeep",
+   "kind": "quest",
+   "quest": "silk-shortage",
+   "when": {
+    "actMin": 3,
+    "flagsUnset": [
+     "quest.silk-shortage.done",
+     "quest.silk-shortage.taken"
+    ]
+   },
+   "lines": [
+    {
+     "text": "Go on, then. She's on the council side of the market until dark, and she'll give you her figure down to the last one. Hear it off her rather than off me — she's better company than I am."
+    }
+   ]
+  },
+  {
+   "id": "halder.quest.silk.done",
+   "speaker": "halder",
+   "node": "bowerdeep",
+   "kind": "quest",
+   "quest": "silk-shortage",
+   "priority": 59,
+   "when": {
+    "flagsSet": [
+     "quest.silk-shortage.turnin"
+    ],
+    "flagsUnset": [
+     "quest.silk-shortage.done"
+    ]
+   },
+   "lines": [
+    {
+     "text": "Three, full-grown, and the winding house has them off you already. Here's your money — today, in coin, the way I said."
+    },
+    {
+     "text": "Vesper will have a new figure by the festival. She always does, and she always reads the whole of it out to the council. Then the two of us have our supper, same as every year."
+    }
+   ],
+   "setFlags": {
+    "quest.silk-shortage.done": true,
+    "quest.silk-shortage.result": "delivered"
+   }
+  },
+  {
+   "id": "pell.greeting",
+   "speaker": "pell",
+   "node": "bowerdeep",
+   "kind": "greeting",
+   "when": {},
+   "lines": [
+    {
+     "text": "Lantern road's mine. Winding house out to the eastern stair, there and back, every night that wants lighting."
+    },
+    {
+     "text": "Four lamps out past the second bend tonight. Relight kit's in the box by the gate."
+    }
+   ]
+  },
+  {
+   "id": "pell.quest.lanternless.offer",
+   "speaker": "pell",
+   "node": "bowerdeep",
+   "kind": "quest",
+   "quest": "lanternless-night",
+   "priority": 58,
+   "when": {
+    "actMin": 3,
+    "seasons": [
+     "autumn"
+    ],
+    "flagsUnset": [
+     "quest.lanternless-night.done",
+     "quest.lanternless-night.taken"
+    ]
+   },
+   "lines": [
+    {
+     "text": "Moths start tonight. Gloomoth — up out of the Wilds, through the town, and on to wherever it is they go. Every autumn I'm short-handed for it."
+    },
+    {
+     "text": "They put the lamps out as they come through. Not on purpose. There's that many moths in the air at once that a flame won't hold."
+    },
+    {
+     "text": "So I want somebody walking out to the eastern stair with me and back, one night, with the relight kit. Duskstalk work the dark stretches."
+    },
+    {
+     "text": "One night, that's all, and it has to be while the moths are still coming through."
+    }
+   ],
+   "choices": [
+    {
+     "text": "I'll walk it with you.",
+     "setFlags": {
+      "quest.lanternless-night.taken": true
+     },
+     "goto": "pell.quest.lanternless.accepted"
+    },
+    {
+     "text": "Some other night.",
+     "goto": "pell.quest.lanternless.declined"
+    }
+   ]
+  },
+  {
+   "id": "pell.quest.lanternless.accepted",
+   "speaker": "pell",
+   "node": "bowerdeep",
+   "kind": "quest",
+   "quest": "lanternless-night",
+   "when": {
+    "flagsSet": [
+     "quest.lanternless-night.taken"
+    ],
+    "flagsUnset": [
+     "quest.lanternless-night.done"
+    ]
+   },
+   "lines": [
+    {
+     "text": "Stay on the lit stretch, and move when I move. Slow walk out, slow walk back. If a lamp goes out we stop and light it before either of us takes another step."
+    }
+   ]
+  },
+  {
+   "id": "pell.quest.lanternless.declined",
+   "speaker": "pell",
+   "node": "bowerdeep",
+   "kind": "quest",
+   "quest": "lanternless-night",
+   "when": {
+    "actMin": 3,
+    "seasons": [
+     "autumn"
+    ],
+    "flagsUnset": [
+     "quest.lanternless-night.done",
+     "quest.lanternless-night.taken"
+    ]
+   },
+   "lines": [
+    {
+     "text": "Right. Then I'll walk it dark. I've done that plenty of times. Ask me again before the moths are through — after that there's no job left till next autumn."
+    }
+   ]
+  },
+  {
+   "id": "pell.quest.lanternless.done",
+   "speaker": "pell",
+   "node": "bowerdeep",
+   "kind": "quest",
+   "quest": "lanternless-night",
+   "priority": 59,
+   "when": {
+    "flagsSet": [
+     "quest.lanternless-night.turnin"
+    ],
+    "flagsUnset": [
+     "quest.lanternless-night.done"
+    ]
+   },
+   "lines": [
+    {
+     "text": "Every lamp lit, out and back. Good walking. The Duskstalk turned at the stair and never came down the road — they won't come down a lit one."
+    },
+    {
+     "text": "Put the kit back in the box by the gate, would you. Moths'll be gone by winter, and I'll miss them."
+    }
+   ],
+   "setFlags": {
+    "quest.lanternless-night.done": true
+   }
+  },
+  {
+   "id": "ives.greeting",
+   "speaker": "ives",
+   "node": "duskhollow",
+   "kind": "greeting",
+   "when": {},
+   "lines": [
+    {
+     "text": "Two censuses in this building, and people mix them up constantly. The one overhead is everybody's. The one on the ground is mine."
+    },
+    {
+     "text": "The ground one is kept to a written standard, and the standard is nailed up beside the door. A person sits in the dark, writes down what goes past, puts the date on it, and doesn't guess at what they missed."
+    }
+   ]
+  },
+  {
+   "id": "ives.quest.census.offer",
+   "speaker": "ives",
+   "node": "duskhollow",
+   "kind": "quest",
+   "quest": "star-census",
+   "priority": 58,
+   "when": {
+    "actMin": 5,
+    "flagsUnset": [
+     "quest.star-census.offered"
+    ]
+   },
+   "lines": [
+    {
+     "text": "I want a card for every animal you've taken and kept. One card each, by name — the Bogling gets a card and the Mirefin gets a card, because they don't look alike. Orrin calls that fussy. He files by species."
+    },
+    {
+     "text": "Bring me a name the census hasn't got and I'll have a plate painted for it. Good paper, the animal done properly, the date underneath."
+    },
+    {
+     "text": "Anything that goes away for part of the year gets that marked on its card. Dormant or migrating — two different words for two different things. A Wispurr you can't find in summer is asleep, so its card says dormant."
+    }
+   ],
+   "setFlags": {
+    "quest.star-census.offered": true
+   }
+  },
+  {
+   "id": "ives.quest.census.milestone",
+   "speaker": "ives",
+   "node": "duskhollow",
+   "kind": "quest",
+   "quest": "star-census",
+   "priority": 59,
+   "when": {
+    "flagsSet": [
+     "quest.star-census.milestone",
+     "quest.star-census.offered"
+    ],
+    "flagsUnset": [
+     "quest.star-census.paid"
+    ]
+   },
+   "lines": [
+    {
+     "text": "Another name the census hadn't got. Hold the plate by the edge, the paint's still tacky."
+    },
+    {
+     "text": "Thirty-five names in the full census, and nobody in Fallowmere has all thirty-five written down. I haven't. I'm four short. Three of them have a single animal apiece in the whole region. The fourth came in with no date on it."
+    }
+   ],
+   "setFlags": {
+    "quest.star-census.paid": true
+   }
+  },
+  {
+   "id": "orrin.greeting",
+   "speaker": "orrin",
+   "node": "duskhollow",
+   "kind": "greeting",
+   "when": {},
+   "lines": [
+    {
+     "text": "You will want Ives, most likely. Ives has the eyepiece and the ground census. I have the shelves. Go through when you like."
+    },
+    {
+     "text": "I am sorry about the light in here. It is not the lamp. The lamp is four years old and burns as well as it did the day I bought it. Ives says the trouble is my eyes. I would still like somebody to look at the lamp."
+    }
+   ]
+  },
+  {
+   "id": "orrin.vanishing",
+   "speaker": "orrin",
+   "node": "duskhollow",
+   "kind": "lore",
+   "signChain": "vellsire-chain",
+   "chainStep": 7,
+   "priority": 55,
+   "when": {
+    "actMin": 5,
+    "flagsSet": [
+     "chain.vellsire.step6"
+    ],
+    "flagsUnset": [
+     "chain.vellsire.step7"
+    ]
+   },
+   "lines": [
+    {
+     "text": "The vanishing. Yes — I do not mind being asked. May I read you some of it?"
+    },
+    {
+     "text": "The sky is logged here every night, and has been since the observatory got its roof on. Anything that crosses the vale underneath the instrument goes in the margin of that night's page — a herd, a cart, a man with a dog."
+    },
+    {
+     "text": "Two hundred and six margin entries for Vellsire in ninety years of pages. Herds of nine, of twelve, of four, almost all inside the same three weeks of the year. Then one entry in three different hands, all three describing a herd of six crossing toward the caldera."
+    },
+    {
+     "text": "After that night there is nothing more in the margin. I looked for a falling-off first and there is none to find. Thirty years of nights, and not one Vellsire in any of them."
+    },
+    {
+     "text": "The book does not have where they went. It only ever held what crossed the vale. The antler stones on the roads were standing long before anybody here kept a book, and somebody was going out and keeping them up for years after. I have wanted to walk them and I am too slow now."
+    }
+   ],
+   "setFlags": {
+    "chain.vellsire.step7": true
+   }
+  },
+  {
+   "id": "orrin.quest.trail.offer",
+   "speaker": "orrin",
+   "node": "duskhollow",
+   "kind": "quest",
+   "quest": "vellsires-trail",
+   "priority": 58,
+   "when": {
+    "actMin": 5,
+    "flagsSet": [
+     "chain.vellsire.step7"
+    ],
+    "flagsUnset": [
+     "quest.vellsires-trail.done",
+     "quest.vellsires-trail.taken"
+    ]
+   },
+   "lines": [
+    {
+     "text": "The stones stand in an order, and the mark on each points at the next along: Meadow Reach, then Brackmarsh, then the Wilds, then the steppe, then the vale, then the Approach. I copied that order out of a surveyor's letter of the sixtieth year."
+    },
+    {
+     "text": "The marks are cut in, not painted. They are shallow now, and mossed over."
+    },
+    {
+     "text": "Do not scrape at them — copy what you can read, and where you cannot, write that down too. Walk them in that order and bring me what each one says. The sixth is out on the Sanctum Approach, far further than the other five, so it may be next year before you reach it."
+    }
+   ],
+   "choices": [
+    {
+     "text": "I'll walk the stones.",
+     "setFlags": {
+      "quest.vellsires-trail.taken": true
+     },
+     "goto": "orrin.quest.trail.accepted"
+    },
+    {
+     "text": "I'll come back to it.",
+     "goto": "orrin.quest.trail.declined"
+    }
+   ]
+  },
+  {
+   "id": "orrin.quest.trail.accepted",
+   "speaker": "orrin",
+   "node": "duskhollow",
+   "kind": "quest",
+   "quest": "vellsires-trail",
+   "when": {
+    "flagsSet": [
+     "quest.vellsires-trail.taken"
+    ],
+    "flagsUnset": [
+     "quest.vellsires-trail.done"
+    ]
+   },
+   "lines": [
+    {
+     "text": "In order, if you can. I am told the marks make very little sense read out of turn."
+    },
+    {
+     "text": "The sixth I would leave until last. It is the largest of them and it carries the herd on both faces — walk round the back of it before you put your pencil away."
+    }
+   ]
+  },
+  {
+   "id": "orrin.quest.trail.declined",
+   "speaker": "orrin",
+   "node": "duskhollow",
+   "kind": "quest",
+   "quest": "vellsires-trail",
+   "when": {
+    "flagsSet": [
+     "chain.vellsire.step7"
+    ],
+    "flagsUnset": [
+     "quest.vellsires-trail.done",
+     "quest.vellsires-trail.taken"
+    ]
+   },
+   "lines": [
+    {
+     "text": "No, no. That is quite all right. I am at the shelves most afternoons, and in the evenings when the lamp allows it. The last entry in that book was written thirty years ago; nothing about it is urgent."
+    }
+   ]
+  },
+  {
+   "id": "orrin.quest.trail.done",
+   "speaker": "orrin",
+   "node": "duskhollow",
+   "kind": "quest",
+   "quest": "vellsires-trail",
+   "priority": 59,
+   "when": {
+    "flagsSet": [
+     "quest.vellsires-trail.turnin"
+    ],
+    "flagsUnset": [
+     "quest.vellsires-trail.done"
+    ]
+   },
+   "lines": [
+    {
+     "text": "All six, and in order — thank you. Sit down a moment while I lay them out. They are meant to be read across rather than one at a time."
+    },
+    {
+     "text": "Read across, they give a direction and they give a season. The direction will not surprise anybody in this vale — it points at the Sanctum Fallow, and people here have said so for years with not one page behind it."
+    },
+    {
+     "text": "Take this to Maren — the direction and the season both. She has been reading my margins all week and I have had the whole of her side of it. Neither of us had the stones. Tell her the walk over here is beyond me now, so it will have to be her that comes."
+    }
+   ],
+   "setFlags": {
+    "quest.vellsires-trail.done": true
+   }
+  }
+ ]
+}

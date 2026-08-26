@@ -6,12 +6,12 @@
 
 Trophic is a 2D Pokémon-Gold-style monster-catching RPG in which the region is a living ecosystem: catching decrements real per-node populations, over-catching cascades through a derived food web, and time advances on its own — ageing every creature, map, and town — whether or not the player is making progress.
 
-**Two clocks (see §3 L8 as amended, and `DEVIATIONS.md` D-Q3-1).** The **calendar** runs on ticks and is unbounded; **six in-game years** is the *expected* count under normal pacing (`balance.clock.yearsTotal`), a correlation and not a rule. **Acts** run on badges and quest flags and carry the story. A fast player reaches the Sanctum with young creatures; a slow player reaches the same content having buried two generations. Both see the whole story, and the difference is written in the ledger.
+**Two clocks (see §3 L8 as amended, and `DEVIATIONS.md` D-Q3-1).** The **calendar** runs on ticks and is unbounded; **six in-game years** is the *expected* count under normal pacing (`balance.clock.yearsTotal`), a correlation and not a rule. **Acts** run on badges and quest flags and carry the story. A fast player reaches the Sanctum with young creatures; a slow player reaches the same content having buried two generations. Both see the whole story, and the difference is written in the survey.
 
 **Judged output: demo video + AI interview.** There is no hidden rubric beyond these, so effort allocates to what the video shows and the interview probes:
 
 - **~40% — the two demo beats** (never-cut): (1) *Cascade*: hammer a prey species in year 1; open year 2 with its predator gone, a new apex risen, and the aged map. (2) *Legacy*: starter retires before the league; its heir fights the finale.
-- **~25% — vertical slice walkability**: Hearthollow → R1 → Brackwater → R2 as painted walkable maps with encounters, battles, catching, ledger.
+- **~25% — vertical slice walkability**: Hearthollow → R1 → Brackwater → R2 as painted walkable maps with encounters, battles, catching, survey.
 - **~20% — deterministic core + tests**: battle engine, ecology sim, aging — headless, property-tested, harness-tunable. This is the interview ammunition.
 - **~15% — everything else** (remaining nodes as vignettes, audio, dex, polish), all cut-safe.
 
@@ -20,12 +20,12 @@ Demo/UI polish is graded here (the video *is* the deliverable), so polish on the
 ## 2. Hard Requirements (non-negotiable)
 
 1. All gameplay art is AI-generated via the validated Comfy Cloud pipeline (§9.3); all code agent-built.
-2. Catching decrements the real population of that species at that node; the in-game ledger shows real numbers, never proxies.
+2. Catching decrements the real population of that species at that node; the in-game survey shows real numbers, never proxies.
 3. One JSON file per node is simultaneously: encounter table source, ecology-sim state, and bait lookup. No second table may exist (guardrail G3).
 4. Everything ages at year turns, including boxed creatures. Sole exception: caught Ancients. *(The year turn fires on the full meter only — L8 as amended, `DEVIATIONS.md` D-Q2-1. Ageing is the CALENDAR's job and is untouched by the act model.)*
 5. Year-variant maps are img2img with layout frozen: **one collision mask per map survives all six years**, enforced by the overlay-diff acceptance test (§8.2).
 6. Season variation is a runtime tint shader; year variation is art. Never generate seasonal map art.
-7. Vellsire finale: catchable with honest costs — catch removes the keystone buff and the epilogue ledger shows the numbers; release = restoration ending. No moralizing text anywhere; the ledger is the moral.
+7. Vellsire finale: catchable with honest costs — catch removes the keystone buff and the epilogue survey shows the numbers; release = restoration ending. No moralizing text anywhere; the counts are reported plainly and nothing comments on them.
 8. Battle content exactly per bible: 8 types + Predation rule, 5 stats, 28-move pool, 4 statuses, levels 1–40, damage formula §7.4, KO = faint only.
 9. Gym rosters fixed per bible §7 (sizes **3**/4/5/6/6/6 — **AMENDED 2026-08-25**, was 4/4/5/6/6/6); leader slots use the ghost-compatible schema (§7.7) but no ghost-team feature is built. The leftmost column of bible §7 (labelled "Yr") is an **ACT index** and ships as `data/gyms.json` `act` — renamed from `year` on 2026-08-25 so nothing re-conflates the two clocks (`DEVIATIONS.md` D-Q3-1). Beating a leader writes its badge flag and may advance the act; **it does not end the year.**
    *Gym 1 only.* Maribel fields three, not four: the duplicate Nibbin (A) slot is cut and she keeps Bramblehog (A), Skir (A) and the signature "Old Nib" Nibbin (E). Authorised by Hank on the balance-harness finding that gym 1 was the hardest fight in the game (26.0% measured against this doc's own §10.5 target of 80–95%, against the year-6 finale's 36.2%). Which creature to cut was decided by a 500-seed measurement of all three candidates, not by taste. The sizes are enforced by `core/schemas.ts` `GYM_ROSTER_SIZES` at boot as well as by `tests/unit/transcription.test.ts`. Full rationale, the measurements, and the gap that remains open: `docs/DEVIATIONS.md` rows D-A5-G1…G4.
@@ -74,7 +74,7 @@ graph TD
   subgraph game [game/ - Phaser 3 scenes]
     OW[Overworld - painted map + mask]
     BT[BattleScene]
-    LG[LedgerScene]
+    LG[SurveyScene]
     DX[DexScene]
     UI[Menus, Save, Forge, Quests]
     AUD[audio.ts - WebAudio DSP presets]
@@ -98,7 +98,7 @@ graph TD
 4. Battle runs entirely in `core/battle.ts` off a serialized `BattleInput`; the Phaser scene is a renderer of its event log. Catch success moves one individual from node population to party/box.
 5. Ticks accrue (travel/foray/inn). At each season boundary (every 4 ticks) `ecosim.step()` runs the population update (§7.3). At tick 16 — **and at nothing else** — the **year turn** runs: festival, aging of every owned+boxed creature, retirement flow for expiring creatures, map variant swap, town aging arcs. The calendar never waits and never ends.
 5a. **The second clock (§3 L8 as amended, `core/acts.ts`).** ACTS are driven by badges and quest flags and never by time. An act advances when its `balance.acts.gates` row is satisfied; entering an act fires that act's **event scripts (Cullbrand raids)**, unlocks its towns and routes, and carries its story beats, rival encounter and — at the last act — the finale. The two clocks never read each other: the year turn moves no act, and no act moves a tick. There is no fail state, no time limit and no year cap.
-6. Ledger scene renders the node JSON's live numbers + the derived web graph. The epilogue reuses the same renderer over the final state — the ending is a ledger read.
+6. Survey scene renders the node JSON's live numbers + the derived web graph. The epilogue reuses the same renderer over the final state — the ending is a survey read.
 
 ## 5. Repo Layout
 
@@ -183,7 +183,7 @@ interface NodeFile {
   collisionMask: string;          // ONE per node, all years (Hard Req 5)
   floraStock: number;             // abstract producer stock, 0–100
   populations: Record<string,{   // key = species line id
-    count: number;                // integer individuals; ledger shows THIS number
+    count: number;                // integer individuals; survey shows THIS number
     breedRate: number;            // per-season fractional growth
     carryCap: number;
   }>;
@@ -256,10 +256,19 @@ One seeded xorshift128 stream per subsystem (battle, sim, encounters), seeds der
 `tools/overlay-diff`: threshold both base map and candidate year variant to walkability-relevant edges (Sobel on luminance), dilate 2px, compute IoU of edge maps **restricted to the walkable cells of the collision mask**. Accept iff IoU ≥ 0.85 (tunable). A failing variant is regenerated at lower denoise (start 0.35, step −0.05, floor 0.2) — never accepted manually without a DEVIATIONS entry. This is what makes "one mask, six years" true rather than hoped.
 
 ### 8.3 Single-source-of-truth (→ test `no_shadow_tables`)
-Grep/AST gate: no file other than `core/foodweb.ts` may compute diet edges; no encounter-weight literal tables anywhere; ledger UI reads `nodeStates` objects directly.
+Grep/AST gate: no file other than `core/foodweb.ts` may compute diet edges; no encounter-weight literal tables anywhere; survey UI reads `nodeStates` objects directly.
 
 ### 8.4 Style lock (art)
 Every generation uses the L4 settings + the template skeleton verbatim (§9.2) + the frozen negative prompt + a fixed per-asset seed recorded in the manifest. Post-process quantizes to `palette.json` (32 colors, k-means over the approved trial set, frozen at gate B0). Any asset regenerated must reuse its manifest seed unless the manifest entry is versioned.
+
+### 8.5 Authored-content reachability (→ gates `tests/gates/reachability.test.ts`, `tests/gates/quest-layer.test.ts`)
+**"Authored content must be reachable" is an enforced architectural guarantee, not a hope.** Added 2026-08-25 after a large fraction of the dialogue corpus — every gym leader's pre- and post-battle speech, all eighteen rival encounters, and *both* epilogues — was found dead in a build with a fully green suite. *(The figure reported by the lane that did the wiring was **39 of 211 entries / 83 of 499 lines**, i.e. between 16% and 19% depending on which you count. Treat it as that lane's report, not as a reproducible measurement: **no test, code comment or commit records it**, and the corpus has since moved to 212 entries / 500 lines, so the denominators are already stale. What is checkable, and what actually matters, is that the gate below now fails if any entry is unreachable — the count is history, the invariant is enforced.)* Two causes, and the gate covers both: nothing in `game/` ever *selected* a `battle-pre`/`battle-win`/`battle-loss` entry, and several entries gated on flags **no shipping code or corpus entry ever wrote**.
+
+The invariant is three clauses: **(a)** every flag any entry's `when` requires must have a writer outside the tests; **(b)** every kind in `DIALOGUE_KINDS` must have a selector in `game/`, and every `(fighter, node)` pair a selector can be called with must answer all three battle kinds; **(c)** every authored entry must have a path to the screen, including through `flagEquals` *values*.
+
+The load-bearing design decision is **how a "writer" is established, because a grep in either direction is wrong.** Grepping for the flag key misses `game/quests.ts`, which never types those strings — it builds them from constants and derives others from the corpus. Grepping for a *mention* is worse: every one of these keys is discussed at length in comments, so a mention-based census would have certified `story.vellsire.resolved` as written by three modules that only talk about it. The census therefore has four sources — **CORPUS** (the real `flagsWritten`), **DERIVED** (expanders that call the real exported constructors over the real shipped domains, so a moved constant moves the expansion), **OBSERVED** (flags that appear on a save after *driving* the real writers — the anti-stub-blindness half: not "a writer exists" but "the flag appeared"), and **LITERAL** (flag-shaped strings in comment-stripped shipping source; weak, and any flag resting on it alone must be named in a reviewed list, which is empty today).
+
+This subsumes what §8.1–§8.3 do not cover: those prove the *systems* are correct, and this proves the *content* is connected to them. It is the direct answer to the failure mode where a test supplies the precondition the game never supplies.
 
 ## 9. Asset Factory (tools/comfy)
 
@@ -303,6 +312,10 @@ Runner: vitest. Core suite must pass headless with no Phaser installed (proves L
 4. **Pipeline tests:** `overlay_diff` self-test on synthetic pairs (translated layout must fail, texture-only change must pass); postprocess idempotency; manifest seed-reuse enforcement.
 5. **Balance harness (`tools/harness`, L13):** headless autobattler importing `core/battle.ts`. Modes: (a) gym-sim — a scripted "reasonable player" party per year vs each gym roster, 500 seeds, report win rate (targets: gyms 1–2 ∈ [80,95]%, 3–4 ∈ [60,80]%, 5–6 ∈ [45,65]%); (b) type-chart round-robin — every line vs every line at equal level, flag any line with <35% or >65% aggregate winrate; (c) full-run sim — 6 years of scripted catching against the sim, assert no unintended extinction under normal play and guaranteed cascade under over-catch script. Output: markdown report + suggested `balance.json` deltas. Overnight loop: agent runs harness → adjusts `balance.json` only (INV-3) → reruns → commits report.
 6. **Acceptance tests per extensibility invariant** as named in §6.
+7. **Reachability gates (`tests/gates/reachability.test.ts`, 33 cases) — every authored line must have a path to the screen (§8.5).** Three gate families: *flag census* — every flag an entry's `when` requires has a writer established outside the tests (CORPUS / DERIVED / OBSERVED / reviewed-LITERAL, §8.5), and a failure names the orphan flag **and every entry it strands**; *selector coverage* — every kind in `DIALOGUE_KINDS` is reached by `AUTOPLAY_KINDS` ∪ `BATTLE_KINDS` ∪ `TALK_KINDS` or structurally by `propId`, and every `(fighter, node)` pair a battle selector can be called with answers all three battle kinds (this is what stops the never-cut finale flashing *"greaves — no battle-loss at sanctum"*); *entry reachability* — every entry has a path to the screen, including entries killed by a `flagEquals` **value** nothing produces, which is how a one-character typo in a shipped epilogue's expected value used to pass. A fourth family checks that non-flag clauses (population / flora / season / year) are satisfiable in a world **the sim can actually produce**, by moving the real region rather than asserting over a frozen one.
+8. **Quest-layer gate (`tests/gates/quest-layer.test.ts`, 21 cases) — the module set that previously had ZERO tests.** `core/quests.ts` and `game/quests.ts` are what make the ten authored side quests closable, and before this gate not one assertion anywhere exercised either one; the suite was green across 42 files while **four quest defects shipped invisibly** (a quest that turned itself in before the player had met its giver, a milestone that paid before the giver existed, a stated deadline that lived only in the copy and not in the objective, and completion lines that outranked every greeting in the room for the rest of the run). Gates: the offer → accept → turn-in → done chain is closed in **both** directions (every role flag written *and* read); no quest's turn-in objective is a flag its own offer already requires (the structural form of the first bug); no turn-in comes due on a save that has done everything and spoken to nobody; a deadline the copy states is a deadline the objective has; the objective is the thing the copy describes; and `syncQuestFlags` is idempotent. **The discipline that makes it worth anything:** every check drives the real modules against the real shipped corpus and the real content loader — there is no fixture quest table anywhere in the file, because the point of `core/quests.ts` is that the bill is *derived* from the corpus, so a fixture would only prove the fixture.
+
+*Both gates were added 2026-08-25 in response to measured, shipped defects rather than in anticipation of hypothetical ones; §8.5 records the failure mode they exist to prevent.*
 
 ## 11. Fixtures
 Synthetic only: `fixtures/mini-node.json` (3 species, tiny counts — hand-checkable sim math); `fixtures/battle-scripts/*.json` (action logs incl. gym fights); `fixtures/overcatch-script.json` (the demo cascade as an action log — used by tests AND by the demo-recording flow); stress fixture `fixtures/mega-node.json` (all 27 lines, counts ×100 — sim step must stay <5ms, §12).
@@ -311,7 +324,7 @@ Synthetic only: `fixtures/mini-node.json` (3 species, tiny counts — hand-check
 Modest, but tested: overworld 60fps at 480×320 integer scale (painted map is one static image + one sprite layer — trivially fine); `ecosim.step` all 12 nodes < 5ms (benchmark test `perf_sim` with margin ×4 on mega-node); battle reducer < 1ms/action; boot < 3s on broadband (atlas packing + lazy-load painted dex art). Save serialize < 50ms.
 
 ## 13. README / Interview Prep (write into repo README.md)
-Sections: what it is (2 paragraphs + the two demo beats as GIFs), architecture diagram, "the ledger is the moral" design note, honest known-gaps list (e.g. sim constants tuned for legibility not realism; catch formula is an invented tunable; vignette nodes if cut). **Pre-written answers, full arguments, to the evaluation questions the AI interview will probe:**
+Sections: what it is (2 paragraphs + the two demo beats as GIFs), architecture diagram, "real numbers, no moralizing" design note, honest known-gaps list (e.g. sim constants tuned for legibility not realism; catch formula is an invented tunable; vignette nodes if cut). **Pre-written answers, full arguments, to the evaluation questions the AI interview will probe:**
 - *How was AI used?* Full pipeline: agent-built code from this doc; all art via Comfy Cloud API batch (settings §9.2), style held by a locked prompt skeleton + frozen palette, zero LoRAs; balance tuned by an autonomous harness loop.
 - *How do you know the ecology works?* It's a law, not a script: `cascade_emerges` property test; deterministic replay; the demo cascade is a recorded action log any reviewer can re-run.
 - *Why no tilesets?* Whole-painted maps + one collision mask trade tile flexibility for AI-generatable art; the layout-freeze overlay-diff test is what makes six-year aging affordable.
@@ -343,11 +356,11 @@ A1 types + zod schemas + content transcription from bible (species/moves/gyms/ty
 B1 Cloud API client + manifest runner + postprocess on trial assets → gate: one asset per pixel class reproduced from manifest byte-identically. B2 painted-dex trial (SUPERVISED, §9.4). B3 battle-sprite batch (154) in class chunks with Chrome-extension review checkpoints every ~40. B4 vertical-slice maps (4) + collision masks via editor (SUPERVISED, ~1 review per map) + year-2 variants through overlay-diff. B5 walk-cycle trial (SUPERVISED, §9.6). B6 remaining maps/minis/props/UI.
 
 **Lane C — game shell (parallel with A/B, placeholder art until B lands):**
-C1 boot/save/menus. C2 overworld: painted map + mask movement + encounters off node JSON. C3 battle scene as event-log renderer. C4 ledger + dex + summary (projected retirement year on card). C5 tick meter/seasons/tint shader. C6 year turn UX: festival, aging, retirement flow. C7 quests/dialogue/props/sign chains (vertical slice quests first: First Signs, Fallow Field, Restock the Shallows, Ferryman's Wager) + opening/tutorial beat (bible §13.15: 3–4 painted stills — ride the §9.4 painted-class trial, pixel-still fallback — + Maren dialogue; dialogue budget ~10 lines/named NPC, ~3/ambient per bible §13.13). C8 audio: pack curation (SUPERVISED — retirement cue first, bible §12a manifest), WebAudio DSP presets, procedural SFX. C9 remaining nodes as vignette cards + acts 3–6 story beats + finale/epilogue ledger.
+C1 boot/save/menus. C2 overworld: painted map + mask movement + encounters off node JSON. C3 battle scene as event-log renderer. C4 survey + dex + summary (projected retirement year on card). C5 tick meter/seasons/tint shader. C6 year turn UX: festival, aging, retirement flow. C7 quests/dialogue/props/sign chains (vertical slice quests first: First Signs, Fallow Field, Restock the Shallows, Ferryman's Wager) + opening/tutorial beat (bible §13.15: 3–4 painted stills — ride the §9.4 painted-class trial, pixel-still fallback — + Maren dialogue; dialogue budget ~10 lines/named NPC, ~3/ambient per bible §13.13). C8 audio: pack curation (SUPERVISED — retirement cue first, bible §12a manifest), WebAudio DSP presets, procedural SFX. C9 remaining nodes as vignette cards + acts 3–6 story beats + finale/epilogue survey.
 
-**Integration gates:** I1 vertical slice playable end-to-end (catch, battle, ledger moves, year turn). I2 **cascade demo reproducible from `overcatch-script.json` in real play.** I3 **retirement/heir beat playable.** I4 finale + both endings + epilogue ledger. I5 full test suite + harness targets green. I6 demo-video dry run.
+**Integration gates:** I1 vertical slice playable end-to-end (catch, battle, survey moves, year turn). I2 **cascade demo reproducible from `overcatch-script.json` in real play.** I3 **retirement/heir beat playable.** I4 finale + both endings + epilogue survey. I5 full test suite + harness targets green. I6 demo-video dry run.
 
-**Cut lines (in order — cut from the bottom up):** C-1 acts 5–6 towns walkable → vignettes (already default). C-2 year variants beyond year 2 for non-slice nodes. C-3 side quests beyond the 4 slice quests. C-4 painted dex class (fallback §9.4). C-5 Kilnback/Undermere catch chains → lore-only. C-6 forge/relics UI → auto-apply relics. **Never cut:** the two demo beats, vertical-slice walkability, real-number ledger, retirement flow, Vellsire choice + epilogue ledger, determinism tests.
+**Cut lines (in order — cut from the bottom up):** C-1 acts 5–6 towns walkable → vignettes (already default). C-2 year variants beyond year 2 for non-slice nodes. C-3 side quests beyond the 4 slice quests. C-4 painted dex class (fallback §9.4). C-5 Kilnback/Undermere catch chains → lore-only. C-6 forge/relics UI → auto-apply relics. **Never cut:** the two demo beats, vertical-slice walkability, real-number survey, retirement flow, Vellsire choice + epilogue survey, determinism tests.
 
 **Stretch (flagged, cut-safe):** S1 Retro Diffusion walk-sheet exploration (only if B5 fails AND schedule is ahead). S2 full per-species seasonal tables. S3 ghost gym ingestion of saved teams (schema exists). S4 Dockerfile. S5 Nuzlocke permadeath toggle.
 
@@ -358,7 +371,7 @@ C1 boot/save/menus. C2 overworld: painted map + mask movement + encounters off n
 - G4 Do not accept a map year-variant that hasn't passed overlay-diff; do not hand-edit collision masks to fit a drifted variant.
 - G5 Do not regenerate an approved asset without reusing its manifest seed (or versioning the row).
 - G6 Do not script the demo cascade into the sim — it must emerge from the §7.3 rules (the action-log fixture drives play, not the sim).
-- G7 Do not write moralizing copy about catching anywhere — numbers only; the ledger is the moral.
+- G7 Do not write moralizing copy about catching anywhere. No line may tell the player they did wrong, imply guilt, or deliver a lesson. Populations are reported the way a working field biologist reports them — plainly, as counts, with no reverence for the notebook they are written in.
 - G8 Do not build ghost-team features; schema only.
 - G9 Do not mix audio packs or exceed one composer family; no CC-BY without ATTRIBUTION.md.
 - G10 Do not skip year-turn aging for boxed creatures, and do not age caught Ancients.
@@ -397,7 +410,7 @@ C1 boot/save/menus. C2 overworld: painted map + mask movement + encounters off n
 - [ ] Comfy credit balance sufficient before B3 batch (runner prints estimate)
 - [ ] IP sweep: game name TROPHIC + all coined names quick trademark/steam/itch collision pass (G15)
 - [ ] Audio pack license verified; ATTRIBUTION.md if CC-BY
-- [ ] Record demo video: cascade beat from the fixture script, retirement beat, finale ledger
+- [ ] Record demo video: cascade beat from the fixture script, retirement beat, finale survey
 - [ ] Repo visibility + clean-clone `npm i && npm run dev` on a fresh machine
 - [ ] Secret sweep: no COMFY key in git history (`git log -p | grep comfyui-` clean)
 - [ ] Save-wipe playtest: new game to gym 1 without dev tools

@@ -54,7 +54,7 @@
       "y": 402,
       "interactionRadius": 48,
       "signChain": "vellsire-chain",
-      "label": "antler standing-stone"
+      "label": "leaning antler stone"
     },
     {
       "id": "r2-idol-shallows",
@@ -63,7 +63,7 @@
       "y": 612,
       "interactionRadius": 48,
       "signChain": "undermere-chain",
-      "label": "sunken idol in the shallows"
+      "label": "sunken idol out in the reeds"
     }
   ]
 }

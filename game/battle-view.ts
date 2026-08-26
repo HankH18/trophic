@@ -21,11 +21,11 @@
  * WHAT "NO RULES" COSTS, AND WHERE THE SEAMS ARE (read before adding anything)
  * ───────────────────────────────────────────────────────────────────────────
  * The log carries DELTAS; the state carries ABSOLUTES. So the compiler keeps a display-only HP
- * ledger seeded from the snapshot at the start of the step and moves it by the log's own numbers
+ * tally seeded from the snapshot at the start of the step and moves it by the log's own numbers
  * (`damage.amount`, `heal.amount`, `statusTick.amount`) — that is the §7.4 renderer contract
  * ("replaying the log from the state at the start of the step reproduces the state at the end"),
  * not a second implementation of anything. `syncTo(state)` then re-reads the authoritative numbers,
- * so the ledger can never become the source of truth: it exists to give a tween a start and an end.
+ * so the tally can never become the source of truth: it exists to give a tween a start and an end.
  *
  * Every step also carries `playerAt` / `enemyAt`: the DISPLAY STATE OF THE FIELDED PAIR AT THAT
  * POINT IN THE LOG. That is not a convenience — it is the fix for a reproduced defect. A scene that
@@ -41,7 +41,7 @@
  *     both on a level-up (core/battle.ts:944-945). The new level comes off the log; the new maxHp is
  *     RE-READ off the `BattleState` the reducer returned (the same absolute read `syncTo` does,
  *     wired through `BattleViewAbsolutes`) rather than derived, because deriving it means calling
- *     `effectiveStats` — a rules function. With no state to read, the ledger marks its maxHp
+ *     `effectiveStats` — a rules function. With no state to read, the tally marks its maxHp
  *     UNKNOWN instead of quietly keeping the stale one. `curHp`'s matching rise is core's rule and
  *     is left to the end-of-step resync; the step stays flagged `resyncRequired`.
  *   · `xpGained` carries the AMOUNT but not `xpAfter`/`xpToNext`, so a proportional XP bar is not
@@ -463,13 +463,13 @@ function openingCaption(kind: BattleKind, opponent: string | undefined, enemyNam
 }
 
 /**
- * Mutable display ledger for one battler while a log is being walked.
+ * Mutable display tally for one battler while a log is being walked.
  *
  * `view` IS the battler's current display state: a copy of the opening snapshot's row, moved by the
  * log's own deltas. `maxHpKnown` goes false at a level-up with no state to re-read from, so a later
  * clamp uses the log's number rather than a maximum the compiler knows is stale.
  */
-interface Ledger {
+interface Tally {
   view: BattlerView;
   maxHpKnown: boolean;
 }
@@ -495,9 +495,9 @@ export function compileBattleEvents(
   names: BattleViewNames = {},
   absolutes: BattleViewAbsolutes = {},
 ): CompileResult {
-  const ledgers = new Map<string, Ledger>();
+  const tallies = new Map<string, Tally>();
   for (const [uid, view] of Object.entries(snapshot.battlers)) {
-    ledgers.set(uid, {
+    tallies.set(uid, {
       view: { ...view, displayName: names.battler?.(uid) ?? view.displayName },
       maxHpKnown: true,
     });
@@ -542,16 +542,16 @@ export function compileBattleEvents(
       ...draft,
       activePlayerUid,
       activeEnemyUid,
-      // A COPY, frozen at emit time: the ledger keeps moving, and a step must keep the picture the
+      // A COPY, frozen at emit time: the tally keeps moving, and a step must keep the picture the
       // player is looking at while it is on screen.
-      playerAt: ledgers.has(activePlayerUid) ? { ...ledgerOf(activePlayerUid).view } : null,
-      enemyAt: ledgers.has(activeEnemyUid) ? { ...ledgerOf(activeEnemyUid).view } : null,
+      playerAt: tallies.has(activePlayerUid) ? { ...tallyOf(activePlayerUid).view } : null,
+      enemyAt: tallies.has(activeEnemyUid) ? { ...tallyOf(activeEnemyUid).view } : null,
       lureActive,
     } as ViewStep);
   };
 
-  const ledgerOf = (uid: string): Ledger =>
-    ledgers.get(uid) ?? {
+  const tallyOf = (uid: string): Tally =>
+    tallies.get(uid) ?? {
       view: {
         uid,
         side: "enemy",
@@ -582,10 +582,10 @@ export function compileBattleEvents(
    * noun is coined and no adjective is added: G7's "numbers, not judgements" is the whole rule.
    */
   const nameOf = (uid: string): string => {
-    const me = ledgerOf(uid).view;
+    const me = tallyOf(uid).view;
     const clashes = [activePlayerUid, activeEnemyUid]
-      .filter((other) => other !== uid && ledgers.has(other))
-      .map((other) => ledgerOf(other).view)
+      .filter((other) => other !== uid && tallies.has(other))
+      .map((other) => tallyOf(other).view)
       .filter((other) => other.displayName === me.displayName);
     if (clashes.length === 0) return me.displayName;
     const qualified = `${me.displayName} Lv ${String(me.level)}`;
@@ -597,11 +597,11 @@ export function compileBattleEvents(
 
   /** Apply a hit-shaped delta and report the tween's endpoints. The log's own number moves it. */
   const drain = (uid: string, amount: number): { hpFrom: number; hpTo: number; maxHp: number } => {
-    const ledger = ledgerOf(uid);
-    const hpFrom = ledger.view.curHp;
+    const tally = tallyOf(uid);
+    const hpFrom = tally.view.curHp;
     const hpTo = Math.max(0, hpFrom - amount);
-    ledger.view.curHp = hpTo;
-    return { hpFrom, hpTo, maxHp: ledger.view.maxHp };
+    tally.view.curHp = hpTo;
+    return { hpFrom, hpTo, maxHp: tally.view.maxHp };
   };
 
   for (const event of events) {
@@ -679,15 +679,15 @@ export function compileBattleEvents(
       }
 
       case "heal": {
-        const ledger = ledgerOf(event.uid);
-        const hpFrom = ledger.view.curHp;
+        const tally = tallyOf(event.uid);
+        const hpFrom = tally.view.curHp;
         // core/battle.ts:1037 already clamps the amount it logs (`min(amount, maxHp - curHp)`), so
         // the log's own number is the whole delta. The clamp here is a DISPLAY guard against a
         // hand-built log, and it is skipped when the maximum is known to be stale (a level-up with
         // no state to re-read from) — capping a post-level heal at the pre-level maximum was a
         // reproduced defect.
-        const hpTo = ledger.maxHpKnown ? Math.min(ledger.view.maxHp, hpFrom + event.amount) : hpFrom + event.amount;
-        ledger.view.curHp = hpTo;
+        const hpTo = tally.maxHpKnown ? Math.min(tally.view.maxHp, hpFrom + event.amount) : hpFrom + event.amount;
+        tally.view.curHp = hpTo;
         emit({
           kind: "heal",
           hold: VIEW_TIMING.heal,
@@ -695,14 +695,14 @@ export function compileBattleEvents(
           amount: event.amount,
           hpFrom,
           hpTo,
-          maxHp: ledger.view.maxHp,
+          maxHp: tally.view.maxHp,
           caption: `${nameOf(event.uid)} +${String(event.amount)} HP`,
         });
         break;
       }
 
       case "statusApplied": {
-        ledgerOf(event.uid).view.status = event.status;
+        tallyOf(event.uid).view.status = event.status;
         emit({
           kind: "statusApply",
           hold: VIEW_TIMING.status,
@@ -743,7 +743,7 @@ export function compileBattleEvents(
       }
 
       case "statusCleared": {
-        ledgerOf(event.uid).view.status = null;
+        tallyOf(event.uid).view.status = null;
         emit({
           kind: "statusClear",
           hold: VIEW_TIMING.status,
@@ -757,9 +757,9 @@ export function compileBattleEvents(
       case "statChanged": {
         const ended = event.turns === 0;
         const arrow = event.direction === "up" ? "↑" : "↓";
-        // The log carries a direction and no magnitude, so the ledger tracks the ARROW. Replaced,
+        // The log carries a direction and no magnitude, so the tally tracks the ARROW. Replaced,
         // never mutated in place, because every emitted step holds a shallow copy of this view.
-        const modded = ledgerOf(event.uid).view;
+        const modded = tallyOf(event.uid).view;
         const arrows = { ...modded.statArrows };
         if (ended) delete arrows[event.stat];
         else arrows[event.stat] = event.direction;
@@ -780,14 +780,14 @@ export function compileBattleEvents(
       }
 
       case "faint": {
-        const ledger = ledgerOf(event.uid);
-        ledger.view.fainted = true;
-        ledger.view.curHp = 0;
+        const tally = tallyOf(event.uid);
+        tally.view.fainted = true;
+        tally.view.curHp = 0;
         emit({
           kind: "faint",
           hold: VIEW_TIMING.faint,
           uid: event.uid,
-          side: ledger.view.side,
+          side: tally.view.side,
           caption: `${nameOf(event.uid)} fainted`,
         });
         break;
@@ -885,9 +885,9 @@ export function compileBattleEvents(
         const learned = event.learnedMoveId ?? null;
         // The new LEVEL is in the log. The new maxHp is not (core/battle.ts:944 raises it from
         // `effectiveStats`, a rules function), so it is RE-READ off the state the reducer returned.
-        // With no state to read from, the ledger says so instead of keeping a number it knows is
+        // With no state to read from, the tally says so instead of keeping a number it knows is
         // stale — every later HP payload in the same step was being sized against it.
-        const levelled = ledgerOf(event.uid);
+        const levelled = tallyOf(event.uid);
         levelled.view.level = event.level;
         const raised = absolutes.maxHp?.(event.uid);
         if (raised === undefined) levelled.maxHpKnown = false;
@@ -958,13 +958,13 @@ export function compileBattleEvents(
     }
   }
 
-  // Every absolute the ledger tracked — including the LEVEL a `levelUp` moved, which the first cut
+  // Every absolute the tally tracked — including the LEVEL a `levelUp` moved, which the first cut
   // dropped, so the compiled snapshot reported the pre-level value indefinitely when no `stateAfter`
   // was passed. `displayName` is restored from the input so a `names.battler` override cannot leak
   // into a snapshot that is compared against `BattleState`.
   const battlers: Record<string, BattlerView> = {};
   for (const [uid, view] of Object.entries(snapshot.battlers)) {
-    battlers[uid] = { ...ledgerOf(uid).view, displayName: view.displayName };
+    battlers[uid] = { ...tallyOf(uid).view, displayName: view.displayName };
   }
 
   return {
@@ -1023,7 +1023,7 @@ export class BattleView {
     return steps;
   }
 
-  /** Re-read the authoritative absolutes. The ledger animates; `BattleState` decides. */
+  /** Re-read the authoritative absolutes. The tally animates; `BattleState` decides. */
   syncTo(state: BattleState): void {
     this.view = snapshotOf(state);
   }

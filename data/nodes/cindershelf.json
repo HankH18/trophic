@@ -54,7 +54,7 @@
       "y": 508,
       "interactionRadius": 48,
       "signChain": "kilnback-chain",
-      "label": "shell-kiln shrine"
+      "label": "shell-kiln shrine at the shaft head"
     },
     {
       "id": "cindershelf-shrine-deep",
@@ -63,7 +63,7 @@
       "y": 604,
       "interactionRadius": 48,
       "signChain": "kilnback-chain",
-      "label": "shell-kiln shrine, mine deep"
+      "label": "shell-kiln shrine in the deep workings"
     }
   ]
 }

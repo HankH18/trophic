@@ -542,7 +542,7 @@ describe("species roster — bible §4", () => {
 
 /* ──────────────────────────────────────────────────────────────────────────
  * bible §3 — the 28-move pool, transcribed by id AND display name.
- * Four names are the bible's own (Singe/Pyre, Dous/Riptide) plus the 5 role and 7 utility names it
+ * Four names are the bible's own (Singe/Pyre, Douse/Riptide) plus the 5 role and 7 utility names it
  * lists; the twelve remaining type-move names are coined (DEVIATIONS D6) and are pinned here too,
  * because a "coined" name that drifts silently is still a content change nobody approved.
  *
@@ -550,16 +550,23 @@ describe("species roster — bible §4", () => {
  * real Pokémon moves, so §3 now reads Bristle / Shriek / Daunt, and the "Roost" alias on
  * burrow-roost is gone. This list still transcribes the bible verbatim — the bible moved first.
  * The `id`s deliberately did NOT move (D-Q1-5): they are opaque keys no player ever sees.
+ *
+ * One coined type name below is the Q2 IP rename (D-Q2-1): the Plant heavy move, id `overgrow`,
+ * now displays as "Thicket". "Overgrow" is a real Pokémon ABILITY (#65) — the one every Grass
+ * starter line carries — and TROPHIC has a Plant starter line, so the collision landed in the
+ * same slot of the same design. Thicket is Bramble scaled up: one thorny stem to a whole stand.
+ * The id did not move here either — `data/species.json` movePool, the gym-01 fixture and
+ * `tests/unit/battle.test.ts` all key on the string `overgrow`.
  * ────────────────────────────────────────────────────────────────────────── */
 const BIBLE_MOVE_NAMES: Array<[string, string]> = [
   ["gnaw", "Gnaw"],
   ["maul", "Maul"],
   ["singe", "Singe"],
   ["pyre", "Pyre"],
-  ["dous", "Dous"],
+  ["dous", "Douse"],
   ["riptide", "Riptide"],
   ["bramble", "Bramble"],
-  ["overgrow", "Overgrow"],
+  ["overgrow", "Thicket"],
   ["sunder", "Sunder"],
   ["upheave", "Upheave"],
   ["harry", "Harry"],
@@ -587,6 +594,12 @@ const BIBLE_MOVE_NAMES: Array<[string, string]> = [
  *  list is the thing that must never come back — as a name, or as the `altName` alias Roost was. */
 const RENAMED_AWAY_POKEMON_MOVE_NAMES = ["Harden", "Screech", "Snarl", "Roost"];
 
+/** docs/IP-SWEEP.md RED, second batch: real Pokémon ABILITY names. "Overgrow" was our Plant heavy
+ *  MOVE and "Keen Eye" / "Strong Jaw" were TRAIT names, so one banned list has to be checked
+ *  against both namespaces — a name evicted from `data/moves.json` must not reappear in
+ *  `data/balance.json`'s trait pool, or the other way round (DEVIATIONS D-Q4-1 … D-Q4-3). */
+const RENAMED_AWAY_POKEMON_ABILITY_NAMES = ["Overgrow", "Keen Eye", "Strong Jaw"];
+
 /** bible §3 names these verbatim; the rest of the 16 type moves are coined (D6). */
 const BIBLE_NAMED_MOVES = [
   "singe", "pyre", "dous", "riptide",
@@ -595,7 +608,7 @@ const BIBLE_NAMED_MOVES = [
 ];
 
 /** bible §3: "one light (~40 power, secondary effect) + one heavy (~70 power) per type" — the light
- *  move's secondary fires at the rate the bible states for Singe and Dous: 20%. */
+ *  move's secondary fires at the rate the bible states for Singe and Douse: 20%. */
 const LIGHT_MOVE_SECONDARY_CHANCE = 0.2;
 
 describe("move pool — bible §3", () => {
@@ -626,13 +639,13 @@ describe("move pool — bible §3", () => {
   });
 
   it("carries the named bible moves with their stated numbers", () => {
-    // bible §3: "Fire: Singe (40, 20% Burn) / Pyre (70). Water: Dous (40, 20% Soak) / Riptide (70)."
+    // bible §3: "Fire: Singe (40, 20% Burn) / Pyre (70). Water: Douse (40, 20% Soak) / Riptide (70)."
     expect(move("singe").name).toBe("Singe");
     expect(move("singe").power).toBe(40);
     expect(move("singe").effects).toEqual([{ kind: "inflictStatus", status: "Burn", chance: 0.2 }]);
     expect(move("pyre").name).toBe("Pyre");
     expect(move("pyre").power).toBe(70);
-    expect(move("dous").name).toBe("Dous");
+    expect(move("dous").name).toBe("Douse");
     expect(move("dous").power).toBe(40);
     expect(move("dous").effects).toEqual([{ kind: "inflictStatus", status: "Soak", chance: 0.2 }]);
     expect(move("riptide").name).toBe("Riptide");
@@ -677,7 +690,9 @@ describe("move pool — bible §3", () => {
     for (const id of BIBLE_NAMED_MOVES) {
       expect(move(id).coined, `${id} is a bible name, not a coined one`).toBeUndefined();
     }
-    // The twelve coined type-move names are flagged for the G15 IP sweep (DEVIATIONS D6).
+    // The twelve coined type-move names are flagged for the G15 IP sweep (DEVIATIONS D6). These
+    // are IDS: `overgrow` stays flagged coined after the Q2 rename, because "Thicket" is still an
+    // agent coinage — bible §3 never named the Plant pair. Renaming it did not launder it.
     expect(movesFile.moves.filter((m) => m.coined).map((m) => m.id)).toEqual([
       "gnaw", "maul", "bramble", "overgrow", "sunder", "upheave", "harry", "squall", "blight", "miasma", "shade", "eclipse",
     ]);
@@ -705,6 +720,20 @@ describe("move pool — bible §3", () => {
     expect(surfaced.length).toBe(28); // 28 names, 0 aliases — every alias is gone, not just Roost's
   });
 
+  // G15 / docs/IP-SWEEP.md, Q2. "Overgrow" is a real Pokémon ABILITY, not a move — the signature
+  // ability of every Grass starter line, and TROPHIC has a Plant starter line, so it landed in the
+  // same slot of the same design. It was the Plant HEAVY move and is now "Thicket" (D-Q4-1).
+  it("carries no name that is a real Pokémon ability either — Overgrow is gone", () => {
+    const surfaced = movesFile.moves.flatMap((m) => [m.name, m.altName].filter((n): n is string => !!n));
+    for (const banned of RENAMED_AWAY_POKEMON_ABILITY_NAMES) {
+      expect(surfaced, `"${banned}" is a real Pokémon ability — see docs/IP-SWEEP.md`).not.toContain(banned);
+    }
+    // …and the replacement is in place, so this cannot pass by the Plant heavy slot going missing.
+    const plantHeavy = movesFile.moves.find((m) => m.kind === "type" && m.type === "Plant" && m.weight === "heavy");
+    expect(plantHeavy?.name).toBe("Thicket");
+    expect(plantHeavy?.id).toBe("overgrow"); // the ID did not move — D-Q4-5
+  });
+
   // The rename changed NAMES only. Effects are content and G2 protects them, so the seven utility
   // moves must still do exactly what bible §3's parentheses say they do, under their new names.
   it("changed names only — every renamed utility move keeps its bible effect and text", () => {
@@ -723,6 +752,14 @@ describe("move pool — bible §3", () => {
     for (const id of ["harden", "screech", "snarl"]) {
       expect(move(id).effects[0]).toMatchObject({ magnitudeKey: "utilityStatMod" });
     }
+    // Same rule for the Q2 rename: "Overgrow" → "Thicket" moved the display name and nothing else.
+    // The Plant heavy move is still 70 power with no effects, exactly as bible §3's pattern says.
+    expect(move("overgrow").name).toBe("Thicket");
+    expect(move("overgrow").type).toBe("Plant");
+    expect(move("overgrow").weight).toBe("heavy");
+    expect(move("overgrow").power).toBe(70);
+    expect(move("overgrow").text).toBe("70");
+    expect(move("overgrow").effects).toEqual([]);
   });
 });
 
@@ -1299,6 +1336,31 @@ describe("balance.json is the single home of every gameplay constant (G11 / INV-
     for (const t of pool) expect(Object.keys(t).sort()).toEqual(["direction", "id", "name", "rarity", "stat"]);
     // The rare pool is what an Elder roll is FOR — it never hands out a penalty.
     expect(pool.filter((t) => t.rarity === "rare").every((t) => t.direction === "up")).toBe(true);
+
+    // G15 / docs/IP-SWEEP.md, Q2. "Keen Eye" (#51) and "Strong Jaw" (#173) are real Pokémon
+    // Abilities and were two of the fifteen trait names (DEVIATIONS D-Q4-2 / D-Q4-3). Same banned
+    // list as the move pool uses, checked here too: an evicted name must not reappear in the other
+    // namespace. The two `id`s did NOT move — `keen-eye` and `strong-jaw` are read by
+    // tests/unit/{catch,lifecycle}.test.ts and by core/, and no player ever sees them (D-Q4-5).
+    const traitNames = pool.map((t) => t.name);
+    for (const banned of RENAMED_AWAY_POKEMON_ABILITY_NAMES) {
+      expect(traitNames, `"${banned}" is a real Pokémon ability — see docs/IP-SWEEP.md`).not.toContain(banned);
+    }
+    // The replacements are in place under the untouched ids, so this cannot pass by the two traits
+    // going missing. The pool is a 5×3 lattice and each name has to read as its column: "Bright
+    // Eye" is the positive of "Dulled Sense", "Broad Jaw" the positive of "Soft Bite".
+    expect(pool.find((t) => t.id === "keen-eye")).toEqual({
+      id: "keen-eye", name: "Bright Eye", stat: "ins", direction: "up", rarity: "common",
+    });
+    expect(pool.find((t) => t.id === "strong-jaw")).toEqual({
+      id: "strong-jaw", name: "Broad Jaw", stat: "atk", direction: "up", rarity: "common",
+    });
+    // The lattice the two renames had to sit inside: five stats × (common up, common down, rare up).
+    expect(pool.map((t) => `${t.stat}/${t.direction}/${t.rarity}`).sort()).toEqual(
+      ["atk", "def", "hp", "ins", "spd"].flatMap((s) => [`${s}/down/common`, `${s}/up/common`, `${s}/up/rare`]).sort(),
+    );
+    // Every trait name is a distinct display string, so a rename cannot collide with a sibling.
+    expect(new Set(traitNames).size).toBe(pool.length);
   });
 
   it("numbers the medicines the bible only names (bible §11)", () => {

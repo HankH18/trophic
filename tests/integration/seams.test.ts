@@ -150,13 +150,13 @@ describe("SEAM — battle predation is a read of core/foodweb.ts, not a table of
 /* ════════════════════════════════════════════════════════════════════════════
  * SEAM 2 — Hard Req 2, end to end.
  *
- * "Catching decrements the real population of that species at that node; the in-game ledger shows
+ * "Catching decrements the real population of that species at that node; the in-game survey shows
  * real numbers, never proxies." Three modules touch that sentence and none of them owns all of it:
  * core/battle.ts reports the individual, core/ecosim.ts owns the population arithmetic, and
  * core/save.ts is what a replay writes through.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-describe("SEAM — Hard Req 2: a real battle catch moves a real number in the ledger", () => {
+describe("SEAM — Hard Req 2: a real battle catch moves a real number in the survey", () => {
   const web = deriveFoodWeb(toEcoNode(nodeFile("r1")), idx, balance);
   const ctx = makeBattleContext(content, predationOracleFromWebs([web]));
 
@@ -180,7 +180,7 @@ describe("SEAM — Hard Req 2: a real battle catch moves a real number in the le
     return { state: st, caught: caughtIndividual(st, ctx) };
   }
 
-  it("battle reports a catch carrying the node and line the ledger must move", () => {
+  it("battle reports a catch carrying the node and line the survey must move", () => {
     const save = newSave({ seed: 4242, currentNode: "r1", nodes: content.nodes }, balance);
     const { state, caught } = catchOne(save, "nibbin-line");
     expect(state.outcome).toBe("caught");
@@ -192,7 +192,7 @@ describe("SEAM — Hard Req 2: a real battle catch moves a real number in the le
     expect(typeof caught?.metamorphosed).toBe("boolean");
   });
 
-  it("the logged catch decrements the ledger by exactly one, from the real starting number", () => {
+  it("the logged catch decrements the surveyed count by exactly one, from the real starting number", () => {
     let save = newSave({ seed: 4242, currentNode: "r1", nodes: content.nodes }, balance);
     const before = save.nodeStates["r1"]?.populations["nibbin-line"]?.count as number;
     expect(before).toBeGreaterThan(0);
@@ -312,7 +312,7 @@ describe("SEAM — Hard Req 2: a real battle catch moves a real number in the le
   it("catching to extinction removes the species from encounters — the cascade is visible for free", () => {
     // build-doc §7.2: "encounter weight of species s = populations[s].count (0 count = 0
     // encounters)". This is the join that makes Hard Req 2 legible in play rather than only in a
-    // ledger screen, and it is derived, never tabled (G3).
+    // survey screen, and it is derived, never tabled (G3).
     let node = toEcoNode(nodeFile("r1"));
     const line = "nibbin-line";
     const before = encounterWeights(node, idx, balance, { season: "spring" }).find((w) => w.lineId === line);
@@ -331,7 +331,7 @@ describe("SEAM — Hard Req 2: a real battle catch moves a real number in the le
     /*
      * THIS REPLACED A GREEN TEST THAT ASSERTED THE NEGATION OF THE TRUTH (BF-3).
      *
-     * It read `it("HONEST GAP: nothing in production wires battle's catch to the ledger yet")` and
+     * It read `it("HONEST GAP: nothing in production wires battle's catch to the survey yet")` and
      * asserted `callsBoth === false` over a source list of nine `core/*.ts` files plus
      * `game/main.ts`. The wiring landed in `game/wild-battle.ts` — a file that list does not name —
      * so the scan could not see it and the assertion stayed green while stating the opposite of what
@@ -385,7 +385,7 @@ describe("SEAM — Hard Req 2: a real battle catch moves a real number in the le
         f !== path.join("game", "wild-battle.ts") &&
         /applyWildBattleOutcome\s*\(|applyCatchToSave\s*\(/.test(fs.readFileSync(f, "utf8")),
     );
-    expect(callers, "no production file calls the battle-to-ledger join").not.toHaveLength(0);
+    expect(callers, "no production file calls the battle-to-survey join").not.toHaveLength(0);
   });
 });
 
@@ -483,7 +483,7 @@ describe("SEAM — the fourth season runs exactly once (build-doc §7.5 step 5)"
   });
 
   it("and the doubled count really would change the trajectory (the defect was not cosmetic)", () => {
-    // Drive the shipped region for one year under both accountings and compare the ledger. If a
+    // Drive the shipped region for one year under both accountings and compare the survey. If a
     // fifth step were free, the fix would not matter; it is not.
     const run = (stepsPerYear: number) => {
       let states: Record<string, NodeState> = {};
@@ -654,7 +654,7 @@ describe("SEAM — the year turn's season step runs WITH presence effects on", (
       blank[n.id] = { breedMult: 1, typeBreedMult: {}, typeBreedFloor: {}, sources: [] };
     }
     const base = newSave({ seed: 77, currentNode: "hearthollow", nodes: content.nodes }, balance);
-    const ledger = (states: Record<string, NodeState>) =>
+    const survey = (states: Record<string, NodeState>) =>
       Object.entries(states)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([id, st]) => `${id}:${Object.entries(st.populations).sort().map(([k, p]) => `${k}=${p.count}`).join(",")}`)
@@ -668,7 +668,7 @@ describe("SEAM — the year turn's season step runs WITH presence effects on", (
       createRng(5),
       makeContext(idx, balance, derivePresence(nodes, idx, balance, eco)),
     );
-    expect(ledger(withLie.states)).toBe(ledger(withTruth.states));
+    expect(survey(withLie.states)).toBe(survey(withTruth.states));
 
     // …and the effects are genuinely ON: the shipped region has three free Ancients, and every one
     // of them is listed as a source somewhere. A vacuous "no effects anywhere" would pass the

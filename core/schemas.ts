@@ -44,6 +44,7 @@ import type {
   NodeFile,
   OwnedCreature,
   PaletteFile,
+  RivalEncounter,
   SaveFile,
   SpeciesLine,
   Trait,
@@ -244,7 +245,26 @@ export const zGymLeader: z.ZodType<GymLeader> = z.strictObject({
   signature: zGymTeamSlot,
 });
 
-const zGymsFileShape = { gyms: z.array(zGymLeader).min(1) };
+/**
+ * bible §8's rival, declared beside the leaders because it is the same kind of thing: a fixed,
+ * authored roster the player fights on a schedule. It is a SEPARATE array rather than a seventh
+ * `gyms[]` row because `game/gym-battle.ts` `gymAtNode` keys on `town` and `winGym` awards a badge
+ * — a rival row inside `gyms[]` would put a badge-awarding gym on Route 1 and invert the act ladder.
+ *
+ * ⚠ Declaring it here is what makes it ARRIVE. `zGymsFile` parses with `z.object`, which strips
+ * undeclared keys in silence (INV-3), so an undeclared `rival` block would sit in the file, pass
+ * validation and never reach a reader. `CONTENT_FILE_KEYS` reads its allow-list off
+ * `zGymsFileShape`, so adding the key here also extends the G3 raw-key sweep that guards the file.
+ */
+export const zRivalEncounter: z.ZodType<RivalEncounter> = z.strictObject({
+  id: z.string().min(1),
+  act: zNonNegInt,
+  node: z.string().min(1),
+  slots: z.array(zGymTeamSlot).min(1),
+  signature: zGymTeamSlot,
+});
+
+const zGymsFileShape = { gyms: z.array(zGymLeader).min(1), rival: z.array(zRivalEncounter).min(1) };
 export const zGymsFile = z.object(zGymsFileShape);
 
 /* ── palette.json (build-doc §8.4) ───────────────────────────────────────── */
@@ -459,6 +479,7 @@ const zBalanceShape = {
     outOfSeasonWeight: z.number().min(0),
     scavengerRecentDeathsDivisor: z.number().positive(),
     signChainGatedHabitatTag: z.enum(HABITAT_SENTINELS),
+    finaleGatedNode: z.string().min(1),
     ageWeights: zAgeRecord,
     levelByYear: z.array(zInt.min(1)).min(1),
     levelJitter: zNonNegInt,
@@ -987,6 +1008,52 @@ export function validateBundle(raw: RawContentBundle): Content {
     }
   }
 
+  /* ── rival cross-checks (bible §8) ──────────────────────────────────────
+   *
+   * The same reads the leaders get, plus the two invariants that are specific to a rival:
+   *   • ONE encounter per act, and one per node. `game/rival.ts` resolves him by node, and two rows
+   *     on one route would make "which fight is standing here" ambiguous in a way the corpus (which
+   *     has exactly one `wick.act<N>.pre` per route) could not answer.
+   *   • He must stay UNDER that act's leader. The badge ladder is the act model's only numeric
+   *     input; a rival who out-levels the leader inverts it, and the plan's own risk note calls this
+   *     out. Checked against the leader's WEAKEST slot, so it holds for the whole roster.
+   */
+  const rival = gymsFile.rival;
+  const rivalActs = new Set<number>();
+  const rivalNodes = new Set<string>();
+  for (const r of rival) {
+    for (const slot of [...r.slots, r.signature]) {
+      if (!speciesIds.has(slot.lineId)) issues.push(`rival ${r.id} act ${r.act}: slot lineId "${slot.lineId}" is not a species line`);
+      if (slot.level > balance.xp.levelCap) {
+        issues.push(`rival ${r.id} act ${r.act}: level ${slot.level} exceeds balance.xp.levelCap ${balance.xp.levelCap}`);
+      }
+      for (const t of slot.traits ?? []) {
+        const pooled = traitPool.get(t.id);
+        if (!pooled) issues.push(`rival ${r.id} act ${r.act}: trait "${t.id}" is not in balance.traits.pool`);
+      }
+    }
+    if (!nodeIds.has(r.node)) issues.push(`rival ${r.id} act ${r.act}: node "${r.node}" is not a node`);
+    if (r.act < balance.acts.first || r.act > balance.acts.last) {
+      issues.push(`rival ${r.id}: act ${r.act} is outside balance.acts ${balance.acts.first}..${balance.acts.last}`);
+    }
+    if (rivalActs.has(r.act)) issues.push(`rival ${r.id}: two encounters share act ${r.act} (bible §8: he battles you each act)`);
+    rivalActs.add(r.act);
+    if (rivalNodes.has(r.node)) issues.push(`rival ${r.id}: two encounters share node "${r.node}"`);
+    rivalNodes.add(r.node);
+    const leader = gyms.find((g) => g.act === r.act);
+    if (leader) {
+      const floor = Math.min(...[...leader.slots, leader.signature].map((s) => s.level));
+      for (const slot of [...r.slots, r.signature]) {
+        if (slot.level >= floor) {
+          issues.push(
+            `rival ${r.id} act ${r.act}: level ${slot.level} is not under leader ${leader.id}'s weakest slot ` +
+              `(${floor}) — the rival must not out-level the badge that opens the next act`,
+          );
+        }
+      }
+    }
+  }
+
   // ── node cross-checks ───────────────────────────────────────────────────
   if (nodeIds.size !== nodes.length) issues.push("nodes: duplicate node ids");
   for (const n of nodes) {
@@ -1125,7 +1192,7 @@ export function validateBundle(raw: RawContentBundle): Content {
 
   if (issues.length > 0) throw new ContentValidationError(issues);
 
-  return { species, moves: movesFile, gyms, balance, palette, nodes };
+  return { species, moves: movesFile, gyms, rival, balance, palette, nodes };
 }
 
 /** Every shipped node file, in graph order (build-doc §5 data/nodes/). */

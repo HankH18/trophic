@@ -25,7 +25,7 @@
  *   - nothing here touches core/ecosim.ts or its rules.
  *
  * This module is the READ side: which raids fire this year, at which named node, and the real
- * numbers to put on screen (Hard Req 2 — "the in-game ledger shows real numbers, never proxies").
+ * numbers to put on screen (Hard Req 2 — "the in-game survey shows real numbers, never proxies").
  *
  * Engine-free at runtime (`import type` only): vitest's node environment cannot import phaser.
  */
@@ -45,7 +45,7 @@ import type { Balance, NodeFile, NodeState, SpeciesLine } from "@core/types";
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
- * The identity a ledger line shows for a species line.
+ * The identity a survey line shows for a species line.
  *
  * The age class comes from `balance.ecosim.webRoleAgeClass` — bible §5: "the population sim tracks
  * the line as one age-structured species", and that key is the class the sim reads the line at. A
@@ -53,7 +53,7 @@ import type { Balance, NodeFile, NodeState, SpeciesLine } from "@core/types";
  * name would be content in code (G2, and the repo-wide species-name sweep in
  * tests/property/foodweb.test.ts would fail on it).
  */
-export function ledgerNameOf(line: SpeciesLine, balance: Balance): string {
+export function surveyNameOf(line: SpeciesLine, balance: Balance): string {
   return line.formNames[balance.ecosim.webRoleAgeClass];
 }
 
@@ -143,8 +143,8 @@ export function raidCoverage(
 
 export interface RaidTargetPreview {
   lineId: string;
-  ledgerName: string;
-  /** The live count right now, from `save.nodeStates` (build-doc §8.3: the ledger reads these). */
+  surveyName: string;
+  /** The live count right now, from `save.nodeStates` (build-doc §8.3: the survey reads these). */
   before: number;
   /**
    * How many the harvest reaches for, priced against {@link RaidTargetPreview.before}.
@@ -179,7 +179,7 @@ export interface RaidPreview {
  * The one piece of it this DOES call is `raidRemovalAt`, because "how many the script asks for" is
  * no longer a field to copy: since D-Q6-1 the harvest is priced against the standing stock, and a
  * preview that showed the authored body count would under-report every late arrival — the screen
- * promising −11 and the ledger then reporting −32.
+ * promising −11 and the survey then reporting −32.
  */
 export function raidPreviews(
   states: Readonly<Record<string, NodeState>>,
@@ -198,7 +198,7 @@ export function raidPreviews(
       const before = state?.populations[target.lineId]?.count ?? 0;
       return {
         lineId: target.lineId,
-        ledgerName: line ? ledgerNameOf(line, balance) : target.lineId,
+        surveyName: line ? surveyNameOf(line, balance) : target.lineId,
         before,
         requested: raidRemovalAt(before, target, balance),
       };
@@ -219,7 +219,7 @@ export function raidPreviews(
 
 export interface RaidTargetReport {
   lineId: string;
-  ledgerName: string;
+  surveyName: string;
   /** Reconstructed from the event: `remaining + removed`. No second arithmetic. */
   before: number;
   removed: number;
@@ -235,7 +235,7 @@ export interface RaidReport {
 }
 
 /**
- * Turn act entry's `raid` events into ledger rows.
+ * Turn act entry's `raid` events into survey rows.
  *
  * build-doc §4 makes the scene "a renderer of its event log", and this is that read: the numbers on
  * screen are the numbers the sim moved, not a recomputation of them. Typed over the union of the
@@ -269,7 +269,7 @@ export function raidReportsFrom(
     const line = index.get(event.lineId);
     report.targets.push({
       lineId: event.lineId,
-      ledgerName: line ? ledgerNameOf(line, balance) : event.lineId,
+      surveyName: line ? surveyNameOf(line, balance) : event.lineId,
       before: event.remaining + event.removed,
       removed: event.removed,
       remaining: event.remaining,
@@ -283,14 +283,15 @@ export function raidReportsFrom(
 /**
  * One line per harvested population: identity and three numbers.
  *
- * G7 — the ledger is the moral. No sentence here characterises the harvest; the arrow does the work.
+ * G7 — no sentence here characterises the harvest. The identity, the arrow and the three numbers are
+ * the whole line.
  */
-export function raidLedgerLines(reports: readonly RaidReport[]): string[] {
+export function raidSurveyLines(reports: readonly RaidReport[]): string[] {
   const lines: string[] = [];
   for (const report of reports) {
     for (const target of report.targets) {
       lines.push(
-        `${report.nodeName} · ${target.ledgerName} ${target.before} → ${target.remaining} (−${target.removed})`,
+        `${report.nodeName} · ${target.surveyName} ${target.before} → ${target.remaining} (−${target.removed})`,
       );
     }
   }

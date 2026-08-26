@@ -1,15 +1,15 @@
 /**
- * game/scenes/LedgerScene.ts — the ecology ledger (build-doc §15 C4, bible §12
- * "ecology ledger (per-node populations + web view)").
+ * game/scenes/SurveyScene.ts — the ecology survey (build-doc §15 C4, bible §12
+ * "ecology survey (per-node populations + web view)").
  *
- * This scene is a RENDERER. Every integer it draws comes from `game/ledger-view.ts` and
+ * This scene is a RENDERER. Every integer it draws comes from `game/survey-view.ts` and
  * `game/web-view.ts`, which read the `NodeState` objects handed in and derive the web through
  * `core/foodweb.ts` (G3 / §8.3). No arithmetic about populations, diets or encounters happens in
- * this file; if it did, the epilogue and the in-game ledger could disagree, and they are the same
+ * this file; if it did, the epilogue and the in-game survey could disagree, and they are the same
  * screen.
  *
  * **The state arrives as scene data, never from a global.** build-doc §4 step 6: "The epilogue
- * reuses the same renderer over the final state — the ending is a ledger read." So Hard Req 7's
+ * reuses the same renderer over the final state — the ending is a survey read." So Hard Req 7's
  * epilogue launches THIS scene with `projectRegion`'s output and its own title, and gets the same
  * page it would get mid-game.
  *
@@ -24,12 +24,12 @@
 import Phaser from "phaser";
 import {
   SCREEN_TEXT,
-  buildLedgerPage,
-  renderLedgerHeader,
-  renderLedgerPage,
-  type LedgerHistory,
-  type LedgerPage,
-} from "../ledger-view";
+  buildSurveyPage,
+  renderSurveyHeader,
+  renderSurveyPage,
+  type SurveyHistory,
+  type SurveyPage,
+} from "../survey-view";
 import {
   buildWebPage,
   collapsedEdgeLabels,
@@ -49,9 +49,9 @@ import type { Content, NodeState, Season } from "../../core/types";
  * engine-free (`import type` only), so there is no reason for this file to hold a second copy of
  * the string, and two spellings of one key is the exact failure that registry exists to prevent.
  */
-export const LEDGER_SCENE_KEY = SCENE_KEYS.ledger;
+export const SURVEY_SCENE_KEY = SCENE_KEYS.survey;
 
-export type LedgerMode = "numbers" | "web";
+export type SurveyMode = "numbers" | "web";
 
 /**
  * How the scene gets at the region's states.
@@ -59,7 +59,7 @@ export type LedgerMode = "numbers" | "web";
  * **Hand over the function unless you know why you are not.** `core/ecosim.ts` `stepRegionStates`
  * returns a NEW record every season (measured: four consecutive calls, four different objects), so
  * a caller that does `save.nodeStates = step(...).states` leaves any scene holding the old record —
- * and Phaser does not re-run `init` on wake, so a slept-and-woken ledger would draw the pre-step
+ * and Phaser does not re-run `init` on wake, so a slept-and-woken survey would draw the pre-step
  * numbers with nothing on screen to say so. A function is re-read on every redraw; a record is
  * exactly the record you handed over, which is correct only while you MUTATE it in place.
  */
@@ -67,7 +67,7 @@ export type NodeStatesSource =
   | Readonly<Record<string, NodeState>>
   | (() => Readonly<Record<string, NodeState>>);
 
-export interface LedgerSceneData {
+export interface SurveySceneData {
   content: Content;
   /** The live sim (build-doc §7.8 `nodeStates`) — or, for the epilogue, the projected one. */
   states: NodeStatesSource;
@@ -77,10 +77,10 @@ export interface LedgerSceneData {
   nodeIds?: readonly string[];
   startNodeId?: string;
   /** Optional per-node season history, for the trend column. Absent = trend shows the live count. */
-  histories?: Readonly<Record<string, LedgerHistory>>;
+  histories?: Readonly<Record<string, SurveyHistory>>;
   /** Heading override — the epilogue names itself (Hard Req 7). */
   title?: string;
-  mode?: LedgerMode;
+  mode?: SurveyMode;
   onClose?: () => void;
 }
 
@@ -97,30 +97,30 @@ const BACKDROP = 0x14140f;
 /** Radius of a vertex dot on the diagram. */
 const DOT_RADIUS = 3;
 
-/** Index of the totals line in `renderLedgerPage`'s array — the one chrome line drawn in full ink. */
+/** Index of the totals line in `renderSurveyPage`'s array — the one chrome line drawn in full ink. */
 const TOTALS_LINE = 1;
 
-// One declaration of the screen's text metrics, in game/ledger-view.ts, so the width the tests
+// One declaration of the screen's text metrics, in game/survey-view.ts, so the width the tests
 // check every rendered line against is the width this scene actually draws at.
 const FONT = SCREEN_TEXT.fontFamily;
 const BODY_PX = SCREEN_TEXT.fontPx;
 const LINE_H = SCREEN_TEXT.lineHeight;
 const PAD = SCREEN_TEXT.padPx;
 
-export class LedgerScene extends Phaser.Scene {
-  static readonly KEY = LEDGER_SCENE_KEY;
+export class SurveyScene extends Phaser.Scene {
+  static readonly KEY = SURVEY_SCENE_KEY;
 
-  private args!: LedgerSceneData;
+  private args!: SurveySceneData;
   private nodeIds: string[] = [];
   private cursor = 0;
-  private mode: LedgerMode = "numbers";
+  private mode: SurveyMode = "numbers";
   private layer!: Phaser.GameObjects.Container;
 
   constructor() {
-    super({ key: LEDGER_SCENE_KEY });
+    super({ key: SURVEY_SCENE_KEY });
   }
 
-  init(data: LedgerSceneData): void {
+  init(data: SurveySceneData): void {
     this.args = data;
     this.mode = data.mode ?? "numbers";
     const states = this.statesNow();
@@ -184,16 +184,16 @@ export class LedgerScene extends Phaser.Scene {
   }
 
   /** The page as it would render right now — the same object the text is drawn from. */
-  page(): LedgerPage | null {
+  page(): SurveyPage | null {
     const nodeId = this.currentNodeId();
     const states = this.statesNow();
     if (!this.args.content.nodes.some((n) => n.id === nodeId) || !states[nodeId]) return null;
     const history = this.args.histories?.[nodeId];
-    return buildLedgerPage({
+    return buildSurveyPage({
       nodeId,
       // The WHOLE region, not just this node: build-doc §7.3 step 1's Ancient presence effects reach
       // across the node graph, so the breed rates here are a fact about the region (see
-      // `effectiveRates` in game/ledger-view.ts).
+      // `effectiveRates` in game/survey-view.ts).
       region: { files: this.args.content.nodes, states },
       species: this.args.content.species,
       balance: this.args.content.balance,
@@ -233,15 +233,15 @@ export class LedgerScene extends Phaser.Scene {
       return;
     }
 
-    const heading = this.args.title ?? renderLedgerHeader(page);
+    const heading = this.args.title ?? renderSurveyHeader(page);
     this.layer.add(this.text(PAD, PAD, heading, INK));
 
     if (this.mode === "numbers") {
-      // Drawn from `renderLedgerPage` line for line, in its order, so what a player sees is exactly
-      // what tests/unit/ledger-view.test.ts asserts character for character. Only the COLOUR is
+      // Drawn from `renderSurveyPage` line for line, in its order, so what a player sees is exactly
+      // what tests/unit/survey-view.test.ts asserts character for character. Only the COLOUR is
       // decided here: the rows are always the tail of the array, so everything before them is
       // chrome, and of the chrome only the totals line carries numbers worth full ink.
-      const lines = renderLedgerPage(page);
+      const lines = renderSurveyPage(page);
       const firstRow = lines.length - page.rows.length;
       lines.forEach((line, i) => {
         if (i === 0) return; // the heading, already drawn (and overridable by the epilogue)
@@ -266,7 +266,7 @@ export class LedgerScene extends Phaser.Scene {
     const layout = layoutWebPage(web, webDiagramBox(balance));
 
     // The same string game/web-view.ts renders for the text page — one renderer, so the diagram and
-    // the ledger cannot report different flora for the same node.
+    // the survey cannot report different flora for the same node.
     this.layer.add(this.text(PAD, PAD + LINE_H, renderWebTotals(web), INK_DIM));
 
     const edgeGfx = this.add.graphics();

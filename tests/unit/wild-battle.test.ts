@@ -2,7 +2,7 @@
  * tests/unit/wild-battle.test.ts — the join, engine-free (build-doc §1 beat 1, Hard Req 2).
  *
  * `tests/integration/seams.test.ts` proves core's pieces compose, and used to assert — in a test
- * called "HONEST GAP: nothing in production wires battle's catch to the ledger yet" — that no
+ * called "HONEST GAP: nothing in production wires battle's catch to the survey yet" — that no
  * production code did the join. `game/wild-battle.ts` is that production code, and this file is the
  * check of the real thing the stand-in asked for.
  *
@@ -200,7 +200,7 @@ describe("§2 the battle a wild encounter builds", () => {
  * §3 A catch moves a real number (Hard Req 2)
  * ════════════════════════════════════════════════════════════════════════════ */
 
-describe("§3 applyCatchToSave moves the ledger the way replay would", () => {
+describe("§3 applyCatchToSave moves the survey the way replay would", () => {
   const lineId = "nibbin-line";
 
   /** A real fight to a real catch, exactly as the seams test runs one. */
@@ -276,7 +276,7 @@ describe("§3 applyCatchToSave moves the ledger the way replay would", () => {
     expect(applied.save.party.length).toBe(balance.party.maxPartySize);
     expect(applied.save.box.length).toBe(1);
     expect(applied.save.box[0]!.boxed).toBe(true);
-    // The count still moved — the ledger is about the node, not about where the animal is kept.
+    // The count still moved — the survey is about the node, not about where the animal is kept.
     expect(applied.after).toBe(applied.before - 1);
   });
 

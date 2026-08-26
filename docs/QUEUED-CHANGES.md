@@ -1,6 +1,54 @@
 # Queued changes — authorised, waiting on in-flight work
 
-## ⏸ PAUSE POINT — 09:18. READ THIS FIRST ON RESUME.
+## ✅ THE PAUSE IS OVER — that session happened. READ THIS FIRST.
+
+**Updated 2026-08-25. Build: GREEN, measured, not assumed.** `npx tsc --noEmit` silent ·
+**48 test files / 2254 tests passing** · `npm run build` clean.
+
+**The `trophic-quest-layer` workflow the pause section below was written for has RUN.** Q7 dialogue
+wiring, Q3b quest system, BF-3's false-gap sweep and the Q1 move renames all landed, and a further
+wiring wave landed on top of them. **Do not re-dispatch it.** What has changed since the pause:
+
+- **Dialogue reaches the player.** `game/dialogue-runner.ts` is the runtime; the corpus is played,
+  not merely validated. The opening beat now resolves *lane hook → corpus → stand-in*, so on the
+  normal path the corpus writes `story.opening.done` itself and the "provisional" banner is gone.
+  **The stand-in is deliberately kept** as a last resort — a corpus that fails to load would
+  otherwise lock the player inside Hearthollow for ever.
+- **The quest layer exists** (`core/quests.ts` + `game/quests.ts`): the ten quests open and close,
+  the turn-in flags have writers, and the three Ancient chains can be completed.
+- **The rival exists.** All eighteen Wick entries (`wick.act<N>.{pre,win,loss}`, six acts × three
+  kinds) now have a trigger and a module (`game/rival.ts`), backed by **six** rosters — one per act,
+  `rival[]` in `data/gyms.json`, shared by that act's three entries. Before this he had none of it.
+- **Both epilogues fire.** `game/finale.ts` writes `story.vellsire.resolved` / `.outcome`, which
+  nothing in the repo used to write.
+- **A large slice of the corpus was unreachable and now is not** — the wiring lane reported 39 of 211
+  entries (18.5%) and 83 of 499 lines (16.6%) dead. *(Reported, not reproducible: no test or commit
+  records the measurement, and the corpus is now 212/500. The enforced part is the gate, not the
+  number.)* Two causes: nothing in `game/` ever *selected* a `battle-*` entry, and several entries
+  gated on flags nothing wrote.
+- **Two permanent gates were added** — `tests/gates/reachability.test.ts` (33 cases) and
+  `tests/gates/quest-layer.test.ts` (21 cases; that layer previously had **zero** tests, which is why
+  four quest bugs shipped invisibly). See build-doc §8.5 and §10.7.
+- **Q1 landed** (see its section below), and a further IP pass landed Q2's four renames.
+- **LEDGER → SURVEY** repo-wide — identifiers, filenames, scene keys, tests and player-facing copy
+  (`docs/DEVIATIONS.md` D-SURV-1…D-SURV-10).
+- **BF-1 and BF-2 are RESOLVED** and carry resolution blocks in `docs/BLOCKED-FINDINGS.md`.
+
+**Still true, and still waiting:** the four decisions listed below are all still yours — none of them
+was closed by any of the above. **The creature sprite batch is still unbuilt**, still gated on decision 2. ⚠ The pause note below says
+"154"; `docs/DEVIATIONS.md` **D2** corrects build-doc §9.7's "154 battle sprites" and tells asset lanes
+to read it as **150**. Use 150.
+**Land BF-7 before BF-4** — the silent `textureFor` fallback is what makes BF-4's 12 missing sprite
+keys invisible. `docs/STORY-REVIEW.md` §6 now opens with a status table for all twenty story
+decisions, so you can see at a glance which are rulings and which are open work.
+
+**⚠ `data/dialogue.json` is being rewritten line by line right now.** Any line count, entry count or
+quoted line anywhere in this document is a snapshot, not a live figure.
+
+---
+
+<details>
+<summary><b>⏸ HISTORICAL — the original 09:18 pause note, kept as the record of that checkpoint. Superseded by everything above.</b></summary>
 
 **Build: GREEN.** `tsc` 0 errors · **39 files / 2012 tests passing** · `npm run build` clean.
 `599dbf83`, local and remote match. `.env` untracked, no real key in history.
@@ -11,7 +59,7 @@ the session. Nothing of its work was committed, and the state above is a clean g
 nothing is lost. **Re-dispatch it on resume.**
 
 ### What a player can actually do right now
-New game → starter → walk Hearthollow and R1 → encounter → battle → catch → the ledger shows the
+New game → starter → walk Hearthollow and R1 → encounter → battle → catch → the survey shows the
 real decremented number → tick meter and seasons advance → year turn ages every creature (boxed
 included) → retirement flow with heir-or-boon → fight a gym, win, earn a badge → act 2 opens →
 Brackwater and R2 reachable, on through act 6. Art is labelled placeholders except the approved
@@ -27,6 +75,8 @@ player sprite and five style trials.
 - **154 creature sprites unbuilt**, gated on decision 2 below.
 - 36 confirmed findings in `docs/BLOCKED-FINDINGS.md`. **Land BF-7 before BF-4** — the silent
   `textureFor` fallback is what makes BF-4's 12 missing sprite keys invisible.
+
+</details>
 
 ### FOUR DECISIONS WAITING ON HANK
 
@@ -86,7 +136,7 @@ years", "year 6", or treats `clock.yearsTotal` as a deadline is superseded.
 - **BF-2 DONE** — `game/gym-battle.ts` exists and `OverworldScene` `[G]` fights the town's leader; a
   win writes the badge. Verified through the real scene, six leaders in one played run.
 - **BF-3 DONE for the one that was false.** `tests/integration/seams.test.ts:329`'s "HONEST GAP:
-  nothing in production wires battle's catch to the ledger yet" was a **green test asserting the
+  nothing in production wires battle's catch to the survey yet" was a **green test asserting the
   negation of the truth** — its source list named ten files and the wiring landed in an eleventh
   (`game/wild-battle.ts`). Replaced by two tests that RUN `applyCatchToSave` and walk every `core/`
   and `game/` source (D-INT-1). `tests/unit/wild-battle.test.ts:5`'s stale note is corrected.
@@ -157,10 +207,35 @@ the summary — these are the details, and the "Blocked on" lines in them are hi
 
 ## Q1 — Rename the Pokémon move duplications
 
+> **✅ LANDED 2026-08-25 — all four shipped; nothing here is outstanding.** Verified in
+> `data/moves.json`, not from a report: **Harden → `Bristle`**, **Screech → `Shriek`**,
+> **Snarl → `Daunt`**, and **Roost's `altName` is deleted** so the move is just `Burrow`. The utility
+> pool is still 7 (`harden`/`quicken`/`screech`/`focus`/`snarl`/`burrow-roost`/`lure` by id), no move
+> carries an `altName`, and every stated effect is byte-identical — only the `name` values moved.
+> Logged as `docs/DEVIATIONS.md` **D-Q1-1 … D-Q1-6**; bible §3 carries the matching AMENDED note.
+>
+> **Two things the spec below asked for that did NOT happen the way it says, both already recorded:**
+> 1. **The `id`s deliberately did not move** — `harden`, `screech`, `snarl` and `burrow-roost` all
+>    stand, because an id is opaque and never renders (**D-Q1-5**). The "Blast radius" list below is
+>    therefore narrower in practice than it reads.
+> 2. **The register constraint was withdrawn.** Constraint (b) below asks for *compounds over single
+>    common words*; the first three replacements chosen on that basis — Rootfast / Scoldcall /
+>    Baretooth — were **withdrawn by Hank the same day** (commit `64b04b5`) because compounds fought
+>    the bible's own register, which is single plain words. Bristle / Shriek / Daunt came from the
+>    earlier shortlists instead and had **never been checked against the Pokémon *ability* list**;
+>    they have been since (**D-Q2-6**). Result: Bristle and Shriek are clean, but **`Daunt` is an
+>    exact match for a Pokémon Shuffle skill**, which nobody knew when it was adopted. That is
+>    **recorded, not fixed** — G2 forbids an agent ruling on it (**D-Q4-7**).
+>
+> **Still unruled, as the spec below anticipated:** *Focus* (a real Cassette Beasts move), *Miasma*
+> and *Shade* (both exact Digimon attack names), and *Burrow* itself (a Temtem / Coromon / Monster
+> Sanctuary skill name). All AMBER, all Hank's call.
+
 **Authorised:** "go ahead and rename the Pokemon move duplications."
 **Blocked on:** ~~the balance-fixes workflow, which owns `tests/unit/transcription.test.ts`.~~
-**UNBLOCKED 2026-08-25** — `tests/`, `data/gyms.json` and `docs/content-bible.md` are free. Still
-outstanding; still needs the Digimon screening the constraints below spell out.
+~~**UNBLOCKED 2026-08-25** — `tests/`, `data/gyms.json` and `docs/content-bible.md` are free. Still
+outstanding; still needs the Digimon screening the constraints below spell out.~~ *(Superseded by the
+LANDED note above.)*
 
 From `docs/IP-SWEEP.md`, rated RED — real Pokémon moves:
 
@@ -271,7 +346,7 @@ player.
 Drives: town/route unlocks, story beats, Cullbrand raid scripts, rival encounters, and the finale.
 
 A fast player reaches the Sanctum with young creatures. A slow player reaches the same content having
-buried two generations. **Both see the whole story.** The difference is written in the ledger and in
+buried two generations. **Both see the whole story.** The difference is written in the survey and in
 who is standing beside you at the end — which is precisely the game's thesis, and a better expression
 of it than a countdown.
 
@@ -321,6 +396,20 @@ than the coupled version it replaced.
 
 ### Q3b — the quest system does not exist at all
 
+> **✅ LANDED 2026-08-25 — and it arrived with the tests it never had.** `core/quests.ts` (the
+> objective evaluator) and `game/quests.ts` (the ten-row objective table, the flag writers, the
+> release verb) exist; `syncQuestFlags` writes the turn-in flags, quests re-arm and lapse, and the
+> three `chain.*.complete` flags are reachable, so the Ancient hunts can be completed. The prop /
+> sign-chain reader landed with it.
+>
+> **⚠ The part worth remembering:** this layer shipped at first with **zero tests** — the suite was
+> 2095 green across 42 files and not one assertion exercised either module — and **four quest defects
+> shipped invisibly behind that green** (a quest that turned itself in before the player had met its
+> giver; a milestone paid before the giver existed; a deadline that lived in the copy and nowhere in
+> the code; completion lines that outranked every greeting in the room for the rest of the run).
+> `tests/gates/quest-layer.test.ts` (21 cases) now gates all four shapes — see build-doc §10.8.
+> Logged as `docs/DEVIATIONS.md` D-Q9-1…D-Q9-11 and D-W3-1…D-W3-10.
+
 Also from the story review: all ten side quests have finished copy, and **all 12 `*.turnin` /
 milestone flags they gate on are flags that dialogue READS and nothing WRITES.** There is no quest
 tracker, no turn-in, no sign-chain reader, no prop interaction. Likewise nothing reads
@@ -339,7 +428,7 @@ tests are all untouched — `det_sim` still validates a six-year trajectory, it 
 Removing the deadline does not remove the stakes. Creatures age and retire on the calendar, so a slow
 player spends generations to get the same distance. That is the anti-hoarding pressure the lifespan
 system already provides, and it is enough. No artificial timer is needed, and adding one would
-contradict G7 — the ledger is the moral, not a clock.
+contradict G7 — the pressure is written in the counts, not on a clock.
 
 ---
 
@@ -489,8 +578,8 @@ strip-harvest."* The shipped node contradicts it: **Cragmar 10, Pyrelisk 14, Sto
 populations.** Only `floraStock: 42` hints at anything wrong.
 
 The dialogue was rewritten so it no longer asserts a collapse the data does not ship — the right
-short-term call, since NPC copy claiming a crash that the ledger contradicts is worse than silence
-(Hard Req 2: the ledger shows real numbers). **But the node data is the real fix.**
+short-term call, since NPC copy claiming a crash that the survey contradicts is worse than silence
+(Hard Req 2: the survey shows real numbers). **But the node data is the real fix.**
 
 **Care needed:** r4's populations feed the ecosim and the balance harness measured its six-year
 trajectories against these exact values (`docs/BALANCE-REPORT.md` — r4 is where the emergent Stonewing
@@ -503,6 +592,21 @@ it happen.
 ---
 
 ## Q7 — `data/dialogue.json` is not wired to anything
+
+> **✅ LANDED 2026-08-25 — and the wiring exposed a second, larger defect.** `game/dialogue-runner.ts`
+> is the runtime; it wires to `conditionHolds()` / `selectEntry()` in `core/dialogue-schema.ts` as
+> this spec required and does **not** reinvent condition resolution. The three items under *"What Q7
+> owes"* above are all discharged: `story.vellsire.resolved` / `.outcome` are written by
+> `game/finale.ts`; the corpus now supplies the opening beat ahead of the stand-in, which is kept as a
+> declared last resort rather than deleted; and the quest turn-in flags have a writer (`syncQuestFlags`).
+>
+> **The second defect, which this spec could not have seen because nothing played the file yet:**
+> once the runtime existed, **39 of 211 entries / 83 of 499 lines had no path to the screen at all.**
+> Cause (a): nothing in `game/` ever *selected* a `battle-pre`/`battle-win`/`battle-loss` entry —
+> every gym leader's pre- and post-battle speech and all eighteen rival encounters. Cause (b):
+> entries gated on flags nothing wrote. **Both epilogues were dead.** All of it is now wired and
+> permanently gated by `tests/gates/reachability.test.ts` (build-doc §8.5 / §10.7). Logged as
+> `docs/DEVIATIONS.md` D-Q8-1…D-Q8-6 and D-W3-1…D-W3-10.
 
 499 lines, 211 entries, 62 speakers, 87 green tests — and **nothing in `game/` reads the file.** The
 tests prove it is well-formed, self-consistent and truthful about the game's rules; they do not prove

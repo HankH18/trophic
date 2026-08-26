@@ -281,7 +281,7 @@ describe("the harvest is priced against the STANDING stock (D-Q6-1)", () => {
     /*
      * The read side, which used to copy `target.remove` straight onto the screen. At the shipped
      * state that was right by coincidence; at every other standing stock the preview promised one
-     * harvest and the ledger reported another. Preview and entry are compared through their own
+     * harvest and the survey reported another. Preview and entry are compared through their own
      * public surfaces, at a grown node, so a drift between them cannot hide.
      */
     for (const { preSeasons } of ARRIVALS) {

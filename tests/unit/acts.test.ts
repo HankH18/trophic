@@ -192,7 +192,7 @@ describe("acts — the run ends on an act condition and on nothing else", () => 
    * nothing" real. `balance.acts.runCompleteFlag` is `story.greaves.beaten`, which ONLY
    * data/dialogue.json writes — and nothing in game/ reads that file (QUEUED-CHANGES Q7). So the
    * only end condition in the game was unreachable in the shipped build, where the calendar
-   * condition it replaced did fire. `onRunComplete` is the seam Hard Req 7's epilogue ledger and
+   * condition it replaced did fire. `onRunComplete` is the seam Hard Req 7's epilogue survey and
    * the Vellsire choice hang off, and it is on build-doc §16's never-cut list.
    */
   it("BINDS — beating every leader completes the run, with no dialogue flag at all", () => {

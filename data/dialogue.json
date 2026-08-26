@@ -10,8 +10,8 @@
   },
   "_counts": {
     "speakers": 62,
-    "entries": 211,
-    "lines": 499
+    "entries": 212,
+    "lines": 500
   },
   "speakers": [
     {
@@ -104,7 +104,7 @@
     },
     {
       "id": "nessa",
-      "name": "Nessa",
+      "name": "Hetty",
       "kind": "named",
       "role": "quest-giver",
       "home": "brackwater",
@@ -152,7 +152,7 @@
     },
     {
       "id": "innkeeper-hearthollow",
-      "name": "Innkeeper",
+      "name": "Aldis",
       "kind": "generic",
       "role": "innkeeper",
       "home": "hearthollow",
@@ -160,7 +160,7 @@
     },
     {
       "id": "innkeeper-brackwater",
-      "name": "Innkeeper",
+      "name": "Elsbet",
       "kind": "generic",
       "role": "innkeeper",
       "home": "brackwater",
@@ -168,7 +168,7 @@
     },
     {
       "id": "innkeeper-bowerdeep",
-      "name": "Innkeeper",
+      "name": "Yule",
       "kind": "generic",
       "role": "innkeeper",
       "home": "bowerdeep",
@@ -176,7 +176,7 @@
     },
     {
       "id": "innkeeper-cindershelf",
-      "name": "Innkeeper",
+      "name": "Berit",
       "kind": "generic",
       "role": "innkeeper",
       "home": "cindershelf",
@@ -184,7 +184,7 @@
     },
     {
       "id": "innkeeper-duskhollow",
-      "name": "Innkeeper",
+      "name": "Effie",
       "kind": "generic",
       "role": "innkeeper",
       "home": "duskhollow",
@@ -192,7 +192,7 @@
     },
     {
       "id": "vendor-hearthollow",
-      "name": "Market Vendor",
+      "name": "Kett",
       "kind": "generic",
       "role": "vendor",
       "home": "hearthollow",
@@ -200,7 +200,7 @@
     },
     {
       "id": "vendor-brackwater",
-      "name": "Market Vendor",
+      "name": "Hild",
       "kind": "generic",
       "role": "vendor",
       "home": "brackwater",
@@ -208,7 +208,7 @@
     },
     {
       "id": "vendor-bowerdeep",
-      "name": "Night Market Vendor",
+      "name": "Zeb",
       "kind": "generic",
       "role": "vendor",
       "home": "bowerdeep",
@@ -216,7 +216,7 @@
     },
     {
       "id": "vendor-cindershelf",
-      "name": "Market Vendor",
+      "name": "Annis",
       "kind": "generic",
       "role": "vendor",
       "home": "cindershelf",
@@ -224,7 +224,7 @@
     },
     {
       "id": "vendor-duskhollow",
-      "name": "Market Vendor",
+      "name": "Hesk",
       "kind": "generic",
       "role": "vendor",
       "home": "duskhollow",
@@ -232,217 +232,217 @@
     },
     {
       "id": "hearthollow-elder",
-      "name": "Old Drover",
+      "name": "Judd",
       "kind": "ambient",
       "home": "hearthollow",
       "portrait": "npc-townsfolk-elder"
     },
     {
       "id": "hearthollow-child",
-      "name": "Hearthollow Child",
+      "name": "Tibb",
       "kind": "ambient",
       "home": "hearthollow",
       "portrait": "npc-townsfolk-child"
     },
     {
       "id": "hearthollow-farmhand",
-      "name": "Farmhand",
+      "name": "Rask",
       "kind": "ambient",
       "home": "hearthollow",
       "portrait": "npc-farmer"
     },
     {
       "id": "hearthollow-forager",
-      "name": "Forager",
+      "name": "Tamsin",
       "kind": "ambient",
       "home": "hearthollow",
       "portrait": "npc-farmer"
     },
     {
       "id": "hearthollow-fenceman",
-      "name": "Fence-Mender",
+      "name": "Mott",
       "kind": "ambient",
       "home": "hearthollow",
       "portrait": "npc-farmer"
     },
     {
       "id": "brackwater-dockhand",
-      "name": "Dockhand",
+      "name": "Gunn",
       "kind": "ambient",
       "home": "brackwater",
       "portrait": "npc-angler"
     },
     {
       "id": "brackwater-netmender",
-      "name": "Net-Mender",
+      "name": "Parnel",
       "kind": "ambient",
       "home": "brackwater",
       "portrait": "npc-angler"
     },
     {
       "id": "brackwater-child",
-      "name": "Brackwater Child",
+      "name": "Jem",
       "kind": "ambient",
       "home": "brackwater",
       "portrait": "npc-townsfolk-child"
     },
     {
       "id": "brackwater-elder",
-      "name": "Stilt-Town Elder",
+      "name": "Ulla",
       "kind": "ambient",
       "home": "brackwater",
       "portrait": "npc-townsfolk-elder"
     },
     {
       "id": "brackwater-buyer",
-      "name": "Fishery Buyer",
+      "name": "Corbett",
       "kind": "ambient",
       "home": "brackwater",
       "portrait": "npc-market-vendor"
     },
     {
       "id": "bowerdeep-logger",
-      "name": "Logger",
+      "name": "Garrow",
       "kind": "ambient",
       "home": "bowerdeep",
       "portrait": "npc-logger"
     },
     {
       "id": "bowerdeep-silkwinder",
-      "name": "Silk-Winder",
+      "name": "Cass",
       "kind": "ambient",
       "home": "bowerdeep",
       "portrait": "npc-market-vendor"
     },
     {
       "id": "bowerdeep-child",
-      "name": "Bowerdeep Child",
+      "name": "Fitch",
       "kind": "ambient",
       "home": "bowerdeep",
       "portrait": "npc-townsfolk-child"
     },
     {
       "id": "bowerdeep-elder",
-      "name": "Canopy Elder",
+      "name": "Dunstan",
       "kind": "ambient",
       "home": "bowerdeep",
       "portrait": "npc-townsfolk-elder"
     },
     {
       "id": "bowerdeep-lampkeeper",
-      "name": "Lamp-Keeper",
+      "name": "Whit",
       "kind": "ambient",
       "home": "bowerdeep",
       "portrait": "npc-townsfolk-elder"
     },
     {
       "id": "cindershelf-miner",
-      "name": "Miner",
+      "name": "Snell",
       "kind": "ambient",
       "home": "cindershelf",
       "portrait": "npc-miner"
     },
     {
       "id": "cindershelf-shafthand",
-      "name": "Shaft-Hand",
+      "name": "Nunn",
       "kind": "ambient",
       "home": "cindershelf",
       "portrait": "npc-miner"
     },
     {
       "id": "cindershelf-elder",
-      "name": "Steppe Elder",
+      "name": "Ebba",
       "kind": "ambient",
       "home": "cindershelf",
       "portrait": "npc-townsfolk-elder"
     },
     {
       "id": "cindershelf-child",
-      "name": "Cindershelf Child",
+      "name": "Cob",
       "kind": "ambient",
       "home": "cindershelf",
       "portrait": "npc-townsfolk-child"
     },
     {
       "id": "cindershelf-worker",
-      "name": "Cullbrand Worker",
+      "name": "Rowe",
       "kind": "ambient",
       "home": "cindershelf",
       "portrait": "npc-cullbrand-worker"
     },
     {
       "id": "duskhollow-astronomer",
-      "name": "Astronomer",
+      "name": "Bly",
       "kind": "ambient",
       "home": "duskhollow",
       "portrait": "npc-astronomer"
     },
     {
       "id": "duskhollow-elder",
-      "name": "Vale Elder",
+      "name": "Idony",
       "kind": "ambient",
       "home": "duskhollow",
       "portrait": "npc-townsfolk-elder"
     },
     {
       "id": "duskhollow-child",
-      "name": "Duskhollow Child",
+      "name": "Fay",
       "kind": "ambient",
       "home": "duskhollow",
       "portrait": "npc-townsfolk-child"
     },
     {
       "id": "duskhollow-lampwright",
-      "name": "Lampwright",
+      "name": "Ingram",
       "kind": "ambient",
       "home": "duskhollow",
       "portrait": "npc-market-vendor"
     },
     {
       "id": "duskhollow-shepherd",
-      "name": "Vale Shepherd",
+      "name": "Alwin",
       "kind": "ambient",
       "home": "duskhollow",
-      "portrait": "npc-townsfolk-elder"
+      "portrait": "npc-farmer"
     },
     {
       "id": "r1-forager",
-      "name": "Meadow Forager",
+      "name": "Isbel",
       "kind": "ambient",
       "home": "r1",
       "portrait": "npc-farmer"
     },
     {
       "id": "r2-ferryhand",
-      "name": "Ferry-Hand",
+      "name": "Vann",
       "kind": "ambient",
       "home": "r2",
       "portrait": "npc-angler"
     },
     {
       "id": "r3-logger",
-      "name": "Cullbrand Logger",
+      "name": "Hurst",
       "kind": "ambient",
       "home": "r3",
       "portrait": "npc-logger"
     },
     {
       "id": "r4-worker",
-      "name": "Cullbrand Worker",
+      "name": "Slade",
       "kind": "ambient",
       "home": "r4",
       "portrait": "npc-cullbrand-worker"
     },
     {
       "id": "r5-astronomer",
-      "name": "Field Astronomer",
+      "name": "Pinder",
       "kind": "ambient",
       "home": "r5",
       "portrait": "npc-astronomer"
     },
     {
       "id": "sanctum-approach-scout",
-      "name": "Cullbrand Scout",
+      "name": "Dorn",
       "kind": "ambient",
       "home": "sanctum-approach",
       "portrait": "npc-cullbrand-worker"
@@ -624,16 +624,16 @@
       "setFlags": {
         "tutorial.snare.done": true
       },
-      "goto": "maren.tutorial.ledger"
+      "goto": "maren.tutorial.survey"
     },
     {
-      "id": "maren.tutorial.ledger",
+      "id": "maren.tutorial.survey",
       "speaker": "maren",
       "node": "hearthollow",
       "kind": "cutscene",
       "when": {
         "flagsUnset": [
-          "tutorial.ledger.done"
+          "tutorial.survey.done"
         ]
       },
       "lines": [
@@ -648,7 +648,7 @@
         }
       ],
       "setFlags": {
-        "tutorial.ledger.done": true,
+        "tutorial.survey.done": true,
         "quest.first-signs.offered": true
       }
     },
@@ -689,6 +689,9 @@
       "when": {
         "flagsSet": [
           "quest.first-signs.turnin"
+        ],
+        "flagsUnset": [
+          "quest.first-signs.done"
         ]
       },
       "lines": [
@@ -1010,7 +1013,8 @@
       "when": {
         "actMin": 6,
         "flagsSet": [
-          "chain.vellsire.step9"
+          "chain.vellsire.step9",
+          "quest.vellsires-trail.done"
         ],
         "flagsUnset": [
           "chain.vellsire.step10"
@@ -1097,7 +1101,8 @@
       "when": {
         "actMin": 6,
         "flagsSet": [
-          "story.greaves.entered"
+          "story.greaves.entered",
+          "rival.act6.playerResult"
         ],
         "flagsUnset": [
           "story.finale.spoken"
@@ -1158,7 +1163,7 @@
       ],
       "setFlags": {
         "rival.act1.fought": true,
-        "rival.act1.result": "loss"
+        "rival.act1.playerResult": "win"
       }
     },
     {
@@ -1176,8 +1181,7 @@
         }
       ],
       "setFlags": {
-        "rival.act1.fought": true,
-        "rival.act1.result": "win"
+        "rival.act1.playerResult": "loss"
       }
     },
     {
@@ -1220,7 +1224,7 @@
       ],
       "setFlags": {
         "rival.act2.fought": true,
-        "rival.act2.result": "loss"
+        "rival.act2.playerResult": "win"
       }
     },
     {
@@ -1238,8 +1242,7 @@
         }
       ],
       "setFlags": {
-        "rival.act2.fought": true,
-        "rival.act2.result": "win"
+        "rival.act2.playerResult": "loss"
       }
     },
     {
@@ -1285,7 +1288,7 @@
       ],
       "setFlags": {
         "rival.act3.fought": true,
-        "rival.act3.result": "loss"
+        "rival.act3.playerResult": "win"
       }
     },
     {
@@ -1303,8 +1306,7 @@
         }
       ],
       "setFlags": {
-        "rival.act3.fought": true,
-        "rival.act3.result": "win"
+        "rival.act3.playerResult": "loss"
       }
     },
     {
@@ -1350,7 +1352,7 @@
       ],
       "setFlags": {
         "rival.act4.fought": true,
-        "rival.act4.result": "loss"
+        "rival.act4.playerResult": "win"
       }
     },
     {
@@ -1368,8 +1370,7 @@
         }
       ],
       "setFlags": {
-        "rival.act4.fought": true,
-        "rival.act4.result": "win"
+        "rival.act4.playerResult": "loss"
       }
     },
     {
@@ -1412,7 +1413,7 @@
       ],
       "setFlags": {
         "rival.act5.fought": true,
-        "rival.act5.result": "loss"
+        "rival.act5.playerResult": "win"
       }
     },
     {
@@ -1430,8 +1431,7 @@
         }
       ],
       "setFlags": {
-        "rival.act5.fought": true,
-        "rival.act5.result": "win"
+        "rival.act5.playerResult": "loss"
       }
     },
     {
@@ -1459,7 +1459,10 @@
         {
           "text": "So this is the argument, finally, and it's mine. Beat me and go make him hear it."
         }
-      ]
+      ],
+      "setFlags": {
+        "story.greaves.entered": true
+      }
     },
     {
       "id": "wick.act6.win",
@@ -1480,8 +1483,8 @@
       ],
       "setFlags": {
         "rival.act6.fought": true,
-        "rival.act6.result": "loss",
-        "story.greaves.entered": true
+        "story.greaves.entered": true,
+        "rival.act6.playerResult": "win"
       }
     },
     {
@@ -1499,8 +1502,7 @@
         }
       ],
       "setFlags": {
-        "rival.act6.fought": true,
-        "rival.act6.result": "win"
+        "rival.act6.playerResult": "loss"
       }
     },
     {
@@ -1619,6 +1621,21 @@
       "setFlags": {
         "story.greaves.beaten": true
       }
+    },
+    {
+      "id": "greaves.finale.loss",
+      "speaker": "greaves",
+      "node": "sanctum",
+      "kind": "battle-loss",
+      "priority": 89,
+      "when": {
+        "actMin": 6
+      },
+      "lines": [
+        {
+          "text": "The result has been entered. The schedule is unaffected, and the position remains open to you at whatever hour you are able to return to it."
+        }
+      ]
     },
     {
       "id": "maribel.pre",
@@ -1791,7 +1808,7 @@
           "text": "Buyer's contract prices the season off the Mirefin count in Brackmarsh. The count is what it is and so is the price."
         },
         {
-          "text": "Nessa has been running the shallows survey herself since the fishery cut her hours. Ask her what she's found."
+          "text": "Hetty has been running the shallows survey herself since the fishery cut her hours. Ask her what she's found."
         }
       ]
     },
@@ -2260,6 +2277,9 @@
       "when": {
         "flagsSet": [
           "quest.ferrymans-wager.taken"
+        ],
+        "flagsUnset": [
+          "quest.ferrymans-wager.done"
         ]
       },
       "lines": [
@@ -2277,7 +2297,13 @@
       "node": "brackwater",
       "kind": "quest",
       "quest": "ferrymans-wager",
-      "when": {},
+      "when": {
+        "actMin": 2,
+        "flagsUnset": [
+          "quest.ferrymans-wager.done",
+          "quest.ferrymans-wager.taken"
+        ]
+      },
       "lines": [
         {
           "text": "Suit yourself. The offer keeps; the Mirefin don't."
@@ -2294,6 +2320,9 @@
       "when": {
         "flagsSet": [
           "quest.ferrymans-wager.turnin"
+        ],
+        "flagsUnset": [
+          "quest.ferrymans-wager.done"
         ]
       },
       "lines": [
@@ -2495,7 +2524,10 @@
         {
           "text": "Bring the relic and one ingot off the shaft-head store. That's the whole cost."
         }
-      ]
+      ],
+      "setFlags": {
+        "quest.forge-a-legacy.taken": true
+      }
     },
     {
       "id": "bram.quest.forge.done",
@@ -2506,7 +2538,11 @@
       "priority": 59,
       "when": {
         "flagsSet": [
-          "quest.forge-a-legacy.turnin"
+          "quest.forge-a-legacy.turnin",
+          "quest.forge-a-legacy.taken"
+        ],
+        "flagsUnset": [
+          "quest.forge-a-legacy.done"
         ]
       },
       "lines": [
@@ -2671,6 +2707,9 @@
       "when": {
         "flagsSet": [
           "quest.after-the-crash.taken"
+        ],
+        "flagsUnset": [
+          "quest.after-the-crash.done"
         ]
       },
       "lines": [
@@ -2685,7 +2724,13 @@
       "node": "cindershelf",
       "kind": "quest",
       "quest": "after-the-crash",
-      "when": {},
+      "when": {
+        "actMin": 4,
+        "flagsUnset": [
+          "quest.after-the-crash.done",
+          "quest.after-the-crash.taken"
+        ]
+      },
       "lines": [
         {
           "text": "The counts will keep. They've stopped moving much."
@@ -2702,6 +2747,9 @@
       "when": {
         "flagsSet": [
           "quest.after-the-crash.turnin"
+        ],
+        "flagsUnset": [
+          "quest.after-the-crash.done"
         ]
       },
       "lines": [
@@ -2793,6 +2841,9 @@
       "when": {
         "flagsSet": [
           "quest.fallow-field.taken"
+        ],
+        "flagsUnset": [
+          "quest.fallow-field.done"
         ]
       },
       "lines": [
@@ -2810,7 +2861,20 @@
       "node": "hearthollow",
       "kind": "quest",
       "quest": "fallow-field",
-      "when": {},
+      "when": {
+        "flagsUnset": [
+          "quest.fallow-field.done",
+          "quest.fallow-field.taken"
+        ],
+        "population": [
+          {
+            "node": "hearthollow",
+            "lineId": "loamunder-line",
+            "op": "gte",
+            "value": 24
+          }
+        ]
+      },
       "lines": [
         {
           "text": "Fair enough. Offer stands until harvest."
@@ -2835,6 +2899,9 @@
             "op": "gte",
             "value": 24
           }
+        ],
+        "flagsUnset": [
+          "quest.fallow-field.done"
         ]
       },
       "lines": [
@@ -2863,6 +2930,9 @@
       "when": {
         "flagsSet": [
           "quest.fallow-field.turnin"
+        ],
+        "flagsUnset": [
+          "quest.fallow-field.done"
         ]
       },
       "lines": [
@@ -2889,7 +2959,7 @@
       "when": {},
       "lines": [
         {
-          "text": "Nessa. Fishery cut my hours two seasons back, so I survey the shallows for nobody and write it down anyway."
+          "text": "Hetty. Fishery cut my hours two seasons back, so I survey the shallows for nobody and write it down anyway."
         },
         {
           "text": "Creel's empty. Ask me about the creel and I'll talk for an hour."
@@ -2947,6 +3017,9 @@
       "when": {
         "flagsSet": [
           "quest.restock-the-shallows.taken"
+        ],
+        "flagsUnset": [
+          "quest.restock-the-shallows.done"
         ]
       },
       "lines": [
@@ -2961,7 +3034,13 @@
       "node": "brackwater",
       "kind": "quest",
       "quest": "restock-the-shallows",
-      "when": {},
+      "when": {
+        "actMin": 2,
+        "flagsUnset": [
+          "quest.restock-the-shallows.done",
+          "quest.restock-the-shallows.taken"
+        ]
+      },
       "lines": [
         {
           "text": "The buyer prices the season off that count and the levy comes off the price. So the count is the wage, and everybody here talks about the wage and nobody talks about the count."
@@ -2993,6 +3072,9 @@
       "when": {
         "flagsSet": [
           "quest.restock-the-shallows.turnin"
+        ],
+        "flagsUnset": [
+          "quest.restock-the-shallows.done"
         ]
       },
       "lines": [
@@ -3076,6 +3158,9 @@
       "when": {
         "flagsSet": [
           "quest.silk-shortage.taken"
+        ],
+        "flagsUnset": [
+          "quest.silk-shortage.done"
         ]
       },
       "lines": [
@@ -3093,7 +3178,13 @@
       "node": "bowerdeep",
       "kind": "quest",
       "quest": "silk-shortage",
-      "when": {},
+      "when": {
+        "actMin": 3,
+        "flagsUnset": [
+          "quest.silk-shortage.done",
+          "quest.silk-shortage.taken"
+        ]
+      },
       "lines": [
         {
           "text": "Go on then. She's more interesting than I am on this and she'll tell you the count without rounding it."
@@ -3110,6 +3201,9 @@
       "when": {
         "flagsSet": [
           "quest.silk-shortage.turnin"
+        ],
+        "flagsUnset": [
+          "quest.silk-shortage.done"
         ]
       },
       "lines": [
@@ -3194,6 +3288,9 @@
       "when": {
         "flagsSet": [
           "quest.lanternless-night.taken"
+        ],
+        "flagsUnset": [
+          "quest.lanternless-night.done"
         ]
       },
       "lines": [
@@ -3208,7 +3305,16 @@
       "node": "bowerdeep",
       "kind": "quest",
       "quest": "lanternless-night",
-      "when": {},
+      "when": {
+        "actMin": 3,
+        "seasons": [
+          "autumn"
+        ],
+        "flagsUnset": [
+          "quest.lanternless-night.done",
+          "quest.lanternless-night.taken"
+        ]
+      },
       "lines": [
         {
           "text": "Then it's a dark road and I've walked it dark before. Ask me again while the moths are still through."
@@ -3225,6 +3331,9 @@
       "when": {
         "flagsSet": [
           "quest.lanternless-night.turnin"
+        ],
+        "flagsUnset": [
+          "quest.lanternless-night.done"
         ]
       },
       "lines": [
@@ -3291,7 +3400,11 @@
       "priority": 59,
       "when": {
         "flagsSet": [
-          "quest.star-census.milestone"
+          "quest.star-census.milestone",
+          "quest.star-census.offered"
+        ],
+        "flagsUnset": [
+          "quest.star-census.paid"
         ]
       },
       "lines": [
@@ -3301,7 +3414,10 @@
         {
           "text": "Thirty-five identities in the full census. Nobody in Fallowmere has all thirty-five, including the observatory."
         }
-      ]
+      ],
+      "setFlags": {
+        "quest.star-census.paid": true
+      }
     },
     {
       "id": "orrin.greeting",
@@ -3407,6 +3523,9 @@
       "when": {
         "flagsSet": [
           "quest.vellsires-trail.taken"
+        ],
+        "flagsUnset": [
+          "quest.vellsires-trail.done"
         ]
       },
       "lines": [
@@ -3424,7 +3543,15 @@
       "node": "duskhollow",
       "kind": "quest",
       "quest": "vellsires-trail",
-      "when": {},
+      "when": {
+        "flagsSet": [
+          "chain.vellsire.step7"
+        ],
+        "flagsUnset": [
+          "quest.vellsires-trail.done",
+          "quest.vellsires-trail.taken"
+        ]
+      },
       "lines": [
         {
           "text": "Thirty years. I can manage another season."
@@ -3441,6 +3568,9 @@
       "when": {
         "flagsSet": [
           "quest.vellsires-trail.turnin"
+        ],
+        "flagsUnset": [
+          "quest.vellsires-trail.done"
         ]
       },
       "lines": [
@@ -3909,6 +4039,14 @@
         ],
         "flagsUnset": [
           "story.vellsire.resolved"
+        ],
+        "population": [
+          {
+            "node": "sanctum",
+            "lineId": "vellsire-line",
+            "op": "gte",
+            "value": 1
+          }
         ]
       },
       "lines": [
@@ -3932,7 +4070,9 @@
         {
           "text": "Stand aside and let it pass.",
           "setFlags": {
-            "story.vellsire.attempt": "release"
+            "story.vellsire.attempt": "release",
+            "story.vellsire.resolved": true,
+            "story.vellsire.outcome": "released"
           }
         }
       ]
@@ -5225,7 +5365,7 @@
           "text": "No Fenmaw sighting on the channel run all season. I used to log two a month and I logged them because they were worth logging."
         },
         {
-          "text": "Mirefin are everywhere in the shallows now, right up under the boards. Nessa says that follows."
+          "text": "Mirefin are everywhere in the shallows now, right up under the boards. Hetty says that follows."
         }
       ]
     }

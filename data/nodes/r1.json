@@ -54,7 +54,7 @@
       "y": 244,
       "interactionRadius": 48,
       "signChain": "vellsire-chain",
-      "label": "antler standing-stone"
+      "label": "antler stone on the north rise"
     },
     {
       "id": "r1-antler-south",
@@ -63,7 +63,7 @@
       "y": 690,
       "interactionRadius": 48,
       "signChain": "vellsire-chain",
-      "label": "antler standing-stone"
+      "label": "broken antler stone"
     },
     {
       "id": "r1-sign-forage",

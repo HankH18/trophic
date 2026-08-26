@@ -656,7 +656,7 @@ describe("replaying the log from the opening state reproduces the closing state 
         expect(shown?.fainted, `${uid} fainted`).toBe(real.fainted);
         expect(shown?.status ?? null, `${uid} status`).toBe(real.status === null ? null : real.status.name);
         // LEVEL and MAX HP were not compared here before, and that is exactly where the gap was: a
-        // `levelUp` moved neither in the ledger, so the identity held only because no shipped
+        // `levelUp` moved neither in the tally, so the identity held only because no shipped
         // fixture levels anyone up. Comparing them makes the identity mean what it says.
         expect(shown?.level, `${uid} level`).toBe(real.level);
         expect(shown?.maxHp, `${uid} maxHp`).toBe(real.maxHp);
@@ -726,7 +726,7 @@ describe("every visual step carries the log's own numbers", () => {
     expect(shown.caption).toContain(String(thrown.shakes));
   });
 
-  it("the catch step carries the caught line and the node the ledger must move", () => {
+  it("the catch step carries the caught line and the node the survey must move", () => {
     const { events, opening } = replay(WILD);
     const { steps } = compileBattleEvents(events, opening);
     const caughtEvent = events.find((e) => e.t === "caught");
@@ -1026,7 +1026,7 @@ describe("the view cannot produce a battle rule's answer", () => {
     expect(snapshot.battlers[playerUid]?.status).toBeNull();
   });
 
-  it("a heal moves the ledger by the log's amount and never overfills", () => {
+  it("a heal moves the tally by the log's amount and never overfills", () => {
     // The fixture opens at full HP, so a heal against THAT snapshot is a no-op and would let a
     // broken compiler pass. Wound the snapshot first, then check both the delta and the clamp.
     const wounded = structuredClone(openingState) as BattleState;
@@ -1298,14 +1298,14 @@ describe("game/scenes/BattleScene.ts is a renderer, not a rulebook", () => {
  * nothing), so the only enforcement anywhere was three hand-written lists, in this file, in
  * `tests/unit/year-turn-ux.test.ts` and in `tests/unit/overworld-scene.test.ts` — 16 files out of
  * every `.ts` under `game/` and `core/`. That is the same shape as the source list that let the
- * catch→ledger stand-in stay green: right about what it looked at, silent about the rest.
+ * catch→survey stand-in stay green: right about what it looked at, silent about the rest.
  *
  * So the files are DISCOVERED. Measured across every `.ts` under `game/` and `core/`: zero
- * moralizing literals, and exactly one death-word literal — `game/ledger-view.ts`'s
+ * moralizing literals, and exactly one death-word literal — `game/survey-view.ts`'s
  * `"recent deaths "`, which is the ecosim's own `recentDeaths` field printed as a real number
  * (Hard Req 2). Hard Req 8 is a claim about BATTLE copy — "KO is a faint" — not a ban on the
  * ecology reporting starvation, so that one literal is exempted BY ITS TEXT, not by its file: any
- * other death word in `game/ledger-view.ts` still fails.
+ * other death word in `game/survey-view.ts` still fails.
  */
 /**
  * The nine files lane C3 owns. Still a list, because the two structural checks that use it below
@@ -1343,12 +1343,12 @@ const SHIPPED_SOURCES = [...walkSources("game"), ...walkSources("core")];
 const DEATH_WORDS = /\b(kill|kills|killed|killing|dead|death|deaths|die|dies|died|dying|slain|slay|corpse|perish)\b/i;
 
 /**
- * The one death-word literal that is not battle copy: the ledger printing `recentDeaths`, the
+ * The one death-word literal that is not battle copy: the survey printing `recentDeaths`, the
  * ecosim's own field, as a real number. Exempted by TEXT so the rest of that file stays scanned.
  */
 const ECOLOGY_DEATH_READOUT = /^recent deaths /i;
 
-/** G7 — no moralizing copy about catching. The ledger is the moral; the screen prints numbers. */
+/** G7 — no moralizing copy about catching. The screen prints counts and says nothing about them. */
 const MORALIZING = /\b(cruel|cruelty|guilt|guilty|shame|shameful|remorse|greed|greedy|selfish|wicked|evil|sin|deserve|deserved|should not have|shouldn't have|too many|senseless|needless|innocent|suffer|suffering|sorry)\b/i;
 
 describe("G7 and Hard Req 8 — the copy of every shipped source, discovered not listed", () => {
@@ -1371,7 +1371,7 @@ describe("G7 and Hard Req 8 — the copy of every shipped source, discovered not
         if (MORALIZING.test(literal)) offenders.push(`${file}: ${JSON.stringify(literal)}`);
       }
     }
-    expect(offenders, "G7 is a fail-the-task guardrail — the ledger is the moral, not the copy").toEqual([]);
+    expect(offenders, "G7 is a fail-the-task guardrail — counts on screen, no comment on them").toEqual([]);
   });
 
   it("Hard Req 8 — no death copy anywhere but the ecology's own recentDeaths readout", () => {
@@ -1385,8 +1385,8 @@ describe("G7 and Hard Req 8 — the copy of every shipped source, discovered not
     }
     expect(offenders, "a KO is a faint — nothing in a TROPHIC battle is killed").toEqual([]);
     // …and the one exemption is real, so the carve-out is not quietly covering an empty case.
-    const ledger = stringLiterals(read("game/ledger-view.ts")).filter((l) => ECOLOGY_DEATH_READOUT.test(l));
-    expect(ledger, "the recentDeaths readout is gone — delete the exemption with it").not.toHaveLength(0);
+    const surveyLiterals = stringLiterals(read("game/survey-view.ts")).filter((l) => ECOLOGY_DEATH_READOUT.test(l));
+    expect(surveyLiterals, "the recentDeaths readout is gone — delete the exemption with it").not.toHaveLength(0);
   });
 
   it("no caption produced by any recorded fixture breaks either rule", () => {
@@ -1936,8 +1936,8 @@ describe("battle-view regressions (each reproduces a defect that shipped)", () =
   const playerUid = openingState.activePlayerUid;
   const enemyUid = openingState.activeEnemyUid;
 
-  it("a levelUp moves the ledger's LEVEL — the compiled snapshot no longer reports the old one", () => {
-    // WAS: `case "levelUp"` mutated no ledger at all, so `push(events)` without a `stateAfter` left
+  it("a levelUp moves the tally's LEVEL — the compiled snapshot no longer reports the old one", () => {
+    // WAS: `case "levelUp"` mutated no tally at all, so `push(events)` without a `stateAfter` left
     // the card printing the pre-level level for the rest of the fight.
     const before = opening.battlers[playerUid]?.level ?? 0;
     const { snapshot, steps } = compileBattleEvents(
@@ -1964,7 +1964,7 @@ describe("battle-view regressions (each reproduces a defect that shipped)", () =
   });
 
   it("a heal after a levelUp is not capped at the PRE-level maximum", () => {
-    // WAS: `Math.min(ledger.maxHp, hpFrom + amount)` against a maxHp known to be stale. core's own
+    // WAS: `Math.min(tally.maxHp, hpFrom + amount)` against a maxHp known to be stale. core's own
     // `heal()` (core/battle.ts:1037) clamps the amount it logs, so the log's number is the delta.
     const wounded = structuredClone(openingState) as BattleState;
     const target = wounded.battlers[playerUid];
@@ -2095,9 +2095,9 @@ describe("battle-view regressions (each reproduces a defect that shipped)", () =
     expect(seenMidTurn).toBeGreaterThan(10);
   });
 
-  it("BINDS — the carried state is a frozen copy, not a live view of the ledger", () => {
+  it("BINDS — the carried state is a frozen copy, not a live view of the tally", () => {
     // Two hits on the same battler in one log must carry two different numbers. If the steps aliased
-    // the ledger, both would read the final value and the whole fix would be invisible.
+    // the tally, both would read the final value and the whole fix would be invisible.
     const log: BattleEvent[] = [
       { t: "damage", uid: enemyUid, amount: 3, effectiveness: "neutral", predation: false, crit: false },
       { t: "damage", uid: enemyUid, amount: 4, effectiveness: "neutral", predation: false, crit: false },

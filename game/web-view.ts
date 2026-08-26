@@ -1,5 +1,5 @@
 /**
- * game/web-view.ts — the food-web half of the ecology ledger (bible §12: "ecology ledger (per-node
+ * game/web-view.ts — the food-web half of the ecology survey (bible §12: "ecology survey (per-node
  * populations + web view)"), as a pure diagram model.
  *
  * **Guardrail G3 / build-doc §8.3.** Nothing in this file decides who eats whom. Every edge on the
@@ -11,11 +11,11 @@
  * **What "collapsed" means, exactly.** A link is collapsed when one of its endpoints stands at 0:
  * the prey is gone, so the link delivers nothing, or the predator is gone, so nothing draws on it.
  * The structural edge is still drawn — `deriveFoodWeb` keeps the edges of a line at 0 on purpose
- * ("an extinct predator still tells the ledger what it used to eat") — because a link that vanished
+ * ("an extinct predator still tells the survey what it used to eat") — because a link that vanished
  * and a link that emptied look identical once the line is off the page, and only one of them is
  * something the player did.
  *
- * Pure TypeScript, zero Phaser imports: `LedgerScene` draws these positions, and the test asserts
+ * Pure TypeScript, zero Phaser imports: `SurveyScene` draws these positions, and the test asserts
  * them. G7 — no copy here judges anything; the diagram is counts and arrows.
  */
 
@@ -31,7 +31,7 @@ import {
   type SpeciesIndex,
 } from "../core/foodweb";
 import type { Balance, FoodWeb, NodeFile, NodeState, Role, SpeciesLine } from "../core/types";
-import { SCREEN_TEXT, renderNumber } from "./ledger-view";
+import { SCREEN_TEXT, renderNumber } from "./survey-view";
 
 /**
  * The node's abstract flora stock as a diagram vertex. build-doc §7.2 gives it no species id
@@ -95,7 +95,7 @@ export interface WebArgs {
 /**
  * Trophic depth of each vertex, from the derived edges alone: 0 for a line that eats nothing here,
  * otherwise one more than the deepest thing it eats. It is STRUCTURAL — a predator does not drop a
- * tier because its prey hit 0, or the diagram would rearrange itself the moment the ledger got
+ * tier because its prey hit 0, or the diagram would rearrange itself the moment the survey got
  * interesting. Cycles (which the role rules do not produce, but a `dietExceptions` pair could)
  * terminate at the back-edge rather than recursing.
  */
@@ -307,7 +307,7 @@ export function renderWebCollapse(edge: WebEdge): string {
   return `collapsed (${edge.reason ?? "prey"})`;
 }
 
-/** The node-level line of the diagram — shared with `LedgerScene`, which draws it above the box. */
+/** The node-level line of the diagram — shared with `SurveyScene`, which draws it above the box. */
 export function renderWebTotals(page: WebPage): string {
   return (
     `flora ${renderNumber(page.floraStock)}/${renderNumber(page.floraMax)} · ` +
@@ -339,7 +339,7 @@ export interface WebLabel {
    * The scene's vertical origin for this label: 0 for a vertex label (it hangs BELOW its dot), 0.5
    * for a link label (it sits ON the line). It is carried on the label rather than decided by the
    * scene so that the box {@link labelBounds} computes — the box the placement below keeps clear,
-   * and the box the test measures — is the box `LedgerScene` actually draws.
+   * and the box the test measures — is the box `SurveyScene` actually draws.
    */
   originY: 0 | 0.5;
 }
@@ -467,7 +467,7 @@ function placeLabel(label: WebLabel, taken: LabelBox[], bounds: { min: number; m
 
 /**
  * The box the diagram is laid out in: the canvas less the two header lines above it and the footer
- * below. Here rather than in `LedgerScene` so a test lays the diagram out exactly where the scene
+ * below. Here rather than in `SurveyScene` so a test lays the diagram out exactly where the scene
  * does — which is the only way a test can tell whether a label leaves the screen.
  */
 export function webDiagramBox(balance: Balance): WebLayoutBox {
@@ -547,7 +547,7 @@ export function webVertexLabels(page: WebPage, layout: WebLayout, balance: Balan
  * and printed the reason word straight through a count.
  *
  * Pure geometry, so the scene draws exactly the positions the test asserts. Before this existed the
- * reason word reached the tests and never reached the screen: `LedgerScene` imported `renderWebEdge`
+ * reason word reached the tests and never reached the screen: `SurveyScene` imported `renderWebEdge`
  * only for a method `redraw` never called, so a collapsed link was a dashed dark-red line and no
  * explanation, while the comment beside the dashes claimed the words were there.
  */

@@ -608,7 +608,7 @@ describe("build-doc §8.1 — a mid-run save/load/continue matches an uninterrup
     /*
      * A log holding a retirement fails loudly whatever guards exist, and a log holding a year turn
      * now fails on its year. A log of nothing but catches used to replay clean and DOUBLE the
-     * ledger's population deltas — Hard Req 2 is that the ledger shows real numbers.
+     * survey's population deltas — Hard Req 2 is that the survey shows real numbers.
      */
     let save: SaveEnvelope = fresh();
     const nodeId = "r1";
@@ -714,7 +714,7 @@ describe("build-doc §8.1 det_replay — refusals", () => {
     expect(replayed.nodeStates[raid.nodeId]?.recentDeaths).toBe(live.nodeStates[raid.nodeId]?.recentDeaths);
     for (const gym of wins) expect(hasBadge(replayed, gym.id, balance)).toBe(true);
     expect(actOf(replayed, content.gyms, balance)).toBe(actOf(live, content.gyms, balance));
-    // L10 in full: byte-identical, ledger included.
+    // L10 in full: byte-identical, survey included.
     expect(serialize({ ...replayed, actionLog: [] })).toBe(serialize({ ...live, actionLog: [] }));
   });
 

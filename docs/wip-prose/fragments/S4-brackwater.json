@@ -1,0 +1,496 @@
+{
+  "_slice": "S4-brackwater",
+  "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
+  "entries": [
+    {
+      "id": "sel.greeting",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Rates are on the post there. Same in the rain as in the sun. There's a few I take over for nothing, and that lot I keep in my head."
+        },
+        {
+          "text": "I've had this crossing forty-one years, six trips a day, and I've been late the once. That was my brother's wedding. He's sixty-eight and he'll still bring it up in front of whoever's sat in the boat."
+        }
+      ]
+    },
+    {
+      "id": "sel.service.ferry",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "service",
+      "when": {},
+      "lines": [
+        {
+          "text": "Across, then. Sit in the middle and keep your hands inside the boat."
+        }
+      ]
+    },
+    {
+      "id": "sel.tale.1",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "lore",
+      "signChain": "undermere-chain",
+      "chainStep": 1,
+      "priority": 55,
+      "when": {
+        "actMin": 2,
+        "flagsUnset": [
+          "chain.undermere.step1"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Crossing, or the crossing and the stories? Same money either way. The stories are free."
+        },
+        {
+          "text": "The story starts with my pole, and you're welcome to measure it yourself. Ten feet, near enough. Anywhere along my crossing that pole finds bottom at five feet, six feet, and it has done since my grandfather had the boat off his father."
+        },
+        {
+          "text": "Except in four places. I've looked for a fifth all my life and there isn't one. In the four, the whole ten feet goes down and there is still nothing under the end of it."
+        },
+        {
+          "text": "My grandfather marked all four and I mark the same four, except I shifted one of his marks a foot east because he had it wrong. Two of the four have a stone figure sunk on the rim, and the near one you can make out from the dock at low water."
+        }
+      ],
+      "setFlags": {
+        "chain.undermere.step1": true
+      }
+    },
+    {
+      "id": "sel.tale.2",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "lore",
+      "signChain": "undermere-chain",
+      "chainStep": 3,
+      "priority": 55,
+      "when": {
+        "actMin": 2,
+        "flagsSet": [
+          "chain.undermere.step2"
+        ],
+        "flagsUnset": [
+          "chain.undermere.step3"
+        ]
+      },
+      "lines": [
+        {
+          "text": "So you've had a look at the figure off the dock rim. The stone it's cut from is not marsh stone."
+        },
+        {
+          "text": "I had a mason down to look at it one summer and he couldn't place it either. My grandfather called the four places the lake beneath the lake. What he meant was a second water down under ours, and the four are where the two run into one another."
+        },
+        {
+          "text": "Here's the part I can show you. Every other stretch of this channel silts up. Those four places have not taken a foot of mud. Maren put a sounding line down there and got the same depths I get, and she still thinks the lake beneath the lake is rubbish."
+        }
+      ],
+      "setFlags": {
+        "chain.undermere.step3": true
+      }
+    },
+    {
+      "id": "sel.tale.3",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "lore",
+      "signChain": "undermere-chain",
+      "chainStep": 4,
+      "priority": 55,
+      "when": {
+        "actMin": 2,
+        "flagsSet": [
+          "quest.ferrymans-wager.done",
+          "chain.undermere.step3"
+        ],
+        "flagsUnset": [
+          "chain.undermere.step4"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Right. You got your Mirefin inside the year, so the rest of the tale's owed you. Barge is due in, though, so you're having it standing on the dock."
+        },
+        {
+          "text": "The figure has no eyes. The face is finished everywhere else, mind. Where the eyes ought to be there is nothing cut at all. That kept me awake when I was a boy."
+        },
+        {
+          "text": "My grandfather said whatever is down there came up the once, in a flood year, through the place off the dock, and the whole town felt it come up through the pilings. He'd never say what he saw. Every time I asked, he'd start telling me something else instead, and then he died, so."
+        }
+      ],
+      "setFlags": {
+        "chain.undermere.step4": true
+      }
+    },
+    {
+      "id": "sel.tale.4",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "lore",
+      "signChain": "undermere-chain",
+      "chainStep": 6,
+      "priority": 55,
+      "when": {
+        "actMin": 2,
+        "flagsSet": [
+          "chain.undermere.step5"
+        ],
+        "flagsUnset": [
+          "chain.undermere.step6"
+        ]
+      },
+      "lines": [
+        {
+          "text": "So you've been out to the second figure, the one standing in the reeds. That's the pair of them now, facing one another across two miles of reed."
+        },
+        {
+          "text": "Whoever cut the one cut the other, near enough. Draw a straight line between the two figures and it goes right over the third of my four places. I have had the whole ten feet down there and found nothing under the end of it."
+        },
+        {
+          "text": "I don't leave the boat sitting over that place when the tide stops running. If you're going down there, go at slack water. Not an hour before, not an hour after. Take the best snare you've got, and take something that can swim."
+        }
+      ],
+      "setFlags": {
+        "chain.undermere.step6": true
+      }
+    },
+    {
+      "id": "sel.tale.5",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "lore",
+      "signChain": "undermere-chain",
+      "chainStep": 7,
+      "priority": 56,
+      "when": {
+        "actMin": 3,
+        "flagsSet": [
+          "chain.undermere.step6"
+        ],
+        "flagsUnset": [
+          "chain.undermere.complete"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Here. That's my grandfather's card, and mine underneath his on the same string. There's string spare for a third card, and nothing of mine to put on it."
+        },
+        {
+          "text": "The name written on the older card is Undermere. The writing is nothing like my grandfather's. He told me the card was older than the town, and nobody I've shown it to can put a name to the hand."
+        },
+        {
+          "text": "The older card says the thing down there does not age. I don't know what to do with a sentence like that. My grandfather believed it, and he was no fool about this water."
+        },
+        {
+          "text": "Third place, off the Brackmarsh figure, at slack water. Go on, then, and be back before the evening barge."
+        }
+      ],
+      "setFlags": {
+        "chain.undermere.step7": true,
+        "chain.undermere.complete": true
+      }
+    },
+    {
+      "id": "sel.quest.wager.offer",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "ferrymans-wager",
+      "priority": 58,
+      "when": {
+        "actMin": 2,
+        "flagsUnset": [
+          "quest.ferrymans-wager.done",
+          "quest.ferrymans-wager.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "A wager, then, while you're crossing anyway. An Elder Mirefin, out of the channel, brought back to this dock before the year turns. A big old one, not one of the young ones out of the shallows."
+        },
+        {
+          "text": "An old one has a year left in it, a year and no more than a year. I say that out loud before anybody takes the wager."
+        },
+        {
+          "text": "Win the wager and you cross free for as long as I'm poling this boat, and I am sixty-six, so you can do that sum yourself. If it doesn't come off, I keep my fare."
+        }
+      ],
+      "choices": [
+        {
+          "text": "Take the wager.",
+          "setFlags": {
+            "quest.ferrymans-wager.taken": true
+          },
+          "goto": "sel.quest.wager.accepted"
+        },
+        {
+          "text": "Leave the wager for now.",
+          "goto": "sel.quest.wager.declined"
+        }
+      ]
+    },
+    {
+      "id": "sel.quest.wager.accepted",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "ferrymans-wager",
+      "when": {
+        "flagsSet": [
+          "quest.ferrymans-wager.taken"
+        ],
+        "flagsUnset": [
+          "quest.ferrymans-wager.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Right, then. You want the deep edge of the channel, out where the bottom drops away. Not the reed side."
+        },
+        {
+          "text": "An old one holds station out there and lets the current bring its food down. My grandfather baited for them with a Reedrick, and there's no Reedrick in those reeds outside the summer."
+        }
+      ]
+    },
+    {
+      "id": "sel.quest.wager.declined",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "ferrymans-wager",
+      "when": {
+        "actMin": 2,
+        "flagsUnset": [
+          "quest.ferrymans-wager.done",
+          "quest.ferrymans-wager.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Fair enough. The offer keeps as long as I'm on this boat. If I'm not at the post I'm out on the water."
+        }
+      ]
+    },
+    {
+      "id": "sel.quest.wager.done",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "ferrymans-wager",
+      "priority": 59,
+      "when": {
+        "flagsSet": [
+          "quest.ferrymans-wager.turnin"
+        ],
+        "flagsUnset": [
+          "quest.ferrymans-wager.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "A big one, and heavy with it. Look at the jaw on that. That comes of holding station out in the channel and taking whatever comes down to you."
+        },
+        {
+          "text": "Free crossings from here on, and I'll tell the lad on the second boat as well, so nobody puts a hand out at you. There's the rest of the tale owing you, whenever the barge isn't in."
+        }
+      ],
+      "setFlags": {
+        "quest.ferrymans-wager.done": true
+      }
+    },
+    {
+      "id": "sel.docks.rotting",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "greeting",
+      "priority": 42,
+      "when": {
+        "yearMin": 3,
+        "population": [
+          {
+            "node": "r2",
+            "lineId": "mirefin-line",
+            "op": "lte",
+            "value": 4
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "Third piling's soft and the fourth's going the same way, and nobody's driving new ones. Pilings come out of the levy, the levy comes off what the boats bring up out of the channel, and they're bringing up next to nothing this year."
+        },
+        {
+          "text": "I wrote to the harbourmaster in the spring. He wrote back to say he agreed with me. I step over that third one about six times a day."
+        }
+      ]
+    },
+    {
+      "id": "sel.docks.rebuilt",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "greeting",
+      "priority": 42,
+      "when": {
+        "yearMin": 3,
+        "population": [
+          {
+            "node": "r2",
+            "lineId": "mirefin-line",
+            "op": "gte",
+            "value": 9
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "New pilings under three and four. The levy came in over what the board had budgeted, and they put the extra into the dock. I did not expect that."
+        },
+        {
+          "text": "The deck is level enough to roll a barrel down now. I've rolled one down every morning this week because it rolls nicely, and the dockhand has started giving me looks."
+        }
+      ]
+    },
+    {
+      "id": "nessa.greeting",
+      "speaker": "nessa",
+      "node": "brackwater",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Fishery cut me to half hours two seasons back. Half. So my mornings are my own, and I walk the shallows with them, Brackmarsh side."
+        },
+        {
+          "text": "That board by the door is mine. Chalk. Nobody asked me for it. The third column's crooked because I ruled it crooked. Hetty, by the way. Every reading on that board is mine."
+        }
+      ]
+    },
+    {
+      "id": "nessa.quest.restock.offer",
+      "speaker": "nessa",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "restock-the-shallows",
+      "priority": 58,
+      "when": {
+        "actMin": 2,
+        "flagsUnset": [
+          "quest.restock-the-shallows.done",
+          "quest.restock-the-shallows.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Here's what I want, and I'll be quick. Four Boglings put back in on the Brackmarsh side."
+        },
+        {
+          "text": "A Bogling turns into a Mirefin inside a year, so four in the shallows now is four in the channel next year, assuming all four of them live. Which they won't. I ask for four because I'd sooner end up with three than with two."
+        },
+        {
+          "text": "My figure for the shallows is three days old. It rained the whole morning I took it, so I didn't get past the second bend. I make it low. A bit low, not badly low."
+        },
+        {
+          "text": "Brackmarsh side, in the shallows. Stand in the water to do it, don't lean out of a boat. Maren showed you how already. Go on, before the tide's up over the bank."
+        }
+      ],
+      "choices": [
+        {
+          "text": "Take four Boglings out to the shallows.",
+          "setFlags": {
+            "quest.restock-the-shallows.taken": true
+          },
+          "goto": "nessa.quest.restock.accepted"
+        },
+        {
+          "text": "Ask what the fishery pays.",
+          "goto": "nessa.quest.restock.economics"
+        }
+      ]
+    },
+    {
+      "id": "nessa.quest.restock.accepted",
+      "speaker": "nessa",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "restock-the-shallows",
+      "when": {
+        "flagsSet": [
+          "quest.restock-the-shallows.taken"
+        ],
+        "flagsUnset": [
+          "quest.restock-the-shallows.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Brackmarsh side, remember, not the channel mouth. There's a Fenmaw works that mouth and it'll have a Bogling off you. Then I've four chalked up on the board and three in the water."
+        }
+      ]
+    },
+    {
+      "id": "nessa.quest.restock.economics",
+      "speaker": "nessa",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "restock-the-shallows",
+      "when": {
+        "actMin": 2,
+        "flagsUnset": [
+          "quest.restock-the-shallows.done",
+          "quest.restock-the-shallows.taken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The buyer pays on the channel. Only the channel. My mornings on the shallows have nothing to do with anybody's wage in this town."
+        },
+        {
+          "text": "The levy comes off the buyer's price and pays for the pilings and the harbour wall. A thin year in the channel and the dock doesn't get mended. Ask Sel about the pilings, I've a column to rule."
+        },
+        {
+          "text": "The fishery pays me half what it paid two seasons back. I asked why. I was told it was the season, and it wasn't, because that season came in better than the one before."
+        }
+      ],
+      "choices": [
+        {
+          "text": "Take four Boglings out to the shallows.",
+          "setFlags": {
+            "quest.restock-the-shallows.taken": true
+          },
+          "goto": "nessa.quest.restock.accepted"
+        }
+      ]
+    },
+    {
+      "id": "nessa.quest.restock.done",
+      "speaker": "nessa",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "restock-the-shallows",
+      "priority": 59,
+      "when": {
+        "flagsSet": [
+          "quest.restock-the-shallows.turnin"
+        ],
+        "flagsUnset": [
+          "quest.restock-the-shallows.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Four in. That's the Brackmarsh column up by four, and it hasn't gone up since the day I ruled it. I'll chalk it now, before the damp gets at the board."
+        },
+        {
+          "text": "The buyer won't see those four for a year. And I'm buying a proper pencil out of this week's money, because the chalk runs every time it rains."
+        }
+      ],
+      "setFlags": {
+        "quest.restock-the-shallows.done": true
+      }
+    }
+  ]
+}

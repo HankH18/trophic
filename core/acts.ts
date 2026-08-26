@@ -266,7 +266,7 @@ export function runIsComplete(
  * standing condition, not an edge. Nothing ever clears `story.greaves.beaten` and nothing takes a
  * badge back, so a caller that re-tested the condition on every year turn fired the ending once a
  * year, for ever — measured at three `onRunComplete` calls across three year turns of one finished
- * run, which for C7/C9 is the epilogue ledger replaying annually. The latch lives in the SAVE, so a
+ * run, which for C7/C9 is the epilogue survey replaying annually. The latch lives in the SAVE, so a
  * reload of a finished run does not replay the ending either.
  */
 export const RUN_COMPLETE_SHOWN_FLAG = "story.runCompleteShown";

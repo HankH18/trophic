@@ -260,8 +260,8 @@ describe("determinism — a run resumes exactly where it was saved (build-doc §
   it("a node's numbers do not depend on where it sits in the region array", () => {
     // One shared stream through twelve nodes meant the number of fractional values one node
     // happened to round phase-shifted every node after it — so a change at one end of the graph
-    // moved the numbers at the other end, with no causal path between them. The ledger has to be
-    // readable as cause and effect (Hard Req 2, and Hard Req 7's epilogue ledger is a diff).
+    // moved the numbers at the other end, with no causal path between them. The survey has to be
+    // readable as cause and effect (Hard Req 2, and Hard Req 7's epilogue survey is a diff).
     const forward = content.nodes.map((file) => toEcoNode(file));
     const backward = [...forward].map(cloneEcoNode).reverse();
     let a = forward;

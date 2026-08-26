@@ -7,6 +7,15 @@
  * be opened and never closed, `chain.*.complete` was unreachable, and *Forge a Legacy* waited on a
  * `lifecycle.first-retirement` that the retirement flow never published.
  *
+ * ⚠ AND THEN NOTHING TESTED IT. 2095 tests were green across 42 files and not one assertion
+ * anywhere exercised this module or `core/quests.ts`, which is how four defects shipped invisibly:
+ * a wager closed by the player's own starter ageing on the bench, a legacy quest that turned itself
+ * in before the player met its giver, a census that paid exactly one milestone for a whole run, and
+ * an annual arrangement whose own flags forbade the year after. They are repaired here and in
+ * `core/quests.ts`; `tests/gates/quest-layer.test.ts` pins the shapes and
+ * `tests/unit/quests.test.ts` drives every one of them down the path a player takes. Every
+ * departure the repairs required is logged as **D-Q9-*** in `docs/DEVIATIONS.md`.
+ *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * WHY THE OBJECTIVE TABLE IS IN `game/` AND NOT IN `data/balance.json` — READ THIS BEFORE MOVING IT
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
@@ -70,6 +79,16 @@ const ACCEPTED_AT_SUFFIX = ".acceptedAt";
 const ACCEPTED_YEAR_SUFFIX = ".acceptedYear";
 const MET_LINES_SUFFIX = ".linesMet";
 const MILESTONE_AT_SUFFIX = ".milestoneAt";
+const SETTLED_YEAR_SUFFIX = ".settledYear";
+
+/**
+ * The one flag this module writes that a quest giver does read, and it is a RECORD rather than
+ * bookkeeping: `quest.<id>.lapsed` says a deadline ran out.
+ *
+ * It is written only for an objective whose own kind carries the deadline (see
+ * {@link objectiveLapsesAtYearTurn}), so a quest cannot acquire a failure state by accident.
+ */
+const LAPSED_SUFFIX = ".lapsed";
 
 /** Where the tracker records which species lines the player has met at a node. */
 export function linesMetFlag(nodeId: string): string {
@@ -86,6 +105,15 @@ function acceptedYearFlag(questId: string): string {
 
 function milestoneAtFlag(questId: string): string {
   return `quest.${questId}${MILESTONE_AT_SUFFIX}`;
+}
+
+function settledYearFlag(questId: string): string {
+  return `quest.${questId}${SETTLED_YEAR_SUFFIX}`;
+}
+
+/** The record a quest leaves when its deadline ran out — read by the giver, written only here. */
+export function lapsedFlag(questId: string): string {
+  return `quest.${questId}${LAPSED_SUFFIX}`;
 }
 
 /** The corpus's namespace for facts the creature LIFECYCLE owns rather than a quest giver. */
@@ -162,11 +190,22 @@ export const QUEST_OBJECTIVES: Readonly<Record<string, QuestObjective>> = {
 
   /* FERRYMAN'S WAGER — sel.quest.wager.offer:
    *   "An Elder ..., caught and brought back before the year turns."
-   * DEVIATION: the SPECIES is not checked (see the header); holding any Elder closes it. The AGE
-   * is, which is the half the beat is about — "Elders are one year from retiring, so you're
-   * spending a year of something to prove a point."
+   * DEVIATION: the SPECIES is not checked (see the header); any Elder taken out of the marsh
+   * closes it. Everything else in that sentence is now checked, and none of it was: the row shipped
+   * as `{kind:"holdsAge", age:"E"}`, which is a fact about the party and not about the player. A
+   * Juvenile starter becomes an Elder in its third year (`balance.age.lifespanYears.J`), so the
+   * player's own first creature closed bible §9's push-your-luck showcase by ageing on the bench,
+   * from anywhere in the region, with an empty action tape — and the deadline the copy states three
+   * times (the offer, `sel.quest.wager.done`, `sel.tale.3`) existed nowhere in the code.
+   *   • CAUGHT — the objective reads the action tape.
+   *   • BROUGHT BACK — the age is read off the individual, so one released or retired since does
+   *     not count (`core/quests.ts` `countCatches`).
+   *   • BEFORE THE YEAR TURNS — the window closes at the year turn, and a lapse re-opens the offer
+   *     (see {@link syncQuestFlags}). `chain.undermere.step4` gates on this quest's `.done`, so a
+   *     lapse that could not be retried would dead-end the Undermere chain and its Ancient.
+   * The marsh is Brackmarsh (r2), which is where the channel Sel names is.
    */
-  "ferrymans-wager": { kind: "holdsAge", age: "E" },
+  "ferrymans-wager": { kind: "catchesAtBeforeYearTurn", node: "r2", age: "E", count: 1 },
 
   /* ── the six above cut line C-3 ──────────────────────────────────────────
    *
@@ -188,9 +227,9 @@ export const QUEST_OBJECTIVES: Readonly<Record<string, QuestObjective>> = {
 
   /* AFTER THE CRASH — gerta.quest.crash.offer:
    *   "Five counts on Cinder Steppe. ... Bring me all five and the flora reading with them."
-   * DEVIATION: the counts and the flora reading are the LEDGER's, and the ledger reads the live
-   * save from anywhere — so the only part of the survey that is a fact about the PLAYER is having
-   * stood on Cinder Steppe (r4). A ledger-visit record would tighten this; the ledger keeps none.
+   * DEVIATION: the counts and the flora reading come off the SURVEY, which reads the live save from
+   * anywhere — so the only part of this that is a fact about the PLAYER is having stood on Cinder
+   * Steppe (r4). A record of which nodes were actually walked would tighten it; the survey keeps none.
    */
   "after-the-crash": { kind: "visitedSince", node: "r4" },
 
@@ -199,8 +238,22 @@ export const QUEST_OBJECTIVES: Readonly<Record<string, QuestObjective>> = {
    * DEVIATION: the relic and the ingot are not items the shipped economy carries, so no cost is
    * taken. The retirement is real: `lifecycle.first-retirement` is derived from the action tape by
    * `syncQuestFlags` below, and it is itself one of the flags nothing wrote.
+   *
+   * ⚠ WAS `{kind: "flagSet", flag: RETIREMENT_MILESTONE_FLAG}` AND THAT MADE THE QUEST HOLLOW.
+   * `bram.quest.forge.offer` REQUIRES `lifecycle.first-retirement` in its own `when.flagsSet`, so
+   * an objective naming that same flag is true at the instant the offer becomes eligible. The
+   * offer writes its own acceptance (D-Q9-7), so the very next `syncQuestFlags` — the one
+   * `OverworldScene.interact` runs before the next [E] — found the quest `accepted` with its
+   * objective already satisfied and wrote the turn-in. Measured: two consecutive [E] presses at
+   * Cindershelf, no travel, no catch, no release, and the Legacy beat's side quest closed itself.
+   *
+   * The objective is now the verb the offer's own copy names — "Bring it here and I'll set it" —
+   * transcribed as arriving at Bram's town after taking the job. D-Q9-7 refused the plan's
+   * `{visitedSince, node: "r4"}` because the shipped copy says HERE and not Cinder Steppe; this is
+   * that same objection honoured, with `here` resolved to the node the offer is spoken in. No
+   * prose moves, so the pair D-Q9-7 said must land together is not split. DEVIATIONS D-W3-2.
    */
-  "forge-a-legacy": { kind: "flagSet", flag: RETIREMENT_MILESTONE_FLAG },
+  "forge-a-legacy": { kind: "visitedSince", node: "cindershelf" },
 
   /* THE STAR CENSUS — ives.quest.census.milestone:
    *   "Another milestone. Here's the plate, still tacky" / "Thirty-five identities in the full
@@ -221,19 +274,85 @@ export const QUEST_OBJECTIVES: Readonly<Record<string, QuestObjective>> = {
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * Which quests come round again — CONTENT, transcribed, with the line each came from
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Quests whose arrangement is ANNUAL: both authored endings promise it comes back, and until this
+ * existed the flags forbade it.
+ *
+ * THE FALLOW FIELD — `tolm.quest.fallow.done.kept`: "Same arrangement next year, if you're still
+ * walking." `tolm.quest.fallow.done.short`: "Offer's the same next spring. Numbers are the
+ * numbers." And `tolm.quest.fallow.offer` gates on `flagsUnset:["quest.fallow-field.done",
+ * "quest.fallow-field.taken"]`, both of which the turn-in sets permanently — so the one quest whose
+ * whole subject is an arrangement that "comes back every year I'm farming" could be entered once.
+ *
+ * A quest id is an IDENTIFIER, not content — the same kind of key {@link QUEST_OBJECTIVES} is
+ * indexed by — so no species, role or quantity is named here. The re-arm itself is generic and
+ * lives in {@link syncQuestFlags}; *The Star Census* uses the same mechanism on a different clock.
+ */
+export const ANNUAL_QUESTS: ReadonlySet<string> = new Set(["fallow-field"]);
+
+/**
+ * Does this objective's own kind say the window shuts at the year turn?
+ *
+ * Read off the kind's NAME, exactly as `tests/gates/quest-layer.test.ts` reads it, so a second
+ * deadline-shaped objective added later lapses without this predicate being edited — and so that
+ * nothing here has to carry a list of which quests may fail.
+ */
+function objectiveLapsesAtYearTurn(objective: QuestObjective): boolean {
+  return /BeforeYearTurn/.test(objective.kind);
+}
+
+/** A quest whose owed flag re-arms as soon as its cycle is collected, rather than at a date. */
+function objectiveRepeatsPerCycle(objective: QuestObjective): boolean {
+  return objective.kind === "dexIdentitiesRisen";
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
  * Reading the world a quest is judged against
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/** Every named dex identity the player is currently holding — bible §9's "identities you've entered". */
+/** Where the tracker accumulates the dex. Grammar, like `sign.<node>.linesMet` beside it. */
+const DEX_ENTERED_FLAG = "dex.entered";
+
+/** One creature's dex identity — the line and its age FORM, which is what bible §9 counts. */
+function dexIdentityOf(creature: OwnedCreature, content: Content): string {
+  const line = content.species.find((s) => s.id === creature.lineId);
+  const form = line?.formNames[creature.age];
+  return form === undefined ? `${creature.lineId}:${creature.age}` : `${creature.lineId}:${form}`;
+}
+
+/**
+ * Every dex identity the player has ENTERED — the record, not the shelf.
+ *
+ * ⚠ THIS USED TO COUNT WHAT THE PLAYER WAS HOLDING, and that made the census shrink when the player
+ * did the thing the game teaches. Ives's own copy says *"Every identity you've **entered**"*, and
+ * `[...save.party, ...save.box]` is what they still have: releasing decremented it, a retirement
+ * that replaced a retiree with a differently-aged heir decremented it, and *Restock the Shallows*
+ * asks for four releases. The two verbs the game is built to teach were the two that destroyed
+ * census progress, and `dexIdentitiesRisen` — a strictly-increasing objective — was measured
+ * against a number that could fall.
+ *
+ * It is now MONOTONIC by construction: the union of everything already recorded with everything
+ * currently held. {@link syncQuestFlags} writes the union back, so the record survives the release.
+ *
+ * WHY AN ACCUMULATOR AND NOT THE TAPE. The plan for this repair preferred deriving it from
+ * `save.actionLog` and adding no store. It cannot be done: `core/types.ts` `GameAction` records a
+ * catch as `{t:"catch", nodeId, lineId, uid}` and carries **no age**, so a creature caught and
+ * since released leaves a tape entry from which the age FORM — the half Ives counts separately —
+ * is not recoverable. The accumulator sits beside `sign.<node>.linesMet`, which is the same shape
+ * for the same reason, and is written from the one place every save move already passes through.
+ */
+export function dexIdentitySet(save: SaveEnvelope, content: Content): Set<string> {
+  const seen = new Set<string>(listFlag(save, DEX_ENTERED_FLAG));
+  for (const creature of [...save.party, ...save.box]) seen.add(dexIdentityOf(creature, content));
+  return seen;
+}
+
+/** How many identities the census has recorded. Never falls. */
 export function dexIdentities(save: SaveEnvelope, content: Content): number {
-  const byId = new Map(content.species.map((s) => [s.id, s]));
-  const seen = new Set<string>();
-  for (const creature of [...save.party, ...save.box]) {
-    const line = byId.get(creature.lineId);
-    const form = line?.formNames[creature.age];
-    seen.add(form === undefined ? `${creature.lineId}:${creature.age}` : `${creature.lineId}:${form}`);
-  }
-  return seen.size;
+  return dexIdentitySet(save, content).size;
 }
 
 function numberFlag(save: SaveEnvelope, key: string): number | null {
@@ -322,6 +441,111 @@ export function questReports(
   });
 }
 
+/** Drop keys from a save's quest flags. The only place this module UNSETS anything. */
+function clearFlags(save: SaveEnvelope, keys: readonly string[]): SaveEnvelope {
+  const drop = new Set(keys);
+  let touched = false;
+  const flags: Record<string, FlagValue> = {};
+  for (const [k, v] of Object.entries(save.questFlags)) {
+    if (drop.has(k)) {
+      touched = true;
+      continue;
+    }
+    flags[k] = v;
+  }
+  return touched ? { ...save, questFlags: flags } : save;
+}
+
+/** Everything one cycle of a quest writes: the acceptance, the turn-in, the endings, the stamps. */
+function cycleFlagsOf(def: QuestDefinition): string[] {
+  return [
+    ...(def.acceptFlag === null ? [] : [def.acceptFlag]),
+    ...(def.owedFlag === null ? [] : [def.owedFlag]),
+    ...def.completionFlags,
+    acceptedAtFlag(def.id),
+    acceptedYearFlag(def.id),
+    settledYearFlag(def.id),
+  ];
+}
+
+/**
+ * ⚠ THE ONE PLACE A QUEST FLAG IS UNSET, and three separate repairs need it.
+ *
+ * A quest that can be finished twice needs its cycle taken down before it can be put up again, and
+ * every one of the three shipped cases had the same shape and none of them had the code:
+ *
+ *   • **THE STAR CENSUS re-arms as soon as its plate is collected.** `syncQuestFlags` skipped any
+ *     quest whose owed flag was set, nothing ever cleared `quest.star-census.milestone`, and so the
+ *     re-arm write two screens below — `due[milestoneAtFlag(...)]` — was dead after the first
+ *     grant. The census paid exactly one milestone, ever. The corpus now records the collection
+ *     (the milestone entry writes its own completion flag), and the pair is cleared here.
+ *   • **THE FALLOW FIELD re-arms a year after it settles.** Both endings promise it; the offer's
+ *     `flagsUnset` forbade it. The settlement year is stamped when the ending fires, and a further
+ *     year turning takes the whole cycle down — except the RESULT, which is deliberately left
+ *     standing as the record of how last year went (`core/quests.ts` explains why a value-carrying
+ *     write is not a completion).
+ *   • **FERRYMAN'S WAGER lapses.** The deadline is in the objective's kind; when the year turns on
+ *     an unmet one, the acceptance comes down so the offer returns, and `quest.<id>.lapsed` records
+ *     that it ran out. Clearing is not polish: `chain.undermere.step4` gates on this quest's
+ *     `.done`, so a lapse that could not be retried would dead-end the Undermere chain.
+ *
+ * Every branch is EDGE-TRIGGERED by construction rather than by a watcher: each one clears the very
+ * flags its own condition reads, so a second run in the same moment finds nothing to do. That is
+ * what keeps this module idempotent, which `tests/gates/quest-layer.test.ts` asserts directly.
+ */
+function settleCycles(
+  save: SaveEnvelope,
+  defs: readonly QuestDefinition[],
+  content: Content,
+  file: DialogueFile,
+): SaveEnvelope {
+  let next = save;
+  for (const def of defs) {
+    const objective = QUEST_OBJECTIVES[def.id];
+    if (objective === undefined) continue;
+    const finished = def.completionFlags.length > 0 && def.completionFlags.every((f) => flagIsSet(next.questFlags, f));
+
+    if (objectiveRepeatsPerCycle(objective)) {
+      // The plate has been collected: take the milestone and the receipt down together, so the
+      // next growth in the census can arm it again.
+      if (finished && def.owedFlag !== null && flagIsSet(next.questFlags, def.owedFlag)) {
+        next = clearFlags(next, [def.owedFlag, ...def.completionFlags]);
+      }
+      continue;
+    }
+
+    if (ANNUAL_QUESTS.has(def.id)) {
+      if (!finished) continue;
+      const settled = numberFlag(next, settledYearFlag(def.id));
+      if (settled === null) {
+        next = { ...next, questFlags: { ...next.questFlags, [settledYearFlag(def.id)]: next.year } };
+      } else if (next.year > settled) {
+        // A further year has turned since the settlement. The arrangement comes round again; the
+        // RESULT stays, because it is the only place in the corpus a quest outcome is remembered.
+        next = clearFlags(next, cycleFlagsOf(def));
+      }
+      continue;
+    }
+
+    if (objectiveLapsesAtYearTurn(objective)) {
+      if (def.owedFlag === null || flagIsSet(next.questFlags, def.owedFlag)) continue;
+      if (questStage(def, next.questFlags) !== "accepted") continue;
+      const acceptedYear = numberFlag(next, acceptedYearFlag(def.id));
+      if (acceptedYear === null || next.year <= acceptedYear) continue;
+      // The objective is checked one last time before the window is called shut, so a run that
+      // completed it in the same moment the year turned is not failed by evaluation order.
+      if (objectiveHolds(objective, questWorld(next, content, def, file))) continue;
+      next = clearFlags(next, [
+        ...(def.acceptFlag === null ? [] : [def.acceptFlag]),
+        acceptedAtFlag(def.id),
+        acceptedYearFlag(def.id),
+      ]);
+      next = { ...next, questFlags: { ...next.questFlags, [lapsedFlag(def.id)]: true } };
+    }
+  }
+  return next;
+}
+
 /**
  * Bring the save's quest bookkeeping up to date, and write every flag that has come due.
  *
@@ -329,13 +553,17 @@ export function questReports(
  * reason: a quest's completion is a standing fact about the save, not an edge somebody has to be
  * watching for. Idempotent — running it twice writes nothing the first run did not.
  *
- * Three things happen here and nowhere else:
- *   1. **the acceptance is stamped.** The corpus writes `quest.<id>.taken` (or `.offered`); this
- *      records WHEN, so "four released since you took this on" and "a year has turned" are
- *      answerable after a reload.
+ * Five things happen here and nowhere else:
+ *   1. **the dex is accumulated.** {@link dexIdentitySet} is monotonic only because the union is
+ *      written back, and this is the one call every save move already passes through.
  *   2. **`lifecycle.first-retirement` is published** off the action tape. It is read by
  *      *Forge a Legacy* and by Maren, and nothing has ever written it.
- *   3. **the turn-in flag is written** when the quest is accepted and its objective holds. The
+ *   3. **a finished cycle is taken down** — see {@link settleCycles}. Before the stamps, because a
+ *      quest whose acceptance was just cleared must not be re-stamped in the same call.
+ *   4. **the acceptance is stamped.** The corpus writes `quest.<id>.taken` (or `.offered`); this
+ *      records WHEN, so "four released since you took this on" and "a year has turned" are
+ *      answerable after a reload.
+ *   5. **the turn-in flag is written** when the quest is accepted and its objective holds. The
  *      authored `done` entry's own `when` then decides what the giver actually says — which is why
  *      *The Fallow Field*'s two endings still branch on the live Loamunder count and this module
  *      never looks at it.
@@ -346,26 +574,37 @@ export function syncQuestFlags(
   file: DialogueFile = DIALOGUE,
 ): SaveEnvelope {
   let next = save;
+  const defs = questDefinitions(file);
+
+  const entered = [...dexIdentitySet(next, content)].sort().join(" ");
+  if (entered.length > 0 && next.questFlags[DEX_ENTERED_FLAG] !== entered) {
+    next = { ...next, questFlags: { ...next.questFlags, [DEX_ENTERED_FLAG]: entered } };
+  }
+
   const flags: Record<string, FlagValue> = {};
 
   if (hasRetired(next.actionLog) && !flagIsSet(next.questFlags, RETIREMENT_MILESTONE_FLAG)) {
     flags[RETIREMENT_MILESTONE_FLAG] = true;
   }
+  next = { ...next, questFlags: { ...next.questFlags, ...flags } };
 
-  for (const def of questDefinitions(file)) {
+  next = settleCycles(next, defs, content, file);
+
+  const stamps: Record<string, FlagValue> = {};
+  for (const def of defs) {
     const accepted = def.acceptFlag === null || flagIsSet(next.questFlags, def.acceptFlag);
     if (accepted && numberFlag(next, acceptedAtFlag(def.id)) === null) {
-      flags[acceptedAtFlag(def.id)] = next.actionLog.length;
-      flags[acceptedYearFlag(def.id)] = next.year;
+      stamps[acceptedAtFlag(def.id)] = next.actionLog.length;
+      stamps[acceptedYearFlag(def.id)] = next.year;
     }
   }
 
   // The stamps above must be visible to the objectives below, or a quest accepted and completed
   // inside one sync would measure its progress from the wrong point on the tape.
-  next = { ...next, questFlags: { ...next.questFlags, ...flags } };
+  next = { ...next, questFlags: { ...next.questFlags, ...stamps } };
 
   const due: Record<string, FlagValue> = {};
-  for (const def of questDefinitions(file)) {
+  for (const def of defs) {
     if (def.owedFlag === null) continue;
     if (flagIsSet(next.questFlags, def.owedFlag)) continue;
     const stage = questStage(def, next.questFlags);
@@ -375,7 +614,9 @@ export function syncQuestFlags(
     if (!objectiveHolds(objective, questWorld(next, content, def, file))) continue;
     due[def.owedFlag] = true;
     // A repeatable milestone re-arms: the census pays a plate once per growth, not once per press.
-    if (objective.kind === "dexIdentitiesRisen") {
+    // The high-water mark is what `dexIdentitiesRisen` compares against, and it is only reachable
+    // a second time because `settleCycles` takes the collected plate down again.
+    if (objectiveRepeatsPerCycle(objective)) {
       due[milestoneAtFlag(def.id)] = dexIdentities(next, content);
     }
   }

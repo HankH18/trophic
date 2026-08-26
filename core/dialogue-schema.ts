@@ -411,6 +411,24 @@ export const SIGN_CHAINS: ReadonlySet<string> = new Set(
 /** Every species line id in `data/species.json`. */
 export const LINE_IDS: ReadonlySet<string> = new Set(speciesJson.species.map((s) => s.id));
 
+/**
+ * node id -> (species line id -> that line's `carryCap` AT THAT NODE).
+ *
+ * The region-wide {@link LINE_IDS} cannot answer "does this node carry this line", and that is the
+ * question a `population` clause actually asks — see the check in {@link validateDialogueFile}.
+ */
+const NODE_POPULATIONS: ReadonlyMap<string, ReadonlyMap<string, number>> = new Map(
+  NODE_FILES.map((n) => [
+    n.id,
+    new Map(
+      Object.entries(n.populations as Record<string, { carryCap: number }>).map(([id, p]) => [
+        id,
+        p.carryCap,
+      ]),
+    ),
+  ]),
+);
+
 export class DialogueValidationError extends Error {
   readonly issues: string[];
   constructor(issues: string[]) {
@@ -499,10 +517,50 @@ export function validateDialogueFile(raw: unknown): DialogueFile {
       );
     }
 
+    /*
+     * ⚠ A POPULATION CLAUSE IS CHECKED AGAINST THE NODE'S OWN NUMBERS, NOT THE REGION'S.
+     *
+     * Both checks below used to be one line against the GLOBAL `LINE_IDS`, and that is a hole a
+     * reachability gate cannot close from the outside. `conditionHolds` reads
+     * `ctx.populations[node]?.[lineId]` and returns false the moment the count is `undefined`, so
+     * `{node: "hearthollow", lineId: "vellsire-line"}` — a real node, a real line, and a line that
+     * node has never carried — is a clause that is FALSE in every world state the sim can produce,
+     * for ever. It validated. So did a threshold no node could reach: the Sanctum's Ancient ships
+     * at `count 1, breedRate 0, carryCap 1`, so `gte 2` there is the never-cut finale gated on an
+     * arithmetic impossibility.
+     *
+     * Only the permanently-FALSE direction is refused. `lt`/`lte` above the cap is vacuously true
+     * rather than dead — noise, not a lost beat — and refusing it would reject an author writing a
+     * deliberate "however many there are" clause.
+     */
     for (const p of e.when?.population ?? []) {
-      if (!NODE_IDS.has(p.node)) issues.push(`${where}: population condition names unknown node "${p.node}"`);
+      const popNode = NODE_POPULATIONS.get(p.node);
+      if (popNode === undefined) {
+        issues.push(`${where}: population condition names unknown node "${p.node}"`);
+        continue;
+      }
       if (!LINE_IDS.has(p.lineId)) {
         issues.push(`${where}: population condition names unknown species line "${p.lineId}"`);
+        continue;
+      }
+      const cap = popNode.get(p.lineId);
+      if (cap === undefined) {
+        issues.push(
+          `${where}: population condition reads "${p.lineId}" at node "${p.node}", which has no ` +
+            `population of that line — the clause can never hold (node carries: ` +
+            `${[...popNode.keys()].sort().join(", ")})`,
+        );
+        continue;
+      }
+      const unreachable =
+        (p.op === "gte" && p.value > cap) ||
+        (p.op === "gt" && p.value >= cap) ||
+        (p.op === "eq" && p.value > cap);
+      if (unreachable) {
+        issues.push(
+          `${where}: population condition "${p.lineId}" ${p.op} ${String(p.value)} at node ` +
+            `"${p.node}" is above that line's carryCap ${String(cap)} — the clause can never hold`,
+        );
       }
     }
     for (const f of e.when?.floraStock ?? []) {

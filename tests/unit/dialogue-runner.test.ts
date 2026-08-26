@@ -90,7 +90,7 @@ describe("§1 dialogueContext", () => {
   it("reads populations through the SAME resolver the encounter roll and the HUD use", () => {
     /*
      * build-doc §8.3's two-answers defect, on the numbers Hard Req 2 is about: a population clause
-     * in a line must read the integer the ledger prints. `liveNodeOf` is the one place the
+     * in a line must read the integer the survey prints. `liveNodeOf` is the one place the
      * `nodeStates`-or-shipped-file fallback is decided, and the context goes through it.
      */
     const save = fresh();
@@ -329,7 +329,7 @@ describe("§3 the run", () => {
       expect(typeof state.flags["story.starter"]).toBe("string");
       // …and the chain runs on into the two tutorials, which is where the first quest is offered.
       expect(state.flags["tutorial.snare.done"]).toBe(true);
-      expect(state.flags["tutorial.ledger.done"]).toBe(true);
+      expect(state.flags["tutorial.survey.done"]).toBe(true);
       expect(state.flags["quest.first-signs.offered"]).toBe(true);
 
       const after = applyRunFlags(save, state);
@@ -443,7 +443,11 @@ function walkChain(start: SaveEnvelope, chainId: string): { save: SaveEnvelope; 
 
 describe("§4 the Ancient chains reach chain.*.complete", () => {
   const chains = [
-    { id: "vellsire-chain", flag: "chain.vellsire.complete", seed: { "chain.vellsire.unlocked": true } },
+    {
+      id: "vellsire-chain",
+      flag: "chain.vellsire.complete",
+      seed: { "chain.vellsire.unlocked": true, "quest.vellsires-trail.done": true },
+    },
     { id: "undermere-chain", flag: "chain.undermere.complete", seed: { "quest.ferrymans-wager.done": true } },
     { id: "kilnback-chain", flag: "chain.kilnback.complete", seed: {} },
   ] as const;
@@ -456,10 +460,18 @@ describe("§4 the Ancient chains reach chain.*.complete", () => {
        * `chain.*.complete`, so the three Ancient hunts cannot be completed" — and nothing wrote the
        * steps either, because nothing played the entries that write them.
        *
-       * The two seeds are the corpus's own gates, not shortcuts: the Vellsire chain's trailhead
-       * requires `chain.vellsire.unlocked`, which is *First Signs*' reward, and Undermere step 4
-       * requires `quest.ferrymans-wager.done`. tests/unit/quests.test.ts proves those two halves
-       * through the real scene; this one proves the chain on top of them.
+       * The seeds are the corpus's own gates, not shortcuts, and every one of them is a QUEST
+       * boundary this walker cannot cross by design: it plays dialogue and never calls
+       * `syncQuestFlags`, so no `quest.<id>.turnin` is ever written inside it.
+       *   • `chain.vellsire.unlocked` — *First Signs*' reward, the Vellsire trailhead.
+       *   • `quest.vellsires-trail.done` — Vellsire step 10. `maren.keystone.6` now requires
+       *     Orrin's turn-in, which is what makes his hand-off line ("Take this to Maren") true;
+       *     before that clause the eleven-step chain's payoff was reached with the quest that
+       *     points at it untouched.
+       *   • `quest.ferrymans-wager.done` — Undermere step 4.
+       * `tests/unit/quests.test.ts` proves each of those halves through the real tracker — the
+       * trail one by reading all six antler stones and letting `syncQuestFlags` close it; this one
+       * proves the chain on top of them.
        */
       let save = fullyBadged(withFlags(fresh(), { "story.opening.done": true, ...chain.seed }));
       expect(save.questFlags[chain.flag]).toBeUndefined();
@@ -494,11 +506,25 @@ describe("§4 the Ancient chains reach chain.*.complete", () => {
 describe("§5 externallyGrantedFlags", () => {
   it("is derived from the file, and covers flagEquals as well as flagsSet", () => {
     const owed = externallyGrantedFlags(DIALOGUE);
-    // docs/STORY-REVIEW.md §3 enumerates twelve by hand; the file carries more, and the two it
-    // misses are the ones nobody noticed had no writer (D-INT-4).
+    // docs/STORY-REVIEW.md §3 enumerates twelve by hand; the file carries more.
     expect(owed.length).toBeGreaterThanOrEqual(12);
-    expect(owed).toContain("story.vellsire.outcome");
-    expect(owed).toContain("story.vellsire.resolved");
+    /*
+     * ⚠ THIS USED TO ASSERT THAT `story.vellsire.resolved` AND `story.vellsire.outcome` WERE OWED,
+     * with a comment calling them "the two nobody noticed had no writer (D-INT-4)". They had no
+     * writer anywhere in the repo — the finale was dead — so the assertion was recording the defect
+     * rather than a contract. It is inverted here, and the inversion is the repair: the two keys
+     * must NOT be owed, because `sanctum.vellsire.approach`'s stand-aside branch resolves itself and
+     * `game/finale.ts` resolves the snare. The loop below already proves nothing in `owed` is
+     * corpus-written, so these two lines are the other direction of the same fact.
+     */
+    expect(owed).not.toContain("story.vellsire.outcome");
+    expect(owed).not.toContain("story.vellsire.resolved");
+    const approach = DIALOGUE.entries.find((e) => e.id === "sanctum.vellsire.approach");
+    const standAside = (approach?.choices ?? []).find(
+      (c) => (c.setFlags ?? {})["story.vellsire.attempt"] === "release",
+    );
+    expect(standAside?.setFlags?.["story.vellsire.resolved"], "the stand-aside branch resolves itself").toBe(true);
+    expect(standAside?.setFlags?.["story.vellsire.outcome"]).toBe("released");
     for (const key of owed) {
       const writtenSomewhere = DIALOGUE.entries.some(
         (e) =>

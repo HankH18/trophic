@@ -1,0 +1,1014 @@
+### maren.opening  [Warden Maren] node=hearthollow kind=cutscene when={"act": [0], "flagsUnset": ["story.opening.done"]}
+   - So you're the one Hearthollow keeps sending up the hill. Good. I have a use for you.
+   - Maren. Warden of Fallowmere, which mostly means I count things and then write the counts down.
+   - There used to be a keystone in this region. A stag. Vellsire. It went out of Fallowmere a generation back and nothing has stood in for it since.
+   - Three young ones on the bench there. Cindril, Puddlisk, Thornlet. All hatched this spring, all juveniles, all with three years in them.
+   - Three years is what a juvenile has. Pick the one you'd rather walk beside for all three.
+   > CHOICE: Cindril -> maren.starter.cindril
+   > CHOICE: Puddlisk -> maren.starter.puddlisk
+   > CHOICE: Thornlet -> maren.starter.thornlet
+
+### maren.starter.cindril  [Warden Maren] node=hearthollow kind=cutscene when={"act": [0], "flagsUnset": ["story.opening.done"]}
+   - Cindril. Fire, mesopredator, and quicker off the mark than anything else on that bench.
+   - It becomes Vulkindle at two and Pyrevane at three. You'll meet all three; they are the same animal wearing its age.
+   [sets {"story.starter": "cindril-line", "story.opening.done": true}]
+
+### maren.starter.puddlisk  [Warden Maren] node=hearthollow kind=cutscene when={"act": [0], "flagsUnset": ["story.opening.done"]}
+   - Puddlisk. Water, mesopredator, glass-skinned — you can watch it digest, which some people find unpleasant and I find useful.
+   - It becomes Rillisk at two and Maelstrisk at three. Same animal, three names, one life.
+   [sets {"story.starter": "puddlisk-line", "story.opening.done": true}]
+
+### maren.starter.thornlet  [Warden Maren] node=hearthollow kind=cutscene when={"act": [0], "flagsUnset": ["story.opening.done"]}
+   - Thornlet. Plant, mesopredator, and it will bleed you if you carry it wrong. Carry it in the crook of the arm.
+   - Bramblore at two, Thornwald at three. The last name is the one the meadow remembers.
+   [sets {"story.starter": "thornlet-line", "story.opening.done": true}]
+
+### maren.tutorial.snare  [Warden Maren] node=hearthollow kind=cutscene when={"flagsUnset": ["tutorial.snare.done"]}
+   - Snares. Three of them. A snare takes one individual out of a node and puts it in your hand.
+   - Bait improves the odds. You craft bait from what the target eats, and what the target eats is in the web, so learn the web.
+   - Weighted snares hold better than plain ones. A master snare holds almost anything. Almost.
+   [sets {"tutorial.snare.done": true}]
+
+### maren.tutorial.survey  [Warden Maren] node=hearthollow kind=cutscene when={"flagsUnset": ["tutorial.survey.done"]}
+   - And the ledger. Every node in Fallowmere, every line in it, counted. Real numbers, not guesses.
+   - Read it before you set out. Read it when you come back. The difference between the two readings is the only report I want from you.
+   - Meadow Reach is through the north gate. Go and see what is standing in it.
+   [sets {"tutorial.survey.done": true, "quest.first-signs.offered": true}]
+
+### maren.quest.first-signs.offer  [Warden Maren] node=hearthollow kind=quest when={"flagsSet": ["quest.first-signs.offered"], "flagsUnset": ["quest.first-signs.done"]}
+   - Before you go far — foraging. A sign card is what you get when you read a track, a scrape, a fresh cast of droppings.
+   - Walk Meadow Reach and bring me three. Any three. Instinct decides how much a card tells you, so a sharp creature reads a poor sign better than a dull one reads a good one.
+   - Cards flag migrants too. Pollywisp is a spring animal — out of spring the card will read dormant rather than absent. Those are different words for a reason.
+
+### maren.quest.first-signs.done  [Warden Maren] node=hearthollow kind=quest when={"flagsSet": ["quest.first-signs.turnin"], "flagsUnset": ["quest.first-signs.done"]}
+   - Three cards. Loamunder, Nibbin, and something that scraped bark at chest height — that's Bramblehog.
+   - You now know more about Meadow Reach than most of Hearthollow does. Keep the cards; they stack up into something.
+   [sets {"quest.first-signs.done": true, "chain.vellsire.unlocked": true}]
+
+### maren.tutorial.release  [Warden Maren] node=brackwater kind=cutscene when={"actMin": 2, "flagsUnset": ["tutorial.release.done"]}
+   - One more thing the snare does, backwards. You can open it.
+   - Release puts an individual back into whatever node you're standing in. The count goes up by one, same arithmetic, opposite sign.
+   - The ledger records it identically. It does not care which direction the number moved.
+   [sets {"tutorial.release.done": true}]
+
+### maren.greeting.act1  [Warden Maren] node=hearthollow kind=greeting when={"act": [1], "floraStock": [{"node": "r1", "op": "gte", "value": 46}]}
+   - Meadow Reach is holding at a decent flora stock this year. Loamunder are doing the work — they seed as they walk.
+   - Maribel keeps the gym at the far end of the green. She's had that Nibbin longer than you've been alive.
+
+### maren.greeting.act2  [Warden Maren] node=brackwater kind=greeting when={"act": [2]}
+   - Odo runs the gym off the east stilts. Ask him what a Fenmaw does to a survey boat some time.
+
+### maren.greeting.act3  [Warden Maren] node=bowerdeep kind=greeting when={"act": [3]}
+   - Bowerdeep runs on silk and timber, and both come off the same trees. That's a tighter knot than the town admits.
+
+### maren.greeting.act4  [Warden Maren] node=cindershelf kind=greeting when={"act": [4]}
+   - Gerta has a shaft survey she can't finish alone. Talk to her before you go up the steppe.
+
+### maren.greeting.act5  [Warden Maren] node=duskhollow kind=greeting when={"act": [5]}
+   - The observatory has the only archive in Fallowmere older than mine. Orrin will let you read it if you ask plainly.
+
+### maren.greeting.act6  [Warden Maren] node=sanctum-approach kind=greeting when={"act": [6]}
+   - The gate's open. It has not been open in my lifetime, and it was not us who opened it.
+
+### maren.keystone.1  [Warden Maren] node=hearthollow kind=lore when={"flagsSet": ["chain.vellsire.unlocked"], "flagsUnset": ["chain.vellsire.step1"]}
+   - You asked what a keystone is. It isn't the biggest animal in a region, and it isn't the strongest.
+   - It's the one whose absence changes the shape of everything else. Take it out and the rest of the web rearranges around the hole.
+   - Vellsire was ours. Where it grazed, the ground came back richer than it left. Nobody has put a number on why. I would like to.
+   [sets {"chain.vellsire.step1": true}]
+
+### maren.keystone.2  [Warden Maren] node=brackwater kind=lore when={"actMin": 2, "flagsSet": ["chain.vellsire.step2"], "flagsUnset": ["chain.vellsire.step3"]}
+   - You read one of the antler stones on Meadow Reach. There are more — Brackmarsh, the Wilds, the steppe, the vale, the Sanctum Approach.
+   - Someone set them where the herd used to pass. The herd has not passed in thirty years and the stones are much older than thirty years.
+   - Whoever cut them was keeping a record too. Mine is paper. Theirs is granite. Theirs will outlast mine.
+   [sets {"chain.vellsire.step3": true}]
+
+### maren.keystone.3  [Warden Maren] node=bowerdeep kind=lore when={"actMin": 3, "flagsSet": ["chain.vellsire.step4"], "flagsUnset": ["chain.vellsire.step5"]}
+   - A cut stump is a ledger with the pages stacked instead of bound. Wide ring, good year. Thin ring, poor one.
+   - Every stump the loggers have opened for me in Bowerdeep runs wide, wide, wide — then three decades of thin, and the thin starts within a season of the last Vellsire count.
+   - One stump is an anecdote. Forty is a record.
+   [sets {"chain.vellsire.step5": true}]
+
+### maren.keystone.4  [Warden Maren] node=cindershelf kind=lore when={"actMin": 4, "flagsSet": ["chain.vellsire.step5"], "flagsUnset": ["chain.vellsire.step6"]}
+   - Cinder Steppe's flora stock is at a number I have never had cause to write before.
+   - It runs downhill in order. The flora first, then the grazers inside two seasons, then the mesopredators, then whatever apex was living off the mesopredators.
+   [sets {"chain.vellsire.step6": true}]
+
+### maren.keystone.5  [Warden Maren] node=duskhollow kind=lore when={"actMin": 5, "flagsSet": ["chain.vellsire.step7"], "flagsUnset": ["chain.vellsire.step8"]}
+   - Orrin's archive has the last confirmed sighting, with a date and a sky on it. Astronomers log everything, including things that are not stars.
+   - Three separate observers, one night, the same herd crossing the vale toward the caldera. And then nothing, for thirty years, from anyone.
+   - Animals do not stop being seen. They stop being where they were seen.
+   [sets {"chain.vellsire.step8": true}]
+
+### maren.keystone.6  [Warden Maren] node=sanctum-approach kind=lore when={"actMin": 6, "flagsSet": ["chain.vellsire.step9", "quest.vellsires-trail.done"], "flagsUnset": ["chain.vellsire.step10"]}
+   - The Sanctum Fallow has been sealed since before the stones were cut. The word fallow means rested, not dead. Somebody chose it carefully.
+   - If the herd went anywhere, it went in there, and if anything of it is left, it is one animal and it is very old.
+   - I can't tell you what to do when you're standing in front of it. I can tell you the ledger will read differently either way, and that I will be reading it.
+   [sets {"chain.vellsire.step10": true, "chain.vellsire.complete": true}]
+
+### maren.retirement  [Warden Maren] node=hearthollow kind=cutscene when={"yearMin": 2, "flagsSet": ["lifecycle.first-retirement"], "flagsUnset": ["lifecycle.first-retirement.spoken"]}
+   - It's out of years. That's all that has happened; it isn't hurt and it isn't sick.
+   - You take an heir or you take a boon. The heir is a juvenile of the same line carrying one or two of its traits and half its levels. The boon is a permanent stat on a teammate, and it keeps the retiree's name.
+   - Most wardens take the heir the first time and the boon after that. I have no data on which is correct.
+   [sets {"lifecycle.first-retirement.spoken": true}]
+
+### maren.crash-survey  [Warden Maren] node=cindershelf kind=lore when={"actMin": 4, "population": [{"node": "r4", "lineId": "stonewing-line", "op": "lte", "value": 1}]}
+   - Cinder Steppe had a Stonewing pair on the west scarp for as long as the ledger has existed. The ledger now says what it says.
+   - The condors did not leave first. The Cragmar went, then the Pyrelisk that ate the Ashvole, and the scarp emptied from the bottom up.
+
+### maren.finale  [Warden Maren] node=sanctum-approach kind=cutscene when={"actMin": 6, "flagsSet": ["story.greaves.entered", "rival.act6.playerResult"], "flagsUnset": ["story.finale.spoken"]}
+   - Greaves went through an hour ago with six teams and a transport cradle. He didn't hurry.
+   - Go on. I'll hold the page.
+   [sets {"story.finale.spoken": true}]
+
+### wick.act1.pre  [Wick] node=r1 kind=battle-pre when={"actMin": 1, "flagsUnset": ["rival.act1.fought"]}
+   - Wick. Cullbrand apprentice, second year. And you're Maren's, which means you're carrying her book.
+   - The Company pays by the head and doesn't ask whose head. That's not sentiment. That's a price list.
+   - Carricrow's mine. Everyone laughs at that until the year a web goes over and the crows are the only thing still worth catching.
+
+### wick.act1.win  [Wick] node=r1 kind=battle-win when={"actMin": 1}
+   - Clean. You're faster than the intake numbers said you'd be.
+   - Meadow Reach is easy country. Come find me when the ground stops being flat.
+   [sets {"rival.act1.fought": true, "rival.act1.playerResult": "win"}]
+
+### wick.act1.loss  [Wick] node=r1 kind=battle-loss when={"actMin": 1}
+   - That's the shape of it. Keep the ledger — it's the part of this you're ahead on.
+   [sets {"rival.act1.playerResult": "loss"}]
+
+### wick.act2.pre  [Wick] node=r2 kind=battle-pre when={"actMin": 2, "flagsUnset": ["rival.act2.fought"]}
+   - Brackwater's fishery has been indexed to the Fenmaw count for sixty years. Sixty. Written into the buyer's contracts.
+   - Nobody on those stilts calls that harvesting. They call it the season, and they eat off it.
+
+### wick.act2.win  [Wick] node=r2 kind=battle-win when={"actMin": 2}
+   - Your Mirefin timing is better than mine. Noted, and I do write it down.
+   - Ask Sel what he poles over out here some time. He'll tell you and you won't believe him.
+   [sets {"rival.act2.fought": true, "rival.act2.playerResult": "win"}]
+
+### wick.act2.loss  [Wick] node=r2 kind=battle-loss when={"actMin": 2}
+   - Marsh rewards patience. So does the Company, occasionally.
+   [sets {"rival.act2.playerResult": "loss"}]
+
+### wick.act3.pre  [Wick] node=r3 kind=battle-pre when={"actMin": 3, "flagsUnset": ["rival.act3.fought"]}
+   - Silk pays for the night market. The night market pays for the road. The road is how you walked in here.
+   - Vesper will tell you the Webvern count can't take the orders Halder is writing. She's probably right. She's also on the road.
+   - I'm not asking you to agree with me. I'm asking you to notice that nobody in Bowerdeep is outside the trade.
+
+### wick.act3.win  [Wick] node=r3 kind=battle-win when={"actMin": 3}
+   - Three years running. I'd move you up two grades if you were ours.
+   - You're not, and Maren pays badly, and here you still are. I find that interesting.
+   [sets {"rival.act3.fought": true, "rival.act3.playerResult": "win"}]
+
+### wick.act3.loss  [Wick] node=r3 kind=battle-loss when={"actMin": 3}
+   - The canopy favours whoever knows which branch takes weight. That's all that was.
+   [sets {"rival.act3.playerResult": "loss"}]
+
+### wick.act4.pre  [Wick] node=r4 kind=battle-pre when={"actMin": 4, "flagsUnset": ["rival.act4.fought"]}
+   - You've walked it, then. I worked this steppe. Two seasons on the west scarp with a company crew.
+   - And I'd work it again. Cullbrand paid out on Cinder Steppe for four years and four towns ate off that payout, including yours.
+   - After that the count went sideways on us and never came back. The steppe isn't a mystery. It's a scheduling error with a number attached.
+
+### wick.act4.win  [Wick] node=r4 kind=battle-win when={"actMin": 4}
+   - Fought that on a dead scarp with nothing to work with. Fair.
+   - Sable's forge takes relics. If you've lost one to age this year, take it to Bram before it goes brittle.
+   [sets {"rival.act4.fought": true, "rival.act4.playerResult": "win"}]
+
+### wick.act4.loss  [Wick] node=r4 kind=battle-loss when={"actMin": 4}
+   - I know this ground. Knowing the ground is most of it, up here.
+   [sets {"rival.act4.playerResult": "loss"}]
+
+### wick.act5.pre  [Wick] node=r5 kind=battle-pre when={"actMin": 5, "flagsUnset": ["rival.act5.fought"]}
+   - Greaves says a region is a stock, and a stock exists to be drawn on. It is a clean argument and I have never found the one that beats it.
+   - Bring me the argument when you have it. Until then — Duskhollow Vale, and my Carricrow is an Elder now.
+
+### wick.act5.win  [Wick] node=r5 kind=battle-win when={"actMin": 5}
+   - Five for five. There's a version of this where I stop showing up.
+   - Not this year.
+   [sets {"rival.act5.fought": true, "rival.act5.playerResult": "win"}]
+
+### wick.act5.loss  [Wick] node=r5 kind=battle-loss when={"actMin": 5}
+   - Wispurr are winter animals and the ridge is theirs when they're up. Ground and season. That's the whole trick.
+   [sets {"rival.act5.playerResult": "loss"}]
+
+### wick.act6.pre  [Wick] node=sanctum-approach kind=battle-pre when={"actMin": 6, "flagsUnset": ["rival.act6.fought"]}
+   - He's gone in for the stag. Six teams and a cradle built to hold something that weighs as much as a barge.
+   - I'm not going in with him. Not a change of heart — I want that on the record, because it isn't one.
+   - It's a change of arithmetic. Cinder Steppe taught me what the column looks like after the last draw. There's nothing under it.
+   - So this is the argument, finally, and it's mine. Beat me and go make him hear it.
+   [sets {"story.greaves.entered": true}]
+
+### wick.act6.win  [Wick] node=sanctum-approach kind=battle-win when={"actMin": 6}
+   - Six years. Every one of them the same result and I kept the column anyway.
+   - Gate's through the antler ring. He'll have left it open; he never expects to be followed.
+   [sets {"rival.act6.fought": true, "story.greaves.entered": true, "rival.act6.playerResult": "win"}]
+
+### wick.act6.loss  [Wick] node=sanctum-approach kind=battle-loss when={"actMin": 6}
+   - Then I hold the approach a while longer. Come back when your team has slept.
+   [sets {"rival.act6.playerResult": "loss"}]
+
+### wick.greeting.town  [Wick] node=brackwater kind=greeting when={}
+   - Intake, invoices, and a barge that runs late. Apprenticeship is mostly paperwork about animals.
+   - I'll be on the marsh road when you're done in town.
+
+### greaves.act3.intro  [Magnate Greaves] node=bowerdeep kind=cutscene when={"actMin": 3, "flagsUnset": ["story.greaves.met"]}
+   - Greaves. Cullbrand Company. You'll have been told what we are, so I'll skip to what we aren't.
+   - Cullbrand does not log Bowerdeep. Cullbrand buys timber and silk from people who log Bowerdeep. My lawyers consider the distinction load-bearing.
+   - You keep a warden's ledger. So do I — mine is called an inventory and it balances to the individual.
+   - We will disagree about very little except who the columns belong to.
+   [sets {"story.greaves.met": true}]
+
+### greaves.act4.steppe  [Magnate Greaves] node=cindershelf kind=cutscene when={"actMin": 4, "flagsUnset": ["story.greaves.steppe"]}
+   - Cinder Steppe was a six-year contract. We closed it in four.
+   - That sentence is the entire account of what happened out there. Everything else people add to it is weather.
+   - Cindershelf ate for four years on that contract and is hungry in the fifth. Both halves are true and only one gets said in the tavern.
+   [sets {"story.greaves.steppe": true}]
+
+### greaves.finale.pre  [Magnate Greaves] node=sanctum kind=battle-pre when={"actMin": 6, "flagsUnset": ["story.greaves.beaten"]}
+   - You've been counting for six years. I've been buying for forty. Only one of those moves a number on the ground.
+   - The stag is a keystone. A keystone is an input. An input with no owner is an input going to waste.
+   - Stand aside or don't. The cradle is already assembled.
+
+### greaves.finale.post  [Magnate Greaves] node=sanctum kind=battle-win when={"actMin": 6}
+   - Six teams. Forty years of records. Beaten by a child with a warden's book.
+   - It's behind you, in the ring. Take it or leave it standing; the Company is diversified either way.
+   [sets {"story.greaves.beaten": true}]
+
+### greaves.finale.loss  [Magnate Greaves] node=sanctum kind=battle-loss when={"actMin": 6}
+   - The result has been entered. The schedule is unaffected, and the position remains open to you at whatever hour you are able to return to it.
+
+### maribel.pre  [Maribel] node=hearthollow kind=battle-pre when={"flagsUnset": ["gym.maribel.beaten"]}
+   - Maribel. I keep beasts — not the clever lines, the ones that were here first and will be here after.
+   - Nibbin, Bramblehog, Skir. Nothing exotic. You will lose to them anyway if you rush.
+   - And Old Nib, who is twelve. Elders don't get quick. They get certain.
+
+### maribel.post.win  [Maribel] node=hearthollow kind=battle-win when={}
+   - You waited out the Thick Pelt instead of hammering it. Most people hammer it.
+   - Badge's yours. The festival closes the year once you've taken it — Hearthollow does the whole green with lanterns.
+   [sets {"gym.maribel.beaten": true}]
+
+### maribel.post.loss  [Maribel] node=hearthollow kind=battle-loss when={}
+   - Old Nib gets one more season out of that pelt. Come back inside it.
+
+### maribel.greeting.reach-thin  [Maribel] node=hearthollow kind=greeting when={"population": [{"node": "r1", "lineId": "nibbin-line", "op": "lte", "value": 4}]}
+   - Meadow Reach is thin on Nibbin this season. I breed mine at home, so my count doesn't move when the Reach's does.
+   - Skir notice before I do. Fewer voles on the Reach and the kestrels start working my hedgerow instead.
+
+### maribel.greeting  [Maribel] node=hearthollow kind=greeting when={}
+   - Beast lines get the reputation for being simple. Simple is what survives six bad winters in a row.
+   - Bramblehog will take a fence apart to reach a Loamunder patch. Tolm has views on that. Tolm has views generally.
+
+### odo.pre  [Odo] node=brackwater kind=battle-pre when={"flagsUnset": ["gym.odo.beaten"]}
+   - Odo. I fish this marsh and I fight out of it, and the two are the same skill at different speeds.
+   - Bogling first, because everyone underestimates a tadpole. Then Reedrick. Then the Mirefin it grew into.
+   - Last is a Fenmaw Elder. She has taken the bottom out of two survey boats and neither of them was mine.
+
+### odo.post.win  [Odo] node=brackwater kind=battle-win when={}
+   - You read the metamorphosis. Bogling grazes, Mirefin hunts, and the marsh still counts them as one line either way.
+   - Badge. And use the ferry; Sel's rates are better than the road and his stories are free.
+   [sets {"gym.odo.beaten": true}]
+
+### odo.post.loss  [Odo] node=brackwater kind=battle-loss when={}
+   - The marsh doesn't reward hurrying and neither do I. Again when you're rested.
+
+### odo.greeting.fishery-low  [Odo] node=brackwater kind=greeting when={"population": [{"node": "r2", "lineId": "mirefin-line", "op": "lte", "value": 4}]}
+   - Buyer's contract prices the season off the Mirefin count in Brackmarsh. The count is what it is and so is the price.
+   - Hetty has been running the shallows survey herself since the fishery cut her hours. Ask her what she's found.
+
+### odo.greeting  [Odo] node=brackwater kind=greeting when={}
+   - Water erodes and plant overtakes. That's the marsh in four words and it's most of my gym strategy.
+   - Sporantle do the quiet work here. Everything that dies in Brackmarsh goes through them before it goes anywhere else.
+
+### vesper.pre  [Vesper] node=bowerdeep kind=battle-pre when={"flagsUnset": ["gym.vesper.beaten"]}
+   - Vesper. Poison, which in Bowerdeep means rot, and rot is the half of the canopy nobody wants on a banner.
+   - Gloomgrub, Sporantle, Mirefin, Webvern. And a Webvern Elder that spins Silk-Spun — she is faster than a spider has any business being.
+   - Halder has an order out for three Webvern. I have told the council what three does to the canopy count. The council has minutes and Halder has buyers.
+
+### vesper.post.win  [Vesper] node=bowerdeep kind=battle-win when={}
+   - Toxin ramps. You waited it out instead of trading hits into it. Good.
+   - Badge. If you're in town for the migration, Pell needs someone walking the lantern road with him.
+   [sets {"gym.vesper.beaten": true}]
+
+### vesper.post.loss  [Vesper] node=bowerdeep kind=battle-loss when={}
+   - Poison is patient and so is the canopy. Come back with a tonic.
+
+### vesper.greeting  [Vesper] node=bowerdeep kind=greeting when={}
+   - Barkhide hold the canopy open. Where the elk stop browsing, the understory closes and the light stops reaching the silk lines.
+   - Halder and I have had this argument for nine years. He is not a villain and I am not a warden. We just price the same tree differently.
+
+### sable.pre  [Sable] node=cindershelf kind=battle-pre when={"flagsUnset": ["gym.sable.beaten"]}
+   - Sable. Fire type, steppe born, and everything on my bench was caught inside a day's walk of this forge.
+   - Ashvole, Cragmar, an Ashvole Elder, Stonewing, Pyrelisk. Six, because year four is where the region stops being polite.
+   - My signature is a Pyrelisk Elder off the west vents. There are not many left to catch out there, which I mention as a fact about my bench, not about you.
+
+### sable.post.win  [Sable] node=cindershelf kind=battle-win when={}
+   - Fire purges, water erodes, and you brought water. Unsentimental. I approve.
+   - Badge. Bram's forge is behind the gym — take him a relic and he'll make it into something you can hold.
+   [sets {"gym.sable.beaten": true}]
+
+### sable.post.loss  [Sable] node=cindershelf kind=battle-loss when={}
+   - The vents run hot in bursts. So do I. Rest and come back.
+
+### sable.greeting  [Sable] node=cindershelf kind=greeting when={}
+   - The vents flare on their own schedule and the mine expands to follow them. Half this town is built on the last flare's leavings.
+   - Gerta will tell you the third shaft is warm. She has been telling people that since she was an apprentice and she has always been right.
+
+### noct.pre  [Noct] node=duskhollow kind=battle-pre when={"flagsUnset": ["gym.noct.beaten"]}
+   - Noct. Dark lines. In the vale that isn't a theme, it's just what is awake when you aren't.
+   - Gloomoth, Umbrat, Carricrow, Wispurr, an Umbrat Elder. And a Duskstalk Elder that has been on my team since before the observatory had a roof.
+   - Daze skips turns. Bring something with Instinct or bring patience. Either works. Nothing else does.
+
+### noct.post.win  [Noct] node=duskhollow kind=battle-win when={}
+   - Through a Duskstalk Elder. There are four people alive who have done that and two of them are me on a good night.
+   - Badge. The gate to the Sanctum Approach opens off the vale road, and it has been shut my whole life.
+   [sets {"gym.noct.beaten": true}]
+
+### noct.post.loss  [Noct] node=duskhollow kind=battle-loss when={}
+   - Dusk swallows. It's not personal and it's not quick.
+
+### noct.greeting  [Noct] node=duskhollow kind=greeting when={}
+   - Carricrow came into the vale eleven seasons ago and stayed. They follow deaths, so their count is a reading of somewhere else.
+   - Orrin thinks the dark in the vale has been deepening since the Sanctum went quiet. Ives thinks Orrin needs a better lamp. I stay out of it.
+
+### sel.greeting  [Sel] node=brackwater kind=greeting when={}
+   - Sel. I pole the crossing to Brackmarsh and back, six times a day, forty-one years.
+   - Rates are on the post. Rates go down if you've done me a favour, and I remember favours longer than I remember faces.
+
+### sel.service.ferry  [Sel] node=brackwater kind=service when={}
+   - Across, then. Sit in the middle and don't trail your hand.
+
+### sel.tale.1  [Sel] node=brackwater kind=lore when={"actMin": 2, "flagsUnset": ["chain.undermere.step1"]}
+   - You want the crossing or you want the stories? Most people say crossing and then ask about the stories halfway over.
+   - Here's the one that's just measurement. My pole is eleven feet. Everywhere in these shallows it finds bottom with a hand to spare.
+   - Everywhere but four spots. In those four the pole goes down eleven feet and keeps going, and I've never found what's under it.
+   - My grandfather marked all four. I mark them still. The idols sit on their rims.
+   [sets {"chain.undermere.step1": true}]
+
+### sel.tale.2  [Sel] node=brackwater kind=lore when={"actMin": 2, "flagsSet": ["chain.undermere.step2"], "flagsUnset": ["chain.undermere.step3"]}
+   - You read the idol on the dock rim. Then you know it isn't marsh stone. Nothing in Brackwater is cut like that.
+   - Grandfather's word for the four spots was the lake-beneath-the-lake. He didn't mean it poetically; he meant there's another water down there and ours sits on top of it.
+   - Water table here hasn't moved in my lifetime. Drought years, flood years — same line on the stilt. That is not normal and Maren agrees with me, which she hates.
+   [sets {"chain.undermere.step3": true}]
+
+### sel.tale.3  [Sel] node=brackwater kind=lore when={"actMin": 2, "flagsSet": ["quest.ferrymans-wager.done", "chain.undermere.step3"], "flagsUnset": ["chain.undermere.step4"]}
+   - You took an Elder Mirefin out of the channel before the year turned. That's the wager and you won it, and you're owed the rest of the tale.
+   - Eyeless. That's the part everyone leaves out when they repeat it back to me.
+   - Nothing down there needs eyes. Grandfather said it came up once through the dock spot in a flood year and the whole town heard the pilings sing.
+   [sets {"chain.undermere.step4": true}]
+
+### sel.tale.4  [Sel] node=brackwater kind=lore when={"actMin": 2, "flagsSet": ["chain.undermere.step5"], "flagsUnset": ["chain.undermere.step6"]}
+   - Both idols, then. The dock rim and the shallows out on Brackmarsh. They face each other across two miles of reed and they are exactly the same carving.
+   - Line between them runs through the third spot. I have poled that line a thousand times and never once put a boat down it at slack water.
+   - Slack water is the hour to try. If you're going to try, take a master snare, and take something that can swim.
+   [sets {"chain.undermere.step6": true}]
+
+### sel.tale.5  [Sel] node=brackwater kind=lore when={"actMin": 3, "flagsSet": ["chain.undermere.step6"], "flagsUnset": ["chain.undermere.complete"]}
+   - Here. Grandfather's card, and mine under it, and yours will go on top when you've read the water yourself.
+   - Undermere. That's the name on the older card, in a hand neither of us can date.
+   - It doesn't age. That's what the card says and that's what the water table says, and I have stopped arguing with either.
+   - Slack water, third spot, off the Brackmarsh idol. Go on then.
+   [sets {"chain.undermere.step7": true, "chain.undermere.complete": true}]
+
+### sel.quest.wager.offer  [Sel] node=brackwater kind=quest when={"actMin": 2, "flagsUnset": ["quest.ferrymans-wager.done", "quest.ferrymans-wager.taken"]}
+   - A wager, then, since you're going out anyway. An Elder Mirefin, caught and brought back before the year turns.
+   - Elders are one year from retiring, so you're spending a year of something to prove a point. That's what makes it a wager and not an errand.
+   - Win and you ride free as long as I'm poling. Lose and you've still got a Mirefin, which is not nothing.
+   > CHOICE: Take the wager. -> sel.quest.wager.accepted
+   > CHOICE: Not this year. -> sel.quest.wager.declined
+
+### sel.quest.wager.accepted  [Sel] node=brackwater kind=quest when={"flagsSet": ["quest.ferrymans-wager.taken"], "flagsUnset": ["quest.ferrymans-wager.done"]}
+   - Good. Channel's the place, not the shallows — Elders hold the deep edge where the current does the work for them.
+   - Bait it with something a Mirefin actually eats. It works the Reedrick in the reed edge, and it is not fussy about which one.
+
+### sel.quest.wager.declined  [Sel] node=brackwater kind=quest when={"actMin": 2, "flagsUnset": ["quest.ferrymans-wager.done", "quest.ferrymans-wager.taken"]}
+   - Suit yourself. The offer keeps; the Mirefin don't.
+
+### sel.quest.wager.done  [Sel] node=brackwater kind=quest when={"flagsSet": ["quest.ferrymans-wager.turnin"], "flagsUnset": ["quest.ferrymans-wager.done"]}
+   - Elder, and a big one. Look at the jaw on it — that's three years of channel current.
+   - Free crossings, then, for as long as I'm poling. And you've earned the rest of the story.
+   [sets {"quest.ferrymans-wager.done": true}]
+
+### sel.docks.rotting  [Sel] node=brackwater kind=greeting when={"yearMin": 3, "population": [{"node": "r2", "lineId": "mirefin-line", "op": "lte", "value": 4}]}
+   - Third and fourth pilings are soft. Nobody's paying to drive new ones — town replaces pilings out of the fishery levy and the levy is off the Mirefin count.
+   - So the dock rots at the speed of the channel. That's not a saying. That's the accounting.
+
+### sel.docks.rebuilt  [Sel] node=brackwater kind=greeting when={"yearMin": 3, "population": [{"node": "r2", "lineId": "mirefin-line", "op": "gte", "value": 9}]}
+   - New pilings on three and four. Levy came in over estimate and the town spent it on the thing that holds the town up, for once.
+   - Deck's level enough to roll a barrel down now. It has not been level since I was thirty.
+
+### bram.greeting  [Bram] node=cindershelf kind=greeting when={}
+   - Bram. Forge is mine, the shaft-head above it is the town's, and the heat under both of them belongs to nobody I've met.
+   - If you've a relic, put it on the bench. If you've a question, ask it while I work.
+
+### bram.warm.1  [Bram] node=cindershelf kind=lore when={"actMin": 4, "flagsUnset": ["chain.kilnback.step1"]}
+   - Put your hand flat on the floor. Go on. That's not the forge; the forge is cold since first light.
+   - The vents run hot in bursts — up, over, gone in an hour. This runs steady. Steady is the strange part.
+   - Miners have a name for it. The warm shell below. Third shaft has been eight degrees over every other shaft since the day it was cut, and the difference has never once moved.
+   [sets {"chain.kilnback.step1": true}]
+
+### bram.warm.2  [Bram] node=cindershelf kind=lore when={"actMin": 4, "flagsSet": ["chain.kilnback.step2"], "flagsUnset": ["chain.kilnback.step3"]}
+   - You found the shrine at the shaft head. Now look at what it's built out of, because it isn't stone.
+   - That's shell. Kiln-fired, and thick as a door. Every shrine in this mine is a piece of the same shell and the pieces don't match any tortoise anyone can name.
+   [sets {"chain.kilnback.step3": true}]
+
+### bram.warm.3  [Bram] node=cindershelf kind=lore when={"actMin": 4, "flagsSet": ["chain.kilnback.step5"], "flagsUnset": ["chain.kilnback.complete"]}
+   - Gerta's readings, the deep shrine, and my floor. Three measurements, one answer.
+   - Kilnback. It's on the older shrine in letters we stopped cutting before the mine existed.
+   - It doesn't age. Sable's grandmother wrote that down as a joke and the temperature log has been proving it ever since.
+   - Take the card. Deep shrine, third shaft, when the vents are quiet. And take something that resists Fire, because you will not out-wait it.
+   [sets {"chain.kilnback.step6": true, "chain.kilnback.complete": true}]
+
+### bram.quest.forge.offer  [Bram] node=cindershelf kind=quest when={"actMin": 4, "flagsSet": ["lifecycle.first-retirement"], "flagsUnset": ["quest.forge-a-legacy.done"]}
+   - One of yours has run out of years, then. You'll have kept the relic — everyone keeps the relic, they just don't know what it's for.
+   - Bring it here and I'll set it. A set relic is a held item; it carries a slice of what the animal was into whatever holds it next.
+   - Bring the relic and one ingot off the shaft-head store. That's the whole cost.
+   [sets {"quest.forge-a-legacy.taken": true}]
+
+### bram.quest.forge.done  [Bram] node=cindershelf kind=quest when={"flagsSet": ["quest.forge-a-legacy.turnin", "quest.forge-a-legacy.taken"], "flagsUnset": ["quest.forge-a-legacy.done"]}
+   - There. Cooled, seated, and it will not come loose.
+   - Name's stamped underneath where nobody looks. That's the part I do for free.
+   [sets {"quest.forge-a-legacy.done": true}]
+
+### bram.mine.expanding  [Bram] node=cindershelf kind=greeting when={"yearMin": 5, "population": [{"node": "r4", "lineId": "cragmar-line", "op": "gte", "value": 12}]}
+   - Fifth shaft opened this spring. Town only cuts a new shaft when the steppe can feed the crews that dig it.
+   - Cragmar on the scarp again, which means grazing, which means the flora came back. The mine follows the ram, always has.
+
+### bram.mine.closing  [Bram] node=cindershelf kind=greeting when={"yearMin": 5, "population": [{"node": "r4", "lineId": "cragmar-line", "op": "lte", "value": 3}]}
+   - Fourth shaft's boarded. Not collapsed — boarded. Somebody signed that.
+   - Third stays open as long as I'm here. It's the warm one and I'm not letting them close the warm one.
+
+### gerta.greeting  [Gerta] node=cindershelf kind=greeting when={}
+   - Gerta. Thirty-one years down the third shaft, and I have carried a thermometer every one of them.
+   - Nobody paid me to. It's just that once you notice a number moving you can't stop reading it.
+
+### gerta.warm.testimony  [Gerta] node=cindershelf kind=lore when={"actMin": 4, "flagsSet": ["chain.kilnback.step3"], "flagsUnset": ["chain.kilnback.step4"]}
+   - Bram sent you for the log. Here — thirty-one years of the third shaft, one reading a shift.
+   - Eight degrees over, flat, for three decades. Except twice. Twice it went to fourteen for about four days and then back down.
+   - Both times were the winter after a vent season that never came. Whatever's down there was cold and did something about it.
+   - Deep shrine sits at the bottom of the warm reach. Take the log to Bram and then take yourself down there.
+   [sets {"chain.kilnback.step4": true}]
+
+### gerta.quest.crash.offer  [Gerta] node=cindershelf kind=quest when={"actMin": 4, "flagsUnset": ["quest.after-the-crash.done", "quest.after-the-crash.taken"]}
+   - The steppe survey. I can't finish it alone and Maren can't finish it at all — she's needed at the ledger desk.
+   - Five counts on Cinder Steppe. Ashvole, Cragmar, Pyrelisk, Stonewing, Carricrow. Just the numbers; I'll do the reading.
+   - Bring me all five and the flora reading with them. The flora reading is the one that tells you what happened; the counts tell you how far it has got.
+   > CHOICE: I'll walk the counts. -> gerta.quest.crash.accepted
+   > CHOICE: Later. -> gerta.quest.crash.declined
+
+### gerta.quest.crash.accepted  [Gerta] node=cindershelf kind=quest when={"flagsSet": ["quest.after-the-crash.taken"], "flagsUnset": ["quest.after-the-crash.done"]}
+   - West scarp first, then the vent line, then the low ground. That's the order the crews worked it in and it's the order it emptied in.
+
+### gerta.quest.crash.declined  [Gerta] node=cindershelf kind=quest when={"actMin": 4, "flagsUnset": ["quest.after-the-crash.done", "quest.after-the-crash.taken"]}
+   - The counts will keep. They've stopped moving much.
+
+### gerta.quest.crash.done  [Gerta] node=cindershelf kind=quest when={"flagsSet": ["quest.after-the-crash.turnin"], "flagsUnset": ["quest.after-the-crash.done"]}
+   - Carricrow. Always Carricrow. Scavenger weight rises with recent deaths, so a crow count is a death count wearing feathers.
+   - Read it back down the web and you get the order. Flora stock went first. Ashvole and Cragmar graze it, so they followed. Pyrelisk followed the Ashvole. Stonewing had nothing left to hunt and the scarp went quiet.
+   - That's a crashed web, top to bottom, in five numbers. Now you can read one anywhere.
+   [sets {"quest.after-the-crash.done": true, "lore.scavenger.unlocked": true}]
+
+### tolm.greeting  [Tolm] node=hearthollow kind=greeting when={}
+   - Tolm. Four fields on the Hearthollow side of the fence, and one of them fallow every year whether I like it or not.
+   - Mind the gate on your way through. Bramblehog have been working the post again.
+
+### tolm.quest.fallow.offer  [Tolm] node=hearthollow kind=quest when={"flagsUnset": ["quest.fallow-field.done", "quest.fallow-field.taken"], "population": [{"node": "hearthollow", "lineId": "loamunder-line", "op": "gte", "value": 24}]}
+   - Loamunder are what turn my west field. They walk it, they seed it, and come spring I get a crop off ground that would otherwise lie fallow.
+   - There are twenty-four of them my side of the fence. What I want is twenty-four of them there at harvest.
+   - So: leave the Loamunder standing through the year and I'll pay you out of the crop. It's a bigger purse than the snare would fetch, and it's a purse that comes back every year I'm farming.
+   - You can take them instead. Buyers in Hearthollow will give you coin today for a Loamunder. I'd just rather you took my offer, and I'd rather say so plainly than have you guess.
+   > CHOICE: I'll leave the field alone. -> tolm.quest.fallow.accepted
+   > CHOICE: I'll think about it. -> tolm.quest.fallow.declined
+
+### tolm.quest.fallow.accepted  [Tolm] node=hearthollow kind=quest when={"flagsSet": ["quest.fallow-field.taken"], "flagsUnset": ["quest.fallow-field.done"]}
+   - Good. Count's twenty-four; I'll walk it myself at the turn of the year and we'll compare books.
+   - Meadow Reach has its own Loamunder and they are not mine. Nothing in this arrangement covers the Reach.
+
+### tolm.quest.fallow.declined  [Tolm] node=hearthollow kind=quest when={"flagsUnset": ["quest.fallow-field.done", "quest.fallow-field.taken"], "population": [{"node": "hearthollow", "lineId": "loamunder-line", "op": "gte", "value": 24}]}
+   - Fair enough. Offer stands until harvest.
+
+### tolm.quest.fallow.done.kept  [Tolm] node=hearthollow kind=quest when={"flagsSet": ["quest.fallow-field.turnin"], "population": [{"node": "hearthollow", "lineId": "loamunder-line", "op": "gte", "value": 24}], "flagsUnset": ["quest.fallow-field.done"]}
+   - Twenty-four, and two of them juveniles I didn't have in spring. Here's your share, and it's heavier than I quoted.
+   - West field came in at full weight. Meadow Reach came in over — the bloom carried right across the fence line.
+   - Same arrangement next year, if you're still walking.
+   [sets {"quest.fallow-field.done": true, "quest.fallow-field.result": "kept"}]
+
+### tolm.quest.fallow.done.short  [Tolm] node=hearthollow kind=quest when={"flagsSet": ["quest.fallow-field.turnin"], "flagsUnset": ["quest.fallow-field.done"]}
+   - Count's short of twenty-four, so the crop share doesn't trigger. That's the arrangement working as written.
+   - West field goes fallow another year. I'll sow the east twice and make it up somewhere.
+   - Offer's the same next spring. Numbers are the numbers.
+   [sets {"quest.fallow-field.done": true, "quest.fallow-field.result": "short"}]
+
+### nessa.greeting  [Hetty] node=brackwater kind=greeting when={}
+   - Hetty. Fishery cut my hours two seasons back, so I survey the shallows for nobody and write it down anyway.
+   - Creel's empty. Ask me about the creel and I'll talk for an hour.
+
+### nessa.quest.restock.offer  [Hetty] node=brackwater kind=quest when={"actMin": 2, "flagsUnset": ["quest.restock-the-shallows.done", "quest.restock-the-shallows.taken"]}
+   - You know the line runs Bogling to Mirefin? Same animal. Tadpole in the shallows, lungfish in the channel.
+   - The fishery takes Mirefin out of the channel. Bogling and Mirefin are one line on the warden's page — the same count, whichever end of it you are looking at.
+   - The Brackmarsh count is low. I want four Boglings put back into that water, and I don't mind where you get them.
+   - Your snare opens. Stand in the shallows and open it — that's release, and the ledger counts it the same way it counts a catch, sign reversed.
+   > CHOICE: Four Boglings, into the shallows. -> nessa.quest.restock.accepted
+   > CHOICE: Ask what the fishery pays. -> nessa.quest.restock.economics
+
+### nessa.quest.restock.accepted  [Hetty] node=brackwater kind=quest when={"flagsSet": ["quest.restock-the-shallows.taken"], "flagsUnset": ["quest.restock-the-shallows.done"]}
+   - Put them in on the Brackmarsh side. There is a Fenmaw working the channel mouth and it will take a small one straight back off the count.
+
+### nessa.quest.restock.economics  [Hetty] node=brackwater kind=quest when={"actMin": 2, "flagsUnset": ["quest.restock-the-shallows.done", "quest.restock-the-shallows.taken"]}
+   - The buyer prices the season off that count and the levy comes off the price. So the count is the wage, and everybody here talks about the wage and nobody talks about the count.
+   - Put one back and the count goes up by one. That is the whole of it, and half of Brackwater has never once thought about it.
+   - It isn't fast money. It is the only money anybody here can actually move.
+   > CHOICE: Four Boglings, into the shallows. -> nessa.quest.restock.accepted
+
+### nessa.quest.restock.done  [Hetty] node=brackwater kind=quest when={"flagsSet": ["quest.restock-the-shallows.turnin"], "flagsUnset": ["quest.restock-the-shallows.done"]}
+   - Four in, and the Brackmarsh count on my board goes up by four. First time it's moved up since I started the board.
+   - The buyer prices off that count, so the levy moves when the count moves. I will see it on the board before I see it in the creel.
+   [sets {"quest.restock-the-shallows.done": true}]
+
+### halder.greeting  [Halder] node=bowerdeep kind=greeting when={}
+   - Halder. Silk, thread, finished bolt, and the only stall in the night market that pays on the day.
+   - Webvern silk. Nothing else in Fallowmere holds a dye like it and nothing else pays the canopy's wages.
+
+### halder.quest.silk.offer  [Halder] node=bowerdeep kind=quest when={"actMin": 3, "flagsUnset": ["quest.silk-shortage.done", "quest.silk-shortage.taken"]}
+   - I have an order I cannot fill. Three Webvern, adult, alive, delivered to the winding house.
+   - Vesper has been at the council about it. Her position is that three adults out of the canopy is more than the canopy replaces in a year, and she has the count to show it.
+   - Both of those are true at once. That's the shape of it. I'm not going to pretend she's wrong to get you to say yes.
+   - Three Webvern, my price, or walk away and tell her I asked.
+   > CHOICE: I'll bring the three. -> halder.quest.silk.accepted
+   > CHOICE: I'll hear Vesper first. -> halder.quest.silk.deferred
+
+### halder.quest.silk.accepted  [Halder] node=bowerdeep kind=quest when={"flagsSet": ["quest.silk-shortage.taken"], "flagsUnset": ["quest.silk-shortage.done"]}
+   - Adults only. A juvenile spins thread you can snap with a breath and the buyer will know.
+   - They hang the high lines in Bowerdeep Wilds. Take something that isn't afraid of Poison.
+
+### halder.quest.silk.deferred  [Halder] node=bowerdeep kind=quest when={"actMin": 3, "flagsUnset": ["quest.silk-shortage.done", "quest.silk-shortage.taken"]}
+   - Go on then. She's more interesting than I am on this and she'll tell you the count without rounding it.
+
+### halder.quest.silk.done  [Halder] node=bowerdeep kind=quest when={"flagsSet": ["quest.silk-shortage.turnin"], "flagsUnset": ["quest.silk-shortage.done"]}
+   - Three adults. Order goes out on the morning barge and Bowerdeep keeps the trade another year.
+   - Vesper will have the new canopy count by the festival. She always does, and she always reads it out.
+   [sets {"quest.silk-shortage.done": true, "quest.silk-shortage.result": "delivered"}]
+
+### pell.greeting  [Pell] node=bowerdeep kind=greeting when={}
+   - Pell. I keep the lantern road from the winding house out to the eastern stair, and I have kept it forty years.
+   - Autumn's the hard month. Everything with wings comes through at once and half of it comes through the lamps.
+
+### pell.quest.lanternless.offer  [Pell] node=bowerdeep kind=quest when={"actMin": 3, "seasons": ["autumn"], "flagsUnset": ["quest.lanternless-night.done", "quest.lanternless-night.taken"]}
+   - Gloomoth migration starts tonight. Region-wide — they come up out of the Wilds and go through Bowerdeep on their way to wherever they go.
+   - They are Dark and Wind and they take the lamps out as they pass. Not on purpose. They just fill the air.
+   - I need a walk to the eastern stair and back with the relight kit. Duskstalk work the dark stretches, and a road with its lamps out is one long dark stretch.
+   - One night. Autumn only — out of autumn they're not here at all, and the sign cards will read migrating rather than gone.
+   > CHOICE: I'll walk the road. -> pell.quest.lanternless.accepted
+   > CHOICE: Not tonight. -> pell.quest.lanternless.declined
+
+### pell.quest.lanternless.accepted  [Pell] node=bowerdeep kind=quest when={"flagsSet": ["quest.lanternless-night.taken"], "flagsUnset": ["quest.lanternless-night.done"]}
+   - Stay under the lit stretch and move when I move. If a lamp goes, we light it before we take another step.
+
+### pell.quest.lanternless.declined  [Pell] node=bowerdeep kind=quest when={"actMin": 3, "seasons": ["autumn"], "flagsUnset": ["quest.lanternless-night.done", "quest.lanternless-night.taken"]}
+   - Then it's a dark road and I've walked it dark before. Ask me again while the moths are still through.
+
+### pell.quest.lanternless.done  [Pell] node=bowerdeep kind=quest when={"flagsSet": ["quest.lanternless-night.turnin"], "flagsUnset": ["quest.lanternless-night.done"]}
+   - Every lamp on the road, and a Duskstalk turned at the stair instead of at us. Good walking.
+   - They'll be gone by winter and the road will be quiet and I will miss them, which I do not explain to people.
+   [sets {"quest.lanternless-night.done": true}]
+
+### ives.greeting  [Ives] node=duskhollow kind=greeting when={}
+   - Ives. Observatory. I do the census — the one on the ground, not the one overhead.
+   - Duskhollow counts stars and Duskhollow counts animals with the same instrument, which is a person, sitting still, writing things down.
+
+### ives.quest.census.offer  [Ives] node=duskhollow kind=quest when={"actMin": 5, "flagsUnset": ["quest.star-census.offered"]}
+   - The star census is the dex, kept properly. Every identity you've entered, with the age forms counted separately, because a Bogling and a Mirefin are not the same page.
+   - Bring me milestones and I'll have the illustrators paint the entry out properly. Painted, on good paper, with the field notes underneath.
+   - Migrants get a flag on the card — dormant or migrating. An absent Wispurr in summer is not a missing Wispurr, and the card must never let you confuse the two.
+   [sets {"quest.star-census.offered": true}]
+
+### ives.quest.census.milestone  [Ives] node=duskhollow kind=quest when={"flagsSet": ["quest.star-census.milestone", "quest.star-census.offered"], "flagsUnset": ["quest.star-census.paid"]}
+   - Another milestone. Here's the plate, still tacky — hold it by the edge.
+   - Thirty-five identities in the full census. Nobody in Fallowmere has all thirty-five, including the observatory.
+   [sets {"quest.star-census.paid": true}]
+
+### orrin.greeting  [Orrin] node=duskhollow kind=greeting when={}
+   - Orrin. Archive, mostly. Ives has the eyepiece and I have the shelves and we are both convinced the other has the easy job.
+   - The vale runs darker every year. Ives says my lamp is failing. My lamp is four years old.
+
+### orrin.vanishing  [Orrin] node=duskhollow kind=lore when={"actMin": 5, "flagsSet": ["chain.vellsire.step6"], "flagsUnset": ["chain.vellsire.step7"]}
+   - You want the vanishing. Everyone eventually wants the vanishing, and the archive is the only place it exists as a document.
+   - Duskhollow logs the sky nightly and has since the observatory was roofed. When something crosses the vale under the instrument, it goes in the margin.
+   - There are two hundred and six margin entries for Vellsire across ninety years. Herds of nine, of twelve, of four. Then one entry with three separate observers on the same night: a herd of six crossing the vale toward the caldera.
+   - And then the margin is empty. Not thinning — empty, from that night, for thirty years, in a book that never misses a night.
+   - Animals do not stop existing on a date. They stop being where the instrument points. Whatever went through that gate went through it all at once.
+   [sets {"chain.vellsire.step7": true}]
+
+### orrin.quest.trail.offer  [Orrin] node=duskhollow kind=quest when={"actMin": 5, "flagsSet": ["chain.vellsire.step7"], "flagsUnset": ["quest.vellsires-trail.done", "quest.vellsires-trail.taken"]}
+   - The antler stones are a trail and the trail has a direction. Meadow Reach, Brackmarsh, the Wilds, the steppe, the vale, the Approach.
+   - Each stone carries a sign older than any card in your pouch. Reading one needs Instinct, and reading the last one needs more Instinct than reading the first.
+   - Walk the trail in order and bring me what the stones say. I have waited a long time for someone with the legs for it.
+   > CHOICE: I'll walk the stones. -> orrin.quest.trail.accepted
+   > CHOICE: Not yet. -> orrin.quest.trail.declined
+
+### orrin.quest.trail.accepted  [Orrin] node=duskhollow kind=quest when={"flagsSet": ["quest.vellsires-trail.taken"], "flagsUnset": ["quest.vellsires-trail.done"]}
+   - In order. The stones were cut in order and they do not read out of it.
+   - Take the sharpest thing on your team. Instinct decides how much of a sign you get, and a poor read on the last stone is the same as no read at all.
+
+### orrin.quest.trail.declined  [Orrin] node=duskhollow kind=quest when={"flagsSet": ["chain.vellsire.step7"], "flagsUnset": ["quest.vellsires-trail.done", "quest.vellsires-trail.taken"]}
+   - Thirty years. I can manage another season.
+
+### orrin.quest.trail.done  [Orrin] node=duskhollow kind=quest when={"flagsSet": ["quest.vellsires-trail.turnin"], "flagsUnset": ["quest.vellsires-trail.done"]}
+   - All six. Laid end to end they are one sentence and the sentence is a direction.
+   - It points at the Sanctum Fallow, which everybody guessed, and it gives a season, which nobody did.
+   - Take this to Maren. She has been the other half of this file for eleven years and does not know it.
+   [sets {"quest.vellsires-trail.done": true}]
+
+### prop.hearthollow-signpost  [Sign Card] node=hearthollow kind=prop when={}
+   - WARDEN'S FIELD STATION — Hearthollow. Counts posted at first light. Corrections welcome; guesses are not.
+   - Below, in a different hand: Meadow Reach through the north gate. Take the ledger.
+
+### prop.r1-sign-forage  [Sign Card] node=r1 kind=prop when={}
+   - FORAGE SIGN — Meadow Reach. Tracks, scrapes, castings, browse lines. Read one and you have a card.
+   - A card on a migrant reads DORMANT or MIGRATING. Neither word means gone.
+
+### prop.r1-antler-north  [Antler Standing-Stone] node=r1 kind=prop when={"flagsSet": ["chain.vellsire.step1"], "flagsUnset": ["chain.vellsire.step2"]}
+   - A standing stone cut into branching antlers, worn round on the weather side. It is taller than you and set deep.
+   - The carving on the sheltered face is a herd, six figures, and a line running north from them.
+   - The stone is warm where the meadow grass banks against it. Nothing else on Meadow Reach is.
+   [sets {"chain.vellsire.step2": true, "trail.stone.r1": true}]
+
+### prop.r1-antler-south  [Antler Standing-Stone] node=r1 kind=prop when={}
+   - The southern stone, snapped off at half height. The break is old enough to have grown its own lichen.
+   - What is left of the carving shows hooves and the bottom of a line. The line points at its northern twin.
+
+### prop.brackwater-idol-dock  [Sunken Idol] node=brackwater kind=prop when={"actMin": 2, "flagsSet": ["chain.undermere.step1"], "flagsUnset": ["chain.undermere.step2"]}
+   - A stone figure stands half under the water off the dock rim, facing out. The shallows around it are clear and the water directly beneath it is not.
+   - It has no eyes. Not weathered away — never cut. The face is finished everywhere else.
+   - The stone is not marsh stone. There is nothing in Brackwater that would cut like this.
+   [sets {"chain.undermere.step2": true}]
+
+### prop.r2-idol-shallows  [Sunken Idol] node=r2 kind=prop when={"actMin": 2, "flagsSet": ["chain.undermere.step4"], "flagsUnset": ["chain.undermere.step5"]}
+   - The second idol, out where the reeds thin. Same carving, same missing eyes, facing back across the water toward the dock.
+   - Between the two of them the reed stops growing in a band about a boat wide.
+   - Your pole finds nothing under that band. Sel said it wouldn't.
+   [sets {"chain.undermere.step5": true}]
+
+### prop.r2-antler-causeway  [Antler Standing-Stone] node=r2 kind=prop when={"actMin": 2, "flagsSet": ["chain.vellsire.step3"], "flagsUnset": ["chain.vellsire.step4"]}
+   - The causeway stone leans, but it leans the way it was set — the marsh has moved around it and it has not moved with the marsh.
+   - Six figures again, and the line out of them runs east. Someone has re-cut the line at least once; the groove has two depths.
+   - Whoever kept these stones kept them for long enough to need to repair them.
+   [sets {"chain.vellsire.step4": true, "trail.stone.r2": true}]
+
+### prop.bowerdeep-sign-market  [Sign Card] node=bowerdeep kind=prop when={}
+   - NIGHT MARKET — open dusk to dawn. Silk, thread, dye, lamp oil, relight kits.
+   - Pinned beneath: canopy count, posted by the gym. The figure has been crossed out and rewritten twice this season.
+
+### prop.r3-antler-canopy  [Antler Standing-Stone] node=r3 kind=prop when={"flagsSet": ["chain.vellsire.step4"], "flagsUnset": ["trail.stone.r3"]}
+   - The forest grew up around this one. Two trunks have closed against its sides and stopped, as if they met something they would not pass.
+   - The herd on the sheltered face is six figures. It has been six on every stone.
+   - The line runs east again, toward the steppe.
+   [sets {"trail.stone.r3": true}]
+
+### prop.cindershelf-shrine-mine  [Shell-Kiln Shrine] node=cindershelf kind=prop when={"actMin": 4, "flagsSet": ["chain.kilnback.step1"], "flagsUnset": ["chain.kilnback.step2"]}
+   - A shrine at the shaft head, built from curved plates the colour of fired clay, fitted without mortar.
+   - The plates are not clay. Up close the grain is bone, kiln-hardened, and each plate is thicker than a door.
+   - Miners have set candles in the joins for long enough to have worn hollows for them.
+   [sets {"chain.kilnback.step2": true}]
+
+### prop.cindershelf-shrine-deep  [Shell-Kiln Shrine] node=cindershelf kind=prop when={"actMin": 4, "flagsSet": ["chain.kilnback.step4"], "flagsUnset": ["chain.kilnback.step5"]}
+   - The deep shrine, at the bottom of the warm reach. The air here is still and eight degrees over and it has been for thirty-one years.
+   - This shrine is one plate, not many. It is the size of a cart and it is curved, and it was never quarried — it was shed.
+   - A word is cut across the join in letters the mine stopped using: KILNBACK.
+   [sets {"chain.kilnback.step5": true}]
+
+### prop.r4-antler-vent  [Antler Standing-Stone] node=r4 kind=prop when={"flagsSet": ["chain.vellsire.step4"], "flagsUnset": ["trail.stone.r4"]}
+   - Vent heat has glazed the windward face to glass. The sheltered face is untouched and sharp.
+   - Six figures. The line runs south-east, toward the vale.
+   [sets {"trail.stone.r4": true}]
+
+### prop.duskhollow-sign-observatory  [Sign Card] node=duskhollow kind=prop when={}
+   - STAR CENSUS — identities recorded, of thirty-five. Painted plates issued at each milestone.
+   - Under the board, in Orrin's hand: the margin is a census too.
+
+### prop.r5-antler-vale  [Antler Standing-Stone] node=r5 kind=prop when={"flagsSet": ["chain.vellsire.step4"], "flagsUnset": ["trail.stone.r5"]}
+   - The vale stone stands in open ground with no cover for a quarter mile in any direction. It was meant to be seen at night.
+   - Six figures, and the line runs up — not along the ground. Up, toward the caldera rim.
+   [sets {"trail.stone.r5": true}]
+
+### prop.sanctum-approach-antler-gate  [Antler Standing-Stone] node=sanctum-approach kind=prop when={"actMin": 6, "flagsSet": ["chain.vellsire.step8"], "flagsUnset": ["chain.vellsire.step9"]}
+   - The gate stone. The largest of them, and the only one with the herd cut on both faces.
+   - On the outward face: six figures walking in. On the inward face: six figures standing still.
+   [sets {"chain.vellsire.step9": true, "trail.stone.sanctum-approach": true}]
+
+### prop.sanctum-approach-antler-inner  [Antler Standing-Stone] node=sanctum-approach kind=prop when={}
+   - An inner stone, unfinished. The antlers are roughed out and the herd was never cut.
+   - The tools are still at its foot under a century of ash. Whoever was working stopped and did not come back.
+
+### prop.sanctum-antler-ring  [Antler Standing-Stone] node=sanctum kind=prop when={"actMin": 6}
+   - The ring at the caldera heart: nine stones, every one carved, every one facing inward.
+   - The herd on these is not six. On these it is one.
+   - The grass inside the ring is the only green thing in the Sanctum Fallow, and it is grazed short.
+
+### sanctum.vellsire.approach  [Antler Standing-Stone] node=sanctum kind=cutscene when={"actMin": 6, "flagsSet": ["story.greaves.beaten"], "flagsUnset": ["story.vellsire.resolved"], "population": [{"node": "sanctum", "lineId": "vellsire-line", "op": "gte", "value": 1}]}
+   - It comes down into the ring without hurrying, and it is larger than the carvings made it.
+   - Beast and Dark. Elder, and it has been Elder longer than the stones have been standing, and it will not be anything else.
+   - It waits inside the ring. Whatever happens next happens because you do it.
+   > CHOICE: Set the snare. -> None
+   > CHOICE: Stand aside and let it pass. -> None
+
+### maren.epilogue.caught  [Warden Maren] node=sanctum kind=cutscene when={"actMin": 6, "flagsSet": ["story.vellsire.resolved"], "flagsUnset": ["story.epilogue.shown"], "flagEquals": [{"key": "story.vellsire.outcome", "value": "caught"}]}
+   - It's yours. Ancients don't age, so it stays exactly as it is for as long as you do.
+   - Counts, then. Meadow Reach, Brackmarsh, Bowerdeep Wilds, Cinder Steppe, Duskhollow Vale, the Approach. This morning, in the same hand as the ones I took the week you started.
+   - Breeding in every node adjacent to the Sanctum runs at the base rate now. That's the whole of the difference, and it is a real one — four seasons to see it, eight to be sure of it.
+   - Bring it by the station some time. I have never had the chance to measure one.
+   [sets {"story.epilogue.shown": true}]
+
+### maren.epilogue.released  [Warden Maren] node=sanctum kind=cutscene when={"actMin": 6, "flagsSet": ["story.vellsire.resolved"], "flagsUnset": ["story.epilogue.shown"], "flagEquals": [{"key": "story.vellsire.outcome", "value": "released"}]}
+   - It went up the scarp and over the rim and it did not hurry.
+   - Counts, then. The same six nodes, the same hand, this morning.
+   - Breeding in every node adjacent to the Sanctum runs at one and a half while it is out there. That is not a story. It is a coefficient, and it will show.
+   - You don't own the thing you spent six years finding. That is the other half of the entry and I am writing it down too.
+   [sets {"story.epilogue.shown": true}]
+
+### innkeeper-hearthollow.rest  [Innkeeper] node=hearthollow kind=service when={}
+   - Bed's two ticks off the season meter and everything you're carrying comes back up to full.
+   - Lanterns go up on the green at festival. You'll want to be in town for that one.
+
+### innkeeper-brackwater.rest  [Innkeeper] node=brackwater kind=service when={}
+   - Rooms are over the water, so they sway. Everyone says they won't sleep and everyone sleeps.
+   - Two ticks, full heal, and I'll have your boots dry by morning.
+
+### innkeeper-bowerdeep.rest  [Innkeeper] node=bowerdeep kind=service when={}
+   - We rent by the day here, not the night. Night is when the market's open.
+   - Dark lines come up into the eaves after dusk. They've never bothered a paying guest.
+
+### innkeeper-cindershelf.rest  [Innkeeper] node=cindershelf kind=service when={}
+   - Two ticks. Water's hot without heating it; that's the one thing this town gets free.
+   - Rooms on the vent side are warmer and shake more. Your choice.
+
+### innkeeper-duskhollow.rest  [Innkeeper] node=duskhollow kind=service when={}
+   - Two ticks, and the shutters stay open — observatory rules, the whole town keeps them.
+   - The vale's darker than it was when I took this place on. That's not a mood, it's on Orrin's chart.
+
+### vendor-hearthollow.shop  [Market Vendor] node=hearthollow kind=service when={}
+   - Snares, salve, tonic, bait mats. Weighted snares when the smith has them and not before.
+   - Role bait's cheap and works on anything of that role. Species bait costs and works properly.
+   - Bait's crafted off the web. If you don't know what your target eats, you're buying at random.
+
+### vendor-brackwater.shop  [Market Vendor] node=brackwater kind=service when={}
+   - Marsh stock: tonic, salve, weighted snares, and reed bait by the bundle.
+   - Reed bait takes Grazers. Out here that's Reedrick, and Reedrick is a summer animal, so the bait sits on my shelf half the year.
+   - Prices move with the levy, and the levy moves with the channel count. Ask Odo, not me.
+
+### vendor-bowerdeep.shop  [Night Market Vendor] node=bowerdeep kind=service when={}
+   - Night market. Open dusk to dawn, and no, we don't do mornings.
+   - Lamp oil, relight kits, tonics, silk by the bolt. Dark lines come to the stalls; step round them, they're browsing.
+   - Master snares turn up here about twice a year and go the same night.
+
+### vendor-cindershelf.shop  [Market Vendor] node=cindershelf kind=service when={}
+   - Ingots, snares, salve, and ash bait, which is the only thing an Ashvole will look at.
+   - Company store closed when the contract closed. I'm what's left and my prices show it.
+   - Bram takes relics next door. He does not take payment for the stamping and don't offer.
+
+### vendor-duskhollow.shop  [Market Vendor] node=duskhollow kind=service when={}
+   - Lamps, oil, tonic, master snares. In the vale the lamp is the important one.
+   - Dark bait moves in winter when the Wispurr are up and sits on the shelf the rest of the year.
+   - Observatory buys my whole lamp stock every autumn. I don't ask why and they don't say.
+
+### amb.hearthollow-elder.base  [Old Drover] node=hearthollow kind=ambient when={}
+   - Drove cattle up Meadow Reach for fifty years. Now I sit here and watch other people walk up it.
+   - Meadow is producer country. Loamunder turn the ground and everything else lives off what they turn.
+   - Skir over the hedge at dusk. A kestrel won't hunt what it can't see move.
+
+### amb.hearthollow-elder.bloom  [Old Drover] node=hearthollow kind=ambient when={"yearMin": 2, "floraStock": [{"node": "r1", "op": "gte", "value": 80}]}
+   - Reach came in green right down to the fence line. I've not seen it come that far since I was droving.
+   - When the Reach blooms it spills into the town fields, and Tolm gets a crop off ground he'd written off.
+
+### amb.hearthollow-elder.thin  [Old Drover] node=hearthollow kind=ambient when={"yearMin": 2, "floraStock": [{"node": "r1", "op": "lte", "value": 45}]}
+   - Reach is short this year. Grass came up but it's thin and the ground shows through on the rise.
+   - The fields follow the Reach. Always have. Tolm's west side shows it first.
+
+### amb.hearthollow-child.base  [Hearthollow Child] node=hearthollow kind=ambient when={}
+   - Maren let me hold the ledger once. It's just numbers. I thought it would have drawings.
+   - There's a Nibbin under the mill step. I gave it a name and Maren says that isn't how counting works.
+   - When I'm bigger I'm walking all the way to the Sanctum Fallow. Everyone says it's shut.
+
+### amb.hearthollow-child.older  [Hearthollow Child] node=hearthollow kind=ambient when={"yearMin": 5}
+   - The festival lanterns were better when I was small. My mother says I was smaller, not the lanterns.
+   - The Nibbin under the mill step is an Elder now. It's the same one. I checked against the ledger.
+
+### amb.hearthollow-farmhand.base  [Farmhand] node=hearthollow kind=ambient when={}
+   - Bramblehog took the west gate apart again. Third time this season and it's the same post.
+   - Loamunder walk the furrows all night. Stand still out there and you can hear them working.
+   - Harvest is in six weeks and I have two hands and four fields.
+
+### amb.hearthollow-forager.base  [Forager] node=hearthollow kind=ambient when={}
+   - Sign cards. Tracks, scrapes, castings, browse lines. You learn to read them or you walk past everything.
+   - Pollywisp are spring only. Out of spring the card says dormant, which means down, not gone.
+   - Instinct decides how much a card gives you. A dull creature makes a poor read of a good sign.
+
+### amb.hearthollow-fenceman.base  [Fence-Mender] node=hearthollow kind=ambient when={}
+   - Fence line's four miles. I mend it twice a year and I have never once got ahead of it.
+   - Whatever comes through here has hooves and shoulders behind them. Bramblehog, most likely.
+   - Maren says put a count on it. I say I put a post on it.
+
+### amb.brackwater-dockhand.base  [Dockhand] node=brackwater kind=ambient when={}
+   - Barge lands at slack water or it doesn't land. That's not a preference, that's the channel.
+   - Everything Brackwater sells comes out of the water and everything it eats comes back over the water.
+   - Sel has poled that crossing longer than this dock has been standing. He'd tell you the same, at length.
+
+### amb.brackwater-dockhand.rot  [Dockhand] node=brackwater kind=ambient when={"yearMin": 3, "population": [{"node": "r2", "lineId": "mirefin-line", "op": "lte", "value": 4}]}
+   - Third piling's soft. You feel it through your boots when the barge lands.
+   - The levy pays for pilings and the levy comes off the channel count.
+
+### amb.brackwater-dockhand.rebuilt  [Dockhand] node=brackwater kind=ambient when={"yearMin": 3, "population": [{"node": "r2", "lineId": "mirefin-line", "op": "gte", "value": 9}]}
+   - New pilings on three and four. First new timber on this dock in eleven years.
+   - Deck's level. I keep noticing it, and then noticing that I noticed.
+
+### amb.brackwater-netmender.base  [Net-Mender] node=brackwater kind=ambient when={}
+   - Coarse nets for Mirefin, fine nets for Bogling. You don't put the fine ones out unless a buyer has asked.
+   - Reedrick walk the shallows all summer and are somewhere else the rest of the year. The card reads migrating.
+   - Sporantle take everything that dies out there. Brackmarsh would be a different smell without them.
+
+### amb.brackwater-child.base  [Brackwater Child] node=brackwater kind=ambient when={}
+   - I've seen a Fenmaw. It looked at the boat, and then it didn't.
+   - There's a stone man in the water off the dock and he hasn't got any eyes.
+   - Sel says don't trail your hand in the water. I trail my hand in the water.
+
+### amb.brackwater-elder.base  [Stilt-Town Elder] node=brackwater kind=ambient when={}
+   - Sixty years on these stilts. The water line on my post has not moved once in all of it.
+   - Drought years, flood years, same mark. Nobody thinks that's strange except Sel and the warden.
+   - My mother heard the pilings sing in a flood year. She never once said what did it.
+
+### amb.brackwater-buyer.base  [Fishery Buyer] node=brackwater kind=ambient when={}
+   - I price the season off the channel count. Not the shallows. The channel. That's what the contract says.
+   - The Fenmaw at the top of that marsh keep the Mirefin spread out. Sounds backwards. It isn't.
+   - Contract's sixty years old and nobody has asked to reopen it, including me.
+
+### amb.brackwater-buyer.lowseason  [Fishery Buyer] node=brackwater kind=ambient when={"yearMin": 3, "population": [{"node": "r2", "lineId": "fenmaw-line", "op": "lte", "value": 1}]}
+   - No confirmed Fenmaw in Brackmarsh this survey. The contract has a clause for that and the clause is not generous.
+   - Mirefin will run for a season or two without them and then the channel does something I've only read about.
+
+### amb.r1-forager.base  [Meadow Forager] node=r1 kind=ambient when={}
+   - Reach is the easiest country in Fallowmere and it still takes a season to learn where things stand.
+   - Loamunder up on the rise, Nibbin in the tussock, Bramblehog wherever the bramble is. Skir over all of it.
+   - There's a stone up north cut like antlers. Nobody in Hearthollow put it there.
+
+### amb.r1-forager.thin  [Meadow Forager] node=r1 kind=ambient when={"yearMin": 2, "population": [{"node": "r1", "lineId": "nibbin-line", "op": "lte", "value": 4}]}
+   - Walked the tussock line all morning for two Nibbin. It used to take about ten minutes.
+   - Skir are still up. They're working the far hedge now instead of the rise, which tells you where the voles went.
+
+### amb.r1-forager.bloom  [Meadow Forager] node=r1 kind=ambient when={"yearMin": 2, "floraStock": [{"node": "r1", "op": "gte", "value": 88}]}
+   - Bloom year. Flora stock is over anything in the warden's book and the grazers are all up with it.
+   - Everything eats better in a bloom year, including the things that eat the things that eat.
+
+### amb.r2-ferryhand.base  [Ferry-Hand] node=r2 kind=ambient when={}
+   - I pole the second boat when Sel's boat is full. Which is most days, because everyone wants his boat.
+   - Channel on the left, shallows on the right, and don't confuse them with a Bogling in the creel.
+   - There's an idol out where the reed thins. It faces the town. I've stopped looking at it.
+
+### amb.r2-ferryhand.quiet  [Ferry-Hand] node=r2 kind=ambient when={"yearMin": 3, "population": [{"node": "r2", "lineId": "reedrick-line", "op": "lte", "value": 10}]}
+   - Reed's gone quiet. In a normal summer you can't hear the pole for Reedrick calling.
+   - Sporantle are still thick. They always are. Something has to take what settles.
+
+### amb.bowerdeep-logger.base  [Logger] node=bowerdeep kind=ambient when={}
+   - Cullbrand buys what I cut. Cullbrand doesn't cut it. That distinction is in my contract and it is not in my back.
+   - Silk lines want light and light wants gaps. The trade needs the canopy open and closed at the same time.
+   - Barkhide keep the understory down. Where the elk stop browsing, the young growth closes and the light stops.
+
+### amb.bowerdeep-logger.thin  [Logger] node=bowerdeep kind=ambient when={"yearMin": 4, "population": [{"node": "r3", "lineId": "barkhide-line", "op": "lte", "value": 4}]}
+   - Canopy's thinning at the east stair. Not from cutting — nobody's cut there in four years.
+   - No Barkhide on that slope. The understory closed, the young trees went up together, and now the whole stand is the same age and the same height.
+
+### amb.bowerdeep-silkwinder.base  [Silk-Winder] node=bowerdeep kind=ambient when={}
+   - An adult Webvern gives thread you can pull a boat with. A juvenile gives thread you can break by looking at it.
+   - Winding house takes the raw line and turns it into bolt. The whole town's wages go through that one building.
+   - Vesper posts the canopy count on the market board. Halder posts his order beside it. Nobody planned that.
+
+### amb.bowerdeep-child.base  [Bowerdeep Child] node=bowerdeep kind=ambient when={}
+   - In autumn the Gloomoth come through and the lamps all go out at once and everyone shouts.
+   - Gloomgrub are the little ones. They're Poison and Plant and then they aren't, they're Dark and Wind. It's the same animal.
+   - I'm not allowed on the east stair after dark. There's a Duskstalk on the east stair.
+
+### amb.bowerdeep-elder.base  [Canopy Elder] node=bowerdeep kind=ambient when={}
+   - Bowerdeep is three towns stacked: the floor, the walk, and the canopy. I've lived on all three.
+   - Mosslet on the floor, Webvern up top, and Sporantle turning whatever falls between them.
+   - The market opens at dusk because the buyers keep to the dark. Been that way since before the market had a roof.
+
+### amb.bowerdeep-lampkeeper.base  [Lamp-Keeper] node=bowerdeep kind=ambient when={}
+   - Two hundred and eleven lamps on the walk. I know because I light them and I count as I go.
+   - Pell has the road out to the eastern stair. That's the hard stretch and he's had it forty years.
+   - Out of autumn the road's quiet. The moths aren't dead, they're elsewhere, and the card says so.
+
+### amb.cindershelf-miner.base  [Miner] node=cindershelf kind=ambient when={}
+   - Third shaft's warm. Everyone new asks and everyone old stops noticing, and Gerta never stopped noticing.
+   - Vents run hot in bursts. The shaft runs warm flat. Those are different heats and you learn the difference fast.
+   - Pyrelisk come up the vent line when it flares. You don't work the vent line on a flare day.
+
+### amb.cindershelf-shafthand.base  [Shaft-Hand] node=cindershelf kind=ambient when={}
+   - Mine follows the flare. Vents open new ground, the town digs it, the town moves. Half of Cindershelf is built on the last one's spoil.
+   - Shrines are all through the deep workings. We didn't put them there and we don't move them.
+   - Ashvole burrow the cinder. Where the Ashvole are is where the ground's soft enough to be worth cutting.
+
+### amb.cindershelf-elder.base  [Steppe Elder] node=cindershelf kind=ambient when={}
+   - Sixty-two years under the shelf. Four contracts, three of them good.
+   - Stonewing used to nest the west scarp in pairs and you could set your year by them.
+   - Cragmar on the high ground meant grazing, and grazing meant the flora had come back. That's how we read a year up here.
+
+### amb.cindershelf-child.base  [Cindershelf Child] node=cindershelf kind=ambient when={}
+   - The floor is warm in Bram's forge even when the forge is cold. He lets me feel it.
+   - There's a shrine at the bottom of the third shaft that's bigger than a cart.
+   - Sable's Pyrelisk is the loudest thing in this town and the vents are in this town.
+
+### amb.cindershelf-worker.base  [Cullbrand Worker] node=cindershelf kind=ambient when={}
+   - Company overalls, no company. Contract closed two years early and the store shut the same week.
+   - I worked the west scarp crew. We hit the contract weight in four years instead of six and everyone got a bonus.
+   - I'm still here because my wife is from here. The rest of the crew went where the next contract was.
+
+### amb.duskhollow-astronomer.base  [Astronomer] node=duskhollow kind=ambient when={}
+   - We log the sky nightly and we log the margin nightly. The margin is anything that crosses the vale under the instrument.
+   - Ninety years of margins. Ives will tell you it's a census and Ives is right, and Ives is insufferable about it.
+   - Wispurr are winter animals. In summer the vale is genuinely empty and the card says so.
+
+### amb.duskhollow-elder.base  [Vale Elder] node=duskhollow kind=ambient when={}
+   - The vale was never bright. It is darker than it was, though, and I have the lamp bills to prove it.
+   - Umbrat in the walls, Wispurr on the ridge, and Carricrow wherever something has finished dying.
+   - Noct's Duskstalk has been in this town longer than the observatory has had a roof.
+
+### amb.duskhollow-child.base  [Duskhollow Child] node=duskhollow kind=ambient when={}
+   - We keep the shutters open at night. It's a rule. It's for the observatory.
+   - Orrin let me see the margin book. There's a page where the writing just stops for thirty years.
+   - I want a Wispurr. Mother says winter, and winter takes forever.
+
+### amb.duskhollow-lampwright.base  [Lampwright] node=duskhollow kind=ambient when={}
+   - I make lamps for a town that isn't allowed to use them after dark. It's a strange trade and it pays.
+   - Observatory buys my whole autumn stock. They put them somewhere on the vale road and they don't say where.
+   - Pressed oil, twice strained, four burns to the fill. Better than anything the night market sells.
+
+### amb.duskhollow-shepherd.base  [Vale Shepherd] node=duskhollow kind=ambient when={}
+   - Vale grazing is thin and dark and my flock does fine on it, which nobody believes until they see it.
+   - Umbrat take the fallen grain. Wispurr take the Umbrat. I lose nothing to either of them.
+   - The Sanctum gate is up the vale road. It's been shut my whole life and my father's whole life.
+
+### amb.r3-logger.base  [Cullbrand Logger] node=r3 kind=ambient when={}
+   - Wilds crew. We cut on marked stands and the marks come from the town, not the Company.
+   - High lines are Webvern country. You don't cut a Webvern tree, you cut round it, because the silk pays better than the timber.
+   - Duskstalk work this stand after dark. We're out by dusk and so is everyone sensible.
+
+### amb.r4-worker.base  [Cullbrand Worker] node=r4 kind=ambient when={}
+   - Salvage crew. Contract's closed; I'm pulling out cable and rail and whatever the Company still wants back.
+   - West scarp is where the crew worked. You can still follow the cable runs from the vent line if you want the tour.
+   - Carricrow follow me around out here. They know the sound of a crate coming open.
+
+### amb.r4-worker.arrival  [Cullbrand Worker] node=r4 kind=ambient when={"actMin": 4, "flagsUnset": ["story.steppe.arrival.seen"]}
+   - You'll want the ledger open for this one. Whatever the counts say up here, they say it fast.
+   - I was on the crew. I'm not going to tell you I wasn't.
+   [sets {"story.steppe.arrival.seen": true}]
+
+### amb.r4-worker.emptied  [Cullbrand Worker] node=r4 kind=ambient when={"actMin": 4, "population": [{"node": "r4", "lineId": "stonewing-line", "op": "lte", "value": 1}]}
+   - No Cragmar on the high ground, no Pyrelisk on the vent line, and the Stonewing nest is empty and dry.
+   - More Carricrow up here than I've seen anywhere, and they're the only line I can still fill an order with.
+
+### amb.r5-astronomer.base  [Field Astronomer] node=r5 kind=ambient when={}
+   - Field station. We take the vale readings out here because the town's lamps ruin the instrument.
+   - There's an antler stone in the open ground north of here. It was set to be seen at night and it works.
+   - The dark has been deepening about a degree a decade. Orrin has the chart. Nobody has an explanation on the chart.
+
+### amb.sanctum-approach-scout.base  [Cullbrand Scout] node=sanctum-approach kind=ambient when={}
+   - Company scout. Six teams went up the approach this morning with a cradle on rollers.
+   - I'm posted here to count what comes back down. So far that's nothing.
+   - The gate was already open when we got here. Nobody wants to say that out loud, so I'm saying it to you.
+
+### festival.hearthollow  [Old Drover] node=hearthollow kind=cutscene when={"flagsSet": ["event.festival.open"]}
+   - Lanterns on the green. The festival closes the year, and the year closes whether the meter runs out or the badge comes in.
+   - Everything ages at the turn. Yours, mine, and the ones in the box you haven't looked at since spring.
+
+### festival.brackwater  [Stilt-Town Elder] node=brackwater kind=cutscene when={"flagsSet": ["event.festival.open"]}
+   - Brackwater does the festival on the water. Every boat lit, all at once, and the whole channel goes orange.
+   - Then the year turns and the buyer reprices the season, and we find out what we're eating.
+
+### amb.hearthollow-fenceman.late  [Fence-Mender] node=hearthollow kind=ambient when={"yearMin": 6}
+   - Six years I've mended this line and it's the same four miles and the same two hands.
+   - Different meadow behind it, though. You'd have to have walked it every year to see how different.
+
+### amb.brackwater-netmender.late  [Net-Mender] node=brackwater kind=ambient when={"yearMin": 6}
+   - I've re-cut the mesh three times in six years to match what's coming up in it.
+   - A net is a record of the fishery, if you keep the old ones. I keep the old ones.
+
+### amb.r1-forager.late  [Meadow Forager] node=r1 kind=ambient when={"yearMin": 6}
+   - Six years on the same four miles of Reach. The tussock line has moved about a hundred yards north in that time.
+   - Nobody moved it. It followed the ground water and the ground water followed the grazing.
+
+### maren.greeting.hearthollow  [Warden Maren] node=hearthollow kind=greeting when={}
+   - Station's open. Counts are on the board and the kettle is usually on.
+
+### maren.greeting.brackwater  [Warden Maren] node=brackwater kind=greeting when={}
+   - I'm out on the stilts most days with a board and a pencil. Ask and I'll show you the page.
+
+### maren.greeting.bowerdeep  [Warden Maren] node=bowerdeep kind=greeting when={}
+   - Canopy counts. Slow work, and I'm doing it from the ground like a sensible person.
+
+### maren.greeting.cindershelf  [Warden Maren] node=cindershelf kind=greeting when={}
+   - Steppe survey. Come and read over my shoulder; it's quicker than me explaining it.
+
+### maren.greeting.duskhollow  [Warden Maren] node=duskhollow kind=greeting when={}
+   - Archive in the morning, vale counts at dusk. Duskhollow suits the work.
+
+### maren.greeting.sanctum-approach  [Warden Maren] node=sanctum-approach kind=greeting when={}
+   - I'll be at the rim with the ledger. That's where I'll stay.
+
+### amb.r2-ferryhand.apex  [Ferry-Hand] node=r2 kind=ambient when={"yearMin": 3, "population": [{"node": "r2", "lineId": "fenmaw-line", "op": "lte", "value": 1}]}
+   - No Fenmaw sighting on the channel run all season. I used to log two a month and I logged them because they were worth logging.
+   - Mirefin are everywhere in the shallows now, right up under the boards. Hetty says that follows.

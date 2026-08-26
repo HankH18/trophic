@@ -41,7 +41,9 @@ import { registry, type Settings } from "./registry";
 // TYPE ONLY, and it has to stay that way: a value import of a scene from this module would put
 // Phaser back in boot.ts's module graph (see the header) and make an import cycle out of the one
 // direction that is currently acyclic — scenes import boot, boot imports no scene.
-import type { OverworldSceneData } from "./scenes/OverworldScene";
+import type { OverworldScene, OverworldSceneData } from "./scenes/OverworldScene";
+// TYPE ONLY, for the same reason as the line above.
+import type { SurveySceneData } from "./scenes/SurveyScene";
 import {
   SaveStorage,
   loadSettings,
@@ -52,6 +54,10 @@ import {
 // Engine-free (game/wild-battle.ts imports no Phaser), so importing it here keeps this module
 // testable under vitest's node environment exactly as the header requires.
 import { provisionalStarter } from "./wild-battle";
+// Engine-free too (no Phaser import), so the epilogue's projection is reachable from a node test.
+import { projectEpilogueRegion } from "./finale";
+import { seasonOf } from "@core/clock";
+import { subsystemRng } from "@core/rng";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Scene keys
@@ -479,7 +485,7 @@ function overworldData(): OverworldSceneData {
     startNode: session.save.currentNode,
     hooks: {
       // The scene hands back a NEW save on every change (core/ is pure). Adopting it here is what
-      // keeps the in-run menu's SAVE row, the ledger and the epilogue reading the same numbers the
+      // keeps the in-run menu's SAVE row, the survey and the epilogue reading the same numbers the
       // player is walking around in. It deliberately does NOT write to storage on every tick —
       // saving is a thing the player asks for, and a silent autosave would make the SAVE row a lie.
       onSaveChanged: (save: SaveEnvelope) => registry.setSave(save),
@@ -489,13 +495,60 @@ function overworldData(): OverworldSceneData {
        * and nothing supplied it — so in the routed game an encounter flashed a banner and ended,
        * `save.nodeStates` never moved from play, and build-doc §1's first never-cut beat could not
        * be produced by playing. `OverworldScene.beginWildBattle` is that route now (through
-       * `game/wild-battle.ts`, which is where the catch reaches the ledger), and the hook is an
+       * `game/wild-battle.ts`, which is where the catch reaches the survey), and the hook is an
        * override for a lane that wants to take the hand-off over. Supplying one HERE would switch
        * the real wiring off, which is exactly backwards.
        */
+
+      /*
+       * ⚠ C7'S EPILOGUE SURVEY. THIS HOOK HAD NO SUPPLIER ANYWHERE IN `game/`.
+       *
+       * `OverworldScene` declares `onRunComplete`, fires it in exactly one place, and every
+       * supplier in the repo was a TEST — so reaching the Sanctum and beating Greaves produced
+       * `flashBanner("run complete · …")` and nothing else. `core/ecosim.ts` `projectRegion`, whose
+       * own header names it as "Hard Req 7 — the epilogue survey shows the numbers", had zero
+       * callers outside a property test, and `game/scenes/SurveyScene.ts`'s header says "the
+       * epilogue launches THIS scene with `projectRegion`'s output" while the only launcher in the
+       * repo was the in-run menu, handing it LIVE state. The never-cut item is "the Vellsire choice
+       * + epilogue survey": the choice shipped, the survey was a hook with test-only consumers.
+       *
+       * The projection is `game/finale.ts`'s — pure, injected RNG, no `Math.random` (G11); this is
+       * only the wiring. `states` is a plain record rather than a function ON PURPOSE: it is a
+       * SNAPSHOT of a projected future, not the live sim, so it must not be re-read.
+       */
+      onRunComplete: (save: SaveEnvelope, overworld: OverworldScene) => {
+        registry.setSave(save);
+        const content = registry.content();
+        const states = projectEpilogueRegion({
+          content,
+          save,
+          // A named subsystem stream off the save's own seed: the ending replays identically (L10).
+          rng: subsystemRng(save.seed, EPILOGUE_STREAM),
+        });
+        const data: SurveySceneData = {
+          content,
+          states,
+          year: save.year,
+          season: seasonOf({ year: save.year, tick: save.tick }, content.balance),
+          startNodeId: save.currentNode,
+          title: EPILOGUE_SURVEY_TITLE,
+        };
+        overworld.scene.launch(SCENE_KEYS.survey, data);
+      },
     },
   };
 }
+
+/**
+ * The RNG stream the epilogue's projection is drawn from.
+ *
+ * A named subsystem stream, so the ending is reproducible from the save's seed alone and does not
+ * consume draws the overworld's own streams are positioned on (build-doc §8.1 / L10).
+ */
+const EPILOGUE_STREAM = "epilogue";
+
+/** Heading the epilogue survey names itself with — `SurveySceneData.title` (Hard Req 7). */
+const EPILOGUE_SURVEY_TITLE = "EPILOGUE SURVEY";
 
 /** Scenes are started with `unknown` data; this is the shape the menu keys off. */
 const SESSION_MENU_REQUEST = { mode: "session" } as const;
@@ -520,7 +573,7 @@ export function enterGameplay(scene: PhaserNS.Scene): void {
  *
  * It is bound from here rather than in the scene because the menu is C1's screen and the overworld
  * is C2's: without it the app is a one-way street — the player reaches the region and can never save,
- * read the ledger or leave. `OverworldScene` binds W/A/S/D, the arrows, C and 1–6, so ESC is free.
+ * read the survey or leave. `OverworldScene` binds W/A/S/D, the arrows, C and 1–6, so ESC is free.
  *
  * Bound on the scene's own `create` (Phaser tears the keyboard's listeners down on shutdown and
  * re-runs `create` on the next start, so a one-shot binding survives exactly one visit) and guarded

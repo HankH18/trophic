@@ -1,5 +1,39 @@
 # Dialogue notes — `data/dialogue.json`
 
+> # ⚠ THE CORPUS IS MID-REWRITE. THIS DOCUMENT'S LINE-LEVEL ANALYSIS IS PENDING.
+>
+> **Status 2026-08-25.** Every line in `data/dialogue.json` is being rewritten against an amended
+> prose standard. **While that is in flight, treat §4 (*G7 — the read-through*), its five borderline
+> lines, and §8's *G7 re-read* as HISTORICAL: they analyse copy that is being replaced as you read
+> them.** They are deliberately **not** being updated yet — re-doing a line-by-line read against a
+> corpus that is still moving would throw the work away twice. **They will be redone once the rewrite
+> settles.** Until then:
+>
+> - **Every quoted line in this document is a verbatim quotation of the corpus as it stood when the
+>   read was done.** Quotations are not being edited to match later copy — a quote rewritten to say
+>   what its source does not say is a fabrication. The *feature* is called the **survey** everywhere
+>   now (`docs/DEVIATIONS.md` D-SURV-1…D-SURV-10), but **three** quotations containing **"ledger"**
+>   survive in this document on purpose: **two are in-world dialogue quotations** (§4's *"I do not need the
+>   ledger to know which way you walked"*, §4's `maren.keystone.6`), and **one is the verbatim title
+>   of a live test** (`tests/unit/dialogue.test.ts` — *"a line that quotes the live ledger reads the
+>   live ledger"*), which still reads that way in the source. Editing any of the three would make
+>   this document misquote its own source. **The fourth was not a quotation and has been fixed:** §8's
+>   entry id `maren.tutorial.ledger` is now `maren.tutorial.survey`, along with the flag
+>   `tutorial.ledger.done` → `tutorial.survey.done` (D-SURV-10).
+> - **The counts below are stale by construction.** §1's "211 rows / 499 lines / 62 speakers" was
+>   true at the read; the corpus has moved since and will move again. Re-measure before quoting.
+>   The **entry ids are stable** and are the reliable handle.
+> - **§2 IS current** — it was updated on 2026-08-25 and carries an amendment block that supersedes
+>   the naming convention D-1 and D-2 originally recorded.
+> - **The line budget band moved 400–500 → 400–560** (bible §13.13, `docs/DEVIATIONS.md` D-BUDGET-1).
+>   The per-speaker ceilings did not.
+> - **What is NOT pending:** §6 (what the tests bind) and §7 (the gate interaction) describe
+>   mechanisms, not copy, and two new permanent gates now sit above them —
+>   `tests/gates/reachability.test.ts` (build-doc §10.7) and `tests/gates/quest-layer.test.ts` (§10.8),
+>   both under the invariant at build-doc §8.5.
+>   Since those landed, **"authored content must be reachable" is enforced**, which is a stronger
+>   guarantee than anything §6 describes.
+
 Companion to the dialogue content (build-doc §15 C7, bible §13.13). Four things live here that
 cannot live in the JSON: the bible gaps that had to be filled, the G7 read-through, the exact limits
 of what the automated checks can prove, and the defects an independent audit found.
@@ -66,6 +100,48 @@ Two proper nouns appear in dialogue that exist in the bible but in no shipped da
 **Fallowmere** and **Cullbrand**. With the four bible-named NPCs that likewise appear in no data file
 (Maren, Wick, Bram, Sel) they are the entire contents of `BIBLE_NAMES`, which the test caps.
 
+> ### ⚠ AMENDED 2026-08-25 — D-1 and D-2's naming conventions have both been replaced
+>
+> **The rows above are kept verbatim as the record of what was decided when.** Both are now
+> superseded, and this block is what is current. The canonical home for the replacement convention is
+> **`docs/content-bible.md` §10**; the canonical home for the names themselves is the design
+> cast table in **`docs/CAST-AND-VOICE.md`** §4 + Appendix E, now in this repository.
+> **The durable source of truth for a shipped name is `data/dialogue.json`.**
+>
+> **D-1 — one of the seven coined quest-NPC names moved.** **Nessa → Hetty**
+> (`docs/DEVIATIONS.md` D-Q2-4). *Nessa* is the Galar Gym Leader of Hulbury — a **Water-type**
+> specialist whose father is canonically a fisher — and ours was the angler of the marsh/fishery town
+> running a shallows survey: same name, same element, same role shape. **Only the display name moved.**
+> The speaker id `nessa` and every `nessa.*` entry id deliberately did not (D-Q4-5), so every entry id
+> in this document that begins `nessa.` is still correct. Tolm, Halder, Pell, Gerta, Ives and Orrin
+> are unchanged. **This one HAS shipped** — `data/dialogue.json` speaker `nessa` reads `"name":
+> "Hetty"`.
+>
+> **D-2 — the trade-label convention is gone.** D-2 recorded *"Trade labels, not personal names —
+> 'Old Drover', 'Net-Mender', 'Shaft-Hand', 'Fishery Buyer'"*, chosen deliberately to keep the
+> coined-name surface as small as possible. That trade-off has been reversed: **41 background
+> speakers — 10 generic (innkeepers, vendors) and 31 ambient — take real given names**, on a register
+> keyed to the work rather than to money (HANDS / SKILLED-SALARIED / INSTITUTIONAL-surname-only /
+> CHILDREN-diminutives). The full convention and its mechanical collision rules are in bible §10;
+> `docs/DEVIATIONS.md` D-W4-3 logs the departure.
+>
+> **⚠ NOT YET IN THE DATA.** Verified against `data/dialogue.json` on 2026-08-25: **not one of the 41
+> has landed.** Every affected speaker still carries its trade label — `innkeeper-duskhollow` →
+> `"Innkeeper"`, `duskhollow-elder` → `"Vale Elder"`, `brackwater-netmender` → `"Net-Mender"`. The
+> prose lane is applying them as part of the corpus rewrite. **Until they land, D-2 above still
+> describes the shipped state**, which is precisely why it has not been deleted.
+>
+> **A finding from screening those 41 that binds any future name.** All 41 were run against the
+> Pokémon corpora on Hank's stated bar (*"I'm really only concerned about using actual pokemon
+> names"*). **Zero matched any species, move, ability, item or form** — but **11 were exact matches
+> for Pokémon *characters***, mostly Trainers in per-route tables; 5 were renamed and 6 kept.
+> Screening the replacements turned up **15 further exact hits among 54 candidates — a ~28% strike
+> rate on ordinary short English given names.** *(Recorded honestly: the source document's own numbers
+> do not fully tie out — 33 clean + 15 hits = 48, not 54 — and only 13 of the 15 are ever enumerated.
+> See `docs/IP-SWEEP.md`.)* **The rule: a plain human name is not safe by default here.** Anyone
+> adding a name to this cast runs it through both corpora first; a clean creature-name sweep says
+> nothing about it.
+
 ---
 
 ## 3. The Ancient lore chains
@@ -120,7 +196,10 @@ town this step is in". Q3 made that distinction load-bearing, so every one of th
 
 ## 4. G7 — the read-through
 
-> **G7. Do not write moralizing copy about catching anywhere — numbers only; the ledger is the moral.**
+> **G7. Do not write moralizing copy about catching anywhere. No line may tell the player they did
+> wrong, imply guilt, or deliver a lesson. Populations are reported the way a working field
+> biologist reports them — plainly, as counts, with no reverence for the notebook they are written
+> in.**
 
 ### What the automated scan does
 
@@ -261,7 +340,7 @@ of these is now checked by a test, so the class cannot recur silently.
   not that a single line reaches a player. The 14 `EXTERNAL_FLAGS` are asserted to be exactly the
   documented list, but nothing checks any system ever *sets* them. That seam belongs to lane C.
 - **Wick has no population- or flag-conditioned lines.** Bible §8 promises "the routes he's worked
-  are visibly degraded when you reach them", and no line anywhere reads the player's own ledger back
+  are visibly degraded when you reach them", and no line anywhere reads the player's own survey back
   at them. The audit called this the largest missing content beat in the file. Writing it would mean
   crossing the G7 line very carefully, and it is the highest-value remaining dialogue work.
 
@@ -382,9 +461,9 @@ the **calendar**, because the town ages with the world and not with the plot.
 | Entries | Was | Now | Why |
 |---|---|---|---|
 | `maren.opening`, the three `maren.starter.*` | `years: [1]` | **`act: [0]`** + `flagsUnset: story.opening.done` | **CORRECTED — this shipped as `act: [1]` and deadlocked the game.** Act 0 is the prologue and is where a brand-new save is; act 1 is what finishing this chain OPENS, so gating the chain on act 1 put the three writers of `story.opening.done` behind the gate that flag opens. The starters now also read the flag they write, so no act-ladder change can make them loop. |
-| `maren.tutorial.snare`, `maren.tutorial.ledger` | `years: [1]` | **no act clause**, flags only | **CORRECTED from `act: [1]`.** They are `goto` targets of the starter entry that WRITES `story.opening.done`, so they straddle the act 0 → 1 boundary and an act clause on either side of it can strand them. Their own `tutorial.*.done` flags are the guard. |
+| `maren.tutorial.snare`, `maren.tutorial.survey` *(was `maren.tutorial.ledger` — D-SURV-10)* | `years: [1]` | **no act clause**, flags only | **CORRECTED from `act: [1]`.** They are `goto` targets of the starter entry that WRITES `story.opening.done`, so they straddle the act 0 → 1 boundary and an act clause on either side of it can strand them. Their own `tutorial.*.done` flags are the guard. |
 | `maren.quest.first-signs.offer`, `.done`, `maren.keystone.1` | `years: [1]` | **no calendar or act gate**, flags only | this was **D2**, a hard dead-end: `.done` is the only source of `chain.vellsire.unlocked`, and `maren.keystone.1` needed that flag *and* year 1, so a player who did not turn *First Signs* in within year 1 permanently lost the 11-step Vellsire chain, *Vellsire's Trail* and the lore behind the finale. Gating on the flags alone is the fix |
-| `tolm.quest.fallow.offer` | `years: [1]` | flags only **+ `population: hearthollow.loamunder-line gte 24`** | A quest offer must not expire on a clock — but this one quotes the ledger (*"There are twenty-four of them my side of the fence"*) and losing `years: [1]` left it with no clause of any kind, so it could assert a number the on-screen ledger contradicted, forever, on both clocks. Its own completion beat one entry away already carried exactly this clause. |
+| `tolm.quest.fallow.offer` | `years: [1]` | flags only **+ `population: hearthollow.loamunder-line gte 24`** | A quest offer must not expire on a clock — but this one quotes the survey (*"There are twenty-four of them my side of the fence"*) and losing `years: [1]` left it with no clause of any kind, so it could assert a number the on-screen survey contradicted, forever, on both clocks. Its own completion beat one entry away already carried exactly this clause. |
 | `maren.greeting.y1`–`y6` → **renamed** `maren.greeting.act1`–`act6` | `years: [N]` | `act: [N]` | each is that act's arrival pointer in that act's town (*"Talk to Gerta before you go up the steppe"*), and the id said `y` for a year it no longer means |
 | the 18 rival entries `wick.act1..6.{pre,win,loss}` | `years: [N]` | **`actMin: N`** — a floor | **CORRECTED from the equality.** The stated reason for the equality — *"`actMin` would leave his act-1 lines still firing at Meadow Reach in act 6"* — is false: every `.pre` already carries `flagsUnset: rival.actN.fought`, and each route hosts exactly one Wick battle, so `.win`/`.loss` cannot collide either. What the equality DID do is delete each encounter at the moment the player earned a reason to walk that act's route: `balance.acts.gates` opens town *N* and route *N* in the SAME act, and Wick stands on the route while the gym is in the town — so beating gym *N* advanced the save to act *N+1* and lost `wick.actN.*` permanently, for playing efficiently. |
 | `greaves.act3.intro`, `greaves.act4.steppe` | `years: [3]` / `[4]` | `actMin: 3` / `4` | one-shot cutscenes already guarded by `story.greaves.met` / `.steppe`, so a floor is strictly better than an equality — a player who blows past Bowerdeep still gets the introduction on the way back, instead of meeting Greaves for the first time at the finale |
@@ -533,7 +612,7 @@ legitimately carry an act EQUALITY are enumerated by hand, so an eleventh is a d
    announces; Maren's `greeting.act1`–`act6` are the closest thing and they are greetings.
 6. **REVIEWED, deliberately unclaused — `maren.keystone.4`.** *"Cinder Steppe's flora stock is at a
    number I have never had cause to write before"* has no `floraStock` clause, and it is the one
-   abundance line that keeps none. It names **no figure**, so there is nothing the ledger can
+   abundance line that keeps none. It names **no figure**, so there is nothing the survey can
    contradict; and it is step 5 of the **Vellsire chain**, so a live gate on it would strand the
    chain — and with it `chain.vellsire.complete`, *Vellsire's Trail* and the lore behind the finale —
    if r4's flora recovered. Trading a vague claim for a new dead-end is the wrong trade. Classified
@@ -547,7 +626,7 @@ none needed to be.** Two are worth recording because their context genuinely mov
 
 - **`maren.crash-survey`** and **`amb.r4-worker.emptied`** fire on `r4.stonewing-line ≤ 1`. With the
   year floor gone they can now fire in an early calendar year — which, since the act-4 raid may not
-  have fired yet in a fast run, means they can be describing a crash the **player's own ledger**
+  have fired yet in a fast run, means they can be describing a crash the **player's own survey**
   caused rather than the Company's. Both are clean: *"The condors did not leave first. The Cragmar
   went, then the Pyrelisk that ate the Ashvole, and the scarp emptied from the bottom up"* is
   mechanism with no addressee and no verdict, and the salvage worker's *"I was on the crew. I'm not
@@ -573,7 +652,7 @@ still clean, and these are the placement questions a regex cannot answer:
 - **`tolm.quest.fallow.offer` is population-gated**, so a player who has already taken the west
   field below 24 will not be offered the quest. That is the correct silence: he cannot ask you to
   keep twenty-four standing when there are nine, and Hard Req 2 plus D12 both say silence beats a
-  claim the ledger contradicts. It is **not a dead-end** — Loamunder breed, so the offer returns
+  claim the survey contradicts. It is **not a dead-end** — Loamunder breed, so the offer returns
   when the field does, which is exactly the arithmetic the quest is about.
 
 The five borderline lines in §4 are untouched and still await Hank's *keep / trim / cut*.

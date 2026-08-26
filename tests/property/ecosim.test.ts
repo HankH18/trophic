@@ -211,9 +211,10 @@ describe("ecosim — the hand-computed mini-node step (build-doc §11)", () => {
     expect(stuffed.populations["nibbin-line"]?.count).toBe(node.populations["nibbin-line"]?.carryCap);
   });
 
-  it("catching a line that is not at this node FAILS LOUD — a lost decrement is a wrong ledger", () => {
-    // Hard Req 2 makes the decrement the ledger. A wrong-node or mistyped line id used to be a
-    // silent no-op, so the ledger went quietly wrong instead of the call going loudly wrong.
+  it("catching a line that is not at this node FAILS LOUD — a lost decrement is a wrong survey", () => {
+    // Hard Req 2 makes that decrement the number the survey reports. A wrong-node or mistyped line
+    // id used to be a silent no-op, so the survey went quietly wrong instead of the call going
+    // loudly wrong.
     const node = toEcoNode(miniNode);
     const absent = content.species.find((line) => !node.populations[line.id]);
     if (!absent) throw new Error("mini-node holds every line");
@@ -249,9 +250,9 @@ describe("ecosim — the hand-computed mini-node step (build-doc §11)", () => {
     }
   });
 
-  it("no season's ledger claims more deaths than there were animals to lose", () => {
+  it("no season's survey claims more deaths than there were animals to lose", () => {
     // Each predator's draw is capped at its own view of the pool, which says nothing about what the
-    // other predators of the same prey already took. Unchecked, `deathsThisSeason` — the ledger
+    // other predators of the same prey already took. Unchecked, `deathsThisSeason` — the survey
     // (Hard Req 2) and the Scavenger encounter term (§7.2) — counts deaths of animals that never
     // existed. Here two 200-strong predators share two 4-strong prey pools.
     const forest = shipped.find((n) => n.id === "r3");
@@ -1191,8 +1192,8 @@ describe("ecosim — Ancient presence effects (build-doc §7.3 step 1, bible §4
   });
 
   it("the honest cost is a NUMBER, not a flag: catching the keystone leaves the region poorer", () => {
-    // Hard Req 7 — "catch removes the keystone buff and the epilogue ledger shows the numbers".
-    // Asserting the multiplier's presence in a map proves nothing about a ledger; this projects the
+    // Hard Req 7 — "catch removes the keystone buff and the epilogue survey shows the numbers".
+    // Asserting the multiplier's presence in a map proves nothing about a survey; this projects the
     // region forward from both endings on the same seed and diffs the counts, which is what the
     // epilogue does (build-doc §4 step 6: "the epilogue reuses the same renderer over the final
     // state"). Both branches run the same rules; the only difference is whether the Ancient is
@@ -1241,7 +1242,7 @@ describe("ecosim — Ancient presence effects (build-doc §7.3 step 1, bible §4
 
       // …and the difference is confined to the nodes the keystone actually reaches. Anything else
       // moving would be RNG phase noise masquerading as a consequence, which is exactly what makes
-      // an epilogue ledger unreadable.
+      // an epilogue survey unreadable.
       for (let i = 0; i < released.length; i++) {
         const a = released[i] as EcoNode;
         const b = caught[i] as EcoNode;

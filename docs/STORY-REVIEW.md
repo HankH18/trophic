@@ -3,6 +3,28 @@
 *Assembled for Hank's review pass. Reading order: §0 → §1 → §2 → §3 → §4 → §5 → §6.*
 *Sources: `docs/content-bible.md` §4/§6/§7/§8/§9/§10, `data/dialogue.json` (211 entries / 499 lines / 62 speakers), `core/dialogue-schema.ts`, `docs/DIALOGUE-NOTES.md`, `data/gyms.json`, `data/nodes/*.json`, `data/balance.json`, `docs/QUEUED-CHANGES.md`.*
 
+> **CURRENCY — read before §6. Updated 2026-08-25.**
+>
+> **`data/dialogue.json` is being rewritten line by line as this note is written.** Every blockquoted
+> line in this document is a **verbatim quotation of the corpus as it stood when the review was
+> assembled**, and quotations are deliberately *not* being edited to match later copy — a quote
+> rewritten to say what its source does not say is a fabrication. Treat every blockquote here as
+> historical evidence of what was authored, not as a description of the shipped line. The entry
+> **ids** are stable and are the reliable handle; the **counts in the source line above (211 / 499 /
+> 62) have moved** and are left as the review's own provenance rather than a live figure.
+>
+> This also covers the six places this document quotes a line containing the word **"ledger"**.
+> **Line numbers are deliberately not given** — this document is edited often and any number written
+> here is wrong by the next edit (the first draft of this very note cited six numbers that its own
+> insertion had already invalidated). Run `grep -n ledger docs/STORY-REVIEW.md`; the hits outside
+> this paragraph are the six. The *feature* is now called the **survey** everywhere in
+> code and prose (`docs/DEVIATIONS.md` D-SURV-1…D-SURV-10); those six are in-world dialogue
+> quotations and are intentionally untouched. This document's own prose already says "survey".
+>
+> **Three decisions in §6 are closed** — D1, D2 and D12 carry a RESOLVED note in place. The other
+> seventeen were re-checked against the current tree on the same date; **§6 opens with a status table
+> giving each one a verdict**, so nothing here needs re-deriving before you read it.
+
 ---
 
 ## 0. How to read this document
@@ -56,7 +78,7 @@ Dialogue budget check against bible §13.13 (~10 lines/named NPC, ~3/ambient, 40
 
 ### Premise
 
-**Fallowmere** is a region whose keystone went out of it a generation ago. Warden **Maren** counts what is left. She hands you a juvenile, three snares and a ledger, and the ledger is the whole argument: *catching decrements a real number at a real place, and the number is printed.*
+**Fallowmere** is a region whose keystone went out of it a generation ago. Warden **Maren** counts what is left. She hands you a juvenile, three snares and a survey notebook, and the survey is the whole argument: *catching decrements a real number at a real place, and the number is printed.*
 
 > **Maren, opening — [WRITTEN]**
 > "Maren. Warden of Fallowmere, which mostly means I count things and then write the counts down."
@@ -135,7 +157,7 @@ Bramblehog (A) L8 · Skir (A) L8 · **signature "Old Nib" — Nibbin (E) L8, Thi
 > "**And Old Nib, who is twelve. Elders don't get quick. They get certain.**"
 > On a win: "You waited out the Thick Pelt instead of hammering it. Most people hammer it."
 
-**Learns mechanically — [WRITTEN]:** starter choice and its three-year clock; snares and bait-crafted-from-the-web; the ledger as a before/after reading; sign cards and Instinct; migrant legibility.
+**Learns mechanically — [WRITTEN]:** starter choice and its three-year clock; snares and bait-crafted-from-the-web; the survey as a before/after reading; sign cards and Instinct; migrant legibility.
 
 > "Three young ones on the bench there. Cindril, Puddlisk, Thornlet. All hatched this spring, all juveniles, all with three years in them."
 > "**Three years is what a juvenile has. Pick the one you'd rather walk beside for all three.**"
@@ -148,7 +170,7 @@ Each starter branch is written and each names its three forms:
 > Puddlisk — "It becomes Rillisk at two and Maelstrisk at three. **Same animal, three names, one life.**"
 > Thornlet — "Bramblore at two, Thornwald at three. **The last name is the one the meadow remembers.**"
 
-**Story beats — [WRITTEN]:** the opening cutscene chain (`maren.opening` → starter → snare tutorial → ledger tutorial), *First Signs*, Vellsire chain step 1 (Maren on what a keystone *is*) and step 2 (the north antler stone).
+**Story beats — [WRITTEN]:** the opening cutscene chain (`maren.opening` → starter → snare tutorial → survey tutorial), *First Signs*, Vellsire chain step 1 (Maren on what a keystone *is*) and step 2 (the north antler stone).
 
 **Cullbrand act event — [MISSING].** No raid is authored for act 1. `balance.yearEvents.raids` contains exactly one raid (act 4). `game/year-events.ts` `raidCoverage()` was deliberately built to *report* this gap rather than let an agent invent one (G2).
 
@@ -233,7 +255,7 @@ Gloomgrub = `gloomoth-line` (J) L20 · Sporantle (A) L20 · Mirefin (A) L20 · W
 > Greaves: "Cullbrand does not log Bowerdeep. Cullbrand buys timber and silk from people who log Bowerdeep. **My lawyers consider the distinction load-bearing.**"
 > Bowerdeep logger: "Cullbrand buys what I cut. Cullbrand doesn't cut it. **That distinction is in my contract and it is not in my back.**"
 
-That pairing is good, and it is not a subplot. Decision D13.
+That pairing is good, and it is not a subplot. Decision D15.
 
 **Rival — [WRITTEN].** Wick's best act (quoted in §1).
 
@@ -279,7 +301,7 @@ Ashvole (A) L26 · Cragmar (A) L26 · Ashvole (E) L26 · Stonewing (A) L26 · Py
 `balance.yearEvents.raids` → `cullbrand-strip-harvest-r4`, year 4, node `r4`: **Ashvole −11, Cragmar −8.** The data comment is explicit that the raid touches *only the two Grazer lines* — the predator collapse above them must emerge from the §7.3 rules (G6), which is the correct construction.
 
 **Two open problems on this raid, both already logged:**
-1. **Q6** — `data/nodes/r4.json` ships *healthy* (Cragmar 10, Pyrelisk 14, Stonewing 3). Only `floraStock: 42` expresses the crash the bible promises. The dialogue was rewritten so it never asserts a collapse the ledger contradicts, which is the right short-term call and not the fix.
+1. **Q6** — `data/nodes/r4.json` ships *healthy* (Cragmar 10, Pyrelisk 14, Stonewing 3). Only `floraStock: 42` expresses the crash the bible promises. The dialogue was rewritten so it never asserts a collapse the survey contradicts, which is the right short-term call and not the fix.
 2. **Q2** — the raid fires as an instantaneous decrement at the year turn. Your constraint is that such events last a whole season (4 ticks).
 
 **Rival — [WRITTEN].** Wick's act 4 is the pivot of his whole arc and should be read next to his act 6:
@@ -357,7 +379,7 @@ Three Elders — "harvested prime specimens, which is the point of him" (bible �
 > Post: "Six teams. Forty years of records. Beaten by a child with a warden's book."
 > "It's behind you, in the ring. Take it or leave it standing; **the Company is diversified either way**."
 
-**Learns mechanically — [WRITTEN]:** the choice; the epilogue ledger; the keystone coefficient made legible.
+**Learns mechanically — [WRITTEN]:** the choice; the epilogue survey; the keystone coefficient made legible.
 
 **Story beats — [WRITTEN]:** Maren at the rim; Wick's refusal; the gate stone (chain step 9); Maren's step 10 (chain complete); the antler ring (step 11); Greaves; the Vellsire; both epilogues.
 
@@ -384,7 +406,7 @@ That last image is the payoff of an eleven-step chain and it lands.
 > "Six years. Every one of them the same result and I kept the column anyway."
 > "**Gate's through the antler ring. He'll have left it open; he never expects to be followed.**"
 
-**Site state (bible: *"revealed in the state your ecology earned"*) — [OUTLINED].** The Sanctum has six entries and **not one of them reads a population or flora figure.** The only place the player's ecology surfaces at the finale is Maren's epilogue, and even that names the six nodes without printing their numbers — the numbers are the ledger UI's job, and the ledger UI is not wired to this scene. The bible's promise that the Sanctum is *revealed in the state your ecology earned* is currently unfulfilled: the caldera looks the same whether you emptied Fallowmere or restored it.
+**Site state (bible: *"revealed in the state your ecology earned"*) — [OUTLINED].** The Sanctum has six entries and **not one of them reads a population or flora figure.** The only place the player's ecology surfaces at the finale is Maren's epilogue, and even that names the six nodes without printing their numbers — the numbers are the survey UI's job, and the survey UI is not wired to this scene. The bible's promise that the Sanctum is *revealed in the state your ecology earned* is currently unfulfilled: the caldera looks the same whether you emptied Fallowmere or restored it.
 
 **Shipped populations:** Sanctum Approach — Carricrow 3, flora 35 · The Sanctum Fallow — Carricrow 2, **Vellsire 1**, flora 50.
 
@@ -424,7 +446,7 @@ The twelve externally-granted flags every quest depends on, per `tests/unit/dial
 ### 1. *First Signs* — Hearthollow, Maren — **[WRITTEN]** (2 entries, 5 lines)
 
 **Bible §9:** guided forage on R1; teaches the sign-card system.
-**Trigger:** `years:[1]` + `quest.first-signs.offered` (set by the ledger tutorial) + `NOT quest.first-signs.done`.
+**Trigger:** `years:[1]` + `quest.first-signs.offered` (set by the survey tutorial) + `NOT quest.first-signs.done`.
 **Completion:** `quest.first-signs.turnin` — **[MISSING]**, external.
 **Reward:** sets `chain.vellsire.unlocked` — i.e. **this quest is the trailhead of the entire 11-step Vellsire chain**.
 **Teaches:** sign cards, Instinct as read quality, migrant legibility.
@@ -500,7 +522,7 @@ The bible says "begs". The authored version deliberately is **not** a plea — i
 
 *"Three years", not four: the age model is derived from `balance.age.yearsInClass` by a test, so a retune cannot silently make this line false.*
 
-**Note — Q2/Q3 interaction.** "Before the year turns" was written when a gym win could end the year early. Under Q2 the year only ends on a full meter, which makes the wager *easier and less interesting*: the deadline no longer moves. Worth a sentence from you (D18).
+**Note — Q2/Q3 interaction.** "Before the year turns" was written when a gym win could end the year early. Under Q2 the year only ends on a full meter, which makes the wager *easier and less interesting*: the deadline no longer moves. Worth a sentence from you (D20, second bullet).
 
 ---
 
@@ -518,7 +540,7 @@ The bible says "begs". The authored version deliberately is **not** a plea — i
 > Deferred branch: "Go on then. She's more interesting than I am on this and **she'll tell you the count without rounding it**."
 > Done: "Vesper will have the new canopy count by the festival. **She always does, and she always reads it out.**"
 
-**Gap — the "either way" is one-sided.** The bible promises *visible consequence either way*. There is a `delivered` result and a `heard-vesper` deferral flag, but **no refusal outcome is authored**: no Vesper line acknowledging you declined, no canopy-count consequence entry, no `result: "refused"`. Half the dilemma is written. Decision D13.
+**Gap — the "either way" is one-sided.** The bible promises *visible consequence either way*. There is a `delivered` result and a `heard-vesper` deferral flag, but **no refusal outcome is authored**: no Vesper line acknowledging you declined, no canopy-count consequence entry, no `result: "refused"`. Half the dilemma is written. Decision D14.
 
 ---
 
@@ -542,7 +564,7 @@ The bible says "begs". The authored version deliberately is **not** a plea — i
 
 ### 7. *After the Crash* — Cindershelf, Gerta — **[WRITTEN]** (4 entries, 8 lines)
 
-**Bible §9:** ledger survey of wrecked R4; reading a collapsed web; unlocks scavenger lore.
+**Bible §9:** survey of wrecked R4; reading a collapsed web; unlocks scavenger lore.
 **Trigger:** `yearMin: 4` + `NOT done` + `NOT taken`.
 **Completion:** `quest.after-the-crash.turnin` — **[MISSING]**, external. Five counts **plus the flora reading**.
 **Reward:** sets `lore.scavenger.unlocked`.
@@ -570,7 +592,7 @@ The bible says "begs". The authored version deliberately is **not** a plea — i
 > Done: "There. Cooled, seated, and it will not come loose."
 > "**Name's stamped underneath where nobody looks. That's the part I do for free.**"
 
-**Thinnest of the ten** at 5 lines and no branch. Given that this quest sits directly on the **Legacy** demo beat — one of the two never-cut beats — it is under-written relative to its importance. Decision D19.
+**Thinnest of the ten** at 5 lines and no branch. Given that this quest sits directly on the **Legacy** demo beat — one of the two never-cut beats — it is under-written relative to its importance. Decision D16.
 
 ---
 
@@ -805,7 +827,7 @@ Bram and the miner Gerta on "the warm shell below", alternating with the shell-k
 > "**It doesn't age. Sable's grandmother wrote that down as a joke and the temperature log has been proving it ever since.**"
 > "Take the card. Deep shrine, third shaft, when the vents are quiet. **And take something that resists Fire, because you will not out-wait it.**"
 
-**Where it points:** `data/nodes/cindershelf.json` ships `kilnback-line: 1`. **Note the discrepancy:** bible §4 gives Kilnback's habitat as *"Steppe (hidden)"*, and every line in the chain places it under the **mine**, in the town node — which is where the data puts it. The chain and the data agree with each other and disagree with the bible's one-word habitat column. Decision D14.
+**Where it points:** `data/nodes/cindershelf.json` ships `kilnback-line: 1`. **Note the discrepancy:** bible §4 gives Kilnback's habitat as *"Steppe (hidden)"*, and every line in the chain places it under the **mine**, in the town node — which is where the data puts it. The chain and the data agree with each other and disagree with the bible's one-word habitat column. Decision D11.
 
 **Cut-line note.** Build-doc §15 puts the Kilnback and Undermere *catch chains* at cut line **C-5** — "→ lore-only". Since neither catch is wired, both are currently already at C-5 by default, and the lore is complete. That is the cheapest possible position to be in.
 
@@ -840,7 +862,7 @@ Bible §9 names four. Your **Q2** constraint is that each must **last a whole se
 
 ### 5.2 Great Migration — copy **[WRITTEN]**, mechanism **season-long, by accident**
 
-**Bible §9:** *"spring — Gloomoth flocks shift spawns region-wide"*. **Bible §5 contradicts its own §9:** the locked migrant table puts Gloomoth in **autumn**, not spring. `data/species.json` ships `gloomoth-line: seasonalWindow = "autumn"`, and every authored line says autumn. The data and the dialogue agree; §9's "spring" is a bible typo. Worth one line from you to confirm (D15).
+**Bible §9:** *"spring — Gloomoth flocks shift spawns region-wide"*. **Bible §5 contradicts its own §9:** the locked migrant table puts Gloomoth in **autumn**, not spring. `data/species.json` ships `gloomoth-line: seasonalWindow = "autumn"`, and every authored line says autumn. The data and the dialogue agree; §9's "spring" is a bible typo. Worth one line from you to confirm (D7).
 
 **Mechanism:** there is no migration *event*. What exists is the four-migrant seasonal window (`core/foodweb.ts` `migrantStatus` + `seasonalWindow`), which filters Gloomoth out of encounter tables outside autumn and reports *why* — `dormant` vs `migrating`. Because a season is 4 ticks by construction, **this is the only one of the four events that already satisfies Q2's duration requirement** — and it does so as a side effect of the migrant model, not because anyone built a migration event.
 
@@ -907,6 +929,42 @@ So the *phrase* is written and the *feature* is not. Decision D10: either build 
 
 Twenty items. Each is answerable in a sentence. Ordered by how much they change.
 
+### Status as of 2026-08-25 — read this before re-deriving anything
+
+Every decision below was re-checked against the current code and data on 2026-08-25. Counted off the
+21 rows below: **3 closed** (D1, D2, D12) · **6 that only you can rule on** — no amount of code will
+close them (D3, D5, D6, D7, D11, D19) · **6 genuinely still open** (D8, D14, D15, D17, D18, D20a) ·
+**5 half-closed**, where the text under them now overstates the work (D4, D9, D10, D13, D16) · and
+**1 mechanically closed** (D20b).
+
+| D | Status | What actually changed |
+|---|---|---|
+| **D1** | ✅ **RESOLVED** | The split shipped as recommended. The `years` condition key is used by **zero** entries. |
+| **D2** | ✅ **RESOLVED** | Fixed as a side effect of D1, exactly as predicted. `maren.quest.first-signs.*` and `maren.keystone.1` are flag-gated; the year-1 dead-end is gone. |
+| **D3** | 🔵 **YOUR RULING** | All five lines still ship verbatim, unedited. Code cannot rule on G7 tone. ⚠ *The whole corpus is mid-rewrite — see the currency note at the top. These five may not survive it in their quoted form.* |
+| **D4** | 🟡 **HALF CLOSED** | All seven names have now been swept. `Nessa` came back a **new RED** (Galar Gym Leader, Water-type, fisher father) and is now **Hetty**; the other six screened clean. **But that pass was Pokémon-names-only** — no Digimon, Temtem, Cassette Beasts, Monster Sanctuary or trademark search, all of which the original sweep ran and all of which produced REDs elsewhere. Your approval half is untouched. |
+| **D5** | 🔵 **YOUR RULING** | Ships as the paid arrangement, no plea anywhere. |
+| **D6** | 🔵 **YOUR RULING** (effectively a no-op) | Gym 1 is 2 slots + 1 signature. Nothing to decide unless you want the copy adjusted. |
+| **D7** | 🔵 **YOUR RULING** | Data is still autumn, and `core/regional-events.ts` now *names this decision in a comment* and refuses to fix it by inventing a season (G2). One word from you closes it. |
+| **D8** | 🔴 **STILL OPEN — and slightly worse** | No destabilisation mechanism exists anywhere in `core/`. The Duskhollow lines are now `when: {}` — not year-gated, **ungated entirely** — and **one of them** — `amb.r5-astronomer.base` — asserts a measurable *rate* ("about a degree a decade") with nothing behind it. It is the only line in the corpus that asserts a rate; its Duskhollow neighbours are qualitative. |
+| **D9** | 🟡 **HALF CLOSED** | The **epilogue survey now exists and is wired** (`game/finale.ts` → `game/boot.ts` launches SurveyScene). The Sanctum itself is unchanged: its one `population` clause is a presence guard, not earned-state description. |
+| **D10** | 🟡 **HALF CLOSED — smaller than the text implies** | Bloom Year now ships as a real latched season-long window. Only the **bonus-spawn multiplier** is absent, and `data/balance.json` / `core/regional-events.ts` cite this decision by name for why. |
+| **D11** | 🔵 **YOUR RULING** | Unchanged standoff: bible §4 says "Steppe (hidden)", the data and every line put Kilnback under the mine. |
+| **D12** | ✅ **RESOLVED** | Shipped as Q6 recommended — see the note under it. |
+| **D13** | 🟡 **STILL OPEN, but much cheaper than written** | The headline holds exactly: Wick has grown to 19 entries and **not one** carries a `population` or `floraStock` clause. **But D13's supporting sentence is now false** — 23 entries do read the player's survey back, including two on r4 Stonewing that are precisely the read-your-own-crash beat, and GATE 1f proves every such clause is reachable through the real sim. This is no longer "build the mechanism and write the beat"; it is "write one line on a mechanism that already ships and is gate-proven." |
+| **D14** | 🔴 **STILL OPEN** | Still one outcome (`"delivered"`). No `"refused"` anywhere. The suite annotates the deferral flag as *"STORY-REVIEW D14, open"*. |
+| **D15** | 🔴 **STILL OPEN** | Bowerdeep's entire Cullbrand presence is still one Greaves intro plus one ambient logger. No quest, no chain, no beat. |
+| **D16** | 🟡 **Mechanically repaired, content untouched** | *Forge a Legacy* was closing itself on two [E] presses; it now has a real objective. **No prose moved** — still 5 lines. It is a slim beat, not a hole. |
+| **D17** | 🔴 **STILL OPEN — now admitted in code** | *The Star Census* writes `.offered` and `.paid` and has **no terminal state at all**; `game/quests.ts` says so in as many words: *"the only quest of the ten with no terminal state."* Unlike D16, this is a hole. |
+| **D18** | 🔴 **STILL OPEN** | `yearEvents.raids` still holds **exactly one** raid. What changed is the raid's *mechanics* (act-keyed, harvest-fraction) — that is D12's territory, not this one. **Six of seven acts have no raid.** |
+| **D19** | 🔵 **YOUR RULING — now test-pinned** | The six lines are pinned exactly by the suite, and one real defect inside the set was fixed (`amb.r1-forager.late`'s gate corrected so it is true at its own floor). ⚠ **The exposure is seven, not six:** `wick.act3.win`'s *"three years running"* is the same failure mode and §6 does not name it. Whatever you rule should probably cover it. |
+| **D20a** | 🔴 **STILL OPEN** | The Trail's unnamed season is still unnamed; nothing anywhere gates on it. |
+| **D20b** | 🟢 **Mechanically closed** | The wager's deadline went from **existing only in the copy** to a real objective kind with lapse and re-arm, enforced by GATE 2d (*"a deadline the copy states is a deadline the objective has"*). The beat is stronger now than when it was flagged. |
+
+**Two framing corrections worth carrying into the read:** D13 and D20b both got smaller since this was
+written, and D8 got larger. D16 and D17 look alike in a table and are not — one is thin, the other has
+no ending.
+
 ---
 
 ### The four that matter most
@@ -915,8 +973,34 @@ Twenty items. Each is answerable in a sentence. Ordered by how much they change.
 The entire rival arc (18 entries), both Greaves cutscenes, `greaves.finale.pre`/`post`, `maren.finale`, `sanctum.vellsire.approach`, both epilogues, `prop.sanctum-antler-ring`, the whole opening chain, `maren.keystone.1`, `maren.quest.first-signs.*`, `tolm.quest.fallow.offer`, `maren.greeting.y1–y6`, `amb.r4-worker.arrival`. Under Q3 a player who reaches the Sanctum in year 8 sees **none of the finale** — including the Vellsire choice and both epilogues, which are on the never-cut list.
 *My recommendation:* every one of the 44 becomes a flag gate on the corresponding act/badge flag, except `maren.greeting.y1–y6` (harmless — an unconditional fallback exists) and the `amb.*.late` / town-ageing entries, which should **stay** on `yearMin` because Q3 explicitly keeps town ageing on the calendar. **Your call: confirm the split, or name a different one.**
 
+> **✅ RESOLVED 2026-08-25 — nothing to rule on; the split shipped as recommended.** Measured on the
+> current corpus: **the `years` condition key is used by exactly zero entries.** The surviving
+> condition keys are `actMin`, `act`, `flagsSet`, `flagsUnset`, `flagEquals`, `yearMin`,
+> `population`, `floraStock` and `seasons` — `years` is gone from the data entirely. Spot-checked on
+> the beats this decision names: all eighteen `wick.act<N>.{pre,win,loss}` entries are `actMin`-gated,
+> `greaves.finale.pre`/`.post`, `maren.finale`, `sanctum.vellsire.approach` and **both epilogues** are
+> `actMin: 6`, and the town-ageing copy kept `yearMin` exactly as recommended. Do **not** re-derive
+> this. *(The per-key counts are **deliberately not recorded here** — the corpus is mid-rewrite, so
+> any histogram written down would be stale before it was read. `years` = 0 is the load-bearing
+> fact, and it is the one that does not move.)*
+
 **D2 — The Vellsire chain has a hard dead-end at year 1, and no test can see it.**
 `maren.quest.first-signs.offer` and `.done` are `years:[1]`. `.done` is the only source of `chain.vellsire.unlocked`. `maren.keystone.1` requires that flag **and** `years:[1]`. So a player who does not finish *First Signs* and then return to Maren **within year 1** permanently loses: the 11-step Vellsire chain, *Vellsire's Trail*, `chain.vellsire.complete`, and the lore behind the finale. The reachability test's flag fixpoint **ignores `years` entirely** (verified in `tests/unit/dialogue.test.ts` — it walks `flagsSet` and `flagEquals` only), so 87 green tests do not touch this. **Your call: is this fixed by D1's act-gating, or does it need its own fix now?** *(D1 fixes it as a side effect, which is the cheapest route.)*
+
+> **✅ RESOLVED 2026-08-25 — fixed as a side effect of D1, exactly as predicted.** Verified in the
+> corpus: `maren.quest.first-signs.offer` is now `{flagsSet:["quest.first-signs.offered"],
+> flagsUnset:["quest.first-signs.done"]}`, `.done` is `{flagsSet:["quest.first-signs.turnin"],
+> flagsUnset:["quest.first-signs.done"]}`, and `maren.keystone.1` is
+> `{flagsSet:["chain.vellsire.unlocked"], flagsUnset:["chain.vellsire.step1"]}`. **Not one of the
+> three carries a `years` clause any more**, so the year-1 window that could permanently strand the
+> 11-step Vellsire chain does not exist.
+>
+> **The blind spot this decision identified has also been closed, which matters more than the fix.**
+> D2's real finding was that *"87 green tests do not touch this"* — the flag fixpoint ignored `years`
+> entirely. There is now a permanent gate, `tests/gates/reachability.test.ts` (build-doc §8.5), whose
+> whole premise is that a precondition is only real if something **outside the test** produces it. It
+> reports every unreachable entry with its kind, line count and reason, and it covers non-flag clauses
+> too. A defect of this shape can no longer hide behind a green suite.
 
 **D3 — The five borderline G7 lines, quoted in full.** These were cleared by one read and flagged by an independent audit as close calls. G7 is absolute, so they are yours to rule on.
 
@@ -949,21 +1033,32 @@ Coined to fill bible §10's *"+ ~2 quest NPCs per town"*, which names none. Each
 
 **D8 — Duskhollow's ageing arc has no mechanism.** Bible §6: *"dark encroaches as the Sanctum destabilizes."* Four speakers assert it as flat fact in every year, ungated, and **nothing anywhere models Sanctum destabilisation.** It is the only town ageing arc that reads no state. **Your call: build a state behind it, gate the lines on something real (Sanctum-adjacent flora, or Vellsire-absence duration), or accept it as unfalsifiable atmosphere.**
 
-**D9 — The Sanctum is not "revealed in the state your ecology earned".** Bible §6 promises it; none of the six Sanctum entries reads a population or flora figure. The caldera reads identically whether you emptied Fallowmere or restored it. The epilogue names the six nodes but prints no numbers — those live in a ledger UI this scene does not open. **Your call: is the epilogue ledger enough, or does the Sanctum itself need state-gated description?**
+**D9 — The Sanctum is not "revealed in the state your ecology earned".** Bible §6 promises it; none of the six Sanctum entries reads a population or flora figure. The caldera reads identically whether you emptied Fallowmere or restored it. The epilogue names the six nodes but prints no numbers — those live in a survey UI this scene does not open. **Your call: is the epilogue survey enough, or does the Sanctum itself need state-gated description?**
 
 **D10 — Bloom Year does not exist as a feature.** No bonus-spawn multiplier anywhere. Two ambient lines describe a bloom off live flora, which is emergent rather than scripted. **Your call: build the bonus-spawn event, or rule that flora-driven growth already is the positive feedback and strike the event from §9.**
 
 **D11 — Kilnback's habitat.** Bible §4 says *"Steppe (hidden)"*. The data ships it in the **Cindershelf town node**, and every line of the 6-step chain places it under the mine. Data and dialogue agree; the bible's one-word column disagrees. **One word: amend the bible, or move the creature to r4.**
 
-**D12 — Q6 is a content decision, not just a data fix.** `data/nodes/r4.json` ships healthy (Cragmar 10, Pyrelisk 14, Stonewing 3) while bible §6 wants Cindershelf entered mid-collapse. The dialogue was rewritten so it never asserts a collapse the ledger contradicts — correct, and not the fix. **Q6 already recommends: let the act-4 raid crash r4 on act entry rather than shipping it pre-crashed**, so one source of truth stays one and an early arrival watches it happen. **Confirm that, or say ship it pre-crashed.**
+**D12 — Q6 is a content decision, not just a data fix.** `data/nodes/r4.json` ships healthy (Cragmar 10, Pyrelisk 14, Stonewing 3) while bible §6 wants Cindershelf entered mid-collapse. The dialogue was rewritten so it never asserts a collapse the survey contradicts — correct, and not the fix. **Q6 already recommends: let the act-4 raid crash r4 on act entry rather than shipping it pre-crashed**, so one source of truth stays one and an early arrival watches it happen. **Confirm that, or say ship it pre-crashed.**
+
+> **✅ RESOLVED 2026-08-25 — shipped as Q6 recommended; nothing to confirm.** Verified in the data,
+> not from a report: `data/nodes/r4.json` still ships **healthy** (Cragmar 10, Pyrelisk 14,
+> Stonewing 3 — the exact figures this decision quotes), and the crash is applied on **act entry** by
+> `core/lifecycle.ts` `enterPendingActs`, which reads `balance.yearEvents.raids`. That raid list is
+> **act-keyed, not year-keyed**: the single entry `cullbrand-strip-harvest-r4` carries `"act": 4`.
+> So an early arrival watches it happen and one source of truth stays one, which is what the decision
+> asked for. *(Note this is D12 only. **D18** — that six of seven acts still have no raid at all — is
+> a different decision and is still open.)*
 
 ---
 
 ### Beats I think are weak or missing
 
 **D13 — Wick has no population-conditioned line, and this is the largest missing content beat in the game.**
-Bible §8 promises *"the routes he's worked are visibly degraded when you reach them"*. **Not one of Wick's 15 entries reads a population, a flora stock, or any player-set flag** — his six encounters are pure `years:[N]`. Nothing anywhere in 499 lines reads the player's own ledger back at them.
-This is the beat where the rival and the mechanic are supposed to touch, and it is empty. It is also the hardest thing to write without crossing G7 — the line has to *report* the player's ledger without commenting on it, which is exactly the failure mode the pattern scan cannot catch. **Your call: is this worth writing, and do you want to see a draft before it goes into the file?** *(I think it is the single highest-value piece of remaining story work.)*
+Bible §8 promises *"the routes he's worked are visibly degraded when you reach them"*. **Not one of Wick's 15 entries reads a population, a flora stock, or any player-set flag** — his six encounters are pure `years:[N]`. Nothing anywhere in 499 lines reads the player's own survey back at them.
+This is the beat where the rival and the mechanic are supposed to touch, and it is empty. It is also the hardest thing to write without crossing G7 — the line has to *report* the player's survey without commenting on it, which is exactly the failure mode the pattern scan cannot catch. **Your call: is this worth writing, and do you want to see a draft before it goes into the file?** *(I think it is the single highest-value piece of remaining story work.)*
+
+> **⚠ CORRECTION 2026-08-25 — three claims in the paragraph above have expired.** The **headline holds**: measured now, Wick has **19** entries (not 15) and **not one** of them carries a `population` or `floraStock` clause. But: *(a)* **"his six encounters are pure `years:[N]`" is false** — the `years` key is used by **zero** entries corpus-wide; all eighteen `wick.act<N>.{pre,win,loss}` entries are `actMin`-gated (D1). *(b)* **"Nothing anywhere in 499 lines reads the player's own survey back at them" is false** — **23 entries** now carry a `population` or `floraStock` clause, two of them on r4 Stonewing, which is precisely the read-your-own-crash beat this decision asks for. *(c)* The corpus is no longer 499 lines. **What this changes for the decision:** it is no longer "build the mechanism and write the beat" — the mechanism ships and is gate-proven reachable through the real sim. It is now "write one line against a mechanism that already exists," which is a much smaller ask than the paragraph above implies.
 
 **D14 — *Silk Shortage* only has one ending.** The bible promises *"visible consequence either way"*. There is a `delivered` result and a `heard-vesper` deferral, but **no refusal outcome**: no Vesper acknowledgement, no canopy-count consequence, no `result:"refused"`. Half a dilemma. **Your call: author the refusal branch, or accept the deferral flag as the refusal.**
 

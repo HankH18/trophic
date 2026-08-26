@@ -26,7 +26,7 @@ export const SCENE_KEYS = {
   menu: "Menu",
   overworld: "Overworld",
   battle: "Battle",
-  ledger: "Ledger",
+  survey: "Survey",
   /** bible §12's dex, with the migrant flags Hard Req 10 needs (game/scenes/DexScene.ts). */
   dex: "Dex",
   /** The team/creature card, which is where the projected retirement year is read

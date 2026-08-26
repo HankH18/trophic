@@ -1,0 +1,282 @@
+{
+ "_slice": "S8b-amb-brackwater",
+ "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
+ "entries": [
+  {
+   "id": "amb.brackwater-dockhand.base",
+   "speaker": "brackwater-dockhand",
+   "node": "brackwater",
+   "kind": "ambient",
+   "when": {},
+   "lines": [
+    {
+     "text": "Barge is due alongside at slack, and slack's an hour off yet. She'll not come in on a running tide. Not with sixty ton in her."
+    },
+    {
+     "text": "Mirefin out in barrels, flour and nails and rope in. All of it over my back."
+    },
+    {
+     "text": "Day-rate's the same for me as for the lad who ties her off, and he's nineteen. Come down at slack some morning and take the other end of the rope off me."
+    }
+   ]
+  },
+  {
+   "id": "amb.brackwater-dockhand.rot",
+   "speaker": "brackwater-dockhand",
+   "node": "brackwater",
+   "kind": "ambient",
+   "priority": 40,
+   "when": {
+    "yearMin": 3,
+    "population": [
+     {
+      "node": "r2",
+      "lineId": "mirefin-line",
+      "op": "lte",
+      "value": 4
+     }
+    ]
+   },
+   "lines": [
+    {
+     "text": "I've stopped standing over the third piling when she comes alongside. I stand further up the boards now."
+    },
+    {
+     "text": "We're putting out half the barrels we did, so the town won't drive a new piling this year. Ask Sel why. Take a cushion, he'll be a while about it. Sixty ton a week over soft timber, on the day-rate I had when it was sound."
+    }
+   ]
+  },
+  {
+   "id": "amb.brackwater-dockhand.rebuilt",
+   "speaker": "brackwater-dockhand",
+   "node": "brackwater",
+   "kind": "ambient",
+   "priority": 40,
+   "when": {
+    "yearMin": 3,
+    "population": [
+     {
+      "node": "r2",
+      "lineId": "mirefin-line",
+      "op": "gte",
+      "value": 9
+     }
+    ]
+   },
+   "lines": [
+    {
+     "text": "Barge came alongside at slack this morning and the deck didn't move under her. New pilings on the third and the fourth."
+    },
+    {
+     "text": "First new timber this dock has had in my time on it. I keep putting my boot down where the soft board used to be, waiting for the deck to give, and then I notice I've done it again."
+    }
+   ]
+  },
+  {
+   "id": "amb.brackwater-netmender.base",
+   "speaker": "brackwater-netmender",
+   "node": "brackwater",
+   "kind": "ambient",
+   "when": {},
+   "lines": [
+    {
+     "text": "Coarse mesh for the grown Mirefin, fine mesh for the Bogling. Summer mesh on the end rail for the Reedrick, and that one hangs there dry three quarters of the year."
+    },
+    {
+     "text": "People come down here and ask me what's got into the animals out on the marsh. The water's colder than it was when I started, and that's all it is. What comes up in a net comes up smaller, so I've taken the mesh down a gauge."
+    },
+    {
+     "text": "The lad in the next house starts up on a whistle at four and keeps at it till dark."
+    }
+   ]
+  },
+  {
+   "id": "amb.brackwater-child.base",
+   "speaker": "brackwater-child",
+   "node": "brackwater",
+   "kind": "ambient",
+   "when": {},
+   "lines": [
+    {
+     "text": "Sel says sit in the middle, don't trail your hand. I sit at the front. I trail my hand."
+    },
+    {
+     "text": "Auntie Hetty says a Bogling's just a Mirefin that hasn't got big yet. I say it gets to pick."
+    },
+    {
+     "text": "I've got a boat name now, because I go out in the boats. Corbett hasn't got one and he's been here for ever."
+    }
+   ]
+  },
+  {
+   "id": "amb.brackwater-elder.base",
+   "speaker": "brackwater-elder",
+   "node": "brackwater",
+   "kind": "ambient",
+   "when": {},
+   "lines": [
+    {
+     "text": "My post is the second one past the steps. My grandfather cut a mark in it, down at the water line. The water comes up to that mark."
+    },
+    {
+     "text": "Never over it. Not in my life. Drought year, flood year, same mark. Same mark."
+    },
+    {
+     "text": "My mother heard the pilings sing in a flood year. She would not say what made them sing. My nephew tells people I cut a fresh mark and forgot. I did not cut a fresh mark."
+    }
+   ]
+  },
+  {
+   "id": "amb.brackwater-buyer.base",
+   "speaker": "brackwater-buyer",
+   "node": "brackwater",
+   "kind": "ambient",
+   "when": {},
+   "lines": [
+    {
+     "text": "Corbett. I buy the season here on behalf of an office that is not in this town. The schedule comes down in the first week of the year, and I price against it. Clause four has stood unamended for sixty years."
+    },
+    {
+     "text": "Clause four says channel. It does not say shallows and it does not say marsh."
+    },
+    {
+     "text": "People bring me shallows figures every spring. I file them, and I price off the channel. The warden's last marsh figure had Fenmaw in it, and Fenmaw take Mirefin, and Mirefin is the animal my contract is written on."
+    }
+   ]
+  },
+  {
+   "id": "amb.brackwater-buyer.lowseason",
+   "speaker": "brackwater-buyer",
+   "node": "brackwater",
+   "kind": "ambient",
+   "priority": 40,
+   "when": {
+    "yearMin": 3,
+    "population": [
+     {
+      "node": "r2",
+      "lineId": "fenmaw-line",
+      "op": "lte",
+      "value": 1
+     }
+    ]
+   },
+   "lines": [
+    {
+     "text": "The warden walked that marsh again last month. She could not put more than one Fenmaw in it, and she is not sure of the one."
+    },
+    {
+     "text": "Nothing out there is taking Mirefin now, so they come up thick for a year or two, and then the channel goes empty. There is a clause for a season of that kind and it sets the price low. I have the report from the last one, and two pages of it I cannot follow."
+    }
+   ]
+  },
+  {
+   "id": "amb.r2-ferryhand.base",
+   "speaker": "r2-ferryhand",
+   "node": "r2",
+   "kind": "ambient",
+   "when": {},
+   "lines": [
+    {
+     "text": "I take the second boat out when Sel's is full, which is most days. Everybody waits for his. His boat isn't faster. I've timed the pair of them across."
+    },
+    {
+     "text": "Channel's on the left going out, shallows on the right. Most people don't ask."
+    },
+    {
+     "text": "There's an idol out in the water where the reed thins, and it faces the town. Everybody who gets in this boat asks me about that idol. It's Sel's to talk about, so ask him on the way back. He does it properly."
+    }
+   ]
+  },
+  {
+   "id": "amb.r2-ferryhand.quiet",
+   "speaker": "r2-ferryhand",
+   "node": "r2",
+   "kind": "ambient",
+   "priority": 40,
+   "when": {
+    "yearMin": 3,
+    "population": [
+     {
+      "node": "r2",
+      "lineId": "reedrick-line",
+      "op": "lte",
+      "value": 10
+     }
+    ]
+   },
+   "lines": [
+    {
+     "text": "Reed's gone quiet this year. Come summer you normally can't hear yourself over the Reedrick out here. You have to shout across the boat."
+    },
+    {
+     "text": "Sporantle are coming up thick on the mud, thicker than I've seen them out here, and there's next to nothing left to keep them down. I couldn't tell you why. Ask down on the dock, somebody there will know."
+    }
+   ]
+  },
+  {
+   "id": "festival.brackwater",
+   "speaker": "brackwater-elder",
+   "node": "brackwater",
+   "kind": "cutscene",
+   "priority": 65,
+   "when": {
+    "flagsSet": [
+     "event.festival.open"
+    ]
+   },
+   "lines": [
+    {
+     "text": "The festival goes on the water here. Every boat lit at once. The whole channel goes orange, and the fronts of the houses go orange."
+    },
+    {
+     "text": "Then the year turns. Corbett sets the price and we wait on the steps to hear the number. That number is what the town eats on. My mother waited on these steps. I'm on a stool now. I get down early for the dry end."
+    }
+   ]
+  },
+  {
+   "id": "amb.brackwater-netmender.late",
+   "speaker": "brackwater-netmender",
+   "node": "brackwater",
+   "kind": "ambient",
+   "priority": 40,
+   "when": {
+    "yearMin": 6
+   },
+   "lines": [
+    {
+     "text": "Three re-cuts in six years, and I overdid the second one. My mother did two in her whole time on these boards."
+    },
+    {
+     "text": "I've kept every net I ever cut down, hanging in the shed on its own peg, oldest at the back. My son calls that hoarding. I can walk in there in the dark and put my hand on the net I cut the year he was born."
+    }
+   ]
+  },
+  {
+   "id": "amb.r2-ferryhand.apex",
+   "speaker": "r2-ferryhand",
+   "node": "r2",
+   "kind": "ambient",
+   "priority": 41,
+   "when": {
+    "yearMin": 3,
+    "population": [
+     {
+      "node": "r2",
+      "lineId": "fenmaw-line",
+      "op": "lte",
+      "value": 1
+     }
+    ]
+   },
+   "lines": [
+    {
+     "text": "I haven't seen a Fenmaw on the channel run all season. Not one. I used to put two a month down in the back of my fare book."
+    },
+    {
+     "text": "Mirefin are everywhere in the shallows now, right up under the boat. I put the pole down on one of them this morning without meaning to. Hetty says that follows from the Fenmaw being gone. I couldn't follow her chalk."
+    }
+   ]
+  }
+ ]
+}

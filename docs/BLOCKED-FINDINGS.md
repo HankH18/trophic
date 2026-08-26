@@ -30,7 +30,7 @@ than that anything calls it.
 
 The same failure mode has a third instance that is worse, because it is a test whose green means the
 **negation** of what it says: `tests/integration/seams.test.ts:327` is named *"HONEST GAP: nothing in
-production wires battle's catch to the ledger yet"*, and it is green **because the wiring it greps
+production wires battle's catch to the survey yet"*, and it is green **because the wiring it greps
 for landed in a file that is not on its source list** (**BF-3**). Its own comment instructs whoever
 finds it to replace it with a real test.
 **BF-3 is RESOLVED (2026-08-25)** — and the sweep its last paragraph asked for turned out to be the
@@ -124,6 +124,35 @@ played at all. Neither demo beat can be produced by playing.
 Lane C7. (ii) An interim writer of `story.opening.done` at new-game or on first prop interaction.
 **Route (ii) alone still leaves BF-2 blocking everything past r1.**
 
+#### RESOLUTION — route (i) shipped; the diagnosis above is now HISTORICAL
+
+**Status after the wiring wave: RESOLVED 2026-08-25.** The `**Status: STILL PRESENT**` line above is
+kept verbatim as the record of what was measured then; it is **no longer true of the tree**, and this
+block is the correction. Re-verified by reading the current source, not by trusting a report:
+
+- **Item 5 is dead.** `core/dialogue-schema.ts` now has shipping importers under `game/`, and
+  `game/dialogue-runner.ts` is the Lane C7 runtime the "real fix" called for
+  (`game/dialogue-runner.ts:39` imports `entryById` / `speakerById`; `game/scene-keys.ts:41` is the
+  dialogue scene key `dialogue: "Dialogue"`, described by the build-doc §15 C7 comment at `:36`). `data/dialogue.json` is played, not merely validated.
+- **`story.opening.done` is now written by the corpus on the normal path**, as route (i) required.
+  ⚠ **Stated precisely, because it is not a deletion:** `OverworldScene.openPrologue` now resolves in
+  the order *lane hook → **corpus** → stand-in* (`game/scenes/OverworldScene.ts:1662-1699`). When the
+  corpus can deliver the flag from here, the method writes nothing and the opening cutscene plays
+  itself, **and the "provisional" banner and console line are gone from that path** — that is the
+  visible difference. The `hooks.onOpeningBeat` override still exists and still wins
+  (`:237`, `:1682`), and **the stand-in is deliberately kept** as a last resort: without it, a corpus
+  that fails to load would lock the player inside Hearthollow for ever, which is a worse failure than
+  a declared stand-in.
+- **Walkability is not blocked by this finding any more.** BF-2, its stated blocker, is also resolved
+  — see the resolution block on that entry.
+
+**What this finding did NOT cover, and what was found once the runtime existed:** wiring the corpus
+up revealed that **39 of 211 entries / 83 of 499 lines had no path to the screen at all** — every gym
+leader's pre- and post-battle speech, all eighteen rival encounters, and both epilogues. That is a
+separate defect class from "nothing plays dialogue", and it is now permanently gated by
+`tests/gates/reachability.test.ts` (build-doc §8.5 / §10.7). See `docs/DEVIATIONS.md` D-Q8-1…D-Q8-6,
+D-W3-1…D-W3-10 and D-W4-6.
+
 ---
 
 ### BF-2 · Gyms award no badges; acts 2–6 are unreachable ⚠ CONCURRENT
@@ -175,6 +204,34 @@ the gym battle path: a way to reach a leader (prop interaction or town action), 
 leader), and a call to `winGym` on outcome `"win"`. Pair with **BF-10e** so the beat opens with the
 leader's name instead of `"Gym battle"`.
 
+#### RESOLUTION — the caller landed; the diagnosis above is now HISTORICAL
+
+**Status after the wiring wave: RESOLVED 2026-08-25.** The `**Status: STILL PRESENT**` line above is
+kept verbatim as the record of what was measured then. The missing caller now exists:
+`game/scenes/OverworldScene.ts:1392` — `if (won) this.winGym(gym.id);` inside the gym battle's
+`onFinished`. The gym battle path this entry specified is `challengeGym` → `playBattlePre` →
+`launchGymBattle` → `onFinished`, and `data/gyms.json` supplies the roster.
+
+**The ordering constraint this entry could not have known about, recorded because it is load-bearing:**
+`winGym` must be called **before** the leader's `battle-win` line is played, not after. Measured
+against the corpus: **five entries write `gym.<id>.beaten` themselves** — `maribel.post.win` and its
+**four** siblings `odo.post.win`, `vesper.post.win`, `sable.post.win`, `noct.post.win` — and
+`greaves.finale.post` separately writes `story.greaves.beaten`. Playing any of them before
+`awardBadge` would advance the act ladder in the middle of the scene announcing it. The order is
+documented at `game/scenes/OverworldScene.ts:1345-1351`.
+
+> ⚠ **Source-comment defect found while verifying this, not fixed here (this lane owns docs only).**
+> `game/dialogue-runner.ts:122` says *"`maribel.post.win` and its **five** siblings"*. There are
+> **four** siblings — five writers in total. `game/scenes/OverworldScene.ts:1347` states it correctly
+> as *"and its four siblings"*. The two comments contradict each other; the OverworldScene one
+> matches the data. Nothing depends on the number, so this is a comment defect, not a behaviour bug.
+
+**The stub-blindness note above stands and is worth keeping.** `tools/harness/full-run.ts` still walks
+the six acts by writing flags and badges directly. That remains defensible for what the harness tests,
+but it is exactly the pattern that let this defect hide — and it is the reason
+`tests/gates/reachability.test.ts` refuses to accept a precondition the tests themselves supply
+(build-doc §8.5).
+
 ---
 
 ### BF-3 · A green test that asserts the negation of the truth
@@ -186,7 +243,7 @@ the end of this entry; the diagnosis below is left verbatim as the record of wha
 
 ```
 tests/integration/seams.test.ts
-327  it("HONEST GAP: nothing in production wires battle's catch to the ledger yet", () => {
+327  it("HONEST GAP: nothing in production wires battle's catch to the survey yet", () => {
 336    const sources = [
 337      ...["battle","ecosim","lifecycle","save","clock","foodweb","rng","schemas","types"].map(
 338        (m) => `core/${m}.ts`,
@@ -194,7 +251,7 @@ tests/integration/seams.test.ts
 340      "game/main.ts",
 341    ];
 344    const callsBoth = /caughtIndividual\s*\([^)]*\)[\s\S]{0,800}?(applyCatch|adjustPopulation|t:\s*"catch")/.test(joined);
-348    expect(callsBoth, "battle→ledger wiring now exists in production code — replace this stand-in with a test of it").toBe(false);
+348    expect(callsBoth, "battle→survey wiring now exists in production code — replace this stand-in with a test of it").toBe(false);
 ```
 
 The wiring it claims does not exist **is in `game/wild-battle.ts`, which is not on the list**:
@@ -204,7 +261,7 @@ in play from `game/scenes/OverworldScene.ts:665`.
 
 The test's own comment says *"If this assertion ever fails, the wiring arrived and this test should
 become a check of the real thing."* The wiring arrived; the assertion did not fail; the search never
-looks there. **This is why the catch→ledger join could land with its obsolete stand-in left in
+looks there. **This is why the catch→survey join could land with its obsolete stand-in left in
 place.**
 
 **Fix:** a delete-and-replace, not a widening. Adding `game/wild-battle.ts` to the list turns it red
@@ -231,7 +288,7 @@ ways, and all three are present here:
 |---|---|---|
 | **A · the gap CLOSED and the test still asserts it is open** | green while stating the negation of the truth | seams `:329` *(already fixed)*, wild-battle header *(already fixed)* |
 | **B · the gap is OPEN and nothing will say when it closes** | passes while the hole persists, and passes after it is filled | demo-beats `:367`, collision `:469`, regional-events `:407`, battle-view `:1706` |
-| **C · a SOURCE-SUBSTRING assertion standing in for a behaviour** | `expect(source).toContain("winGym")` — satisfied by the declaration | year-turn-ux `:2923`/`:2962`, seams `:516`, battle-view `LANE_C3_FILES`, ledger-view §13 |
+| **C · a SOURCE-SUBSTRING assertion standing in for a behaviour** | `expect(source).toContain("winGym")` — satisfied by the declaration | year-turn-ux `:2923`/`:2962`, seams `:516`, battle-view `LANE_C3_FILES`, survey-view §13 |
 
 ##### Per file
 
@@ -288,7 +345,7 @@ ways, and all three are present here:
    Hard Req 8. **G7 has no repo-wide gate at all** (`grep -n "G7" tests/gates/` → nothing), so its
    only enforcement anywhere was three hand-written lists totalling 16 files. Both copy scans now
    walk every `.ts` under `game/` and `core/`. Measured across all of them: **zero** moralizing
-   literals, and exactly **one** death-word literal — `game/ledger-view.ts`'s `"recent deaths "`,
+   literals, and exactly **one** death-word literal — `game/survey-view.ts`'s `"recent deaths "`,
    the ecosim's own `recentDeaths` field printed as a real number (Hard Req 2), which is exempted **by
    its text, not by its file**, with an assertion that the exemption still matches something.
    `LANE_C3_FILES` survives for the two checks that are genuinely lane-scoped. **RED/GREEN:** pointing
@@ -311,7 +368,7 @@ ways, and all three are present here:
    event-vocabulary scan of the module. **RED/GREEN:** adding `openEventWindows?: readonly string[]`
    to `ForayContext` fails it.
 
-8. **`tests/unit/ledger-view.test.ts`** — **C, defended by a false claim.** §13 justified reading
+8. **`tests/unit/survey-view.test.ts`** — **C, defended by a false claim.** §13 justified reading
    source with *"The scenes value-import Phaser, which throws in the node environment, so — exactly as
    tests/unit/battle-view.test.ts does for `BattleScene` — they are checked by reading their source."*
    **Both halves are false:** `battle-view.test.ts` `vi.mock`s Phaser and EXECUTES `BattleScene`, as
@@ -340,11 +397,11 @@ ways, and all three are present here:
   **the right home is the gates file**, alongside `no_magic_numbers` and the `Math.random` ban, and it
   should cover `data/*.json` copy too — which item 5 deliberately does not, because dialogue copy is
   Hank's ruling (G2). Owner: whoever next holds `tests/gates/guardrails.test.ts`.
-- **D-SWEEP-2 · `LedgerScene.setStates` and `LedgerScene.webLines` are dead public API.**
+- **D-SWEEP-2 · `SurveyScene.setStates` and `SurveyScene.webLines` are dead public API.**
   `grep -rn "setStates\|webLines" game/ core/ tests/` returns their declarations **and nothing else**.
   `webLines`'s own doc says it exists "in a form a test can assert" and no test asserts it — and it is
   the only other caller of `renderWebEdge`, the symbol whose deadness §13 was written about. Pinned by
-  the census in item 8, so a third one fails immediately. Fix is in `game/scenes/LedgerScene.ts`:
+  the census in item 8, so a third one fails immediately. Fix is in `game/scenes/SurveyScene.ts`:
   wire them or delete them, then shorten the pinned list.
 - **D-SWEEP-3 · BF-4 is confirmed live and now measured through the real roll**, not inferred: ~90 %
   of unlocked-Ancient encounters are J or A. See item 4 for the per-line numbers. Unchanged verdict,
@@ -640,7 +697,7 @@ that these are open gaps with honest view-layer workarounds rather than recomput
 | **c** | `core/types.ts:389-396` `\| { t: "damage"; uid; amount; effectiveness; predation; crit }` | No attacker. `battle-view.ts:516-524, :657-659` infers it from the preceding `moveUsed` and **consumes** the inference, reporting `null` rather than misattributing. Exact today (one `dealDamage` call site); wrong the day recoil/reflect/trap/environmental tick exists. |
 | **d** | `core/types.ts:409` `\| { t: "xpGained"; uid; amount }` | No `xpAfter`/`xpToNext`, so no proportional XP bar — computing it would mean the view calling `xpToNext`, a rules function. |
 | **e** | `core/types.ts:319-328` `BattleInput` / `:386` `battleStart` | No trainer/gym identity. `battle-view.ts:441` `gym: "Gym battle"` and stops. `BattleViewNames.opponent?()` (`:236`) is an escape hatch **with no caller in `game/`** — `game/scenes/BattleScene.ts:219-221` notes it is absent. Academic until BF-2. |
-| **f** | `core/types.ts:191-198` `EncounterWeight` — `dormantReason?: "dormant" \| "migrating"` | Cannot say **gated**. `core/foodweb.ts:509-510` pushes a gated line as `{ lineId, weight: 0, active: false }` with no reason — type-identical to a line at count 0. **Hard Req 10's distinction is derived downstream, not declared**, and re-derived twice: `game/encounters.ts:262` `absenceCauseOf` and `game/ledger-view.ts:771`. Fix: extend the union with `"gated"` and emit it at `foodweb.ts:510`. |
+| **f** | `core/types.ts:191-198` `EncounterWeight` — `dormantReason?: "dormant" \| "migrating"` | Cannot say **gated**. `core/foodweb.ts:509-510` pushes a gated line as `{ lineId, weight: 0, active: false }` with no reason — type-identical to a line at count 0. **Hard Req 10's distinction is derived downstream, not declared**, and re-derived twice: `game/encounters.ts:262` `absenceCauseOf` and `game/survey-view.ts:771`. Fix: extend the union with `"gated"` and emit it at `foodweb.ts:510`. |
 
 ---
 
@@ -795,7 +852,7 @@ seven files imports `swatchHex` / `swatchColor` / `Palette`.
 | file | n | current lines |
 |---|---|---|
 | `game/scenes/DexScene.ts` | 4 | 62 `#e8e4d8`, 63 `#8a8676`, 64 `#d8a24a`, 65 `0x14140f` |
-| `game/scenes/LedgerScene.ts` | 8 | 88 `#e8e4d8`, 89 `#8a8676`, 90 `#c26a6a`, 91 `0xe8e4d8`, 92 `0x8a3b3b`, 93 `0x4f6d4a`, 94 `0x8a3b3b`, 95 `0x14140f` |
+| `game/scenes/SurveyScene.ts` | 8 | 88 `#e8e4d8`, 89 `#8a8676`, 90 `#c26a6a`, 91 `0xe8e4d8`, 92 `0x8a3b3b`, 93 `0x4f6d4a`, 94 `0x8a3b3b`, 95 `0x14140f` |
 | `game/scenes/SummaryScene.ts` | 4 | 51 `#e8e4d8`, 52 `#8a8676`, 53 `#d8a24a`, 54 `0x14140f` |
 | `game/scenes/YearTurnScene.ts` ⚠ | 3 | 791 `0x101317`, 792 `#e8e4c9`, 793 `#7d8478` |
 | `game/scenes/OverworldScene.ts` ⚠ | 4 | 1238 `#e8f0e0`, 1239 `#0d0f0ccc`, 1246 `#ffe9b0`, 1247 `#0d0f0ccc` |
@@ -811,7 +868,7 @@ module (not the scene) so a node test can assert every id is a real swatch:
 `game/menu-model.ts:45-62` (`UI_SWATCH_ID` → `UI` via `swatchHex`) with
 `tests/unit/game-menu-model.test.ts:241-256` asserting every id is a real swatch **plus a
 measured-contrast check** — palette compliance must not make a screen unreadable. Engine-free homes
-already exist per lane: `game/ledger-view.ts` serves Dex/Ledger/Summary (it already exports
+already exist per lane: `game/survey-view.ts` serves Dex/Survey/Summary (it already exports
 `SCREEN_TEXT`, `DEX_ART_BOX`); `game/season-tint.ts` or `game/year-events.ts` for the year-turn lane.
 
 **Two corrections to the reported scope:**
@@ -1060,9 +1117,9 @@ unimplementable without inventing content (G2). Travel is instead an explicit ke
 objects, or a new prop kind — is a **content decision**, which is why this was deferred rather than
 worked around.
 
-### BF-32 · The ledger prints real numbers the save does not hold
+### BF-32 · The survey prints real numbers the save does not hold
 **Reported by:** an auditor · **STILL PRESENT — mitigated, not removed**
-`game/ledger-view.ts:146` `return Number.isInteger(value) ? String(value) : shortenReal(value,
+`game/survey-view.ts:146` `return Number.isInteger(value) ? String(value) : shortenReal(value,
 REAL_DECIMALS);` with `REAL_DECIMALS = 1`, so `85.00425531914894` renders `"85.0"`. **The two harmful
 edges were closed** — `renderNumber(0.04)` is now `"0.04"` (was `"0.0"`, i.e. a live line shown as
 gone) and `renderNumber(99.95)` is `"99.9"` (was `"100.0"`). What remains is display rounding.
@@ -1123,9 +1180,9 @@ and `BattleScene` via that stub, and `YearTurnScene` / `RetirementScene` via a c
 `import type PhaserNS` plus exported factories `createYearTurnScene(P)` / `createRetirementScene(P)`
 (`game/scenes/YearTurnScene.ts:809`, `RetirementScene.ts:1098`).
 
-**Six scenes are executed by nothing:** `BootScene`, `DexScene`, `LedgerScene`, `MenuScene`,
+**Six scenes are executed by nothing:** `BootScene`, `DexScene`, `SurveyScene`, `MenuScene`,
 `SummaryScene`, `TitleScene`. Four of them are checked only by `readFileSync` + `toContain`
-(`tests/unit/ledger-view.test.ts:2065-2212`); **`TitleScene` and `BootScene` have zero test
+(`tests/unit/survey-view.test.ts:2065-2212`); **`TitleScene` and `BootScene` have zero test
 references of any kind.**
 
 **What the existing green is evidence OF:** the scene's own logic, against a stub whose `make()`
@@ -1239,9 +1296,9 @@ another pass on them.
 five maps, was 1/5 and 2/5); the FALSE REJECT is closed (contrast gain read from the walkable
 population only); the rejection reason now states only measured quantities.
 
-**Ledger / web view** — the breed column no longer drops `foodFactor`; collapsed-edge labels are
+**Survey / web view** — the breed column no longer drops `foodFactor`; collapsed-edge labels are
 placed collision-aware (0 overlaps across 370 scenarios / 4162 labels); a migrant at 0 no longer gets
-the seasonal word; the trend/`net` column is live via `game/ledger-history.ts`; `encounterGatedFor`
+the seasonal word; the trend/`net` column is live via `game/survey-history.ts`; `encounterGatedFor`
 keeps the sign-chain flag for a line that is both gated and out of window.
 
 **Year turn / clock / retirement** — the gym-victory second-year-turn hole, the `Y7/6` label and the
@@ -1266,7 +1323,9 @@ BF-20, BF-21, BF-22, BF-23, BF-24, BF-25, BF-26, BF-30, BF-32, BF-33, BF-34, BF-
 **Blocked on the concurrent time-model workflow** — needs `data/balance.json`, `data/dialogue.json`,
 `data/gyms.json`, `core/clock.ts`, `core/lifecycle.ts`, `core/acts.ts`, `game/scenes/OverworldScene.ts`,
 `game/scenes/YearTurnScene.ts`, `game/year-events.ts`, `game/registry.ts` or `tools/harness/**`:
-**BF-1, BF-2, BF-8, BF-9 *(the harness half)*, BF-11, BF-13 *(the balance half)*, BF-16, BF-17, BF-18
+~~BF-1~~ *(RESOLVED 2026-08-25 — the Lane C7 dialogue runtime shipped; see its resolution block)*,
+~~BF-2~~ *(RESOLVED 2026-08-25 — `winGym` has its caller at `OverworldScene.ts:1392`)*,
+**BF-8, BF-9 *(the harness half)*, BF-11, BF-13 *(the balance half)*, BF-16, BF-17, BF-18
 *(YearTurnScene, OverworldScene)*, BF-27, BF-29**.
 
 *(BF-17 moved into this list at 07:00 — `tests/gates/guardrails.test.ts` went dirty under that

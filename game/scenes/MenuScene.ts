@@ -38,11 +38,11 @@ import {
   slotSelectable,
   type MenuRequest,
 } from "../menu-model";
-import { ledgerHistory } from "../ledger-history";
+import { surveyHistory } from "../survey-history";
 import { registry, TEXT_SPEEDS, type TextSpeed } from "../registry";
 import { SaveStorage, slotLabel, type SlotStatus } from "../storage";
 import type { DexSceneData } from "./DexScene";
-import type { LedgerSceneData } from "./LedgerScene";
+import type { SurveySceneData } from "./SurveyScene";
 import type { SummarySceneData } from "./SummaryScene";
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -525,7 +525,7 @@ export class MenuScene extends Phaser.Scene {
       }
       // The closer STOPS the screen before reopening this menu. `ScenePlugin.start` shuts down the
       // scene it belongs to — this one — so a callback that only started the menu left the screen it
-      // came from running and drawn (measured live: after ESC the ledger and the menu were both
+      // came from running and drawn (measured live: after ESC the survey and the menu were both
       // active). The menu opened it, so the menu closes it.
       const close = (): void => {
         this.scene.stop(key);
@@ -557,19 +557,19 @@ export class MenuScene extends Phaser.Scene {
           onSelect: () => this.scene.start(SCENE_KEYS.menu, { mode: "settings", from: "session" }),
         },
         screen(
-          "LEDGER",
-          SCENE_KEYS.ledger,
+          "SURVEY",
+          SCENE_KEYS.survey,
           "Per-node populations and the derived web.",
-          (close): LedgerSceneData => ({
+          (close): SurveySceneData => ({
             content,
             // A FUNCTION, not the record: `stepRegionStates` returns a new object every season, so a
             // record captured here would be the numbers as they were when the menu was opened.
             states: () => registry.save().nodeStates,
-            // The `seasons` column's readings (game/ledger-history.ts). This is the LIVE record —
-            // the store replaces the arrays inside it rather than the object — so a ledger left open
+            // The `seasons` column's readings (game/survey-history.ts). This is the LIVE record —
+            // the store replaces the arrays inside it rather than the object — so a survey left open
             // across a season boundary grows its trend instead of freezing it. Without this the
             // column rendered one number and `net —` on every row of every screen.
-            histories: ledgerHistory.histories(),
+            histories: surveyHistory.histories(),
             year: save.year,
             season,
             startNodeId: save.currentNode,

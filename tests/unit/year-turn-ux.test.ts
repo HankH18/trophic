@@ -82,7 +82,7 @@ import {
   festivalBeat,
   hasRaids,
   raidCoverage,
-  raidLedgerLines,
+  raidSurveyLines,
   raidPreviews,
   raidReportsFrom,
   raidableActs,
@@ -107,7 +107,7 @@ import {
   type RetirementSelection,
 } from "@game/scenes/RetirementScene";
 import { SCENE_KEYS, sceneRegistered } from "@game/scene-keys";
-import { dexArtId } from "@game/ledger-view";
+import { dexArtId } from "@game/survey-view";
 import { assetId } from "@game/placeholder";
 import {
   actEntryBeats,
@@ -1546,7 +1546,7 @@ describe("act events — scripted raids, from balance.json only", () => {
     expect(late.year).toBe(balance.clock.startYear + 10);
   });
 
-  it("the raid decrements the named node's real numbers, and the ledger rows are those numbers", () => {
+  it("the raid decrements the named node's real numbers, and the survey rows are those numbers", () => {
     const raid = scripted[0] as RaidScript;
     const before = atAct(raid.act);
 
@@ -1583,7 +1583,7 @@ describe("act events — scripted raids, from balance.json only", () => {
     expect(report.totalRemoved).toBe(report.targets.reduce((sum, t) => sum + t.removed, 0));
 
     // The rows on screen are those numbers, with an arrow and nothing else (G7).
-    const lines = raidLedgerLines(reports);
+    const lines = raidSurveyLines(reports);
     expect(lines).toHaveLength(report.targets.length);
     for (const line of lines) expect(line).toMatch(/\d+ → \d+ \(−\d+\)/u);
 
@@ -1718,7 +1718,7 @@ describe("year-turn sequence — build-doc §4 'a renderer of its event log'", (
 
   it("BINDS — the beats run in build-doc §7.5's numbered order, retirement at step 3", () => {
     // §7.5: (2) aging + forms, (3) "any creature at 0 → retirement flow", (5) season step + year
-    // events, (6) map year-variant swap. The sequence used to show the raid ledger and the map swap
+    // events, (6) map year-variant swap. The sequence used to show the raid survey and the map swap
     // BEFORE the retirement beat and answer the prompts after everything — measured then:
     // "festival → aging → form → raid → retirements".
     const node = content.nodes.find((n) => Object.keys(n.populations).length > 0);
@@ -1791,7 +1791,7 @@ describe("year-turn sequence — build-doc §4 'a renderer of its event log'", (
   });
 
   it("G11 — the virtual resolution is read from balance.map, never written as a literal", () => {
-    // `game/boot.ts` states the rule verbatim, and BattleScene/DexScene/LedgerScene/SummaryScene all
+    // `game/boot.ts` states the rule verbatim, and BattleScene/DexScene/SurveyScene/SummaryScene all
     // comply — these two scenes carried `width: 480, height: 320` in their style blocks, and no gate
     // in the tree covers `game/`, so nothing caught it.
     expect(defaultYearTurnStyle(balance).width).toBe(balance.map.virtualWidth);
@@ -2962,7 +2962,7 @@ describe("this lane is reached by playing, not only by testing", () => {
   it("BINDS — every read-side function this lane publishes has a caller in a scene", () => {
     /*
      * Counted before this: previewAction 0 callers, actionCosts 0, seasonTintsForYear 0,
-     * applySeasonOverlay 0, raidPreviews 0, raidCoverage 0, raidLedgerLines 0, hasRaids 0,
+     * applySeasonOverlay 0, raidPreviews 0, raidCoverage 0, raidSurveyLines 0, hasRaids 0,
      * raidableYears 0, raidsForYear 0 — the whole "what will this action cost", "what is about to be
      * harvested" and "which acts have no authored raid" surface was exercised by this file and
      * nothing else. A green suite over functions with no caller is evidence about pure functions.
@@ -2982,7 +2982,7 @@ describe("this lane is reached by playing, not only by testing", () => {
       ["applySeasonOverlay", "game/scenes/YearTurnScene.ts"],
       ["raidPreviews", "game/scenes/YearTurnScene.ts"],
       ["raidCoverage", "game/scenes/YearTurnScene.ts"],
-      ["raidLedgerLines", "game/scenes/YearTurnScene.ts"],
+      ["raidSurveyLines", "game/scenes/YearTurnScene.ts"],
       ["hasRaids", "game/scenes/YearTurnScene.ts"],
       ["raidsForAct", "game/scenes/YearTurnScene.ts"],
       // The act-entry PRESENTATION. `actEntryBeats` was built for this beat and had no caller

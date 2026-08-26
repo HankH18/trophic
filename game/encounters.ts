@@ -11,7 +11,7 @@
  * What that buys, for free, is the never-cut demo beat (build-doc §1 beat 1):
  *   • A species at count 0 has weight 0, and `Rng.pickWeighted` skips zero weights — so a line the
  *     player has caught to extinction produces EXACTLY ZERO encounters, permanently, with no
- *     extinction check anywhere in the code. The cascade is visible because the ledger and the
+ *     extinction check anywhere in the code. The cascade is visible because the survey and the
  *     encounter roll read the same number.
  *   • A predator that starves out of the node stops appearing for the same reason and by the same
  *     arithmetic — nothing here knows what a predator is (G6).
@@ -109,7 +109,7 @@ export function encounterChancePerStep(balance: Balance): number {
  * Every line at this node with its DERIVED weight and its active/dormant flag.
  *
  * A straight pass-through to core/foodweb.ts, and it stays a pass-through: the dex, the sign cards,
- * the ledger and the roll must all read one array, or "why is nothing spawning" gets two answers.
+ * the survey and the roll must all read one array, or "why is nothing spawning" gets two answers.
  */
 export function encounterTable(ctx: ForayContext): EncounterWeight[] {
   const opts = ctx.unlockedSignChains
@@ -245,7 +245,7 @@ export function rollForay(ctx: ForayContext, rng: Rng): Encounter[] {
  * vocabulary could not name broke that for the one species the finale hangs on.
  */
 export type AbsenceCause =
-  /** count 0 at this node. The ledger's own number is the whole explanation (G7). */
+  /** count 0 at this node. The survey's own number is the whole explanation (G7). */
   | "wiped"
   /** Out of its `seasonalWindow`, far side — core/foodweb.ts `migrantStatus`. */
   | "dormant"
@@ -268,7 +268,7 @@ export interface AbsenceReason {
  * more than it may decide what eats what). It reads the shape of what core returned:
  * `encounterWeights` produces an inactive entry in exactly three ways — with a `dormantReason` (the
  * migrant branch), or without one and with weight 0, which is either the gate branch or a count of
- * 0. The count separates those last two, and it is the same number the ledger prints. The
+ * 0. The count separates those last two, and it is the same number the survey prints. The
  * classification is proved against core rather than assumed: `tests/unit/encounters.test.ts` walks
  * every shipped node in every season and checks that every line called `"gated"` becomes active when
  * — and only when — its own chain is unlocked.

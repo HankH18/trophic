@@ -2,7 +2,7 @@
  * game/main.ts — the entry point index.html loads.
  *
  * Two jobs and no more: name the scenes, and start the game. The scene LIST lives here so that a
- * later Lane C step adding OverworldScene (C2), BattleScene (C3) or the ledger (C4) touches this
+ * later Lane C step adding OverworldScene (C2), BattleScene (C3) or the survey (C4) touches this
  * file and nothing else — `game/boot.ts` deliberately imports no scene, so there is no cycle to
  * unpick and no registration order to get right.
  */
@@ -13,7 +13,7 @@ import { attachCanvasScale, createGameConfig, renderFatalError, viewport } from 
 import { BattleScene } from "./scenes/BattleScene";
 import { BootScene } from "./scenes/BootScene";
 import { DexScene } from "./scenes/DexScene";
-import { LedgerScene } from "./scenes/LedgerScene";
+import { SurveyScene } from "./scenes/SurveyScene";
 import { MenuScene } from "./scenes/MenuScene";
 import { OverworldScene } from "./scenes/OverworldScene";
 import { createRetirementScene } from "./scenes/RetirementScene";
@@ -34,11 +34,11 @@ import { createYearTurnScene } from "./scenes/YearTurnScene";
  *     hands the overworld the LIVE session — its content, its save and its RNG streams. Started with
  *     no data, `OverworldScene.init` falls back to a brand-new save at the default seed, so a
  *     CONTINUE that routed without data would silently discard the slot it had just loaded.
- *   • `Ledger`, `Dex` and `Summary` are routed from the in-run menu (game/scenes/MenuScene.ts), each
+ *   • `Survey`, `Dex` and `Summary` are routed from the in-run menu (game/scenes/MenuScene.ts), each
  *     handed the session's content and its live `nodeStates`.
  *   • `Battle` is DRIVEN BY THE OVERWORLD, not idle: `OverworldScene.beginWildBattle` launches it
  *     with the encounter's `BattleInput`/`BattleContext` (game/wild-battle.ts) and pauses itself;
- *     `finishWildBattle` stops it, resumes, and applies the catch to the ledger. Verified live —
+ *     `finishWildBattle` stops it, resumes, and applies the catch to the survey. Verified live —
  *     r1 loamunder 32 → 31 with `{t:"catch"}` on the action log. Its party is still the PROVISIONAL
  *     starter (game/boot.ts `startingParty`) until build-doc §15 C7's opening beat hands one over.
  *   • `YearTurn` is launched by `OverworldScene.beginYearTurn` on the clock's `yearEnd`, and
@@ -63,7 +63,7 @@ const SCENES: Phaser.Types.Scenes.SceneType[] = [
   MenuScene,
   OverworldScene,
   BattleScene,
-  LedgerScene,
+  SurveyScene,
   DexScene,
   SummaryScene,
   createYearTurnScene(Phaser),

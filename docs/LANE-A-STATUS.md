@@ -32,7 +32,7 @@ his own lock, not a lane relitigating it.
 - **Nothing may read `balance.clock.yearsTotal` to decide whether the run is over.** It survives as
   the EXPECTED year count under normal pacing. Audited at integration: its only readers are pacing
   readouts (`game/ui/SeasonMeter.ts` `pastExpectedPace`, `game/year-events.ts`, the retirement card's
-  "beyond year 6" note in `core/lifecycle.ts` / `game/ledger-view.ts`), one art/tint clamp
+  "beyond year 6" note in `core/lifecycle.ts` / `game/survey-view.ts`), one art/tint clamp
   (`game/season-tint.ts`), the harness's stated pacing model, and test loop bounds. **No guard, no
   branch, no end condition reads it.**
 - **`game/` never computes an act from a year.** `GameRegistry.act()` and `OverworldScene.act()` both
@@ -198,7 +198,7 @@ reproduces the closing state exactly (tested). Absolutes (HP, level, form name, 
 button *before* stepping, and a refused action now also emits `{t:"actionRejected", reason}` so you
 can explain it afterwards. `evaded` and `lureChanged` were added at integration for the same reason.
 
-**Catch → ledger (Hard Req 2).** `caughtIndividual(state, ctx)` returns
+**Catch → survey (Hard Req 2).** `caughtIndividual(state, ctx)` returns
 `{uid, lineId, formName, age, level, traits, nodeId, ancient, metamorphosed}` — every field has a
 home in `newOwnedCreature`'s options, so nothing is lost in the hand-off. Applying it is the
 caller's job (see the gap in §6).
@@ -231,16 +231,16 @@ the year turn. Over six years that is 24; over eleven it is 44.
 > and it never reads the clock. `balance.clock.yearsTotal` survives as the EXPECTED year count under
 > normal pacing, quoted by the HUD and driven by the harness, and caps nothing.
 
-**Ledger / epilogue.** Read `save.nodeStates[nodeId].populations[lineId].count` directly (§8.3 says
-the ledger UI reads `nodeStates` objects, and no other module may restate the numbers).
-`projectRegion` (core/ecosim.ts) is what the Hard Req 7 epilogue needs — it is a ledger read of a
+**Survey / epilogue.** Read `save.nodeStates[nodeId].populations[lineId].count` directly (§8.3 says
+the survey UI reads `nodeStates` objects, and no other module may restate the numbers).
+`projectRegion` (core/ecosim.ts) is what the Hard Req 7 epilogue needs — it is a survey read of a
 projection, not a second sim.
 
 ---
 
 ## 6. Honest gaps — read this section before trusting anything above
 
-### 6.1 ~~Nothing wires a battle catch to the ledger.~~ CLOSED 2026-08-25 — it is production code now.
+### 6.1 ~~Nothing wires a battle catch to the survey.~~ CLOSED 2026-08-25 — it is production code now.
 
 > **AMENDED (`docs/DEVIATIONS.md` D-INT-1).** `game/wild-battle.ts` `applyCatchToSave` is the join,
 > and `game/scenes/OverworldScene.ts` calls it through `applyWildBattleOutcome`. The seams test that
@@ -250,13 +250,13 @@ projection, not a second sim.
 > source rather than a hand-written list. The paragraph below is kept as the record of what the gap
 > was; its last two sentences are no longer true.
 
-#### (historical) Nothing wires a battle catch to the ledger. (Lane C dependency, not a Lane A defect.)
+#### (historical) Nothing wires a battle catch to the survey. (Lane C dependency, not a Lane A defect.)
 
 The pieces all exist and compose — `caughtIndividual` → `appendAction({t:"catch", nodeId, lineId})`
 → `replay` (or `applyCatch` for the live path) → the count moves. **It is proven end to end**, with
 a real battle against the shipped R1 data, in
 `tests/integration/seams.test.ts` ("Hard Req 2: a real battle catch moves a real number"): the
-ledger goes 11 → 10 and the derived encounter weight follows. But **that test is the join**. There
+survey goes 11 → 10 and the derived encounter weight follows. But **that test is the join**. There
 is no function in `core/` or `game/` that does it, and a test in the seams file asserts that fact so
 the day someone adds the real wiring, the stand-in fails and gets replaced. Same for release.
 
@@ -361,7 +361,7 @@ pinned by a test that goes red when the fix is reverted (verified). Full write-u
 
 | | Defect | Measured |
 |---|---|---|
-| **I4** | **The fourth season ran twice a year.** `core/clock.ts` cued it (§4) and `core/lifecycle.ts` ran it (§7.5 step 5). A caller doing the documented thing ran 5 season steps a year, not 4. | +25% ecology on every six-year trajectory; ledgers demonstrably differ under the two accountings |
+| **I4** | **The fourth season ran twice a year.** `core/clock.ts` cued it (§4) and `core/lifecycle.ts` ran it (§7.5 step 5). A caller doing the documented thing ran 5 season steps a year, not 4. | +25% ecology on every six-year trajectory; surveys demonstrably differ under the two accountings |
 | **I4-note** | *(2026-08-25)* The clause of I4 about a gym victory disagreeing with the year turn over WHICH season it was is now moot: `gymVictory` no longer exists (D-Q2-1). The seam itself — one cue per season, never two — is unchanged and is what the count above still gates. | — |
 | **I10** | **Adding a node moved every other node's trajectory** — `stepAll` cost the parent RNG one draw *per node*, so region size phase-shifted every stream from the next season on. INV-2 was false, and lane A2's comment claimed it was true. | Adding one node moved Hearthollow's bramblehog 6→9, loamunder 42→43, pollywisp 6→5 over two years, six graph hops away |
 | **I3** | **Two implementations of the population write.** `core/save.ts` restated §7.3 step 4's clamp without the upper bound, and `applyCatch` used a literal `0` where replay read `populationFloor`. | A replayed release at carrying capacity gave **22 against a cap of 21** (r1 bramblehog); L10's byte-identical-replay claim was false |

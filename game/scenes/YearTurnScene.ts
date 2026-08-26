@@ -49,9 +49,9 @@ import type { FestivalBeat, RaidPreview, RaidReport } from "@game/year-events";
 import {
   festivalBeat,
   hasRaids,
-  ledgerNameOf,
+  surveyNameOf,
   raidCoverage,
-  raidLedgerLines,
+  raidSurveyLines,
   raidPreviews,
   raidReportsFrom,
   raidsForAct,
@@ -436,7 +436,7 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
  *
  * ORDER IS SPEC, NOT TASTE. build-doc §7.5 numbers the turn's steps: (2) aging and the form changes,
  * (3) "any creature at 0 → retirement flow", (5) the season step + the year events, (6) the map
- * year-variant swap. So the retirement beat sits between the form changes and the raid ledger — and
+ * year-variant swap. So the retirement beat sits between the form changes and the raid survey — and
  * the scene ANSWERS its prompts there, not after every other beat has played, which is where they
  * used to be answered. build-doc §4 step 5 lists the same six items with the map swap ahead of the
  * raid scripts; §7.5 is the one that numbers them and it wins. Logged as C56-D1.
@@ -502,7 +502,7 @@ export function beatsFor(
         ancients.push({
           uid: event.uid,
           lineId: event.lineId,
-          formName: line ? ledgerNameOf(line, balance) : event.lineId,
+          formName: line ? surveyNameOf(line, balance) : event.lineId,
           where: event.where,
         });
         break;
@@ -690,7 +690,7 @@ export function beatLines(beat: YearTurnBeat): string[] {
          */
         ...beat.harvest.flatMap((preview) =>
           preview.targets.map(
-            (t) => `HARVEST · ${preview.nodeName} · ${t.ledgerName} (−${String(t.requested)})`,
+            (t) => `HARVEST · ${preview.nodeName} · ${t.surveyName} (−${String(t.requested)})`,
           ),
         ),
         // bible §12a — "year aging progressively darkens". The scale IS the darkening, per season.
@@ -707,7 +707,7 @@ export function beatLines(beat: YearTurnBeat): string[] {
          */
         ...beat.harvest.flatMap((preview) =>
           preview.targets.map(
-            (t) => `HARVEST · ${preview.nodeName} · ${t.ledgerName} (−${String(t.requested)})`,
+            (t) => `HARVEST · ${preview.nodeName} · ${t.surveyName} (−${String(t.requested)})`,
           ),
         ),
       ];
@@ -733,10 +733,10 @@ export function beatLines(beat: YearTurnBeat): string[] {
         : [head];
     }
     case "raid":
-      // The rows come from game/year-events.ts `raidLedgerLines`, which is where this lane's raid
-      // copy lives. Formatting them a second time here was two homes for one ledger row, and the two
+      // The rows come from game/year-events.ts `raidSurveyLines`, which is where this lane's raid
+      // copy lives. Formatting them a second time here was two homes for one survey row, and the two
       // had already drifted — this one dropped the node name from every row.
-      return [`${beat.report.nodeName} · −${String(beat.report.totalRemoved)}`, ...raidLedgerLines([beat.report])];
+      return [`${beat.report.nodeName} · −${String(beat.report.totalRemoved)}`, ...raidSurveyLines([beat.report])];
     case "mapVariant":
       return [`${beat.nodeName} · Y${String(beat.year)} · ${beat.mapAsset}`];
     case "retirements":

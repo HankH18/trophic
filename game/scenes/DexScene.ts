@@ -5,7 +5,7 @@
  *
  * 1. **Hard Req 10 — legibility.** bible §5: "dex entries and sign cards flag migrants as 'dormant'
  *    or 'migrating' out of season, so seasonal absence is never confusable with a population crash."
- *    The flags come from `core/foodweb.ts` via `game/ledger-view.ts` — `migrantStatus` for the
+ *    The flags come from `core/foodweb.ts` via `game/survey-view.ts` — `migrantStatus` for the
  *    season, and `encounterWeights` itself, the roll's own call, for the sign-chain gate. Both are
  *    needed: with only the first, this screen read "individuals in region 1" for the three Ancients
  *    while the roll could never produce them. The entry additionally carries the live regional
@@ -32,13 +32,13 @@ import {
   renderDexEntry,
   renderDexFlags,
   type DexEntry,
-} from "../ledger-view";
+} from "../survey-view";
 import { placeholderImage } from "../placeholder";
 import { SCENE_KEYS } from "../scene-keys";
 import type { Content, NodeState, Season } from "../../core/types";
 
 /**
- * The scene key, READ from the registry rather than spelled again here (as `LedgerScene` does).
+ * The scene key, READ from the registry rather than spelled again here (as `SurveyScene` does).
  * `game/scene-keys.ts` is engine-free — `import type` only — so there is no reason for this file to
  * hold a second copy of the string, and two spellings of one key is the exact failure that registry
  * exists to prevent. It carried its own literal while the registry had no `dex` entry; the registry
@@ -64,12 +64,12 @@ const INK_DIM = "#8a8676";
 const INK_FLAG = "#d8a24a";
 const BACKDROP = 0x14140f;
 
-// The screen's text metrics have one home, in game/ledger-view.ts (see LedgerScene).
+// The screen's text metrics have one home, in game/survey-view.ts (see SurveyScene).
 const FONT = SCREEN_TEXT.fontFamily;
 const BODY_PX = SCREEN_TEXT.fontPx;
 const LINE_H = SCREEN_TEXT.lineHeight;
 const PAD = SCREEN_TEXT.padPx;
-// The slot the text is laid out beside, declared in game/ledger-view.ts so the width its lines are
+// The slot the text is laid out beside, declared in game/survey-view.ts so the width its lines are
 // asserted against is measured from the same left edge this scene draws them at.
 const ART_BOX = DEX_ART_BOX;
 
@@ -143,7 +143,7 @@ export class DexScene extends Phaser.Scene {
   }
 
   /**
-   * The lines drawn beside the art. Every one of them is produced by `game/ledger-view.ts`, which
+   * The lines drawn beside the art. Every one of them is produced by `game/survey-view.ts`, which
    * is where the test asserts them; this method only prefixes the position in the dex.
    */
   entryLines(entry: DexEntry): string[] {

@@ -29,7 +29,7 @@ The judged output is a demo video + an AI interview. Everything serves these:
 2. **Legacy** — the starter retires before the league; its heir fights the finale.
 
 Also never cut: vertical-slice walkability (Hearthollow → R1 → Brackwater → R2), the
-real-number ledger, the retirement flow, the Vellsire choice + epilogue ledger, determinism tests.
+real-number survey, the retirement flow, the Vellsire choice + epilogue survey, determinism tests.
 
 ## Guardrails (build-doc §16) — violating one fails the task
 
@@ -38,7 +38,9 @@ real-number ledger, the retirement flow, the Vellsire choice + epilogue ledger, 
 - **G3** No second encounter/spawn/bait table. One JSON per node is the single source of truth;
   encounter weights are **derived**. Only `core/foodweb.ts` may compute diet edges.
 - **G6** Never script the demo cascade into the sim — it must emerge from the §7.3 rules.
-- **G7** No moralizing copy about catching. Numbers only; the ledger is the moral.
+- **G7** No moralizing copy about catching. No line may tell the player they did wrong, imply guilt,
+  or deliver a lesson. Populations are reported the way a working field biologist reports them —
+  plainly, as counts, with no reverence for the notebook they are written in.
 - **G10** Boxed creatures age at year turns. Caught Ancients never age.
 - **G11** No gameplay constant as a literal in code — all from `data/balance.json`. No `Math.random`.
 - **G12** Never express effort in human engineering-hours (docs, comments, commits).
@@ -51,6 +53,15 @@ Full list, including the art-lane guardrails (G1, G4, G5, G8, G9, G13, G15), is 
 `core/` is **pure TypeScript with zero Phaser imports** (L11). The balance harness, the tests,
 and the game all import the same modules. The battle engine is a pure reducer
 `(state, action, rng) => {state, events[]}`; the Phaser scene is only a replayer of `events[]`.
+
+## The other rule that now has teeth
+
+**Authored content must be reachable** (build-doc §8.5). Two permanent gates enforce it:
+`tests/gates/reachability.test.ts` — every authored line has a path to the screen, every dialogue
+kind has a selector in `game/`, and no entry may be gated on a flag nothing writes — and
+`tests/gates/quest-layer.test.ts`. Both exist because a fully green suite once certified 39 of 211
+dialogue entries the player could not reach, including both epilogues. **A precondition is only real
+if something outside the test produces it.**
 
 ## Conduct
 

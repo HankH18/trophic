@@ -107,5 +107,71 @@
       ],
       "signature": { "lineId": "stonewing-line", "age": "E", "level": 40 }
     }
+  ],
+  "_rival": "content-bible §8 — 'Wick — a Cullbrand Company apprentice your age. Battles you each act. His philosophy is harvest-first; the routes he's worked are visibly degraded when you reach them. His team always includes Carricrow — he profits from collapse.' Only two of those clauses are content the bible STATES: he fights once per act, and Carricrow is always on the team. EVERY OTHER SLOT IS AUTHORED, NOT DERIVED (DEVIATIONS D-Q8-1), and it is authored under one machine-checkable rule so it cannot drift into invention: every slot's line lives on a route Wick has ALREADY WORKED (r1..rN), which is the bible's own 'the routes he's worked' clause read as a roster constraint. That reading is what makes the last fight fieldable at all — data/nodes/sanctum-approach.json carries carricrow-line and nothing else, so a team drawn from the act-6 node alone would be one animal. LEVELS are balance.encounter.levelByYear transcribed by ACT (6/12/18/24/30/36), i.e. the region's own wild band at that act, which puts every rival slot two levels under the act's leader (8/14/20/26/32/38); core/schemas.ts asserts that gap, because a rival who out-levels the badge that opens the next act inverts the ladder. His act-5 and act-6 Carricrow is an ELDER because his own act-5 line says so ('my Carricrow is an Elder now') — that slot is transcribed, not chosen. He is NOT a gyms[] row: game/gym-battle.ts keys leaders by `town` and winGym awards a badge, so a seventh leader standing on Route 1 would hand out a badge for beating the rival.",
+  "rival": [
+    {
+      "id": "wick",
+      "act": 1,
+      "node": "r1",
+      "slots": [
+        { "lineId": "nibbin-line", "age": "J", "level": 6 }
+      ],
+      "signature": { "lineId": "carricrow-line", "age": "J", "level": 6 }
+    },
+    {
+      "id": "wick",
+      "act": 2,
+      "node": "r2",
+      "slots": [
+        { "lineId": "mirefin-line", "age": "J", "level": 12 },
+        { "lineId": "reedrick-line", "age": "A", "level": 12 }
+      ],
+      "signature": { "lineId": "carricrow-line", "age": "A", "level": 12 }
+    },
+    {
+      "id": "wick",
+      "act": 3,
+      "node": "r3",
+      "slots": [
+        { "lineId": "mosslet-line", "age": "A", "level": 18 },
+        { "lineId": "webvern-line", "age": "A", "level": 18 }
+      ],
+      "signature": { "lineId": "carricrow-line", "age": "A", "level": 18 }
+    },
+    {
+      "id": "wick",
+      "act": 4,
+      "node": "r4",
+      "slots": [
+        { "lineId": "ashvole-line", "age": "A", "level": 24 },
+        { "lineId": "pyrelisk-line", "age": "A", "level": 24 },
+        { "lineId": "cragmar-line", "age": "A", "level": 24 }
+      ],
+      "signature": { "lineId": "carricrow-line", "age": "A", "level": 24 }
+    },
+    {
+      "id": "wick",
+      "act": 5,
+      "node": "r5",
+      "slots": [
+        { "lineId": "umbrat-line", "age": "A", "level": 30 },
+        { "lineId": "wispurr-line", "age": "A", "level": 30 },
+        { "lineId": "gloomoth-line", "age": "A", "level": 30 }
+      ],
+      "signature": { "lineId": "carricrow-line", "age": "E", "level": 30 }
+    },
+    {
+      "id": "wick",
+      "act": 6,
+      "node": "sanctum-approach",
+      "slots": [
+        { "lineId": "umbrat-line", "age": "A", "level": 36 },
+        { "lineId": "wispurr-line", "age": "A", "level": 36 },
+        { "lineId": "gloomoth-line", "age": "A", "level": 36 },
+        { "lineId": "duskstalk-line", "age": "A", "level": 36 }
+      ],
+      "signature": { "lineId": "carricrow-line", "age": "E", "level": 36 }
+    }
   ]
 }

@@ -146,7 +146,7 @@ export interface PropPlacement {
 }
 
 export interface NodePopulation {
-  count: number; // integer individuals; ledger shows THIS number
+  count: number; // integer individuals; survey shows THIS number
   breedRate: number; // per-season fractional growth
   carryCap: number;
 }
@@ -528,6 +528,36 @@ export interface GymLeader {
   act: number;
 }
 
+/**
+ * content-bible §8 — the RIVAL's standing encounter for one act.
+ *
+ * "Wick — a Cullbrand Company apprentice your age. **Battles you each act.** … **His team always
+ * includes Carricrow**." Both clauses were unbuilt: `data/gyms.json` held six leaders and no rival,
+ * nothing in `game/` mentioned him, and all eighteen of his `battle-*` entries were unreachable.
+ *
+ * Deliberately NOT a `GymLeader`:
+ *   • no `town` — he stands on a ROUTE, and `gymAtNode` keys on `town`, so a rival row in `gyms[]`
+ *     would put a badge-awarding gym on Route 1;
+ *   • no `type` and no `source` — he is not a type-specialist and there is no ghost variant of him;
+ *   • no `name` — the display name is `data/dialogue.json`'s speaker table, which already carries
+ *     it and which the voice lane owns.
+ *
+ * `id` is the DIALOGUE SPEAKER id, because that is the join: the battle-kind selector asks the
+ * corpus for (speaker, node, kind) and the corpus's own `when` decides whether the encounter is
+ * still standing. There is no second "has he been fought" model in code.
+ */
+export interface RivalEncounter {
+  /** The `data/dialogue.json` speaker id — the join to his eighteen `battle-*` entries. */
+  id: string;
+  /** The act this encounter belongs to (`core/acts.ts` `actOf`), never a calendar year. */
+  act: number;
+  /** The node he is standing on — a route, or the Sanctum approach in the last act. */
+  node: string;
+  slots: GymTeamSlot[];
+  /** bible §8 — "his team always includes Carricrow"; this is that slot, sent out last. */
+  signature: GymTeamSlot;
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * §7.8 Save
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -816,6 +846,20 @@ export interface Balance {
      * lane has to hard-code "hidden" or special-case `ancient` (G11).
      */
     signChainGatedHabitatTag: string;
+    /**
+     * The node whose sign-chain-gated lines stay out of the ordinary encounter pool until the
+     * finale has been earned (`acts.runCompleteFlag`).
+     *
+     * bible §8's finale is a scripted meeting in the Sanctum ring, not a foray roll. Without this
+     * the chain alone unlocked it: `maren.keystone.6` writes `chain.vellsire.complete` at act 6 with
+     * no Greaves requirement, so a player could walk into the Sanctum, forage, roll the stag and
+     * snare it before the approach cutscene had ever played — and the cutscene then narrated an
+     * animal the survey said was gone. The FLAG is not repeated here on purpose: `acts
+     * .runCompleteFlag` already spells it and `core/acts.ts` `runCompleteFlag()` is the reader, so
+     * this key names only the NODE the gate applies at. The other two Ancients (`kilnback-line` at
+     * cindershelf, `undermere-line` on r2) are unaffected and stay wild.
+     */
+    finaleGatedNode: string;
     ageWeights: Record<AgeClass, number>;
     levelByYear: number[];
     levelJitter: number;
@@ -1014,6 +1058,8 @@ export interface Content {
   species: SpeciesLine[];
   moves: MovesFile;
   gyms: GymLeader[];
+  /** bible §8's rival, one row per act. Ships beside the leaders in data/gyms.json. */
+  rival: RivalEncounter[];
   balance: Balance;
   palette: PaletteFile;
   nodes: NodeFile[];

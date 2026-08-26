@@ -44,7 +44,15 @@ import {
   type RngStreams,
   type SaveEnvelope,
 } from "../../core/save";
-import type { Balance, Content, GameAction, GymLeader, NodeFile, Season } from "../../core/types";
+import type {
+  Balance,
+  Content,
+  GameAction,
+  GymLeader,
+  NodeFile,
+  RivalEncounter,
+  Season,
+} from "../../core/types";
 import {
   cellTopLeftWorld,
   chooseSpawnTile,
@@ -98,6 +106,8 @@ import {
   DIALOGUE,
   applyRunFlags,
   autoplayEntryFor,
+  battleEntryFor,
+  battleOutcomeKind,
   dialogueContext,
   propDialogueFor,
   runHeadless,
@@ -105,6 +115,25 @@ import {
   transcript,
   type DialogueRunState,
 } from "../dialogue-runner";
+import {
+  buildRivalBattle,
+  rivalAtNode,
+  rivalBattleProblem,
+  rivalBattleWon,
+  rivalEncounterStanding,
+} from "../rival";
+import {
+  buildVellsireBattle,
+  epilogueShown,
+  finaleNodeId,
+  finaleUnlocked,
+  resolveVellsireCatch,
+  resolveVellsireWithoutBattle,
+  vellsireAttempt,
+  vellsireBattleOutcomeLabel,
+  vellsireBattleProblem,
+  vellsireResolved,
+} from "../finale";
 import {
   linesMetAt,
   questReports,
@@ -172,7 +201,7 @@ export interface OverworldHooks {
   /**
    * A wild creature was met. OVERRIDE, not the wiring: when this is absent the scene launches the
    * battle itself ({@link OverworldScene.beginWildBattle}) and applies the catch through
-   * `game/wild-battle.ts`, so the catch→ledger loop is reachable by playing.
+   * `game/wild-battle.ts`, so the catch→survey loop is reachable by playing.
    *
    * It used to be the ONLY route, and nothing supplied it: `game/boot.ts` passed `onSaveChanged`
    * and nothing else, so a wild encounter in the shipped game flashed a banner and ended there. Two
@@ -221,7 +250,7 @@ export interface OverworldHooks {
    * `questFlags` (`RUN_COMPLETE_SHOWN_FLAG`), so a reload of a finished run does not replay it and
    * neither does the next year turn.
    *
-   * This is the seam the ending hangs off (Hard Req 7's epilogue ledger, the Vellsire choice). Until
+   * This is the seam the ending hangs off (Hard Req 7's epilogue survey, the Vellsire choice). Until
    * something takes it, the overworld says so on screen, which is the honest minimum. Nothing stops
    * afterwards: the calendar is unbounded, the player may keep playing, and `isOver` — which used
    * to answer "has the calendar passed year 6" and refused ticks, encounter rolls and year turns —
@@ -328,6 +357,18 @@ export class OverworldScene extends Phaser.Scene {
    * `talkEntryFor`, and the `maren.crash-survey` / `maren.keystone.4` priority collision it names.
    */
   private spokenHere = new Set<string>();
+
+  /**
+   * What to do once the box has finished — the fight after a `battle-pre`, the finale after the
+   * Vellsire choice.
+   *
+   * A FIELD RATHER THAN A CALLBACK CHAINED INSIDE `playEntry`, because `finishDialogue` ends by
+   * calling {@link playPendingCutscene}: a beat that runs straight into a cutscene must launch its
+   * battle AFTER that cutscene, not underneath it, or the fight and the box own the screen at once.
+   * The continuation therefore rides along until no dialogue is running, and is cleared before it is
+   * called so a re-entrant run cannot fire it twice.
+   */
+  private afterDialogue: (() => void) | null = null;
 
   constructor() {
     super(OVERWORLD_SCENE_KEY);
@@ -516,7 +557,7 @@ export class OverworldScene extends Phaser.Scene {
    * The live node: the shipped file with the save's populations, flora and recentDeaths on it.
    *
    * ⚠ THE ONE PLACE THE POPULATION FALLBACK IS DECIDED. Every reader of a count on this screen goes
-   * through here — the encounter roll, the HUD's ledger lines, the encounter banner. It used to be
+   * through here — the encounter roll, the HUD's survey lines, the encounter banner. It used to be
    * two: this function fell back to the shipped file when a node had no `nodeStates` entry (the
    * INV-2 "a save that predates this node" case), while `countOf` independently fell back to 0. The
    * HUD then printed every line as `0` while creatures kept spawning at the shipped weights, and an
@@ -928,11 +969,17 @@ export class OverworldScene extends Phaser.Scene {
    * option of every choice, which on the opening chain CHOOSES THE PLAYER'S STARTER — so it is
    * reported on the banner and in the console rather than passed off as normal.
    */
-  playEntry(entryId: string, who: string): void {
-    if (this.dialogueRunning) return;
+  playEntry(entryId: string, who: string, then?: () => void): void {
+    if (this.dialogueRunning) {
+      // The continuation must not be dropped on the floor: a `battle-pre` that cannot open its box
+      // would otherwise be a fight that never starts, silently.
+      if (then) then();
+      return;
+    }
 
     const finish = (state: DialogueRunState): void => {
       this.dialogueRunning = false;
+      if (then) this.afterDialogue = then;
       this.finishDialogue(state, who);
     };
 
@@ -993,6 +1040,19 @@ export class OverworldScene extends Phaser.Scene {
     // A chain of cutscenes (the opening beat runs straight into the two tutorials) plays through
     // rather than making the player press a key nothing tells them about.
     this.playPendingCutscene();
+    /*
+     * THE VELLSIRE CHOICE IS A DIALOGUE THAT STARTS A FIGHT. `sanctum.vellsire.approach`'s "Set the
+     * snare." writes `story.vellsire.attempt` and nothing else — the OUTCOME is a battle's, and this
+     * is where that battle is opened. The stand-aside branch writes its own resolution in the same
+     * `setFlags`, so it is already resolved by the time this runs and falls straight through to the
+     * released epilogue that `playPendingCutscene` just queued.
+     */
+    this.maybeBeginFinale();
+    const next = this.afterDialogue;
+    if (next && !this.dialogueRunning) {
+      this.afterDialogue = null;
+      next();
+    }
   }
 
   /**
@@ -1065,7 +1125,7 @@ export class OverworldScene extends Phaser.Scene {
       // whether that is calendar year 1 or year 20 — see game/encounters.ts `rollLevel`.
       act: this.act(),
     };
-    const unlocked = this.unlockedSignChains();
+    const unlocked = this.unlockedSignChains(nodeId);
     if (unlocked.size > 0) ctx.unlockedSignChains = unlocked;
     return ctx;
   }
@@ -1087,7 +1147,21 @@ export class OverworldScene extends Phaser.Scene {
    * than typed — no species id appears here, which the species-name gate in
    * tests/property/foodweb.test.ts requires and which also means a renamed line follows the data.
    */
-  private unlockedSignChains(): ReadonlySet<string> {
+  private unlockedSignChains(nodeId: string = this.node.id): ReadonlySet<string> {
+    /*
+     * ⚠ THE FINALE NODE IS GATED ON THE FINALE, NOT ON THE CHAIN ALONE (balance.encounter
+     * .finaleGatedNode). `maren.keystone.6` writes `chain.vellsire.complete` at act 6 with NO
+     * Greaves requirement, and `data/nodes/sanctum.json` ships `vellsire-line {count:1}` — so before
+     * this clause a player could complete the chain, walk into the Sanctum, forage, roll the stag
+     * and snare it, after which the approach cutscene narrated an animal the survey said was gone
+     * and offered a catch-or-release choice that was already moot. bible §8's finale is a scripted
+     * meeting (`game/finale.ts`), which is exactly why gating the WEIGHT TABLE here is safe: the
+     * resolver builds its own battler and never asks this question. The other two Ancients are
+     * unaffected — neither lives at this node.
+     */
+    if (nodeId === finaleNodeId(this.balance) && !finaleUnlocked(this.save, this.balance)) {
+      return new Set<string>();
+    }
     const gatedTag = this.balance.encounter.signChainGatedHabitatTag;
     const gatedLines = this.content.species.filter((s) => s.habitat.includes(gatedTag));
     const out = new Set<string>();
@@ -1214,6 +1288,16 @@ export class OverworldScene extends Phaser.Scene {
 
     const gym = gymAtNode(this.content, nodeId);
     if (!gym) {
+      /*
+       * A ROUTE HAS NO LEADER, BUT IT MAY HAVE THE RIVAL. The arrival trigger is the primary one
+       * (see {@link challengeRival}), and this is the way back to an encounter the player was in no
+       * state to take when they walked in — without it, a fainted party at the moment of arrival
+       * means walking out and back in is the only way to find him again.
+       */
+      if (rivalAtNode(this.content, nodeId)) {
+        this.challengeRival(nodeId);
+        return;
+      }
       this.flashBanner(`no leader at ${nodeId}`);
       return;
     }
@@ -1229,6 +1313,56 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
+    // The leader speaks BEFORE the fight, and the fight is launched from that run's continuation —
+    // see `playBattlePre`. Every refusal above has already been answered, so nothing here can leave
+    // the player holding a speech with no battle behind it.
+    this.playBattlePre(gym.id, gym.town, () => this.launchGymBattle(gym));
+  }
+
+  /**
+   * Play a fighter's `battle-pre`, then do the thing.
+   *
+   * ⚠ A MISSING ENTRY FLASHES A BANNER AND STILL FIGHTS. Gym-leader speaker ids happen to equal gym
+   * ids today (`maribel/odo/vesper/sable/noct/greaves` in both `data/gyms.json` and the speaker
+   * table) and the rival's id is `RivalEncounter.id`, so the join is by convention rather than by
+   * construction. A future divergence would make `battleEntryFor` return `undefined` — and a silent
+   * `undefined` there is a badge that can never be won, which is strictly worse than a fight with no
+   * speech in front of it. So the gap is SAID and the fight goes ahead.
+   */
+  private playBattlePre(speaker: string, node: string, then: () => void): void {
+    const entry = this.tryDialogue(() =>
+      battleEntryFor(DIALOGUE, speaker, node, "battle-pre", this.dialogueCtx()),
+    );
+    if (!entry) {
+      this.flashBanner(`${speaker} — no battle-pre at ${node}`);
+      then();
+      return;
+    }
+    this.playEntry(entry.id, entry.speaker, then);
+  }
+
+  /**
+   * Play a fighter's `battle-win` or `battle-loss`.
+   *
+   * ⚠ CALLED AFTER THE BADGE IS WRITTEN, AND THAT ORDER IS LOAD-BEARING. `maribel.post.win` and its
+   * four siblings write `gym.<id>.beaten` themselves and `greaves.finale.post` writes
+   * `story.greaves.beaten` — so playing this before `awardBadge` would advance the act ladder in the
+   * middle of the scene announcing it, and `runIsComplete`'s two authored conditions would arrive in
+   * the wrong order. `winGym` first, the speech second.
+   */
+  private playBattleOutcome(speaker: string, node: string, won: boolean, then?: () => void): void {
+    const kind = battleOutcomeKind(won);
+    const entry = this.tryDialogue(() => battleEntryFor(DIALOGUE, speaker, node, kind, this.dialogueCtx()));
+    if (!entry) {
+      this.flashBanner(`${speaker} — no ${kind} at ${node}`);
+      then?.();
+      return;
+    }
+    this.playEntry(entry.id, entry.speaker, then);
+  }
+
+  /** The fight itself, once the leader has spoken. */
+  private launchGymBattle(gym: GymLeader): void {
     let build: ReturnType<typeof buildGymBattle>;
     try {
       build = buildGymBattle({
@@ -1254,14 +1388,197 @@ export class OverworldScene extends Phaser.Scene {
         this.hudDirty = true;
         // A badge on a WIN and on nothing else — `gymBattleWon` enumerates the outcome rather than
         // reading "not a loss", so a fled fight is not a badge.
-        if (gymBattleWon(result.state)) this.winGym(gym.id);
+        const won = gymBattleWon(result.state);
+        if (won) this.winGym(gym.id);
         else this.flashBanner(`${gym.id} — ${result.state.outcome ?? "unresolved"}`);
+        // …and THEN the leader answers it. See `playBattleOutcome` for why this order is not free.
+        this.playBattleOutcome(gym.id, gym.town, won);
       },
     };
 
     this.battleRunning = true;
     this.scene.launch(SCENE_KEYS.battle, data);
     this.scene.pause();
+  }
+
+  /* ── the rival (content-bible §8) ──────────────────────────────────────── */
+
+  /**
+   * bible §8 — "Wick … **battles you each act**", on the route he has been working.
+   *
+   * ⚠ WITHOUT THIS THE RIVAL DID NOT EXIST. `data/dialogue.json` ships eighteen Wick entries — six
+   * pre-battle speeches, six wins, six losses, 37 lines — and before `game/rival.ts` there was no
+   * roster, no trigger and no module: he appeared in the shipped game as one always-eligible
+   * greeting in Brackwater. `maren.finale`, on the never-cut finale path, gates on
+   * `story.greaves.entered`, which nothing but his act-6 encounter writes.
+   *
+   * THE TRIGGER IS ARRIVAL, not a key: he is standing on the route when you walk onto it, which is
+   * how a Gold rival behaves and what "the routes he's worked are visibly degraded when you reach
+   * them" describes. It runs after the tick has been spent (see {@link travelTo}) so a seasonal
+   * clause reads the season the player arrived in.
+   *
+   * WHETHER THE ENCOUNTER IS STILL STANDING IS THE CORPUS'S ANSWER, not a second model here:
+   * `rivalEncounterStanding` asks for the `battle-pre` entry, whose own `when` carries the act floor
+   * and `flagsUnset: ["rival.act<N>.fought"]`. Every refusal is SAID, on the same terms
+   * {@link challengeGym} refuses.
+   */
+  challengeRival(nodeId: string = this.node.id): void {
+    if (this.isHandedOver() || this.travelling || this.dialogueRunning) return;
+
+    const rival = rivalAtNode(this.content, nodeId);
+    if (!rival) return;
+    const pre = this.tryDialogue(() => rivalEncounterStanding(DIALOGUE, rival, this.dialogueCtx()));
+    // Already fought, or the act floor is not reached: the corpus said so, and neither is a problem
+    // to report — an empty route is the normal state of six of them at any given moment.
+    if (!pre) return;
+
+    const problem = rivalBattleProblem(this.save, rival, this.content);
+    if (problem) {
+      this.flashBanner(`${rival.id} — ${problem}`);
+      return;
+    }
+    if (!sceneRegistered(this, SCENE_KEYS.battle)) {
+      this.flashBanner(`${rival.id} — "${SCENE_KEYS.battle}" is not registered`);
+      return;
+    }
+    this.playEntry(pre.id, pre.speaker, () => this.launchRivalBattle(rival));
+  }
+
+  /**
+   * The rival fight. NO BADGE, on purpose: `core/acts.ts`'s only numeric input is gym badges, and a
+   * rival who moved the act ladder would put the region's gates behind a fight the bible does not
+   * put them behind.
+   */
+  private launchRivalBattle(rival: RivalEncounter): void {
+    if (this.battleRunning || this.yearTurnRunning) return;
+
+    let build: ReturnType<typeof buildRivalBattle>;
+    try {
+      build = buildRivalBattle({
+        content: this.content,
+        save: this.save,
+        rival,
+        node: this.liveNode(rival.node),
+      });
+    } catch (err) {
+      this.flashBanner(`rival refused: ${describe(err)}`);
+      return;
+    }
+
+    const data: BattleSceneData = {
+      ctx: build.ctx,
+      input: build.input,
+      rng: this.streamFor(BATTLE_STREAM),
+      projectedRetirementYears: this.projectedRetirementYears(),
+      onFinished: (result) => {
+        this.battleRunning = false;
+        this.scene.stop(SCENE_KEYS.battle);
+        this.scene.resume();
+        this.hudDirty = true;
+        const won = rivalBattleWon(result.state);
+        this.flashBanner(`${rival.id} act ${String(rival.act)} — ${result.state.outcome ?? "unresolved"}`);
+        // The entry writes `rival.act<N>.fought` on a WIN only, so a loss leaves the encounter
+        // standing — which is what `wick.act6.loss` promises in words ("Come back when your team has
+        // slept") and what it could not do while the loss closed itself.
+        this.playBattleOutcome(rival.id, rival.node, won);
+      },
+    };
+
+    this.battleRunning = true;
+    this.scene.launch(SCENE_KEYS.battle, data);
+    this.scene.pause();
+  }
+
+  /* ── the finale (content-bible §8 / build-doc §16's never-cut Vellsire beat) ── */
+
+  /**
+   * Open the Vellsire fight when the player has just set the snare.
+   *
+   * Asked from {@link finishDialogue}, i.e. from every place a dialogue run can have written
+   * `story.vellsire.attempt`. `game/finale.ts` owns everything about the encounter; this decides
+   * WHEN, and reports the degraded answer when the battle scene is not there to decide it.
+   */
+  private maybeBeginFinale(): void {
+    if (this.dialogueRunning || this.battleRunning || this.yearTurnRunning) return;
+    if (vellsireResolved(this.save)) return;
+    if (vellsireAttempt(this.save) !== "catch") return;
+
+    const problem = vellsireBattleProblem(this.save);
+    if (problem) {
+      this.flashBanner(`the ring — ${problem}`);
+      return;
+    }
+    if (!sceneRegistered(this, SCENE_KEYS.battle)) {
+      /*
+       * SAME DISCIPLINE AS `playEntry`'s headless answer, and for the same reason: a beat that
+       * silently does not happen is worse than a degraded one, and this beat is the last thirty
+       * seconds of the demo. The snare cannot be rolled without the reducer's scene, so the attempt
+       * resolves the way a failed snare resolves — released — and it is SAID, not passed off.
+       */
+      const resolved = resolveVellsireWithoutBattle(this.save);
+      if (!resolved) return;
+      this.save = resolved.save;
+      this.flashBanner(`the ring — "${SCENE_KEYS.battle}" is not registered · ${resolved.outcome}`);
+      this.afterFinale();
+      return;
+    }
+
+    let build: ReturnType<typeof buildVellsireBattle>;
+    try {
+      build = buildVellsireBattle({
+        content: this.content,
+        save: this.save,
+        act: this.act(),
+        rng: this.streamFor(ENCOUNTER_STREAM),
+        node: this.liveNode(finaleNodeId(this.balance)),
+      });
+    } catch (err) {
+      this.flashBanner(`the ring refused: ${describe(err)}`);
+      return;
+    }
+
+    const data: BattleSceneData = {
+      ctx: build.ctx,
+      input: build.input,
+      rng: this.streamFor(BATTLE_STREAM),
+      projectedRetirementYears: this.projectedRetirementYears(),
+      onFinished: (result) => {
+        this.battleRunning = false;
+        this.scene.stop(SCENE_KEYS.battle);
+        this.scene.resume();
+        this.hudDirty = true;
+        const resolution = resolveVellsireCatch({
+          save: this.save,
+          content: this.content,
+          state: result.state,
+          caught: result.caught,
+        });
+        this.save = resolution.save;
+        if (resolution.problem !== null) this.flashBanner(`catch problem: ${resolution.problem}`);
+        const applied = resolution.applied;
+        this.flashBanner(
+          applied
+            ? `${build.lineId} at ${build.nodeId} — ${String(applied.before)} → ${String(applied.after)}`
+            : `${build.lineId} — ${vellsireBattleOutcomeLabel(result.state)} · ${resolution.outcome}`,
+        );
+        this.afterFinale();
+      },
+    };
+
+    this.battleRunning = true;
+    this.scene.launch(SCENE_KEYS.battle, data);
+    this.scene.pause();
+  }
+
+  /** Adopt the resolution and let the corpus answer it — one of the two epilogues is now eligible. */
+  private afterFinale(): void {
+    this.syncQuests();
+    this.advanceActs();
+    this.syncEvents();
+    this.hudDirty = true;
+    this.refreshHud();
+    this.hooks.onSaveChanged?.(this.save, this);
+    this.playPendingCutscene();
   }
 
   winGym(gymId: string): void {
@@ -1519,12 +1836,31 @@ export class OverworldScene extends Phaser.Scene {
    * ⚠ THE LATCH IS THE POINT. `runIsComplete` is a standing condition, not an edge: nothing clears
    * `story.greaves.beaten` and nothing takes a badge back, so re-testing it on every year turn fired
    * the ending once a year for ever — measured at three `onRunComplete` calls across three year
-   * turns of one finished run, i.e. C7/C9's epilogue ledger replaying annually. The latch is in the
+   * turns of one finished run, i.e. C7/C9's epilogue survey replaying annually. The latch is in the
    * SAVE (`RUN_COMPLETE_SHOWN_FLAG`), so a reload of a finished run does not replay it either, and
    * that is what makes it safe to ask this from every place the save may have changed.
    */
   private maybeCompleteRun(): void {
-    if (!this.runIsOver() || runCompleteShown(this.save)) return;
+    /*
+     * ⚠ THE CONDITION WAS `this.runIsOver()`, AND THAT FIRED THE ENDING A WHOLE BEAT TOO EARLY.
+     *
+     * `runIsComplete` returns true on `badgeCount >= gyms.length` as well as on the flag, and
+     * `launchGymBattle`'s `onFinished` runs `winGym` — which reaches this through `advanceActs` —
+     * BEFORE `playBattleOutcome` plays `greaves.finale.post`. So on the sixth badge this latched
+     * with `story.greaves.beaten` still unwritten, before `sanctum.vellsire.approach` had been
+     * offered and before either epilogue. Measured: awarding all six badges to a fresh save made
+     * `runIsComplete` true while `story.greaves.beaten` was `undefined`.
+     *
+     * That is fatal for what the hook is FOR. `onRunComplete` carries Hard Req 7's epilogue survey,
+     * whose whole subject is the difference the Vellsire choice made — and because the latch is
+     * one-shot, firing it here reported the region BEFORE the choice and then never fired again:
+     * `afterFinale` → `advanceActs` → here hits the `runCompleteShown` early return.
+     *
+     * The ending's own predicate is `story.epilogue.shown`, written by `maren.epilogue.caught` and
+     * `maren.epilogue.released` — i.e. the run's last cutscene has actually played. `runIsOver()`
+     * is unchanged and stays the ACT question it is (the HUD's "run complete", the act ladder).
+     */
+    if (!epilogueShown(this.save) || runCompleteShown(this.save)) return;
     this.save = markRunCompleteShown(this.save);
     this.flashBanner(`run complete · Y${String(this.save.year)} · act ${String(this.act())}`);
     this.hooks.onRunComplete?.(this.save, this);
@@ -1713,6 +2049,10 @@ export class OverworldScene extends Phaser.Scene {
     // one. Outside the `finally` so it runs with `travelling` already false, and after the tick has
     // been spent, so an arrival beat gated on a season reads the season the player arrived in.
     this.playPendingCutscene();
+    // …and the rival may be standing on it (bible §8, "battles you each act"). AFTER the cutscene,
+    // so an act arrival is not talked over by a fight; `challengeRival` stands down while a box is
+    // open and the route is still there when it closes.
+    this.challengeRival();
   }
 
   /* ── streams ──────────────────────────────────────────────────────────── */
@@ -1739,8 +2079,8 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * G7: numbers only. The ledger is the moral — nothing here comments on what the player has done to
-   * a population; it prints the count and the derived weight and stops.
+   * G7: numbers only. Nothing here comments on what the player has done to a population; it prints
+   * the count and the derived weight and stops.
    */
   private refreshHud(): void {
     // The meter IS the clock readout (L8). No second copy of the same three numbers in the text HUD.
@@ -1821,7 +2161,7 @@ export class OverworldScene extends Phaser.Scene {
      * C7's readouts. Every one of these is a NUMBER or an IDENTIFIER (G7): what is in arm's reach,
      * how many quests are open, how many sign cards this node has yielded, which chains are closed
      * and how many of the corpus's owed flags are still owed. Nothing here says what any of it
-     * means; the ledger is the moral.
+     * means. It is a readout, not a verdict.
      */
     {
       const prop = this.propUnderPlayer();

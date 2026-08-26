@@ -232,7 +232,7 @@ export interface NodePresence {
   typeBreedMult: Partial<Record<TypeName, number>>;
   /** Floor applied to the breedRate of lines of a given type (bible §4 Undermere — water table). */
   typeBreedFloor: Partial<Record<TypeName, number>>;
-  /** Ancient line ids exerting an effect here — the ledger shows what the player is about to lose. */
+  /** Ancient line ids exerting an effect here — the survey shows what the player is about to lose. */
   sources: string[];
 }
 
@@ -266,7 +266,7 @@ function nodesWithin(nodes: EcoNode[], fromId: string, radius: number): string[]
  * while free; Kilnback: Fire spawns active; Undermere: Water breedRate floor)".
  *
  * "While free" is read straight off the single source of truth: the Ancient's own count at its node.
- * Catch it and the count goes to 0, the effect disappears, and the epilogue ledger shows the
+ * Catch it and the count goes to 0, the effect disappears, and the epilogue survey shows the
  * difference — Hard Req 7's honest cost, with no separate flag to keep in sync.
  *
  * Radius is `balance.ecosim.presenceRadiusNodes` and includes the host node itself: the vents are
@@ -393,7 +393,7 @@ export interface SimContext {
   raw?: unknown;
 }
 
-/** One line's full arithmetic for one season — what the ledger and the tests read. */
+/** One line's full arithmetic for one season — what the survey and the tests read. */
 export interface SpeciesStepReport {
   lineId: string;
   role: Role;
@@ -604,9 +604,9 @@ export function step(node: EcoNode, season: Season, rng: Rng, context?: SimConte
   // Each predator's draw is capped at ITS OWN view of the pool, which says nothing about what the
   // other predators of the same prey already took — so the SUM could exceed the prey that exists.
   // The population clamp below would hide the overshoot, but `deathsThisSeason` would still carry
-  // it, and that number is the ledger (Hard Req 2) and the Scavenger encounter term (§7.2). A
-  // ledger that counts deaths of animals that never existed is not a real-numbers ledger. Removal
-  // is therefore capped at what is actually there, after starvation has taken its share.
+  // it, and that number is what the survey reports (Hard Req 2) and the Scavenger encounter term
+  // (§7.2). A survey counting deaths of animals that never existed is not a survey of real numbers,
+  // so removal is capped at what is actually there, after starvation has taken its share.
   for (const lineId of ids) {
     const opening = node.populations[lineId]?.count ?? 0;
     const available = Math.max(0, opening - (starvationDeaths[lineId] ?? 0));
@@ -632,7 +632,7 @@ export function step(node: EcoNode, season: Season, rng: Rng, context?: SimConte
     report.after = pop.count;
 
     // §7.3 step 5 input — starvation and predation are deaths; a catch is not (that is the player's
-    // ledger entry, applied at action time by applyCatch). Both terms are now bounded by the
+    // survey entry, applied at action time by applyCatch). Both terms are now bounded by the
     // opening count, so the season's death count is a number of animals that were really there.
     deathsThisSeason += report.starvationDeaths + lost;
   }
@@ -685,8 +685,8 @@ export function step(node: EcoNode, season: Season, rng: Rng, context?: SimConte
  * consumes exactly one parent draw PER STEP — not per node. With a single shared stream the number
  * of fractional values one node happened to round phase-shifted every node stepped after it, so a
  * change at Cindershelf moved the numbers at Hearthollow — six graph hops away, sharing one species,
- * with no causal path. Determinism was never at risk; the ledger's readability was (Hard Req 2, and
- * Hard Req 7's epilogue ledger, which is a diff of two runs).
+ * with no causal path. Determinism was never at risk; the survey's readability was (Hard Req 2, and
+ * Hard Req 7's epilogue survey, which is a diff of two runs).
  *
  * Per-STEP rather than per-node is what makes build-doc §6 INV-2 true: one draw per node made the
  * parent's cost the size of the region, so adding a thirteenth node phase-shifted every other node
@@ -748,7 +748,7 @@ export function stepRegionStates(
 }
 
 /**
- * Hard Req 7 — "the epilogue ledger shows the numbers". The ending is a ledger read (build-doc §4
+ * Hard Req 7 — "the epilogue survey shows the numbers". The ending is a survey read (build-doc §4
  * step 6), and the difference the player's choice made only exists in the seasons that follow it, so
  * the epilogue projects the region forward from the state the choice left behind and reports what it
  * finds. Same rules, same seed, no special case: the only input that differs between the two endings
@@ -774,7 +774,7 @@ export function projectRegion(
  * The population `lineId` occupies at this node — or a loud error.
  *
  * A line that is not at this node used to be a silent no-op, so a wrong-node or mistyped line id
- * lost Hard Req 2's decrement without a word and left the in-game ledger quietly wrong. build-doc §7
+ * lost Hard Req 2's decrement without a word and left the in-game survey quietly wrong. build-doc §7
  * asks for exactly the opposite ("fail loud on drift"), and core/lifecycle.ts already fails loud for
  * the analogous raid case.
  */
@@ -783,7 +783,7 @@ function populationAt(node: EcoNode, lineId: string, verb: string) {
   if (!pop) {
     throw new EcosimError(
       `cannot ${verb} "${lineId}" at node "${node.id}": that line has no population there. ` +
-        `Hard Req 2 makes this a real decrement of a real number — a no-op would leave the ledger wrong.`,
+        `Hard Req 2 makes this a real decrement of a real number — a no-op would leave the survey wrong.`,
     );
   }
   return pop;

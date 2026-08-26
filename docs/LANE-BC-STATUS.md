@@ -35,7 +35,7 @@ post-acts reading is the current truth. The single biggest behavioural change is
 | `npx tsc --noEmit` | **silent** (exit 0) |
 | `npx vitest run` | **37 files, 1914 tests, 1914 passing, 0 failing, 0 skipped** |
 | `npm run build` | **green** (148 modules, `dist/` written) |
-| Scenes registered in `game/main.ts` | **10 of 10** — Boot, Title, Menu, Overworld, Battle, Ledger, Dex, Summary, YearTurn, Retirement |
+| Scenes registered in `game/main.ts` | **10 of 10** — Boot, Title, Menu, Overworld, Battle, Survey, Dex, Summary, YearTurn, Retirement |
 | Scenes actually reachable by playing | **9 of 10** (Retirement needs a year in which something retires; reached headlessly, see §5) |
 | Real generated art in `assets/final/` | **none** — every visual is a labelled placeholder |
 
@@ -60,7 +60,7 @@ BootScene ──> TitleScene ──> MenuScene(slots) ──> [startNewGame|cont
                   +──────────── MenuScene(session) <──────────────────────────── (in-run menu)
                                    |    |    |
                                    v    v    v
-                              Ledger   Dex   Summary        (each closes back to MenuScene)
+                              Survey   Dex   Summary        (each closes back to MenuScene)
 
 OverworldScene ── encounter ──> BattleScene ── onFinished ──> catch applied, Battle stopped, resumed
 OverworldScene ── clock yearEnd ──> YearTurnScene ── retirement prompt ──> RetirementScene ──> back
@@ -106,8 +106,8 @@ real time and are worth knowing.
 | Wild encounter | `pollywisp-line J L8 · trait dulled-sense` — rolled off the seeded encounter stream |
 | Battle | Battle scene launched, overworld paused; cards, HP bars, menu, message box all render |
 | Catch | Master snare → `outcome: "caught"` → **r1 loamunder 32 → 31**, party 1 → 2, action log `{t:"catch", nodeId:"r1", lineId:"loamunder-line", uid:…}` |
-| Ledger | opened from the in-run menu: **`Loamunder 31 96 0.090`** — the decremented number, on screen |
-| Menu round trip | Ledger → menu → overworld returned the player to the tile they were standing on |
+| Survey | opened from the in-run menu: **`Loamunder 31 96 0.090`** — the decremented number, on screen |
+| Menu round trip | Survey → menu → overworld returned the player to the tile they were standing on |
 | Year turn | 8 × `[R] inn` filled the meter; tick 15 + 2 carried into Y2 tick 1; YearTurn scene ran its 3 beats; party aged J→A and A→E; back to the overworld |
 
 `@post-acts` re-drive on the current tree: new game → encounter → battle → **catch pollywisp 4 → 3
@@ -161,7 +161,7 @@ through the **production** functions — `rollForay` → `buildWildBattle` → `
   re-recorded.
 - **Catching one animal too many kills the beat.** Extinction is permanent, so the 14th catch (the
   script has 14) removes the animal the release is supposed to happen to — measured: `prey 0, apex 0`
-  and nothing rebounds. The demo protocol must stop at 1, and the ledger is what tells the player to.
+  and nothing rebounds. The demo protocol must stop at 1, and the survey is what tells the player to.
 - `r4` is **not** in the vertical slice and is act-4 content. With §3.1 unresolved the cascade cannot
   be produced by playing at all, at any node.
 
@@ -204,12 +204,12 @@ scene's own headless branch:
 | encounter derivation, no shadow table (G3) | `tests/unit/encounters.test.ts` (38), `tests/gates/guardrails.test.ts` | **passes** |
 | battle renderer holds no rules (L11) | `tests/unit/battle-view.test.ts` (138) | **passes** — structural: the scene source is scanned for damage/catch arithmetic |
 | overworld executed, not grepped | `tests/unit/overworld-scene.test.ts` (23) | **passes** — the scene is run against a recorder Phaser stub |
-| ledger reads `nodeStates` and nothing else (§8.3) | `tests/unit/ledger-view.test.ts` (93) | **passes** |
+| survey reads `nodeStates` and nothing else (§8.3) | `tests/unit/survey-view.test.ts` (93) | **passes** |
 | year turn / retirement UX | `tests/unit/year-turn-ux.test.ts` (67) | **passes** |
 | **I2 cascade on the game path** | `tests/integration/demo-beats.test.ts` | **new, passes** — with the honest-gap assertions of §4 |
 | **I3 legacy on the game path** | `tests/integration/demo-beats.test.ts` | **new, passes** |
 | `no_magic_numbers` over `game/` (INV-4) | — | **DOES NOT EXIST.** The gate walks `CORE_FILES` only. Nothing would catch a gameplay constant entering a scene. See §9. |
-| I1 vertical slice, automated | — | **DOES NOT EXIST.** §3 was driven by hand. There is no headless or scripted walk of Title → Overworld → Battle → Ledger. |
+| I1 vertical slice, automated | — | **DOES NOT EXIST.** §3 was driven by hand. There is no headless or scripted walk of Title → Overworld → Battle → Survey. |
 
 ---
 
@@ -245,9 +245,9 @@ enough to sit over the player. Everything on it is true; none of it is composed.
   `story.opening.done`. Blocks §3.1, which blocks everything downstream.
 - **Gyms.** No gym battle, no badge is ever awarded, `GymLeader` rosters are data nobody fights.
   Under the act model badges are what open acts 2–6, so **acts 2+ are unreachable** as well.
-- **The finale / epilogue ledger (Hard Req 7).** `LedgerSceneData` already takes `title` and
-  `histories` and `buildLedgerPage` already renders `projectRegion`'s output — but nothing opens the
-  ledger over a projection. The seam is ready and tested; the launcher is C9's.
+- **The finale / epilogue survey (Hard Req 7).** `SurveySceneData` already takes `title` and
+  `histories` and `buildSurveyPage` already renders `projectRegion`'s output — but nothing opens the
+  survey over a projection. The seam is ready and tested; the launcher is C9's.
 - **Bag and quests** are rows in the in-run menu that say `Not built yet`.
 - **Loss has no consequence.** A wild battle the player loses prints `— loss` and returns to the
   overworld with the party untouched: `OwnedCreature` carries no HP, so nothing is hurt, nothing is
@@ -286,7 +286,7 @@ Ordered by what blocks the judged output.
    game the way the act gate silently un-walked it.
 8. **Real art.** Everything in §7. Nothing in the game *fails* without it; everything in the game
    *looks* unfinished with it missing, and Hard Req 5 stays unmeasured.
-9. **Inlined palette hexes** still ship in `DexScene`, `LedgerScene`, `SummaryScene`, `YearTurnScene`,
+9. **Inlined palette hexes** still ship in `DexScene`, `SurveyScene`, `SummaryScene`, `YearTurnScene`,
    `OverworldScene` and `RetirementScene`. `game/menu-model.ts` + `game/ui/Palette.ts` is the worked
    example of doing it properly (palette ids resolved through `swatchHex`, with a measured-contrast
    test); the rest of the scenes have not been converted.
@@ -324,7 +324,7 @@ Ordered by what blocks the judged output.
   turned a walkable region into a single node, and no test caught it because no test walks.
 - **Touching `game/scene-keys.ts` or the `SCENES` array in `game/main.ts`** → a scene that is not in
   that array does not exist, and every menu that routes to it will say so on screen rather than fail.
-- **Touching `game/wild-battle.ts`** → it is the only join between an encounter and the ledger.
+- **Touching `game/wild-battle.ts`** → it is the only join between an encounter and the survey.
   `tests/unit/wild-battle.test.ts` and `tests/integration/demo-beats.test.ts` both bind it; the
   second one goes red if the population write is disabled.
 - **Adding a constant to a scene** → it will not be caught by any gate today (§9 item 6). Put it in

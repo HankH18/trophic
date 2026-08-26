@@ -22,7 +22,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { ContentValidationError, validateContent } from "../../core/schemas";
 import { MemoryStorage, newSave, slotKey, type SaveEnvelope } from "../../core/save";
-import type { Balance, Content } from "../../core/types";
+import type { Balance, Content, NodeState } from "../../core/types";
 import {
   GAME_PARENT_ID,
   SCENE_KEYS,
@@ -494,6 +494,8 @@ interface Started {
 function fakeScene(registered: string[]): {
   scene: unknown;
   started: Started[];
+  launched: Started[];
+  overworld: unknown;
   fireCreate: () => void;
   pressEscape: () => void;
 } {
@@ -503,6 +505,7 @@ function fakeScene(registered: string[]): {
 
   const createHandlers: Array<() => void> = [];
   const escHandlers: Array<() => void> = [];
+  const launched: Started[] = [];
   const overworld = {
     events: {
       on(event: string, fn: () => void): void {
@@ -520,6 +523,10 @@ function fakeScene(registered: string[]): {
       manager: { keys },
       start(key: string, data?: unknown): void {
         started.push({ key, data });
+      },
+      // The epilogue survey is LAUNCHED over the overworld, not started in place of it.
+      launch(key: string, data?: unknown): void {
+        launched.push({ key, data });
       },
     },
   };
@@ -539,6 +546,8 @@ function fakeScene(registered: string[]): {
   return {
     scene,
     started,
+    launched,
+    overworld,
     fireCreate: () => createHandlers.forEach((fn) => fn()),
     pressEscape: () => escHandlers.forEach((fn) => fn()),
   };
@@ -583,11 +592,80 @@ describe("enterGameplay — the seam that decides whether the game is reachable"
     expect(data.streams).toBe(session.streams);
     expect(data.startNode).toBe(session.save.currentNode);
 
-    // …and the save the scene hands back is adopted, which is what keeps the menu, the ledger and
+    // …and the save the scene hands back is adopted, which is what keeps the menu, the survey and
     // the epilogue reading one set of numbers.
     const moved: SaveEnvelope = { ...session.save, tick: session.save.tick + 3 };
     data.hooks.onSaveChanged?.(moved);
     expect(registry.save().tick).toBe(moved.tick);
+  });
+
+  /**
+   * HARD REQ 7'S ENDING, WIRED — and the reason it had to be tested here rather than in the scene.
+   *
+   * `OverworldScene.onRunComplete` is the seam the epilogue hangs off. It was DECLARED, fired from
+   * one place, and supplied by nobody: every supplier in the repo was a test file, so a player who
+   * beat Greaves got `flashBanner("run complete · …")` and no ending at all. `core/ecosim.ts`
+   * `projectRegion` — written for this, and saying so in its own header — had zero callers outside
+   * a property test, and the only `scene.launch(SCENE_KEYS.survey, …)` anywhere was the in-run
+   * menu handing over LIVE state.
+   *
+   * A scene test cannot catch that: the scene is the thing that DECLARES the hook. Only the
+   * composition root can be asked whether anything supplies it.
+   */
+  it("supplies onRunComplete, and it launches the epilogue survey over a PROJECTED region", () => {
+    bootWith(new FakeLocalStorage());
+    startNewGame({ slot: 0, seed: 4242 });
+    const rig = fakeScene([SCENE_KEYS.menu, SCENE_KEYS.overworld, SCENE_KEYS.survey]);
+    enterGameplay(rig.scene as RouterScene);
+
+    const data = rig.started[0]?.data as {
+      hooks: { onRunComplete?: (s: SaveEnvelope, o: unknown) => void };
+    };
+    expect(data.hooks.onRunComplete, "nothing supplies the ending hook").toBeDefined();
+
+    const save = registry.save();
+    data.hooks.onRunComplete?.(save, rig.overworld);
+
+    expect(rig.launched.map((l) => l.key)).toEqual([SCENE_KEYS.survey]);
+    const survey = rig.launched[0]?.data as {
+      content: Content;
+      states: Record<string, NodeState>;
+      year: number;
+      title?: string;
+    };
+    expect(survey.content).toBe(content);
+    expect(survey.year).toBe(save.year);
+    expect(survey.title, "the epilogue survey does not name itself").toBeTruthy();
+    // Every node the region carries is reported, not a subset.
+    expect(Object.keys(survey.states).sort()).toEqual(content.nodes.map((n) => n.id).sort());
+
+    /*
+     * …AND IT IS A PROJECTION, NOT THE LIVE STATE. This is the half that would have been satisfied
+     * by handing over `save.nodeStates` — which is exactly what the in-run menu does and what an
+     * ending must not do, because the difference the Vellsire choice makes only exists in the
+     * seasons that follow it. Something must have MOVED.
+     */
+    const live = save.nodeStates;
+    const moved = Object.keys(survey.states).some(
+      (id) => JSON.stringify(survey.states[id]) !== JSON.stringify(live[id]),
+    );
+    expect(moved, "the epilogue reported the live region rather than a projected one").toBe(true);
+  });
+
+  it("the epilogue projection is deterministic — same save, same numbers (L10)", () => {
+    bootWith(new FakeLocalStorage());
+    startNewGame({ slot: 0, seed: 77 });
+    const save = registry.save();
+    const run = (): unknown => {
+      const rig = fakeScene([SCENE_KEYS.menu, SCENE_KEYS.overworld, SCENE_KEYS.survey]);
+      enterGameplay(rig.scene as RouterScene);
+      const data = rig.started[0]?.data as {
+        hooks: { onRunComplete?: (s: SaveEnvelope, o: unknown) => void };
+      };
+      data.hooks.onRunComplete?.(save, rig.overworld);
+      return (rig.launched[0]?.data as { states: unknown }).states;
+    };
+    expect(JSON.stringify(run())).toBe(JSON.stringify(run()));
   });
 
   it("falls back to the menu when there is no session to hand over", () => {

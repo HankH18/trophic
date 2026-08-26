@@ -1,0 +1,406 @@
+{
+ "_slice": "S3-gyms",
+ "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
+ "entries": [
+  {
+   "id": "maribel.pre",
+   "speaker": "maribel",
+   "node": "hearthollow",
+   "kind": "battle-pre",
+   "priority": 70,
+   "when": {
+    "flagsUnset": [
+     "gym.maribel.beaten"
+    ]
+   },
+   "lines": [
+    {
+     "text": "Bramblehog and Skir, then Old Nib. That's three. The notice on the door still says four."
+    },
+    {
+     "text": "The first two came out of the yard behind the house. I hand-reared the Bramblehog myself, her mother had nothing in her that year. She comes in low and leans on whatever's in front of her."
+    },
+    {
+     "text": "Old Nib is long past her working years. She doesn't chase. Whatever's fighting her comes to her and she stands there and takes it on that pelt. I had her clipped in the summer and my fingers still don't reach her skin."
+    }
+   ]
+  },
+  {
+   "id": "maribel.post.win",
+   "speaker": "maribel",
+   "node": "hearthollow",
+   "kind": "battle-win",
+   "priority": 70,
+   "when": {},
+   "lines": [
+    {
+     "text": "Old Nib will stand and let somebody hammer at that pelt all afternoon. She'll want her feet looked at tonight, and she'll bite me for it."
+    },
+    {
+     "text": "Take your badge. And if you're still about at the turn of the year, the whole green goes up in lanterns for the festival. Come and have your supper off us while you're there — there's always far too much of it."
+    }
+   ],
+   "setFlags": {
+    "gym.maribel.beaten": true
+   }
+  },
+  {
+   "id": "maribel.post.loss",
+   "speaker": "maribel",
+   "node": "hearthollow",
+   "kind": "battle-loss",
+   "priority": 69,
+   "when": {},
+   "lines": [
+    {
+     "text": "Old Nib's still on her feet, so she'll be unbearable in the shed tonight. She won't be handled and she won't come in off the yard."
+    }
+   ]
+  },
+  {
+   "id": "maribel.greeting.reach-thin",
+   "speaker": "maribel",
+   "node": "hearthollow",
+   "kind": "greeting",
+   "priority": 40,
+   "when": {
+    "population": [
+     {
+      "node": "r1",
+      "lineId": "nibbin-line",
+      "op": "lte",
+      "value": 4
+     }
+    ]
+   },
+   "lines": [
+    {
+     "text": "Meadow Reach has gone thin on Nibbin. Mine are penned and hand-fed, so I've the same ones I had in spring. It costs me a fortune in feed."
+    },
+    {
+     "text": "The Skir have been coming in over my hedge, three and four at a time. They only do that when the Reach has run short of Nibbin. Then they sit on the gatepost looking hard done by until I go out and wave a bucket at them."
+    }
+   ]
+  },
+  {
+   "id": "maribel.greeting",
+   "speaker": "maribel",
+   "node": "hearthollow",
+   "kind": "greeting",
+   "when": {},
+   "lines": [
+    {
+     "text": "I'm in and out of the shed all morning, so speak up. One of the Bramblehog has gone off her food and I can't find a thing wrong with her."
+    },
+    {
+     "text": "The other Bramblehog got into Tolm's field again, through a gap I've patched more times than I'll own to, and went straight for the Loamunder. He wants a proper fence. I want the gap left, because that's where I get my cart through."
+    }
+   ]
+  },
+  {
+   "id": "odo.pre",
+   "speaker": "odo",
+   "node": "brackwater",
+   "kind": "battle-pre",
+   "priority": 70,
+   "when": {
+    "flagsUnset": [
+     "gym.odo.beaten"
+    ]
+   },
+   "lines": [
+    {
+     "text": "Hold on. — There's a boat coming in wrong on the far stilts and I want to see whose it is. — Right. Bogling first."
+    },
+    {
+     "text": "Then Reedrick. Then Mirefin. The Fenmaw's last. She's had the bottom out of two boats."
+    },
+    {
+     "text": "We go on the slack. Not before. That's twenty minutes yet, maybe more. Sit down if you want — Sel made that bench, and he'll tell you so himself if you ever get on his boat."
+    }
+   ]
+  },
+  {
+   "id": "odo.post.win",
+   "speaker": "odo",
+   "node": "brackwater",
+   "kind": "battle-win",
+   "priority": 70,
+   "when": {},
+   "lines": [
+    {
+     "text": "Good fight. — The small ones, now. Bogling, we call them at that size. They take the same Reedrick the big ones take, only smaller. After that we call them Mirefin. I've had the one animal in my hands at both sizes."
+    },
+    {
+     "text": "Your badge is in the tin by the door. — The ferry east is quicker than the road. Sel doesn't carry change, so take small coin over with you."
+    }
+   ],
+   "setFlags": {
+    "gym.odo.beaten": true
+   }
+  },
+  {
+   "id": "odo.post.loss",
+   "speaker": "odo",
+   "node": "brackwater",
+   "kind": "battle-loss",
+   "priority": 69,
+   "when": {},
+   "lines": [
+    {
+     "text": "No hurry from me. Rest up first. — I'm on the water most of the day. If you want me before dark, wait at the stilts and I'll come in on the slack."
+    }
+   ]
+  },
+  {
+   "id": "odo.greeting.fishery-low",
+   "speaker": "odo",
+   "node": "brackwater",
+   "kind": "greeting",
+   "priority": 40,
+   "when": {
+    "population": [
+     {
+      "node": "r2",
+      "lineId": "mirefin-line",
+      "op": "lte",
+      "value": 4
+     }
+    ]
+   },
+   "lines": [
+    {
+     "text": "Brackmarsh has gone quiet on Mirefin. — Hold on. The ebb's starting and I want to see what it takes off the near bank."
+    },
+    {
+     "text": "The fishery pays less when the marsh is short, so the men on the stilts are on a bad week's money. I'm out in a boat and I only see what comes up alongside. Ask Hetty — she walks the shallows and she'll have a number."
+    }
+   ]
+  },
+  {
+   "id": "odo.greeting",
+   "speaker": "odo",
+   "node": "brackwater",
+   "kind": "greeting",
+   "when": {},
+   "lines": [
+    {
+     "text": "The far bank's moved out since the spring. Not much. A foot, maybe two. — The water takes the bank away and the reed puts it back."
+    },
+    {
+     "text": "There's more Sporantle in this marsh than anything else, and no market for them. My mother boiled a potful down for a dye once. What came out of the pot was grey and she tipped the lot in the channel."
+    }
+   ]
+  },
+  {
+   "id": "vesper.pre",
+   "speaker": "vesper",
+   "node": "bowerdeep",
+   "kind": "battle-pre",
+   "priority": 70,
+   "when": {
+    "flagsUnset": [
+     "gym.vesper.beaten"
+    ]
+   },
+   "lines": [
+    {
+     "text": "You will have heard something about me on the way up, and whoever told you has a side in my argument with Halder. None of that touches the five animals in front of you. I caught all five myself, from the ground."
+    },
+    {
+     "text": "Gloomgrub, Sporantle, a Mirefin, then the younger Webvern. The old one comes out last. She is the fastest thing I have ever handled."
+    },
+    {
+     "text": "Halder wants three grown Webvern out of the Wilds canopy. His buyers are contracted, so his case is real. I walked those lines myself in the last week of summer and made it eight. Eight in that canopy, and he wants three of them."
+    }
+   ]
+  },
+  {
+   "id": "vesper.post.win",
+   "speaker": "vesper",
+   "node": "bowerdeep",
+   "kind": "battle-win",
+   "priority": 70,
+   "when": {},
+   "lines": [
+    {
+     "text": "The old Webvern got her toxin into you. It hardly shows at first. It builds, and by the sixth exchange it is taking a real piece out of whatever is standing. I carry tonics for it. Nothing else lifts it."
+    },
+    {
+     "text": "Take the badge. I will write it up before morning. If the Gloomoth come through while you are here, Pell could use a hand on the eastern stair."
+    }
+   ],
+   "setFlags": {
+    "gym.vesper.beaten": true
+   }
+  },
+  {
+   "id": "vesper.post.loss",
+   "speaker": "vesper",
+   "node": "bowerdeep",
+   "kind": "battle-loss",
+   "priority": 69,
+   "when": {},
+   "lines": [
+    {
+     "text": "The old Webvern gets her strike in the moment she comes out, however quick your animal is. After that she is on her own speed, but the first one is usually enough. The toxin does not wear off on its own, either."
+    }
+   ]
+  },
+  {
+   "id": "vesper.greeting",
+   "speaker": "vesper",
+   "node": "bowerdeep",
+   "kind": "greeting",
+   "when": {},
+   "lines": [
+    {
+     "text": "The Barkhide browse the understory back hard. That is why there is light down here."
+    },
+    {
+     "text": "Where the Barkhide stop, the understory closes over in two summers. Halder and I have argued about the Wilds canopy for years. He pins his order on the market board and I pin my figure beside it, with the date on mine."
+    }
+   ]
+  },
+  {
+   "id": "sable.pre",
+   "speaker": "sable",
+   "node": "cindershelf",
+   "kind": "battle-pre",
+   "priority": 70,
+   "when": {
+    "flagsUnset": [
+     "gym.sable.beaten"
+    ]
+   },
+   "lines": [
+    {
+     "text": "Everything on this bench I caught myself, inside a day's walk of that door. Six of them. Take as long as you want. I've the forge to bank down first."
+    },
+    {
+     "text": "Ashvole. Cragmar. Then the old Ashvole, warmer of the two. Stonewing. Pyrelisk."
+    },
+    {
+     "text": "Last one's a Pyrelisk as well. Older. Off the west vents. Took me two seasons to get her. I've not been out that way for another since."
+    }
+   ]
+  },
+  {
+   "id": "sable.post.win",
+   "speaker": "sable",
+   "node": "cindershelf",
+   "kind": "battle-win",
+   "priority": 70,
+   "when": {},
+   "lines": [
+    {
+     "text": "Most of that bench goes out the moment it gets wet. The Stonewing doesn't. Half wind, that one. She'll stand in it a good while longer than the rest."
+    },
+    {
+     "text": "Here. That's your badge. Bram's through the back, past the slag heap. He takes relics that have gone brittle, but not one that's cracked the whole way through. He turned me away over one last winter and he was right."
+    }
+   ],
+   "setFlags": {
+    "gym.sable.beaten": true
+   }
+  },
+  {
+   "id": "sable.post.loss",
+   "speaker": "sable",
+   "node": "cindershelf",
+   "kind": "battle-loss",
+   "priority": 69,
+   "when": {},
+   "lines": [
+    {
+     "text": "Bench is still warm. I'm not banking it down yet. My forge is the small one, thirty feet that way. Give the door a good bang, because I won't hear a soft knock over the work."
+    }
+   ]
+  },
+  {
+   "id": "sable.greeting",
+   "speaker": "sable",
+   "node": "cindershelf",
+   "kind": "greeting",
+   "when": {},
+   "lines": [
+    {
+     "text": "Ground's still warm under the west path. Been warm since the last flare. My cellar's warm with it, so I buy my salt a week at a time."
+    },
+    {
+     "text": "Ask Gerta about the third shaft. She's been saying it's warm for years and she's been right every time. She'll give you the whole method with it — the units, the hour, who took the reading. Mind you've a minute spare."
+    }
+   ]
+  },
+  {
+   "id": "noct.pre",
+   "speaker": "noct",
+   "node": "duskhollow",
+   "kind": "battle-pre",
+   "priority": 70,
+   "when": {
+    "flagsUnset": [
+     "gym.noct.beaten"
+    ]
+   },
+   "lines": [
+    {
+     "text": "People come up here expecting a ceremony. There isn't one. The ridge takes the sun off this valley at about four, so bring a lamp for the walk down."
+    },
+    {
+     "text": "They go out in the order they wake. Gloomoth. Umbrat. Carricrow. Wispurr. Then the other Umbrat, who is slower about everything. Then the Duskstalk — the woman who had the gym before me left her here."
+    },
+    {
+     "text": "Anything of mine can stop an animal where it stands. It just stops. Does nothing at all for a bit. There's no warning and it's nothing you've done. I can't make it happen when I want it to, either."
+    }
+   ]
+  },
+  {
+   "id": "noct.post.win",
+   "speaker": "noct",
+   "node": "duskhollow",
+   "kind": "battle-win",
+   "priority": 70,
+   "when": {},
+   "lines": [
+    {
+     "text": "You got through the Duskstalk. Three have done that before you. I remember all three."
+    },
+    {
+     "text": "Two of them still come up in the winter, and one owes me for a lamp. — Take the badge. The gate on to the Sanctum Approach is off the vale road, about a mile past the last lamp."
+    }
+   ],
+   "setFlags": {
+    "gym.noct.beaten": true
+   }
+  },
+  {
+   "id": "noct.post.loss",
+   "speaker": "noct",
+   "node": "duskhollow",
+   "kind": "battle-loss",
+   "priority": 69,
+   "when": {},
+   "lines": [
+    {
+     "text": "You won't be the first to come back at it. Come up at noon if you want to see the room in daylight. It isn't much brighter. People are always disappointed by that, so I say it first."
+    }
+   ]
+  },
+  {
+   "id": "noct.greeting",
+   "speaker": "noct",
+   "node": "duskhollow",
+   "kind": "greeting",
+   "when": {},
+   "lines": [
+    {
+     "text": "The Carricrow came into the vale a few years back and stayed. They go where things have died. The children up here feed them bread."
+    },
+    {
+     "text": "Orrin says the vale's been getting darker since the Sanctum went quiet. Ives says Orrin wants a new lamp for his desk. That's between the two of them, and I'd not have an answer if they asked me."
+    }
+   ]
+  }
+ ]
+}

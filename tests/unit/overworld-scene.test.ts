@@ -297,8 +297,15 @@ vi.mock("phaser", () => {
     Scene,
     Input: {
       Keyboard: {
+        /*
+         * ⚠ `E` AND `X` WERE MISSING, AND THAT SILENTLY DISARMED TWO KEYS FOR THE WHOLE FILE.
+         * `OverworldScene.create` binds them with `keyboard.addKey(codes.E)` / `codes.X`; an absent
+         * member makes that `addKey(undefined)`, which registers under the key `undefined` — so
+         * `press(69)` found nothing and `interact()` was unreachable from any test here. The talk
+         * key is the one the entire quest layer is driven through.
+         */
         KeyCodes: {
-          W: 87, A: 65, S: 83, D: 68, C: 67, G: 71, R: 82,
+          W: 87, A: 65, S: 83, D: 68, C: 67, E: 69, G: 71, R: 82, X: 88,
           ONE: 49, TWO: 50, THREE: 51, FOUR: 52, FIVE: 53, SIX: 54,
         },
         JustDown: (key: FakeKey): boolean => {
@@ -328,6 +335,12 @@ import {
   type FlagValue,
 } from "@core/dialogue-schema";
 import { validateContent } from "@core/schemas";
+import { EPILOGUE_SHOWN_FLAG, recordVellsireOutcome } from "@game/finale";
+import { linesMetAt } from "@game/quests";
+import { isNever } from "@core/lifecycle";
+import { propDialogueFor, runHeadless, type DialogueRunState } from "@game/dialogue-runner";
+import type { DialogueSceneData } from "@game/scenes/DialogueScene";
+import { encounterTable } from "@game/encounters";
 import { newSave, openStreams, type SaveEnvelope } from "@core/save";
 import { subsystemRng } from "@core/rng";
 import type { Balance, Content, NodeFile, NodeState } from "@core/types";
@@ -386,7 +399,7 @@ interface Harness {
 /** One millisecond per tile, so one frame is one whole step and a test can count them. */
 const MS_PER_TILE = 1;
 
-function mount(over: Partial<OverworldSceneData> = {}): Harness {
+function mount(over: Partial<OverworldSceneData> = {}, prepare?: (parts: FakeParts) => void): Harness {
   const data: OverworldSceneData = {
     content,
     save: over.save ?? freshSave(),
@@ -394,6 +407,13 @@ function mount(over: Partial<OverworldSceneData> = {}): Harness {
     ...over,
   };
   const scene = new OverworldScene();
+  /*
+   * The stub's `parts` exist as soon as the scene is CONSTRUCTED, and `create()` is where the
+   * overworld plays whatever the corpus has queued for the node it is standing in — so a test that
+   * needs C7's box registered for an ARRIVAL beat has to register it here, between the two. Doing it
+   * after `mount` returns is too late: the beat has already been played headlessly.
+   */
+  if (prepare && STUB.parts) prepare(STUB.parts);
   const streams = data.streams ?? openStreams(data.save as SaveEnvelope, balance);
   const full: OverworldSceneData = { ...data, streams };
   scene.init(full);
@@ -481,13 +501,37 @@ function walk(h: Harness, steps: number, stop?: () => boolean): number {
  * the rolled heir for every prompt (core's documented default for an unanswered prompt) and commit
  * through the same `finishYearTurn` the scene commits through. No shortcut around the real turn.
  */
+/**
+ * Answer the BATTLE the scene is holding, the way `BattleScene` answers one, and report whether
+ * there was one.
+ *
+ * ⚠ NEEDED SINCE THE RIVAL AND THE FINALE EXIST. `OverworldScene.travelTo` now triggers
+ * content-bible §8's rival on arrival, and `finishDialogue` opens the Vellsire fight when the
+ * player has just set the snare — so a frame that used to hand over only a year turn can now hand
+ * over a fight, and `isHandedOver()` stays true until something answers it.
+ *
+ * `"loss"` is the DELIBERATE default: it is the outcome that changes the least (no badge, no catch,
+ * and — since the rival's loss entry no longer closes his encounter — no progress the test did not
+ * ask for). A test that cares which way a fight went answers that fight itself.
+ */
+function settleBattle(h: Harness, outcome: "win" | "loss" | "fled" = "loss"): boolean {
+  const launch = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop();
+  if (!launch) return false;
+  h.parts.launches.splice(h.parts.launches.indexOf(launch), 1);
+  (launch.data as BattleSceneData).onFinished({ state: { outcome } as never, caught: null });
+  return true;
+}
+
 function settleYearTurn(h: Harness): void {
   let guard = 0;
   while (h.scene.isHandedOver()) {
     guard += 1;
     if (guard > 100) throw new Error("the year turn never handed the overworld back");
     const launch = h.parts.launches.filter((l) => l.key === SCENE_KEYS.yearTurn).pop();
-    if (!launch) throw new Error("the scene is handed over with no year-turn sequence to answer");
+    if (!launch) {
+      if (settleBattle(h)) continue;
+      throw new Error("the scene is handed over with no year-turn sequence to answer");
+    }
     const data = launch.data as YearTurnSceneData;
     const { flow, tickBefore, carryTick } = data.drive;
     while (!flow.done()) flow.chooseHeir();
@@ -625,7 +669,7 @@ describe("§2 the HUD's count and the encounter weight are the same number", () 
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
- * §3 Encounter → battle → ledger (Hard Req 2, build-doc §1 beat 1)
+ * §3 Encounter → battle → survey (Hard Req 2, build-doc §1 beat 1)
  * ════════════════════════════════════════════════════════════════════════════ */
 
 describe("§3 a wild encounter becomes a battle, and a catch moves a real number", () => {
@@ -977,6 +1021,7 @@ describe("§9 reading the mask does not warn about a texture that was never crea
  * functions by hand at clocks and states the running game never reached.
  * ════════════════════════════════════════════════════════════════════════════ */
 
+const KEY_E = 69;
 const KEY_G = 71;
 const KEY_R = 82;
 
@@ -1073,11 +1118,22 @@ describe("§10.1 the act ladder can be CLIMBED by playing — the never-cut slic
     visited.push(h.scene.save.currentNode);
     expect(visited[1]).toBe(r1);
 
+    /*
+     * …AND THE RIVAL IS STANDING ON IT. bible §8's Wick is triggered by ARRIVAL, so walking the
+     * slice now walks THROUGH a fight, and the slice is only walkable if losing it does not close
+     * the route. The fight is answered with a loss on purpose: the never-cut claim is that the
+     * player reaches Brackwater, not that they beat Wick to get there.
+     */
+    const rivalLaunch = h.parts.launches.filter((l) => l.key === "Battle").pop();
+    expect(rivalLaunch, "arriving on the first route launched no rival battle").toBeDefined();
+    expect((rivalLaunch?.data as BattleSceneData).input.kind).toBe("trainer");
+    expect(settleBattle(h, "loss")).toBe(true);
+
     // Back to town, win the badge, and the second town opens.
     await h.scene.travelTo(first.town);
     h.press(KEY_G);
     h.frame();
-    const data = h.parts.launches.find((l) => l.key === "Battle")?.data as BattleSceneData;
+    const data = h.parts.launches.filter((l) => l.key === "Battle").pop()?.data as BattleSceneData;
     data.onFinished({ state: { outcome: "win" } as never, caught: null });
     expect(h.scene.act()).toBe(2);
 
@@ -1125,7 +1181,23 @@ describe("§10.2 create() builds before it reports", () => {
      * the epilogue annually — measured at 3 calls across 3 year turns.
      */
     let save = freshSave();
-    save = { ...save, questFlags: { ...save.questFlags, [balance.acts.runCompleteFlag]: true } };
+    /*
+     * ⚠ THIS USED TO SET ONLY `balance.acts.runCompleteFlag` AND EXPECT THE HOOK TO FIRE, because
+     * `maybeCompleteRun` gated on `runIsOver()`. That is the premature trigger: `runIsComplete` is
+     * also true on a full badge ladder, and `winGym` reaches `maybeCompleteRun` BEFORE
+     * `playBattleOutcome` plays `greaves.finale.post` — so the ending latched on the sixth badge,
+     * before the Vellsire choice existed, and (being one-shot) could never fire again afterwards.
+     * The ending is now `story.epilogue.shown`, i.e. the run's last cutscene has PLAYED. This
+     * test's own subject — the latch, and no annual replay — is unchanged and asserted below.
+     */
+    save = {
+      ...save,
+      questFlags: {
+        ...save.questFlags,
+        [balance.acts.runCompleteFlag]: true,
+        [EPILOGUE_SHOWN_FLAG]: true,
+      },
+    };
     const calls: number[] = [];
     const h = mount({ save, hooks: { onRunComplete: (s) => calls.push(s.year) } });
     expect(calls).toHaveLength(1);
@@ -1167,7 +1239,25 @@ describe("§10.2 create() builds before it reports", () => {
     expect(save.questFlags[balance.acts.runCompleteFlag]).toBeUndefined();
     const calls: number[] = [];
     const h = mount({ save, hooks: { onRunComplete: (s) => calls.push(s.year) } });
+    // THE CLAIM THIS TEST IS NAMED FOR, and it is untouched: the run is over on badges alone, with
+    // no dialogue flag anywhere. `runIsOver()` still reads `core/acts.ts` `runIsComplete`.
     expect(h.scene.runIsOver()).toBe(true);
+    /*
+     * …but the ENDING has not happened yet, and that is the separation this asserts. The badge that
+     * completed the ladder is won inside `winGym`, which reaches `maybeCompleteRun` BEFORE
+     * `greaves.finale.post` is played — so a hook fired here reports a run whose finale, whose
+     * Vellsire choice and whose epilogue have none of them occurred. Hard Req 7's epilogue survey
+     * hangs off this hook; firing it now would show the region BEFORE the choice it exists to
+     * report, and the latch would stop it ever firing again.
+     */
+    expect(calls, "the ending was handed over before the finale had been played").toHaveLength(0);
+
+    // Play the epilogue — the run's last cutscene — and it fires, once.
+    const ended = mount({
+      save: { ...h.scene.save, questFlags: { ...h.scene.save.questFlags, [EPILOGUE_SHOWN_FLAG]: true } },
+      hooks: { onRunComplete: (s) => calls.push(s.year) },
+    });
+    expect(ended.scene.runIsOver()).toBe(true);
     expect(calls).toHaveLength(1);
   });
 });
@@ -1402,13 +1492,21 @@ describe("§10.5 the two clocks meet only through the player", () => {
     expect(runIsComplete(run.save, content.gyms, balance)).toBe(true);
     const calls: number[] = [];
     const h = mount({ save: { ...run.save, questFlags: { ...run.save.questFlags } }, hooks: { onRunComplete: (s) => calls.push(s.year) } });
-    // The slow run already latched it (the badge that completed the run was won inside the scene).
+    /*
+     * The slow run has the whole ladder but has NOT played an epilogue — it never stood at the ring
+     * with a dialogue box. So the run is over as an ACT question and the ENDING has not been handed
+     * over, which is exactly the separation the premature latch used to collapse.
+     */
     expect(h.scene.runIsOver()).toBe(true);
     expect(calls).toHaveLength(0);
-    // A save that has NOT been handed over yet fires once, and reports the year it really happened in.
-    const unlatched = { ...run.save, questFlags: { ...run.save.questFlags } };
-    delete unlatched.questFlags[RUN_COMPLETE_SHOWN_FLAG];
-    const fresh = mount({ save: unlatched, hooks: { onRunComplete: (s) => calls.push(s.year) } });
+    // A save whose epilogue HAS played fires once, and reports the year it really happened in.
+    const endedFlags: Record<string, FlagValue> = {
+      ...run.save.questFlags,
+      [EPILOGUE_SHOWN_FLAG]: true,
+    };
+    delete endedFlags[RUN_COMPLETE_SHOWN_FLAG];
+    const ended = { ...run.save, questFlags: endedFlags };
+    const fresh = mount({ save: ended, hooks: { onRunComplete: (s) => calls.push(s.year) } });
     expect(fresh.scene.runIsOver()).toBe(true);
     expect(calls).toEqual([FINALE_YEAR]);
   });
@@ -1425,9 +1523,9 @@ describe("§10.5 the two clocks meet only through the player", () => {
 
     const walked = walkTheEnding(h);
     expect(walked.ids).toEqual([
+      "wick.act6.pre",
+      "wick.act6.win",
       "maren.finale",
-      "greaves.finale.pre",
-      "greaves.finale.post",
       "sanctum.vellsire.approach",
       "maren.epilogue.caught",
     ]);
@@ -1455,6 +1553,13 @@ describe("§10.5 the two clocks meet only through the player", () => {
      */
     const run = playSlowRun();
     const h = mount({ save: run.save });
+    /*
+     * The run ends STANDING IN THE RING, and `create()` therefore plays bible §8's finale straight
+     * away — the approach cutscene, headlessly, which opens the snare fight. Answer it before
+     * counting ticks: this test is about the calendar not stopping, and a scene holding an
+     * unanswered battle refuses every action, which would look exactly like the defect it guards.
+     */
+    settleYearTurn(h);
     expect(h.scene.runIsOver()).toBe(true);
     const before = h.scene.save.year;
     const rests = balance.clock.ticksPerYear;
@@ -1545,13 +1650,17 @@ describe("§10.5 the two clocks meet only through the player", () => {
 /**
  * Walk the shipped ending with the real resolver, from the state the scene is actually in.
  *
- * The one thing the corpus cannot do for itself is resolve the Vellsire ATTEMPT into an OUTCOME —
- * `sanctum.vellsire.approach`'s choices write `story.vellsire.attempt`, and the epilogues read
- * `story.vellsire.resolved` / `story.vellsire.outcome`, which nothing in `data/dialogue.json` writes.
- * That is a DECLARED seam (docs/DIALOGUE-NOTES.md: "the encounter writes `story.vellsire.outcome`"),
- * because bible §4 makes Ancients very hard catches and a snare may fail. It is the game layer's
- * write and the game layer does not exist yet (Q7/C7), so it is done here explicitly and marked, and
- * nothing else in this walk is stood in for.
+ * ⚠ THE STAND-IN IS GONE. This function used to type `"story.vellsire.resolved": true` and
+ * `"story.vellsire.outcome": "caught"` into a flag bag and call it "the game layer's write", with a
+ * comment saying the game layer did not exist yet. That is exactly the shape of defect this file's
+ * header is about: the test supplied the precondition the game never supplied, both epilogues fired,
+ * and the never-cut Vellsire beat was dead in the shipped build with the suite green. The write now
+ * goes through `game/finale.ts` `recordVellsireOutcome` — the same function
+ * `OverworldScene.maybeBeginFinale` reaches through `resolveVellsireCatch` — so nothing in this walk
+ * is stood in for, and the walk cannot pass on a build where that writer is missing.
+ *
+ * The other half — that the GAME calls it, off a real battle outcome, without a test hand-feeding
+ * the attempt — is §10.6, which drives the scene rather than the corpus.
  */
 function walkTheEnding(
   h: Harness,
@@ -1570,32 +1679,516 @@ function walkTheEnding(
     return entry;
   };
 
-  // Wick loses on the approach and Maren sends the player through — the beat that sets up the finale.
-  flags = { ...flags, ...(DIALOGUE.entries.find((e) => e.id === "wick.act6.win")?.setFlags ?? {}) };
+  /*
+   * Wick is met on the approach and Maren sends the player through. The flag that opens her
+   * send-off, `story.greaves.entered`, hangs off his PRE-battle entry and not off beating him
+   * (B5) — his own first line there is "He's gone in for the stag" — so the send-off survives a
+   * player who loses to him, which nothing else in the act ladder makes conditional.
+   */
+  play("wick", "sanctum-approach", "battle-pre");
+  /*
+   * …AND THE FIGHT HE JUST CHALLENGED THE PLAYER TO. This walk used to step straight from Wick's
+   * "Beat me and go make him hear it." to Maren's "Go on. I'll hold the page." — modelling, and so
+   * certifying, an order in which the send-off is delivered BEFORE the fight it sends the player
+   * off from. `maren.finale` now additionally requires `rival.act6.playerResult`, which BOTH
+   * `wick.act6.win` and `wick.act6.loss` write, so the send-off waits for the fight to have
+   * happened without requiring it to have gone the player's way (B5 / D-Q8-4 is intact).
+   */
+  play("wick", "sanctum-approach", "battle-win");
   play("maren", "sanctum-approach", "cutscene");
-  play("greaves", "sanctum", "battle-pre");
-  play("greaves", "sanctum", "battle-win");
+  /*
+   * Greaves is ALREADY BEATEN here, by the real `challengeGym` in `playSlowRun` — which is what
+   * writes `story.greaves.beaten`, through `greaves.finale.post`. So his `battle-pre` is correctly
+   * no longer eligible and this asserts the flag rather than replaying the fight.
+   */
+  expect(flags["story.greaves.beaten"], "playSlowRun's sixth badge did not play greaves.finale.post").toBe(true);
   const approach = play("prop-antler-stone", "sanctum", "cutscene");
   const choiceCount = approach?.choices?.length ?? 0;
 
   // The player sets the snare (choice 0) …
-  const caught = { ...flags, ...(approach?.choices?.[0]?.setFlags ?? {}) };
-  // … and THE GAME LAYER resolves the attempt into an outcome. Declared stand-in; see above.
-  flags = { ...caught, "story.vellsire.resolved": true, "story.vellsire.outcome": "caught" };
+  const attempted = { ...flags, ...(approach?.choices?.[0]?.setFlags ?? {}) };
+  // … and the snare HOLDS, resolved by the shipped writer rather than by two keys typed in here.
+  flags = recordVellsireOutcome({ questFlags: attempted }, "caught").questFlags;
   play("maren", "sanctum", "cutscene");
   const epilogueAgain = selectEntry(DIALOGUE, "maren", "sanctum", "cutscene", at())?.id;
 
-  // The other branch, from the same pre-choice state.
+  // The other branch, from the same pre-choice state. STAND ASIDE RESOLVES ITSELF: the choice's own
+  // `setFlags` carry the whole outcome, because nothing is rolled and nothing can fail (B3).
   const released = selectEntry(DIALOGUE, "maren", "sanctum", "cutscene", {
     ...base,
     flags: {
       ...flags,
       "story.epilogue.shown": false,
       ...(approach?.choices?.[1]?.setFlags ?? {}),
-      "story.vellsire.resolved": true,
-      "story.vellsire.outcome": "released",
     },
   })?.id;
 
   return { ids, choiceCount, releasedEpilogue: released, epilogueAgain };
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §10.6 THE BATTLE CORPUS, PLAYED — and the finale, resolved by the game
+ *
+ * WHAT WAS MISSING. `core/dialogue-schema.ts` declares three battle kinds and NOTHING IN `game/`
+ * ever selected one: 35 entries and 70 lines — every leader's pre- and post-battle speech, both
+ * Greaves finale entries, all eighteen Wick entries — had no path to the screen. Two never-cut
+ * beats stood behind that:
+ *
+ *   • `story.greaves.beaten` has exactly one writer in the whole repo, `greaves.finale.post`, and it
+ *     is a `battle-win`. `sanctum.vellsire.approach` gates on it.
+ *   • `story.vellsire.resolved` / `story.vellsire.outcome` had NO writer anywhere. The only places
+ *     either key was ever set were tests, which set it by hand and then asserted the epilogue fires.
+ *
+ * So every test below is written to fail on a build where the selector, the rival module or the
+ * finale resolver is missing, and none of them sets a story flag by hand.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/** Register C7's box, so a beat is HANDED TO IT rather than played headlessly. */
+function withDialogueBox(h: Harness): void {
+  h.parts.registeredScenes[SCENE_KEYS.dialogue] = {};
+}
+
+/** The same, at CONSTRUCTION time — for a beat that fires out of `create()`. See `mount`. */
+const registerBox = (parts: FakeParts): void => {
+  parts.registeredScenes[SCENE_KEYS.dialogue] = {};
+};
+
+/** Every entry the box has been handed, in order. */
+function boxed(h: Harness): string[] {
+  return h.parts.launches
+    .filter((l) => l.key === SCENE_KEYS.dialogue)
+    .map((l) => (l.data as DialogueSceneData).entryId);
+}
+
+/** Answer the box the way `DialogueScene` answers it: play the run out, then hand the state back. */
+function answerBox(h: Harness, pick: (state: DialogueRunState, choices: readonly string[]) => number = () => 0): string {
+  const launch = h.parts.launches.filter((l) => l.key === SCENE_KEYS.dialogue).pop();
+  if (!launch) throw new Error("nothing was handed to the dialogue box");
+  h.parts.launches.splice(h.parts.launches.indexOf(launch), 1);
+  const data = launch.data as DialogueSceneData;
+  data.onDone(runHeadless(data.file ?? DIALOGUE, data.entryId, pick));
+  return data.entryId;
+}
+
+describe("§10.6 the battle corpus is selected, and the finale is resolved by the game", () => {
+  it("a leader speaks BEFORE the fight, and the fight does not start until the box closes", () => {
+    const first = LADDER[0]!;
+    const h = mount({ save: { ...freshSave(first.town), currentNode: first.town } });
+    withDialogueBox(h);
+
+    h.press(KEY_G);
+    h.frame();
+    // The speech is on screen and the reducer has not been handed anything.
+    expect(boxed(h).at(-1)).toBe(`${first.id}.pre`);
+    expect(h.parts.launches.some((l) => l.key === SCENE_KEYS.battle)).toBe(false);
+
+    answerBox(h);
+    const battle = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop();
+    expect(battle, "closing the pre-battle box did not start the fight").toBeDefined();
+    expect((battle!.data as BattleSceneData).input.kind).toBe("gym");
+  });
+
+  it("the badge is written BEFORE the leader answers, and the answer is the WIN entry", () => {
+    /*
+     * ORDER, not just presence. `maribel.post.win` and its four siblings write `gym.<id>.beaten`
+     * themselves — so a build that played the speech before `awardBadge` would advance the act in
+     * the middle of the scene announcing it.
+     */
+    const first = LADDER[0]!;
+    const h = mount({ save: { ...freshSave(first.town), currentNode: first.town } });
+    withDialogueBox(h);
+    h.press(KEY_G);
+    h.frame();
+    answerBox(h);
+    const battle = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop()!;
+
+    (battle.data as BattleSceneData).onFinished({ state: { outcome: "win" } as never, caught: null });
+    // The act moved on the BADGE, before the box was handed the leader's answer …
+    expect(h.scene.act()).toBe(first.act + 1);
+    expect(boxed(h).at(-1)).toBe(`${first.id}.post.win`);
+  });
+
+  it("a LOSS is answered with the loss entry, and no badge", () => {
+    const first = LADDER[0]!;
+    const h = mount({ save: { ...freshSave(first.town), currentNode: first.town } });
+    withDialogueBox(h);
+    h.press(KEY_G);
+    h.frame();
+    answerBox(h);
+    const battle = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop()!;
+    (battle.data as BattleSceneData).onFinished({ state: { outcome: "loss" } as never, caught: null });
+    expect(h.scene.act()).toBe(first.act);
+    expect(boxed(h).at(-1)).toBe(`${first.id}.post.loss`);
+  });
+
+  it("BEATING GREAVES BY PLAYING writes story.greaves.beaten — the flag no code writes", () => {
+    /*
+     * B2, and it is the whole reason the battle selector exists. `awardBadge` writes
+     * `gym.greaves.beaten`; `story.greaves.beaten` is a DIFFERENT key, written only by
+     * `greaves.finale.post`, which is a `battle-win`. `playSlowRun` climbs the whole ladder through
+     * the real `challengeGym` and sets nothing by hand.
+     */
+    const run = playSlowRun();
+    expect(run.save.questFlags["gym.greaves.beaten"]).toBe(true);
+    expect(
+      run.save.questFlags["story.greaves.beaten"],
+      "the sixth badge did not play greaves.finale.post — the battle-win selector is missing",
+    ).toBe(true);
+  });
+
+  it("…and the ring answers a player who beat him, from the state the scene is really in", () => {
+    const run = playSlowRun();
+    const h = mount({ save: run.save });
+    settleYearTurn(h); // create() opens the finale; answer it before asking a question about it
+    const ring = content.nodes
+      .find((n) => n.id === balance.encounter.finaleGatedNode)
+      ?.props.find((p) => p.id.includes("ring"));
+    expect(ring, "the finale node ships no ring prop").toBeDefined();
+    // The approach has already resolved by the time this runs, so the ring falls back to its own
+    // reading — which is the correct answer, and proves the cutscene closed itself.
+    expect(propDialogueFor(DIALOGUE, ring!.id, balance.encounter.finaleGatedNode, ctxOf(h))?.id).toBe(
+      "prop.sanctum-antler-ring",
+    );
+  });
+
+  it("STANDING ASIDE resolves the finale and plays the released epilogue — no flag set by hand", () => {
+    const run = playSlowRun();
+    const h = mount({ save: { ...run.save, questFlags: { ...run.save.questFlags } } }, registerBox);
+    // `create()` hands the ring cutscene to the box, because Greaves is beaten and the stag is there.
+    expect(boxed(h).at(-1)).toBe("sanctum.vellsire.approach");
+    // Choice 1 is "stand aside".
+    answerBox(h, () => 1);
+
+    expect(h.scene.save.questFlags["story.vellsire.resolved"]).toBe(true);
+    expect(h.scene.save.questFlags["story.vellsire.outcome"]).toBe("released");
+    // No fight was opened, and the epilogue is on screen.
+    expect(h.parts.launches.some((l) => l.key === SCENE_KEYS.battle)).toBe(false);
+    expect(boxed(h).at(-1)).toBe("maren.epilogue.released");
+  });
+
+  it("SETTING THE SNARE opens a scripted Ancient fight against the stag that is really there", () => {
+    const run = playSlowRun();
+    const h = mount({ save: { ...run.save, questFlags: { ...run.save.questFlags } } }, registerBox);
+    expect(boxed(h).at(-1)).toBe("sanctum.vellsire.approach");
+    answerBox(h, () => 0); // "Set the snare."
+
+    const battle = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop();
+    expect(battle, "setting the snare opened no fight").toBeDefined();
+    const data = battle!.data as BattleSceneData;
+    // Scripted, not rolled: `kind: "ancient"`, one enemy, and it is the Ancient line the finale node
+    // actually carries — read out of the content, never named here (G2).
+    const ancient = content.species.find(
+      (s) => s.ancient && content.nodes.find((n) => n.id === balance.encounter.finaleGatedNode)?.populations[s.id],
+    );
+    expect(data.input.kind).toBe("ancient");
+    expect(data.input.nodeId).toBe(balance.encounter.finaleGatedNode);
+    expect(data.input.enemyParty).toHaveLength(1);
+    expect(data.input.enemyParty[0]!.lineId).toBe(ancient!.id);
+    expect(data.input.enemyParty[0]!.age).toBe("E");
+  });
+
+  it("A FAILED SNARE resolves as released, and the released epilogue plays", () => {
+    const run = playSlowRun();
+    const h = mount({ save: { ...run.save, questFlags: { ...run.save.questFlags } } }, registerBox);
+    answerBox(h, () => 0);
+    const data = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop()!.data as BattleSceneData;
+    // The reducer reports no catch — bible §4 makes this the common outcome.
+    data.onFinished({ state: { outcome: "loss" } as never, caught: null });
+
+    expect(h.scene.save.questFlags["story.vellsire.resolved"]).toBe(true);
+    expect(h.scene.save.questFlags["story.vellsire.outcome"]).toBe("released");
+    expect(boxed(h).at(-1)).toBe("maren.epilogue.released");
+  });
+
+  it("A SNARE THAT HOLDS records `caught`, moves the Sanctum's real number, and never ages", () => {
+    const run = playSlowRun();
+    const h = mount({ save: { ...run.save, questFlags: { ...run.save.questFlags } } }, registerBox);
+    answerBox(h, () => 0);
+    const data = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop()!.data as BattleSceneData;
+
+    const nodeId = balance.encounter.finaleGatedNode;
+    const spec = data.input.enemyParty[0]!;
+    const before = h.scene.save.nodeStates[nodeId]!.populations[spec.lineId]!.count;
+    expect(before).toBeGreaterThan(0);
+    // `caughtIndividual`'s own shape, taken from the fight the SCENE built — the reducer's report,
+    // which is the one thing `BattleScene` supplies and this rig cannot.
+    const line = content.species.find((s) => s.id === spec.lineId)!;
+    data.onFinished({
+      state: { outcome: "caught" } as never,
+      caught: {
+        uid: spec.uid,
+        lineId: spec.lineId,
+        formName: line.formNames.E,
+        age: "E",
+        level: spec.level,
+        traits: spec.traits,
+        nodeId,
+        ancient: true,
+        metamorphosed: false,
+      },
+    });
+
+    expect(h.scene.save.questFlags["story.vellsire.outcome"]).toBe("caught");
+    expect(h.scene.save.nodeStates[nodeId]!.populations[spec.lineId]!.count).toBe(before - 1);
+    const held = [...h.scene.save.party, ...h.scene.save.box].find((c) => c.lineId === spec.lineId);
+    expect(held, "the count moved and the creature did not").toBeDefined();
+    // G10 / Hard Req 4 — a caught Ancient never ages.
+    expect(held!.age).toBe("E");
+    expect(isNever(held!.projectedRetirementYear), "a caught Ancient was given a retirement year").toBe(true);
+    expect(boxed(h).at(-1)).toBe("maren.epilogue.caught");
+  });
+
+  it("the stag CANNOT be snared in an ordinary foray before Greaves is beaten (B12)", () => {
+    const run = playSlowRun();
+    const chained = {
+      ...run.save,
+      currentNode: balance.encounter.finaleGatedNode,
+      questFlags: { ...run.save.questFlags, "chain.vellsire.complete": true } as Record<string, FlagValue>,
+    };
+    const ancient = content.species.find(
+      (s) => s.ancient && content.nodes.find((n) => n.id === balance.encounter.finaleGatedNode)?.populations[s.id],
+    )!;
+
+    // Greaves beaten (the slow run really beat him): the ring is open, so the line is huntable.
+    const open = mount({ save: chained });
+    settleYearTurn(open);
+    const openRow = encounterTable(open.scene.forayContext(balance.encounter.finaleGatedNode)).find(
+      (e) => e.lineId === ancient.id,
+    );
+    expect(openRow?.weight).toBeGreaterThan(0);
+
+    // The same save WITHOUT the finale flag: the chain alone must not open the ring.
+    const flags = { ...chained.questFlags };
+    delete flags[balance.acts.runCompleteFlag];
+    const shut = mount({ save: { ...chained, questFlags: flags } });
+    const shutRow = encounterTable(shut.scene.forayContext(balance.encounter.finaleGatedNode)).find(
+      (e) => e.lineId === ancient.id,
+    );
+    expect(shutRow?.weight, "the Vellsire was huntable before the finale existed").toBe(0);
+  });
+
+  it("THE RIVAL is standing on the route when the player walks onto it (bible §8)", async () => {
+    const first = LADDER[0]!;
+    const h = mount({ save: { ...freshSave(first.town), currentNode: first.town } });
+    withDialogueBox(h);
+    const route = h.scene.node.adjacency.find((id) => id !== first.town)!;
+    await h.scene.travelTo(route);
+
+    expect(boxed(h).at(-1), "arriving on the route said nothing").toBe("wick.act1.pre");
+    answerBox(h);
+    const battle = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop();
+    expect(battle).toBeDefined();
+    const data = battle!.data as BattleSceneData;
+    expect(data.input.kind).toBe("trainer");
+    // The roster is data/gyms.json's `rival[]`, mapped and not invented (G2).
+    const row = content.rival.find((r) => r.node === route)!;
+    expect(data.input.enemyParty.map((b) => b.lineId)).toEqual(
+      [...row.slots, row.signature].map((s) => s.lineId),
+    );
+  });
+
+  it("LOSING to the rival leaves the encounter standing; WINNING closes it (B6)", async () => {
+    const first = LADDER[0]!;
+    const route = content.rival.find((r) => r.act === first.act)!.node;
+
+    const lost = mount({ save: { ...freshSave(first.town), currentNode: first.town } });
+    withDialogueBox(lost);
+    await lost.scene.travelTo(route);
+    answerBox(lost);
+    const a = lost.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop()!;
+    (a.data as BattleSceneData).onFinished({ state: { outcome: "loss" } as never, caught: null });
+    answerBox(lost); // wick.act1.loss — "Come back when your team has slept."
+    expect(lost.scene.save.questFlags["rival.act1.fought"]).toBeUndefined();
+    // …so walking away and coming back really does offer the rematch the copy promises.
+    await lost.scene.travelTo(first.town);
+    await lost.scene.travelTo(route);
+    expect(boxed(lost).at(-1)).toBe("wick.act1.pre");
+
+    const won = mount({ save: { ...freshSave(first.town), currentNode: first.town } });
+    withDialogueBox(won);
+    await won.scene.travelTo(route);
+    answerBox(won);
+    const b = won.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop()!;
+    (b.data as BattleSceneData).onFinished({ state: { outcome: "win" } as never, caught: null });
+    answerBox(won); // wick.act1.win, which is what writes `rival.act1.fought`
+    expect(won.scene.save.questFlags["rival.act1.fought"]).toBe(true);
+    // B15: the entry records the PLAYER's result, and the kind name is the value.
+    expect(won.scene.save.questFlags["rival.act1.playerResult"]).toBe("win");
+    const boxesBefore = boxed(won).length;
+    await won.scene.travelTo(first.town);
+    await won.scene.travelTo(route);
+    expect(boxed(won).length, "a beaten rival was offered again").toBe(boxesBefore);
+  });
+
+  it("[G] on a route finds the rival, so an encounter declined on arrival is not lost", async () => {
+    /*
+     * The arrival trigger is the primary one, but it fires exactly once per arrival and it refuses
+     * an empty party out loud. Without a way back, a player who walked in with nothing standing had
+     * to leave the route and re-enter to find him again.
+     */
+    const first = LADDER[0]!;
+    const route = content.rival.find((r) => r.act === first.act)!.node;
+    const h = mount({ save: { ...freshSave(first.town), currentNode: first.town, party: [] } });
+    withDialogueBox(h);
+    await h.scene.travelTo(route);
+    // No party: the arrival said why, and opened nothing.
+    expect(boxed(h)).toHaveLength(0);
+    expect(h.parts.launches.some((l) => l.key === SCENE_KEYS.battle)).toBe(false);
+
+    // Give the player something to send out, and press the challenge key on the route.
+    const starter = provisionalStarter(content)!;
+    h.restart({ save: { ...h.scene.save, party: [starter] } });
+    withDialogueBox(h);
+    h.press(KEY_G);
+    h.frame();
+    expect(boxed(h).at(-1)).toBe("wick.act1.pre");
+  });
+
+  it("MEETING WICK AT THE APPROACH is what opens Maren's send-off — not beating him (B5)", async () => {
+    /*
+     * `maren.finale` gates on `story.greaves.entered`, which was written ONLY by `wick.act6.win` —
+     * so the send-off required beating a rival who could not be fought, and after the rival existed
+     * it still excluded every player who lost to him. Nothing else in the act ladder is conditional
+     * on the rival, so the flag hangs off his `battle-pre`, whose own first line states the fact
+     * ("He's gone in for the stag").
+     */
+    const run = playSlowRun();
+    const approach = content.rival.find((r) => r.act === balance.acts.last)!.node;
+    const h = mount({
+      save: { ...run.save, currentNode: approach, questFlags: { ...run.save.questFlags } },
+    });
+    withDialogueBox(h);
+    expect(h.scene.save.questFlags["story.greaves.entered"]).toBeUndefined();
+    // Standing here already; drive the arrival the way travel does.
+    h.scene.challengeRival();
+    expect(boxed(h).at(-1)).toBe("wick.act6.pre");
+    answerBox(h);
+    expect(h.scene.save.questFlags["story.greaves.entered"]).toBe(true);
+
+    /*
+     * ⚠ THIS USED TO ASSERT `boxed(h).at(-1) === "maren.finale"` RIGHT HERE, under the comment
+     * "the send-off is what the approach says next, WITHOUT THE FIGHT HAVING BEEN RESOLVED" — i.e.
+     * it froze an ordering bug as the contract. Wick's last line is "Beat me and go make him hear
+     * it."; Maren's send-off is "Greaves went through an hour ago… Go on. I'll hold the page."
+     * Both were delivered BEFORE the fight, because `finishDialogue` runs `playPendingCutscene()`
+     * (OverworldScene.ts) ahead of the `afterDialogue` continuation that opens the battle, so the
+     * newly-eligible cutscene wins the frame. `story.finale.spoken` is written and read by
+     * `maren.finale` alone — a pure latch — so the send-off could NEVER be delivered afterwards.
+     *
+     * The requirement this test is named for is untouched and still asserted below: MEETING Wick
+     * opens the send-off, beating him is not required. What is added is that the send-off comes
+     * after the fight it sends the player off from.
+     */
+    expect(boxed(h), "Maren's send-off interposed before the fight").toEqual([]);
+    expect(h.parts.launches.some((l) => l.key === SCENE_KEYS.battle), "the fight never opened").toBe(true);
+  });
+
+  /**
+   * …and the B5 requirement itself, on the branch that motivated it: a player who LOSES to Wick at
+   * the approach still gets the send-off. Both `wick.act6.win` and `wick.act6.loss` write
+   * `rival.act6.playerResult`, which is what makes "the fight has happened" answerable without
+   * requiring it to have gone the player's way.
+   */
+  for (const outcome of ["win", "loss"] as const) {
+    it(`the send-off is delivered AFTER the act-6 fight, on a ${outcome}`, async () => {
+      const run = playSlowRun();
+      const approach = content.rival.find((r) => r.act === balance.acts.last)!.node;
+      /*
+       * `playSlowRun` wins the sixth badge at the SANCTUM, and closing `greaves.finale.post` there
+       * queues `sanctum.vellsire.approach`, which the slow run has no dialogue box for and so plays
+       * HEADLESSLY — taking choice 0, "Set the snare." So `run.save` arrives carrying an
+       * unresolved `story.vellsire.attempt`, and `finishDialogue`'s `maybeBeginFinale()` would open
+       * the Vellsire fight ahead of the rival's and take the battle slot (`battleRunning`). That is
+       * a property of the FIXTURE, not of the beat under test, so the attempt is cleared here.
+       * Nothing about the rival, the send-off or their ordering is set by hand.
+       */
+      const questFlags = { ...run.save.questFlags };
+      delete questFlags["story.vellsire.attempt"];
+      const h = mount({ save: { ...run.save, currentNode: approach, questFlags } });
+      withDialogueBox(h);
+      h.scene.challengeRival();
+      expect(boxed(h).at(-1)).toBe("wick.act6.pre");
+      answerBox(h);
+      expect(settleBattle(h, outcome), "closing the pre-fight box did not start the fight").toBe(true);
+      expect(boxed(h).at(-1)).toBe(`wick.act6.${outcome}`);
+      answerBox(h);
+      expect(boxed(h).at(-1), "the send-off never arrived after the fight").toBe("maren.finale");
+    });
+  }
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §10.7 the quest layer is wired to the SCENE, not merely to the tracker
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * THE SIGNATURE DEFECT OF THIS PROJECT, REPRODUCED AT THE QUEST LAYER — and this is the test that
+ * was missing.
+ *
+ * `syncQuestFlags` has exactly one call site in the whole game: `OverworldScene.syncQuests()`. It is
+ * also the ONLY writer of any `quest.*.turnin` flag — walking every `setFlags` in the corpus, no
+ * entry writes one. Measured before this existed: commenting that single line out — disconnecting
+ * all ten quests from the shipped build — left the suite byte-identical, `npx tsc --noEmit` clean,
+ * and the HUD after a full six-act run reading `quests 0/10 closed`. Sabotaging the tracker's
+ * INTERNALS instead produced sixteen failures, none of them in this file. The suite bound the
+ * FUNCTION and not the WIRING, because `tests/unit/quests.test.ts` reimplements the scene's
+ * sequence (`talkEntryFor` → `runHeadless` → `applyRunFlags` → `syncQuestFlags`) in parallel to
+ * `finishDialogue` rather than driving the scene.
+ *
+ * So this test never touches `syncQuestFlags`, `questFlags` or a quest id by hand. It presses [E],
+ * walks, and travels, and asserts the flags arrived.
+ */
+describe("§10.7 a quest is offered, worked and closed BY PLAYING", () => {
+  it("First Signs is taken, worked on Meadow Reach and turned in — no flag set by hand", async () => {
+    const town = LADDER[0]!.town;
+    const h = mount({ save: { ...freshSave(town), currentNode: town } });
+
+    /*
+     * ── 1. THE OFFER, played by the scene's own arrival cutscenes at `create()`.
+     * `quest.first-signs.offered` is written by `maren.tutorial.survey`. Nothing here writes it.
+     */
+    expect(h.scene.save.questFlags["quest.first-signs.offered"]).toBe(true);
+    // …and nothing is owed yet, because the player has walked nowhere.
+    expect(h.scene.save.questFlags["quest.first-signs.turnin"]).toBeUndefined();
+
+    // ── 2. THE WORK. Three distinct lines met on Meadow Reach, through real foray steps.
+    const r1 = h.scene.node.adjacency.find((id) => id !== town);
+    expect(r1, "Hearthollow has no route out").toBeDefined();
+    await h.scene.travelTo(r1 as string);
+    // Arrival opens the rival; the slice is walkable through a loss (see §10.6).
+    settleBattle(h, "loss");
+
+    const distinct = (): number => new Set(linesMetAt(h.scene.save, r1 as string)).size;
+    for (let i = 0; i < 3000 && distinct() < 3; i += 1) {
+      walk(h, 1);
+      // A foray step can hand the scene over to a battle; settle it so walking can continue.
+      settleBattle(h, "loss");
+    }
+    expect(distinct(), "three distinct lines were never met on Meadow Reach").toBeGreaterThanOrEqual(3);
+
+    // ── 3. THE TURN-IN. Walk back to Maren and press [E].
+    await h.scene.travelTo(town);
+    for (let i = 0; i < 30 && h.scene.save.questFlags["quest.first-signs.done"] !== true; i += 1) {
+      h.press(KEY_E);
+      h.frame();
+    }
+
+    /*
+     * THE TWO FLAGS THAT PROVE THE WIRING, and they prove different halves.
+     *
+     * `quest.first-signs.turnin` can ONLY have been written by `syncQuestFlags` — walking every
+     * `setFlags` in the corpus, no dialogue entry writes any `*.turnin` — so its presence is proof
+     * the SCENE called the tracker. `quest.first-signs.done` is the corpus's own, written by the
+     * entry that `turnin` made eligible, so the pair proves the round trip in both directions:
+     * scene → tracker → corpus → scene.
+     */
+    expect(
+      h.scene.save.questFlags["quest.first-signs.turnin"],
+      "no turn-in was written — OverworldScene is not calling syncQuestFlags",
+    ).toBe(true);
+    expect(
+      h.scene.save.questFlags["quest.first-signs.done"],
+      "the turn-in landed but the giver never closed the quest",
+    ).toBe(true);
+  });
+});

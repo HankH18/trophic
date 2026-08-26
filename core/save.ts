@@ -486,7 +486,7 @@ export interface ReplayDeps extends YearTurnDeps {
    * REQUIRED, and deliberately not optional. A `gymVictory` in the tape awards a badge, which can
    * enter one or more acts, and act entry is what applies the Cullbrand raid (D-Q3-1). Without the
    * gym list replay cannot derive the act, and an optional field would have made that a SILENT
-   * half-replay: badges present, acts absent, raid never applied, ledger quietly wrong. L10 says
+   * half-replay: badges present, acts absent, raid never applied, survey quietly wrong. L10 says
    * the same (seed, actionLog) gives a byte-identical save; a missing dep must be a compile error,
    * not a different ending.
    */
@@ -511,7 +511,7 @@ export interface ReplayDeps extends YearTurnDeps {
  *
  * A catch or release naming a node or a line the save does not have is a log that does not belong to
  * this save, and it fails the same way a stray retirement does: loudly. Silently ignoring it
- * replayed a mismatched tape to a wrong-but-plausible ledger, and Hard Req 2 is that the ledger
+ * replayed a mismatched tape to a wrong-but-plausible survey, and Hard Req 2 is that the survey
  * shows real numbers. The floor is `balance.ecosim.populationFloor` — the same floor the year turn's
  * raid respects; a second hard-coded 0 here was one quantity governed by two numbers (G11).
  */
@@ -576,7 +576,7 @@ export function replay(
   /*
    * `initial` means initial. Replaying a MID-RUN save's own log onto itself — the obvious shape for
    * "reload and continue" — re-applies every catch, release and year turn the save already contains,
-   * and the wrong ledger it produces is silent unless the log happens to hold a retirement. Reload
+   * and the wrong survey it produces is silent unless the log happens to hold a retirement. Reload
    * is `readSlot` + `openStreams`; replay is for a run rebuilt from its beginning.
    */
   if (initial.actionLog.length > 0) {

@@ -1,25 +1,25 @@
 /**
- * game/ledger-view.ts — the three number screens of build-doc §15 C4, as pure view models:
- * the per-node **ecology ledger**, the **dex entry**, and the **creature summary card**.
+ * game/survey-view.ts — the three number screens of build-doc §15 C4, as pure view models:
+ * the per-node **ecology survey**, the **dex entry**, and the **creature summary card**.
  *
  * Why these live outside the Phaser scenes (locked decision L11's shape, applied to the UI):
  *
- * 1. **Hard Req 2 is a claim about integers on screen** — "the in-game ledger shows real numbers,
+ * 1. **Hard Req 2 is a claim about integers on screen** — "the in-game survey shows real numbers,
  *    never proxies". A claim about rendered text is only checkable if the text is produced by
- *    something a test can call. Every renderer below returns strings; `tests/unit/ledger-view.test.ts`
+ *    something a test can call. Every renderer below returns strings; `tests/unit/survey-view.test.ts`
  *    asserts them character for character against a fixture save.
- * 2. **build-doc §8.3 / `no_shadow_tables`:** "ledger UI reads `nodeStates` objects directly". Every
+ * 2. **build-doc §8.3 / `no_shadow_tables`:** "survey UI reads `nodeStates` objects directly". Every
  *    count on this page is read at render time out of the `NodeState` it was handed —
  *    `state.populations[lineId].count` — and nothing here caches, stores, mirrors or summarises those
- *    numbers into a second structure that could go stale. `LedgerPage` is the render of one call,
+ *    numbers into a second structure that could go stale. `SurveyPage` is the render of one call,
  *    built and thrown away; it is not a table anything else reads.
  * 3. **build-doc §4 step 6 / Hard Req 7:** "The epilogue reuses the same renderer over the final
- *    state — the ending is a ledger read." So every entry point takes the state as an ARGUMENT.
+ *    state — the ending is a survey read." So every entry point takes the state as an ARGUMENT.
  *    Nothing here reaches for a current save, a singleton or a global; hand it `projectRegion`'s
  *    output and it renders the epilogue.
  *
  * Guardrail G7 — no moralizing copy about catching, here or in any string this file emits. The
- * labels are nouns and the values are integers. The ledger is the moral.
+ * labels are nouns and the values are integers. Nothing here comments on either.
  *
  * Guardrail G3 / §8.3 — nothing here decides who eats whom, what a species' encounter weight is, or
  * what rate it breeds at. Every such answer is asked of `core/`:
@@ -86,7 +86,7 @@ const BREED_DECIMALS = 3;
  * Decimals for the node's REAL-valued accumulators. `floraStock` and `recentDeaths` are `z.number()`
  * in core, not integers (build-doc §7.3: flora is an "abstract producer stock", recentDeaths a
  * decaying accumulator), so the moment one season steps they carry seventeen significant digits.
- * Printed raw they made the ledger's totals line 99 characters wide on a 480px canvas and clipped
+ * Printed raw they made the survey's totals line 99 characters wide on a 480px canvas and clipped
  * the two integers the line exists for straight off the right edge.
  */
 const REAL_DECIMALS = 1;
@@ -193,7 +193,7 @@ export const SCREEN_TEXT = {
  * How many characters fit on one line drawn at `leftPx`, leaving one pad at the right edge.
  *
  * A line longer than this does not wrap and does not shrink — Phaser draws it straight off the
- * canvas, and the reader loses whatever was at the end of it. `tests/unit/ledger-view.test.ts`
+ * canvas, and the reader loses whatever was at the end of it. `tests/unit/survey-view.test.ts`
  * asserts every line these renderers can emit against this budget.
  */
 export function columnBudget(balance: Balance, leftPx: number): number {
@@ -213,7 +213,7 @@ export function textLeftOf(box: { x: number; width: number }): number {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
- * 1. The ecology ledger (bible §12 "ecology ledger (per-node populations + web view)")
+ * 1. The ecology survey (bible §12 "ecology survey (per-node populations + web view)")
  * ════════════════════════════════════════════════════════════════════════════ */
 
 /**
@@ -231,17 +231,17 @@ export function seasonsPerYear(balance: Balance): number {
  * `NodeState` (build-doc §7.8) carries the CURRENT counts and nothing else — there is no history in
  * the save, and this module will not invent one by re-simulating (that would be a second sim, and it
  * would disagree with the real one the moment anything else touched a population). So the trend is
- * kept honestly: whoever runs the season step records a sample, and a ledger opened with no samples
+ * kept honestly: whoever runs the season step records a sample, and a survey opened with no samples
  * renders its trend as one number — the live one — and a net of `NO_VALUE`, never a fabricated slope.
  *
  * **The caller contract, and why `year`/`season` are on the sample.** Under the natural wiring —
- * step the season, then record a sample — the newest sample IS the reading the ledger is currently
- * showing. {@link buildLedgerPage} therefore REPLACES that reading with the live count rather than
+ * step the season, then record a sample — the newest sample IS the reading the survey is currently
+ * showing. {@link buildSurveyPage} therefore REPLACES that reading with the live count rather than
  * appending beside it; appending drew the current number twice and ended every trend with a flat
  * step that never happened. The stamp is what makes the two distinguishable, so a sample recorded
  * without its real year and season will corrupt the trend it is put into.
  */
-export interface LedgerSample {
+export interface SurveySample {
   year: number;
   season: Season;
   /** line id → count, copied out of the state at sample time. */
@@ -249,10 +249,10 @@ export interface LedgerSample {
   floraStock: number;
 }
 
-export type LedgerHistory = readonly LedgerSample[];
+export type SurveyHistory = readonly SurveySample[];
 
 /** Snapshot the live counts. Pure; the caller owns where the history lives. */
-export function sampleNodeState(state: NodeState, year: number, season: Season): LedgerSample {
+export function sampleNodeState(state: NodeState, year: number, season: Season): SurveySample {
   const counts: Record<string, number> = {};
   for (const lineId of Object.keys(state.populations)) {
     const pop = state.populations[lineId];
@@ -263,17 +263,17 @@ export function sampleNodeState(state: NodeState, year: number, season: Season):
 
 /** Append a sample, keeping at most one year of seasons. Returns a new array; never mutates. */
 export function recordSample(
-  history: LedgerHistory,
-  sample: LedgerSample,
+  history: SurveyHistory,
+  sample: SurveySample,
   balance: Balance,
-): LedgerSample[] {
+): SurveySample[] {
   const keep = seasonsPerYear(balance);
   return [...history, sample].slice(-keep);
 }
 
-export interface LedgerRow {
+export interface SurveyRow {
   lineId: string;
-  /** The form name the ledger shows: the age class the web reads (balance.ecosim.webRoleAgeClass). */
+  /** The form name the survey shows: the age class the web reads (balance.ecosim.webRoleAgeClass). */
   label: string;
   /** Read straight off `state.populations[lineId].count` — Hard Req 2's real integer. */
   count: number;
@@ -291,7 +291,7 @@ export interface LedgerRow {
   baseBreedRate: number;
   /**
    * The stored rate after §7.3 step 1's Ancient presence effects and before food. It differs from
-   * `baseBreedRate` exactly when an Ancient is in range, which is what {@link LedgerPage.presenceSources}
+   * `baseBreedRate` exactly when an Ancient is in range, which is what {@link SurveyPage.presenceSources}
    * names and what Hard Req 7 turns off when the player catches one.
    */
   presenceBreedRate: number;
@@ -318,7 +318,7 @@ export interface LedgerRow {
   dormantReason?: "dormant" | "migrating";
 }
 
-export interface LedgerPage {
+export interface SurveyPage {
   nodeId: string;
   nodeName: string;
   biome: string;
@@ -327,14 +327,14 @@ export interface LedgerPage {
   floraStock: number;
   floraMax: number;
   recentDeaths: number;
-  rows: LedgerRow[];
+  rows: SurveyRow[];
   /** Sum of the rendered counts — the same integers, added up. */
   totalIndividuals: number;
   /** How many lines at this node stand at 0. */
   atZero: number;
   /**
    * The Ancients whose presence is lifting breed rates at this node, by the name the rows use —
-   * `core/ecosim.ts` `derivePresence`'s own `sources` list ("the ledger shows what the player is
+   * `core/ecosim.ts` `derivePresence`'s own `sources` list ("the survey shows what the player is
    * about to lose"). Empty when nothing is in range. Catch the Ancient and the list empties, the
    * `breed` column drops back to the stored rate, and Hard Req 7's cost is on screen as a number.
    */
@@ -342,37 +342,37 @@ export interface LedgerPage {
 }
 
 /**
- * The region a ledger page is read out of.
+ * The region a survey page is read out of.
  *
  * **Why a page needs the whole region and not just its own node.** build-doc §7.3 step 1's presence
  * effects reach `balance.ecosim.presenceRadiusNodes` hops through the node graph, so what a line
- * breeds at HERE depends on where the Ancients are THERE. A ledger handed one detached `NodeState`
+ * breeds at HERE depends on where the Ancients are THERE. A survey handed one detached `NodeState`
  * cannot know its own breed rates, and the version of this module that took one printed the stored
  * rate instead — a number the sim was not using. Requiring the region makes that mistake
  * unavailable rather than merely fixed.
  */
-export interface LedgerRegion {
+export interface SurveyRegion {
   /** Every node file the states belong to. */
   files: readonly NodeFile[];
   /** build-doc §7.8 `nodeStates` — or, for the epilogue, `projectRegion`'s output. */
   states: Readonly<Record<string, NodeState>>;
 }
 
-export interface LedgerArgs {
+export interface SurveyArgs {
   /** Which node in {@link region} to render. */
   nodeId: string;
-  region: LedgerRegion;
+  region: SurveyRegion;
   species: readonly SpeciesLine[];
   balance: Balance;
   year: number;
   season: Season;
-  history?: LedgerHistory;
+  history?: SurveyHistory;
 }
 
 /**
  * What one line's breed rate is made of this season, as `core/ecosim.ts` reports it.
  *
- * Three numbers rather than one because they answer different questions and the ledger needs both
+ * Three numbers rather than one because they answer different questions and the survey needs both
  * of the first two: `presence` is what an Ancient in range is doing (Hard Req 7 — catch it and this
  * falls back to the stored rate), `inForce` is what the sim will actually multiply the count by.
  */
@@ -398,7 +398,7 @@ export interface SpeciesRate {
  *
  *  1. The presence effects — `keystoneBreed ×1.5`, `ventWarmth ×1.25`, the water-table floor — lift
  *     the stored rate before anything breeds.
- *  2. `foodFactor` scales it again, in both directions. Dropping it put the ledger 34 rows out
+ *  2. `foodFactor` scales it again, in both directions. Dropping it put the survey 34 rows out
  *     across 10 nodes on the UNTOUCHED year-1 state, and during the cascade beat it printed a
  *     starving apex breeding at its *highest* rate (`0.045→0.056`) in the same season the sim gave
  *     it zero births and four starvation deaths.
@@ -417,11 +417,11 @@ export interface SpeciesRate {
  *
  * The generator handed over is a throwaway seeded from `balance.rng.defaultSeed`: the report fields
  * read below are all computed before `step` touches it, so the answer cannot depend on the seed, and
- * `tests/unit/ledger-view.test.ts` runs it at two different seeds to keep that true.
+ * `tests/unit/survey-view.test.ts` runs it at two different seeds to keep that true.
  */
 export function effectiveRates(args: {
   nodeId: string;
-  region: LedgerRegion;
+  region: SurveyRegion;
   species: readonly SpeciesLine[];
   balance: Balance;
   season: Season;
@@ -437,7 +437,7 @@ export function effectiveRates(args: {
     return state ? fromNodeState(file, state) : toEcoNode(file);
   });
   const node = nodes.find((n) => n.id === nodeId);
-  if (!node) throw new Error(`ledger: node "${nodeId}" is not in the region handed over`);
+  if (!node) throw new Error(`survey: node "${nodeId}" is not in the region handed over`);
 
   const presence = derivePresence(nodes, idx, balance, eco);
   const ctx = makeContext(idx, balance, presence);
@@ -465,18 +465,18 @@ export function effectiveRates(args: {
 }
 
 /**
- * Build the ledger page for one node from the live state.
+ * Build the survey page for one node from the live state.
  *
  * The count on every row is `region.states[nodeId].populations[lineId].count` — this function is the
  * only step between the save's object and the glyph on screen, which is what §8.3's "reads
  * `nodeStates` objects directly" asks for.
  */
-export function buildLedgerPage(args: LedgerArgs): LedgerPage {
+export function buildSurveyPage(args: SurveyArgs): SurveyPage {
   const { nodeId, region, balance, year, season } = args;
   const file = region.files.find((n) => n.id === nodeId);
-  if (!file) throw new Error(`ledger: no node "${nodeId}" in the region handed over`);
+  if (!file) throw new Error(`survey: no node "${nodeId}" in the region handed over`);
   const state = region.states[nodeId];
-  if (!state) throw new Error(`ledger: the region carries no nodeState for "${nodeId}"`);
+  if (!state) throw new Error(`survey: the region carries no nodeState for "${nodeId}"`);
 
   const idx: SpeciesIndex = indexSpecies([...args.species]);
   const ageClass = webAgeClass(balance);
@@ -490,7 +490,7 @@ export function buildLedgerPage(args: LedgerArgs): LedgerPage {
     season,
   });
 
-  const rows: LedgerRow[] = [];
+  const rows: SurveyRow[] = [];
   let totalIndividuals = 0;
   let atZero = 0;
 
@@ -521,7 +521,7 @@ export function buildLedgerPage(args: LedgerArgs): LedgerPage {
     if (sameReading && readings.length > 0) readings[readings.length - 1] = count;
     else readings.push(count);
 
-    // …and the window the ledger draws is the window `recordSample` keeps, never one longer.
+    // …and the window the survey draws is the window `recordSample` keeps, never one longer.
     const trend = readings.slice(-keep);
     const first = trend[0];
     const delta = trend.length > 1 && typeof first === "number" ? count - first : null;
@@ -531,7 +531,7 @@ export function buildLedgerPage(args: LedgerArgs): LedgerPage {
     // the map lookup is still a lookup) falls back to the stored rate with no food term — the
     // honest "all we know" answer, never a guessed one.
     const rate = rates.get(lineId);
-    const row: LedgerRow = {
+    const row: SurveyRow = {
       lineId,
       label: line.formNames[ageClass],
       count,
@@ -572,13 +572,13 @@ export function buildLedgerPage(args: LedgerArgs): LedgerPage {
  * The same page, read out of a save. `save.nodeStates` IS the live sim (build-doc §7.8), and the
  * season comes from the save's own tick, so nothing about the page is passed in twice.
  */
-export function ledgerPageForSave(
+export function surveyPageForSave(
   save: SaveFile,
   nodeId: string,
   content: Content,
-  history?: LedgerHistory,
-): LedgerPage {
-  const args: LedgerArgs = {
+  history?: SurveyHistory,
+): SurveyPage {
+  const args: SurveyArgs = {
     nodeId,
     region: { files: content.nodes, states: save.nodeStates },
     species: content.species,
@@ -587,12 +587,12 @@ export function ledgerPageForSave(
     season: seasonAt(save.tick, content.balance),
   };
   if (history) args.history = history;
-  return buildLedgerPage(args);
+  return buildSurveyPage(args);
 }
 
-export const LEDGER_COLUMNS = `${padLabel("line")}${"count".padStart(W_COUNT)}${"cap".padStart(W_CAP)}  breed  seasons`;
+export const SURVEY_COLUMNS = `${padLabel("line")}${"count".padStart(W_COUNT)}${"cap".padStart(W_CAP)}  breed  seasons`;
 
-export function renderLedgerHeader(page: LedgerPage): string {
+export function renderSurveyHeader(page: SurveyPage): string {
   return `${page.nodeName} — year ${page.year} · ${page.season}`;
 }
 
@@ -603,7 +603,7 @@ export function renderLedgerHeader(page: LedgerPage): string {
  * characters and pushed `individuals` and `at 0` — the integers the line exists for — off a 480px
  * canvas.
  */
-export function renderLedgerTotals(page: LedgerPage): string {
+export function renderSurveyTotals(page: SurveyPage): string {
   return (
     `flora ${renderNumber(page.floraStock)}/${renderNumber(page.floraMax)} · ` +
     `recent deaths ${renderNumber(page.recentDeaths)} · ` +
@@ -619,7 +619,7 @@ export const NO_PRESENCE = "none";
  * arrow legible, and the one Hard Req 7 turns on: catch the Ancient and this reads `none`, every
  * arrow disappears, and the rates fall back to the stored ones in front of the player.
  */
-export function renderLedgerPresence(page: LedgerPage): string {
+export function renderSurveyPresence(page: SurveyPage): string {
   return `presence: ${page.presenceSources.length > 0 ? page.presenceSources.join(", ") : NO_PRESENCE}`;
 }
 
@@ -638,7 +638,7 @@ export function renderLedgerPresence(page: LedgerPage): string {
  *
  * A line with no window gets no note at all — inventing one would make the flag mean nothing.
  */
-export function renderSeasonalNote(row: LedgerRow): string {
+export function renderSeasonalNote(row: SurveyRow): string {
   if (row.extinct) return row.seasonalWindow ? `window ${row.seasonalWindow}` : "";
   return row.dormantReason ?? "";
 }
@@ -657,7 +657,7 @@ export function renderSeasonalNote(row: LedgerRow): string {
  *
  *     Skir              0   24  0.045  8 5 2 0  net -8
  */
-export function renderLedgerRow(row: LedgerRow): string {
+export function renderSurveyRow(row: SurveyRow): string {
   const inForce = renderRate(row.breedRate);
   const stored = renderRate(row.baseBreedRate);
   // Both numbers, never just the one the player cannot act on: the left is what this line breeds at
@@ -679,13 +679,13 @@ export function renderLedgerRow(row: LedgerRow): string {
   return head + trend + net + (note ? `  ${note}` : "");
 }
 
-export function renderLedgerPage(page: LedgerPage): string[] {
+export function renderSurveyPage(page: SurveyPage): string[] {
   return [
-    renderLedgerHeader(page),
-    renderLedgerTotals(page),
-    renderLedgerPresence(page),
-    LEDGER_COLUMNS,
-    ...page.rows.map(renderLedgerRow),
+    renderSurveyHeader(page),
+    renderSurveyTotals(page),
+    renderSurveyPresence(page),
+    SURVEY_COLUMNS,
+    ...page.rows.map(renderSurveyRow),
   ];
 }
 
@@ -728,7 +728,7 @@ export interface DexEntry {
    * It is **not** the encounter roll's verdict, and reading it as one is a trap: the roll applies
    * two further filters — the sign-chain gate ({@link encounterGated}) and the live count, which is
    * 0 for a wiped line. "Can I meet this here right now" is `active && !encounterGated && count>0`,
-   * and `tests/unit/ledger-view.test.ts` holds that identity against `encounterWeights` itself over
+   * and `tests/unit/survey-view.test.ts` holds that identity against `encounterWeights` itself over
    * every shipped node and season.
    */
   active: boolean;
@@ -776,7 +776,7 @@ const PROBE_INDIVIDUALS = 1;
  * active in leaves the gate as the only refusal the probe can produce, so the answer is a fact
  * about the line rather than about the calendar — which is what the flag claims to be. No shipped
  * line is currently both (the three Ancients carry no `seasonalWindow`), so this is a trap set for
- * the next piece of content, not a live defect; `tests/unit/ledger-view.test.ts` drives it with a
+ * the next piece of content, not a live defect; `tests/unit/survey-view.test.ts` drives it with a
  * synthetic line that is.
  */
 function encounterGatedFor(

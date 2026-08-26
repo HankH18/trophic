@@ -1,11 +1,11 @@
 /**
- * game/ledger-history.ts — the readings behind the ledger's `seasons` column.
+ * game/survey-history.ts — the readings behind the survey's `seasons` column.
  *
- * **The defect this closes.** `game/ledger-view.ts` has carried `sampleNodeState` / `recordSample`
+ * **The defect this closes.** `game/survey-view.ts` has carried `sampleNodeState` / `recordSample`
  * and a documented caller contract ("whoever runs the season step records a sample") since it was
  * written, and nothing in the running game ever called either. The only launcher opened
- * `LedgerScene` with no `histories`, so every row on every screen rendered one number and `net —`
- * forever: the ledger showed a population's instantaneous count and never showed it MOVING, which
+ * `SurveyScene` with no `histories`, so every row on every screen rendered one number and `net —`
+ * forever: the survey showed a population's instantaneous count and never showed it MOVING, which
  * is the one thing the cascade beat is about.
  *
  * **Why the readings are observed here and not taken by the scene that steps the season.**
@@ -18,17 +18,17 @@
  * **What a reading is, and what it is not.** It is a copy of the counts in `save.nodeStates` at the
  * moment the save's `{year, season}` changed. It is NOT a re-simulation: this module never steps
  * anything, never projects, and never fills a gap it did not observe. A run loaded from a slot
- * starts with one reading and grows a trend as its seasons pass, which is why `LedgerRow.delta` is
+ * starts with one reading and grows a trend as its seasons pass, which is why `SurveyRow.delta` is
  * `null` — rendered `net —` — until there is an earlier reading to subtract. A fabricated slope
  * would be a second sim disagreeing with the first one.
  *
- * Zero Phaser imports: the store is plain state, and `tests/unit/ledger-view.test.ts` drives it
+ * Zero Phaser imports: the store is plain state, and `tests/unit/survey-view.test.ts` drives it
  * headlessly with the same calls the registry makes.
  */
 
 import { seasonAt } from "../core/clock";
 import type { Balance, NodeState, Season } from "../core/types";
-import { recordSample, sampleNodeState, type LedgerHistory } from "./ledger-view";
+import { recordSample, sampleNodeState, type SurveyHistory } from "./survey-view";
 
 /** The slice of a save a reading needs. Structural, so a test can drive it without a whole save. */
 export interface ObservableSave {
@@ -42,22 +42,22 @@ function stampOf(year: number, season: Season): string {
   return `${year}/${season}`;
 }
 
-class LedgerHistoryStore {
+class SurveyHistoryStore {
   /**
    * ONE record object for the lifetime of the store, with the per-node arrays replaced inside it.
-   * `LedgerScene` is handed this object once and re-reads it on every redraw, so replacing the
+   * `SurveyScene` is handed this object once and re-reads it on every redraw, so replacing the
    * object here would freeze the scene's trend at whatever it held when the menu was opened.
    */
-  readonly #histories: Record<string, LedgerHistory> = {};
+  readonly #histories: Record<string, SurveyHistory> = {};
   #stamp: string | null = null;
 
-  /** The live record, for `LedgerSceneData.histories`. Never copied — see above. */
-  histories(): Readonly<Record<string, LedgerHistory>> {
+  /** The live record, for `SurveySceneData.histories`. Never copied — see above. */
+  histories(): Readonly<Record<string, SurveyHistory>> {
     return this.#histories;
   }
 
   /** One node's readings, oldest first. Empty until a season has been observed. */
-  historyFor(nodeId: string): LedgerHistory {
+  historyFor(nodeId: string): SurveyHistory {
     return this.#histories[nodeId] ?? [];
   }
 
@@ -71,7 +71,7 @@ class LedgerHistoryStore {
    *
    * Idempotent within a season, which is what makes it safe to call from `setSave`: a catch, a
    * travel and a battle all adopt a new save without advancing the calendar, and none of them adds
-   * a reading. `buildLedgerPage` then REPLACES the newest reading with the live count whenever the
+   * a reading. `buildSurveyPage` then REPLACES the newest reading with the live count whenever the
    * two carry the same stamp — so a catch shows up in the trend's last number immediately, and the
    * season's opening number is not overwritten by it. Returns whether a reading was taken.
    */
@@ -103,4 +103,4 @@ class LedgerHistoryStore {
 }
 
 /** The one store. Import this; do not build another. */
-export const ledgerHistory = new LedgerHistoryStore();
+export const surveyHistory = new SurveyHistoryStore();

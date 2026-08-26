@@ -65,7 +65,7 @@ function shippedBundle(): RawContentBundle {
   };
 }
 
-/** Drive every core module that reads content, over the whole region. Returns a ledger digest. */
+/** Drive every core module that reads content, over the whole region. Returns a survey digest. */
 function exerciseEverything(content: Content, seed: number): string {
   const idx = indexSpecies(content.species);
   const nodes = content.nodes.map((f) => toEcoNode(f));
@@ -193,7 +193,7 @@ describe("ext_add_species — build-doc §6 INV-1", () => {
 
   it("a species added WITHOUT its node entry is refused, not silently absent", () => {
     // The other half of INV-1: "species.json AND one node JSON". A line in no node is content that
-    // exists nowhere, and the ledger would never show it.
+    // exists nowhere, and the survey would never show it.
     const raw = shippedBundle();
     (raw.species as { species: unknown[] }).species.push(JSON.parse(JSON.stringify(NEW_LINE)));
     const content = validateBundle(raw); // shape is fine…

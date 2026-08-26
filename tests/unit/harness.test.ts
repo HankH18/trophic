@@ -98,16 +98,16 @@ describe("harness determinism (L10 / build-doc §8.1)", () => {
     );
   });
 
-  it("a six-year full run reproduces its own ledger from the same seed", () => {
+  it("a six-year full run reproduces its own survey from the same seed", () => {
     const a = runFullRun(loaded, seedFor(balance, 0), "dex");
     const b = runFullRun(loaded, seedFor(balance, 0), "dex");
-    expect(JSON.stringify(b.ledger)).toBe(JSON.stringify(a.ledger));
+    expect(JSON.stringify(b.survey)).toBe(JSON.stringify(a.survey));
   });
 
-  it("BINDS — a different seed gives a different six-year ledger", () => {
+  it("BINDS — a different seed gives a different six-year survey", () => {
     const a = runFullRun(loaded, seedFor(balance, 0), "collector");
     const b = runFullRun(loaded, seedFor(balance, 1), "collector");
-    expect(JSON.stringify(b.ledger)).not.toBe(JSON.stringify(a.ledger));
+    expect(JSON.stringify(b.survey)).not.toBe(JSON.stringify(a.survey));
   });
 
   it("every battle the arena runs reaches a real outcome, never an unresolved loop", () => {
@@ -494,7 +494,7 @@ describe("round-robin — build-doc §10.5(b)", () => {
 describe("full-run sim — build-doc §10.5(c)", () => {
   it("runs exactly 24 season steps over six years (18 clock boundaries + 6 year turns)", () => {
     const run = runFullRun(loaded, seedFor(balance, 0), "baseline");
-    expect(run.ledger.seasonSteps).toBe(balance.clock.yearsTotal * balance.clock.seasonOrder.length);
+    expect(run.survey.seasonSteps).toBe(balance.clock.yearsTotal * balance.clock.seasonOrder.length);
   });
 
   it("fires the shipped Cullbrand raid through core/lifecycle.ts, not through the harness", () => {
@@ -515,16 +515,16 @@ describe("full-run sim — build-doc §10.5(c)", () => {
     const base = runFullRun(loaded, seedFor(balance, 0), "baseline");
     const dex = runFullRun(loaded, seedFor(balance, 0), "dex");
     const collector = runFullRun(loaded, seedFor(balance, 0), "collector");
-    expect(base.ledger.catches).toBe(0);
-    expect(dex.ledger.catches).toBeGreaterThan(0);
+    expect(base.survey.catches).toBe(0);
+    expect(dex.survey.catches).toBeGreaterThan(0);
     // The dex profile takes at most one of each line, ever.
-    expect(dex.ledger.catches).toBeLessThanOrEqual(loaded.content.species.length);
-    for (const entry of dex.ledger.catchesByLine) expect(entry.caught).toBe(1);
+    expect(dex.survey.catches).toBeLessThanOrEqual(loaded.content.species.length);
+    for (const entry of dex.survey.catchesByLine) expect(entry.caught).toBe(1);
     // The collector stops at party + box capacity.
-    expect(collector.ledger.catches).toBeLessThanOrEqual(
+    expect(collector.survey.catches).toBeLessThanOrEqual(
       balance.party.maxPartySize + balance.party.maxBoxSize,
     );
-    expect(collector.ledger.catches).toBeGreaterThan(dex.ledger.catches);
+    expect(collector.survey.catches).toBeGreaterThan(dex.survey.catches);
   });
 
   it("no unintended extinction under normal play (the `dex` profile)", () => {
