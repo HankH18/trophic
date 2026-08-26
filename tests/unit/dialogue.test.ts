@@ -2507,6 +2507,14 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     "odo.greeting": "world", // "no buyer for one of them" — the market, not a figure off the marsh
     "orrin.quest.trail.declined": "world", // "the four you walked" — of the six standing stones
     /*
+     * ADDED by the sixth (readability) pass, and it is a row rather than a reworded line. Breaking
+     * a chain turned "put the pole down on one this morning" into "on one of them this morning",
+     * which the detector reads as a count. It is not one: he is describing a single animal he
+     * poled by accident, not quoting a figure. The alternative was to reword the line back so the
+     * regex stopped seeing it, and that makes the regex the author.
+     */
+    "amb.r2-ferryhand.apex": "world", // "one of them" — one Mirefin under the boat, an anecdote
+    /*
      * REMOVED, and named so the removals are decisions rather than drift: `wick.act6.win`,
      * `gerta.greeting` and `noct.post.win` were rows for copy that no longer names a count.
      * A row whose entry stops matching is invisible to the set-equality assertion in only one
