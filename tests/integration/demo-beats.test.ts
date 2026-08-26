@@ -39,7 +39,7 @@ import { actOf } from "@core/acts";
 import { startBattle, step as battleStep } from "@core/battle";
 import { advanceAction, seasonOf } from "@core/clock";
 import { defaultContext, stepRegionStates } from "@core/ecosim";
-import { indexSpecies } from "@core/foodweb";
+import { indexSpecies, isMesopredator } from "@core/foodweb";
 import { subsystemRng } from "@core/rng";
 import { validateContent } from "@core/schemas";
 import { appendAction, newSave, openStreams, type RngStreams, type SaveEnvelope } from "@core/save";
@@ -76,6 +76,16 @@ const script = JSON.parse(
 /**
  * The two lines the beat is about, read OUT of the script and the derived web rather than typed in
  * (G2/G3): the script names the line it over-catches, and the apex is the line that eats it.
+ *
+ * ⚠ `PREY` IS THE OVER-CAUGHT TARGET, NOT "the mesopredator" BY CONSTRUCTION. It is the same animal
+ * here only because of which node `fixtures/overcatch-script.json` names: at `r4` the apex's ONLY
+ * prey pool is its mesopredator (the fixture's own `_why` says that is why it picked the node, and
+ * docs/CASCADE-RELEASE.md §2.1 shows it is the only shipped site where the two coincide). At the
+ * other four apex sites the apex also eats a Grazer, so the over-caught line is a Grazer and this
+ * constant would be one — which is exactly the mis-measurement that `tools/harness/full-run.ts` was
+ * carrying (docs/CASCADE-RELEASE.md §3). The release test below asserts the role before it measures
+ * the clause, so re-pointing the fixture at another node turns it red instead of silently scoring a
+ * herbivore rebound as the beat.
  */
 const PREY = script.actions.find((a) => a.t === "catch")?.lineId ?? "";
 const APEX = "stonewing-line";
@@ -245,19 +255,71 @@ describe("I2 — over-catching a prey line through the production catch starves 
      * seasons, measured on the SIM path). This is the same measurement on the GAME path, and it
      * agrees: the apex clause holds everywhere, the release clause does not.
      *
+     * TWO THINGS THIS TEST HAS TO GET RIGHT BEFORE ITS NUMBER MEANS ANYTHING, and it used to get
+     * both wrong in the same direction — crediting more seeds than §10.2 grants:
+     *
+     *   WHICH LINE. §10.2 names ONE tier. `PREY` is the fixture's over-catch TARGET, which is that
+     *   tier at `r4` and a Grazer at four of the six apex sites (see the note on `PREY` above), so
+     *   the role is ASSERTED here rather than assumed. Assuming it is the mis-measurement
+     *   `tools/harness/full-run.ts` was carrying, where a rebounding Grazer read as a release
+     *   (docs/CASCADE-RELEASE.md §3). The role comes from `core/foodweb.ts`, the repo's one home
+     *   for it (§8.3, G3); no role name is written in this file.
+     *
+     *   WHICH SEASONS. "within 4 seasons" is `balance.cascade.mesoReleaseSeasons` (G11 — not a
+     *   literal), counted from the season the apex hits 0. That is the arithmetic
+     *   `tools/harness/full-run.ts` uses and docs/CASCADE-RELEASE.md §10 publishes, restated here
+     *   so this figure is comparable to the sim-path figure it claims to agree with. This test used
+     *   to accept a rise ANYWHERE in the six seasons after catching stopped — a window the balance
+     *   file does not grant. MEASURED on the shipped content: the old predicate scored 5 of 24
+     *   seeds (3, 5, 13, 18, 24); §10.2's window scores 3 (3, 18, 24), because seeds 5 and 13 do
+     *   not rise until season 8. The baseline is unchanged by the correction — the apex reaches 0
+     *   at season 3 at all 24 seeds, so `atCollapse` is the same count `trace[1]` used to read.
+     *
      * The assertion is deliberately on the SHAPE of the answer, not on a threshold: it pins that
      * some seeds release and most do not, so the day a balance retune makes it a law this test goes
      * red and gets rewritten to assert the law. It is not a licence to ship the beat as is.
+     *
+     * The upper bound is the title's own word — a MINORITY — rather than the weaker "not all" it
+     * used to be. That is not a threshold invented here; it is what the test says it measures, and
+     * "not all" turned out not to bind the word "rising" at all. Sabotage-checked: relax the strict
+     * rise to `value >= atCollapse` — i.e. score a mesopredator that merely HELD as released — and
+     * the count goes 3 → 22, which `< SEEDS` waves through and `< SEEDS / 2` catches.
      */
+    const preyLine = species.byId.get(PREY);
+    expect(preyLine, `the script over-catches ${PREY}, which data/species.json does not carry`).toBeDefined();
+    expect(
+      isMesopredator(preyLine!, balance),
+      `${PREY} is not the tier §10.2's release clause names, so every number below would be some ` +
+        `other animal's rebound scored as the beat. See the note on PREY above.`,
+    ).toBe(true);
+
+    const releaseWindow = balance.cascade.mesoReleaseSeasons;
     const released: number[] = [];
     for (let seed = 1; seed <= SEEDS; seed += 1) {
       const run = runCascade(seed, FLOOR);
       const trace = run.perSeason.map((p) => p.prey);
-      const afterCatching = trace[1] ?? 0;
-      if (trace.some((n, i) => i > 1 && n > afterCatching)) released.push(seed);
+      // The clause is conditional on the collapse, so a seed whose apex never reaches 0 counts on
+      // neither side. That the collapse happens at all is the LAW asserted by the sibling test
+      // above; this one only measures what follows it.
+      const collapseSeason = run.perSeason.findIndex((p) => p.apex === 0);
+      if (collapseSeason < 0) continue;
+      const atCollapse = trace[collapseSeason - 1] ?? 0;
+      const windowEnd = Math.min(trace.length, collapseSeason + releaseWindow);
+      for (let s = collapseSeason; s < windowEnd; s += 1) {
+        const value = trace[s] ?? 0;
+        if (value > atCollapse && value > 0) {
+          released.push(seed);
+          break;
+        }
+      }
     }
     expect(released.length, "no seed releases — the beat is dead, not merely rare").toBeGreaterThan(0);
-    expect(released.length, "the release is now a law — rewrite this test to assert it").toBeLessThan(SEEDS);
+    expect(
+      released.length,
+      `the release is no longer a minority (${String(released.length)}/${String(SEEDS)} seeds) — ` +
+        `either it has become the law §10.2 asks for, in which case rewrite this test to assert it, ` +
+        `or the predicate above stopped requiring a strict rise`,
+    ).toBeLessThan(SEEDS / 2);
   });
 
   it("the demo has a legible seed for the WHOLE beat, and it is not the fixture's", () => {

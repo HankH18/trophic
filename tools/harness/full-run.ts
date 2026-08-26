@@ -53,6 +53,7 @@ import {
   cloneEcoNode,
   deriveFoodWeb,
   encounterWeights,
+  isMesopredator,
   limitingPrey,
   predatorsOf,
   preyOf,
@@ -534,11 +535,29 @@ export interface OvercatchRun {
   /** 1-based season index at which the top line first read zero, or null. */
   topZeroSeason: number | null;
   collapsed: boolean;
-  /** Something the collapsed predator used to eat is above its collapse-season count, and alive. */
-  released: boolean;
+  /**
+   * build-doc §10.2's own clause: a **Mesopredator-role** prey line of the collapsed predator is
+   * above its collapse-season count, and alive, inside the release window. This is the release.
+   */
+  mesoReleased: boolean;
+  /** Which Mesopredator-role line that was, if any. */
+  mesoReleasedLineId: string | null;
+  /**
+   * The BROADER signal, and NOT §10.2's clause: did anything the collapsed predator used to eat —
+   * of any role — end the window alive and above where it stood at the collapse? High here with
+   * `mesoReleased` false is the signature of a two-tier collapse in which a Grazer rebounded into
+   * the empty throne. Reported under its own name so it can never be read as the beat.
+   */
+  anyPreyReleased: boolean;
   /** Which line that was, if any. */
-  releasedLineId: string | null;
-  /** The whole beat: the top gone AND the tier below it rising afterwards. */
+  anyPreyReleasedLineId: string | null;
+  /**
+   * The Mesopredator-role prey of the collapsed predator, per `webRole`. EMPTY means §10.2's clause
+   * is undefined at this node — there is no tier between the top of its web and the Grazers — and
+   * `mesoReleased` is then false by construction rather than by measurement.
+   */
+  mesoPreyIds: string[];
+  /** The whole beat: the top gone AND the MESOPREDATOR rising afterwards (§10.2, both clauses). */
   fullBeat: boolean;
   /** Every over-caught target also reached zero — a two-tier collapse, not a release. */
   targetsCoExtinct: boolean;
@@ -629,26 +648,67 @@ export function runOvercatch(
     topZeroSeason !== null && topZeroSeason <= cascade.forcingSeasons + cascade.apexCollapseSeasons;
 
   /*
-   * "a new apex risen" (build-doc §1), measured as an EXISTENTIAL rather than a cherry-pick: did
-   * ANYTHING the dead predator used to eat end the release window alive and above where it stood
-   * when the predator hit zero? The best such line is reported; the verdict does not depend on
-   * which one it is.
+   * ════════════════════════════════════════════════════════════════════════════
+   * THE RELEASE — and why it is measured TWICE, under two different names
+   * ════════════════════════════════════════════════════════════════════════════
+   * build-doc §10.2's second clause is specific about the animal: "apex count →0 and
+   * **mesopredator** count strictly rising within 4 seasons". An earlier version of this function
+   * scored the clause as a bare existential over every prey line of any role, with a comment saying
+   * "the verdict does not depend on which one it is" — and the verdict does. At four of the six
+   * apex sites the apex also eats a Grazer (bible §5's large-Grazer rule at `bowerdeep`/`r3`, its
+   * authored diet exception at `brackwater`/`r2`), so an over-caught Grazer rebounding once nothing
+   * hunts it scored as a mesopredator release. That is the two-tier collapse §4.3's own prose warns
+   * about, counted as its opposite. See `docs/CASCADE-RELEASE.md` §3.
+   *
+   * So both are computed, and they are kept apart:
+   *
+   *   `mesoReleased`    — §10.2's clause. ONLY prey whose `webRole` is `Mesopredator` can satisfy
+   *                       it. This is what `fullBeat` is built from and what the report publishes
+   *                       as the demo beat.
+   *   `anyPreyReleased` — the broader existential, kept because it is genuinely informative: a row
+   *                       high here and zero on `mesoReleased` says the herbivores are in charge.
+   *                       It is a diagnostic, never the beat.
+   *
+   * Roles come from `core/foodweb.ts`'s `isMesopredator` — a thin reading of `webRole`, and the
+   * repo's only role reader. Nothing here re-derives a role, no role NAME appears in this file
+   * (§8.3 gives them one home, and `tests/property/foodweb.test.ts` enforces it), and no species is
+   * named (G3, G6).
    */
-  let released = false;
-  let releasedLineId: string | null = null;
-  let bestGain = 0;
+  const preyIsMesopredator = (lineId: string): boolean => {
+    const line = loaded.species.byId.get(lineId);
+    return line !== undefined && isMesopredator(line, balance);
+  };
+  const mesoPreyIds = preyIds.filter(preyIsMesopredator);
+
+  let anyPreyReleased = false;
+  let anyPreyReleasedLineId: string | null = null;
+  let anyBestGain = 0;
+  let mesoReleased = false;
+  let mesoReleasedLineId: string | null = null;
+  let mesoBestGain = 0;
   if (collapsed && topZeroSeason !== null) {
     const windowEnd = Math.min(observeSeasons, topZeroSeason + cascade.mesoReleaseSeasons);
     for (const id of preyIds) {
       const trace = preyTraces[id] ?? [];
       const atCollapse = trace[topZeroSeason - 1] ?? 0;
+      // The best gain this line reaches anywhere inside the window — strictly above where it stood
+      // when the predator hit zero, and alive. Identical arithmetic for both readings; the ONLY
+      // difference between them is which lines are eligible to be counted.
+      let gain = 0;
       for (let s = topZeroSeason; s < windowEnd; s++) {
         const value = trace[s] ?? 0;
-        if (value > atCollapse && value > 0 && value - atCollapse >= bestGain) {
-          released = true;
-          releasedLineId = id;
-          bestGain = value - atCollapse;
-        }
+        if (value > atCollapse && value > 0 && value - atCollapse > gain) gain = value - atCollapse;
+      }
+      if (gain <= 0) continue;
+      if (gain >= anyBestGain) {
+        anyPreyReleased = true;
+        anyPreyReleasedLineId = id;
+        anyBestGain = gain;
+      }
+      if (preyIsMesopredator(id) && gain >= mesoBestGain) {
+        mesoReleased = true;
+        mesoReleasedLineId = id;
+        mesoBestGain = gain;
       }
     }
   }
@@ -667,9 +727,12 @@ export function runOvercatch(
     caught,
     topZeroSeason,
     collapsed,
-    released,
-    releasedLineId,
-    fullBeat: collapsed && released,
+    mesoReleased,
+    mesoReleasedLineId,
+    anyPreyReleased,
+    anyPreyReleasedLineId,
+    mesoPreyIds,
+    fullBeat: collapsed && mesoReleased,
     targetsCoExtinct,
     topTrace,
     preyTraces,
@@ -689,13 +752,32 @@ export interface OvercatchNodeSummary {
   targetFormNames: string[];
   seeds: number;
   collapseRate: number;
-  releaseRate: number;
+  /**
+   * build-doc §10.2's release clause, restricted to Mesopredator-role prey. Identical to
+   * `fullBeatRate` by construction — a mesopredator cannot be released by a predator that is still
+   * alive — and named separately because the two claims are read separately.
+   */
+  mesoReleaseRate: number;
+  /**
+   * The broader diagnostic: any prey line of any role rebounded. NOT §10.2's clause. A row where
+   * this is high and `mesoReleaseRate` is 0 is a two-tier collapse with a Grazer on the throne.
+   */
+  anyReleaseRate: number;
   fullBeatRate: number;
   coExtinctRate: number;
   meanCollapseSeason: number | null;
   meanCaught: number;
-  /** The line most often credited with the release. */
-  releasedFormName: string | null;
+  /** The Mesopredator-role line most often credited with the §10.2 release. */
+  mesoReleasedFormName: string | null;
+  /** The line of ANY role most often credited with the broader rebound. */
+  anyReleasedFormName: string | null;
+  /**
+   * False when the top of this node's web has no Mesopredator-role prey at all — §10.2's two-tier
+   * clause is then UNDEFINED here, and `mesoReleaseRate` is 0 by construction, not by measurement.
+   */
+  hasMesoPrey: boolean;
+  /** The Mesopredator-role prey the clause is about, if any. */
+  mesoPreyFormNames: string[];
   /** Fraction of seeds where SOMETHING still sits at the top of the node's web at the end. */
   newApexRate: number;
   /** The most common occupant of that empty throne. */
@@ -720,21 +802,25 @@ export function sweepOvercatch(
     const node = toEcoNode(file);
     for (const topLineId of topOfWeb(node, loaded)) {
       let collapsed = 0;
-      let released = 0;
+      let mesoReleased = 0;
+      let anyReleased = 0;
       let fullBeat = 0;
       let coExtinct = 0;
       let collapseSeasonSum = 0;
       let collapseSeasonCount = 0;
       let caught = 0;
       let targets: string[] = [];
+      let mesoPreyIds: string[] = [];
       let sampleTopTrace: number[] = [];
       let samplePreyTraces: Array<{ formName: string; trace: number[] }> = [];
-      const releasedCounts = new Map<string, number>();
+      const mesoReleasedCounts = new Map<string, number>();
+      const anyReleasedCounts = new Map<string, number>();
       const newApexCounts = new Map<string, number>();
       let newApexSeeds = 0;
       for (let i = 0; i < seeds; i++) {
         const run = runOvercatch(loaded, file, topLineId, reading, shape, seedFor(loaded.balance, i));
         targets = run.targets;
+        mesoPreyIds = run.mesoPreyIds;
         caught += run.caught;
         if (i === 0) {
           sampleTopTrace = run.topTrace;
@@ -744,11 +830,17 @@ export function sweepOvercatch(
           }));
         }
         if (run.collapsed) collapsed += 1;
-        if (run.released) released += 1;
+        if (run.mesoReleased) mesoReleased += 1;
+        if (run.anyPreyReleased) anyReleased += 1;
         if (run.fullBeat) fullBeat += 1;
         if (run.targetsCoExtinct) coExtinct += 1;
-        if (run.releasedLineId) {
-          releasedCounts.set(run.releasedLineId, (releasedCounts.get(run.releasedLineId) ?? 0) + 1);
+        if (run.mesoReleasedLineId) {
+          const id = run.mesoReleasedLineId;
+          mesoReleasedCounts.set(id, (mesoReleasedCounts.get(id) ?? 0) + 1);
+        }
+        if (run.anyPreyReleasedLineId) {
+          const id = run.anyPreyReleasedLineId;
+          anyReleasedCounts.set(id, (anyReleasedCounts.get(id) ?? 0) + 1);
         }
         if (run.newTopOfWeb.length > 0) newApexSeeds += 1;
         for (const id of run.newTopOfWeb) newApexCounts.set(id, (newApexCounts.get(id) ?? 0) + 1);
@@ -757,7 +849,8 @@ export function sweepOvercatch(
           collapseSeasonCount += 1;
         }
       }
-      const topReleased = [...releasedCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+      const topMesoReleased = [...mesoReleasedCounts.entries()].sort((a, b) => b[1] - a[1])[0];
+      const topAnyReleased = [...anyReleasedCounts.entries()].sort((a, b) => b[1] - a[1])[0];
       out.push({
         nodeId: file.id,
         biome: file.biome,
@@ -770,12 +863,16 @@ export function sweepOvercatch(
         targetFormNames: targets.map(nameOf),
         seeds,
         collapseRate: seeds === 0 ? 0 : collapsed / seeds,
-        releaseRate: seeds === 0 ? 0 : released / seeds,
+        mesoReleaseRate: seeds === 0 ? 0 : mesoReleased / seeds,
+        anyReleaseRate: seeds === 0 ? 0 : anyReleased / seeds,
         fullBeatRate: seeds === 0 ? 0 : fullBeat / seeds,
         coExtinctRate: seeds === 0 ? 0 : coExtinct / seeds,
         meanCollapseSeason: collapseSeasonCount === 0 ? null : collapseSeasonSum / collapseSeasonCount,
         meanCaught: seeds === 0 ? 0 : caught / seeds,
-        releasedFormName: topReleased ? nameOf(topReleased[0]) : null,
+        mesoReleasedFormName: topMesoReleased ? nameOf(topMesoReleased[0]) : null,
+        anyReleasedFormName: topAnyReleased ? nameOf(topAnyReleased[0]) : null,
+        hasMesoPrey: mesoPreyIds.length > 0,
+        mesoPreyFormNames: mesoPreyIds.map(nameOf),
         newApexRate: seeds === 0 ? 0 : newApexSeeds / seeds,
         newApexFormNames: [...newApexCounts.entries()]
           .sort((a, b) => b[1] - a[1])

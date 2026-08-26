@@ -27,7 +27,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { chooseEnemyAction, startBattle } from "../../core/battle";
-import { deriveFoodWeb, preyOf, toEcoNode } from "../../core/foodweb";
+import { deriveFoodWeb, preyOf, toEcoNode, webRole } from "../../core/foodweb";
 import { createRng } from "../../core/rng";
 import type { BattleInput } from "../../core/types";
 
@@ -35,10 +35,16 @@ import { bestMoveId, mirrorPolicy, runBattle } from "../../tools/harness/arena";
 import { loadContent, loadContentFromRaw, seedFor, subsystemTags } from "../../tools/harness/content";
 import { replayOvercatchFixture } from "../../tools/harness/fixture";
 import {
+  OVERCATCH_SHAPES,
+  PREY_READINGS,
   runFullRun,
   runOvercatch,
   summariseProfile,
+  sweepOvercatch,
   topOfWeb,
+  type OvercatchRun,
+  type OvercatchShape,
+  type PreyReading,
 } from "../../tools/harness/full-run";
 import { runGymSim, runMirrorControl, runOneGym } from "../../tools/harness/gym-sim";
 import { measure } from "../../tools/harness/measure";
@@ -637,6 +643,188 @@ describe("the demo cascade — build-doc §1 beat 1, §15 I2, G6", () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
+ * 6b. The release clause is about the MESOPREDATOR — build-doc §10.2
+ * ════════════════════════════════════════════════════════════════════════════
+ * §10.2's second clause names its animal: "apex count →0 and **mesopredator** count strictly rising
+ * within 4 seasons". `runOvercatch` once scored it as a bare existential over every prey line of the
+ * collapsed predator, of any role, with a comment that said "the verdict does not depend on which
+ * one it is". It does. Four of the six apex sites have a Grazer on the apex's menu as well as the
+ * mesopredator, so a Grazer rebounding once nothing hunts it was published under the mesopredator's
+ * claim — and `docs/BALANCE-REPORT.md` then recommended a demo stage on that number.
+ *
+ * These tests are deliberately NOT a restatement of the new predicate. The defect existed precisely
+ * because the metric restated its own intent, and a test written the same way would have passed
+ * against the broken code. Each one is anchored to a fact that is true of the raw population traces
+ * independently of any window arithmetic — above all: **the mesopredator never leaves zero at any
+ * season of the run.** No honest reading of "mesopredator count strictly rising" can count a seed
+ * like that, whatever window it uses, so a metric that does is wrong by inspection.
+ * See `docs/CASCADE-RELEASE.md` §3 for the traces this was measured from.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("the §10.2 release clause counts the mesopredator, not whatever rebounded", () => {
+  /** Enough seeds to reach the divergence at more than one node; the sweep is cheap. */
+  const RELEASE_SEEDS = 32;
+
+  interface DrivenRow {
+    nodeId: string;
+    topLineId: string;
+    reading: PreyReading;
+    shape: OvercatchShape;
+    /** Prey of the collapsed predator, split by `webRole` — core/foodweb.ts, the only role reader. */
+    mesoPrey: string[];
+    otherPrey: string[];
+    runs: OvercatchRun[];
+  }
+
+  const roleOf = (lineId: string): string => {
+    const line = loaded.species.byId.get(lineId);
+    if (!line) throw new Error(`no species line "${lineId}"`);
+    return webRole(line, balance);
+  };
+
+  /** Every row §4.3 publishes, driven seed by seed so the raw traces are in hand. */
+  const drivenRows: DrivenRow[] = PREY_READINGS.flatMap((reading) =>
+    OVERCATCH_SHAPES.flatMap((shape) =>
+      loaded.nodes.flatMap((file) =>
+        topOfWeb(toEcoNode(file), loaded).map((topLineId) => {
+          const prey = preyOf(deriveFoodWeb(toEcoNode(file), loaded.species, balance), topLineId);
+          return {
+            nodeId: file.id,
+            topLineId,
+            reading,
+            shape,
+            mesoPrey: prey.filter((id) => roleOf(id) === "Mesopredator"),
+            otherPrey: prey.filter((id) => roleOf(id) !== "Mesopredator"),
+            runs: Array.from({ length: RELEASE_SEEDS }, (_, i) =>
+              runOvercatch(loaded, file, topLineId, reading, shape, seedFor(balance, i)),
+            ),
+          };
+        }),
+      ),
+    ),
+  );
+
+  it("THE DEFECT — a prey line that is not the mesopredator rebounding does NOT satisfy §10.2", () => {
+    // Selection: the harness's own BROADER flag fired, so something the dead predator ate rebounded.
+    // Independent fact: the node's Mesopredator-role prey read zero at EVERY season of that run —
+    // it is not slow to recover, it is absent. Assertion: §10.2's figure did not count the seed.
+    let exercised = 0;
+    for (const row of drivenRows) {
+      if (row.mesoPrey.length === 0 || row.otherPrey.length === 0) continue;
+      for (const run of row.runs) {
+        if (!run.anyPreyReleased) continue;
+        const mesoNeverLeftZero = row.mesoPrey.every((id) =>
+          (run.preyTraces[id] ?? []).every((count) => count === 0),
+        );
+        if (!mesoNeverLeftZero) continue;
+        exercised += 1;
+        const where = `${row.nodeId} ${row.reading}/${row.shape} seed ${run.seed}`;
+        const credited = run.anyPreyReleasedLineId;
+        expect(credited, `${where}: something rebounded but no line was named`).not.toBeNull();
+        expect(row.otherPrey, `${where}: ${credited ?? "?"} is not a non-mesopredator prey line`).toContain(credited);
+        expect(
+          run.mesoReleased,
+          `${where}: ${row.mesoPrey.join(", ")} never left zero, yet the §10.2 release counted this seed ` +
+            `(credited to ${credited ?? "?"}, a ${credited ? roleOf(credited) : "?"})`,
+        ).toBe(false);
+        expect(run.mesoReleasedLineId, `${where}: a line was credited with a release that did not happen`).toBeNull();
+        expect(run.fullBeat, `${where}: the complete beat was reported without a mesopredator release`).toBe(false);
+      }
+    }
+    expect(
+      exercised,
+      "no seed rebounded a non-mesopredator after a collapse — this test asserted nothing about the defect",
+    ).toBeGreaterThan(0);
+  });
+
+  it("BINDS the other way — a real mesopredator release IS counted, and only a Mesopredator is credited", () => {
+    // Without this the test above is satisfiable by a metric that always answers false.
+    let counted = 0;
+    for (const row of drivenRows) {
+      for (const run of row.runs) {
+        if (!run.mesoReleased) continue;
+        counted += 1;
+        const where = `${row.nodeId} ${row.reading}/${row.shape} seed ${run.seed}`;
+        const id = run.mesoReleasedLineId;
+        expect(id, `${where}: a release with no line named`).not.toBeNull();
+        const lineId = id as string;
+        expect(roleOf(lineId), `${where}: ${lineId} is not a Mesopredator`).toBe("Mesopredator");
+        expect(row.mesoPrey, `${where}: ${lineId} is not prey of ${row.topLineId}`).toContain(lineId);
+        // Read the rise off the raw trace rather than trusting the flag that reported it.
+        const zeroSeason = run.topZeroSeason as number;
+        const trace = run.preyTraces[lineId] ?? [];
+        const atCollapse = trace[zeroSeason - 1] ?? 0;
+        expect(
+          Math.max(...trace.slice(zeroSeason)),
+          `${where}: ${lineId} never rose above ${atCollapse} after the collapse`,
+        ).toBeGreaterThan(atCollapse);
+        expect(run.collapsed, `${where}: a release without a collapse`).toBe(true);
+        expect(run.fullBeat, `${where}: apex gone and mesopredator rising is the whole beat`).toBe(true);
+      }
+    }
+    expect(
+      counted,
+      "no seed released a mesopredator — the §10.2 gauge is never green, so the test above proves nothing",
+    ).toBeGreaterThan(0);
+  });
+
+  it("the sweep publishes the two as SEPARATE numbers, and on the shipped content they differ", () => {
+    const rows = PREY_READINGS.flatMap((reading) =>
+      OVERCATCH_SHAPES.flatMap((shape) => sweepOvercatch(loaded, RELEASE_SEEDS, reading, shape)),
+    );
+    for (const row of rows) {
+      // `fullBeatRate` is what §4.3's bold column prints. It must BE the mesopredator figure.
+      expect(row.fullBeatRate, `${row.nodeId} ${row.reading}/${row.shape}`).toBe(row.mesoReleaseRate);
+      expect(row.mesoReleaseRate, `${row.nodeId} ${row.reading}/${row.shape}`).toBeLessThanOrEqual(row.anyReleaseRate);
+    }
+    const diverging = rows.filter((r) => r.hasMesoPrey && r.anyReleaseRate > r.mesoReleaseRate);
+    expect(
+      diverging.length,
+      "no row diverges — the two columns are the same measurement wearing two names, or the content changed",
+    ).toBeGreaterThan(0);
+    // The rows that matter most are the ones that diverge COMPLETELY: the broader column fires and
+    // §10.2's does not fire at all. Those are the rows a merged column published as the demo beat.
+    const wholly = rows.filter((r) => r.hasMesoPrey && r.mesoReleaseRate === 0 && r.anyReleaseRate > 0);
+    expect(
+      wholly.length,
+      "no row rebounds a non-mesopredator while the mesopredator stays down — the defect's own shape is unexercised",
+    ).toBeGreaterThan(0);
+    for (const row of wholly) {
+      const where = `${row.nodeId} ${row.reading}/${row.shape}`;
+      expect(row.anyReleasedFormName, `${where}: a rebound with no line named`).not.toBeNull();
+      expect(
+        row.mesoPreyFormNames,
+        `${where}: the mesopredator is credited with a rebound on a row whose §10.2 rate is 0`,
+      ).not.toContain(row.anyReleasedFormName);
+      expect(row.fullBeatRate, `${where}: the beat is reported without a mesopredator release`).toBe(0);
+    }
+  });
+
+  it("a node with no Mesopredator-role prey reports the clause UNDEFINED, not 0%", () => {
+    // D12: Meadow and Vale have no Apex, so their top of web IS a mesopredator eating Grazers.
+    // There is no tier between it and the Grazers for §10.2 to be about, and a 0% printed there
+    // would read as evidence about the cascade when it is an artefact of the node's shape.
+    const rows = sweepOvercatch(loaded, RELEASE_SEEDS, "limiting", "hold");
+    const undefinedRows = rows.filter((r) => !r.hasMesoPrey);
+    expect(
+      undefinedRows.length,
+      "every node has Mesopredator-role prey — this test exercises nothing",
+    ).toBeGreaterThan(0);
+    for (const row of undefinedRows) {
+      expect(row.mesoPreyFormNames, row.nodeId).toEqual([]);
+      expect(row.mesoReleaseRate, row.nodeId).toBe(0);
+      expect(row.mesoReleasedFormName, row.nodeId).toBeNull();
+      // The clause being undefined is a fact about the web, not about the seeds: nothing the
+      // collapsed predator eats is a Mesopredator.
+      const web = deriveFoodWeb(toEcoNode(loaded.nodes.find((n) => n.id === row.nodeId)!), loaded.species, balance);
+      for (const preyId of preyOf(web, row.topLineId)) {
+        expect(roleOf(preyId), `${row.nodeId}: ${preyId} is prey of ${row.topLineId}`).not.toBe("Mesopredator");
+      }
+    }
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
  * 7. The report itself
  * ════════════════════════════════════════════════════════════════════════════ */
 
@@ -666,6 +854,19 @@ describe("the generated report", () => {
     expect(markdown).toContain("balance.encounter.ageWeights");
     expect(markdown).toContain("balance.harness.overcatch");
     expect(markdown).toContain("fixtures/overcatch-script.json");
+  });
+
+  it("§4.3 says WHICH of its two rising columns is build-doc §10.2's clause", () => {
+    // The prose and the table must agree about which column means the demo beat, because a reader
+    // skimming §4.3 takes the bold number and the sentence under it and nothing else.
+    expect(markdown, "§4.3 does not publish the mesopredator column").toContain("**and rising (meso)**");
+    expect(markdown, "§4.3 does not publish the broader rebound under its own name").toContain("any prey rising");
+    expect(markdown, "the prose still points at a column that is not §10.2's clause").toContain(
+      "The column that means the demo beat is **and rising (meso)**",
+    );
+    // The bare header is what the broken version printed. It must not survive anywhere, or the two
+    // measurements can be confused again by anyone quoting a column name.
+    expect(markdown).not.toContain("| **and rising** |");
   });
 
   it("reports effort in no human units (G12)", () => {

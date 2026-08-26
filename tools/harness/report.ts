@@ -397,9 +397,31 @@ This is the difference between "the type chart is lopsided" (a \`balance.json\` 
 
 /* ── 4. full run ────────────────────────────────────────────────────────── */
 
+/*
+ * Two "rising" columns, and the difference between them is the whole point of the table.
+ *
+ * **any prey rising** is an existential over every prey line of the collapsed predator, of any role.
+ * **and rising (meso)** is build-doc §10.2's own clause — Mesopredator-role prey only. They diverge
+ * wherever the apex also eats a Grazer, and the divergence is not small: see `docs/CASCADE-RELEASE.md`
+ * §3. A single merged column was what let a rebounding Grazer be published as a mesopredator release.
+ *
+ * A `—` in the mesopredator column is not a zero. It means the row has no Mesopredator-role prey at
+ * all, so §10.2's two-tier clause is undefined there.
+ */
 function overcatchTable(nodes: readonly OvercatchNodeSummary[]): string {
   return table(
-    ["node", "slice?", "top of web", "over-caught", "apex → 0", "throne refilled", "**and rising**", "tier co-extinct", "caught"],
+    [
+      "node",
+      "slice?",
+      "top of web",
+      "over-caught",
+      "apex → 0",
+      "throne refilled",
+      "any prey rising",
+      "**and rising (meso)**",
+      "tier co-extinct",
+      "caught",
+    ],
     nodes.map((o) => [
       `\`${o.nodeId}\``,
       o.walkable ? "**yes**" : "",
@@ -407,7 +429,8 @@ function overcatchTable(nodes: readonly OvercatchNodeSummary[]): string {
       o.targetFormNames.join(" + ") || "—",
       pct(o.collapseRate, 0),
       pct(o.newApexRate, 0),
-      `**${pct(o.fullBeatRate, 0)}**`,
+      o.anyReleaseRate > 0 ? `${pct(o.anyReleaseRate, 0)} (${o.anyReleasedFormName ?? "—"})` : pct(o.anyReleaseRate, 0),
+      o.hasMesoPrey ? `**${pct(o.fullBeatRate, 0)}** (${o.mesoPreyFormNames.join(" + ")})` : "— _(no meso)_",
       pct(o.coExtinctRate, 0),
       n1(o.meanCaught),
     ]),
@@ -500,9 +523,15 @@ are the same numbers \`tests/property/ecosim.test.ts\` sees.
     )
     .join("\n\n");
 
+  // Only rows where §10.2's clause is DEFINED can be "the best node for the complete beat" — a row
+  // with no Mesopredator-role prey reads 0% by construction and would otherwise win a tie at zero.
   const best = sweeps
     .flatMap((s) => s.nodes.map((n) => ({ ...n })))
+    .filter((n) => n.hasMesoPrey)
     .sort((a, b2) => b2.fullBeatRate - a.fullBeatRate)[0];
+  const bestAny = sweeps
+    .flatMap((s) => s.nodes.map((n) => ({ ...n })))
+    .sort((a, b2) => b2.anyReleaseRate - a.anyReleaseRate)[0];
 
   return section(
     "## 4. Mode (c) — six years against the ecology",
@@ -567,21 +596,45 @@ Nothing here is scripted into the sim (G6). The harness issues \`applyCatch\` �
 snare makes — and then lets \`core/ecosim.ts\` run its own arithmetic.
 
 Columns: **apex → 0** is the first half of the beat. **throne refilled** is something alive sitting at
-the top of the node's *live* web afterwards. **and rising** additionally requires that tier to be
-strictly above where it stood when the apex hit zero, within \`cascade.mesoReleaseSeasons\` (${b.cascade.mesoReleaseSeasons}) seasons —
-build-doc §10.2's strict clause, and the full never-cut beat.
+the top of the node's *live* web afterwards. The two **rising** columns both ask whether a line the
+dead predator used to eat ended strictly above where it stood when the apex hit zero, and alive,
+within \`cascade.mesoReleaseSeasons\` (${b.cascade.mesoReleaseSeasons}) seasons. They differ in exactly one thing — **which lines are
+eligible** — and that difference decides what the row means:
+
+- **any prey rising** — any prey line, of any role, with the line most often credited named in
+  brackets. A diagnostic. It is **not** build-doc §10.2's clause.
+- **and rising (meso)** — §10.2's clause as written: "**mesopredator** count strictly rising within
+  ${b.cascade.mesoReleaseSeasons} seasons". Only prey whose \`webRole\` (\`core/foodweb.ts\`) is \`Mesopredator\` can satisfy it; the
+  eligible line is named in brackets. **This is the full never-cut beat, and it is the only one of
+  the two that is.** A \`—\` here is not a zero: it means the row's top of web has no
+  Mesopredator-role prey at all, so §10.2's two-tier clause is undefined there.
 
 **Read "throne refilled" carefully.** It asks only that *something* sits at the top of the live web
 afterwards, and a Grazer inherits the throne by default once every predator above it is gone. A row
 with a refilled throne AND a high co-extinction rate is a two-tier collapse that left the herbivores
-in charge, not a mesopredator release. The column that means the demo beat is **and rising**.
+in charge, not a mesopredator release. The column that means the demo beat is **and rising (meso)**.
+
+**And read "any prey rising" with the same suspicion.** A row that is high there and 0% under
+**and rising (meso)** is that same two-tier collapse seen from the other side: what rebounded is a
+Grazer — often one of the over-caught targets themselves, recovering once nothing hunts it — while
+the mesopredator the clause names never moves off zero. Four of the six apex sites can produce that
+row, because at those four the apex eats a Grazer as well as its mesopredator (bible §5's
+large-Grazer rule, and its authored diet exception).
 
 ${sweepBlocks}
 
 ${
   best
-    ? `**The best node in the game for the complete beat is \`${best.nodeId}\`** (${best.topFormName} over ${best.targetFormNames.join(" + ")}, reading \`${best.reading}\`, shape \`${best.shape}\`): apex → 0 in ${pct(best.collapseRate, 0)} of seeds, the throne refilled in ${pct(best.newApexRate, 0)}, and the tier below strictly rising in **${pct(best.fullBeatRate, 0)}**.`
-    : ""
+    ? `**The best node in the game for the complete beat is \`${best.nodeId}\`** (${best.topFormName} over ${best.targetFormNames.join(" + ")}, reading \`${best.reading}\`, shape \`${best.shape}\`): apex → 0 in ${pct(best.collapseRate, 0)} of seeds, the throne refilled in ${pct(best.newApexRate, 0)}, and **${best.mesoPreyFormNames.join(" + ")}** — the mesopredator §10.2 names — strictly rising in **${pct(best.fullBeatRate, 0)}**.${
+        bestAny && bestAny.anyReleaseRate > best.fullBeatRate
+          ? ` It is **not** the highest row in the table: \`${bestAny.nodeId}\` (reading \`${bestAny.reading}\`, shape \`${bestAny.shape}\`) reaches ${pct(bestAny.anyReleaseRate, 0)} under **any prey rising**, but the line credited there is ${bestAny.anyReleasedFormName ?? "—"}${
+              bestAny.hasMesoPrey
+                ? ` and its mesopredator (${bestAny.mesoPreyFormNames.join(" + ")}) rises in ${pct(bestAny.fullBeatRate, 0)} of the same seeds`
+                : " and that row has no Mesopredator-role prey at all"
+            }. Ranking on that column ranks the wrong animal.`
+          : ""
+      }`
+    : "_No row in the sweep has Mesopredator-role prey, so build-doc §10.2's release clause is undefined everywhere in this table._"
 }`,
   );
 }
@@ -718,15 +771,31 @@ function renderFindings(loaded: LoadedContent, m: HarnessMeasurements): string {
 
   const sweeps = m.overcatch ?? [];
   const collapseRates = sweeps.flatMap((s) => s.nodes.map((n) => n.collapseRate));
-  const beatRates = sweeps.flatMap((s) => s.nodes.map((n) => n.fullBeatRate));
-  if (collapseRates.length > 0) {
+  const beatRates = sweeps.flatMap((s) => s.nodes.filter((n) => n.hasMesoPrey).map((n) => n.fullBeatRate));
+  const anyRates = sweeps.flatMap((s) => s.nodes.map((n) => n.anyReleaseRate));
+  if (collapseRates.length > 0 && beatRates.length > 0) {
     const meanCollapse = collapseRates.reduce((s, v) => s + v, 0) / collapseRates.length;
     const bestBeat = Math.max(...beatRates);
+    const bestAny = Math.max(...anyRates);
+    const gapRow = sweeps
+      .flatMap((s) => s.nodes)
+      .filter((n) => n.hasMesoPrey && n.anyReleaseRate > n.fullBeatRate)
+      .sort((a, b2) => b2.anyReleaseRate - a.anyReleaseRate)[0];
     measured.push(
       `**The cascade's FIRST half is reliable and its SECOND half is not.** Across every node × reading × shape, ` +
-        `the top of the web reaches zero in a mean ${pct(meanCollapse, 0)} of seeds; the complete beat — the tier below ` +
-        `alive *and strictly rising* — peaks at **${pct(bestBeat, 0)}**.`,
+        `the top of the web reaches zero in a mean ${pct(meanCollapse, 0)} of seeds; the complete beat as build-doc §10.2 ` +
+        `words it — the **mesopredator** alive *and strictly rising* — peaks at **${pct(bestBeat, 0)}**.`,
     );
+    if (gapRow) {
+      measured.push(
+        `**Restricting the release to the animal §10.2 names changes the answer, not just the wording.** Scored as a bare ` +
+          `existential over every prey line of any role, the same sweep peaks at ${pct(bestAny, 0)}; scored on Mesopredator-role ` +
+          `prey only, it peaks at ${pct(bestBeat, 0)}. The widest gap is \`${gapRow.nodeId}\` (${gapRow.topFormName}, reading \`${gapRow.reading}\`, shape \`${gapRow.shape}\`), ` +
+          `where ${pct(gapRow.anyReleaseRate, 0)} of seeds rebound ${gapRow.anyReleasedFormName ?? "something"} — a line the apex eats, but not its ` +
+          `mesopredator — while ${gapRow.mesoPreyFormNames.join(" + ")} rises in ${pct(gapRow.fullBeatRate, 0)}. A single merged "and rising" column ` +
+          `published the first number under the second number's claim; §4.3 now prints both, separately.`,
+      );
+    }
   }
   const fixture = m.fixture;
   if (fixture) {
@@ -745,19 +814,55 @@ function renderFindings(loaded: LoadedContent, m: HarnessMeasurements): string {
           `robust at that node is not supported.`,
       );
     }
-    const sliceBest = sweeps
-      .flatMap((s) => s.nodes)
-      .filter((n) => n.walkable)
-      .sort((a, b) => b.fullBeatRate - a.fullBeatRate)[0];
-    if (sliceBest) {
-      inferred.push(
-        `**A vertical-slice node is the better demo stage.** \`${sliceBest.nodeId}\` (${sliceBest.topFormName} over ` +
-          `${sliceBest.targetFormNames.join(" + ")}, reading \`${sliceBest.reading}\`, shape \`${sliceBest.shape}\`) produces the complete beat in ` +
-          `${pct(sliceBest.fullBeatRate, 0)} of seeds and refills the throne in ${pct(sliceBest.newApexRate, 0)} — against \`${fixture.nodeId}\`'s ` +
-          `${pct(sweeps.flatMap((s) => s.nodes).filter((n) => n.nodeId === fixture.nodeId).sort((a, b) => b.fullBeatRate - a.fullBeatRate)[0]?.fullBeatRate ?? 0, 0)}. ` +
-          `\`${sliceBest.nodeId}\` is walkable, which is where build-doc §1 says the video is shot. This closes the open risk in ` +
-          `\`docs/LANE-A-STATUS.md\` §6.2, which recorded that reproducing the beat on the slice was "not demonstrated".`,
-      );
+    /*
+     * WHICH NODE IS THE BETTER DEMO STAGE — ranked on §10.2's clause, not on the broader rebound.
+     *
+     * An earlier version of this paragraph ranked the walkable nodes on a "released" flag that
+     * counted a prey line of ANY role, concluded that the slice was the better stage, and said so
+     * closed `docs/LANE-A-STATUS.md` §6.2. On the mesopredator reading it does not: the walkable
+     * row that carried that conclusion was a Grazer rebounding. The comparison below is on
+     * `fullBeatRate`, which is now Mesopredator-only, and it states BOTH numbers so the older
+     * reading cannot be mistaken for this one. `docs/CASCADE-RELEASE.md` §3 has the traces.
+     */
+    const rowsOf = (pred: (n: OvercatchNodeSummary) => boolean): OvercatchNodeSummary[] =>
+      sweeps.flatMap((s) => s.nodes).filter(pred);
+    const sliceBest = rowsOf((n) => n.walkable && n.hasMesoPrey).sort(
+      (a, b2) => b2.fullBeatRate - a.fullBeatRate,
+    )[0];
+    const fixtureBest = rowsOf((n) => n.nodeId === fixture.nodeId && n.hasMesoPrey).sort(
+      (a, b2) => b2.fullBeatRate - a.fullBeatRate,
+    )[0];
+    const sliceAnyBest = rowsOf((n) => n.walkable).sort((a, b2) => b2.anyReleaseRate - a.anyReleaseRate)[0];
+    if (sliceBest && fixtureBest) {
+      const sliceLine =
+        `\`${sliceBest.nodeId}\` (${sliceBest.topFormName} over ${sliceBest.targetFormNames.join(" + ")}, reading ` +
+        `\`${sliceBest.reading}\`, shape \`${sliceBest.shape}\`) releases ${sliceBest.mesoPreyFormNames.join(" + ")} in ` +
+        `${pct(sliceBest.fullBeatRate, 0)} of seeds and refills the throne in ${pct(sliceBest.newApexRate, 0)}, against \`${fixture.nodeId}\`'s best of ` +
+        `${pct(fixtureBest.fullBeatRate, 0)} (${fixtureBest.mesoPreyFormNames.join(" + ")}, reading \`${fixtureBest.reading}\`, shape \`${fixtureBest.shape}\`)`;
+      const grazerCaveat =
+        sliceAnyBest && sliceAnyBest.anyReleaseRate > sliceBest.fullBeatRate
+          ? ` The walkable rows do read much higher on the broader **any prey rising** column — \`${sliceAnyBest.nodeId}\` reaches ` +
+            `${pct(sliceAnyBest.anyReleaseRate, 0)} (reading \`${sliceAnyBest.reading}\`, shape \`${sliceAnyBest.shape}\`) — but the line credited there is ` +
+            `${sliceAnyBest.anyReleasedFormName ?? "a non-mesopredator"}, and ` +
+            `${sliceAnyBest.hasMesoPrey ? `${sliceAnyBest.mesoPreyFormNames.join(" + ")} rises in ${pct(sliceAnyBest.fullBeatRate, 0)} of those same seeds` : "that row has no Mesopredator-role prey at all"}. ` +
+            `That column is not the beat, and choosing a stage on it chooses the wrong animal.`
+          : "";
+      if (sliceBest.fullBeatRate > fixtureBest.fullBeatRate) {
+        inferred.push(
+          `**A vertical-slice node is the better demo stage, on §10.2's own clause.** ${sliceLine}. ` +
+            `\`${sliceBest.nodeId}\` is walkable, which is where build-doc §1 says the video is shot. This closes the open risk in ` +
+            `\`docs/LANE-A-STATUS.md\` §6.2, which recorded that reproducing the beat on the slice was "not demonstrated".` +
+            grazerCaveat,
+        );
+      } else {
+        inferred.push(
+          `**The vertical slice is NOT the better demo stage on §10.2's own clause.** ${sliceLine}. So the open risk in ` +
+            `\`docs/LANE-A-STATUS.md\` §6.2 — that reproducing the beat on the slice is "not demonstrated" — **stays open**, and ` +
+            `\`${fixture.nodeId}\` remains the node whose release is the animal the spec names.${grazerCaveat} The choice in front of the owner is ` +
+            `therefore between shooting the beat off the walkable slice at ${pct(sliceBest.fullBeatRate, 0)}, shooting it at \`${fixture.nodeId}\` at ` +
+            `${pct(fixtureBest.fullBeatRate, 0)}, and the content/spec options in \`docs/CASCADE-RELEASE.md\` §7 — none of which this harness may take (G2).`,
+        );
+      }
     }
   }
 
@@ -862,13 +967,19 @@ function renderDeltas(loaded: LoadedContent, m: HarnessMeasurements): string {
   }
 
   const sweeps = m.overcatch ?? [];
-  const bestBeat = sweeps.flatMap((s) => s.nodes).sort((a, b2) => b2.fullBeatRate - a.fullBeatRate)[0];
+  // Ranked on §10.2's clause — Mesopredator-role prey only — so rows where that clause is undefined
+  // cannot win a tie at zero and make the window look like the thing that is failing.
+  const bestBeat = sweeps
+    .flatMap((s) => s.nodes)
+    .filter((n) => n.hasMesoPrey)
+    .sort((a, b2) => b2.fullBeatRate - a.fullBeatRate)[0];
   if (bestBeat && bestBeat.fullBeatRate < 0.5) {
     const cur = b.cascade.mesoReleaseSeasons;
     json["cascade.mesoReleaseSeasons"] = cur + 2;
     proposals.push(
       `**\`cascade.mesoReleaseSeasons\`: ${cur} → ${cur + 2}.** The strict "rising" clause is measured over this many ` +
-        `seasons from the moment the apex hits zero. At the shipped breed rates ` +
+        `seasons from the moment the apex hits zero, on the MESOPREDATOR (§4.3's **and rising (meso)** column; the best row ` +
+        `in the game is \`${bestBeat.nodeId}\` at ${pct(bestBeat.fullBeatRate, 0)}). At the shipped breed rates ` +
         `(${loaded.nodes.map((nd) => Object.values(nd.populations).map((p) => p.breedRate)).flat().filter((v, i, a) => a.indexOf(v) === i).sort().join(", ")} per season) a population of one or two needs ` +
         `several seasons to add an individual, so the window and not the ecology may be what is failing the clause. ` +
         `**This is a claim-widening delta, and it must not be applied to make a red measurement green** — apply it ` +

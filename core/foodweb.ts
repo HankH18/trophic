@@ -185,6 +185,19 @@ export function isLargeGrazer(line: SpeciesLine, balance: Balance): boolean {
   return webRole(line, balance) === "Grazer" && line.sizeClass === "large";
 }
 
+/**
+ * build-doc §10.2's release clause names ONE tier — "**mesopredator** count strictly rising within
+ * 4 seasons" — so anything measuring that clause has to ask which lines are mesopredators.
+ *
+ * It lives here rather than at the call site because §8.3 gives role names one home, and
+ * `tests/property/foodweb.test.ts::"the role→role diet lives in core/foodweb.ts and nowhere else"`
+ * enforces that: a role name written as a literal in `tools/` or `game/` is a second role table by
+ * construction. This adds no rule — it is `webRole` with the §10.2 tier named once.
+ */
+export function isMesopredator(line: SpeciesLine, balance: Balance): boolean {
+  return webRole(line, balance) === "Mesopredator";
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * §7.3 — the derivation. The ONLY diet-edge computation in the repo (§8.3, G3).
  * ──────────────────────────────────────────────────────────────────────────── */
