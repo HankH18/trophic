@@ -637,6 +637,42 @@ export function placeholderTexture(
  * The texture a scene should actually draw for this asset: the real one if it has loaded, the
  * labelled stand-in otherwise.
  */
+/* ────────────────────────────────────────────────────────────────────────────
+ * The stand-in census — BF-7
+ *
+ * `textureFor` used to fall back to a labelled stand-in and say nothing, which made "this asset
+ * has not been generated yet" and "this key is misspelled" indistinguishable at runtime. That is
+ * the silence that let a 162-vs-150 key mismatch survive, and it is what makes BF-4's twelve
+ * permanently-missing sprites invisible.
+ *
+ * The census RECORDS ALWAYS and WARNS ONLY ON REQUEST. Recording is silent, deduplicated by key,
+ * and readable by a test — so the fallback becomes assertable without any test having to stub the
+ * console. `game/boot.ts` turns warnings on for the running game;
+ * `tests/unit/game-placeholder.test.ts:446` calls `textureFor` twice with a deliberately-absent key
+ * and stays quiet, which is the caveat BF-7 names.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const standInKeys = new Set<string>();
+let warnOnStandIn = false;
+
+/** Every asset key that has fallen back to a stand-in this session, in first-seen order. */
+export function standInCensus(): readonly string[] {
+  return [...standInKeys];
+}
+
+/** Clear the census. For tests, and for a scene restart that wants a fresh reading. */
+export function resetStandInCensus(): void {
+  standInKeys.clear();
+}
+
+/**
+ * Turn the one-line-per-new-key warning on. `game/boot.ts` calls this; tests do not, which is why
+ * the suite stays silent while still being able to read {@link standInCensus}.
+ */
+export function warnOnStandIns(on: boolean): void {
+  warnOnStandIn = on;
+}
+
 export function textureFor(
   scene: Phaser.Scene,
   idOrPath: string,
@@ -646,6 +682,11 @@ export function textureFor(
 ): string {
   const id = assetId(idOrPath);
   if (scene.textures.exists(id)) return id;
+  if (!standInKeys.has(id)) {
+    standInKeys.add(id);
+    // Once per KEY, never once per call: a scene redrawing every frame must not flood the console.
+    if (warnOnStandIn) console.warn(`[assets] no texture "${id}" — drawing a stand-in`);
+  }
   return placeholderTexture(scene, id, width, height, opts);
 }
 

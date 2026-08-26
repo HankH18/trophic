@@ -1823,7 +1823,7 @@ describe("battle UI widget models", () => {
     expect(manifestIds.has(battleSpriteKey("cindril-line", "J", "front"))).toBe(true);
   });
 
-  it("OPEN GAP (BF-4) — the ENCOUNTER ROLL asks for 12 keys the manifest has no row for", () => {
+  it("BF-4 — the ENCOUNTER ROLL never asks for a battle sprite the manifest has no row for", () => {
     /*
      * ⚠ THIS TEST ASSERTS A DEFECT, AND IT EXISTS TO GO RED WHEN THE DEFECT IS FIXED.
      *
@@ -1836,11 +1836,12 @@ describe("battle UI widget models", () => {
      * substitutes a hatched box for each, silently (BF-7), so the large majority of unlocked-Ancient
      * encounters would ship as placeholders with nothing reporting it.
      *
-     * THE FIX IS IN `game/encounters.ts` (clamp the age, still consuming `rollAge`'s draw), not in
-     * the manifest — an Ancient below Elder contradicts core/lifecycle.ts as well as the art. When
-     * it lands, `missing` empties, this goes red, and the set identity above becomes the whole
-     * truth: delete this and derive `asked` from `rollEncounterAt`. See
-     * `tests/unit/encounters.test.ts` "OPEN GAP (BF-4)" for the same measurement on the roll itself.
+     * FIXED in `game/encounters.ts`: the age is clamped to "E" for an Ancient while `rollAge`'s draw
+     * is still consumed, so the seed-replay contract is byte-identical. This test kept its rig and
+     * flipped its assertion — `missing` must now be EMPTY. That is strictly stronger than the set
+     * identity above, which derives what the game "can ask for" from the invariant
+     * (`line.ancient ? ["E"] : AGE_CLASSES`) and is therefore green whatever the roll does; this one
+     * asks the roll. `tests/unit/encounters.test.ts` holds the same law on the roll itself.
      */
     const manifestIds = new Set(
       (manifest.rows as ManifestRow[])
@@ -1874,13 +1875,11 @@ describe("battle UI widget models", () => {
     expect(ancientsMet, "no Ancient was ever met — the fixture is wrong, not the manifest").toBeGreaterThan(0);
     expect(
       [...missing].sort(),
-      "the encounter roll now asks only for keys lane B has committed — BF-4 IS FIXED. Delete this " +
-        "test and derive `asked` in the set-identity test above from rollEncounterAt.",
-    ).toHaveLength(12);
-    // Every one of them is an Ancient below Elder, and nothing else has leaked into the gap.
-    for (const key of missing) {
-      expect(key, `${key} is not an Ancient sprite key`).toMatch(/-(j|a)-(front|back)$/u);
-    }
+      "the encounter roll asked for a battle sprite the manifest has no row for. Before the BF-4 " +
+        "clamp this was 12 keys — three Ancient lines x {J,A} x {front,back} — and `textureFor` " +
+        "drew a hatched box for each of them silently. If this is non-empty again, either an " +
+        "Ancient is rolling below Elder or lane B has dropped a committed row.",
+    ).toEqual([]);
   });
 
   it("the menu panel greys a row by painting it, and reports core's reason under the cursor", () => {

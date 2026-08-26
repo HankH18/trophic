@@ -10,6 +10,7 @@
 import Phaser from "phaser";
 
 import { attachCanvasScale, createGameConfig, renderFatalError, viewport } from "./boot";
+import { warnOnStandIns } from "./placeholder";
 import { BattleScene } from "./scenes/BattleScene";
 import { BootScene } from "./scenes/BootScene";
 import { DexScene } from "./scenes/DexScene";
@@ -86,6 +87,9 @@ const SCENES: Phaser.Types.Scenes.SceneType[] = [
 (globalThis as { __trophicBooted?: boolean }).__trophicBooted = true;
 
 function start(): void {
+  // BF-7: the running game says so when it draws a stand-in. Tests deliberately do NOT call this,
+  // so the suite reads `standInCensus()` instead of stubbing the console.
+  warnOnStandIns(true);
   const config = createGameConfig(Phaser, SCENES);
   // createGameConfig has already rendered the reason into the page.
   if (!config) return;

@@ -19,7 +19,7 @@
  * restated here.
  */
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { validateContent } from "../../core/schemas";
 import type { Balance, Content, PaletteFile } from "../../core/types";
@@ -31,9 +31,12 @@ import {
   placeholderKey,
   placeholderPlan,
   placeholderTexture,
+  resetStandInCensus,
+  standInCensus,
   queueRealAssets,
   realAssetIds,
   realAssetUrl,
+  warnOnStandIns,
   registerRealAsset,
   textureFor,
   wrapLabel,
@@ -503,5 +506,60 @@ describe("textureFor / the real-art census", () => {
 
     textures.present.add("ui/probe-c1");
     expect(queueRealAssets(s)).not.toContain("ui/probe-c1");
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * BF-7 — the stand-in census
+ *
+ * The defect was silence: `textureFor` fell back to a labelled stand-in and reported nothing, so
+ * "not generated yet" and "misspelled key" were indistinguishable at runtime. These bind the
+ * census that replaces the silence. They also pin the property that makes it usable — recording is
+ * silent, so a test never has to stub the console to stay quiet.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+describe("BF-7 — textureFor records every stand-in it draws", () => {
+  it("records a missing key, deduplicates it, and stays silent while doing so", () => {
+    resetStandInCensus();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { scene, textures } = fakeScene();
+      const s = scene as unknown as Parameters<typeof textureFor>[0];
+
+      textureFor(s, "assets/final/maps/r1.png", 64, 64);
+      textureFor(s, "assets/final/maps/r1.png", 64, 64); // same key twice — one census row
+      textureFor(s, "assets/final/maps/r2.png", 64, 64);
+      expect(standInCensus()).toEqual(["maps/r1", "maps/r2"]);
+
+      // Silent by default: this is the BF-7 caveat, and it is why no test stubs the console.
+      expect(warn).not.toHaveBeenCalled();
+
+      // A key the loader HAS is real art and never reaches the census.
+      textures.present.add("maps/r3");
+      expect(textureFor(s, "assets/final/maps/r3.png", 64, 64)).toBe("maps/r3");
+      expect(standInCensus()).toEqual(["maps/r1", "maps/r2"]);
+    } finally {
+      warn.mockRestore();
+      resetStandInCensus();
+    }
+  });
+
+  it("warns once per key, and only when the running game has asked it to", () => {
+    resetStandInCensus();
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const { scene } = fakeScene();
+      const s = scene as unknown as Parameters<typeof textureFor>[0];
+
+      warnOnStandIns(true);
+      textureFor(s, "assets/final/maps/r9.png", 64, 64);
+      textureFor(s, "assets/final/maps/r9.png", 64, 64);
+      expect(warn).toHaveBeenCalledTimes(1); // once per KEY, not once per call
+      expect(String(warn.mock.calls[0]?.[0])).toContain("maps/r9");
+    } finally {
+      warnOnStandIns(false);
+      warn.mockRestore();
+      resetStandInCensus();
+    }
   });
 });

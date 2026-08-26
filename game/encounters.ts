@@ -188,7 +188,15 @@ export function rollLevel(balance: Balance, act: number, rng: Rng): number {
 export function rollEncounterAt(ctx: ForayContext, rng: Rng): Encounter | null {
   const lineId = rollEncounter(encounterTable(ctx), rng);
   if (lineId === null) return null;
-  const age = rollAge(ctx.balance, rng);
+  // BF-4. bible §4: Ancients "do not age and do not evolve — permanently Elder stage", and G10
+  // exempts a caught one from year turns. The wild roll did not know that, so an unlocked Ancient
+  // arrived as a Juvenile — measured at 4000 seeds: undermere J 40 / A 37 / E 10.
+  //
+  // `rollAge` is still CALLED and its draw still consumed, so the draw order (chance, species, age,
+  // level, traits) is byte-identical and every seed replays to the same encounter (L10 / §8.1).
+  // Only the value is clamped. Skipping the draw instead would have shifted every downstream roll.
+  const rolled = rollAge(ctx.balance, rng);
+  const age: AgeClass = ctx.species.byId.get(lineId)?.ancient === true ? "E" : rolled;
   const level = rollLevel(ctx.balance, ctx.act, rng);
   return {
     nodeId: ctx.node.id,

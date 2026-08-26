@@ -261,54 +261,48 @@ describe("sign-chain gated lines stay out of the ordinary pool", () => {
     }
   });
 
-  it("OPEN GAP (BF-4) — an unlocked Ancient still rolls at J and A, which no art row covers", () => {
+  it("BF-4 — every Ancient the wild roll produces is an Elder, at every host, at every seed", () => {
     /*
-     * ⚠ THIS TEST ASSERTS A DEFECT, AND IT EXISTS TO GO RED WHEN THE DEFECT IS FIXED.
+     * THE LAW, replacing the gap test that held this slot. That test asserted the DEFECT and was
+     * written to go red the moment it was fixed; it did, with its own "BF-4 IS FIXED" message, and
+     * its own comment names this replacement. The defect it measured, at 4000 seeds per line on the
+     * shipped weights (J .5 / A .4 / E .1):
      *
-     * `rollEncounterAt` applies `balance.encounter.ageWeights` unconditionally, so the wild roll
-     * disagrees with every other statement of the rule in the repo: `core/lifecycle.ts` pins an
-     * Ancient to "E" when the creature is BUILT (`line.ancient ? "E" : opts.age`), and
-     * `tools/comfy/comfy-batch.ts` ships art for exactly that one age. So a J or an A Ancient is a
-     * `(line, age, facing)` the manifest has no row for, and `game/placeholder.ts` substitutes a
-     * hatched box SILENTLY — no warning, no counter.
-     *
-     * The suite could not see this because the only test of the invariant, at
-     * `tests/unit/battle-view.test.ts`, builds "the keys the running game can ask for" from
-     * `line.ancient ? ["E"] : AGE_CLASSES` — it re-states the rule instead of asking the code that
-     * has to uphold it, so it is green whatever `rollEncounterAt` does. This measures the roll.
-     *
-     * MEASURED over 4000 seeds per line at the shipped weights (J .5 / A .4 / E .1):
      *   undermere-line @ r2          J 40  A 37  E 10
      *   kilnback-line  @ cindershelf J 60  A 54  E 12
      *   vellsire-line  @ sanctum     J 663 A 528 E 130
      *
-     * THE FIX IS IN `game/encounters.ts`, NOT HERE: clamp the age in `rollEncounterAt` using
-     * `ctx.species` — and still CALL `rollAge`, so the draw is consumed and the seed-replay contract
-     * holds. When that lands this test fails; replace it with the law (`every Ancient met is an
-     * Elder`) and make `battle-view.test.ts` derive its key set from this path.
+     * bible §4: Ancients "do not age and do not evolve — permanently Elder stage". `core/lifecycle.ts`
+     * already pinned that when a creature is BUILT (`line.ancient ? "E" : opts.age`) and
+     * `tools/comfy/comfy-batch.ts` ships art for exactly that one age, so a J or A Ancient was a
+     * `(line, age, facing)` with no manifest row behind it.
+     *
+     * This ASKS THE CODE rather than restating the rule — the failure the old suite had. It drives
+     * the real `rollEncounterAt` at each Ancient's real host with the sign chain unlocked, over the
+     * same 4000 seeds, and requires E every time.
      */
     const ancients = content.species.filter((line) => line.ancient);
     expect(ancients.length, "data ships no Ancient — the fixture is wrong").toBeGreaterThan(0);
 
     const belowElder: string[] = [];
+    let met = 0;
     for (const line of ancients) {
       const host = content.nodes.find((n) => (n.populations[line.id]?.count ?? 0) > 0);
       if (!host) continue;
       const ctx = ctxFor(host.id, { unlocked: [line.id] });
-      const ages = new Set<AgeClass>();
+      let metHere = 0;
       for (let seed = 1; seed <= 4000; seed += 1) {
-        const met = rollEncounterAt(ctx, createRng(seed));
-        if (met?.lineId === line.id) ages.add(met.age);
+        const enc = rollEncounterAt(ctx, createRng(seed));
+        if (enc?.lineId !== line.id) continue;
+        metHere += 1;
+        if (enc.age !== "E") belowElder.push(`${line.id}@${host.id} seed ${seed} rolled ${enc.age}`);
       }
-      expect(ages.size, `${line.id} never rolled at ${host.id} — the fixture is wrong`).toBeGreaterThan(0);
-      for (const age of ages) if (age !== "E") belowElder.push(`${line.id}@${host.id} rolled ${age}`);
+      expect(metHere, `${line.id} never rolled at ${host.id} — the fixture is wrong`).toBeGreaterThan(0);
+      met += metHere;
     }
-    expect(
-      belowElder,
-      "every Ancient now arrives as an Elder — BF-4 IS FIXED. Delete this gap test, assert the law " +
-        "in its place, and make tests/unit/battle-view.test.ts derive its manifest key set from " +
-        "rollEncounterAt instead of restating `line.ancient ? [\"E\"] : AGE_CLASSES`.",
-    ).not.toHaveLength(0);
+    // The sample has to be real, or "no J or A" is vacuous.
+    expect(met, "no Ancient was met at all — this test would pass vacuously").toBeGreaterThan(100);
+    expect(belowElder.slice(0, 5), "an Ancient arrived below Elder — BF-4 has regressed").toEqual([]);
   });
 });
 
