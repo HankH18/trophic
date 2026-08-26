@@ -1,106 +1,81 @@
-# RESUME HERE — Trophic story/dialogue overhaul, paused 2026-08-25
+# RESUME HERE — state as of 2026-08-26, end of the overnight run
 
-Paused at the owner's request to free session budget for another project. **Nothing is broken.**
-The repo is green and the in-flight prose work is preserved in the tree.
+**Everything is committed and green.** `npx tsc --noEmit` clean · `npm run build` clean ·
+**50 test files / 2341 tests, zero failures** · `tools/prose/prose-lint.py` 0 per-beat flags and
+0 corpus structural failures · working tree clean.
 
-## State of the tree
+Nine commits, `5b372b8` … `a5c51d8`. Nothing was pushed — that needs you.
 
-    npx tsc --noEmit   clean
-    npm run test       48 files / 2254 tests passing
-    npm run build      clean
-    working tree       uncommitted, ~91 changed/new files. NOT committed — see "First thing".
+## What the session was asked to do, and where it got to
 
-`data/dialogue.json` still holds the **original** prose. The rewrite lives beside it, unmerged, in
-`docs/wip-prose/fragments/` — so the game is playable and green at every moment of this pause.
+**"The story and dialogue are a mess."** The whole 500-line corpus was rewritten and landed
+(`94111b1`). What was actually wrong, measured rather than asserted: one sentence opener was shared
+by 24 of 62 speakers; characters spoke the game's data model aloud ~90 times (an innkeeper said
+*"Bed's two ticks off the season meter"*); the survey was written as scripture. Five passes, each
+audited by agents that did not write the thing they graded.
 
-## First thing on resume
+**"The ledger is just a tool."** `ledger → survey` repo-wide — identifiers, filenames, scene keys,
+tests, docs, player-facing strings. G7 keeps its rule and lost its slogan.
 
-Commit. Ninety-one files of verified work are uncommitted. Commit selectively — `git add -A` will
-sweep workflow artifacts. The suite is green now, so the commit is safe now.
+**Merchant and NPC names.** 41 background NPCs have given names instead of job titles
+(Net-Mender → Parnel, Shaft-Hand → Nunn). Pokémon-only IP renames: Overgrow → Thicket,
+Keen Eye → Bright Eye, Strong Jaw → Broad Jaw, Nessa → Hetty, Dous → Douse. No id moved.
 
-## What is DONE and verified
+**Story holes.** 39 of 211 entries / 83 of 499 lines were unreachable — nothing in `game/` ever
+selected a `battle-*` entry, and both epilogues gated on flags nothing wrote. Wired, plus two
+permanent gates (`tests/gates/reachability.test.ts`, `tests/gates/quest-layer.test.ts`).
 
-- **ledger → survey**, repo-wide: identifiers, filenames, scene keys, tests, docs, player-facing
-  strings, and the last holdout (`tutorial.ledger.done` → `tutorial.survey.done`). Sabotage-checked.
-- **17% of the dialogue was unreachable and now is not.** 39 of 211 entries / 83 of 499 lines.
-  Nothing in `game/` selected a `battle-*` entry, so every gym leader's pre/post-battle speech and
-  all 18 rival encounters were dead; `story.vellsire.resolved` / `.outcome` had no writer, so both
-  epilogues were dead — their only three mentions in the repo were tests that set the flag
-  themselves. `game/rival.ts` and `game/finale.ts` are new. Quest turn-in works (`owedFlag` is
-  derived at load in `game/quests.ts`, which is why grepping `.turnin` finds nothing).
-- **Two permanent gates**: `tests/gates/reachability.test.ts` (every authored line has a path to
-  the screen; every dialogue kind has a selector; no entry gated on a flag with no writer) and
-  `tests/gates/quest-layer.test.ts` (the quest layer previously had zero tests). Both failed with
-  13 assertions before the wiring, naming every dead entry — they bite.
-- **Names.** 41 background NPCs have real given names (Net-Mender → Parnel, Shaft-Hand → Nunn,
-  Old Drover → Judd…), applied to `data/dialogue.json` `speakers[]`. Pokémon-only IP renames:
-  `Overgrow → Thicket`, `Keen Eye → Bright Eye`, `Strong Jaw → Broad Jaw`, `Nessa → Hetty`,
-  `Dous → Douse`. Ids never moved.
-- **Prop labels**: all 17 distinct (nine previously shared `antler standing-stone`).
-- **Docs synced**, and `docs/DEVIATIONS.md` integrity repaired — duplicate `D-Q2-*` ids renumbered
-  to `D-Q4-*` across 56 references; 126 rows, 126 unique ids. Rulings at `D-INT-5/6/7`.
+## THE FOUR DECISIONS THAT ARE YOURS
 
-## What is IN FLIGHT — the prose rewrite
+1. **Palette** — `assets/approved-trials/_palette-candidate/_DECISION-SHEET.png`. Untouched.
+2. **B-D38** — the three class-skeleton images before 154 sprites get billed. Untouched.
+3. **The IP-SWEEP renames** — 18 RED, G15 makes it yours. Only the Pokémon-name subset you ruled on
+   was acted on.
+4. **The cascade's release clause** — see below. New, and the largest open content question.
 
-Every line of the corpus has been rewritten and read three times (one writer, two independent
-readers per slice), then audited by six adversarial agents reading the whole corpus at once.
+## OPEN, AND WHY EACH IS OPEN
 
-**Where it stands, measured:**
+**The cascade's mesopredator release is structurally unreachable** — `docs/CASCADE-RELEASE.md`.
+Bible §5 gives every apex its own mesopredator in its diet, so starving the apex requires depleting
+the animal that is supposed to be released. On §10.2's clause the figure is **0–13% at every node**.
+Three levers are measured in that document; all three are content or spec edits (G2), so none was
+taken. `LANE-A-STATUS` §6.2's risk is recorded as **still open**, and the balance report now
+retracts its own recommendation to move the beat to a vertical-slice node.
 
-| | shipped | after rewrite | after the length pass |
-|---|---:|---:|---:|
-| lint flags | 149 | 119 | **6** |
-| median line length | 98 | 245 | **161** |
-| lines under 90 chars | ~200 | 0 | **68** |
-| lines over the 400 schema cap | 0 | 3 | **0** |
-| blind speaker attribution | — | 93% | not re-measured |
+**53% of dialogue lines lean on a proper noun or a trade object for their identity.** Blind
+attribution scores 85%, but 43% of the correct calls ride on a noun rather than a voice. The linter
+reports this as `G13-NOUN-CARRIED`, diagnostic-only *by design* so it cannot be gamed into silence.
+The fifth pass did not move it. This is the honest remaining gap in the prose.
 
-The six original defect checks are all at **zero** (epigram, category error, antithesis, dangling
-pronoun, false equation, system vocabulary). Structural drift vs the shipped file is exactly the two
-intended new Wick entries.
+**A fresh line-by-line G7 read is OWED** — `docs/DIALOGUE-NOTES.md` says so. The old read analysed
+text that no longer exists. A regex cannot detect tone; the gate is a human-style read.
 
-## Next steps, in order
+**`tools/harness/fixture.ts`'s release repair is bound by no test** — reverting it leaves the suite
+green. Filed in `DEVIATIONS.md` D-BAL-3. Same shape as the decoy knobs below.
 
-The repair workflow was stopped after phase 1 of 5. Its script is reusable:
+**Owner-decision BLOCKED-FINDINGS, untouched:** BF-8 (what a battle loss costs), BF-22/23 (a live
+API run and the first painted map), BF-24, BF-27/28, BF-29, BF-30, BF-31, BF-32, BF-33.
 
-    Workflow({scriptPath: ".claude/.../workflows/scripts/trophic-prose-repair-wf_42b27b64-628.js",
-              resumeFromRunId: "wf_42b27b64-628"})
+## THE LESSON THIS SESSION KEPT RE-LEARNING
 
-Phase 1 (Length) is cached and will replay instantly. Remaining:
+**Decoy knobs, and tests that bind the wrong thing.** `BLOCKED-FINDINGS.md` §1.1 records it. Three
+separate repairs shipped with a green test that asserted a helper nothing called: a battle-sprite
+size moved into `balance.json` while the HUD kept drawing from a hardcoded 96; an RNG stream change
+bound by nothing, leaving two replay harnesses replaying a stream the game had stopped opening; a
+placeholder-label fix whose complete reversal left 11/11 green because no test called the writer.
 
-1. **De-chorus** — the biggest outstanding defect. The corpus has one temperament across 62
-   speakers: thwarted testimony, a person who was right, said so, and was ignored. At least 35
-   entries end on it. The five town children are one child written five times. Cap is two speakers
-   per shared shape. Someone in this region should be happy.
-2. **Truth + gates** — `tests/unit/dialogue.test.ts` reds in five assertions: G2 rule A on ~13
-   capitalised tokens (five are new cast names spoken aloud, and the allow-lists are capped and
-   asserted), the starter age-form binding, both epilogues' numeric cost statement, a player CHOICE
-   string tripping the G7 moralizing tripwire, and six hand-maintained review registers.
-   Plus content-truth regressions listed in `docs/AUDIT-FINDINGS.md`.
-3. **Two G7 structural breaches** — no regex can see either, and they are the highest-priority
-   items: `tolm.quest.fallow.done.short` fires an I-told-you-so at an outcome the player may not
-   have caused; and the two epilogues are baselined against different comparators at different
-   temperatures, so catching reads as the lesser ending.
-4. **Re-audit**, then merge: `python3 tools/prose/merge.py <scratchpad> --write`, or point
-   `merge.py` at `docs/wip-prose/fragments/`. Then update the test allow-lists and run everything.
-5. **Verify a line actually renders on screen** — `npm run dev` and drive it. Never closed.
+Same shape as the defect that started the night: `story.vellsire.resolved` appeared in exactly three
+files and **all three were tests** that set the flag themselves. 2095 tests certified a finale
+nobody could reach.
 
-## Reference
+**The measuring instrument is the thing to check first.** The §10.2 release metric counted *any*
+prey rebounding, so a Grazer scored as mesopredator release and the report recommended a demo stage
+on it. The prose linter's chorus check was five lexical regexes, every one a fossil of a shape
+already removed — it read clean while 36 of 62 speakers shared a construction. Both are fixed; both
+were invisible until someone asked what the green was evidence *of*.
 
-- `docs/CAST-AND-VOICE.md` — the cast and voice bible. **Appendix G governs, overriding Appendix F,
-  which overrides §1 and §2.** F exists because the owner rejected §3's model lines as nonsensical
-  (the defect was compression, not vocabulary). G exists because F overcorrected into uniform
-  245-character paragraphs — length is a distribution, not a target.
-- `docs/AUDIT-FINDINGS.md` — 105 findings, 22 blockers, blockers first.
-- `docs/STORY-REPAIRS.md` — the repair plan the wiring lanes executed.
-- `docs/PROSE-DIAGNOSIS.md` — what was wrong with the original corpus, measured.
-- `tools/prose/prose-lint.py` — nine structural checks, calibrated so it catches every line the
-  owner rejected and passes every rewrite. A floor, never a gate: it cannot detect sense.
+## FIRST THINGS ON RESUME
 
-## Standing directives from this session
-
-- **Do not frame work around the demo video.** Build the game; the video comes after.
-- **The survey is a tool, not a sacrament.** Field biologists are behind on data entry, argue about
-  method, and never say the counting matters. G7's rule stands; its old slogan is gone.
-- **IP screening is Pokémon-only and light** — actual Pokémon names, nothing else. Note the standing
-  hazard: ordinary short English given names hit Pokémon Trainer names at roughly 28%.
+1. **Push.** Nine commits are local only. `git push https://labs.gauntletai.com/hankholcomb/trophic.git main`
+2. Rule on the four decisions above, the cascade one first — it gates whether §10.2 gets built to or amended.
+3. The owed G7 read.
