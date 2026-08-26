@@ -4,7 +4,8 @@
 **50 test files / 2341 tests, zero failures** · `tools/prose/prose-lint.py` 0 per-beat flags and
 0 corpus structural failures · working tree clean.
 
-Nine commits, `5b372b8` … `a5c51d8`. Nothing was pushed — that needs you.
+Eleven commits, `5b372b8` … `fcd6ebd`, all pushed to `origin/main` and verified by reading the
+remote ref back.
 
 ## What the session was asked to do, and where it got to
 
@@ -83,6 +84,5 @@ were invisible until someone asked what the green was evidence *of*.
 
 ## FIRST THINGS ON RESUME
 
-1. **Push.** Nine commits are local only. `git push https://labs.gauntletai.com/hankholcomb/trophic.git main`
-2. Rule on the four decisions above, the cascade one first — it gates whether §10.2 gets built to or amended.
-3. The owed G7 read.
+1. Rule on the four decisions above, the cascade one first — it gates whether §10.2 gets built to or amended.
+2. The owed G7 read — see `docs/CAST-AND-VOICE.md` Appendix H first.
