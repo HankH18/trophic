@@ -10,3 +10,7 @@ assets/raw/**
 coverage/
 .vite/
 public/assets/
+
+# python bytecode — prose-lint.py is imported as a module by verification scripts
+__pycache__/
+*.pyc

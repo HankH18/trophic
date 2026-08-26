@@ -1,6 +1,6 @@
 {
-  "_source": "docs/content-bible.md §4 (Ancient lore surfaces), §6 (towns + aging arcs), §7 (gym leaders), §8 (story spine), §9 (side quests), §10 (NPCs), §13.13 (dialogue budget) + build-doc §15 C7. Names of species, places, people and organisations are transcribed from the bible, never invented (G2); the coined quest-NPC given names are logged in docs/DIALOGUE-NOTES.md.",
-  "_guardrail": "G7 — no moralizing copy about catching, anywhere. NPCs state facts, express their own livelihood interests, and disagree with each other. No line tells the player they did wrong, implies guilt, or delivers a lesson. Enforced by the pattern scan in tests/unit/dialogue.test.ts AND by a line-by-line human-style read documented in docs/DIALOGUE-NOTES.md — a regex cannot detect tone.",
+  "_source": "docs/content-bible.md §4 (Ancient lore surfaces), §6 (towns + aging arcs), §7 (gym leaders), §8 (story spine), §9 (side quests), §10 (NPCs), §13.13 (dialogue budget) + build-doc §15 C7. Names of species, places, people and organisations are transcribed from the bible, never invented (G2). GIVEN NAMES are the standing exception: the bible asks for quest and background NPCs without naming them, so their given names are coined under bible §10's naming convention — a coined given name is not a transcription error and must not be \"corrected\" back to a bible name.",
+  "_guardrail": "G7 — no moralizing copy about catching, anywhere. NPCs state facts, express their own livelihood interests, and disagree with each other. No line tells the player they did wrong, implies guilt, or delivers a lesson. Enforced by the pattern scan in tests/unit/dialogue.test.ts and, because a regex cannot detect tone, by a line-by-line human-style read.",
   "_budget": "bible §13.13: ~10 lines per named NPC, ~3 per ambient, roughly 400–500 total. Shipped: see _counts. Named speakers that carry an Ancient lore chain or a six-act arc (Maren, Wick, Sel, Bram) run above 10; ambient speakers in the vertical-slice towns run above 3 because they carry year/population state variants the flat budget did not price in.",
   "_conditionModel": "An entry fires when every clause of `when` holds. TWO INDEPENDENT CLOCKS (Q3, the authorised L8 amendment): act/actMin/actMax are the STORY clock and every story beat gates on them, so it fires whenever the player earns it, in any calendar year; years/yearMin/yearMax are the WORLD clock — unbounded, never waiting for the player — and only world-ageing copy reads it. THE ACT LADDER IS core/acts.ts actOf(), which is the repo's only act authority and reads data/balance.json acts.gates: acts run 0..6, and ACT 0 IS THE PROLOGUE — a real state every new save starts in, which act 1 opens on story.opening.done. An `act` EQUALITY closes the entry the moment the act advances, so it is used only where the beat belongs to that act and nowhere else (the prologue; each act's arrival greeting); anything a player can walk past and come back to uses actMin, because town N's gym and route N unlock in the same act. seasons gate the four migrant windows; flagsSet/flagsUnset/flagEquals read SaveFile.questFlags; population/floraStock read the LIVE node state (SaveFile.nodeStates), so a town's lines change as its web does — a line that quotes a count or an abundance must carry the clause that makes it true. Among the entries that match a (speaker,node,kind) request the game takes the highest `priority` (default 0). Every greeting/ambient group ships an unconditional fallback, so a matching entry always exists.",
   "_chains": {
@@ -496,7 +496,7 @@
       },
       "lines": [
         {
-          "text": "You came up here after work and there's work going, so you're taken on. The pay is poor and the walking is most of it, and there's more ground out there than one person gets round in a season."
+          "text": "You came up here looking for work and there's work going, so you're taken on. The pay is poor and the walking is most of it. There's more ground out there than one person gets round in a season."
         },
         {
           "text": "My name's Maren. Warden for the region, and it's been the one post since they made it."
@@ -571,7 +571,7 @@
           "text": "The Puddlisk, then. Water animal."
         },
         {
-          "text": "The skin's clear enough to watch its dinner go down inside it. Rillisk at two, Maelstrisk at three, and they go over in the night, so you come down to something bigger with a different name on the card."
+          "text": "The skin's clear enough to watch its dinner go down inside it. Rillisk at two, Maelstrisk at three. They go over in the night, so you come down to something bigger with a different name on the card."
         }
       ],
       "setFlags": {
@@ -595,7 +595,7 @@
       },
       "lines": [
         {
-          "text": "The Thornlet, then. Plant animal, and it'll open your forearm up if you carry it against your chest, so use the crook of your arm. Bramblore at two, Thornwald at three."
+          "text": "The Thornlet, then. Plant animal. It'll open your forearm up if you carry it against your chest, so use the crook of your arm. Bramblore at two, Thornwald at three."
         },
         {
           "text": "Same animal each time, only bigger. By the third year you'll not lift it."
@@ -622,10 +622,10 @@
           "text": "Snares first. Three of them, in the satchel by the door. The satchel comes back to me."
         },
         {
-          "text": "One snare holds one animal long enough for you to get your hands on it, and after that there's one fewer where you took it from. Bait makes a snare likelier to hold, and you make the bait out of whatever the animal eats."
+          "text": "One snare holds one animal long enough for you to get your hands on it. After that there's one fewer where you took it from. Bait makes a snare likelier to hold, and you make the bait out of whatever the animal eats."
         },
         {
-          "text": "A base one lets go of anything that fights hard. A weighted one holds, and the smith sends them up when he has the iron for it. Keep the weighted for whatever's already put a team down."
+          "text": "A base one lets go of anything that fights hard. A weighted one holds. The smith sends them up when he has the iron for it. Keep the weighted for whatever's already put a team down."
         }
       ],
       "setFlags": {
@@ -645,10 +645,10 @@
       },
       "lines": [
         {
-          "text": "And this is the survey board. Every place in the region down one side, what's living in it written against the place, and a number against that."
+          "text": "And this is the survey board. Every place in the region down one side. What's living there is written against the place, and a number against that."
         },
         {
-          "text": "Most of what's on it is mine, which is the reason it reads three weeks out of date anywhere north of the gate, and further behind than that up on the steppe."
+          "text": "Most of what's on it is mine. That's why it reads three weeks out of date anywhere north of the gate, and further behind than that up on the steppe."
         },
         {
           "text": "So read it on your way out of the north gate and again on your way back in. Take four of the Nibbin off Meadow Reach and the board reads four fewer when I write it up that evening."
@@ -676,10 +676,10 @@
       },
       "lines": [
         {
-          "text": "One more thing before you go far. There'll be tracks out on the Reach, and droppings, and a flattened patch where something's lain up. Read one and you'll know what came past and roughly when."
+          "text": "One more thing before you go far. There'll be tracks out on the Reach. You'll see droppings too, and a flattened patch where something's lain up. Read one and you'll know what came past and roughly when."
         },
         {
-          "text": "Some things are only here part of the year. Pollywisp are a spring animal on the Reach, so a card read on one in autumn comes back dormant. And a dull animal reads nothing off a good clear track."
+          "text": "Some things are only here part of the year. Pollywisp are a spring animal on the Reach, so a card you read on one in autumn comes back dormant. And a dull animal reads nothing off a good clear track."
         },
         {
           "text": "Walk Meadow Reach and write me three cards."
@@ -760,7 +760,7 @@
       },
       "lines": [
         {
-          "text": "I'd put a fair bit of the green out on the Reach down to the Loamunder turning the soil, and that's a guess, mind, and not a walked one."
+          "text": "The Loamunder turn the soil, and I'd put a fair bit of the green out on the Reach down to that. That's a guess, mind, and not a walked one."
         },
         {
           "text": "The green's holding up out there this year and I'd not have said so in the spring. Maribel keeps the gym at the bottom of the green, and it's the old Nibbin that will take some shifting."
@@ -780,7 +780,7 @@
       },
       "lines": [
         {
-          "text": "Odo has the gym out on the east stilts. Three weeks since I was over at Brackmarsh, and it rained every day of it, so what I've got written for that marsh is short of what's in it."
+          "text": "Odo has the gym out on the east stilts. Three weeks since I was over at Brackmarsh, and it rained every day of it. What I've got written for that marsh is short of what's in it."
         }
       ],
       "priority": 45
@@ -797,7 +797,7 @@
       },
       "lines": [
         {
-          "text": "The silk and the timber come off the same trees here, and the two trades want different things off them. Two years since I walked this canopy properly, so what's on my board for it is Vesper's and I have not been over her figures."
+          "text": "The silk and the timber come off the same trees here, and the two trades want different things off them. Two years since I walked this canopy properly. What's on my board for it is Vesper's, and I have not been over her figures."
         }
       ],
       "priority": 45
@@ -874,10 +874,10 @@
           "text": "You asked what a keystone is."
         },
         {
-          "text": "It's an animal a great many other things turn out to depend on, far more than you'd guess from how few there are. Take one out and everything shifts about after it, slowly."
+          "text": "It's an animal that a great many other things turn out to depend on, far more than you'd guess from how few there are. Take one out and everything shifts about after it, slowly."
         },
         {
-          "text": "Some go up, some go down, and none of it shows on paper for four seasons. Where the Vellsire herd grazed, the ground came back richer the next year, and three people who didn't know each other wrote that down separately."
+          "text": "Some go up, some go down, and none of it shows on paper for four seasons. The ground came back richer the next year where the Vellsire herd grazed, and three people who didn't know each other wrote that down separately."
         }
       ],
       "setFlags": {
@@ -906,7 +906,7 @@
           "text": "You read one of the stones out on the Reach, and there are more of them than that one."
         },
         {
-          "text": "I've walked to three of the others myself this season. The rest I have off Orrin, who has them off a surveyor's letter, and I'd want to walk them before I said anything about them."
+          "text": "I've walked to three of the others myself this season. The rest I have off Orrin. He has them off a surveyor's letter, and I'd want to walk them before I said anything about them."
         },
         {
           "text": "Whoever cut them was keeping a tally. The ones that still have a face carry the same six figures. The herd has not passed in thirty years and the stones go back a good deal further than that."
@@ -941,7 +941,7 @@
           "text": "Every one of those forty reads wide, wide, wide, and then thin to the bark."
         },
         {
-          "text": "The thin starts within a season of the last time anybody wrote down seeing a Vellsire. One stump like that is a bad tree. Forty like that and I still can't call it anything, and I'd rather say so than guess."
+          "text": "The thin starts within a season of the last time anybody wrote down seeing a Vellsire. One stump like that is a bad tree. Forty like that and I still can't call it anything. I'd rather say so than guess."
         }
       ],
       "setFlags": {
@@ -999,7 +999,7 @@
           "text": "Four days I've been up at Orrin's shelves, and what I wanted off them was not the total."
         },
         {
-          "text": "I wanted to know who took each entry and where they were standing, and thirty years of those nights carry nothing in the margin at all."
+          "text": "I wanted to know who took each entry and where they were standing. Thirty years of those nights carry nothing in the margin at all."
         },
         {
           "text": "Not one of those hands put down the hour, or the weather, or whether they went out looking or just happened to be at the window. Figures like that I can use. What I cannot do is put a season on them."
@@ -1029,13 +1029,13 @@
       },
       "lines": [
         {
-          "text": "The Sanctum Fallow was shut before those stones were cut. Fallow is a farming word and it means ground you've left to rest on purpose, so somebody shut it and meant it to come back."
+          "text": "The Sanctum Fallow was shut before those stones were cut. Fallow is a farming word. It means ground you've left to rest on purpose, so somebody shut it and meant it to come back."
         },
         {
           "text": "If the herd went anywhere it went in there."
         },
         {
-          "text": "There'll be no herd left to find, though. One animal at the outside, and an old one. What you do standing in front of it is yours to decide, and it'll be a long while before it shows in anything I can measure."
+          "text": "There'll be no herd left to find, though. One animal at the outside, and an old one. What you do standing in front of it is yours to decide. It'll be a long while before it shows in anything I can measure."
         }
       ],
       "setFlags": {
@@ -1063,10 +1063,10 @@
           "text": "The animal's out of working years. It's come to the end of what it had in it, and there's nothing wrong with it otherwise."
         },
         {
-          "text": "Two things can come of this. Either a young one out of the same stock carrying one or two of the things this one was good at, or something you've already got gets better at one thing for good, in this one's name."
+          "text": "Two things can come of this. You can have a young one out of the same stock, carrying one or two of the things this one was good at. Or something you've already got gets better at one thing for good, in this one's name."
         },
         {
-          "text": "It'll be down at the station from tomorrow, fed, with the run of the yard and no work at all for the rest of its life. The yard is fed at four and it has been fed at four every year I have been walking."
+          "text": "It'll be down at the station from tomorrow. Fed, with the run of the yard, and no work at all for the rest of its life. The yard is fed at four and it has been fed at four every year I have been walking."
         }
       ],
       "setFlags": {
@@ -1092,10 +1092,10 @@
       },
       "lines": [
         {
-          "text": "The west scarp has carried three big Stonewing every year I've had this job, and Gerta walked it five days back and found one. If it's gone the usual way, the Cragmar and the Ashvole thinned out first, then the Pyrelisk that feed on the Ashvole."
+          "text": "The west scarp has carried three big Stonewing every year I've had this job, and Gerta walked it five days back and found one. It may have gone the usual way. The Cragmar and the Ashvole would have thinned out first, then the Pyrelisk that feed on the Ashvole."
         },
         {
-          "text": "A bird that size feels it last of all, and I can't tell you yet that that is what happened."
+          "text": "A bird that size feels it last of all. I can't tell you yet that that's what happened."
         }
       ]
     },
@@ -1162,7 +1162,7 @@
       },
       "lines": [
         {
-          "text": "Five to four on the last exchange, and the returns sheet gets that figure tonight. It'll say I lost, which is the whole use of a returns sheet, and I'm on the marsh road tomorrow either way."
+          "text": "Five to four on the last exchange, and the returns sheet gets that figure tonight. It'll say I lost. That's the whole use of a returns sheet, and I'm on the marsh road tomorrow either way."
         },
         {
           "text": "A room over the net loft, a column to fill, and I'm still grade four."
@@ -1226,7 +1226,7 @@
           "text": "I went early. I always go early out here. Sel poles the channel crossing at the far end and he'll take you over for the rate on his post."
         },
         {
-          "text": "Two exchanges out here, and you're on nobody's books, and I'm on five."
+          "text": "Two exchanges out here, and you're on nobody's books. I'm on five."
         }
       ],
       "setFlags": {
@@ -1245,7 +1245,7 @@
       },
       "lines": [
         {
-          "text": "The tide table they issue at intake has the slack twenty minutes late on this stretch and I went on the table. There is a corrected one in the building somewhere and it has not reached my sheet. I went in on the water that table gave me, and the sheet will show five."
+          "text": "Intake issues a tide table with the slack twenty minutes late on this stretch, and I went on the table. There is a corrected one in the building somewhere and it has not reached my sheet. I went in on the water that table gave me, and the sheet will show five."
         }
       ],
       "setFlags": {
@@ -1287,10 +1287,10 @@
       },
       "lines": [
         {
-          "text": "You're not ours and here you are anyway. I put a query in to intake and the answer came back blank, and they filed the blank."
+          "text": "You're not ours and here you are anyway. I put a query in to intake and the answer came back blank. They filed the blank."
         },
         {
-          "text": "Three years running and you've had me every time. If you were ours you'd be up two grades by this afternoon, level with me at six."
+          "text": "Three years running and you've had me every time. If you were ours, you'd be up two grades by this afternoon — level with me at six."
         }
       ],
       "setFlags": {
@@ -1336,7 +1336,7 @@
           "text": "Two seasons on the west scarp with a Cullbrand crew, and I took the bonus. Cullbrand paid out on Cinder Steppe for four years, and there were families in four towns eating off that money."
         },
         {
-          "text": "The scarp went empty in the fifth year. What took me from grade four to grade seven came partly off that scarp, and I am on seven."
+          "text": "The scarp went empty in the fifth year. It paid for part of my move from grade four to grade seven, and I am on seven."
         }
       ]
     },
@@ -1505,7 +1505,7 @@
       },
       "lines": [
         {
-          "text": "Then I'll be here a while longer, and that suits me. I'm in no hurry at all to be the one who walks in through that gate behind Greaves. The office knows where I am, which is at the gate stone with my sheet and still on nine."
+          "text": "Then I'll be here a while longer, and that suits me. I'm in no hurry at all to be the one who walks in through that gate behind Greaves. The office knows where I am, and I am at the gate stone with my sheet and still on nine."
         }
       ],
       "setFlags": {
@@ -1523,7 +1523,7 @@
           "text": "A barge three days late, a buyer who won't sign till he's seen it, and the standing charge comes off my column and not off theirs."
         },
         {
-          "text": "Invoices are half this job and the other half is standing about waiting on them, and I'm on five."
+          "text": "Invoices are half this job. The other half is standing about waiting on them, and I'm on five."
         }
       ]
     },
@@ -1598,13 +1598,13 @@
       },
       "lines": [
         {
-          "text": "You have been counting for the warden for six years, and she has your figures, and I have no quarrel with the figures. My own people would have arrived at much the same numbers eventually, and later."
+          "text": "You have been counting for the warden for six years, and she has your figures. I have no quarrel with the figures. My own people would have arrived at much the same numbers eventually, and later."
         },
         {
-          "text": "That they would have been later was put to me in writing by a man I employ, and it is minuted."
+          "text": "A man I employ put it to me in writing that they would have been later, and it is minuted."
         },
         {
-          "text": "The animal in that ring belongs to nobody, and the board takes the view that an animal of that size with no owner is an asset this Company is entitled to acquire, and you are standing between the ring and the teams on the rim. Instructions have gone to the teams and the teams are waiting."
+          "text": "The animal in that ring belongs to nobody. The board takes the view that an animal of that size with no owner is an asset this Company is entitled to acquire. You are standing between the ring and the teams on the rim. Instructions have gone to the teams and the teams are waiting."
         }
       ]
     },
@@ -1640,7 +1640,7 @@
       },
       "lines": [
         {
-          "text": "The result has been entered and the schedule is not affected by it, nor is the view I took of you when we first met, which was favourable. Come back up when you are ready. The teams are paid to the end of the week, whatever is decided."
+          "text": "The result has been entered and the schedule is not affected by it. It has not changed the view I took of you when we first met, which was favourable. Come back up when you are ready. The teams are paid to the end of the week, whatever is decided."
         }
       ]
     },
@@ -1717,7 +1717,7 @@
       },
       "lines": [
         {
-          "text": "The Skir come in over my hedge three and four at a time, which they only do when the Reach has gone short on the other side of it. I've had a bucket out at the gatepost all week and they'll take it out of my hand."
+          "text": "The Skir only come in over my hedge three and four at a time when the Reach has gone short on the other side of it. I've had a bucket out at the gatepost all week and they'll take it out of my hand."
         },
         {
           "text": "Meadow Reach has gone thin on Nibbin. Mine are penned and hand-fed and I've not lost one."
@@ -1771,7 +1771,7 @@
       "when": {},
       "lines": [
         {
-          "text": "Good fight. — The small ones now. Bogling, we call them at that size. They eat the same Reedrick the big ones eat, only smaller ones, and I've had the one animal in my hands at both sizes."
+          "text": "Good fight. — The small ones now. Bogling, we call them at that size. They eat the same Reedrick the big ones eat, only smaller Reedrick, and I've had the one animal in my hands at both sizes."
         },
         {
           "text": "Badge is in the tin by the door. Take it out yourself, my hands are wet. — Whose boat was that, in the end."
@@ -2055,7 +2055,7 @@
           "text": "Rates are on the post. They don't move for the rain and they don't move for the sun."
         },
         {
-          "text": "Forty-one years on this crossing and I've been late the once, and that was my brother's wedding, and he's sixty-eight now and he still — right, sit yourself down, we're going."
+          "text": "Forty-one years on this crossing and I've been late the once. That was my brother's wedding, and he's sixty-eight now and he still — right, sit yourself down, we're going."
         }
       ]
     },
@@ -2067,7 +2067,7 @@
       "when": {},
       "lines": [
         {
-          "text": "Across, then. That's the fare on the post. Middle of the boat, and your hands stay inside it."
+          "text": "Across, then. The fare's on the post. Sit in the middle of the boat, and your hands stay inside it."
         }
       ]
     },
@@ -2128,7 +2128,7 @@
           "text": "My grandfather called the four places the lake-beneath-the-lake. He meant a second water under ours, and the four are where the two meet. Every other stretch of this channel silts up, and in my lifetime those four have not taken a foot of mud."
         },
         {
-          "text": "You'll see it off the dock at half tide, and half tide only, because at low water the light comes off the mud and goes wrong on it."
+          "text": "You'll see it off the dock at half tide, and at half tide only, because at low water the light comes off the mud and goes wrong on it."
         }
       ],
       "setFlags": {
@@ -2155,7 +2155,7 @@
       },
       "lines": [
         {
-          "text": "You got your Mirefin inside the year, so the rest of the tale's owed you, and the barge is due in, so you're hearing this one on your feet."
+          "text": "You got your Mirefin inside the year, so the rest of the tale's owed you. The barge is due in, so you're hearing this one on your feet."
         },
         {
           "text": "The figure is eyeless. The face is finished everywhere else, mind. Where the eyes should be, there was never anything cut at all. My grandfather said whatever's down there came up the once, in a flood year, and the town felt it through the pilings."
@@ -2190,10 +2190,10 @@
           "text": "So you've been out to the second figure, the one in the reeds."
         },
         {
-          "text": "The pair of them now, facing each other across two miles of reed, and whoever cut the one cut the other. Draw a line between them and it runs right over the third of my four places, and I don't leave the boat sitting over that place."
+          "text": "The pair of them now, facing each other across two miles of reed, and whoever cut the one cut the other. Draw a line between them and it runs right over the third of my four places. I don't leave the boat sitting over that place."
         },
         {
-          "text": "Slack water is the time for it, and an hour either side is no good to you, and you'll want something with you that can swim."
+          "text": "You'll want something with you that can swim. Slack water is the time for it, and an hour either side is no good to you."
         }
       ],
       "setFlags": {
@@ -2258,7 +2258,7 @@
           "text": "An old one has one year of work left in it and no more than the one."
         },
         {
-          "text": "I say that out loud before anybody takes it. If it doesn't come off I keep my fare, same as any other day. Win and you cross free as long as I'm poling this boat, and I'm sixty-six, so that's the size of what I'm putting up."
+          "text": "I say that out loud before anybody takes it. I keep my fare if it doesn't come off, same as any other day. Win and you cross free as long as I'm poling this boat. I'm sixty-six, so that's the size of what I'm putting up."
         }
       ],
       "choices": [
@@ -2294,7 +2294,7 @@
           "text": "Deep edge of the channel, out where it runs. You'll not do it off the reed side."
         },
         {
-          "text": "An old one holds station out there and lets the current bring its food down, and my grandfather baited for them with a Reedrick, because Reedrick is what they eat."
+          "text": "An old one holds station out there and lets the current bring its food down. My grandfather baited for them with a Reedrick, because Reedrick is what they eat."
         }
       ]
     },
@@ -2334,7 +2334,7 @@
       },
       "lines": [
         {
-          "text": "Comes of holding station in the channel and taking what comes down. Free crossings from here on, and I'll tell the lad on the second boat as well, and there's the rest of the tale owing you whenever the barge isn't in."
+          "text": "Comes of holding station in the channel and taking what comes down. Free crossings from here on, and I'll tell the lad on the second boat as well. There's the rest of the tale owing you whenever the barge isn't in."
         },
         {
           "text": "A big one, and heavy with it. There's a jaw and a half on her."
@@ -2389,7 +2389,7 @@
       },
       "lines": [
         {
-          "text": "The levy came in over what the board had budgeted and they put the extra into the dock, and the deck's level enough to roll a barrel down it now, and they've done the same over at the second landing."
+          "text": "The levy came in over what the board had budgeted and they put the extra into the dock. The deck's level enough to roll a barrel down it now, and they've done the same over at the second landing."
         },
         {
           "text": "New pilings under three and four. I'd not have bet on it."
@@ -2407,7 +2407,7 @@
           "text": "Mind your feet that side. Hot scale down there and it goes through a boot sole."
         },
         {
-          "text": "If it's the warm floor you've come about, ask away, only ask me while I'm working. The bellows are on your left. Wait for my nod before you pull and no sooner."
+          "text": "Ask away if it's the warm floor you've come about, only ask me while I'm working. The bellows are on your left. Wait for my nod before you pull and no sooner."
         }
       ]
     },
@@ -2523,7 +2523,7 @@
       },
       "lines": [
         {
-          "text": "So one of yours has aged out. You'll have the relic on you and it'll be warm still. What it's for is this: I set it into a collar-piece, plain brass, and the seat gets cut to the relic and not the other way about."
+          "text": "So one of yours has aged out. You'll have the relic on you and it'll be warm still. I set it into a collar-piece, plain brass, and I cut the seat to the relic and not the other way about."
         },
         {
           "text": "Bring it here and come back through the town tomorrow."
@@ -2653,10 +2653,10 @@
           "text": "Bram's sent you up for the log. One reading a shift, all of them mine, off the wall and not out of the air, and the same spot on the wall every time."
         },
         {
-          "text": "Eight over the fourth. Same depth, the two shafts, which is the only reason the two of them compare."
+          "text": "Eight over the fourth. Same depth, the two shafts. That's the only reason the two of them compare."
         },
         {
-          "text": "That eight has moved on two occasions in thirty-one years. It went to fourteen, four days at a stretch each time, and each time came after a summer with no vent flare."
+          "text": "That eight has moved on two occasions in thirty-one years. It went to fourteen each time, four days at a stretch. Each time came after a summer with no vent flare."
         },
         {
           "text": "Go down the warm reach before you take the log back. There's a shrine at the bottom, not like the ones at the shaft head. Put your hand flat on it and tell me what you get."
@@ -2721,7 +2721,7 @@
       },
       "lines": [
         {
-          "text": "West scarp first, then the vent line, then the low ground coming back — the order I walked it in, so your figures sit alongside my old ones. On a day when the vent line's flaring there is nothing to be had off it, so leave that part."
+          "text": "West scarp first, then the vent line, then the low ground coming back — the order I walked it in, so your figures sit alongside my old ones. There's nothing to be had off the vent line on a day when it's flaring, so leave that part."
         }
       ]
     },
@@ -2767,7 +2767,7 @@
           "text": "Snell has it that the warmth off that scarp comes up out of the vents. I've read that wall one reading a shift since before the fourth shaft opened, same spot every time, and it has not moved. Whatever took the Stonewing off, it wasn't the ground."
         },
         {
-          "text": "Your five go in the log tonight, beside my old ones. The green off the cairn goes in the front, with how far up it gets and what the Ashvole and Cragmar graze off it. In feet off the cairn, taken by you this morning, and I want it again from the same spot next spring."
+          "text": "Your five go in the log tonight, beside my old ones. The green off the cairn goes in the front, with how far up it gets and what the Ashvole and Cragmar graze off it. I want it in feet off the cairn, taken by you this morning, and I want it again from the same spot next spring."
         }
       ],
       "setFlags": {
@@ -2913,7 +2913,7 @@
       },
       "lines": [
         {
-          "text": "You've left me the twenty-four standing. Two out there are young ones that weren't there in the spring. Here's your share, and it came out heavier than I quoted you, so take the difference."
+          "text": "You've left me the twenty-four standing. Two out there are young ones that weren't there in the spring. Here's your share, and it came out heavier than I quoted you. So take the difference."
         },
         {
           "text": "West field came in at full weight. It hasn't done that in three years."
@@ -2944,7 +2944,7 @@
       },
       "lines": [
         {
-          "text": "Under the twenty-four on the fence walk this morning, so there's no share off the crop this year. We set it that way at the start. Some years the field carries them and some years it doesn't. There's tea in the house if you want it."
+          "text": "I walked the fence this morning and came up under the twenty-four, so there's no share off the crop this year. We set it that way at the start. Some years the field carries them and some years it doesn't. There's tea in the house if you want it."
         },
         {
           "text": "West field goes fallow another year, then. I'll sow the east heavier and make it up somewhere."
@@ -2969,7 +2969,7 @@
           "text": "The fishery cut me to half hours two seasons back, and I've had the mornings since."
         },
         {
-          "text": "So the mornings are mine and I spend them in the shallows, and that board by the door is mine, all of it — Hetty, by the way, I should have led with that."
+          "text": "So the mornings are mine. I spend them in the shallows, and that board by the door is mine, all of it. Hetty, by the way — I should have led with that."
         }
       ]
     },
@@ -2995,7 +2995,7 @@
           "text": "A Bogling turns into a Mirefin inside a year, so four in the shallows now is four in the channel next year, if all four live, which they won't. I ask four because I'd sooner have three than two."
         },
         {
-          "text": "Board by my door is where it goes, and the chalk's damp on the third column because the door leaks, so read it in the light or you'll take the Brackmarsh column for the channel one."
+          "text": "Board by my door is where it goes. The chalk's damp on the third column because the door leaks. Read it in the light or you'll take the Brackmarsh column for the channel one."
         },
         {
           "text": "Brackmarsh side, in the shallows, and you want to be stood in the water rather than leaning out of a boat. The tide's up over that bank within the hour."
@@ -3031,7 +3031,7 @@
       },
       "lines": [
         {
-          "text": "Brackmarsh side. There's a Fenmaw works the channel mouth and it'll have a Bogling off you, so stay off the mouth. Then it's four on my board and three in the water."
+          "text": "Brackmarsh side. There's a Fenmaw works the channel mouth and it'll have a Bogling off you. Stay off the mouth. Then it's four on my board and three in the water."
         }
       ]
     },
@@ -3053,7 +3053,7 @@
           "text": "The buyer pays on the channel. Only the channel. My mornings in the shallows are my own time and they have nothing to do with anybody's wage."
         },
         {
-          "text": "The levy comes off the buyer's price and pays for the pilings and the harbour wall, so a thin year in the channel and the dock doesn't get mended, and Sel's your man for the pilings, he's had letters about those."
+          "text": "The levy comes off the buyer's price and pays for the pilings and the harbour wall. So a thin year in the channel and the dock doesn't get mended. Sel's your man for the pilings — he's had letters about those."
         },
         {
           "text": "Four Boglings on the Brackmarsh side, and that's mine to ask."
@@ -3086,7 +3086,7 @@
       },
       "lines": [
         {
-          "text": "Four, and I'll write four — if the Fenmaw at the mouth has one off them before the year's out I'll come back and rule the column to three. Chalk goes on before the damp gets at the board."
+          "text": "Four, and I'll write four. I'll come back and rule the column to three if the Fenmaw at the mouth has one off them before the year's out. Chalk goes on before the damp gets at the board."
         },
         {
           "text": "Four in. Brackmarsh column up by four."
@@ -3130,13 +3130,13 @@
           "text": "You're after work? Then here's one — three Webvern, full-grown, alive, delivered to the winding house."
         },
         {
-          "text": "Now, the awkward part, and it comes with the terms rather than after them. Vesper has been at the council about this order all season. Her case is that three grown Webvern is more than that canopy puts back in a year."
+          "text": "Now the awkward part. It comes with the terms rather than after them. Vesper has been at the council about this order all season. Her case is that three grown Webvern is more than that canopy puts back in a year."
         },
         {
           "text": "We've argued it for years, a fair bit of it in her own kitchen."
         },
         {
-          "text": "My price, paid the day they reach the winding house, in coin and not in credit. Or go and hear Vesper out first, she's at the council table until dark."
+          "text": "I pay my price the day they reach the winding house, in coin and not in credit. Or go and hear Vesper out first, she's at the council table until dark."
         }
       ],
       "choices": [
@@ -3175,7 +3175,7 @@
           "text": "Full-grown only. How do you tell? A young one spins a thread that pulls apart."
         },
         {
-          "text": "They hang in the high lines out in Bowerdeep Wilds, above where the loggers are cutting. Poisonous, the whole lot of them, and the young ones as much as the old. Bitten inside the first month, every one of the lads, and I pay for the salve."
+          "text": "They hang in the high lines out in Bowerdeep Wilds, above where the loggers are cutting. Poisonous, the whole lot of them, and the young ones as much as the old. Every one of the lads was bitten inside the first month, and I pay for the salve."
         }
       ]
     },
@@ -3263,7 +3263,7 @@
           "text": "Moths start tonight. Gloomoth, up out of the Wilds, through the town, and on to wherever it is they go."
         },
         {
-          "text": "They put the lamps out coming through. That many in the air at once and a flame won't hold, and every autumn I'm short-handed for it."
+          "text": "They put the lamps out coming through. That many in the air at once and a flame won't hold. Every autumn I'm short-handed for it."
         },
         {
           "text": "So. Somebody out to the eastern stair with me and back, one night, with the relight kit, while they're still coming through."
@@ -3385,13 +3385,13 @@
       },
       "lines": [
         {
-          "text": "One card for every animal you have taken and kept. The Bogling gets a card and the Mirefin gets a card, because the unit here is the individual and not the species. Orrin files by species and calls mine fussy."
+          "text": "One card for every animal you have taken and kept. The Bogling gets a card and the Mirefin gets a card, one for every individual and not one for every species. Orrin files by species and calls mine fussy."
         },
         {
           "text": "Bring me a name the census has not got and I will have a plate painted for it."
         },
         {
-          "text": "Dormant, or migrating: those are two different words for two different things, and the card says which. Anything that goes away for part of the year gets that marked on it, and it has not gone."
+          "text": "Dormant is not the same thing as migrating, and the card says which. Anything that goes away for part of the year has that marked on its card, and it has not gone."
         }
       ],
       "setFlags": {
@@ -3504,7 +3504,7 @@
           "text": "The marks are cut in and shallow now, and mossed over where the stone lies flat."
         },
         {
-          "text": "Do not scrape at them. Take a copy of what you can read, and where you cannot, write that down as well. Walk them in that order and bring me what each one says."
+          "text": "Do not scrape at them. Take a copy of what you can read, and write down which ones you cannot. Walk the six in that order and bring me what each one says."
         }
       ],
       "choices": [
@@ -3540,7 +3540,7 @@
           "text": "The sixth I would leave until last. It is the largest of them and it carries the herd on both faces, so walk round the back of it before you put your pencil away."
         },
         {
-          "text": "In order, if you can. Read out of turn the marks make very little sense to me."
+          "text": "In order, if you can. The marks make very little sense to me if they are read out of turn."
         }
       ]
     },
@@ -3561,7 +3561,7 @@
       },
       "lines": [
         {
-          "text": "No, no. That is quite all right. Come up when the six are walked, in whatever order the year gives you. If the year gives you only four of them, bring me the four you walked."
+          "text": "No, no. That is quite all right. Come up when the six are walked, in whatever order the year gives you. Bring me the four you walked if the year gives you only four."
         }
       ]
     },
@@ -3649,10 +3649,10 @@
           "text": "One block of granite on the north rise, cut into branching antlers, taller than a person, set deep."
         },
         {
-          "text": "The turf has grown over the foot. The weather side is worn round and pale. On the sheltered side, cut shallow, a herd of six figures with a line running north out of them and off the edge."
+          "text": "The turf has grown over the foot. The weather side is worn round and pale. A herd of six figures is cut shallow on the sheltered side, with a line running north out of them and off the edge."
         },
         {
-          "text": "Where the meadow grass banks against the foot, the stone is warm to the hand."
+          "text": "The stone is warm to the hand where the meadow grass banks against the foot."
         }
       ],
       "setFlags": {
@@ -3672,7 +3672,7 @@
           "text": "The southern stone is snapped off at about half its height. What is left is hooves and the bottom of a line, running north off the break."
         },
         {
-          "text": "The break carries the same lichen as the rest of the stone, at the same depth. Of the upper half there is no sign along this rise or the next."
+          "text": "The break carries the same lichen as the rest of the stone, at the same depth. There is no sign of the upper half along this rise or the next."
         }
       ]
     },
@@ -3699,7 +3699,7 @@
           "text": "A stone figure stands in the water off the dock rim, turned out toward the channel. Only the crown of the head is above water, and the carving there is finished down to the parting in the hair."
         },
         {
-          "text": "The shallows round it are clear to the bottom, down to the weed and the stones lying on it. The water directly under it is not, and the face does not come clear from the rim."
+          "text": "The shallows round it are clear to the bottom, down to the weed and the stones lying there. The water directly under it is not, and the face does not come clear from the rim."
         },
         {
           "text": "The water at the rim comes to a boot top. Six feet out, no bottom."
@@ -3735,7 +3735,7 @@
           "text": "The eyes on this one were never cut."
         },
         {
-          "text": "It is turned back to face the dock figure, and the carving is the same so far as that one can be seen at all. Between the two of them the reed stops growing in a band about a boat wide, and the water inside the band is darker."
+          "text": "It is turned back to face the dock figure, and the carving is the same so far as the dock figure can be seen at all. Between the two of them the reed stops growing in a band about a boat wide, and the water inside the band is darker."
         }
       ],
       "setFlags": {
@@ -3816,7 +3816,7 @@
           "text": "The moss on the north face stops at a level line."
         },
         {
-          "text": "Six figures on the sheltered side, in the same order as the six on the marsh stone, with the line running east out of them. Where the nearer trunk has gone flat against the granite, the bark is dead a hand either side."
+          "text": "Six figures on the sheltered side, in the same order as the six on the marsh stone, with the line running east out of them. The bark is dead a hand either side where the nearer trunk has gone flat against the granite."
         }
       ],
       "setFlags": {
@@ -3879,10 +3879,10 @@
           "text": "The second shrine stands at the bottom of the deep workings, past the last ladder. The air is still and a candle flame stands straight up."
         },
         {
-          "text": "The shrine is warmer than the rock it stands on. It has no joins anywhere: a single plate, curving away on both sides, shoulder height, with no tool mark on the outside."
+          "text": "The shrine is warmer than the rock it stands on. It has no joins anywhere: a single plate, shoulder height, curving away on both sides, with no tool mark on the outside."
         },
         {
-          "text": "Cut across the face, in a lettering the mine gave up using: KILNBACK. Inside the letters the plate is warmer to the hand than outside them. Below the letters the wax has built up and been cut back and built up again, and the cut marks number four."
+          "text": "A word is cut across the face, in a lettering the mine gave up using: KILNBACK. Inside the letters the plate is warmer to the hand than outside them. Below the letters the wax has built up and been cut back and built up again, and the cut marks number four."
         }
       ],
       "setFlags": {
@@ -4064,7 +4064,7 @@
           "text": "It is a Vellsire. The branching on its antlers is the branching cut on every stone from Meadow Reach up to here, and the spread is wider than a person is tall."
         },
         {
-          "text": "It stops in the middle of the ring, on the short grass, and puts its head up, and it is standing side on to the rim about a snare's throw from where the path comes in."
+          "text": "It stops in the middle of the ring, on the short grass, and puts its head up, standing side on to the rim about a snare's throw from where the path comes in."
         }
       ],
       "choices": [
@@ -4113,10 +4113,10 @@
           "text": "The numbers, then. Meadow Reach, Brackmarsh, Bowerdeep Wilds, Cinder Steppe, Duskhollow Vale and the Approach, all six walked and counted this morning. Five by me and the steppe by Gerta."
         },
         {
-          "text": "With that animal held, the ground round the Sanctum and along the Approach holds at the rate it has held every year I've walked it: two young brought on, where three is what it makes with the stag loose in there."
+          "text": "With that animal held, the ground round the Sanctum and along the Approach holds at the rate it has held every year I've walked it. That's two young brought on, against the three it makes with the stag loose in there."
         },
         {
-          "text": "I'll put in the book that the snare held and what was in it, and the six figures under it, with Gerta's name against the steppe one."
+          "text": "I'll put in the book that the snare held, and what was in it. The six figures go under it, with Gerta's name against the steppe one."
         }
       ],
       "setFlags": {
@@ -4152,7 +4152,7 @@
           "text": "The numbers, then. Meadow Reach, Brackmarsh, Bowerdeep Wilds, Cinder Steppe, Duskhollow Vale and the Approach, all six walked and counted this morning. Five by me and the steppe by Gerta."
         },
         {
-          "text": "With that animal loose, the ground round the Sanctum and along the Approach comes off that rate for the first time: three young brought on, where two is what it has always made."
+          "text": "With that animal loose, the ground round the Sanctum and along the Approach comes off that rate for the first time. That's three young brought on, against the two it has always made."
         },
         {
           "text": "You were six years getting to it. In nine years somebody will ask me why the numbers moved, and I'd rather they had all of it from me."
@@ -4173,7 +4173,7 @@
           "text": "Boots are by the fire, they were wringing wet, and the kettle's on. Don't start thanking me for either."
         },
         {
-          "text": "Your animals are in the byre with the door shut and that was done an hour since. A night here is half a season gone, so if you're wanted before the turn, sleep out and keep the days. Room only, or supper as well?"
+          "text": "Your animals are in the byre with the door shut and that was done an hour since. A night here is half a season gone, so sleep out and keep the days if you're wanted before the turn. Room only, or supper as well?"
         }
       ]
     },
@@ -4200,10 +4200,10 @@
       "when": {},
       "lines": [
         {
-          "text": "Day rate. Night's when the market's open — four, five, six, linen — so it's the day rate, and it's now."
+          "text": "Day rate. We rent by the day because the night's when the market's open — four, five, six, linen. So it's the day rate, and it's now."
         },
         {
-          "text": "It's all in the rate — feed, the yard, the fire, the lot of it, and I don't itemise. The key's on the hook at the stair, second door on the left — seven, eight, nine."
+          "text": "It's all in the one rate — feed, the yard, the fire, the lot of it — and I don't itemise. The key's on the hook at the stair, second door on the left — seven, eight, nine."
         }
       ]
     },
@@ -4215,7 +4215,7 @@
       "when": {},
       "lines": [
         {
-          "text": "There's a tub going now and the tubs fill straight off the hot spring, and whatever you've got with you comes out of that water better than it went in, and it costs nobody here a penny."
+          "text": "There's a tub going now, and the tubs fill straight off the hot spring. Whatever you've got with you comes out of that water better than it went in, and it costs nobody here a penny."
         },
         {
           "text": "Vent side's warmer and it shakes. Other side's cold and it doesn't."
@@ -4251,7 +4251,7 @@
           "text": "Bait's in the crate by your knee, not sorted, so dig. The cheap sort's cut for a whole kind of animal at once, out of whatever that kind eats. The dear ones are cut for the one animal and cost three times the money."
         },
         {
-          "text": "The weighted ones want iron and the smith's had none since spring, and one of those works out cheaper than a base one with a salve on top. He'll send some up when he has the iron and not before."
+          "text": "The weighted ones want iron and the smith's had none since spring. One of those works out cheaper than a base one with a salve on top. He'll send some up when he has the iron and not before."
         }
       ]
     },
@@ -4263,13 +4263,13 @@
       "when": {},
       "lines": [
         {
-          "text": "Reed bait, the bundle on the end of the trestle, and it has sat there since the thaw looking at me. There's nothing out on that marsh will look at it but a Reedrick."
+          "text": "Reed bait's the bundle on the end of the trestle, and it has sat there since the thaw looking at me. There's nothing out on that marsh will look at it but a Reedrick."
         },
         {
           "text": "And Reedrick come through in the summer, midsummer on if you want it exact."
         },
         {
-          "text": "Salve, though. Salve moves — everybody comes off that marsh cut about the hands. Tonic when I've got it in, and I've none this week, and that'll be the wet spring, same as the rest of it."
+          "text": "Salve, though. Salve moves — everybody comes off that marsh cut about the hands. Tonic when I've got it in. I've none this week, and that'll be the wet spring, same as the rest of it."
         }
       ]
     },
@@ -4284,10 +4284,10 @@
           "text": "Night market. Dusk to dawn, and no, we don't do mornings."
         },
         {
-          "text": "Lamp oil, wicks, tonic, silk by the bolt — evening to you — silk by the bolt. Master snares, two a year, and if you want it honest the year gone it was one, and two is the better number to say."
+          "text": "Lamp oil, wicks, tonic, silk by the bolt — evening to you — silk by the bolt. Master snares, two a year. If you want it honest, it was one last year, and two is the better number to say."
         },
         {
-          "text": "In the autumn a Gloomoth drops on that rail and the whole market steps round it, and there's one on it now grazing the moss and it hasn't noticed there's a stall under it."
+          "text": "In the autumn a Gloomoth drops on that rail and the whole market steps round it. There's one on it now, grazing the moss, and it hasn't noticed there's a stall under it."
         }
       ]
     },
@@ -4302,7 +4302,7 @@
           "text": "Master snares went when the contract went and I've none coming."
         },
         {
-          "text": "Salve I have, and tonic when the cart brings it, which is not this month. There's nothing growing on this steppe to cut a proper bait out of, so it's the cheap sort or nothing, and that will fetch a Cragmar as often as an Ashvole."
+          "text": "Salve I have, and tonic when the cart brings it, which is not this month. There's nothing growing on this steppe to cut a proper bait out of, so it's the cheap sort or nothing. That will fetch a Cragmar as often as an Ashvole."
         },
         {
           "text": "My prices went up the month next door boarded its windows, and they went up again the spring after, and prices are the prices."
@@ -4320,7 +4320,7 @@
           "text": "Not that tin, that's for the wick. Fill's in the flat tin at the end."
         },
         {
-          "text": "Wispurr bait moves in the winter and not otherwise, and it's in the drawer with the master snare, and that snare has been in there eighteen months."
+          "text": "Wispurr bait moves in the winter and not otherwise. It's in the drawer with the master snare, and that snare has been in there eighteen months."
         },
         {
           "text": "The observatory buys its oil off the lampwright direct and walks past this door to do it. I don't ask why and I have stopped wondering about it."
@@ -4391,7 +4391,7 @@
           "text": "The Reach is short this year. I'd have had the beasts down off that rise a month early."
         },
         {
-          "text": "The town fields go the way the Reach goes and Tolm's west side goes first, and it went first the year of the wet harvest and all, which was years before ever he touched the drainage down that end."
+          "text": "The town fields go the way the Reach goes, and Tolm's west side goes first. It went first the year of the wet harvest and all, years before ever he touched the drainage down that end."
         }
       ]
     },
@@ -4409,7 +4409,7 @@
           "text": "My da says I'm not to keep on at her about it, and I am going to keep on at her about it."
         },
         {
-          "text": "There's a Nibbin under the mill step and her name is Kettle, and I told Maren her name was Kettle and she wrote her in as a Nibbin. I have looked at every page in that book for Kettle and she is not on any of them."
+          "text": "There's a Nibbin under the mill step and her name is Kettle. I told Maren her name was Kettle, and she wrote her in as a Nibbin. I have looked at every page in that book for Kettle and she is not on any of them."
         }
       ]
     },
@@ -4424,7 +4424,7 @@
       },
       "lines": [
         {
-          "text": "She's the same one and I'd know her anywhere, and Maren wrote her in again at the turn and it still only says Nibbin, and I can read that much now for myself."
+          "text": "She's the same one and I'd know her anywhere. Maren wrote her in again at the turn and it still only says Nibbin. I can read that much now for myself."
         },
         {
           "text": "Her face has gone white down the one side, and it was not like that before."
@@ -4445,7 +4445,7 @@
           "text": "Loamunder go along under the west field all night, and I've ploughed that field top and bottom for four years and never turned one up."
         },
         {
-          "text": "Harvest is six weeks off and it's been dry all week, and there's four fields of it and the two hands you see."
+          "text": "Harvest is six weeks off and it's been dry all week. Four fields to bring in and the two hands you see."
         }
       ]
     },
@@ -4551,7 +4551,7 @@
           "text": "Came alongside at slack and the deck never moved under her."
         },
         {
-          "text": "New timber on the third piling and the fourth, first these boards have had in eleven years, and my boot still goes down where the soft one used to be."
+          "text": "New timber on the third piling and the fourth. It's the first these boards have had in eleven years, and my boot still goes down where the soft one used to be."
         }
       ]
     },
@@ -4566,7 +4566,7 @@
           "text": "Coarse mesh for the grown Mirefin, fine for the Bogling. Summer mesh on the end rail for the Reedrick, and that one hangs dry three quarters of the year."
         },
         {
-          "text": "Water's colder than it was when I started, and that's all it is, and the water is colder than it was when I started."
+          "text": "Water's colder than it was when I started, and that's all it is. The water's colder than it was when I started."
         },
         {
           "text": "What comes up comes up smaller, and the mesh follows the water. It followed the water before me and it will do it after me. You'd not know that to look at a net."
@@ -4587,7 +4587,7 @@
           "text": "Clause four says channel. Channel's the deep bit. It's why the boats go out where they go out."
         },
         {
-          "text": "My auntie Hetty went quiet at her supper when I said that, and then she said it back to me herself only slower, and I said it after her again."
+          "text": "My auntie Hetty went quiet at her supper when I said that. Then she said it back to me herself, only slower. And I said it after her again."
         }
       ]
     },
@@ -4623,7 +4623,7 @@
           "text": "Clause four says channel. It does not say shallows and it does not say marsh."
         },
         {
-          "text": "People bring me marsh figures every spring. Fenmaw take Mirefin, and Mirefin is the animal the contract is written on, so the marsh figures go in the file and I price off the channel, because clause four has not been amended in sixty years and it does not say marsh."
+          "text": "People bring me marsh figures every spring. Fenmaw take Mirefin, and Mirefin is the animal the contract is written on. So the marsh figures go in the file and I price off the channel. Clause four has not been amended in sixty years and it does not say marsh."
         }
       ]
     },
@@ -4646,7 +4646,7 @@
       },
       "lines": [
         {
-          "text": "Mirefin come up thick with nothing taking them and then the channel goes empty, and there is a clause for that, and it has been in the contract longer than I have, and it sets the price low."
+          "text": "Mirefin come up thick with nothing taking them, and then the channel goes empty. There is a clause for that. It has been in the contract longer than I have, and it sets the price low."
         },
         {
           "text": "The warden walked that marsh again last month and could not put a second Fenmaw in that marsh."
@@ -4715,7 +4715,7 @@
       },
       "lines": [
         {
-          "text": "The same week last year it was no higher than my boot, and the Nibbin have grazed that rise all week and there's grass standing yet, and a Bramblehog on the path this morning hardly troubled to move for me."
+          "text": "The same week last year the grass was no higher than my boot. The Nibbin have grazed that rise all week and there's grass standing yet. A Bramblehog on the path this morning hardly troubled to move for me."
         },
         {
           "text": "The Reach has never come up this thick for me, and it's knee-high on the north rise."
@@ -4736,7 +4736,7 @@
           "text": "They stand on that bank a quarter of an hour waiting for Sel's boat rather than get in with me, and I have stopped minding that, or near enough."
         },
         {
-          "text": "Channel's on your left going out, shallows on your right, and I'll point out the idol as we pass it, out where the reed thins, facing the town."
+          "text": "Channel's on your left going out, shallows on your right. The idol's out where the reed thins, facing the town, and I'll point it out as we pass."
         }
       ]
     },
@@ -4803,7 +4803,7 @@
       },
       "lines": [
         {
-          "text": "No Barkhide on those slopes now, so the low growth has come right up and the young trees under it all came on in the one season, and the canopy is thinner than it was when we were cutting under it."
+          "text": "No Barkhide on those slopes now, so the low growth has come right up. The young trees under it all came on in the one season, and the canopy is thinner than it was when we were cutting under it."
         },
         {
           "text": "I've not had a saw out past the east stair in four years."
@@ -4824,7 +4824,7 @@
           "text": "Second grade. It doesn't leave here as anything else."
         },
         {
-          "text": "And the moths make none of it — that is Webvern work, the whole of it, off the adult line and nothing else."
+          "text": "And the moths make none of it — the whole of it is Webvern work, off the adult line and nothing else."
         }
       ]
     },
@@ -4839,7 +4839,7 @@
           "text": "You want the winding house? It's the — no, wait, are you going up the east stair, because I'm not allowed on the east stair."
         },
         {
-          "text": "Gloomgrub are the little ones and they turn into the big ones out of the high lines, only they don't, they're a different thing altogether, and the silk comes off the wings when they come through and the lamps go out, whoomf."
+          "text": "Gloomgrub are the little ones, and they turn into the big ones out of the high lines. Only they don't, they're a different thing altogether. And then they come through and the silk comes off the wings and the lamps go out, whoomf."
         },
         {
           "text": "A Gloomoth got down my collar and out of both hands — that's my sister up there —"
@@ -4896,7 +4896,7 @@
           "text": "Pyrelisk? Up the vent line when it flares. Took the hair off my arm, the once."
         },
         {
-          "text": "Say that again this side of me — my left ear's been no good since the fourth shaft. Gerta's got the heat to the degree and she says it isn't the vents, and I'd get the number wrong if I tried to give it you."
+          "text": "Say that again this side of me — my left ear's been no good since the fourth shaft. Gerta's got the heat to the degree. She says it isn't the vents. I'd get the number wrong if I tried to give it you."
         }
       ]
     },
@@ -4908,13 +4908,13 @@
       "when": {},
       "lines": [
         {
-          "text": "A vent opens, the ground round it goes soft, and soft ground is what we cut, so the housing went up behind the shaft, which is why the whole east row leans."
+          "text": "A vent opens and the ground round it goes soft. Soft ground is what we cut, so the housing went up behind the shaft, which is why the whole east row leans."
         },
         {
           "text": "The shrines. We didn't put them there and we don't move them."
         },
         {
-          "text": "Ashvole burrow, and where they've been at the cinder it's loose enough to open a face, which is a day off the cut and nothing paid for it. Nobody has got round to the loose bit down by the winch, and it has had a man over already."
+          "text": "Ashvole burrow, and the cinder goes loose where they've been at it, loose enough to open a face and cost us a day off the cut with nothing paid for it. Nobody has got round to the loose bit down by the winch, and it has had a man over already."
         }
       ]
     },
@@ -4932,7 +4932,7 @@
           "text": "One of them kept his gloves on indoors in high summer, in a room with a fire going in it, and I have never worked out why."
         },
         {
-          "text": "There were Stonewing on the west scarp when I was a girl, and Cragmar grazing the flat below them. If you say they went in the third contract, that will be right. If you say the second, I'd not argue with you over it."
+          "text": "There were Stonewing on the west scarp when I was a girl, and Cragmar grazing the flat below them. Say they went in the third contract and that will be right. Say the second and I'd not argue with you over it."
         }
       ]
     },
@@ -4947,7 +4947,7 @@
           "text": "The mine's boring."
         },
         {
-          "text": "There's a shrine at the bottom of the third shaft bigger than a cart, and I've not seen it and nobody's taking me down."
+          "text": "There's a shrine bigger than a cart at the bottom of the third shaft, and I've not seen it and nobody's taking me down."
         },
         {
           "text": "Sable's Pyrelisk is loud. Was that all you wanted? Only I was doing something."
@@ -5001,10 +5001,10 @@
           "text": "Whatever Bly told you. A jar and a half left, second week of the month."
         },
         {
-          "text": "Same three rooms, same two lamps, and I am buying oil now at a rate I never used to, and there was a wick in my hand when you came through that door because I trim my own."
+          "text": "Same three rooms, same two lamps. I am buying oil now at a rate I never used to, and there was a wick in my hand when you came through that door, because I trim my own."
         },
         {
-          "text": "The week is not out, so I could not tell you yet what it has cost me, and I will have the bill for it when it is. Bly has it that the vale is no darker than it was, and Bly has been in this vale two winters."
+          "text": "The week is not out, so I could not yet tell you what it has cost me, and I will have the bill for it when it is. Bly has it that the vale is no darker than it was, and Bly has been in this vale two winters."
         }
       ]
     },
@@ -5016,13 +5016,13 @@
       "when": {},
       "lines": [
         {
-          "text": "My shutters are open all night and my lamp's out, so if I get a Wispurr I'm keeping it in the shed, and that is settled."
+          "text": "My shutters are open all night and my lamp's out. So if I get a Wispurr I'm keeping it in the shed, and that is settled."
         },
         {
           "text": "It has to be winter, she says, and winter takes forever."
         },
         {
-          "text": "So when you're passing you can put it to her, and I'll leave the shed door on the latch, and then it's done and nobody has to keep on about it."
+          "text": "So you can put it to her when you're passing, and I'll leave the shed door on the latch. Then it's done and nobody has to keep on about it."
         }
       ]
     },
@@ -5040,7 +5040,7 @@
           "text": "Four burns to the fill, and I would stand on four. Anything giving you less was strained the once and jarred while the oil was still warm, and you can taste that on the second burn."
         },
         {
-          "text": "The wick gauge matters more than the oil does, and mine is fourteen to the inch, and any finer will not draw and any coarser smokes."
+          "text": "The wick gauge matters more than the oil does, and mine is fourteen to the inch. Any finer will not draw and any coarser smokes."
         }
       ]
     },
@@ -5052,10 +5052,10 @@
       "when": {},
       "lines": [
         {
-          "text": "The ground's thin up the vale and dark half the day, and the flock does very well on it, and nobody believes that until they have seen the lambs."
+          "text": "The ground's thin up the vale and dark half the day. The flock does very well on it, and nobody believes that until they have seen the lambs."
         },
         {
-          "text": "Umbrat graze that ground alongside my sheep, and the Wispurr come hunting the Umbrat once the cold's in, and neither has ever had a lamb off me."
+          "text": "Umbrat graze that ground alongside my sheep, and the Wispurr come hunting the Umbrat once the cold's in. Neither has ever had a lamb off me."
         },
         {
           "text": "The lambs are carrying weight this year. Put a hand on one. So."
@@ -5076,7 +5076,7 @@
           "text": "Webvern in the tops over this stand, so we cut round those trees. Reason given is the silk pays better than the timber. Off the stand by dusk, and the reason given there is Duskstalk."
         },
         {
-          "text": "Two hours out at the start and two hours back at the end, and that is in the terms, and I have the terms by me in writing if you want the wording."
+          "text": "Two hours out at the start and two hours back at the end. That is in the terms, and I have the terms by me in writing if you want the wording."
         }
       ]
     },
@@ -5091,10 +5091,10 @@
           "text": "The lid's off that crate — they come open on their own and the Carricrow know it."
         },
         {
-          "text": "Contract's shut, so I'm pulling cable and rail out, and you can follow the cable runs the whole way up from the vent line, and I'll walk you up if you've a morning to give it."
+          "text": "Contract's shut, so I'm pulling cable and rail out. You can follow the cable runs the whole way up from the vent line, and I'll walk you up if you've a morning to give it."
         },
         {
-          "text": "There's a rail up top that four of us couldn't shift, and it's still up there, and I have a go at it most mornings going past, on my own, which tells you how that goes."
+          "text": "There's a rail up top that four of us couldn't shift. It's still up there, and I have a go at it most mornings going past, on my own, which tells you how that goes."
         }
       ]
     },
@@ -5144,7 +5144,7 @@
           "text": "More Carricrow than there used to be, and there were Stonewing lifting off that rock when I started."
         },
         {
-          "text": "The nest on the west scarp is empty and I go past it every time I'm up for the rail, with nothing on it and nothing round it, and the white streak underneath has gone grey."
+          "text": "The nest on the west scarp is empty, and I go past it every time I'm up for the rail. Nothing on it, nothing round it, and the white streak underneath has gone grey."
         }
       ]
     },
@@ -5197,7 +5197,7 @@
       },
       "lines": [
         {
-          "text": "Every beast on the place gets a year older at the turn, whether it's been out on the grass all year or shut in the byre since the spring, and we always brought ours down off the Reach the fortnight before."
+          "text": "Every beast on the place gets a year older at the turn, whether it's been out on the grass all year or shut in the byre since the spring. We always brought ours down off the Reach the fortnight before."
         },
         {
           "text": "The lanterns are up on the green. The year goes over when the season's out."
@@ -5238,7 +5238,7 @@
           "text": "I pack stone round them and they still shift."
         },
         {
-          "text": "Three posts down the west end won't hold now, and they're in the holes I dug six years ago, and the ground's gone soft at that end since."
+          "text": "Three posts down the west end won't hold now. They're in the holes I dug six years ago. The ground's gone soft at that end since."
         }
       ]
     },
@@ -5253,7 +5253,7 @@
       },
       "lines": [
         {
-          "text": "Every net I've cut down is hanging in the shed on its own peg, oldest at the back, and in the dark I can put my hand on the one I cut the year my son was born."
+          "text": "Every net I've cut down hangs in the shed on its own peg, oldest at the back. In the dark I can put my hand on the one I cut the year my son was born."
         },
         {
           "text": "Three re-cuts in six years, and I overdid the second."
@@ -5298,7 +5298,7 @@
       "when": {},
       "lines": [
         {
-          "text": "The board goes under one arm and I'm out along the stilts most days this season. Four hours out of a day is what I get on those pages before the damp is into them, and after that the pencil stops taking and I am walking for nothing."
+          "text": "The board goes under one arm and I'm out along the stilts most days this season. Four hours out of a day is what I get on those pages before the damp is into them. After that the pencil stops taking and I am walking for nothing."
         }
       ]
     },
@@ -5334,7 +5334,7 @@
       "when": {},
       "lines": [
         {
-          "text": "Shelves in the morning, out in the vale from dusk, because that's when the things I'm after are up and moving, which gives me about four hours before the light comes back."
+          "text": "Shelves in the morning, out in the vale from dusk. The things I'm after are up and moving then, and that gives me about four hours before the light comes back."
         }
       ]
     },
@@ -5372,7 +5372,7 @@
           "text": "Not seen a Fenmaw on the channel run all this season."
         },
         {
-          "text": "I used to put two a month in the back of my fare book, and now the Mirefin are right up under the boat, and I put the pole down on one this morning without meaning to."
+          "text": "I used to put two a month in the back of my fare book. Now the Mirefin are right up under the boat, and I put the pole down on one this morning without meaning to."
         }
       ]
     }

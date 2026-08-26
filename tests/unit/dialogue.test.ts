@@ -23,8 +23,8 @@
  *
  *     **This is a vocabulary tripwire, not a G7 gate.** A regex cannot detect tone: "Nobody showed
  *     you when to stop." and "You could have left one." use no banned word and are reprimands.
- *     Those are caught only by the line-by-line judgement-vs-observation read recorded in
- *     docs/DIALOGUE-NOTES.md, which must be repeated by hand whenever lines are added.
+ *     Those are caught only by a line-by-line judgement-vs-observation read, which must be
+ *     repeated by hand whenever lines are added.
  */
 
 import { readFileSync, readdirSync } from "node:fs";
@@ -442,11 +442,11 @@ const BIBLE_NAMES = [
   "Sel", // bible §10 — Brackwater ferryman
 ] as const;
 
-/** Quest-NPC given names coined for this file (docs/DIALOGUE-NOTES.md D-1). Capped.
- *  "Hetty" replaced "Nessa" on 2026-08-25 (DEVIATIONS D-Q2-4): Nessa is the Galar Gym Leader of
+/** Quest-NPC given names coined for this file. Capped.
+ *  "Hetty" replaced "Nessa" on 2026-08-25: Nessa is the Galar Gym Leader of
  *  Hulbury, a WATER-type specialist whose father is canonically a fisher — same name, same
  *  element, same role shape as our Brackwater angler. The SPEAKER ID `nessa` and every
- *  `nessa.*` entry id deliberately did not move; only the display name did (D-Q4-5). */
+ *  `nessa.*` entry id deliberately did not move; only the display name did. */
 const COINED_NPC_NAMES = ["Tolm", "Hetty", "Halder", "Pell", "Gerta", "Ives", "Orrin"] as const;
 
 /**
@@ -983,9 +983,9 @@ describe("dialogue budget — bible §13.13", () => {
   it('is "roughly 400–500 lines total"', () => {
     expect(LINE_COUNT).toBeGreaterThanOrEqual(400);
     expect(LINE_COUNT).toBeLessThanOrEqual(560);
-    // RAISED 400-500 -> 400-560 (docs/DEVIATIONS.md D-BUDGET-1, authorised by Hank this
-    // session). Two measured reasons: wiring the 39 unreachable entries added a finale loss
-    // branch, which pinned the corpus at exactly 500/500 with no headroom; and the amended
+    // RAISED 400-500 -> 400-560, authorised by Hank. Two measured reasons: wiring the 39
+    // unreachable entries added a finale loss branch, which pinned the corpus at exactly
+    // 500/500 with no headroom; and the amended
     // prose standard (cast-and-voice.md Appendix F) favours plainer, baggier speech, which
     // sometimes means splitting one cramped line into two. The per-speaker ceilings below
     // are UNCHANGED, so the bound stays real — this raises the total, not the shape.
@@ -1912,7 +1912,7 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
        * battle, so the send-off was delivered between the challenge and the fight and then latched
        * on `story.finale.spoken` for ever. `rival.act6.playerResult` is written by BOTH
        * `wick.act6.win` and `wick.act6.loss`, so this waits for the fight to have HAPPENED without
-       * requiring the player to have won it (B5 / D-Q8-4).
+       * requiring the player to have won it.
        */
       const midFight = finaleCtx(year, { "story.greaves.entered": true });
       expect(
@@ -2330,7 +2330,7 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
    * D19, unresolved and Hank's to rule on: six lines state "six years" as the length of a run, and
    * the calendar is now unbounded, so a year-12 player can be told they have been counting for six.
    * This does not rewrite them — G2 — it pins the set, so the ruling has an exact checklist and a
-   * seventh cannot appear unnoticed. See docs/DIALOGUE-NOTES.md §8.
+   * seventh cannot appear unnoticed.
    */
   it("the lines that hardcode a run length are exactly the six already flagged (D19)", () => {
     // "six YEARS" only. Greaves' "six-year contract" (greaves.act4.steppe) is the Cullbrand
@@ -2360,7 +2360,7 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
    * a claim about how long THIS run has been, which the unbounded calendar can falsify.
    *
    * Adding a year figure to an act-gated line fails here until it has been read and classified.
-   * Nothing is rewritten — D19 is Hank's ruling, see docs/DIALOGUE-NOTES.md §8.
+   * Nothing is rewritten — D19 is Hank's ruling.
    */
   const ACT_GATED_YEAR_CLAIMS: Record<string, { lines: number; kind: "world" | "run-length" }> = {
     "gerta.warm.testimony": { lines: 1, kind: "world" }, // 31 years of shaft temperature log
@@ -2431,7 +2431,7 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
   });
 
   /**
-   * D19's OTHER half, which STORY-REVIEW does not name and the act split could not fix.
+   * D19's OTHER half, which the act split could not fix.
    *
    * A calendar-gated line that counts years is anchored at one end only: `yearMin: N` is
    * forward-open, so the figure in the copy is true at exactly year N and drifts every year after.
@@ -2478,7 +2478,7 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
   });
 
   /**
-   * Hard Req 2 and `docs/STORY-REVIEW.md` D12: the ledger shows real numbers, so NPC copy that
+   * Hard Req 2: the ledger shows real numbers, so NPC copy that
    * quotes one must read the same state the ledger reads. A line that names a count with no
    * `population` clause is a line the HUD can contradict on the same screen.
    *
@@ -2518,7 +2518,16 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     const NUM = "(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|twenty|twenty-four|thirty|forty|fifty|sixty|ninety|hundred|\\d+)";
     const COUNT = new RegExp(
       `\\b${NUM}[- ](?:of them|of these|left|standing|nests?|head|Fenmaw|Mirefin|Nibbin|Loamunder|Stonewing|Cragmar|Pyrelisk|Webvern|Carricrow|Bramblehog)\\b` +
-        `|\\bthere (?:are|were) ${NUM}\\b|\\bcount is ${NUM}\\b|\\bdown to ${NUM}\\b`,
+        `|\\bthere (?:are|were) ${NUM}\\b|\\bcount is ${NUM}\\b|\\bdown to ${NUM}\\b` +
+        // THE DETECTOR WENT BLIND AGAIN, the same way it did before, and this alternative is the
+        // repair. The readability pass moved `orrin.quest.trail.declined` from "only four of them"
+        // to "the four you walked" — the line names the same count, and the register row for it is
+        // unchanged, but the closed list of surface forms above no longer saw it. The register then
+        // reported green against a set one entry short, which is the shape this whole file exists
+        // to catch: a hand-maintained review passing because the thing feeding it stopped looking.
+        // Widening was chosen over rewording the line, because tailoring prose to satisfy a regex
+        // makes the regex the author. Verified to add exactly one entry and no others.
+        `|\\bthe ${NUM} you \\w+\\b`,
       "i",
     );
     const actual = raw.entries
@@ -2554,7 +2563,7 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     "amb.r1-forager.bloom": "live", // "The Reach has never come up this thick for me"
     "amb.hearthollow-elder.bloom": "live", // "come up green right down to the fence line"
     "amb.hearthollow-elder.thin": "live", // "The Reach is short this year"
-    // Reviewed and deliberately left unclaused, the first recorded in docs/DIALOGUE-NOTES.md §8:
+    // Reviewed and deliberately left unclaused:
     "maren.keystone.4": "world", // "There's less green up on that steppe than there is on the Reach"
     // — a comparison between two places, not a reading of one, and a live gate on a Vellsire CHAIN
     // step could strand the chain if r4's flora recovers
@@ -2681,7 +2690,7 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
  * WHAT THIS CANNOT DO: detect tone. Every one of these is a reprimand and only some trip a pattern:
  *   "There were nine Fenmaw here the week you walked in. Say the number back to me."
  *   "I do not need the ledger to know which way you walked."
- * The control on those is the line-by-line read in docs/DIALOGUE-NOTES.md, not this list. Treat a
+ * The control on those is a line-by-line read of the corpus, not this list. Treat a
  * green scan as "no banned vocabulary", never as "G7 satisfied".
  */
 const MORALIZING_PATTERNS: { name: string; re: RegExp }[] = [
