@@ -4,9 +4,9 @@ A 2D Pokémon-Gold-style monster-catching RPG where the region is a living ecosy
 catching decrements real per-node populations, over-catching cascades through a derived
 food web, and in-game years age every creature, map, and town.
 
-## The five documents
+## The six documents
 
-`docs/` holds five files and nothing else. Read the first two before changing anything.
+`docs/` holds six files and nothing else. Read the first two before changing anything.
 
 - `docs/build-doc.md` — canonical: locked decisions, schemas, formulas, pipeline, build
   order, and the G1–G15 guardrails (§16).
@@ -16,6 +16,8 @@ food web, and in-game years age every creature, map, and town.
   is waiting on Hank. The only file that records current state.
 - `docs/CAST-AND-VOICE.md` — the prose standard. Read before writing or editing any
   player-facing line.
+- `docs/TICKETS.md` — the work queue, and the rulings behind it. Every ticket quotes a
+  decision Hank has already made. **They are decided; never re-ask one.**
 - `docs/README.md` — the index.
 
 There is no archive. Everything removed from `docs/` is in git —
@@ -25,7 +27,7 @@ one, and do not add a new status, findings, notes, deviations or handoff file.
 **A reason that must not be lost goes in a comment on the code it governs, not in a doc.**
 A comment is read by whoever edits that line; a doc is read never. A change is still never
 silent: if a canonical doc is now wrong, correct it; open questions and current state go in
-`docs/STATUS.md`.
+`docs/STATUS.md`, and the work they imply goes in `docs/TICKETS.md`.
 
 ## Stack
 

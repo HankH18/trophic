@@ -1,6 +1,6 @@
 # TROPHIC — docs
 
-Five documents. Each answers a different question.
+Six documents. Each answers a different question.
 
 **`build-doc.md`** — *how is this built?*
 The canonical source: locked decisions, data schemas, gameplay formulas, the asset
@@ -19,6 +19,10 @@ the only one that has to be kept current.
 **`CAST-AND-VOICE.md`** — *who speaks, and how do they sound?*
 The prose standard. Read it before writing or editing any player-facing line.
 
+**`TICKETS.md`** — *what is being worked on, and what did Hank decide?*
+The work queue. Every ticket carries a ruling he has already made, quoted. These are
+decided, not open — do not re-ask them.
+
 **`README.md`** — this file.
 
 ## Where the reasons live
@@ -36,6 +40,7 @@ is where "why is this the way it is" is answered when the code does not answer i
 
 ## Adding a document
 
-Don't. Current state goes in `STATUS.md`. A rule that binds future work goes in the
-canonical document it constrains. A reason goes in the code, on the line it governs.
-There is no sixth document — no status, findings, notes, review or handoff file.
+Don't. Current state goes in `STATUS.md`. Work and rulings go in `TICKETS.md`. A rule
+that binds future work goes in the canonical document it constrains. A reason goes in the
+code, on the line it governs. There is no seventh document — no findings, notes, review,
+deviations or handoff file.
