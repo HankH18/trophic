@@ -64,7 +64,7 @@ const approvedRow: Row = {
     model: 'Comfy-Org/z_image_turbo (+ CLIP lumina2, Comfy-Org VAE)',
     steps: 8, cfg: 1.0, sampler: 'res_multistep', scheduler: 'simple', resolution: '1024x1024',
     modelSamplingAuraFlowShift: 3,
-    _note: 'shift:3 is in the graph but absent from build-doc §9.2 — logged as B-D2',
+    _note: 'shift:3 is in the graph but absent from build-doc §9.2; it materially affects the output, so §9.2\'s parameter list is incomplete rather than wrong',
   },
   _lock: 'build-doc L6 + §8.4. This prompt string and seed 42 ARE the player identity. Vary ONLY the '
     + 'view/pose clause for other views (see the player-back / player-side rows). G5: never regenerate '

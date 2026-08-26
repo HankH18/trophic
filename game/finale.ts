@@ -48,8 +48,8 @@
  * Every non-catch end of the fight — a failed snare, a fled fight, a fainted party, even a defeated
  * stag — resolves as `released`: the animal is out there and the coefficient applies, which is
  * exactly what `maren.epilogue.released` says. A third terminal state would need a third full
- * epilogue on the most-watched beat in the demo. Logged as DEVIATIONS D-Q8-2; the alternative is a
- * finale that can end with nothing written, which is the defect this module exists to remove.
+ * epilogue on the most-watched beat in the demo. The alternative is a finale that can end with
+ * nothing written, which is the defect this module exists to remove.
  */
 
 import { runCompleteFlag } from "../core/acts";

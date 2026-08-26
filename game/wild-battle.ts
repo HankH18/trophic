@@ -20,8 +20,8 @@
  * • **No rules.** There is no damage, catch-probability, turn-order, XP or population arithmetic
  *   here. The population write is `core/ecosim.ts` `applyCatch` — the same function
  *   `core/save.ts`'s `replay` reaches through `adjustPopulation`, so the live path and the replay
- *   path move the count identically, clamps included (integration defect I3 is what happens when
- *   they do not). The creature the player gains is `core/lifecycle.ts` `newOwnedCreature`.
+ *   path move the count identically, clamps included. The creature the player gains is
+ *   `core/lifecycle.ts` `newOwnedCreature`.
  * • **No engine.** No Phaser import, so the whole hand-off is exercised in a node test with no DOM.
  *   The scene supplies the launch; this decides what is launched and what is done with the result.
  * • **No content invented (G2).** The starter line is read out of `data/species.json` by the
@@ -33,8 +33,8 @@
  * `balance.traits`. It belongs in `core/`, next to `core/lifecycle.ts`'s heir-trait roll, and
  * `tools/harness/player.ts` already carries a private second copy of it — so the balance report
  * describes a player whose creatures the game could not produce. `core/` is read-only to this lane;
- * the duplication is reported as a blocker and logged in docs/DEVIATIONS-lane-c2.md (C2-D5). The two
- * implementations are deliberately draw-for-draw identical so collapsing them onto one is a delete.
+ * the duplication stands. The two implementations are deliberately draw-for-draw identical (a
+ * chance drawn only for an Elder, then one `pick` per slot) so collapsing them is a delete.
  *
  * NUMBERS (G11): `balance.traits`, `balance.xp.starterLevel`, `balance.party.maxPartySize`,
  * `balance.economy`/`balance.snare` item ids through the save's own bag. No literal.
@@ -345,7 +345,7 @@ export function applyWildBattleOutcome(opts: {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * The provisional starter (see docs/DEVIATIONS-lane-c2.md C2-D6)
+ * The provisional starter
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**

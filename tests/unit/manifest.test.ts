@@ -15,7 +15,7 @@
  * reverse true too.
  *
  * One thing this file deliberately does NOT do: touch the network. Every assertion is against local
- * data. Comfy Cloud bills for failed jobs (DEVIATIONS-lane-b B-D8), and a test suite that can spend
+ * data. Comfy Cloud bills for failed jobs, and a test suite that can spend
  * credits will eventually spend them in CI.
  *
  * ─────────────────────────────────────────────────────────────────────────────
@@ -26,15 +26,15 @@
  *
  *   · the G5 tests all exercised `rebuild`. Nothing tested the `run` path's own derivation, and
  *     `main()` never re-derives — so §8.4's versioned reseed was a NO-OP there, submitting the old
- *     seed and wedging the manifest (B-D42).
+ *     seed and wedging the manifest.
  *   · "a row whose derivation has MOVED is refused on the live path" asserted `status === 'failed'`
  *     — which is the defect: a G5 refusal downgraded the approved row it was defending, and
- *     `selectRows` (pending|failed) then handed it to the next unattended run (B-D43).
+ *     `selectRows` (pending|failed) then handed it to the next unattended run.
  *   · "a REGENERATION reuses the frozen seed" regenerated an `approved` row with `confirmed: false`
- *     and asserted it went through — the exact command that erases the gate-B0 record (B-D44).
- *   · "no mask" was asserted to leave the row `failed` AFTER a billed generation (B-D43).
- *   · nothing anywhere read `workflowHash`, so prompt drift on an approved row was invisible (B-D45),
- *     and nothing asserted what the G13 estimate would actually bill (B-D46).
+ *     and asserted it went through — the exact command that erases the gate-B0 record.
+ *   · "no mask" was asserted to leave the row `failed` AFTER a billed generation.
+ *   · nothing anywhere read `workflowHash`, so prompt drift on an approved row was invisible,
+ *     and nothing asserted what the G13 estimate would actually bill.
  *
  * Each of those assertions is now the corrected one, with the reason it changed written beside it.
  */
@@ -390,7 +390,7 @@ describe('manifest seed-reuse enforcement (G5 / build-doc §8.4)', () => {
     });
   });
 
-  it('the player rows pin the validated trial seed 42 (DEVIATIONS-lane-b B-D1)', () => {
+  it('the player rows pin the validated trial seed 42', () => {
     for (const r of rowsOfClass('player')) expect(r.seed).toBe(42);
   });
 });
@@ -492,7 +492,7 @@ describe('the manifest cannot drift from data/ (G2)', () => {
  * ════════════════════════════════════════════════════════════════════════════ */
 
 describe('build-doc §9.7 asset counts', () => {
-  it('150 creature battle sprites — 75 forms × front/back (DEVIATIONS D2, not §9.7\'s 154)', () => {
+  it('150 creature battle sprites — 75 forms × front/back (not §9.7\'s 154)', () => {
     const forms = content.species.reduce((n, s) => n + artFormsOf(s).length, 0);
     expect(forms).toBe(75);
     expect(rowsOfClass('creature-battle')).toHaveLength(150);
@@ -602,7 +602,7 @@ describe('build-doc §9.7 asset counts', () => {
 
 describe('manifest ↔ data/ seams', () => {
   it("a map row's destination IS the node file's own mapAsset — closing the typo hole", () => {
-    // LANE-A-STATUS §4: "a typo in a mapAsset path will not be caught by any Lane A test."
+    // Nothing in Lane A catches a typo in a mapAsset path, so this seam is the only thing that does.
     for (const node of content.nodes) {
       expect(byId.get(`map-${node.id}`)!.finalFile, node.id).toBe(node.mapAsset);
     }
@@ -659,7 +659,7 @@ describe('style lock (build-doc §8.4 / §9.2 / L6)', () => {
     for (const r of rows) expect(r.negative.startsWith(FROZEN_NEGATIVE), r.id).toBe(true);
   });
 
-  it('only the player class extends it, and only with the cape ban (B-D7)', () => {
+  it('only the player class extends it, and only with the cape ban', () => {
     for (const r of rows) {
       if (r.class === 'player') expect(r.negative).toBe(`${FROZEN_NEGATIVE}, cape, cloak, hood, mantle`);
       else expect(r.negative, r.id).toBe(FROZEN_NEGATIVE);
@@ -692,7 +692,7 @@ describe('style lock (build-doc §8.4 / §9.2 / L6)', () => {
     }
   });
 
-  it('every pixel class uses the validated trial skeleton, not §9.2\'s documented one (B-D9)', () => {
+  it('every pixel class uses the validated trial skeleton, not §9.2\'s documented one', () => {
     for (const r of rows) {
       if (r.class === 'dex-painted' || r.class === 'map-variant') continue;
       expect(r.prompt.includes('retro 90s handheld RPG style'), r.id).toBe(true);
@@ -720,7 +720,7 @@ describe('style lock (build-doc §8.4 / §9.2 / L6)', () => {
     }
   });
 
-  it('no prompt mentions the class reference image that regressed that anatomy (B-D6)', () => {
+  it('no prompt mentions the class reference image that regressed that anatomy', () => {
     for (const r of rows) expect(r.initImage ?? '').not.toMatch(/creature-croc/);
   });
 
@@ -808,7 +808,7 @@ describe('graph injection', () => {
 /* ════════════════════════════════════════════════════════════════════════════
  * The runner — §9.1's retry/flag/record loop, against a stub client.
  *
- * No network, ever: Comfy Cloud bills for failed jobs (B-D8), so a suite that can reach the API
+ * No network, ever: Comfy Cloud bills for failed jobs, so a suite that can reach the API
  * will eventually spend credits in CI. The stub is the whole point — the behaviour under test is
  * the runner's, not the cloud's.
  * ════════════════════════════════════════════════════════════════════════════ */
@@ -1084,7 +1084,7 @@ describe('supervised gates (build-doc §9.4 / §9.5 / §9.6)', () => {
   });
 
   /*
-   * BF-21's SIBLING. The README's "Not yet built" section was retracted (B-D66) — the img2img graph
+   * The README's "Not yet built" section was retracted — the img2img graph
    * is built and HAS run live — but the refusal a human reads still quoted the retracted sentence
    * verbatim: `tools/comfy/README.md: "does not exist and cannot be retrieved; it was never
    * trialled"`. A shipped error citing a document that contradicts it is worse than one citing
@@ -1396,7 +1396,7 @@ describe('the §8.2 layout gate runs on the live path (G4)', () => {
    * Once with the mask authored at MAP resolution (1024²) and once at CELL resolution (64×64).
    * tools/overlay-diff/mask.ts promises the collision editor that either is acceptable, and until
    * this ran that promise was a sentence in a comment — while tools/collision-editor/ is empty and
-   * not one of the twelve masks data/nodes/*.json names exists on disk (B-D49). These are still
+   * not one of the twelve masks data/nodes/*.json names exists on disk. These are still
    * SYNTHETIC masks of a SYNTHETIC town; what they pin is the file format and the plumbing, not
    * that a human's mask of a painted map marks the cells this gate assumes.
    */
@@ -1563,7 +1563,7 @@ describe('the runner does not re-bill for post-generation failures (§9.1)', () 
  * The B1 repair wave — every one of these reproduced against the real tree first.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-describe('§8.4\'s versioned reseed is real on the RUN path, not only on rebuild (B-D42)', () => {
+describe('§8.4\'s versioned reseed is real on the RUN path, not only on rebuild', () => {
   const root = REPO_ROOT; // nothing here submits; the guards fire before any write
 
   /** The exact state an operator lands in by doing what `SeedReuseError` tells them to do. */
@@ -1639,7 +1639,7 @@ describe('§8.4\'s versioned reseed is real on the RUN path, not only on rebuild
   });
 });
 
-describe('a guardrail refusal does not damage the record it defends (B-D43)', () => {
+describe('a guardrail refusal does not damage the record it defends', () => {
   const root = REPO_ROOT;
 
   it('a refused row keeps its status, so the next bare run does not pick it up again', async () => {
@@ -1687,7 +1687,7 @@ describe('a guardrail refusal does not damage the record it defends (B-D43)', ()
   });
 });
 
-describe('§8.4 locks the PROMPT as well as the seed (B-D45)', () => {
+describe('§8.4 locks the PROMPT as well as the seed', () => {
   it('the one approved row carries the prompt identity of the art it claims', () => {
     const row = manifest.rows.find((r) => r.id === 'player-front')!;
     expect(row.status).toBe('approved');
@@ -1717,7 +1717,7 @@ describe('§8.4 locks the PROMPT as well as the seed (B-D45)', () => {
     expect(() => graphForRow(drifted, baseGraph)).toThrow(StyleLockError);
   });
 
-  it('the NEGATIVE is part of the identity too — B-D7\'s cape ban lives only there', () => {
+  it('the NEGATIVE is part of the identity too — the cape ban lives only there', () => {
     const row = clone(manifest).rows.find((r) => r.id === 'player-front')!;
     row.negative = row.negative.replace(', cape, cloak, hood, mantle', '');
     expect(() => assertStyleLock(row)).toThrow(StyleLockError);
@@ -1761,7 +1761,7 @@ describe('§8.4 locks the PROMPT as well as the seed (B-D45)', () => {
   });
 });
 
-describe('G13 projects what can actually be billed (B-D46)', () => {
+describe('G13 projects what can actually be billed', () => {
   const priced = (): ManifestFile => {
     const m = clone(manifest);
     m._credits.perImageCredits = 1;
@@ -1828,7 +1828,7 @@ describe('G13 projects what can actually be billed (B-D46)', () => {
   });
 });
 
-describe('a filter that matches nothing is a typo, not a finished batch (B-D47)', () => {
+describe('a filter that matches nothing is a typo, not a finished batch', () => {
   it('an unknown --class is a refusal, with the near miss named', () => {
     expect(() => assertFiltersMatch(manifest, { class: 'creature-batle' })).toThrow(ManifestError);
     expect(() => assertFiltersMatch(manifest, { class: 'creature-batle' })).toThrow(/Did you mean creature-battle/);
@@ -1856,7 +1856,7 @@ describe('a filter that matches nothing is a typo, not a finished batch (B-D47)'
   });
 });
 
-describe('§9.2\'s workflow lock is COMPARED, not just recorded (B-D45)', () => {
+describe('§9.2\'s workflow lock is COMPARED, not just recorded', () => {
   it('the approved row records the hash of the graph it was generated with', () => {
     const row = manifest.rows.find((r) => r.id === 'player-front')!;
     // It had NO workflowHash at all before this wave, so "every row records sha256 and workflowHash"
@@ -1867,7 +1867,7 @@ describe('§9.2\'s workflow lock is COMPARED, not just recorded (B-D45)', () => 
 
   it('a moved WORKFLOW is refused even when prompt, negative and seed all still match', () => {
     const row = clone(manifest).rows.find((r) => r.id === 'player-front')!;
-    // §9.2 locks steps/cfg/sampler/scheduler/resolution and B-D2's ModelSamplingAuraFlow shift.
+    // §9.2 locks steps/cfg/sampler/scheduler/resolution and the ModelSamplingAuraFlow shift.
     // None of them is visible to a seed (hashSeed(version, id)) or to promptIdentity.
     const tampered = JSON.parse(JSON.stringify(baseGraph)) as Graph;
     const sampler = Object.values(tampered).find((n) => n!.class_type === 'KSampler')!;
@@ -1882,7 +1882,7 @@ describe('§9.2\'s workflow lock is COMPARED, not just recorded (B-D45)', () => 
   it('versioning the row is the escape here too', () => {
     // A DERIVED-seed row, in the state `rebuild` leaves it after a bump: version 2, seed re-derived.
     // (player-front cannot demonstrate this — its seed is PINNED at the validated trial 42, so a
-    // version bump cannot move it and `finish` refuses one; that is B-D27's refusal, still binding.)
+    // version bump cannot move it and `finish` refuses one; that refusal is still binding.)
     const row = clone(manifest).rows.find((r) => r.id === 'battle-fenmaw-e-front')!;
     row.recordedSeed = deriveSeed(row.id, 1);
     row.recordedVersion = 1;

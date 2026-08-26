@@ -25,7 +25,7 @@
  * A successful catch ends the battle with `outcome:"caught"`. This scene does NOT decrement the
  * node's population — `core/battle.ts` deliberately never touches node state (G3: one writer for the
  * single source of truth). It reports `caughtIndividual(state, ctx)` through `onFinished`, and the
- * overworld/survey lane applies it. See LANE-A-STATUS §6.1.
+ * overworld/survey lane applies it, through `game/wild-battle.ts` `applyCatchToSave`.
  *
  * ART (build-doc §9.7, gate B0)
  * ─────────────────────────────
@@ -224,8 +224,8 @@ export class BattleScene extends Phaser.Scene {
       moveType: (moveId: string): TypeName | null | undefined => moves.get(moveId)?.type,
       // `item` is deliberately absent: data/ carries no item-name table, and the view's `itemLabel`
       // typesets the id rather than coining a name (G2). `opponent` is absent because `BattleInput`
-      // carries no trainer identity — see the blocker in docs/DEVIATIONS-lane-c3.md. Supplying the
-      // enemy's first creature as "the opponent" is what made the gym beat open "Gym battle: Nibbin".
+      // carries no trainer identity. Supplying the enemy's first creature as "the opponent" is
+      // what made the gym beat open "Gym battle: Nibbin".
     };
   }
 

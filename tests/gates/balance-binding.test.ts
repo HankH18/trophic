@@ -154,12 +154,12 @@ const SPEC_PINS: readonly Pin[] = [
   { path: "stats.baseStatMin", expected: 30, cite: "§7.1 'baseStats: {hp,atk,def,spd,ins}; // 30–100'" },
   { path: "stats.baseStatMax", expected: 100, cite: "§7.1 'baseStats: {hp,atk,def,spd,ins}; // 30–100'" },
   { path: "xp.levelCap", expected: 40, cite: "§7.4 'Cap level 40.' / HR8 'levels 1–40'" },
-  // §1's "six in-game years" is the EXPECTED count under normal pacing, not a cap (D-Q3-1): the
+  // §1's "six in-game years" is the EXPECTED count under normal pacing, not a cap: the
   // calendar is unbounded, and this number is quoted by the HUD and driven by the harness. HR5's
   // "one collision mask survives all six years" is unaffected — the mask is per node, for every year.
   { path: "clock.yearsTotal", expected: 6, cite: "§1 'six in-game years' (expected pacing) / HR5 'survives all six years'" },
 
-  /* ── §3 L8 as amended + the act model (D-Q2-1 / D-Q3-1) ────────────────── */
+  /* ── §3 L8 as amended + the act model ──────────────────────────────────── */
   { path: "acts.first", expected: 0, cite: "D-Q3-1 acts 0–6; act 0 is the prologue" },
   { path: "acts.last", expected: 6, cite: "bible §6 'Six acts' / §7 six leaders" },
   // The flag NAMES that bind the act model to data/dialogue.json are strings and this table pins

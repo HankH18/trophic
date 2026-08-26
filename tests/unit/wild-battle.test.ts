@@ -6,7 +6,7 @@
  * production code did the join. `game/wild-battle.ts` is that production code, and this file is the
  * check of the real thing the stand-in asked for.
  *
- * ⚠ THE STAND-IN WAS STALE AND COULD NOT SEE THAT, AND IT IS GONE (BF-3). Its source list was
+ * ⚠ THE STAND-IN WAS STALE AND COULD NOT SEE THAT, AND IT IS GONE. Its source list was
  * `core/{battle,ecosim,lifecycle,save,clock,foodweb,rng,schemas,types}.ts` plus `game/main.ts`, so it
  * never scanned `game/wild-battle.ts` and stayed green while asserting the opposite of the truth. It
  * has been replaced by two tests that RUN `applyCatchToSave` and walk every `core/` and `game/`
@@ -314,7 +314,7 @@ describe("§3 applyCatchToSave moves the survey the way replay would", () => {
     /*
      * ⚠ THE STALE STAND-IN'S REPLACEMENT DID NOT GO ALL THE WAY DOWN THE WIRE.
      *
-     * BF-3's fix tests `applyCatchToSave`, and `tests/integration/seams.test.ts` proves a production
+     * That replacement tests `applyCatchToSave`, and `tests/integration/seams.test.ts` proves a production
      * file CALLS the join — but what `OverworldScene.finishWildBattle` actually calls is
      * `applyWildBattleOutcome`, and until now nothing in this file exercised it. Its whole body is
      * one three-state decision — `opts.caught === undefined ? caughtIndividual(state, ctx) : caught`

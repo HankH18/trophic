@@ -218,8 +218,7 @@ export interface OverworldHooks {
   onEncounter?: (encounter: Encounter, scene: OverworldScene) => void;
   /**
    * C5/C6. The clock crossed a boundary. Returning `true` means "I handled these" and the scene
-   * runs none of its own defaults — which is the seam that stops the season being stepped twice
-   * (the integration defect I4 in LANE-A-STATUS §7, in its cross-lane form).
+   * runs none of its own defaults — which is the seam that stops the season being stepped twice.
    */
   onClockEvents?: (events: ClockEvent[], scene: OverworldScene) => boolean | void;
   /** C1. The save changed — persist it (with `withStreamState(save, scene.streams)`). */
@@ -232,13 +231,12 @@ export interface OverworldHooks {
    *
    * ⚠ THIS SEAM EXISTS BECAUSE THE LADDER'S FIRST RUNG HAD NO WRITER. `balance.acts.gates` opens
    * act 1 on `story.opening.done`, which only `data/dialogue.json` writes — and nothing in `game/`
-   * reads that file (docs/QUEUED-CHANGES.md Q7). Measured on a brand-new save through the real
-   * scene: act 0, `unlockedNodeIds` = `["hearthollow"]`, `travelTo("r1")` REFUSED. The act gate on
-   * travel had turned an open region into one the player could not leave. Absent this hook the
+   * reads that file. Measured on a brand-new save through the real scene: act 0,
+   * `unlockedNodeIds` = `["hearthollow"]`, `travelTo("r1")` REFUSED. The act gate on travel had
+   * turned an open region into one the player could not leave. Absent this hook the
    * scene writes {@link core/acts.prologueExitFlags} once the starter is in hand and SAYS SO on
    * screen — the same declared stand-in `game/boot.ts` `startingParty` already ships for the
-   * starter itself (docs/DEVIATIONS-lane-c2.md C2-D6), and it switches off the moment a lane takes
-   * this hook.
+   * starter itself, and it switches off the moment a lane takes this hook.
    */
   onOpeningBeat?: (scene: OverworldScene) => boolean | void;
   /**
@@ -260,7 +258,7 @@ export interface OverworldHooks {
    * something takes it, the overworld says so on screen, which is the honest minimum. Nothing stops
    * afterwards: the calendar is unbounded, the player may keep playing, and `isOver` — which used
    * to answer "has the calendar passed year 6" and refused ticks, encounter rolls and year turns —
-   * is gone with the six-year cap it enforced (D-Q3-1).
+   * is gone with the six-year cap it enforced.
    */
   onRunComplete?: (save: SaveEnvelope, scene: OverworldScene) => void;
 }
@@ -334,7 +332,7 @@ export class OverworldScene extends Phaser.Scene {
    */
   private heldLastFrame: ReadonlySet<Direction> = new Set<Direction>();
 
-  /** Movement steps since the last foray tick was charged (build-doc §7.2 / DEVIATIONS D18). */
+  /** Movement steps since the last foray tick was charged (build-doc §7.2). */
   private stepsSinceTick = 0;
   private encountersMet = 0;
   private lastEncounter: Encounter | null = null;
@@ -482,8 +480,7 @@ export class OverworldScene extends Phaser.Scene {
       .setDepth(100);
 
     /*
-     * BOTH CLOCKS ARE BROUGHT UP TO DATE BEFORE THE FIRST FRAME (D-Q2-2 / D-Q3-1) — AND AFTER THE
-     * BANNER EXISTS.
+     * BOTH CLOCKS ARE BROUGHT UP TO DATE BEFORE THE FIRST FRAME — AND AFTER THE BANNER EXISTS.
      *
      * ⚠ THE ORDER IS LOAD-BEARING. These two calls used to stand at the TOP of `create()`, thirty
      * lines above `this.banner = this.add.text(...)`, and both of them flash banners: `advanceActs`
@@ -519,11 +516,11 @@ export class OverworldScene extends Phaser.Scene {
    * ⚠ WHY THIS IS HERE AND NOT IN `game/main.ts`. That file is the ONE place that names a scene
    * class, and adding `createDialogueScene(Phaser)` to its `SCENES` array is the one-line change
    * that makes this method dead code — it is not made here because `game/main.ts` and
-   * `game/boot.ts` belong to another stream in this wave (logged as **D-Q7-1** in
-   * docs/DEVIATIONS.md). Until then, the alternative was shipping the whole authored corpus behind
-   * a scene key nothing had registered, which is precisely the failure `game/main.ts`'s own header
-   * warns about: "a scene that is not in this list does not exist" — the year turn and the
-   * retirement card were built, tested and left unregistered, and the never-cut Legacy beat was
+   * `game/boot.ts` belong to another stream in this wave. Until then, the alternative was shipping
+   * the whole authored corpus behind a scene key nothing had registered, which is precisely the
+   * failure `game/main.ts`'s own header warns about: "a scene that is not in this list does not
+   * exist" — the year turn and the retirement card were built, tested and left unregistered, and
+   * the never-cut Legacy beat was
    * reachable from the test suite and from nowhere else.
    *
    * `scene.add` is asked for rather than assumed: a headless rig stands up the slice of Phaser it
@@ -580,7 +577,7 @@ export class OverworldScene extends Phaser.Scene {
    * Sample the mask (once) and build the map image. ONE mask serves EVERY year (Hard Req 5, which
    * says "one mask per node, reused by all year variants") — the year only ever reaches `MapView`,
    * never `loadCollision`. It used to say "all six years"; the calendar has no sixth year to stop
-   * at (D-Q3-1), and the mask does not care.
+   * at, and the mask does not care.
    *
    * ⚠ IT RESPAWNS ONLY WHEN THE NODE CHANGED. This used to place the player at
    * `firstWalkableTile(...) ?? {col:0,row:0}` unconditionally, and `create()` runs it on every scene
@@ -741,7 +738,7 @@ export class OverworldScene extends Phaser.Scene {
   /* ── the foray ────────────────────────────────────────────────────────── */
 
   /**
-   * A completed tile step IS a foray step (build-doc §4 / DEVIATIONS D18): it rolls an encounter at
+   * A completed tile step IS a foray step (build-doc §4): it rolls an encounter at
    * `balance.encounter.encounterChancePerStep`, and every `stepsPerForay` of them charges the one
    * tick §3 L8 prices a foray at.
    */
@@ -749,7 +746,7 @@ export class OverworldScene extends Phaser.Scene {
     /*
      * NO CALENDAR GUARD. A refusal used to stand here too — the encounter roll was skipped once
      * `isOver` was true, "so nothing is drawn from the encounter stream in a year the game does not
-     * have". Every year is a year the game has (D-Q3-1).
+     * have". Every year is a year the game has.
      */
     const encounter = rollForayStep(this.forayContext(), this.streamFor(ENCOUNTER_STREAM));
     if (encounter) {
@@ -893,7 +890,7 @@ export class OverworldScene extends Phaser.Scene {
     );
   }
 
-  /* ── C7: the corpus, played (build-doc §15 C7 / QUEUED-CHANGES Q7) ────────── */
+  /* ── C7: the corpus, played (build-doc §15 C7) ───────────────────────────── */
 
   /**
    * The context every dialogue lookup on this screen resolves against.
@@ -1148,7 +1145,7 @@ export class OverworldScene extends Phaser.Scene {
    * `core/foodweb.ts` keys the gate by LINE id (`unlocked?.has(lineId)`), not by chain id, so the
    * two have to be joined. The join is the chain's own middle segment against the shipped species
    * ids — `chain.vellsire.complete` → the gated line whose id starts `vellsire`. That coupling is a
-   * DEVIATION (**D-Q7-3**): the explicit form is a `signChain` field on `SpeciesLine`, which is a
+   * DEVIATION: the explicit form is a `signChain` field on `SpeciesLine`, which is a
    * `core/types.ts` + `data/species.json` change this stream does not own. It is derived rather
    * than typed — no species id appears here, which the species-name gate in
    * tests/property/foodweb.test.ts requires and which also means a renamed line follows the data.
@@ -1225,7 +1222,7 @@ export class OverworldScene extends Phaser.Scene {
    *
    * ⚠ THIS USED TO BE A DATE. It read `core/clock.ts` `isOver` — "the calendar has passed year 6" —
    * and it gated ticks, encounter rolls and the year turn on it, so the game had a deadline nobody
-   * designed (D-Q3-1). It is an ACT condition now: the finale fires whenever the player earns it,
+   * designed. It is an ACT condition now: the finale fires whenever the player earns it,
    * and a player who never earns it plays forever. Nothing here refuses a tick.
    */
   runIsOver(): boolean {
@@ -1237,7 +1234,7 @@ export class OverworldScene extends Phaser.Scene {
     return actOf(this.save, this.content.gyms, this.balance);
   }
 
-  /** bible §9's regional events open right now — each one a 4-tick season window (D-Q2-2). */
+  /** bible §9's regional events open right now — each one a 4-tick season window. */
   openEvents(): ReturnType<typeof activeWindows> {
     return activeWindows(this.save, this.clock(), {
       species: this.content.species,
@@ -1262,7 +1259,7 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * A gym win: a BADGE, and the act it may advance. It does NOT end the year (D-Q2-1).
+   * A gym win: a BADGE, and the act it may advance. It does NOT end the year.
    *
    * ⚠ THIS USED TO END THE YEAR, and that was L8's second trigger: "year = gym victory or full
    * meter". Hank dropped it — *"I don't want the passage of time to be forced based on gyms or
@@ -1661,8 +1658,8 @@ export class OverworldScene extends Phaser.Scene {
    *
    * `balance.acts.gates` opens act 1 on `story.opening.done`, and the only thing that writes it is
    * `data/dialogue.json`'s `maren.starter.*` — the three branches of Maren's opening cutscene.
-   * Nothing in `game/` read that file (docs/QUEUED-CHANGES.md Q7), so measured through the real
-   * scene on a brand-new save: act 0, one unlocked node, `travelTo("r1")` refused. The act gate on
+   * Nothing in `game/` read that file, so measured through the real scene on a brand-new
+   * save: act 0, one unlocked node, `travelTo("r1")` refused. The act gate on
    * travel had made build-doc §16's never-cut vertical slice unreachable by playing.
    *
    * THE ORDER HERE IS THE WHOLE POINT, and it now reads: a lane that took the hook, then the
@@ -1743,16 +1740,16 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * Republish bible §9's open event windows into the save's quest flags (D-Q2-2).
+   * Republish bible §9's open event windows into the save's quest flags.
    *
    * `data/dialogue.json` gates on `event.festival.open` and nothing has ever written it. This is
    * that writer.
    *
    * ⚠ CALLED AFTER EVERY TICK SPEND, not "at every season boundary and every act entry". That
    * sentence stood here and it was wrong by one moment — the most important one. `core/clock.ts`
-   * `advance` deliberately emits NO `seasonBoundary` on the year-filling tick (integration defect
-   * I4), so a scene syncing only inside the `seasonBoundary` arm never re-synced at the year turn:
-   * measured, `event.festival.open` stayed true for **8 consecutive ticks** — the whole final season
+   * `advance` deliberately emits NO `seasonBoundary` on the year-filling tick, so a scene syncing
+   * only inside the `seasonBoundary` arm never re-synced at the year turn: measured,
+   * `event.festival.open` stayed true for **8 consecutive ticks** — the whole final season
    * of year N plus the whole first season of year N+1 — against a 4-tick window, with the festival's
    * dialogue firing in spring. Deleting that one call site turned ZERO tests red, because the suite
    * called `syncEventFlags` by hand at a clock the game never reached (stub blindness). It is asked
@@ -1775,7 +1772,7 @@ export class OverworldScene extends Phaser.Scene {
     /*
      * NO GUARD ON THE CALENDAR. A refusal used to stand here — `if (this.runIsOver()) return` over
      * `core/clock.ts` `isOver` — so the game stopped accepting player actions once the calendar
-     * passed year 6. There is no year 6 (D-Q3-1): the calendar is unbounded, ticks are always spent,
+     * passed year 6. There is no year 6: the calendar is unbounded, ticks are always spent,
      * and a player standing in year 20 forays exactly as one in year 2 does.
      */
     this.save = appendAction(this.save, action);
@@ -1798,10 +1795,10 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * ⚠ THE SEAM MOST LIKELY TO BE RE-BROKEN (LANE-A-STATUS §5). `seasonBoundary` fires at ticks 4, 8
-   * and 12 only; the year's FOURTH season step belongs to `runYearTurn` (build-doc §7.5 step 5).
-   * Running the sim on both cues ran five seasons a year and inflated every six-year trajectory by
-   * 25%. So: this scene steps the sim on `seasonBoundary` and never on `yearEnd`.
+   * ⚠ THE SEAM MOST LIKELY TO BE RE-BROKEN. `seasonBoundary` fires at ticks 4, 8 and 12 only; the
+   * year's FOURTH season step belongs to `runYearTurn` (build-doc §7.5 step 5). Running the sim on
+   * both cues ran five seasons a year and inflated every six-year trajectory by 25%. So: this
+   * scene steps the sim on `seasonBoundary` and never on `yearEnd`.
    *
    * If `hooks.onClockEvents` returns true the owner (C5/C6) handled everything and none of the below
    * runs — which is how the two lanes avoid becoming the same defect again.
@@ -1821,7 +1818,7 @@ export class OverworldScene extends Phaser.Scene {
     this.mapView.setSeason(this.currentSeason());
 
     /*
-     * build-doc §4 step 5 as amended — "At tick 16 the year turn runs", and at nothing else (D-Q2-1).
+     * build-doc §4 step 5 as amended — "At tick 16 the year turn runs", and at nothing else.
      * ONE trigger per action: `yearTurnTrigger` collapses the clock's `yearEnd` events, which is what
      * stopped a shell watching for §4's two triggers from firing two turns for one action. The turn
      * itself is core/lifecycle.ts's and its UX is game/scenes/YearTurnScene.ts's; this scene only
@@ -1836,7 +1833,7 @@ export class OverworldScene extends Phaser.Scene {
    *
    * An ACT condition (`core/acts.ts` `runIsComplete`), reached whenever the player earns it. It used
    * to be called from the year turn's own completion, because the run ended when the calendar did;
-   * the calendar does not end (D-Q3-1). The year it happened in is reported because it is a real
+   * the calendar does not end. The year it happened in is reported because it is a real
    * fact about this playthrough, not because it was a deadline.
    *
    * ⚠ THE LATCH IS THE POINT. `runIsComplete` is a standing condition, not an edge: nothing clears
@@ -1880,7 +1877,7 @@ export class OverworldScene extends Phaser.Scene {
    *
    * The year turn also owes this year its FOURTH season step (build-doc §7.5 step 5) — which is why
    * `handleClockEvents` above steps the sim on `seasonBoundary` and never on `yearEnd`. Running both
-   * is integration defect I4 (LANE-A-STATUS §7), a 25% inflation of every six-year trajectory.
+   * inflates every six-year trajectory by 25%.
    */
   private beginYearTurn(
     endedYear: number,
@@ -1948,7 +1945,7 @@ export class OverworldScene extends Phaser.Scene {
        * turn commits a save carrying the questFlags the year ENDED with — festival open — and it
        * takes the year's fourth season step, which moves every node's flora. Without this the
        * festival flag survived into the next spring and a bloom that closed at the turn stayed
-       * published. The clock emits no `seasonBoundary` here by design (I4), so nothing else would
+       * published. The clock emits no `seasonBoundary` here by design, so nothing else would
        * have asked.
        */
       this.syncEvents();
@@ -1957,7 +1954,7 @@ export class OverworldScene extends Phaser.Scene {
       this.hooks.onSaveChanged?.(this.save, this);
       this.flashBanner(`year ${endedYear} ended (${reason}) → Y${String(this.save.year)}`);
       /*
-       * NOT "the last year has turned". There is no last year (D-Q3-1) and a year turn cannot make
+       * NOT "the last year has turned". There is no last year and a year turn cannot make
        * a run complete — only an act condition can. It is asked here because another scene may have
        * written the finale flag while this one was paused, and it is safe to ask from anywhere
        * because {@link maybeCompleteRun} is latched in the save.
@@ -2019,7 +2016,7 @@ export class OverworldScene extends Phaser.Scene {
     if (this.travelling) return;
     if (!this.node.adjacency.includes(nodeId)) return;
     /*
-     * ACT GATING (D-Q3-1). content-bible §6 lists the six towns and their routes in order and the
+     * ACT GATING. content-bible §6 lists the six towns and their routes in order and the
      * bible labels that column "Yr"; it is an ACT, and `balance.acts.gates` is where it lives. A
      * node whose act the player has not reached is not travelled to — which is the mechanism that
      * used to be the calendar's, and the reason the calendar could be decoupled without the region
@@ -2230,7 +2227,7 @@ export class OverworldScene extends Phaser.Scene {
     return this.lastEncounter;
   }
 
-  /** Completed tile steps since the last foray tick was charged (build-doc §4 / DEVIATIONS D18). */
+  /** Completed tile steps since the last foray tick was charged (build-doc §4). */
   forayStepsSinceTick(): number {
     return this.stepsSinceTick;
   }

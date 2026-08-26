@@ -45,7 +45,7 @@
  *   · the whole gate runs against real mask FILES on disk, written in this encoding, at BOTH
  *     authoring resolutions, through `overlayDiffGate` (tests/unit/manifest.test.ts).
  * A test asserts that zero node masks exist, so the day one is authored it goes red and whoever is
- * there must re-measure. Recorded as B-D49.
+ * there must re-measure.
  */
 import type { Raster } from '../postprocess/raster.ts';
 import { CHANNELS, idx } from '../postprocess/raster.ts';

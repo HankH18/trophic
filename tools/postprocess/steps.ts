@@ -37,7 +37,9 @@ import { CHANNELS, RasterError, assertWellFormed, blankRaster, cloneRaster, idx 
 import type { PaletteRgb } from './palette.ts';
 
 /* ════════════════════════════════════════════════════════════════════════════
- * Step 0 (addition — see the deviation note in tools/comfy/manifest.json `_deviations`)
+ * Step 0 — an ADDITION to §9.3, whose chain starts at the downscale. It has to run first: the raw
+ * outputs are 1024² frames whose subject occupies a fraction of the canvas, so downscaling one
+ * straight to 96² yields a creature ~20px tall floating in white.
  * Trim the flat generated background to the subject's bounding box.
  * ════════════════════════════════════════════════════════════════════════════ */
 
@@ -239,7 +241,7 @@ export function quantize(src: Raster, palette: readonly PaletteRgb[]): Raster {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
- * Step 3 — background removal (§9.3 "rembg"; see the deviation note)
+ * Step 3 — background removal (§9.3 names "rembg"; this is not rembg — see below for why)
  * ════════════════════════════════════════════════════════════════════════════ */
 
 /**
@@ -248,7 +250,9 @@ export function quantize(src: Raster, palette: readonly PaletteRgb[]): Raster {
  * §9.3 names `rembg`, a Python/ONNX salient-object segmenter. Every prompt in the manifest ends in
  * `plain white background` (the §9.2 skeleton, verbatim), so the background here is a known flat
  * key rather than an unknown photograph — which makes a border flood fill both exact and, unlike a
- * neural matte, deterministic and idempotent. That is logged as a deviation, not assumed.
+ * neural matte, deterministic and idempotent — which is what §9.3's own "every step idempotent"
+ * clause requires. If a class ever generates on a NON-flat background, that class needs a real
+ * matte and this function is the wrong tool for it.
  *
  * Flood-fill from the border rather than "clear every white pixel": a white highlight enclosed by
  * the subject is part of the subject, and keying on colour alone punches holes in eyes and teeth.

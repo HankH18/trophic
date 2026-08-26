@@ -69,7 +69,7 @@ export class EcosimError extends Error {
 /**
  * Re-exported from core/types.ts, where the vocabulary moved at integration so that
  * `Balance.ecosim.presenceEffects` could be typed against it. The effect's NAME still never reaches
- * a conditional in this file — DEVIATIONS-lane-a2.md A2-D4. `data/species.json` carries exactly one
+ * a conditional in this file. `data/species.json` carries exactly one
  * line per effect name, so `if (effect === "waterTable")` would have been `if (this is Undermere)`,
  * which is the species-shaped branch G6 forbids and the code literal G11 forbids.
  */
@@ -296,7 +296,7 @@ export function derivePresence(
         throw new EcosimError(
           `species carries presenceEffect "${line.presenceEffect}" with no rule in ` +
             `balance ecosim.presenceEffects — bible §4 names what each Ancient does; the sim reads it ` +
-            `from data, never from the effect's name (G11 / DEVIATIONS A2-D4)`,
+            `from data, never from the effect's name (G11)`,
         );
       }
       const magnitude = presenceMagnitude(rule, balance, raw);

@@ -29,9 +29,9 @@
  *     rather than leaving a record pointing at a file the row no longer asks for.
  *
  * G13 (credit gate) IS A REFUSAL, NOT A WARNING. `assertBatchApproved` throws for any batch of 20 or
- * more rows without `--confirm`. It prints what it can honestly project: DEVIATIONS-lane-b B-D10
- * found NO credit-balance endpoint on Comfy Cloud, so when nobody has measured the per-image cost
- * the estimator says so in as many words rather than inventing a plausible number.
+ * more rows without `--confirm`. It prints what it can honestly project: Comfy Cloud exposes NO
+ * credit-balance endpoint, so when nobody has measured the per-image cost the estimator says so in
+ * as many words rather than inventing a plausible number.
  *
  * THE SUPERVISED GATES ARE REFUSALS TOO (`assertSupervised`). `row.gate` and a class's
  * `trialled: false` used to be strings nothing read: `run --class=map-variant --confirm` planned 28
@@ -53,8 +53,8 @@
  * data/gyms.json, data/nodes/*.json and core/types.ts's PROP_KINDS — and tests/unit/manifest.test.ts
  * fails if the committed rows differ from a fresh derivation. A creature cannot get a sprite without
  * being in species.json, and a node's `mapAsset` path is copied from the node file rather than
- * rebuilt from a naming convention, which closes the hole LANE-A-STATUS §4 flags ("a typo in a
- * mapAsset path will not be caught by any Lane A test").
+ * rebuilt from a naming convention — nothing else in the repo catches a typo in a `mapAsset` path,
+ * so rebuilding it from a convention here would make the two silently disagree.
  *
  * Importing this module runs nothing; the CLI is behind an entrypoint guard at the bottom.
  */
@@ -342,16 +342,17 @@ export function seedForSubmit(row: ManifestRow): number {
 /**
  * The other half of §8.4's identity, hashed so a manifest diff shows it moved.
  *
- * Prompt AND negative: the frozen negative is part of the style lock (§9.2), and B-D7's cape ban is
- * carried only there. 16 hex chars, matching `workflowHash`, because this is a change detector and
- * not a security boundary.
+ * Prompt AND negative: the frozen negative is part of the style lock (§9.2), and the player class's
+ * cape ban is carried ONLY there — drop the negative from this hash and L6's cape lock can move
+ * without the guard noticing. 16 hex chars, matching `workflowHash`, because this is a change
+ * detector and not a security boundary.
  */
 export function promptIdentity(row: Pick<ManifestRow, 'prompt' | 'negative'>): string {
   return createHash('sha256').update(JSON.stringify([row.prompt, row.negative])).digest('hex').slice(0, 16);
 }
 
 /**
- * G5's sibling, and the hole B-D45 closes: `workflowHash` was WRITTEN on every successful row and
+ * G5's sibling, and the hole it closes: `workflowHash` was WRITTEN on every successful row and
  * never read by anything, in `tools/` or in `tests/`. Every guard compared seeds, and a seed is
  * `hashSeed(version, id)` — it cannot see a prompt. So a rewritten `subject` in a manifest header
  * block silently changed what an already-generated row would produce next, while its record went on
@@ -388,7 +389,9 @@ export function assertStyleLock(row: ManifestRow): void {
  *
  * `promptIdentity` covers the two strings §8.4 names. This covers everything else the submitted
  * graph carries — §9.2's locked model chain, 8 steps, cfg 1.0, `res_multistep`, `simple`, 1024², and
- * B-D2's undocumented `ModelSamplingAuraFlow shift: 3` — because `workflowHash` is a hash of the
+ * the `ModelSamplingAuraFlow shift: 3` node the trial graph carries but §9.2 never documents (it
+ * materially changes the output, so a check that only covered §9.2's list would miss a real style
+ * break) — because `workflowHash` is a hash of the
  * whole injected graph. Editing `pixel-txt2img-api.json` moves it, and that is a style-lock break
  * that no seed and no prompt can see.
  *
@@ -478,7 +481,7 @@ export function planBatch(
       '). A retried job may already have billed.',
     projected === null
       ? 'projected credits: UNKNOWN — per-image cost has never been measured. Comfy Cloud exposes no ' +
-        'credit endpoint (DEVIATIONS-lane-b B-D10); read the dashboard before and after a known batch ' +
+        'credit endpoint; read the dashboard before and after a known batch ' +
         'and pass --credits-per-image=N to record it.'
       : `projected credits: ~${projected} best case, up to ~${worstCaseCredits} worst case ` +
         `(${per} per image, measured from ${manifest._credits.measuredFrom ?? 'an unrecorded batch'})`,
@@ -548,7 +551,7 @@ export function assertSupervised(
         `year-variant run and no §9.6 walk-cycle run has happened). §9.5 and §9.6 both call the ` +
         `first run a SUPERVISED gate of ONE image.\n` +
         `  ${img2img.slice(0, 6).map((r) => r.id).join(', ')}${img2img.length > 6 ? ', …' : ''}\n` +
-        'Run one row (--id=<row>), have the result reviewed, log it in docs/DEVIATIONS-lane-b.md, ' +
+        'Run one row (--id=<row>), have the result reviewed, ' +
         'then set manifest._img2img.trialled = true. There is no flag that skips this.',
     );
   }
@@ -685,14 +688,14 @@ function finish(m: ManifestFile, d: SpecDraft): RowSpec {
   const version = versionOf(m, d.id, d.version);
   if (d.seedPin !== undefined && version !== 1) {
     // A pinned seed IS the operator's statement of the seed (the player rows pin the validated
-    // trial seed 42, DEVIATIONS-lane-b B-D1). Versioning cannot move it, so refusing is the only
+    // trial seed 42). Versioning cannot move it, so refusing is the only
     // honest answer: silently returning the pinned seed under a bumped version is precisely the
     // failure this whole mechanism exists to prevent — an operator believing they reseeded when the
     // old seed came back.
     throw new ManifestError(
       `${d.id} has a PINNED seed (${d.seedPin}), so bumping its version to ${version} cannot reseed it — ` +
         'versioning only moves a DERIVED seed. Change the pin itself (manifest._player.seedPin) and ' +
-        'record why in docs/DEVIATIONS-lane-b.md; that is the deliberate act §8.4 is asking for.',
+        'record why in its `seedPinSource`; that is the deliberate act §8.4 is asking for.',
     );
   }
   const w = d.targetW ?? spec.targetW;
@@ -1291,7 +1294,7 @@ export interface RunOptions {
   /**
    * How an img2img row's init image reaches the server. Defaults to `uploadInitImage`. Injectable so
    * the img2img path can be exercised without the network — a test suite that can reach Comfy Cloud
-   * will eventually bill it (B-D8).
+   * will eventually bill it.
    */
   uploadInit?: (env: ComfyEnv, absPath: string) => Promise<string>;
 }

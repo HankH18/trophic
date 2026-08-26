@@ -44,8 +44,7 @@
  * (300,300) on each map — so it could not see that a 64×64 px feature, LARGER than the 32×48
  * player, displaced by one whole collision cell was ACCEPTED on pt-map-brackwater at (300,300) and
  * on pt-map-cindershelf at (500,200) and (400,400). Nor that a change confined entirely to BLOCKED
- * cells rejected a variant whose walkable pixels were byte-identical. Both are B1 repair wave 2
- * (DEVIATIONS-lane-b B-D39, B-D40). What this file does about it:
+ * cells rejected a variant whose walkable pixels were byte-identical. What this file does about it:
  *
  *   · every size is tried at FIVE positions and BOTH displacements, on every real map;
  *   · the additive half of an aging pass (rot blotches) is asserted to PASS on real art, because
@@ -55,7 +54,7 @@
  *     replaces asserted to still exist over the whole frame, so the fix is proved to be the cause;
  *   · the rejection MESSAGE is asserted to name a rectangle that overlaps the thing that moved;
  *   · the collision-mask encoding this all rests on gets its own block, including a test that goes
- *     RED the day a real mask lands, because none of these numbers has ever seen one (B-D49).
+ *     RED the day a real mask lands, because none of these numbers has ever seen one.
  *
  * No Math.random anywhere (G11): every pattern is a closed-form function of (x, y).
  */
@@ -721,7 +720,7 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
       );
 
       /* ────────────────────────────────────────────────────────────────────────
-       * B-D40: the walkable restriction must ISOLATE, not merely restrict.
+       * The walkable restriction must ISOLATE, not merely restrict.
        * ──────────────────────────────────────────────────────────────────────── */
       it(
         'a change confined to BLOCKED cells does not move the measurement inside the walkable ones',
@@ -825,23 +824,23 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
   );
 
   /* ──────────────────────────────────────────────────────────────────────────
-   * THE RESIDUAL — the gate's own false-ACCEPT limit, pinned (B-D39 / BF-26).
+   * THE RESIDUAL — the gate's own false-ACCEPT limit, pinned.
    *
    * The header of tools/overlay-diff/diff.ts states the POSITIVE result: a 64px feature displaced
    * by ONE collision cell is rejected at 25 of 25 (map, position) pairs. That is true and it is
    * tested above. What it did not state, and what nothing tested, is where the gate stops working:
    * HALVE the feature to 32px — 2×2 collision cells, still a real object, smaller than the 32×48
-   * player — and a one-cell displacement is ACCEPTED at some pairs. B-D39 measured 8 of 25.
+   * player — and a one-cell displacement is ACCEPTED at some pairs. Measured: 8 of 25.
    *
    * This test exists so that number cannot move in silence. It is a CHARACTERISATION test: it
    * asserts what the gate does today, not what it ought to do. If a retune of `balance.overlayDiff`
    * changes it — in either direction — this goes red and whoever is here has to look at the
-   * residual, decide deliberately, and update B-D39 and diff.ts's header with the new figure.
+   * residual, decide deliberately, and update diff.ts's header with the new figure.
    * A green run here is NOT a claim that 32px false-accepts are acceptable. It is the opposite:
    * it is the limit being held still where a reader of tools/overlay-diff/ can see it.
    * ────────────────────────────────────────────────────────────────────────── */
   it(
-    'STATES THE LIMIT: a 32px feature displaced one cell is still ACCEPTED at some pairs (B-D39)',
+    'STATES THE LIMIT: a 32px feature displaced one cell is still ACCEPTED at some pairs',
     async () => {
       const acceptedAt: string[] = [];
       const rejectedAt: string[] = [];
@@ -865,7 +864,7 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
       // …and it is not a total failure either: at most pairs a 32px move IS caught.
       expect(rejectedAt.length, `32px displacements rejected at: ${rejectedAt.join(', ')}`).toBeGreaterThan(0);
 
-      // PINNED. Change this only together with B-D39 and the header of tools/overlay-diff/diff.ts.
+      // PINNED. Change this only together with the header of tools/overlay-diff/diff.ts.
       expect(
         { accepted: acceptedAt.length, of: total },
         `the residual moved — accepted at ${acceptedAt.join(', ')}`,
@@ -991,7 +990,7 @@ describe('overlay-diff internals', () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
- * The collision-mask encoding (B-D49).
+ * The collision-mask encoding.
  *
  * tools/collision-editor/ is EMPTY, `npm run collision` points into it, and not one of the twelve
  * masks data/nodes/*.json names exists on disk — so the encoding tools/overlay-diff/mask.ts declares
@@ -1000,7 +999,7 @@ describe('overlay-diff internals', () => {
  * whatever the editor eventually emits has a specification to fail against rather than a comment.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-describe('collision-mask encoding — mask.ts is the single declaration (B-D49)', () => {
+describe('collision-mask encoding — mask.ts is the single declaration', () => {
   /** A hand-authored walkability grid: a cross of open ground through a blocked field. */
   function authored(): Uint8Array {
     const cells = new Uint8Array(GRID.cols * GRID.rows);
@@ -1091,7 +1090,7 @@ describe('collision-mask encoding — mask.ts is the single declaration (B-D49)'
     const missing = content.nodes.filter((n) => !existsSync(resolve(REPO_ROOT, n.collisionMask)));
     expect(
       missing.length,
-      'a collision mask now exists — re-measure B-D39/B-D40 against it and update this test',
+      'a collision mask now exists — re-measure the residual limits against it and update this test',
     ).toBe(content.nodes.length);
   });
 });

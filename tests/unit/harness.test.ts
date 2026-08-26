@@ -648,9 +648,9 @@ describe("the demo cascade — build-doc §1 beat 1, §15 I2, G6", () => {
  * §10.2's second clause names its animal: "apex count →0 and **mesopredator** count strictly rising
  * within 4 seasons". `runOvercatch` once scored it as a bare existential over every prey line of the
  * collapsed predator, of any role, with a comment that said "the verdict does not depend on which
- * one it is". It does. Four of the six apex sites have a Grazer on the apex's menu as well as the
+ * one it is". It does. An apex that carries a large Grazer has it on the menu as well as the
  * mesopredator, so a Grazer rebounding once nothing hunts it was published under the mesopredator's
- * claim — and `docs/BALANCE-REPORT.md` then recommended a demo stage on that number.
+ * claim — and the published balance report then recommended a demo stage on that number.
  *
  * These tests are deliberately NOT a restatement of the new predicate. The defect existed precisely
  * because the metric restated its own intent, and a test written the same way would have passed
@@ -658,7 +658,6 @@ describe("the demo cascade — build-doc §1 beat 1, §15 I2, G6", () => {
  * independently of any window arithmetic — above all: **the mesopredator never leaves zero at any
  * season of the run.** No honest reading of "mesopredator count strictly rising" can count a seed
  * like that, whatever window it uses, so a metric that does is wrong by inspection.
- * See `docs/CASCADE-RELEASE.md` §3 for the traces this was measured from.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 describe("the §10.2 release clause counts the mesopredator, not whatever rebounded", () => {
@@ -897,7 +896,9 @@ describe("the harness CLI", () => {
     const params = defaultParams();
     expect(params.mode).toBe("all");
     expect(params.balancePath).toBeNull();
-    expect(params.reportPath).toBe("docs/BALANCE-REPORT.md");
+    // The report is generated output, so it is written outside `docs/`, which holds only
+    // authored documents. Pinned exactly: a silent default drift puts build output back in docs/.
+    expect(params.reportPath).toBe("build/BALANCE-REPORT.md");
   });
 
   it("parses each option and rejects nonsense", () => {

@@ -20,7 +20,7 @@
  * DECISION 2 — WEIGHTING, because pooling pixels lets one image buy the palette.
  *
  * The source set spans five asset classes with wildly different colour statistics: measured, the
- * town map holds ~353k distinct RGB values against ~49–60k for the sprites (logged as B-D5). Naive
+ * town map holds ~353k distinct RGB values against ~49–60k for the sprites. Naive
  * pooling hands k-means a sample whose variance is dominated by the map, and k-means spends
  * centroids where the variance is — so the map would eat slots the player's shirt, the star badge
  * and the creature hues need. The palette has to serve EVERY class, so three weightings compete:
@@ -46,7 +46,7 @@
  * not a content colour and a slot spent on it is a slot stolen from the artwork.
  *
  * DETERMINISM. k-means++ init draws from the project's seeded xorshift128 (core/rng.ts) at seed 42
- * — the validated trial seed (B-D1). No Math.random anywhere (G11). Re-running reproduces the
+ * — the validated trial seed. No Math.random anywhere (G11). Re-running reproduces the
  * palette byte-identically, which is what makes a "frozen" palette a checkable claim.
  */
 import { writeFile, mkdir, readFile } from 'node:fs/promises';
@@ -76,7 +76,7 @@ const DEFAULT_SOURCES = [
 ];
 
 /**
- * ── CLI, added for the cool-region re-freeze candidate (DEVIATIONS-lane-b B-D13/B-D20) ──────────
+ * ── CLI, added for the cool-region re-freeze candidate ──────────────────────────────
  *
  * With no flags this script is EXACTLY what it was at gate B0: the five approved trials, written to
  * `data/palette.json` and `assets/approved-trials/_palette-freeze/`. That matters — the frozen
@@ -431,7 +431,7 @@ const palette = {
         + 'achieve at gate B0 — "every asset class gets an equal vote" — restated for a source set where per-image '
         + 'and per-class are no longer the same thing.'
       : 'Each source image contributes equal total weight (1/N) regardless of pixel count, because the town map '
-        + 'holds ~353k distinct colours against ~49-60k for the sprites (B-D5) and naive pixel-pooling lets it '
+        + 'holds ~353k distinct colours against ~49-60k for the sprites, and naive pixel-pooling lets it '
         + 'buy the palette and starve the sprite classes of hue.'
         + (winner.weighting === 'equal+sqrt'
           ? ' Within an image, weight is sqrt(pixel count) rather than pixel count, so small saturated accents '

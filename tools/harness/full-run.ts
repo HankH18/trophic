@@ -293,7 +293,7 @@ export function runFullRun(loaded: LoadedContent, seed: number, profile: PlayPro
   };
 
   /*
-   * ⚠ TWO CLOCKS, AND THE HARNESS DRIVES BOTH — see docs/DEVIATIONS.md D-Q3-1.
+   * ⚠ TWO CLOCKS, AND THE HARNESS DRIVES BOTH.
    *
    * The calendar is `clock` and it is unbounded; the ACT is `act` and it is driven by badges. They
    * are independent in the game, so the harness has to CHOOSE a pacing model rather than inherit
@@ -498,10 +498,10 @@ export function topOfWeb(node: EcoNode, loaded: LoadedContent): string[] {
 
 export const PREY_READINGS = ["primary", "limiting"] as const;
 /**
- * build-doc §10.2 says "its primary prey", singular; DEVIATIONS A2-D10 records that the SET reading
- * (`limitingPrey` — the minimal set of catchable pools whose loss starves the predator) is what
- * actually starves a predator that can substitute one pool for another. Both are measured, because
- * reporting only the flattering one is how a harness lies.
+ * build-doc §10.2 says "its primary prey", singular — but a predator that can substitute one pool
+ * for another is only starved by the SET reading (`limitingPrey`, the minimal set of catchable
+ * pools whose loss starves it), so the literal reading measures nothing at those nodes. Both are
+ * measured, because reporting only the flattering one is how a harness lies.
  */
 export type PreyReading = (typeof PREY_READINGS)[number];
 
@@ -658,7 +658,7 @@ export function runOvercatch(
    * apex sites the apex also eats a Grazer (bible §5's large-Grazer rule at `bowerdeep`/`r3`, its
    * authored diet exception at `brackwater`/`r2`), so an over-caught Grazer rebounding once nothing
    * hunts it scored as a mesopredator release. That is the two-tier collapse §4.3's own prose warns
-   * about, counted as its opposite. See `docs/CASCADE-RELEASE.md` §3.
+   * about, counted as its opposite.
    *
    * So both are computed, and they are kept apart:
    *

@@ -22,7 +22,7 @@ k-means for exactly that reason.
 | `player-APPROVED.png` | overworld character | **CANONICAL player identity (L6 + gate B0).** Green shirt, peaked green ranger cap with a yellow star badge, leather satchel, brown boots, no cape. |
 | `player-style-reference.png` | overworld character | style reference only — **superseded as the identity**, has a cape (L6 forbids). Not a palette source, not an img2img seed. |
 | `trainer-battle.png` | trainer battle sprite | class reference (farmer, straw hat, apron) |
-| `town-map.png` | top-down town map | class reference — see the isometric open decision in `docs/DEVIATIONS-lane-b.md` |
+| `town-map.png` | top-down town map | class reference |
 | `creature-croc.png` | creature battle sprite | **style reference ONLY.** Generic croc anatomy; it is *not* Fenmaw's canon gharial snout (bible §4). Never seed Fenmaw from this. |
 | `creature-fox.png` | creature battle sprite | class reference — reads as Cindril (fox kit, ember tail) |
 
@@ -64,13 +64,13 @@ are `b0-player-back-e` and `b0-player-side-b`, recorded in `tools/comfy/manifest
 reason each rival was rejected. Review sheet: `assets/raw/player/_views-contact-sheet.png`.
 
 Both were generated with the approved prompt **verbatim**, seed 42, only the view/pose clause
-substituted. Two open defects are logged in `docs/DEVIATIONS-lane-b.md` (B-D14).
+substituted.
 
 ## Rules
 
-- The rejected caped iteration was **intentionally dropped** and is not in the repo (see
-  `DEVIATIONS-lane-b.md` B-D3). L6's "no cape" is enforced by the prompt string and by the
-  player-class negative (B-D7), not by a reference image.
+- The rejected caped iteration was **intentionally dropped** and is not in the repo. L6's "no
+  cape" is enforced by the prompt string and by the player-class negative, not by a reference
+  image.
 - `_downscale-check/` holds the pre-freeze §9.3 previews. They were quantize-free and predate the
   palette; `_palette-freeze/at-game-size/` supersedes them for anything about colour. Regenerate
   with `node tools/postprocess/downscale-check.mjs`.

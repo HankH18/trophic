@@ -781,7 +781,7 @@ describe("registry — one copy of every fact", () => {
 });
 
 /* ────────────────────────────────────────────────────────────────────────────
- * index.html — the pre-module watchdog (C1-D9)
+ * index.html — the pre-module watchdog
  *
  * The one boot failure nothing in `game/` can report: a SYNTAX error in a data/*.json file breaks
  * the module graph before `game/main.ts` runs, so the zod gate never fires and `renderFatalError`

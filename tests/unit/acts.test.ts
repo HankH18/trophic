@@ -1,7 +1,7 @@
 /**
  * tests/unit/acts.test.ts — the ACT model (core/acts.ts), TROPHIC's second clock.
  *
- * docs/DEVIATIONS.md D-Q3-1, authorised by Hank: *"the game should progress based on the player
+ * Authorised by Hank: *"the game should progress based on the player
  * going through the gyms and side events, not based on year progression. Simply switch out the time
  * check points for event check points."*
  *
@@ -190,7 +190,7 @@ describe("acts — the run ends on an act condition and on nothing else", () => 
   /*
    * THE DEFECT THIS PINS, and it is the one that makes "the player reaches the ending and sees
    * nothing" real. `balance.acts.runCompleteFlag` is `story.greaves.beaten`, which ONLY
-   * data/dialogue.json writes — and nothing in game/ reads that file (QUEUED-CHANGES Q7). So the
+   * data/dialogue.json writes — and nothing in game/ reads that file. So the
    * only end condition in the game was unreachable in the shipped build, where the calendar
    * condition it replaced did fire. `onRunComplete` is the seam Hard Req 7's epilogue survey and
    * the Vellsire choice hang off, and it is on build-doc §16's never-cut list.

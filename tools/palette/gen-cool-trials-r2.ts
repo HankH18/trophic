@@ -1,8 +1,8 @@
 /**
  * tools/palette/gen-cool-trials-r2.ts — round 2. Two Fenmaw correctives, one magenta probe.
  *
- * ROUND-1 FINDING, MEASURED BY EYE AND LOGGED AS B-D19: `pt-fenmaw` regressed to a generic
- * crocodilian muzzle — short, broad, blunt — exactly the B-D6 failure. It did so even though the
+ * ROUND-1 FINDING, MEASURED BY EYE: `pt-fenmaw` regressed to a generic
+ * crocodilian muzzle — short, broad, blunt — the same failure an earlier trial hit. It did so even though the
  * manifest's derived subject string ALREADY applies §9.2's fidelity rule: "Fenmaw, bulk gharial
  * with a long narrow gharial snout, adult Water creature, bulk gharial with a long narrow gharial
  * snout" front-loads and repeats the anatomy twice. So the rule as currently implemented does not
@@ -20,7 +20,7 @@
  *                           different and more expensive finding.
  *
  * The third row is a magenta probe. Round 1 left magenta at 1.5% mean share across 13 images, and
- * the magenta probe is the worst cool-probe failure in B-D13 (ΔE 42.7). Webvern is the roster's
+ * the magenta probe is the worst cool-probe failure measured in round 1 (ΔE 42.7). Webvern is the roster's
  * pure-Poison line (bible §4 row 15); if a Poison creature does not render magenta either, then the
  * magenta probe has no game content behind it and NOT covering it is the correct answer rather than
  * a gap. That is a measurement, not an assumption, which is why it is worth one generation.
@@ -87,7 +87,7 @@ for (const [i, r] of ROWS.entries()) {
 }
 
 await writeFile(`${OUT_DIR}/_run2.json`, JSON.stringify({
-  purpose: 'Round 2: the gharial-snout correctives (B-D19) + a magenta-content probe. '
+  purpose: 'Round 2: the gharial-snout correctives + a magenta-content probe. '
     + 'Subjects are in tools/palette/trials-round2.json — G3 keeps content names out of code.',
   workflowGraph: GRAPH, workflowGraphSha256: graphSha, seed: TRIAL_SEED,
   generations: ROWS.length, cumulativeGenerations: 13 + ROWS.length, totalMs: Date.now() - t00, rows,

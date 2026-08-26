@@ -229,7 +229,7 @@ for (const im of images) {
     // The un-scored backdrop is a blue that cannot occur on the ramp below (every ramp colour has
     // r ≥ b). It used to be filled white, which is also the TOP of the ramp — so "no error here"
     // and "the error is off the scale" were the same pixel value, and the images the palette is
-    // worst on rendered as the cleanest-looking heat maps. See B-D51.
+    // worst on rendered as the cleanest-looking heat maps.
     if (isBackground[i]) { heat[i * 3] = 0x33; heat[i * 3 + 1] = 0x50; heat[i * 3 + 2] = 0x6e; continue; }
     sum += e.de; n++;
     // heat map: black → red → yellow → WHITE-HOT across ΔE 0 → 15+

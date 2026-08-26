@@ -80,16 +80,16 @@ export interface Encounter {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Rates — build-doc §7.2 derivations, DEVIATIONS D18
+ * Rates — build-doc §7.2 derivations
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
  * Steps in one foray, i.e. how many grid steps the player walks per clock tick.
  *
- * DEVIATIONS D18: build-doc §4 says "a foray step rolls encounter**s**" while §3 L8 charges a foray
- * ONE tick, so a foray is an excursion of `stepsPerForay` rolls at `encounterChancePerStep`. The
- * overworld makes that literal — a completed movement step IS a foray step — and charges the tick
- * once the count comes round. `clock.ticksPerYear × stepsPerForay × encounterChancePerStep` is
+ * build-doc §4 says "a foray step rolls encounter**s**" while §3 L8 charges a foray ONE tick, so a
+ * foray is an excursion of `stepsPerForay` rolls at `encounterChancePerStep`. The overworld makes
+ * that literal — a completed movement step IS a foray step — and charges the tick once the count
+ * comes round. `clock.ticksPerYear × stepsPerForay × encounterChancePerStep` is
  * therefore the player's real maximum encounters per year, which is the arithmetic the year-1
  * over-catch beat depends on (build-doc §15 I2).
  */
@@ -153,13 +153,13 @@ export function rollAge(balance: Balance, rng: Rng): AgeClass {
  * ⚠ THIS USED TO READ THE CALENDAR, and under two clocks that was a fail state by the back door.
  * The band was indexed `year - startYear`, so a player still in act 1 on Route 1 in calendar year 6
  * met **level 34–38** wild creatures while their heirs entered at ~5 — measured across years 1–30:
- * 6, 11, 20, 26, 31, 37, then 34–38 for ever. Q3's promise is that a slow player sees the whole
- * story, and a level band that climbs with a clock the player does not control is exactly the
- * countdown Q3 removed (docs/DEVIATIONS.md D-Q3-2 flagged the ambiguity; this is it resolved).
+ * 6, 11, 20, 26, 31, 37, then 34–38 for ever. The calendar carries no countdown — a slow player is
+ * meant to see the whole story — and a level band that climbs with a clock the player does not
+ * control is that countdown by the back door.
  *
  * The array's OTHER reader — `tools/harness/player.ts`, which decides what an UNTRAINED player
- * walks into a gym with — has always indexed it by the leader's ACT, and D-A5-G3 tuned its six
- * values against the gym ramp, which is an act ladder. So this is the two readings agreeing rather
+ * walks into a gym with — has always indexed it by the leader's ACT, and its six values are tuned
+ * against the gym ramp, which is an act ladder. So this is the two readings agreeing rather
  * than a new opinion: the key keeps its shipped name (renaming it is data + schema + harness, and
  * `_levelByYear` in data/balance.json now says what it really indexes).
  *

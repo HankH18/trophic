@@ -212,7 +212,7 @@ function simRng(seed: number) {
 /**
  * Drop `//` and block comments, keeping string literals intact.
  *
- * A single pass rather than a stack of regexes, for the reason integration defect I9 records: a
+ * A single pass rather than a stack of regexes, for a measured reason: a
  * regex that strips `//` comments truncates a line at a `//` INSIDE a string literal, leaves an
  * unbalanced quote, and desynchronises every string boundary after it — so the sweep can be walked
  * past by accident.
@@ -313,7 +313,7 @@ describe("season meter — L8 'travel 1 / foray 1 / inn 2'", () => {
       if (preview.endsYear) years += 1;
       clock = advanceAction(clock, "foray", balance).clock;
     }
-    // The clock cues three of the four seasons; the year turn owns the fourth (LANE-A-STATUS §5).
+    // The clock cues three of the four seasons; the year turn owns the fourth.
     expect(crossed).toEqual(balance.clock.seasonOrder.slice(0, -1));
     expect(years).toBe(1);
     const model = seasonMeterModel(clock, balance);
@@ -324,7 +324,7 @@ describe("season meter — L8 'travel 1 / foray 1 / inn 2'", () => {
 
   it("THE FULL METER ENDS THE YEAR AND A GYM VICTORY LEAVES IT EXACTLY WHERE IT STOOD", () => {
     /*
-     * REWRITTEN BY AN AUTHORISED AMENDMENT (D-Q2-1). This test used to be "a full meter and a gym
+     * REWRITTEN BY AN AUTHORISED AMENDMENT. This test used to be "a full meter and a gym
      * victory EACH end the year"; the second trigger is gone and the assertion is inverted.
      *
      * The perverse incentive it removes, priced: a player who won a gym at tick 1 used to forfeit
@@ -543,7 +543,7 @@ describe("season tint — Hard Req 6 'season variation is a runtime tint; never 
      * ⚠ THIS TEST WAS THE OTHER WAY ROUND until 2026-08-26. It read "every preset is flagged
      * provisional while the hues are not in balance" and asserted `.provisional === true` on the
      * shipped reading — it was holding the slot for `balance.seasonTint`, which did not exist
-     * (BF-13). The group exists now, `game/season-tint.ts` `seasonTintTable` reads it, and it is the
+     * yet. The group exists now, `game/season-tint.ts` `seasonTintTable` reads it, and it is the
      * default at all three entry points, so the slot-holder is replaced by the law it stood in for:
      * the shipped reading is DATA, and its authored channels are byte-for-byte balance.json's.
      *
@@ -752,7 +752,7 @@ describe("year turn — G10 / Hard Req 4: boxed creatures age, caught Ancients d
     expect(first?.t).toBe("festival");
     expect(first && first.t === "festival" ? first.festival.year : 0).toBe(save.year + 1);
     // The label names the year that is beginning. It used to name `yearsTotal` as a denominator
-    // ("Y2/6") and no longer claims one — the calendar has no total (D-Q3-1).
+    // ("Y2/6") and no longer claims one — the calendar has no total.
     expect(beatLines(first as (typeof drive.beats)[number])[0]).toBe(`FESTIVAL · Y${String(save.year + 1)}`);
   });
 
@@ -791,7 +791,7 @@ describe("year turn — G10 / Hard Req 4: boxed creatures age, caught Ancients d
     // build-doc §4 USED TO SAY "At gym victory or tick 16, the year turn runs." Both triggers were
     // reachable in the same action, and a shell that ran a turn per trigger burnt TWO years on one
     // action — two festivals, two aging passes, two season steps, two retirement rounds. There is
-    // one trigger now (D-Q2-1); the guard stays because a reload, a double call or a replay can
+    // one trigger now; the guard stays because a reload, a double call or a replay can
     // still ask twice, and `canRunYearTurn` cannot see it on its own: it guards the year the turn
     // will BEGIN, and by the time the second call arrives `save.year` has already moved on.
     const save = boxedAndAncientSave();
@@ -839,7 +839,7 @@ describe("year turn — G10 / Hard Req 4: boxed creatures age, caught Ancients d
   it("collapses the year end into ONE trigger per action", () => {
     /*
      * build-doc §4 used to give the turn TWO triggers and this test named the second. There is one
-     * (D-Q2-1), and `yearTurnTrigger` still collapses: a caller that somehow saw two `yearEnd`
+     * now, and `yearTurnTrigger` still collapses: a caller that somehow saw two `yearEnd`
      * events in one action's log must still fire one turn.
      */
     const atLastTick = { year: balance.clock.startYear, tick: balance.clock.ticksPerYear - 1 };
@@ -1469,7 +1469,7 @@ describe("retirement flow — build-doc §7.5 step 3, HEIR or BOON", () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
- * C6 — scripted ACT events (Cullbrand raids). RE-KEYED FROM YEARS: D-Q3-1.
+ * C6 — scripted ACT events (Cullbrand raids), re-keyed from years onto acts.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 describe("act events — scripted raids, from balance.json only", () => {
@@ -1509,7 +1509,7 @@ describe("act events — scripted raids, from balance.json only", () => {
      * The reachable set is EVERY act the region has, including the first. Under the old year model
      * it was `startYear+1 … finalYear`: the raid was applied by the turn that BEGAN its year and no
      * turn begins the start year, so a raid authored for act 1 could never fire and the coverage
-     * report had to exclude it. Act entry has no such hole (D-Q3-1) — which is a beat the region
+     * report had to exclude it. Act entry has no such hole — which is a beat the region
      * gained, not merely a rename.
      */
     const reachable = raidableActs(balance);
@@ -1556,7 +1556,7 @@ describe("act events — scripted raids, from balance.json only", () => {
 
   it("A CULLBRAND RAID FIRES ON ACT ENTRY IN ANY CALENDAR YEAR — year 2 and year 11 alike", () => {
     /*
-     * The point of D-Q3-1, asserted directly. content-bible §6 wants Cindershelf entered
+     * The point of the act re-keying, asserted directly. content-bible §6 wants Cindershelf entered
      * "mid-collapse"; under the year-keyed model that was true only for a player whose calendar
      * happened to line up, and a slow player found the town healthy forever. The same act entry is
      * driven from two very different calendars and must produce the identical harvest.
@@ -1661,7 +1661,7 @@ describe("act events — scripted raids, from balance.json only", () => {
     if (entryBeat && entryBeat.t === "actEntry") {
       expect(entryBeat.act).toBe(act);
       expect(beatLines(entryBeat)[0]).toBe(`ACT ${String(act)}`);
-      // G7 / D-Q2-2: no year, no festival label, nothing that reads as the calendar.
+      // G7: no year, no festival label, nothing that reads as the calendar.
       expect(beatLines(entryBeat).join(" ")).not.toMatch(/FESTIVAL|Y\d/u);
     }
   });
@@ -1682,7 +1682,7 @@ describe("act events — scripted raids, from balance.json only", () => {
 
   it("the festival beat states the year in numbers and claims no denominator (bible §9, amended)", () => {
     /*
-     * REWRITTEN BY AN AUTHORISED AMENDMENT (D-Q2-2). It used to assert `isFinalYear` and the label
+     * REWRITTEN BY AN AUTHORISED AMENDMENT. It used to assert `isFinalYear` and the label
      * `Y6/6`; there is no final year and no total to be a fraction of. What it asserts now is that
      * the label is true at ANY year the calendar can reach, including ones past the old cap.
      */
@@ -1747,7 +1747,7 @@ describe("year-turn sequence — build-doc §4 'a renderer of its event log'", (
       expect(beatLines(beat).length).toBeGreaterThan(0);
     }
 
-    // No year variant has passed overlay-diff yet, so no swap should be claimed (LANE-A-STATUS §6.6).
+    // No year variant has passed overlay-diff yet, so no swap should be claimed.
     expect(drive.mapVariantSwaps).toEqual([]);
     expect(beats.some((b) => b.t === "mapVariant")).toBe(false);
   });
@@ -1782,7 +1782,7 @@ describe("year-turn sequence — build-doc §4 'a renderer of its event log'", (
     expect(at("aging")).toBeGreaterThan(at("festival"));
     expect(at("retirements")).toBeGreaterThan(at("aging"));
     /*
-     * The raid beat is NO LONGER IN THIS SEQUENCE (D-Q3-1): it fires on act entry, so the year turn
+     * The raid beat is NO LONGER IN THIS SEQUENCE: it fires on act entry, so the year turn
      * emits none however the raid list is overridden. The rest of §7.5's order stands, and the map
      * swap — step 6 — is now the step that must follow the retirement flow.
      */
@@ -2562,11 +2562,11 @@ describe("the repairs — reproduced defects, and what stops them coming back", 
     expect(drive.flow.remaining()).toBe(pending - 1); // a deliberate press still answers it
   });
 
-  /* ── the game does NOT end with the calendar (D-Q3-1) ── */
+  /* ── the game does NOT end with the calendar ── */
 
   it("BINDS — the calendar never ends: twelve year turns run, and nothing on screen names a total", () => {
     /*
-     * THIS TEST IS THE INVERSE OF THE ONE IT REPLACES, ON HANK'S AUTHORISATION (D-Q3-1).
+     * THIS TEST IS THE INVERSE OF THE ONE IT REPLACES, ON HANK'S AUTHORISATION.
      *
      * It used to be "BINDS — the six-year game ends, and nothing on screen names a seventh year",
      * and it asserted that `driveYearTurn` THREW for a save past year 6, that the festival beat
@@ -2613,7 +2613,7 @@ describe("the repairs — reproduced defects, and what stops them coming back", 
 
   it("BINDS — aging and retirement keep working past the old cap: year 12 retires on schedule", () => {
     /*
-     * The calendar's real job (D-Q3-1): it drives aging and retirement, and it must keep doing so
+     * The calendar's real job: it drives aging and retirement, and it must keep doing so
      * when it runs past year 6. A creature caught in year 10 has the same J/A/E clock as one caught
      * in year 1, and its projected retirement year is a real number rather than a clamped one.
      */
@@ -2728,7 +2728,7 @@ function actionFor(kind: "travel" | "foray" | "inn", nodeId: string) {
  *
  * This mirrors `OverworldScene.spendTicks` → `handleClockEvents` → `beginYearTurn` step for step:
  * log the action, advance the real clock, step the REGION on every `seasonBoundary` (never on
- * `yearEnd` — LANE-A-STATUS §5, integration defect I4), and hand a year end to `driveYearTurn` with
+ * `yearEnd`), and hand a year end to `driveYearTurn` with
  * the save still standing in the ending year. The scene itself cannot be imported here (it value-
  * imports phaser, which throws in vitest's node environment), so the ORDER is asserted separately
  * against its source in "the running game registers both scenes".
@@ -2748,7 +2748,7 @@ function liveRun(
   let yearTurns = 0;
 
   for (const kind of actions) {
-    // No calendar guard: the run does not end with the year (D-Q3-1) and `isOver` is gone.
+    // No calendar guard: the run does not end with the year and `isOver` is gone.
     save = appendAction(save, actionFor(kind, save.currentNode));
     const tickBefore = save.tick;
     const advanced = advanceAction({ year: save.year, tick: save.tick }, kind, balance);
@@ -2901,7 +2901,7 @@ describe("replaying the shipped path — build-doc §8.1's claim, for the run th
 
   it("BINDS — a gymVictory entry spends no tick, and a year turn beside it still replays", () => {
     /*
-     * A gym victory is a BADGE and nothing else now (D-Q2-1): it costs no tick and ends no year, so
+     * A gym victory is a BADGE and nothing else now: it costs no tick and ends no year, so
      * the only thing that moves the clock in this log is the `yearTurn` entry, which `clockFromLog`
      * reads off the entry rather than off a tick cost. This used to be documented as "the other of
      * build-doc §4's two triggers", which no longer exists.
@@ -3009,7 +3009,7 @@ describe("this lane is reached by playing, not only by testing", () => {
     const callers: Array<[string, string]> = [
       ["previewAction", "game/scenes/OverworldScene.ts"],
       ["actionCosts", "game/scenes/OverworldScene.ts"],
-      // The second clock and its consequences, all reached by playing (D-Q3-1).
+      // The second clock and its consequences, all reached by playing.
       ["actOf", "game/scenes/OverworldScene.ts"],
       ["awardBadge", "game/scenes/OverworldScene.ts"],
       ["runIsComplete", "game/scenes/OverworldScene.ts"],

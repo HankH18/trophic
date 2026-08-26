@@ -300,7 +300,7 @@ const MAGIC_NUMBER_ALLOWANCE: Record<string, { values: readonly number[]; why: s
       "zod SHAPE bounds and CONTENT CARDINALITIES, never read by a formula: at most 2 types per age " +
       "form, seasonOrder length 4, a 2-digit zero-padded palette swatch id, MOVE_POOL_SIZE 28 " +
       "(Hard Req 8), SEASONAL_MIGRANT_COUNT 4 (Hard Req 10), GYM_ROSTER_SIZES 3/4/5/6/6/6 (Hard Req 9 " +
-      "as amended by DEVIATIONS D-A5-G1, signature included) and PALETTE_SWATCH_COUNT 32 " +
+      "as amended, signature included) and PALETTE_SWATCH_COUNT 32 " +
       "(build-doc §8.4) — these assert what the " +
       "CONTENT must contain, which is the opposite of hiding a tunable in code. Retuning balance.json " +
       "cannot change any of them, which is the INV-4 test: a gameplay constant is one a retune moves",

@@ -3,7 +3,7 @@
  *
  * WHY THIS EXISTS. `data/palette.json` is frozen from five approved trials — player, fire fox,
  * green crocodilian, farmer trainer, meadow town map. Measured hue share of that set's content
- * pixels: cyan 1.05%, blue 0.05%, magenta 0.66% (DEVIATIONS-lane-b B-D13). The §8.4 method was
+ * pixels: cyan 1.05%, blue 0.05%, magenta 0.66%. The §8.4 method was
  * followed exactly; its INPUT had no cool half. Bible §1 ships a Water type and a Dark type, §4
  * ships a Water starter line and a Water/Dark Ancient, and §6 makes Brackwater — a stilt town on a
  * marsh — the year-2 town of the never-cut vertical slice. None of that is in the source set.
@@ -14,9 +14,9 @@
  * Cindershelf is the CONTROL: it is warm, already served, and is here to test whether the existing
  * warm half is genuinely sufficient rather than assumed to be.
  *
- * SEED. 42, the validated trial seed (B-D1), for every row — the same seed every B0 trial used.
+ * SEED. 42, the validated trial seed, for every row — the same seed every B0 trial used.
  * The manifest's own derived seed for the corresponding row is recorded alongside so the two are
- * never confused; see `tools/comfy/manifest-palette.json` and deviation B-D18. G5 is untouched:
+ * never confused; see `tools/comfy/manifest-palette.json`. G5 is untouched:
  * no approved asset is being regenerated, and none of these rows is approved.
  *
  * G13: this file's row count is asserted below to stay under 20 so the `--confirm` gate does not
@@ -86,7 +86,7 @@ for (const [i, p] of PLAN.entries()) {
     manifestRow: p.from,
     manifestDerivedSeed: src.seed ?? null,
     seed: TRIAL_SEED,
-    seedNote: 'Trial seed 42 (B-D1), NOT the manifest row\'s derived seed. These are palette trials, '
+    seedNote: 'Trial seed 42, NOT the manifest row\'s derived seed. These are palette trials, '
       + 'not the shipped asset; G5 is untouched because no approved asset is being regenerated.',
     subject: src.prompt,
     negative: src.negative,
@@ -113,7 +113,7 @@ for (const [i, p] of PLAN.entries()) {
 }
 
 await writeFile(`${OUT_DIR}/_run1.json`, JSON.stringify({
-  purpose: 'Round 1 of the cool-region palette trials (DEVIATIONS-lane-b B-D13).',
+  purpose: 'Round 1 of the cool-region palette trials.',
   workflowGraph: GRAPH, workflowGraphSha256: graphSha, seed: TRIAL_SEED,
   generations: PLAN.length, totalMs: Date.now() - t00, rows,
 }, null, 2) + '\n');

@@ -380,7 +380,6 @@ export interface NewGameOpts {
  * `data/species.json`'s `"starter"` habitat sentinel and named nowhere in code (G2). It is a
  * placeholder in the same sense the flat coloured rectangles are, and lane C7's opening beat
  * replaces it by passing `opts.party` — at which point this branch is simply not taken.
- * docs/DEVIATIONS-lane-c2.md C2-D6.
  */
 export function startingParty(content: Content, supplied?: OwnedCreature[]): OwnedCreature[] {
   if (supplied && supplied.length > 0) return supplied;
@@ -398,8 +397,8 @@ export function startingParty(content: Content, supplied?: OwnedCreature[]): Own
  * build-doc §4 step 1 — seed a new game: an RNG seed plus a live copy of every node JSON.
  *
  * The node-state copy is `core/save.ts` `newSave`'s job and is NOT restated here; a second
- * implementation of "node file → live sim state" is exactly the class of duplication that produced
- * integration defect I3.
+ * implementation of "node file → live sim state" is exactly the class of duplication that makes the
+ * live path and the replay path disagree about a count.
  */
 export function startNewGame(opts: NewGameOpts): StartResult {
   const content = registry.content();

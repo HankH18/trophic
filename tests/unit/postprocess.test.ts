@@ -62,7 +62,7 @@ let tmp: string;
 let manifest: ManifestFile;
 /**
  * The background key + tolerance THIS FILE keys on, read from the manifest like every other call
- * site (B-D35). Not `{ key: WHITE, tolerance: 12 }`: a test that carries its own copy of the number
+ * site. Not `{ key: WHITE, tolerance: 12 }`: a test that carries its own copy of the number
  * is one more place it can drift, and the whole point of the section at the bottom is that the
  * number has exactly one home. Assigned in `beforeAll` because the manifest read is async.
  */
@@ -249,10 +249,10 @@ describe('the chain is re-runnable from assets/raw/ (§9.3)', () => {
     for (let i = 3; i < out.data.length; i += 4) expect(out.data[i]).toBe(255);
   });
 
-  it('sprite classes letterbox instead of stretching — DEVIATIONS-lane-b B-D15', () => {
-    // B-D15, raised against this file's scope by the gate-B0 lane: `nearestResample` maps each axis
-    // independently, so the approved player (content aspect 0.574) forced into 32×48 (0.667) came
-    // out 1.16× too wide. The fix is per-class policy, not a code branch: every class whose sprite
+  it('sprite classes letterbox instead of stretching', () => {
+    // `nearestResample` maps each axis independently, so the approved player (content aspect
+    // 0.574) forced into 32×48 (0.667) came out 1.16× too wide.
+    // The fix is per-class policy, not a code branch: every class whose sprite
     // is a subject on a background sets `fit: true`, which preserves aspect and pads.
     for (const cls of ['player', 'npc-static', 'overworld-mini', 'creature-battle', 'trainer-battle', 'prop']) {
       expect(classOf(manifest, cls).postprocess.fit, cls).toBe(true);
@@ -343,7 +343,6 @@ describe('palette.json is read live, not compiled in', () => {
 
 /* ════════════════════════════════════════════════════════════════════════════
  * §9.3 step 3 is COUPLED TO THE PALETTE — the invariant a palette freeze can break
- * (DEVIATIONS-lane-b B-D22 / B-D33, QUEUED-CHANGES Q4)
  * ════════════════════════════════════════════════════════════════════════════ */
 
 /**
@@ -423,7 +422,7 @@ function discSprite(size = 128): Raster {
   return r;
 }
 
-describe('§9.3 step 3 survives a palette swap (B-D22)', () => {
+describe('§9.3 step 3 survives a palette swap', () => {
   const palettes = discoverPalettes();
 
   /** The classes step 3 actually runs for. Read inside the test bodies: `manifest` is async. */
@@ -541,7 +540,7 @@ describe('§9.3 step 3 survives a palette swap (B-D22)', () => {
         expect(
           opaque,
           `${label}: player-views toSprite left all ${total} pixels opaque — background removal ` +
-            'cleared NOTHING, so the player would ship inside an off-white rectangle (BF-5 / B-D35).',
+            'cleared NOTHING, so the player would ship inside an off-white rectangle.',
         ).toBeLessThan(total);
         expect(out.data[idx(out, 0, 0) + 3], `${label}: player-views toSprite left the corner opaque`).toBe(0);
 
@@ -555,7 +554,7 @@ describe('§9.3 step 3 survives a palette swap (B-D22)', () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
- * …AND THE TOLERANCE HAS EXACTLY ONE HOME (BF-5 / B-D35)
+ * …AND THE TOLERANCE HAS EXACTLY ONE HOME
  * ════════════════════════════════════════════════════════════════════════════ */
 
 /**
@@ -610,7 +609,7 @@ function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
-describe('§9.3 step 3’s tolerance has ONE home — the manifest (BF-5 / B-D35, G11)', () => {
+describe('§9.3 step 3’s tolerance has ONE home — the manifest (G11)', () => {
   const sources = toolSources().map((file) => ({
     file,
     rel: file.slice(REPO_ROOT.length + 1),
@@ -765,7 +764,7 @@ describe('placeholders never look like finished art', () => {
 
   /*
    * The REAL writer, not a hand-built stand-in for it. This used to do
-   * `writeRaster(dest, makePlaceholder(row.id, …))` — which is the pre-BF-25 label convention,
+   * `writeRaster(dest, makePlaceholder(row.id, …))` — which is the superseded label convention,
    * constructed here and then asserted on, so it would have gone on encoding `row.id` for ever
    * however `writePlaceholders` was labelling things. `tools/postprocess/run.ts` owns the label; ask
    * it. (`tests/unit/postprocess-run.test.ts` reads the PIXELS back and proves which string it used;

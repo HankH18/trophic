@@ -828,7 +828,7 @@ describe("cascade_emerges — build-doc §10.2 (the demo beat as a law, not a sc
 
     // The release clause in aggregate, over EVERY successful cascade including the ones where the
     // mesopredator went down with the apex (counted as the 0 it is). Per-run strictness is
-    // impossible at this scale and that is a finding, not a fudge — see DEVIATIONS-lane-a2 A2-D1:
+    // impossible at this scale and that is a finding, not a fudge:
     // an apex starves only when its whole prey pool is under starveThreshold ×
     // demandPerIndividual.Apex = 2.4 individuals, so the released mesopredator is never more than 2
     // animals, and 2 animals cannot produce a whole animal in one season at any breed rate the data
@@ -847,7 +847,7 @@ describe("cascade_emerges — build-doc §10.2 (the demo beat as a law, not a sc
   /**
    * The shipped content, under BOTH readings of §10.2's "forcing **its primary prey**".
    *
-   * DEVIATIONS-lane-a2 A2-D10: read literally (one pool, `primaryPrey`) the property is false at the
+   * Read literally (one pool, `primaryPrey`) the property is false at the
    * shipped nodes where the apex can substitute; read as the set of pools it actually depends on
    * (`limitingPrey`) it holds everywhere. Both are measured here per node, the classification is
    * derived from the web, and every outcome — including co-extinction of the tier below — is
@@ -913,7 +913,7 @@ describe("cascade_emerges — build-doc §10.2 (the demo beat as a law, not a sc
         expect(setRun.apexZeroAt).toBeLessThanOrEqual(cascade.apexCollapseSeasons);
 
         // READING B — the doc's literal singular. Counted, not asserted per run: where the apex can
-        // substitute one pool for another, forcing one pool is not enough (A2-D10).
+        // substitute one pool for another, forcing one pool is not enough.
         if (runForcing(literalTargets, seed).apexZeroAt > 0) literalCollapses++;
 
         // "A new apex risen" — asserted for EVERY seed, whatever survived: nothing at the node
@@ -951,7 +951,7 @@ describe("cascade_emerges — build-doc §10.2 (the demo beat as a law, not a sc
 
       // The literal reading is a LAW wherever the apex depends on a single pool. Where it can
       // substitute, it is measured rather than asserted — and the aggregate below proves that the
-      // substitution is what makes the difference, so A2-D10 is a checked claim, not an excuse.
+      // substitution is what makes the difference, so the split reading is a checked claim, not an excuse.
       if (specialist) {
         expect(
           literalCollapses,
@@ -964,7 +964,7 @@ describe("cascade_emerges — build-doc §10.2 (the demo beat as a law, not a sc
       if (predicted) {
         // The demo beat's second half, where the shipped content admits it: the tier below survives
         // the over-catch, and — counted across seeds, because a single released individual breeding
-        // is a coin flip, not a law (A2-D1) — it trends up once nothing hunts it.
+        // is a coin flip, not a law — it trends up once nothing hunts it.
         expect(
           mesoAliveAtCollapse / seeds,
           `${template.id}: the mesopredator was meant to survive the forcing`,
@@ -982,7 +982,7 @@ describe("cascade_emerges — build-doc §10.2 (the demo beat as a law, not a sc
     expect(generalistNodes, "no shipped apex can substitute — reading A is untested").toBeGreaterThan(0);
     expect(
       literalFailuresAmongGeneralists,
-      "§10.2 read literally held everywhere — then A2-D10's substitution is not a deviation at all",
+      "§10.2 read literally held everywhere — then the substitution reading is untested",
     ).toBeGreaterThan(0);
     expect(
       releaseNodes,
@@ -1273,7 +1273,7 @@ describe("ecosim — Ancient presence effects (build-doc §7.3 step 1, bible §4
   });
 
   it("reads what each effect DOES from data — the effect's own name never selects a branch", () => {
-    // DEVIATIONS-lane-a2 A2-D4. data/species.json carries exactly one line per effect name, so a
+    // data/species.json carries exactly one line per effect name, so a
     // branch on the name is a branch on that species (G6) as well as a code literal (G11).
     const declared = new Set(content.species.map((l) => l.presenceEffect).filter(Boolean) as string[]);
     expect(declared.size).toBeGreaterThan(1);
@@ -1530,7 +1530,7 @@ describe("perf_sim — build-doc §12", () => {
     );
 
     // …and the width that a real biome admits, so the gap between the two is a measured number and
-    // not an assumption about the fixture (DEVIATIONS-lane-a2 A2-D9).
+    // not an assumption about the fixture.
     const admitted = Object.keys(megaNode.populations).filter((id) => {
       const line = idx.byId.get(id);
       return line ? inhabits(line, megaNode.biome) : false;

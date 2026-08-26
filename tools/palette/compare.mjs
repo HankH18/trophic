@@ -2,7 +2,7 @@
  * tools/palette/compare.mjs — the frozen palette and a candidate, on the SAME broadened evidence.
  *
  * WHAT THIS IS FOR. `data/palette.json` was frozen by a correct method over an inadequate input:
- * five warm/green trials, measured hue share cyan 1.05% / blue 0.05% / magenta 0.66% (B-D13). A
+ * five warm/green trials, measured hue share cyan 1.05% / blue 0.05% / magenta 0.66%. A
  * candidate re-freeze over a broadened source set necessarily spends swatches on the cool half, and
  * swatches are conserved — so it MUST cost something on the classes the frozen palette already
  * serves. This script's job is to make that cost a number instead of an impression.
@@ -17,8 +17,8 @@
  *   2. per-HUE-FAMILY mean, pooled over the whole set — where the swatches actually went, and
  *      therefore what was traded for what
  *   3. named small features                    — the star badge is 1.29% of the player's pixels and
- *      cannot move an image mean by 0.01 (this is the B-D12 lesson; it is measured, not trusted)
- *   4. the B-D13 cool probes                   — the synthetic colours that motivated all of this
+ *      cannot move an image mean by 0.01 (measured, not trusted)
+ *   4. the cool probes                         — the synthetic colours that motivated all of this
  *
  * Held-out images are scored too and flagged: an image in the validation set but not in either
  * palette's fit is the only honest evidence about GENERALISATION, which is the entire question when
@@ -49,7 +49,7 @@ const inCandidateFit = new Set(fitSources.map((s) => s.file));
 
 const EXTRA = [
   { id: 'fenmaw-GENERIC', class: 'creature-battle', file: 'assets/raw/palette-trials/pt-fenmaw.png',
-    note: 'round-1 Fenmaw — snout regressed to a generic croc (B-D19); excluded from the fit, kept as held-out evidence' },
+    note: 'round-1 Fenmaw — snout regressed to a generic croc; excluded from the fit, kept as held-out evidence' },
   { id: 'fenmaw-3q', class: 'creature-battle', file: 'assets/raw/palette-trials/pt-fenmaw-c.png',
     note: 'three-quarter Fenmaw — long snout reads but the jaw doubled; excluded from the fit, held out' },
 ];
@@ -80,7 +80,7 @@ const HUE_FAMILIES = [
 ];
 const NEUTRAL_CHROMA = 10;
 
-/** The B-D13 probes, verbatim, so the candidate is answerable to the same table. */
+/** The cool-region probes, verbatim, so the candidate is answerable to the same table. */
 const PROBES = [
   ['deep water', '#1b4f7a'], ['sky blue', '#7ec8f0'], ['marsh teal', '#2f7f7a'],
   ['ice cyan', '#a8e8ea'], ['purple', '#7a4fa3'], ['magenta', '#c04a9a'],
@@ -267,7 +267,7 @@ for (const pal of PALS) {
 
 console.log('\n' + '═'.repeat(112));
 console.log('IDENTITY-CRITICAL SMALL FEATURES — measured on the image that owns them, never pooled');
-console.log('  a per-image MEAN cannot see the star badge (1.29% of the player); that is the B-D12 lesson, re-applied');
+console.log('  a per-image MEAN cannot see the star badge (1.29% of the player) — measured on that image, never pooled');
 console.log('═'.repeat(112));
 console.log(pad('feature', 18) + pad('on', 12) + 'share'.padStart(8)
   + '│' + 'F.mean'.padStart(8) + 'F.max'.padStart(8) + 'F.sl'.padStart(6)
@@ -293,10 +293,10 @@ for (const [feat, r] of Object.entries(featureRows)) {
     + `C ${r.candidate.worst.src} → ${r.candidate.worst.dst} ΔE ${r.candidate.worst.de.toFixed(1)}`);
 }
 
-/* ── 4. the B-D13 cool probes ────────────────────────────────────────────────── */
+/* ── 4. the cool probes ─────────────────────────────────────────────────────── */
 
 console.log('\n' + '═'.repeat(112));
-console.log('B-D13 COOL PROBES — the synthetic colours that motivated the re-freeze, both palettes');
+console.log('COOL PROBES — the synthetic colours that motivated the re-freeze, both palettes');
 console.log('═'.repeat(112));
 console.log(pad('probe', 14) + pad('hex', 10)
   + '│' + pad('  frozen →', 12) + 'ΔE'.padStart(7) + ' │' + pad('  candidate →', 13) + 'ΔE'.padStart(7));
@@ -333,7 +333,7 @@ const heatOf = (de) => {                                   // black → red → 
  * has r ≥ b) — it used to be filled white, which is also the TOP of the ramp. That collision
  * inverts the panel's meaning on exactly the images the decision turns on: the frozen palette
  * misses Puddlisk's whole body by ΔE 15+, which painted a big white region a tired eye reads as
- * CLEAN, beside a candidate heat map that is red and orange and reads as hot. See B-D51.
+ * CLEAN, beside a candidate heat map that is red and orange and reads as hot.
  */
 const BACKDROP_HEAT = [0x33, 0x50, 0x6e];
 
@@ -383,7 +383,7 @@ for (const im of (TABLES_ONLY ? [] : loaded)) {
       { input: label('ORIGINAL', w), left: G, top: G + h },
       // The candidate's PATH, never the literal string `data/palette.candidate.json` — this script
       // also scores the class-equal variant via `--candidate=`, and a panel that names the wrong
-      // file is the same defect as a panel that shows the wrong pipeline (B-D51).
+      // file is the same defect as a panel that shows the wrong pipeline.
       { input: label(`FROZEN  ${FROZEN}`, w), left: G * 2 + w, top: G + h },
       { input: label(`CANDIDATE  ${CANDIDATE}`, w), left: G * 3 + w * 2, top: G + h },
       { input: await png(heats.FROZEN), left: G * 2 + w, top: G * 2 + h + 30 },

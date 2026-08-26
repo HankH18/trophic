@@ -116,14 +116,14 @@ export function replayOvercatchFixture(loaded: LoadedContent): FixtureReplay {
    *
    * ⚠ ROLE-FILTERED, AND IT HAS TO BE. build-doc §10.2 names ONE tier — the mesopredator — and this
    * selection used to be a bare `preyOf` over the collapsed predator's diet of ANY role, ranked by
-   * abundance. That is the same mis-measurement `full-run.ts` was carrying (docs/CASCADE-RELEASE.md
-   * §3): at four of the six apex sites the apex also eats a Grazer, and the most abundant prey of a
+   * abundance. That is the same mis-measurement `full-run.ts` was carrying: at four of the six apex
+   * sites the apex also eats a Grazer, and the most abundant prey of a
    * collapsed apex is usually that Grazer — so the fixture would name a herbivore as "the tier
    * below", `releasedRose` would score its rebound, and `report.ts` would publish it as the demo
    * beat. It never did, only because `fixtures/overcatch-script.json` pins `r4`, the one shipped
-   * node where the apex's sole prey pool IS its mesopredator (the fixture's `_why` says so, and
-   * docs/CASCADE-RELEASE.md §2.1 shows it is unique in that). That is correctness held up by a
-   * prose comment in a JSON file; re-pointing `nodeId` was all it took to break it.
+   * node where the apex's sole prey pool IS its mesopredator (the fixture's `_why` says so). That
+   * is correctness held up by a prose comment in a JSON file; re-pointing `nodeId` was all it took
+   * to break it.
    *
    * At `r4` this changes nothing: the only prey is the mesopredator and the script hammers it, so
    * the candidate list is empty here as before and the fall-through still names it. At any other

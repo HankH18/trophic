@@ -408,7 +408,7 @@ describe("the individual met — balance.encounter", () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
- * The foray — build-doc §4 / DEVIATIONS D18
+ * The foray — build-doc §4
  * ════════════════════════════════════════════════════════════════════════════ */
 
 describe("a foray is stepsPerForay rolls at encounterChancePerStep", () => {

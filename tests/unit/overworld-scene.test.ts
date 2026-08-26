@@ -1015,7 +1015,7 @@ describe("§9 reading the mask does not warn about a texture that was never crea
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
- * §10 THE TWO CLOCKS, EXECUTED (docs/DEVIATIONS.md D-Q2-2 / D-Q3-1)
+ * §10 THE TWO CLOCKS, EXECUTED
  *
  * Every test here is a defect that a green suite did not see, because the suite called core
  * functions by hand at clocks and states the running game never reached.
@@ -1032,7 +1032,7 @@ describe("§10.1 the act ladder can be CLIMBED by playing — the never-cut slic
   it("a brand-new save is not locked inside the first town", async () => {
     /*
      * THE DEFECT. `travelTo` gained an act gate, and act 1's gate is `story.opening.done` — a flag
-     * only data/dialogue.json writes, which nothing in game/ reads (Q7). Measured through this rig
+     * only data/dialogue.json writes, which nothing in game/ reads. Measured through this rig
      * before the fix: act 0, unlocked = ["hearthollow"], travelTo("r1") REFUSED. build-doc §16's
      * never-cut vertical slice is Hearthollow → R1 → Brackwater → R2, and it stopped at the first
      * step. A gate whose key does not exist is not a gate, it is a wall.
@@ -1267,7 +1267,7 @@ describe("§10.3 the published event flags follow the clock, including across th
     /*
      * THE DEFECT, and the stub-blindness that hid it. `syncEvents()` was called only inside the
      * `seasonBoundary` arm, and core/clock.ts deliberately emits NO `seasonBoundary` on the
-     * year-filling tick (integration defect I4) — so the festival flag survived into the next
+     * year-filling tick — so the festival flag survived into the next
      * spring. Measured through this rig: 8 consecutive open ticks against a 4-tick window.
      * The suite that certified the retraction called `syncEventFlags` BY HAND at {year+1, tick:0},
      * a call the game never made.
@@ -1514,7 +1514,7 @@ describe("§10.5 the two clocks meet only through the player", () => {
   it("the finale, the Vellsire choice and an epilogue all resolve at act 6 in year 11", () => {
     /*
      * THE USER STORY, END TO END, against the SHIPPED corpus. Every lookup goes through
-     * `selectEntry` — the function Q7 must call — with the act coming from `scene.act()`.
+     * `selectEntry` — the resolver the game layer must call — with the act coming from `scene.act()`.
      */
     const run = playSlowRun();
     const h = mount({ save: run.save });
@@ -1549,7 +1549,7 @@ describe("§10.5 the two clocks meet only through the player", () => {
     /*
      * The other half of "no fail state, no time limit, no year cap". `spendTicks` used to refuse
      * once `core/clock.ts` `isOver` was true, so the game stopped accepting player actions when the
-     * calendar passed year 6. There is no year 6 and there is no end to the calendar (D-Q3-1).
+     * calendar passed year 6. There is no year 6 and there is no end to the calendar.
      */
     const run = playSlowRun();
     const h = mount({ save: run.save });
@@ -1701,7 +1701,7 @@ function walkTheEnding(
    * certifying, an order in which the send-off is delivered BEFORE the fight it sends the player
    * off from. `maren.finale` now additionally requires `rival.act6.playerResult`, which BOTH
    * `wick.act6.win` and `wick.act6.loss` write, so the send-off waits for the fight to have
-   * happened without requiring it to have gone the player's way (B5 / D-Q8-4 is intact).
+   * happened without requiring it to have gone the player's way.
    */
   play("wick", "sanctum-approach", "battle-win");
   play("maren", "sanctum-approach", "cutscene");
@@ -2212,7 +2212,7 @@ describe("§10.7 a quest is offered, worked and closed BY PLAYING", () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
- * §9 The heir stream is the DECLARED lifecycle stream (BF-11), and the scene reads the tag
+ * §9 The heir stream is the DECLARED lifecycle stream, and the scene reads the tag
  *
  * `beginYearTurn` opens the heir's stream with `core/lifecycle.ts` `heirStreamKey(balance, year)`.
  * Everything about that claim used to be checkable only by reading the line: the key was composed

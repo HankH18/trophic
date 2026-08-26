@@ -12,8 +12,8 @@
  *     with no engine dependency is testable headlessly and cannot drag a scene's lifetime into the
  *     data model. Nothing here needs Phaser.
  *   • ONE copy of every fact. The clock is DERIVED from the save's `{year, tick}` (build-doc §7.8)
- *     rather than stored beside it — a second copy is a second thing to keep in sync, and
- *     integration defect I4 is what that costs. Same for the balance, which is read off `content`.
+ *     rather than stored beside it — a second copy is a second thing to keep in sync, and the two
+ *     drift the first time one is written. Same for the balance, which is read off `content`.
  */
 
 import { actOf, nodeUnlockedAt, runIsComplete, unlockedNodeIds } from "@core/acts";
@@ -232,11 +232,11 @@ class GameRegistry {
   }
 
   /**
-   * THE OTHER CLOCK (D-Q3-1) — the act, derived from the save's badges and quest flags.
+   * THE OTHER CLOCK — the act, derived from the save's badges and quest flags.
    *
    * Derived for exactly the reason {@link clock} is: a second copy is a second thing to keep in
-   * sync, and integration defect I4 is what that costs. Scenes READ this; none of them computes an
-   * act, and none of them may reach for `save.year` to answer a story question. The two clocks meet
+   * sync, and the two drift. Scenes READ this; none of them computes an act, and none of them may
+   * reach for `save.year` to answer a story question. The two clocks meet
    * nowhere — this method takes no year and `clock()` takes no act.
    */
   act(): number {
@@ -263,7 +263,7 @@ class GameRegistry {
     return runIsComplete(this.save(), this.content().gyms, this.balance());
   }
 
-  /** bible §9's regional events open right now, each a `ticksPerSeason` window (D-Q2-2). */
+  /** bible §9's regional events open right now, each a `ticksPerSeason` window. */
   openEvents(): EventWindow[] {
     const save = this.save();
     const content = this.content();

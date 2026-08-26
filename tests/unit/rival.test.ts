@@ -220,7 +220,7 @@ describe("game/rival.ts maps, and decides nothing", () => {
  * The measurement it was hiding, taken below and reported rather than hidden: with the party the
  * shipped game actually hands the player at act 1 — ONE provisional starter at
  * `balance.xp.starterLevel` (5) and an empty bag — the act-1 rival wins in a single reducer turn.
- * See DEVIATIONS D-W3-3: that is a property of the provisional starter against the damage curve,
+ * That is a property of the provisional starter against the damage curve,
  * not of the rival, and the same party loses gym 1 and most wild encounters just as fast.
  */
 describe("the rival fight is playable, and its difficulty is MEASURED not assumed", () => {
@@ -294,7 +294,7 @@ describe("the rival fight is playable, and its difficulty is MEASURED not assume
   it("MEASURED — the party the game actually gives at act 1 loses, and it is not a lock", () => {
     /*
      * The shipped act-1 party: `game/boot.ts` seeds exactly one `provisionalStarter` at
-     * `balance.xp.starterLevel` and an empty bag. This is the number DEVIATIONS D-W3-3 records.
+     * `balance.xp.starterLevel` and an empty bag.
      */
     const starter = provisionalStarter(content);
     expect(starter, "boot no longer seeds a provisional starter — re-measure").toBeDefined();
@@ -360,7 +360,7 @@ describe("the rival fight is playable, and its difficulty is MEASURED not assume
  * return to the node the over-catch run is recorded on.
  *
  * The RESOLUTION IS CHOREOGRAPHY, NOT CODE: beat the act-4 rival once before starting the
- * over-catch run, and the encounter is closed for the rest of it. Recorded in DEVIATIONS D-W3-4.
+ * over-catch run, and the encounter is closed for the rest of it.
  * Changing the corpus's win/loss asymmetry to "fix" this would take `story.greaves.entered` with
  * it, so the fix is not in the flags. This test exists so that if either the fixture's node or the
  * act-4 rival's node moves, somebody is told rather than finding out on the recording.
@@ -371,7 +371,7 @@ describe("the cascade fixture and the act-4 rival share a node — a demo-order 
     const there = content.rival.find((r) => r.node === cascadeNode);
     expect(
       there,
-      `no rival stands on the cascade node "${cascadeNode}" — the demo-order note in DEVIATIONS D-W3-4 is stale`,
+      `no rival stands on the cascade node "${cascadeNode}" — this file's demo-order note above is stale`,
     ).toBeDefined();
 
     // The encounter is standing on arrival …

@@ -14,7 +14,7 @@
  * `_`-prefixed top-level keys are documentation (the same convention every other data file uses)
  * and are stripped before parsing.
  *
- * **The condition model carries two independent clocks (Q3, the authorised L8 amendment).** ACTS —
+ * **The condition model carries two independent clocks (the authorised L8 amendment).** ACTS —
  * `act` / `actMin` / `actMax` — are the story clock, and every story beat gates on them so it fires
  * whenever the player earns it, in any calendar year. The CALENDAR — `years` / `yearMin` /
  * `yearMax` — is the world's clock: it is unbounded, it never waits for the player, and only
@@ -127,7 +127,7 @@ export interface FlagEquals {
  * Every clause present must hold for the entry to be eligible. An absent clause is not a
  * constraint; an empty `when` object means "always eligible" (the fallback).
  *
- * **Two independent axes (Q3 / the L8 amendment).** `act*` is the STORY clock — badges and quest
+ * **Two independent axes (the L8 amendment).** `act*` is the STORY clock — badges and quest
  * flags — and it is what a story beat must gate on, so the beat fires whenever the player earns it.
  * `years*` is the WORLD clock — ticks → seasons → years — and it is unbounded, so a calendar clause
  * must have a sensible reading at year 12 as well as year 6. Neither axis drives the other; an
@@ -146,7 +146,7 @@ export interface DialogueCondition {
   actMin?: number;
   actMax?: number;
   /**
-   * Exact in-game years this entry belongs to. Q3: the calendar is unbounded, so an exact-year
+   * Exact in-game years this entry belongs to. The calendar is unbounded, so an exact-year
    * equality is almost always wrong for anything but a one-off — prefer `yearMin` (forward-open).
    */
   years?: number[];
@@ -214,16 +214,16 @@ const zCompareOp = z.enum(COMPARE_OPS);
 /**
  * G11 / INV-4 — nothing gameplay-shaped is re-typed here; it is READ from the shipped content.
  *
- * **`clock.yearsTotal` no longer means "the last year".** Under Q3 (the authorised L8 amendment, see
- * docs/DEVIATIONS.md) the calendar never ends: years advance on ticks alone, and story progression
- * runs on the act axis instead. So `yearsTotal` is now the NOMINAL span — the year count a normally
+ * **`clock.yearsTotal` no longer means "the last year".** Under the authorised L8 amendment the
+ * calendar never ends: years advance on ticks alone, and story progression runs on the act axis
+ * instead. So `yearsTotal` is now the NOMINAL span — the year count a normally
  * paced run reaches, a correlation and not a cap — and it is deliberately NOT a bound on `zYear`.
  * It is exported so callers and tests reason about pacing from the same number the sim uses.
  */
 export const NOMINAL_YEARS: number = balanceJson.clock.yearsTotal;
 
 /**
- * The calendar's first year, read from `clock.startYear`. The calendar has no last year (D-Q3-1),
+ * The calendar's first year, read from `clock.startYear`. The calendar has no last year,
  * so this is the only bound the year axis has, and it is a floor rather than a range.
  */
 export const FIRST_YEAR: number = balanceJson.clock.startYear;
@@ -245,7 +245,7 @@ const ACT_GYMS = gymsJson.gyms as unknown as readonly GymLeader[];
 /**
  * The gym ids, in act order, taken from the shipped gym table — bible §6 gives each act exactly one
  * gym. Read as ids only, never through the table's own act index field, so a rename of that field
- * (Q3 moved it `year` → `act`) cannot reach in here.
+ * (the L8 amendment moved it `year` → `act`) cannot reach in here.
  *
  * ⚠ This is **not** the act ladder and its length is **not** the last act. There are six gyms and
  * seven acts, because act 0 is the prologue. Using the gym count as an act bound is what made a
@@ -261,7 +261,7 @@ export const ACT_GYM_IDS: readonly string[] = gymsJson.gyms.map((g) => g.id);
  * reachable state that every new save starts in, so a condition must be able to name it — `zAct`
  * admits it, and `data/dialogue.json` uses it for the opening cutscene, the three starter branches
  * and nothing else. `LAST_ACT` is the last act the region HAS. Neither is a deadline: the calendar
- * runs past both and nothing expires (D-Q3-1).
+ * runs past both and nothing expires.
  */
 export const FIRST_ACT: number = firstAct(ACT_BALANCE);
 export const LAST_ACT: number = lastAct(ACT_BALANCE);
@@ -279,7 +279,7 @@ export function actFromFlags(flags: Readonly<Record<string, FlagValue>>): number
   return actOf({ questFlags: { ...flags } }, ACT_GYMS, ACT_BALANCE);
 }
 
-/** Q3 — the calendar is unbounded, so a year in a condition has a floor and no ceiling. */
+/** The calendar is unbounded, so a year in a condition has a floor and no ceiling. */
 const zYear = z.number().int().min(FIRST_YEAR);
 const zAct = z.number().int().min(FIRST_ACT).max(LAST_ACT);
 
@@ -599,7 +599,7 @@ export interface DialogueContext {
    * act model that started at 1 while the game started at 0 actually did.
    */
   act: number;
-  /** The WORLD clock. Q3: unbounded — this may be any year ≥ 1, well past `NOMINAL_YEARS`. */
+  /** The WORLD clock. Unbounded — this may be any year ≥ 1, well past `NOMINAL_YEARS`. */
   year: number;
   season: Season;
   flags: Readonly<Record<string, FlagValue>>;
@@ -784,9 +784,8 @@ export function flagsWritten(file: DialogueFile): ReadonlySet<string> {
 /**
  * The flags the corpus READS and never writes — the bill it hands the game layer.
  *
- * DERIVED, never listed. `docs/STORY-REVIEW.md` §3 enumerates twelve of these by hand and the hand
- * list is already one pair short of the file (the two `story.vellsire.*` outcome flags, D-INT-4);
- * a writer that ships against a hand list stops covering the corpus the moment the corpus moves.
+ * DERIVED, never listed. A writer that ships against a hand-written list of these stops covering
+ * the corpus the moment the corpus moves.
  * Sorted so callers and tests see one order.
  */
 export function externallyGrantedFlags(file: DialogueFile): string[] {

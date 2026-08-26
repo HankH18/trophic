@@ -60,7 +60,7 @@ const writePng = (r, p) =>
 const palette = loadPalette(PALETTE_PATH);
 console.log(`palette: ${palette.length} colours from ${PALETTE_PATH}  [${LABEL}]  ->  ${OUT}\n`);
 // Background key + tolerance from `classes.player.postprocess` in tools/comfy/manifest.json — never
-// a literal here (G11, B-D35). Step 3 runs after quantize, so the tolerance must admit the palette's
+// a literal here (G11). Step 3 runs after quantize, so the tolerance must admit the palette's
 // image of white; at the old local `TOL = 12` this file cleared nothing under either candidate
 // palette and would have reported three views that "agree" because all three were solid rectangles.
 const bgOpts = await backgroundForClass('player');

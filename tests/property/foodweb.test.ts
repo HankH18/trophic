@@ -159,7 +159,7 @@ describe("foodweb — derivation rules (bible §5, build-doc §7.3)", () => {
     // node whose populations hold a line its biome excludes, so deleting the filter from
     // `deriveFoodWeb` left the whole suite green. The mega-node stress fixture is the one node that
     // holds lines from every biome, which is exactly what makes it able to prove the clause
-    // (bible §5: "Apex eats … in ITS HABITAT"; DEVIATIONS-lane-a2 A2-D9).
+    // (bible §5: "Apex eats … in ITS HABITAT").
     const mega = toEcoNode(megaNodeJson as unknown as NodeFile);
     const admitted = Object.keys(mega.populations).filter((id) => inhabits(lineOf(id), mega.biome));
     const excluded = Object.keys(mega.populations).filter((id) => !inhabits(lineOf(id), mega.biome));

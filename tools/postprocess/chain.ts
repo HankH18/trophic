@@ -73,7 +73,7 @@ export function recipeFor(spec: ClassSpec, row?: ManifestRow): ChainRecipe {
  *
  * The tolerance is not a property of the step, it is a property of the PALETTE: §9.3 runs removal
  * after quantize, so what it must match is the palette's IMAGE of the declared key, and that colour
- * moves on every re-fit (see steps.ts `removeFlatBackground` and B-D22/B-D33/B-D35). A caller that
+ * moves on every re-fit (see steps.ts `removeFlatBackground`). A caller that
  * writes its own `{ key: WHITE, tolerance: 12 }` is not merely duplicating a number — it opts out of
  * the manifest, out of G11, and out of the invariant in tests/unit/postprocess.test.ts that keeps
  * the number honest across a palette freeze. `tools/comfy/player-views.ts` did exactly that and its

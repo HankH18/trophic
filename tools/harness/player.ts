@@ -120,7 +120,7 @@ export type LevelModel = (typeof LEVEL_MODELS)[number];
  *
  * The parameter was called `year` and always meant this — the harness has read `gyms.json`'s index
  * as "how far along the player is" since it was written, which is the evidence that the field was
- * never a calendar year (D-Q3-1). It is named for what it is now.
+ * never a calendar year. It is named for what it is now.
  */
 export function actNodeIds(act: number, loaded: LoadedContent): string[] {
   const byId = new Map(loaded.nodes.map((n) => [n.id, n]));
@@ -183,7 +183,7 @@ export function playerLevelFor(gym: GymLeader, balance: Balance, model: LevelMod
   /*
    * `balance.encounter.levelByYear` is indexed by the leader's ACT here, and always was — the array
    * was tuned against the gym ramp in data/gyms.json (its own `_levelByYear` note says so), which is
-   * an act ladder. `game/encounters.ts` `rollLevel` now indexes it by the ACT too (D-Q3-10): it used
+   * an act ladder. `game/encounters.ts` `rollLevel` now indexes it by the ACT too: it used
    * to read the CALENDAR YEAR, which under an unbounded decoupled calendar put a player still in
    * act 1 against level 34–38 wild creatures by year 6. So the two readings agree and this model's
    * UNTRAINED player is the one the overworld actually produces. The KEY keeps its shipped name —

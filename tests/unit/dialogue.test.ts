@@ -2641,7 +2641,7 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     "chain.vellsire.complete": "the gate on the Vellsire hunt; the game layer reads it (Q3b/Q7)",
     "lore.scavenger.unlocked": "a lore unlock the game layer reads",
     "quest.fallow-field.result": "quest outcome, for the epilogue ledger",
-    "quest.silk-shortage.heard-vesper": "the Silk Shortage deferral (STORY-REVIEW D14, open)",
+    "quest.silk-shortage.heard-vesper": "the Silk Shortage deferral",
     "quest.silk-shortage.result": "quest outcome, for the epilogue ledger",
     "rival.act1.playerResult": "rival outcome, for the epilogue ledger",
     "rival.act2.playerResult": "rival outcome, for the epilogue ledger",

@@ -4,11 +4,11 @@
     "algorithm": "weighted k-means, k=32, k-means++ init seeded at 42 via core/rng.ts (no Math.random, G11)",
     "fitSpace": "sRGB",
     "weighting": "equal",
-    "weightingRationale": "Each source image contributes equal total weight (1/N) regardless of pixel count, because the town map holds ~353k distinct colours against ~49-60k for the sprites (B-D5) and naive pixel-pooling lets it buy the palette and starve the sprite classes of hue.",
+    "weightingRationale": "Each source image contributes equal total weight (1/N) regardless of pixel count, because the town map holds ~353k distinct colours against ~49-60k for the sprites and naive pixel-pooling lets it buy the palette and starve the sprite classes of hue.",
     "backgroundExcluded": "The plain white backdrop (§9.2 prompt skeleton) is flood-filled from the border and excluded from the cluster input, along with a 2px dilation that drops the anti-aliased rim. It is not a content colour and a slot spent on it is stolen from the artwork.",
     "quantizerMetric": "Scoring assigns each source colour the way tools/postprocess/steps.ts::quantize does — nearest palette entry by squared euclidean distance in sRGB — so the reported error is the error the pipeline will actually produce, not the error of an idealised quantizer.",
     "errorMetric": "CIEDE2000",
-    "selectionRule": "Six candidates (2 fit spaces x 3 weightings). Rule stated before the numbers were seen: minimise the MAXIMUM per-image mean ΔE2000 — \"serves every asset class\" is a claim about the worst class, not the mean. Ties within 0.05 break on the overall mean. OVERRIDDEN: the rule selected lab/equal; srgb/equal was frozen instead. Reason: Matches the B0 freeze method exactly (DEVIATIONS-lane-b B-D12); only the SOURCE SET is broadened. Changing the weighting at the same time as the input would make the comparison uninterpretable.",
+    "selectionRule": "Six candidates (2 fit spaces x 3 weightings). Rule stated before the numbers were seen: minimise the MAXIMUM per-image mean ΔE2000 — \"serves every asset class\" is a claim about the worst class, not the mean. Ties within 0.05 break on the overall mean. OVERRIDDEN: the rule selected lab/equal; srgb/equal was frozen instead. Reason: Matches the B0 freeze method exactly; only the SOURCE SET is broadened. Changing the weighting at the same time as the input would make the comparison uninterpretable.",
     "excluded": [
       "assets/approved-trials/superseded/** (entirely)",
       "assets/approved-trials/player-style-reference.png (style reference carrying an L6-forbidden cape; not an approved asset)"

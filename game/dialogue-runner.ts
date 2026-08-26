@@ -2,10 +2,10 @@
  * game/dialogue-runner.ts — the layer that was missing: `data/dialogue.json`, PLAYED.
  *
  * 499 lines, 211 entries, 62 speakers and 87 green tests shipped in this repo without a single one
- * of them reaching a player, because **nothing in `game/` read the file** (docs/QUEUED-CHANGES.md
- * Q7, build-order C7). The tests proved the corpus was well-formed, self-consistent and truthful
- * about the game's rules; none of them could prove a line was ever spoken. This module is the half
- * that makes them evidence about the game.
+ * of them reaching a player, because **nothing in `game/` read the file** (build-order C7). The
+ * tests proved the corpus was well-formed, self-consistent and truthful about the game's rules;
+ * none of them could prove a line was ever spoken. This module is the half that makes them
+ * evidence about the game.
  *
  * WHAT IT DOES NOT DO, on purpose:
  *
@@ -176,7 +176,7 @@ export function autoplayEntryFor(
  * places no NPC at all — `speakers[].home` names a node and nothing finer — so there is nowhere in
  * the data that says where Maren is standing. Talking is therefore "address the room": the
  * highest-priority eligible thing anyone in this node has to say. A `npcs[]` placement array would
- * change this and that is a content decision, not one to invent here (G2). Logged as D-Q7-4.
+ * change this and that is a content decision, not one to invent here (G2).
  *
  * ⚠⚠ `said` IS NOT AN OPTIMISATION — IT IS WHAT STOPS ONE LINE STARVING A CHAIN. A room's winner is
  * the highest-priority ELIGIBLE entry, and the corpus ships entries that are eligible for ever and
@@ -189,8 +189,7 @@ export function autoplayEntryFor(
  * Ancient hunt. Excluding what has already been said this visit makes every eligible entry
  * reachable in a bounded number of presses; when everything eligible has been said the exclusion is
  * dropped, so the last line repeats rather than the room falling silent (which is also how a Gold
- * townsperson behaves). The copy is untouched — this is a wiring fix, not a content edit (G2), and
- * the underlying priority collision is recorded in docs/DIALOGUE-NOTES.md.
+ * townsperson behaves). The copy is untouched — this is a wiring fix, not a content edit (G2).
  */
 export function talkEntryFor(
   file: DialogueFile,

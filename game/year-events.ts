@@ -6,7 +6,7 @@
  * gate, closes the year); … Cullbrand Harvest raids (scripted per act, populations visibly drop at a
  * named node)".
  *
- * ⚠ "YEAR" IN THE NAME IS HISTORY, NOT THE MODEL. The raids fire on ACT ENTRY (D-Q3-1) — bible §9
+ * ⚠ "YEAR" IN THE NAME IS HISTORY, NOT THE MODEL. The raids fire on ACT ENTRY — bible §9
  * always said "scripted per act", and it was content-bible §6's "six acts = six years" equation
  * that made the two look like one axis. The module and the balance group keep the name
  * `yearEvents` because build-doc §7.5 step 5 names them that; nothing here reads the calendar.
@@ -21,7 +21,7 @@
  *     `yearEventsOf`; this module never writes one and never invents one;
  *   - the raid is APPLIED by core/lifecycle.ts `enterPendingActs`, on entry to the raid's act,
  *     which owns the population floor and the `recentDeaths` credit; this module never decrements
- *     a population. It used to say `runYearTurn`, which is exactly what D-Q3-1 moved;
+ *     a population;
  *   - nothing here touches core/ecosim.ts or its rules.
  *
  * This module is the READ side: which raids fire this year, at which named node, and the real
@@ -58,7 +58,7 @@ export function surveyNameOf(line: SpeciesLine, balance: Balance): string {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * How long the game is — IT ISN'T (D-Q3-1)
+ * How long the game is — IT ISN'T
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /*
@@ -149,7 +149,7 @@ export interface RaidTargetPreview {
   /**
    * How many the harvest reaches for, priced against {@link RaidTargetPreview.before}.
    *
-   * ⚠ NOT `target.remove`. A strip-harvest takes the standing stock (D-Q6-1), so the number the
+   * ⚠ NOT `target.remove`. A strip-harvest takes the standing stock, so the number the
    * script asks for depends on what is standing — `core/lifecycle.ts` `raidRemovalAt` is the one
    * home of that rule and this reads it rather than restating it. It used to be the raw authored
    * body count, which was the same number at the shipped state and a different one at every other.
@@ -160,7 +160,7 @@ export interface RaidTargetPreview {
 
 export interface RaidPreview {
   eventId: string;
-  /** The ACT the raid fires on entry to — never a calendar year (D-Q3-1). */
+  /** The ACT the raid fires on entry to — never a calendar year. */
   act: number;
   nodeId: string;
   nodeName: string;
@@ -177,7 +177,7 @@ export interface RaidPreview {
  * (INV-3). The post-raid numbers come back in act entry's own events — see {@link raidReportsFrom}.
  *
  * The one piece of it this DOES call is `raidRemovalAt`, because "how many the script asks for" is
- * no longer a field to copy: since D-Q6-1 the harvest is priced against the standing stock, and a
+ * no longer a field to copy: the harvest is priced against the standing stock, and a
  * preview that showed the authored body count would under-report every late arrival — the screen
  * promising −11 and the survey then reporting −32.
  */
@@ -299,7 +299,7 @@ export function raidSurveyLines(reports: readonly RaidReport[]): string[] {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * The festival — bible §9 as amended (D-Q2-2): it no longer closes the year
+ * The festival — bible §9 calls it the thing that closes the year; it no longer does
  * ──────────────────────────────────────────────────────────────────────────── */
 
 export interface FestivalBeat {
@@ -318,7 +318,7 @@ export interface FestivalBeat {
    * True when the calendar has run past the expected pacing — year 7 and beyond.
    *
    * ⚠ NOT AN ERROR, AND NOT AN ENDING. It used to be `beyondFinalYear` and it used to mean the
-   * game was over; there is no final year any more (D-Q3-1). This is a pacing readout: the player
+   * game was over; there is no final year any more. This is a pacing readout: the player
    * is taking longer than six years, which is a legal, supported and interesting way to play.
    */
   pastExpectedPace: boolean;

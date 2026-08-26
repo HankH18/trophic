@@ -2,15 +2,30 @@
 
 A 2D Pokémon-Gold-style monster-catching RPG where the region is a living ecosystem:
 catching decrements real per-node populations, over-catching cascades through a derived
-food web, and six in-game years age every creature, map, and town.
+food web, and in-game years age every creature, map, and town.
 
-## Read these before doing anything
+## The five documents
 
-- `docs/build-doc.md` — canonical for **decisions, schemas, pipeline, build order**.
-- `docs/content-bible.md` — canonical for **content** (species, types, moves, gyms, towns, quests, audio).
-- Where the build doc inlines a formula or schema, **the build doc wins**.
-- `docs/DEVIATIONS.md` — every departure from either doc is logged here. Never a silent change.
-- `docs/LANE-A-STATUS.md` — current state of the core engine (written by the Lane A integrator).
+`docs/` holds five files and nothing else. Read the first two before changing anything.
+
+- `docs/build-doc.md` — canonical: locked decisions, schemas, formulas, pipeline, build
+  order, and the G1–G15 guardrails (§16).
+- `docs/content-bible.md` — canonical: species, types, moves, gyms, towns, quests, audio.
+  Where the build doc inlines a formula or schema, **the build doc wins**.
+- `docs/STATUS.md` — the living document: what is built, what is open, what is next, what
+  is waiting on Hank. The only file that records current state.
+- `docs/CAST-AND-VOICE.md` — the prose standard. Read before writing or editing any
+  player-facing line.
+- `docs/README.md` — the index.
+
+There is no archive. Everything removed from `docs/` is in git —
+`git log -S "<the thing>" -- docs/`. Do not go looking for a deleted file, do not recreate
+one, and do not add a new status, findings, notes, deviations or handoff file.
+
+**A reason that must not be lost goes in a comment on the code it governs, not in a doc.**
+A comment is read by whoever edits that line; a doc is read never. A change is still never
+silent: if a canonical doc is now wrong, correct it; open questions and current state go in
+`docs/STATUS.md`.
 
 ## Stack
 
@@ -33,8 +48,9 @@ real-number survey, the retirement flow, the Vellsire choice + epilogue survey, 
 
 ## Guardrails (build-doc §16) — violating one fails the task
 
-- **G2** Never invent species, moves, types, statuses, towns, or roster changes. Bible values verbatim.
-  Discrepancies go to `DEVIATIONS.md`, not into a fix.
+- **G2** Never invent species, moves, types, statuses, towns, or roster changes. Bible values
+  verbatim. A discrepancy is recorded as open in `docs/STATUS.md`, never resolved by inventing
+  a value.
 - **G3** No second encounter/spawn/bait table. One JSON per node is the single source of truth;
   encounter weights are **derived**. Only `core/foodweb.ts` may compute diet edges.
 - **G6** Never script the demo cascade into the sim — it must emerge from the §7.3 rules.
@@ -54,14 +70,13 @@ Full list, including the art-lane guardrails (G1, G4, G5, G8, G9, G13, G15), is 
 and the game all import the same modules. The battle engine is a pure reducer
 `(state, action, rng) => {state, events[]}`; the Phaser scene is only a replayer of `events[]`.
 
-## The other rule that now has teeth
+## Authored content must be reachable
 
-**Authored content must be reachable** (build-doc §8.5). Two permanent gates enforce it:
-`tests/gates/reachability.test.ts` — every authored line has a path to the screen, every dialogue
-kind has a selector in `game/`, and no entry may be gated on a flag nothing writes — and
-`tests/gates/quest-layer.test.ts`. Both exist because a fully green suite once certified 39 of 211
-dialogue entries the player could not reach, including both epilogues. **A precondition is only real
-if something outside the test produces it.**
+Build-doc §8.5, enforced by two permanent gates: `tests/gates/reachability.test.ts` — every
+authored line has a path to the screen, every dialogue kind has a selector in `game/`, and no
+entry may be gated on a flag nothing writes — and `tests/gates/quest-layer.test.ts`. They exist
+because a fully green suite once certified 39 dialogue entries the player could not reach,
+including both epilogues. **A precondition is only real if something outside the test produces it.**
 
 ## Conduct
 

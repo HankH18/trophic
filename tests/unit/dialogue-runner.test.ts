@@ -1,11 +1,11 @@
 /**
- * tests/unit/dialogue-runner.test.ts — THE LINE REACHES A PLAYER (build-doc §15 C7 / Q7).
+ * tests/unit/dialogue-runner.test.ts — THE LINE REACHES A PLAYER (build-doc §15 C7).
  *
  * WHAT THIS FILE IS FOR, and why the 87 tests in `tests/unit/dialogue.test.ts` are not enough.
  * Those tests prove `data/dialogue.json` is well-formed, self-consistent and truthful about the
- * game's rules. Every one of them was green while **nothing in `game/` read the file** — verified,
- * and stated in docs/QUEUED-CHANGES.md: "no file in `game/` calls `selectEntry` or
- * `conditionHolds`". 499 lines, 211 entries, 62 speakers, and a green suite that could not tell you
+ * game's rules. Every one of them was green while **nothing in `game/` read the file** — measured,
+ * not assumed: no file in `game/` called `selectEntry` or `conditionHolds`. 499 lines, 211
+ * entries, 62 speakers, and a green suite that could not tell you
  * whether one of them had ever been spoken.
  *
  * So this file asserts the claim the other one structurally cannot: an entry is SELECTED against a
@@ -456,9 +456,9 @@ describe("§4 the Ancient chains reach chain.*.complete", () => {
     "%s advances step by step and completes",
     (_id, chain) => {
       /*
-       * The chains were UNCOMPLETABLE: `docs/QUEUED-CHANGES.md` — "nothing reads
-       * `chain.*.complete`, so the three Ancient hunts cannot be completed" — and nothing wrote the
-       * steps either, because nothing played the entries that write them.
+       * The chains were UNCOMPLETABLE: nothing read `chain.*.complete`, so the three Ancient
+       * hunts could not be completed — and nothing wrote the steps either, because nothing played
+       * the entries that write them.
        *
        * The seeds are the corpus's own gates, not shortcuts, and every one of them is a QUEST
        * boundary this walker cannot cross by design: it plays dialogue and never calls
@@ -506,11 +506,11 @@ describe("§4 the Ancient chains reach chain.*.complete", () => {
 describe("§5 externallyGrantedFlags", () => {
   it("is derived from the file, and covers flagEquals as well as flagsSet", () => {
     const owed = externallyGrantedFlags(DIALOGUE);
-    // docs/STORY-REVIEW.md §3 enumerates twelve by hand; the file carries more.
+    // Twelve were enumerated by hand in review; the file carries more.
     expect(owed.length).toBeGreaterThanOrEqual(12);
     /*
      * ⚠ THIS USED TO ASSERT THAT `story.vellsire.resolved` AND `story.vellsire.outcome` WERE OWED,
-     * with a comment calling them "the two nobody noticed had no writer (D-INT-4)". They had no
+     * with a comment calling them "the two nobody noticed had no writer". They had no
      * writer anywhere in the repo — the finale was dead — so the assertion was recording the defect
      * rather than a contract. It is inverted here, and the inversion is the repair: the two keys
      * must NOT be owed, because `sanctum.vellsire.approach`'s stand-aside branch resolves itself and
@@ -567,7 +567,7 @@ describe("§6 the anti-stub gate — game/ imports and CALLS the dialogue resolv
     /*
      * THE STATE THIS FILE EXISTS TO MAKE UNREPEATABLE. Before this change the answer was zero, and
      * every dialogue test in the repo was green anyway. Discovered by walking, never by a list: the
-     * BF-3 stand-in named ten files by hand and the wiring landed in an eleventh.
+     * earlier stand-in named ten files by hand and the wiring landed in an eleventh.
      */
     const importers = gameSources().filter((f) =>
       /from\s+["'](?:@core\/dialogue-schema|\.\.?\/[^"']*dialogue-schema)["']/u.test(executable(readFileSync(f, "utf8"))),
@@ -594,7 +594,7 @@ describe("§6 the anti-stub gate — game/ imports and CALLS the dialogue resolv
 
   it("the runner does not reimplement condition resolution", () => {
     /*
-     * The rule from docs/QUEUED-CHANGES.md Q7, asserted: "core/dialogue-schema.ts already exports
+     * The rule, asserted: "core/dialogue-schema.ts already exports
      * conditionHolds() and selectEntry(), so the game layer must NOT reinvent condition
      * resolution". A second resolver is the defect a second ACT model already was — it agreed
      * everywhere except the prologue, and made the whole opening chain unreachable.

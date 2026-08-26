@@ -2072,7 +2072,7 @@ describe("guards driven directly, not by luck of the shipped data", () => {
  * `tests/unit/overworld-scene.test.ts`, against the real `OverworldScene`. And `YearTurnScene` /
  * `RetirementScene` are executed through exported `create*(P)` factories that take the namespace as
  * an argument. Four of the ten scenes are driven; the value-import is not what stops these three.
- * What stops them is that nobody has written the stub, which is BF-35 and is not this file's scope.
+ * What stops them is that nobody has written the stub, which is not this file's scope.
  *
  * So this section is source-reading BY DEFAULT, not by necessity, and it says so. It is aimed at
  * the one class of defect it can actually catch: a renderer that imports something and never draws
@@ -2118,7 +2118,7 @@ describe("C4 scenes — what the source proves", () => {
      * every method each scene declares and asks whether anything reaches it — `this.name` anywhere
      * in the file, or a Phaser lifecycle hook the engine calls.
      *
-     * THE TWO IT PINNED ARE GONE (D-SWEEP-2, and this list is shortened because the repair landed,
+     * THE TWO IT PINNED ARE GONE (this list is shortened because the repair landed,
      * not because the check was relaxed). `SurveyScene.setStates` and `SurveyScene.webLines` were
      * declared public for callers that did not exist. Both are DELETED rather than wired:
      *   - `setStates` was a second mechanism for what `NodeStatesSource` already does once, and
@@ -2537,7 +2537,7 @@ describe("BF-18 — every UI colour names a frozen swatch", () => {
      * `toBeLessThanOrEqual`, so clearing one of them passes and re-typing a hex anywhere fails.
      * Whoever empties a file should delete its row.
      *
-     *   game/scenes/BootScene.ts   PERMANENT (C1-D10, reasoned at that file's :24-33). It is the
+     *   game/scenes/BootScene.ts   PERMANENT (reasoned at that file's :24-33). It is the
      *                              screen that reports `data/` being unreadable, and `Palette.ts`
      *                              resolves `palette.json` at module scope — making the watchdog
      *                              palette-dependent re-creates the silent black page it exists to

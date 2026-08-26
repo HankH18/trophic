@@ -109,8 +109,8 @@ function depths(web: FoodWeb): Map<string, number> {
     if (visiting.has(id)) return 0;
     visiting.add(id);
     // The flora vertex is the basement of the diagram, so anything grazing it is already a tier up.
-    // Without this a grazer at a node with no creature Producer (DEVIATIONS D12: Steppe and Vale)
-    // would share a column with the stock it eats, and the arrow would run sideways.
+    // Without this a grazer at a node with no creature Producer (the Steppe and Vale nodes ship
+    // with none) would share a column with the stock it eats, and the arrow would run sideways.
     let best = feedsOnFlora(web, id) ? 1 : 0;
     for (const prey of preyOf(web, id)) {
       if (!(prey in web.edges)) continue;

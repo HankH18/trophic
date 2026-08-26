@@ -165,8 +165,8 @@ export class SurveyScene extends Phaser.Scene {
   }
 
   /*
-   * `setStates(source)` USED TO SIT HERE and is deleted (D-SWEEP-2). It existed "for a caller that
-   * reassigns rather than mutates and would rather not pass a function", and after a full sweep of
+   * `setStates(source)` USED TO SIT HERE and is deleted. It existed "for a caller that reassigns
+   * rather than mutates and would rather not pass a function", and after a full sweep of
    * `game/`, `core/` and `tests/` that caller did not exist — in either lane. It was also the second
    * way to answer a question {@link NodeStatesSource} already answers once, and the doc there tells
    * a reassigning caller to hand over the FUNCTION, which `statesNow` re-reads on every redraw. Two
@@ -344,8 +344,8 @@ export class SurveyScene extends Phaser.Scene {
   }
 
   /*
-   * `webLines()` USED TO SIT HERE and is deleted (D-SWEEP-2). Its doc claimed it put the diagram
-   * "in a form a test can assert" and no test asserted it — and the form it produced was already
+   * `webLines()` USED TO SIT HERE and is deleted. Its doc claimed it put the diagram "in a form a
+   * test can assert" and no test asserted it — and the form it produced was already
    * available to any test without going through a Phaser scene at all, because it was a pass-through
    * to `game/web-view.ts` `renderWebEdge`, which `tests/unit/survey-view.test.ts` calls directly.
    * Deleting it takes the last of `renderWebEdge`'s dead references out of this scene: the import is

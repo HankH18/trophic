@@ -128,7 +128,7 @@ function populatedSave(): SaveEnvelope {
 describe("build-doc §7.8 — the save shape", () => {
   it("seeds a new game with a live copy of every node JSON", () => {
     const save = fresh();
-    // The version has ONE home (INV-3 / D-A4-18): `balance.party.saveVersion`. Pinning the literal
+    // The version has ONE home (INV-3): `balance.party.saveVersion`. Pinning the literal
     // here is what made a bump look like a test failure instead of a decision.
     expect(save.version).toBe(balance.party.saveVersion);
     expect(save.year).toBe(balance.clock.startYear);
@@ -675,7 +675,7 @@ describe("build-doc §8.1 det_replay — refusals", () => {
 
   /*
    * L10, THE ACT HALF. `replay` had no `gymVictory` case, so the tape reproduced no badge, no act
-   * and — since the Cullbrand raid moved off the calendar onto act entry (D-Q3-1) — no raid either.
+   * and — since the Cullbrand raid moved off the calendar onto act entry — no raid either.
    * Measured on a three-victory tape before the fix: live r4 ashvole 3 / cragmar 2 / recentDeaths 19
    * against replayed 14 / 10 / 0, with no badges and act 0. Before the raid moved it rode on the
    * `yearTurn` entry, which replay has always handled, so this was a REGRESSION in the one scripted

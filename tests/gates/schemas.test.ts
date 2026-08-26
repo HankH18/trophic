@@ -187,7 +187,7 @@ describe("corrupted gyms.json is rejected", () => {
 
   /*
    * Hard Req 9 — "Gym rosters fixed per bible §7", counting the signature, at sizes 3/4/5/6/6/6
-   * (gym 1 amended from 4 by DEVIATIONS D-A5-G1; the other five are the bible's).
+   * (gym 1 was amended down from the bible's 4; the other five are the bible's).
    * tests/unit/transcription.test.ts caught every one of these against the SHIPPED tree, so the
    * repo was safe; validateBundle did not, and validateBundle is what runs at boot against whatever
    * content the build is actually carrying. A save loaded onto a five-slot gym 1 is the failure the
@@ -286,7 +286,7 @@ describe("corrupted balance.json is rejected", () => {
   it("a raid aimed at a species line that does not exist", () =>
     rejects((b) => (b.balance.yearEvents.raids[0].targets[0].lineId = "dragon-line"), /targets "dragon-line", which is not a species line/));
   /*
-   * REWRITTEN BY AN AUTHORISED AMENDMENT (D-Q3-1). It used to be "a raid scheduled past the end of
+   * REWRITTEN BY AN AUTHORISED AMENDMENT. It used to be "a raid scheduled past the end of
    * the run" and rejected `year: 9` as "past the 6-year run". There is no end of the run and no
    * six-year cap — year 9 is an ordinary year — so the unreachable raid is now one keyed on an ACT
    * the region does not have, which is the same defect on the axis that actually carries it.
@@ -317,8 +317,8 @@ describe("corrupted palette.json is rejected", () => {
   it("frozen as a string", () => rejects((b) => (b.palette.frozen = "yes"), /palette\.json/));
 
   /*
-   * The CONTRACT, not the colours. Gate B0 is "a value swap, not a restructure"
-   * (docs/LANE-A-STATUS.md §4), so the hexes are legitimately in flux and are pinned NOWHERE. What
+   * The CONTRACT, not the colours. Gate B0 is "a value swap, not a restructure",
+   * so the hexes are legitimately in flux and are pinned NOWHERE. What
    * Lane B indexes against is the count and the positional ids — and that had no gate at all: a
    * `c00` → `z00` rename, a swatch removed, and a `frozen: false → true` claim about a gate that
    * had not run all survived the full suite.

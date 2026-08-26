@@ -156,10 +156,9 @@ export function orderedLineIds(pops: Record<string, NodePopulation>, idx: Specie
  * therefore a tunable, not a code decision: `balance.ecosim.webRoleAgeClass` (shipped: "A", the
  * adult — so the Mirefin line is a Mesopredator in the web even though its juveniles graze).
  *
- * DEVIATIONS.md D14 / DEVIATIONS-lane-a2.md A2-D11 carry the flag: build-doc §7.1's `role` is
- * per-age and bible §4 designs a mid-life role shift, but the inlined §7.2 `populations` schema
- * carries one scalar count per line with no age breakdown, so exactly one of the two roles can drive
- * the web. This is that choice, made as data rather than in code.
+ * build-doc §7.1's `role` is per-age and bible §4 designs a mid-life role shift, but the inlined
+ * §7.2 `populations` schema carries one scalar count per line with no age breakdown, so exactly one
+ * of the two roles can drive the web. This is that choice, made as data rather than in code.
  */
 export function webAgeClass(balance: Balance): AgeClass {
   return balance.ecosim.webRoleAgeClass;
@@ -406,8 +405,8 @@ export function primaryPrey(node: EcoNode, web: FoodWeb, lineId: string, balance
  * The prey the predator actually DEPENDS on: prey lines taken in descending abundance until
  * removing them would drop the predator under `balance.ecosim.starveThreshold`.
  *
- * DEVIATIONS-lane-a2.md A2-D10 — build-doc §10.2 says "forcing **its primary prey**", singular, and
- * that is {@link primaryPrey}. Read literally the §10.2 property is FALSE on the shipped content
+ * build-doc §10.2 says "forcing **its primary prey**", singular, and that is
+ * {@link primaryPrey}. Read literally the §10.2 property is FALSE on the shipped content
  * wherever the apex can substitute one pool for another (measured per node by
  * tests/property/ecosim.test.ts, which asserts BOTH readings and publishes which nodes fall in which
  * class). `limitingPrey` is the set reading: the minimal set of catchable pools whose loss starves
@@ -511,8 +510,8 @@ export function encounterWeights(
     const line = idx.byId.get(lineId);
     if (!pop || !line) continue;
 
-    // DEVIATIONS A2-D12 — a THIRD filter beyond build-doc §7.2's two (seasonalWindow, Scavenger ×
-    // recentDeaths): bible §4's "gated behind rare sign-card chains". Without it the finale
+    // A THIRD filter beyond build-doc §7.2's two (seasonalWindow, Scavenger × recentDeaths):
+    // bible §4's "gated behind rare sign-card chains". Without it the finale
     // legendary derives as an ordinary wild encounter, because §7.2's weight IS the live count and
     // the Ancients sit in `populations` (the single source of truth, G3). The tag is data
     // (`balance.encounter.signChainGatedHabitatTag`), never a literal here.
@@ -586,10 +585,10 @@ export function baitMatchFor(
       const prey = idx.byId.get(preyId);
       if (prey && webRole(prey, balance) === baitTag) return "role";
     }
-    // DEVIATIONS A2-D13 — an extension of build-doc §7.2's "bait's tag ∈ target's derived diet":
+    // An extension of build-doc §7.2's "bait's tag ∈ target's derived diet":
     // bible §5 gives Grazers TWO food sources ("creature Producers + each node's abstract flora
-    // stock"), and at a node with no creature Producer (bible §4 leaves Steppe and Vale without one
-    // — DEVIATIONS D12) the derived diet is empty, so the cheap role-generic Producer bait would
+    // stock"), and at a node with no creature Producer (bible §4 leaves Steppe and Vale without
+    // one) the derived diet is empty, so the cheap role-generic Producer bait would
     // match nothing at exactly the nodes where a Grazer is the only thing to bait. The flora pool is
     // a Producer pool; this says so.
     if (feedsOnFlora(resolved, targetLineId) && FLORA_ROLE_TAGS.has(baitTag)) return "role";

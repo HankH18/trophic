@@ -9,8 +9,10 @@ Verified contents: `z_image_turbo_bf16` UNET · `qwen_3_4b` CLIP (lumina2) · `a
 `ModelSamplingAuraFlow` shift 3 · KSampler **seed 42**, 8 steps, cfg 1.0, `res_multistep`,
 `simple`, denoise 1.0 · `EmptySD3LatentImage` 1024×1024 · the locked negative prompt.
 
-Two corrections to the handoff are logged in `docs/DEVIATIONS-lane-b.md` (B-D1 seed is 42 not 62;
-B-D2 the `shift: 3` node is undocumented in §9.2).
+Two corrections to the handoff, both load-bearing: the validated trial **seed is 42, not 62** —
+62 is the CLIPLoader's *node id* and the handoff misread one for the other — and the
+`ModelSamplingAuraFlow shift: 3` node is absent from §9.2's locked parameter list while materially
+affecting the output, so that list is incomplete rather than wrong.
 
 ## Writing a subject: name anatomy by its SHAPE, never by its species term
 
@@ -49,8 +51,7 @@ there is nothing to restate, and inventing one to make the generator happy is th
 and flag it for a supervised first generation instead; `_concepts.Pyrelisk.source` is the worked
 example.
 
-Logged as `docs/DEVIATIONS.md` **B-D62** (staged as `manifest._deviations` LB-M9 until the merge)
-and `docs/DEVIATIONS-lane-b.md` **B-D33**.
+Applied in `manifest._concepts`; recorded in `manifest._deviations` as **LB-M9**.
 
 ## Built and executed — but NOT approved for the two uses build-doc asks for
 
@@ -61,9 +62,9 @@ true:
 - **img2img graph — BUILT and EXECUTED, neither of its uses approved.** `img2img.ts` +
   `img2img-graph.json` exist and are built from the validated txt2img graph (`LoadImage` +
   `VAEEncode` replacing `EmptySD3LatentImage`, denoise < 1.0), so every locked §9.2 parameter is
-  carried over rather than restated. It has run live: `POST /api/upload/image` is verified
-  (**B-D18**) and a 7-denoise × 2-view sweep off the approved player static produced the 14 images
-  in `assets/raw/player/img2img/` (**B-D19**). That sweep established a **limit, not an approval**:
+  carried over rather than restated. It has run live: `POST /api/upload/image` is verified,
+  and a 7-denoise × 2-view sweep off the approved player static produced the 14 images
+  in `assets/raw/player/img2img/`. That sweep established a **limit, not an approval**:
   img2img on this model is for deltas *within* a view and cannot turn one.
   **`manifest._img2img.trialled` therefore stays `false`, and it is correct that it does.** Neither
   use build-doc asks for has been run and reviewed — map year-variant (§9.5) and the walk-cycle
@@ -78,8 +79,8 @@ true:
 - The **B1 gate** has never been run. 288 manifest rows, 287 `pending`, and exactly one `sha256`
   on the record (`player-front`) — and that one is a byte-identical *promotion*, not a manifest
   reproduction.
-- `_credits.perImageCredits` is `null`: the G13 estimate is **uncalibrated** (B-D10 — Comfy Cloud
-  exposes no credit-balance endpoint). Read the dashboard before/after a known batch and pass
+- `_credits.perImageCredits` is `null`: the G13 estimate is **uncalibrated**, because Comfy Cloud
+  exposes no credit-balance endpoint. Read the dashboard before/after a known batch and pass
   `--credits-per-image=N`.
 - The **denoise ladder has never been walked against a real map**, because no §9.5 run has
-  happened. Its false-REJECT rate on real aged variants is unmeasured (**B-D25**).
+  happened. Its false-REJECT rate on real aged variants is **unmeasured**.

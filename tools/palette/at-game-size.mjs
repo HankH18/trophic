@@ -28,7 +28,7 @@ import { rgbToLab, deltaE2000, toHex } from './color.mjs';
  * reproduced by `node tools/palette/at-game-size.mjs` with no arguments. `--palette=` + `--label=`
  * run the SAME acceptance against a re-freeze proposal, into its own directory — never mixed with
  * the frozen one, because a directory holding two palettes' sprites is exactly how a viewer ends up
- * comparing a palette problem with a pipeline problem (B-D51).
+ * comparing a palette problem with a pipeline problem.
  */
 const argOf = (n) => process.argv.find((a) => a.startsWith(`--${n}=`))?.slice(n.length + 3);
 const PALETTE_PATH = argOf('palette') ?? 'data/palette.json';
@@ -38,7 +38,7 @@ const OUT = argOf('out')
     ? 'assets/approved-trials/_palette-freeze/at-game-size'
     : `assets/approved-trials/_palette-candidate/at-game-size-${LABEL}`);
 // The background key and its per-channel tolerance are read from `classes.player.postprocess` in
-// tools/comfy/manifest.json, not declared here (G11, B-D35). Step 3 runs after quantize, so the
+// tools/comfy/manifest.json, not declared here (G11). Step 3 runs after quantize, so the
 // tolerance has to admit the PALETTE'S IMAGE of white — and this file's whole job is to evaluate
 // palettes, so a local copy of the number is exactly the thing that would make it lie: at the old
 // literal 12 the removal below cleared nothing under either re-freeze candidate.
@@ -162,7 +162,7 @@ function colourKeys(r) {
 /* ── the eye check: one strip, 1024² beside every target, pre- and post-quantize ───────────────
  * `_COMPARE.png` existed in this directory with NO producer in the tree — an artifact nobody could
  * regenerate, and therefore one nobody could tell was stale. It was: it had been written before the
- * background tolerance was fixed (B-D50), so its trim was a row taller than the chain now produces.
+ * background tolerance was fixed, so its trim was a row taller than the chain now produces.
  * A committed image that no script writes is a claim with no way to check it, so the producer is
  * restored here rather than the image being left orphaned.
  */

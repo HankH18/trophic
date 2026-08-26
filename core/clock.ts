@@ -6,9 +6,9 @@
  * 4 ticks) `ecosim.step()` runs the population update (§7.3). At tick 16 the year turn runs …".
  *
  * ⚠ THE CALENDAR IS ONE OF TWO CLOCKS, AND IT DRIVES NEITHER THE OTHER NOR THE STORY.
- * L8's "year = gym victory or full meter" was amended by Hank on 2026-08-25 (docs/DEVIATIONS.md
- * D-Q2-1, quoted there): *"I don't want the passage of time to be forced based on gyms or stages. I
- * want it to move forward based on ticks or actions exclusively."* So:
+ * L8's "year = gym victory or full meter" was amended by Hank on 2026-08-25: *"I don't want the
+ * passage of time to be forced based on gyms or stages. I want it to move forward based on ticks
+ * or actions exclusively."* So:
  *
  *   • a gym victory no longer ends a year — `YearEndReason` has one member and there is no
  *     `gymVictory()` here any more. Under the old rule winning a gym COST the player the rest of

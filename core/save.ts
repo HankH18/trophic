@@ -286,7 +286,7 @@ export function deserialize(json: string, balance: Balance): SaveEnvelope {
    * that number (INV-3: retuning balance touches balance.json only). The raw object goes to zod
    * unaltered: at integration the second and third pins were removed (`zSaveFile` validated
    * `z.literal(1)` and `SaveFile.version` was the literal TYPE `1`), so this no longer has to
-   * normalise the value and restore it afterwards. See DEVIATIONS D-A4-18.
+   * normalise the value and restore it afterwards.
    */
   const parsed = zSaveFile.safeParse(raw);
   if (!parsed.success) {
@@ -484,7 +484,7 @@ export interface ReplayDeps extends YearTurnDeps {
    * data/gyms.json — the badge ladder `core/acts.ts` counts.
    *
    * REQUIRED, and deliberately not optional. A `gymVictory` in the tape awards a badge, which can
-   * enter one or more acts, and act entry is what applies the Cullbrand raid (D-Q3-1). Without the
+   * enter one or more acts, and act entry is what applies the Cullbrand raid. Without the
    * gym list replay cannot derive the act, and an optional field would have made that a SILENT
    * half-replay: badges present, acts absent, raid never applied, survey quietly wrong. L10 says
    * the same (seed, actionLog) gives a byte-identical save; a missing dep must be a compile error,
@@ -561,7 +561,7 @@ function adjustPopulation(
  *   retirement — core/lifecycle.ts `resolveRetirement` (build-doc §7.5 step 3)
  *   seasonStep — the injected `ecosimStep` (build-doc §7.3)
  *   gymVictory — core/acts.ts `awardBadge` + core/lifecycle.ts `enterPendingActs`. The badge is the
- *                act model's only numeric input and act entry applies the Cullbrand raid (D-Q3-1),
+ *                act model's only numeric input and act entry applies the Cullbrand raid,
  *                so a tape without this case replays a run with no badges and an unharvested r4.
  *   catch/release — ONLY the node-population delta build-doc §7.3 attributes to the action itself
  *                   ("Player catch/release directly increments/decrements count at action time").
@@ -661,7 +661,7 @@ export function replay(
       case "gymVictory": {
         /*
          * THE ACT HALF OF L10. Before the raids moved off the calendar they rode on the `yearTurn`
-         * entry, which this switch has always handled; keyed on the act (D-Q3-1) they ride on this
+         * entry, which this switch has always handled; keyed on the act they ride on this
          * entry instead, and this case did not exist. Measured on a three-victory tape: live r4
          * ashvole 3 / cragmar 2 / recentDeaths 19 against replayed 14 / 10 / 0, with no badges and
          * act 0 — a replay that silently disagreed with the run it was replaying.

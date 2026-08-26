@@ -31,7 +31,7 @@ import { rgbToLab, deltaE2000, toHex } from './color.mjs';
 
 const OUT = 'assets/approved-trials/_palette-candidate/at-game-size';
 // No local tolerance. Each subject names its §9.3 CLASS and the background key + tolerance are read
-// from that class's `postprocess` block in tools/comfy/manifest.json (G11, B-D35). This file scores
+// from that class's `postprocess` block in tools/comfy/manifest.json (G11). This file scores
 // the palettes the freeze decision rests on, and step 3's tolerance is a property of the palette
 // being scored — a literal 12 here cleared nothing under both candidates, so every candidate strip
 // this file wrote was a solid rectangle while the frozen one was not.
@@ -148,7 +148,7 @@ for (const s of SUBJECTS) {
       // The proof that step 3 actually fired for THIS palette. Recorded per palette because the
       // failure it guards against is silent and palette-specific: at the old local tolerance 12 the
       // fill cleared nothing under either candidate, so `opaqueAfterBackgroundRemoval` equalled
-      // `framePixels` and the strip written beside it was a solid rectangle (B-D50/B-D51). Equality
+      // `framePixels` and the strip written beside it was a solid rectangle. Equality
       // here is the defect; the three palettes converging a few hundred pixels below the frame is
       // what a working chain looks like.
       opaqueAfterBackgroundRemoval: census(cut).opaque,

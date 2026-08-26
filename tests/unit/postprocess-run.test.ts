@@ -3,8 +3,8 @@
  *
  * This binds the REAL COMMAND, as a child process, and not the guard function. That distinction is
  * the whole point of the file: `assertFiltersMatch` already existed and was already tested at
- * `tests/unit/manifest.test.ts` ("a filter that matches nothing is a typo, not a finished batch",
- * B-D47) while `tools/postprocess/run.ts` never called it. Reproduced before the fix:
+ * `tests/unit/manifest.test.ts` ("a filter that matches nothing is a typo, not a finished
+ * batch") while `tools/postprocess/run.ts` never called it. Reproduced before the fix:
  *
  *     $ npx tsx tools/postprocess/run.ts --class=creature-batle --no-atlas
  *     0 processed · 0 rows have no raw file yet

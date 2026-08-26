@@ -31,7 +31,7 @@ import {
 export interface GymOutcome {
   gymId: string;
   gymName: string;
-  /** The leader's ACT (data/gyms.json `act`, renamed from `year` — D-Q3-1). */
+  /** The leader's ACT (data/gyms.json `act`) — a story rung, never a calendar year. */
   act: number;
   town: string;
   /** The leader's declared type, or "mixed" (bible §7). */

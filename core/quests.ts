@@ -1,14 +1,14 @@
 /**
  * core/quests.ts — the quest MODEL: what the shipped corpus asks the game for, and how to tell
- * whether it has been done. Build-order C7 / docs/QUEUED-CHANGES.md Q3b.
+ * whether it has been done. Build-order C7.
  *
  * THE PROBLEM THIS FILE EXISTS FOR. `data/dialogue.json` carries ten finished side quests and every
  * one of them gates its completion on a flag the corpus READS and nothing WRITES — ten `*.turnin` /
  * `*.milestone` keys, plus `lifecycle.first-retirement` and `event.festival.open`, plus the two
- * `story.vellsire.*` outcome flags D-INT-4 names. Until something writes them, every one of those
+ * `story.vellsire.*` outcome flags. Until something writes them, every one of those
  * quests is copy that can be opened and never closed.
  *
- * ⚠ WRITING THE FLAG WAS ONLY HALF OF IT, and the second half had no tests at all (Q9 / D-Q9-*).
+ * ⚠ WRITING THE FLAG WAS ONLY HALF OF IT, and the second half had no tests at all.
  * A quest also has to be UNCLOSABLE before it is offered, has to stop speaking once it is finished,
  * and — for the two the copy says come round again — has to be able to open a second time. All
  * three are properties of the shapes below, not of the writer:
@@ -25,8 +25,7 @@
  *
  *   1. **The bill is DERIVED from the corpus, never listed.** `externallyGrantedFlags` (see
  *      core/dialogue-schema.ts) computes "read and never written" from the shipped file.
- *      `docs/STORY-REVIEW.md` §3 enumerates twelve of them by hand and the hand list is already two
- *      short of the file; a writer built against a hand list stops covering the corpus the moment
+ *      A writer built against a hand-written list of them stops covering the corpus the moment
  *      the corpus moves. Every quest fact this module publishes — which flag a quest owes, which
  *      flag accepts it, which entry offers it — is read out of `data/dialogue.json`.
  *

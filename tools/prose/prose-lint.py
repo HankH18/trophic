@@ -325,8 +325,10 @@ def corpus(code, desc):
         CORPUS_CHECKS.append((code, desc, fn)); return fn
     return d
 
-CAP = 2          # docs/PROSE-DIAGNOSIS.md Defect 2 / CAST-AND-VOICE §2: no construction
-                 # may be shared by more than TWO speakers in the whole game.
+CAP = 2          # CAST-AND-VOICE §2: no construction may be shared by more than TWO
+                 # speakers in the whole game. The number is 2 because the corpus was
+                 # measured at 24 of 62 speakers reaching for the same "Nobody…/Everyone…"
+                 # opener — one voice wearing 62 names. Raising it re-permits that.
 
 NOUN_EVERY_LINE = 0.90   # G13's only actionable reading (CAST-AND-VOICE Appendix H): a speaker
                          # at or above this leans on a proper noun or a trade term in effectively

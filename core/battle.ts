@@ -24,8 +24,7 @@
  *   The scene NARRATES from `events[]` and READS numbers off `BattleState`. Every delta is in the
  *   log (damage, heal, status chip, stat mod applied AND expired), so replaying it from the state
  *   at the start of a step reproduces the state at the end; absolutes (HP, maxHp, level, form name,
- *   types, `statMods`, `lureActive`) are read from the state. See docs/DEVIATIONS-lane-a3.md for
- *   the three events the `BattleEvent` union cannot express yet.
+ *   types, `statMods`, `lureActive`) are read from the state.
  *
  * RNG DRAW ORDER (fixed, so a scripted stream is hand-checkable; tests depend on it)
  *   per acting battler:  1. Daze skip roll (only when the actor's status is Daze)
@@ -683,7 +682,11 @@ function statWithMods(battler: Battler, key: ModifiableStatKey, balance: Balance
   return battler.stats[key] * battler.statMods[key];
 }
 
-/** Burrow/Roost: while the evade is up the defender takes reduced damage (see DEVIATIONS note). */
+/**
+ * Burrow/Roost: while the evade is up the defender takes reduced damage. bible §3's "+evasion" is
+ * damage reduction and not a miss chance because there is no accuracy stat among bible §2's five
+ * stats, and a to-hit roll would spend a draw the RNG order documented above does not have.
+ */
 function evadeReduction(defender: Battler, ctx: BattleContext): number {
   for (const [moveId, turns] of Object.entries(defender.statModTurns)) {
     if (turns <= 0) continue;
@@ -703,8 +706,8 @@ export interface DamageResult {
   crit: boolean;
   /**
    * The Burrow/Roost multiplier that was applied to this hit — 1 when no evade was up. Surfaced so
-   * the reducer can emit `{t:"evaded"}`: bible §3's "+evasion" is implemented as damage reduction
-   * (DEVIATIONS D-A3-3), which is otherwise invisible in the log and therefore unnarratable.
+   * the reducer can emit `{t:"evaded"}`: bible §3's "+evasion" is implemented as damage reduction,
+   * which is otherwise invisible in the log and therefore unnarratable.
    */
   evadeMult: number;
 }
@@ -786,12 +789,10 @@ export function baitMatchOf(
 
 /**
  * bible §2's SECOND job for Instinct — "bait success" — as build-doc §7.4 was amended on
- * 2026-08-25 (docs/DEVIATIONS.md D-A5-1, authorised by Hank off docs/ACTIONS-FROM-HARNESS.md A3).
- * Until the amendment `catchChance` never read Instinct at all and `computeDamage` read it only for
- * crit, which bought ~2.9% expected damage over the roster's whole 40-point spread — so Instinct
- * measured as the STRONGEST and NEGATIVE predictor of round-robin win rate (r = -0.582, 44,928
- * battles, docs/BALANCE-REPORT.md §3.1). Every point spent on it was a point taken from a stat that
- * worked.
+ * 2026-08-25, authorised by Hank. Until the amendment `catchChance` never read Instinct at all and
+ * `computeDamage` read it only for crit, which bought ~2.9% expected damage over the roster's whole 40-point spread — so Instinct
+ * measured as the STRONGEST and NEGATIVE predictor of round-robin win rate (r = -0.582 over
+ * 44,928 battles). Every point spent on it was a point taken from a stat that worked.
  *
  *     instinctBait(c) = 1 + instinctBaitSlope × (insShare(c) − instinctBaitPivot)
  *     insShare(c)     = c.ins / (c.hp + c.atk + c.def + c.spd + c.ins)
@@ -826,7 +827,7 @@ export function catchInstinctMultiplier(catcher: Battler | undefined, balance: B
 }
 
 /**
- * build-doc §7.4 as amended 2026-08-25 (DEVIATIONS D-A5-1) —
+ * build-doc §7.4 as amended 2026-08-25 —
  *   p = baseCatch(age) × snareTier × (baitMult × instinctBait(catcher)) × (2 − hpFrac)/2 × lureMult,
  * clamped .02–.95. Ancients use their own base (bible §4: "very hard catches").
  *

@@ -211,7 +211,7 @@ describe("catch chance (build-doc §7.4)", () => {
 
 /* ════════════════════════════════════════════════════════════════════════════
  * The Instinct term on the bait multiplier — build-doc §7.4 as AMENDED 2026-08-25
- * (docs/DEVIATIONS.md D-A5-1, authorised by Hank off docs/ACTIONS-FROM-HARNESS.md A3).
+ * (authorised by Hank off the balance harness's own measurement).
  *
  *   instinctBait(c) = 1 + instinctBaitSlope × (insShare(c) − instinctBaitPivot)
  *   insShare(c)     = c.ins / (c.hp + c.atk + c.def + c.spd + c.ins)      [effective stats]

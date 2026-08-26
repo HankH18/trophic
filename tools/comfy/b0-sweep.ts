@@ -17,7 +17,8 @@ const skeleton = (subject: string, proportions: string) =>
   `standing facing forward, full body, ${proportions}, plain white background, ` +
   `crisp clean pixel edges, 2D game asset`;
 
-// Frozen negative (§9.2) + cape/cloak/hood, player-class only. Logged as B-D7.
+// Frozen negative (§9.2) + cape/cloak/hood, player-class only: L6 forbids a cape and the style
+// reference has one, so the ban has to be enforced on the negative side.
 const NEGATIVE =
   'low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, ' +
   'cape, cloak, hood, mantle';

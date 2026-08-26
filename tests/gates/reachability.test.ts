@@ -1517,7 +1517,7 @@ function holdsSomewhere(when: DialogueCondition, samples: readonly WorldSample[]
  * Clauses no sampled world satisfies — ambient OR under pressure — each with what was MEASURED.
  *
  * A name here is a decision, not a shrug: the clause is dead corpus under the shipped balance and
- * the row says why. Logged in `docs/DEVIATIONS.md`.
+ * the row says why.
  */
 const UNPROVEN_WORLD_CLAUSES: readonly string[] = [
   // r1's flora is monotonically non-decreasing under the shipped numbers, so no "thin" reading of
@@ -1526,7 +1526,7 @@ const UNPROVEN_WORLD_CLAUSES: readonly string[] = [
   // maximum possible draw is 3.6 against a regen of 8. Measured with every grazer pinned at
   // carryCap, every predator removed and the producer zeroed, over 20 in-game years: flora never
   // left [78, 100]. Fixing it is a balance change (`floraRegenPerSeason` or r1's grazer caps),
-  // which is a difficulty change and needs `npm run harness` — not a corpus edit. DEVIATIONS D-W3-1.
+  // which is a difficulty change and needs `npm run harness` — not a corpus edit.
   "amb.hearthollow-elder.thin",
 ];
 

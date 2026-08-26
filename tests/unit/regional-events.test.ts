@@ -1,7 +1,7 @@
 /**
  * tests/unit/regional-events.test.ts — bible §9's four regional events as SEASON-LONG WINDOWS.
  *
- * Hank's constraint on Q2 (docs/DEVIATIONS.md D-Q2-2): *"events like that last for a whole season
+ * Hank's constraint on Q2: *"events like that last for a whole season
  * and not just for one in-game day."*
  *
  * Before this, the story review measured: the Annual Festival was ONE FRAME of the year-turn
@@ -200,7 +200,7 @@ describe("bible §9 — the Great Migration is a migrant's own season", () => {
   });
 
   it("takes the season from data/species.json and never from a literal", () => {
-    // bible §9 says "spring"; bible §5 and every shipped row say autumn (STORY-REVIEW D7). The DATA
+    // bible §9 says "spring"; bible §5 and every shipped row say autumn. The DATA
     // wins here, and this test would move with the data rather than pinning either word.
     const gloomoth = content.species.find((s) => s.id === "gloomoth-line");
     expect(gloomoth?.seasonalWindow).toBeDefined();
@@ -306,8 +306,8 @@ describe("bible §9 — a Bloom Year is a node whose producers are thriving", ()
    * DERIVED from a level and a level does not end. Driven honestly against the shipped ecosim
    * (four `stepRegionStates` a year, seeded, ten years) the derived reading was open at 12 nodes
    * of 12 from year 3 onward and never closed again: one unbroken 150-tick run per node. An event
-   * that is always on at every node is not an event, and D-Q2-2's "stays open ticksPerSeason ticks
-   * and closes at the next" was simply false of it.
+   * that is always on at every node is not an event, and the season-window rule's "stays open
+   * ticksPerSeason ticks and closes at the next" was simply false of it.
    *
    * The bloom LATCHES on the rise now, so this asserts the shape the title always claimed.
    */
@@ -485,7 +485,7 @@ describe("all four events, over a whole year", () => {
    * ships exactly one migrant line per season. Each per-LINE window is a correct 4 ticks and the
    * published flags are per line, so nothing that gates on `event.migration.<lineId>.open` is
    * wrong — but any copy that says "the Great Migration is on" would be permanently true. Published
-   * here so the fact is a decision rather than a surprise (docs/DEVIATIONS.md D-Q2-4).
+   * here so the fact is a decision rather than a surprise.
    */
   it("PUBLISHES the per-kind coverage, so a HUD claim about a KIND cannot be made by accident", () => {
     const nodeId = "r1";

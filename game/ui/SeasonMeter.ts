@@ -1,7 +1,7 @@
 /**
  * game/ui/SeasonMeter.ts — the always-visible season meter (locked decision L8).
  *
- * L8 as amended (D-Q2-1/D-Q3-1): "16-tick season meter; travel 1 / foray 1 / inn 2; year = full
+ * L8 as amended: "16-tick season meter; travel 1 / foray 1 / inn 2; year = full
  * meter." bible §12 lists "map + season meter" as a screen, and build-doc §4 makes the meter the
  * thing the player reads the ecology's clock off — so it is HUD, not a menu: it is on screen while
  * the overworld is.
@@ -46,7 +46,7 @@ export interface SeasonMeterCell {
 export interface SeasonMeterModel {
   year: number;
   /**
-   * `balance.clock.yearsTotal` — the EXPECTED year count under normal pacing, NOT a cap (D-Q3-1).
+   * `balance.clock.yearsTotal` — the EXPECTED year count under normal pacing, NOT a cap.
    *
    * Carried so a HUD can show pacing beside the count if it wants to. `finalYear`/`isFinalYear`
    * used to sit here beside it and are gone with the six-year cap they described: the calendar is
@@ -75,7 +75,7 @@ export interface SeasonMeterModel {
    */
   full: boolean;
   /*
-   * `over` USED TO LIVE HERE, reading `core/clock.ts` `isOver`, and it is gone with the cap (D-Q3-1).
+   * `over` USED TO LIVE HERE, reading `core/clock.ts` `isOver`, and it is gone with the cap.
    * The calendar does not end, so there is no state for the meter to report as complete: year 11
    * draws exactly like year 2. Whether the RUN is finished is `core/acts.ts` `runIsComplete`, an act
    * condition, and it is not the season meter's question.
@@ -121,7 +121,7 @@ export function seasonMeterModel(clock: ClockState, balance: Balance): SeasonMet
   }
 
   /*
-   * THE LABEL LOST ITS DENOMINATOR (D-Q3-1). It read `Y${year}/${yearsTotal}` — and past year 6 it
+   * THE LABEL LOST ITS DENOMINATOR. It read `Y${year}/${yearsTotal}` — and past year 6 it
    * read "Y7/6", then "Y8/6", which is what a fraction of a total the calendar does not have looks
    * like on screen. The clamp that replaced it ("report year 6 forever") was worse: it made the HUD
    * lie about which year the player was in. The year is the year.

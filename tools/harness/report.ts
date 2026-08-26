@@ -1,5 +1,5 @@
 /**
- * tools/harness/report.ts — render the measurements as `docs/BALANCE-REPORT.md`.
+ * tools/harness/report.ts — render the measurements as `build/BALANCE-REPORT.md`.
  *
  * build-doc §10.5: "Output: markdown report + suggested `balance.json` deltas."
  *
@@ -65,7 +65,7 @@ npm run harness${m.balancePath ? ` -- --balance ${m.balancePath}` : ""}
 | candidate parties drafted per seed | ${m.params.partyDrafts} |
 | wall-clock | ${Object.entries(m.timingsMs).map(([k, v]) => `${k} ${v}ms`).join(" · ") || "—"} |
 
-**TWO CLOCKS (D-Q3-1).** The calendar (ticks → seasons → years) and the ACT (badges and quest flags)
+**TWO CLOCKS.** The calendar (ticks → seasons → years) and the ACT (badges and quest flags)
 are independent, so a harness has to CHOOSE a pacing model rather than inherit one. Mode (c) drives
 **one act per simulated year**, which is what \`balance.clock.yearsTotal\` describes as normal pacing;
 mode (a) indexes the act directly. Neither number caps anything in the game.
@@ -103,7 +103,7 @@ number — every clause reads from \`data/balance.json\`, \`data/gyms.json\`, \`
 
 1. **Where they have been.** At gym *A*: the towns of gyms 1..*A* plus every node adjacent to them
    (\`gyms.json.act\` + \`gyms.json.town\` + \`nodes/*.json.adjacency\`). Nothing from a later act.
-   *A* is an **ACT**, not a calendar year (D-Q3-1): the two are independent clocks, and this whole
+   *A* is an **ACT**, not a calendar year: the two are independent clocks, and this whole
    section indexes the act.
 2. **What they could own.** Every line with a live population at one of those nodes, minus the
    sign-chain-gated ones (\`balance.encounter.signChainGatedHabitatTag\`) and the Ancients, plus the
@@ -116,10 +116,10 @@ number — every clause reads from \`data/balance.json\`, \`data/gyms.json\`, \`
    \`balance.encounter.levelByYear[A-1]\` (${b.encounter.levelByYear.join("/")}), the level the region's own
    wild population sits at. On shipped data UNTRAINED is exactly four levels below TRAINED. (The key
    keeps its shipped name; it is indexed by the leader's ACT here and always was — the array was
-   tuned against the gym ramp, which is an act ladder. See DEVIATIONS D-Q3-2.)
+   tuned against the gym ramp, which is an act ladder.)
 5. **Age.** Drawn from \`balance.encounter.ageWeights\` (J ${b.encounter.ageWeights.J} / A ${b.encounter.ageWeights.A} /
    E ${b.encounter.ageWeights.E}) — the shipped wild distribution. The team came out of the grass, so it is
-   aged like the grass. **This IS now a modelling assumption and it is stated as one (D-Q2-1):** the
+   aged like the grass. **This IS now a modelling assumption and it is stated as one:** the
    justification used to be "the year turn fires ON gym victory, so a year-*Y* team really is whatever
    year *Y*'s grass produced". A gym victory no longer ends a year, so act *A* and calendar year *A*
    are only equal under the harness's own pacing model (one act per simulated year — see
@@ -165,7 +165,7 @@ function gymRow(g: GymOutcome): string[] {
 function renderGymSim(loaded: LoadedContent, m: HarnessMeasurements): string {
   const gym = m.gym;
   if (!gym) return "";
-  // "act", not "yr": the column is data/gyms.json's `act` (D-Q3-1), and the two axes are separate.
+  // "act", not "yr": the column is data/gyms.json's `act`, and the two axes are separate.
   const headers = ["act", "leader", "type", "lvl (player v top)", "party", "win rate", "target", "verdict", "turns", "coverage"];
   const blocks: string[] = [];
 
@@ -402,8 +402,9 @@ This is the difference between "the type chart is lopsided" (a \`balance.json\` 
  *
  * **any prey rising** is an existential over every prey line of the collapsed predator, of any role.
  * **and rising (meso)** is build-doc §10.2's own clause — Mesopredator-role prey only. They diverge
- * wherever the apex also eats a Grazer, and the divergence is not small: see `docs/CASCADE-RELEASE.md`
- * §3. A single merged column was what let a rebounding Grazer be published as a mesopredator release.
+ * wherever the apex also eats a Grazer, which is four of the six apex sites — so the divergence is
+ * not an edge case. A single merged column was what let a rebounding Grazer be published as a
+ * mesopredator release.
  *
  * A `—` in the mesopredator column is not a zero. It means the row has no Mesopredator-role prey at
  * all, so §10.2's two-tier clause is undefined there.
@@ -454,7 +455,7 @@ function renderFullRun(loaded: LoadedContent, m: HarnessMeasurements): string {
   const classify = (nodeId: string, lineId: string, firstSeason: number): string => {
     if (raidLines.has(`${nodeId}|${lineId}`)) return "**raid target** (content, bible §6)";
     const raid = b.yearEvents.raids.find((r) => r.nodeId === nodeId);
-    // The raid fires on ENTRY TO ITS ACT (D-Q3-1). The full-run profile advances one act per
+    // The raid fires on ENTRY TO ITS ACT, not in a given calendar year. The full-run profile advances one act per
     // simulated year, so the act index is still the season offset the raid lands at in THIS harness
     // — a pacing assumption of the harness, not a rule of the game (see `runProfile`).
     if (raid && firstSeason >= raid.act * seasonsPerYear) return "**emergent** — raid node, not harvested";
@@ -567,7 +568,7 @@ ${
 }
 ${
   baseline && baseline.extinctions.length > 0
-    ? `\n**The baseline is not empty, and that is the point.** With *no player in the region at all*, ${baseline.extinctions.map((e) => `\`${e.nodeId}\`/${e.formName} (${e.seeds}/${baseline.seeds} seeds)`).join(", ")} still reach zero — because the shipped Cullbrand raid fires anyway (\`balance.yearEvents.raids\`, act ${b.yearEvents.raids[0]?.act ?? "?"} at \`${b.yearEvents.raids[0]?.nodeId ?? "?"}\`, taking ${pct(b.yearEvents.harvestFractionOfStanding, 0)} of the standing stock of each harvested line, or the authored ${b.yearEvents.raids[0]?.targets.map((t) => t.remove).join(" + ") ?? "?"} individuals, whichever is larger — D-Q6-1). **The raid script harvests only Grazers; the line above them starves on its own.** That is guardrail G6 working: the raid decrements what it harvests and the §7.3 rules produce the collapse above it, with nothing in \`core/ecosim.ts\` knowing a raid happened.`
+    ? `\n**The baseline is not empty, and that is the point.** With *no player in the region at all*, ${baseline.extinctions.map((e) => `\`${e.nodeId}\`/${e.formName} (${e.seeds}/${baseline.seeds} seeds)`).join(", ")} still reach zero — because the shipped Cullbrand raid fires anyway (\`balance.yearEvents.raids\`, act ${b.yearEvents.raids[0]?.act ?? "?"} at \`${b.yearEvents.raids[0]?.nodeId ?? "?"}\`, taking ${pct(b.yearEvents.harvestFractionOfStanding, 0)} of the standing stock of each harvested line, or the authored ${b.yearEvents.raids[0]?.targets.map((t) => t.remove).join(" + ") ?? "?"} individuals, whichever is larger). **The raid script harvests only Grazers; the line above them starves on its own.** That is guardrail G6 working: the raid decrements what it harvests and the §7.3 rules produce the collapse above it, with nothing in \`core/ecosim.ts\` knowing a raid happened.`
     : `\n**The baseline is clean**: with no player in the region at all, nothing reached zero in ${baseline?.seeds ?? 0} six-year runs.`
 }
 
@@ -586,7 +587,8 @@ fixture respectively imply:
 
 - **reading \`primary\`** — force the predator's \`primaryPrey\` only. §10.2's literal wording.
 - **reading \`limiting\`** — force \`limitingPrey\`: the minimal set of catchable pools whose loss actually
-  starves the predator (DEVIATIONS A2-D10).
+  starves the predator. This is the reading that actually kills an apex that can substitute one
+  prey pool for another; §10.2's literal singular does not.
 - **shape \`hold\`** — drive each target under \`cascade.preyForcedFraction\` (${pct(b.cascade.preyForcedFraction, 0)}) at the start of
   every one of \`cascade.forcingSeasons\` (${b.cascade.forcingSeasons}) seasons. Maximum forcing.
 - **shape \`effort\`** — remove \`opening / forcingSeasons\` individuals per forcing season and then stop.
@@ -818,11 +820,10 @@ function renderFindings(loaded: LoadedContent, m: HarnessMeasurements): string {
      * WHICH NODE IS THE BETTER DEMO STAGE — ranked on §10.2's clause, not on the broader rebound.
      *
      * An earlier version of this paragraph ranked the walkable nodes on a "released" flag that
-     * counted a prey line of ANY role, concluded that the slice was the better stage, and said so
-     * closed `docs/LANE-A-STATUS.md` §6.2. On the mesopredator reading it does not: the walkable
-     * row that carried that conclusion was a Grazer rebounding. The comparison below is on
-     * `fullBeatRate`, which is now Mesopredator-only, and it states BOTH numbers so the older
-     * reading cannot be mistaken for this one. `docs/CASCADE-RELEASE.md` §3 has the traces.
+     * counted a prey line of ANY role, and concluded the slice was the better stage. On the
+     * mesopredator reading it is not: the walkable row that carried that conclusion was a Grazer
+     * rebounding. The comparison below is on `fullBeatRate`, which is now Mesopredator-only, and it
+     * states BOTH numbers so the older reading cannot be mistaken for this one.
      */
     const rowsOf = (pred: (n: OvercatchNodeSummary) => boolean): OvercatchNodeSummary[] =>
       sweeps.flatMap((s) => s.nodes).filter(pred);
@@ -850,17 +851,17 @@ function renderFindings(loaded: LoadedContent, m: HarnessMeasurements): string {
       if (sliceBest.fullBeatRate > fixtureBest.fullBeatRate) {
         inferred.push(
           `**A vertical-slice node is the better demo stage, on §10.2's own clause.** ${sliceLine}. ` +
-            `\`${sliceBest.nodeId}\` is walkable, which is where build-doc §1 says the video is shot. This closes the open risk in ` +
-            `\`docs/LANE-A-STATUS.md\` §6.2, which recorded that reproducing the beat on the slice was "not demonstrated".` +
+            `\`${sliceBest.nodeId}\` is walkable, which is where build-doc §1 says the video is shot. This closes the standing ` +
+            `risk that reproducing the beat on the walkable slice was never demonstrated.` +
             grazerCaveat,
         );
       } else {
         inferred.push(
-          `**The vertical slice is NOT the better demo stage on §10.2's own clause.** ${sliceLine}. So the open risk in ` +
-            `\`docs/LANE-A-STATUS.md\` §6.2 — that reproducing the beat on the slice is "not demonstrated" — **stays open**, and ` +
+          `**The vertical slice is NOT the better demo stage on §10.2's own clause.** ${sliceLine}. So the standing risk — that ` +
+            `reproducing the beat on the walkable slice is not demonstrated — **stays open**, and ` +
             `\`${fixture.nodeId}\` remains the node whose release is the animal the spec names.${grazerCaveat} The choice in front of the owner is ` +
             `therefore between shooting the beat off the walkable slice at ${pct(sliceBest.fullBeatRate, 0)}, shooting it at \`${fixture.nodeId}\` at ` +
-            `${pct(fixtureBest.fullBeatRate, 0)}, and the content/spec options in \`docs/CASCADE-RELEASE.md\` §7 — none of which this harness may take (G2).`,
+            `${pct(fixtureBest.fullBeatRate, 0)}, and a content or spec change that would raise it — none of which this harness may take (G2).`,
         );
       }
     }
@@ -961,7 +962,7 @@ function renderDeltas(loaded: LoadedContent, m: HarnessMeasurements): string {
           `§3 shows why a balance retune cannot reach them: ${pct(bag.decidedPairFraction, 0)} of matchups are decided outright, so every ` +
           `\`balance.types.*\` multiplier applies to both sides and rescales the chart without reordering it. The remaining ` +
           `levers are \`baseStats\` in \`data/species.json\` and the role move pool in \`data/moves.json\` — **content**. That ` +
-          `belongs in \`docs/DEVIATIONS.md\`, not in a balance retune.`,
+          `is an owner-authorised content decision (G2), not a balance retune.`,
       );
     }
   }
@@ -990,7 +991,7 @@ function renderDeltas(loaded: LoadedContent, m: HarnessMeasurements): string {
       `**A \`breedRate\` lift on the released tier would be the real fix, and it is NOT a balance delta.** ` +
         `Per-line breed rates live in \`data/nodes/*.json\` (build-doc §7.2 — the node file is the single source of ` +
         `truth). Raising the mesopredator breed rate at the demo node is the change that would turn "the throne is ` +
-        `refilled" into "and it is visibly rising", and it is a content edit under \`docs/DEVIATIONS.md\`.`,
+        `refilled" into "and it is visibly rising", and it is a content edit, which this harness may not make (G2).`,
     );
   }
 
@@ -1089,8 +1090,8 @@ literal wording could not be satisfied as written.
 2. **Two level models, not one.** §10.5(a) says "a party at a level appropriate to that act" and does
    not say what that level is. Choosing one silently would decide the answer; both are reported.
 3. **Two prey readings and two protocol shapes in the over-catch sweep.** §10.2 says "its primary
-   prey" (singular); DEVIATIONS A2-D10 already records that the set reading is what actually starves
-   a predator. The fixture's own recorded protocol is a third thing again — a fixed effort per
+   prey" (singular), but the set reading is what actually starves a predator that can substitute
+   one prey pool for another. The fixture's own recorded protocol is a third thing again — a fixed effort per
    season, not a hold. All four combinations are measured because they do not agree.
 4. **"a new apex risen" is measured structurally, not by role name.** A node whose top predator is a
    Mesopredator (the Meadow, the Vale) has no Apex at all, so the sweep asks who sits at the top of
@@ -1122,7 +1123,7 @@ function renderLimits(loaded: LoadedContent, m: HarnessMeasurements): string {
     `Stated so that a green report is not mistaken for a finished game.
 
 - **No lifecycle in the gym sim.** Aging, retirement, heirs and boons (build-doc §7.5) do not appear
-  in §2. \`docs/LANE-A-STATUS.md\` §6.4 flags \`retirement.heirLevelFactor\` = ${loaded.balance.retirement.heirLevelFactor} as producing a
+  in §2. \`retirement.heirLevelFactor\` = ${loaded.balance.retirement.heirLevelFactor} is known to produce a
   measured ~2.1× power drop in the same year as a level-${loaded.balance.encounter.levelByYear[3] ?? 22}-plus gym. That is a real risk to the
   never-cut Legacy beat and this harness does not test it. A gym run seeded with a post-retirement
   party is the obvious next mode.

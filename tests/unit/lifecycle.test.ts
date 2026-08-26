@@ -1192,7 +1192,7 @@ describe("build-doc §7.5 step 6 — map year-variant swap", () => {
   });
 
   /*
-   * HONESTY, PUBLISHED (docs/DEVIATIONS.md D-Q3-9). The §9.5 clamp above is correct code over EMPTY
+   * HONESTY, PUBLISHED. The §9.5 clamp above is correct code over EMPTY
    * DATA: every one of the shipped node files ships `yearVariants: {}`, so `mapAssetForYear` returns
    * the base map at every year and the year-turn map swap can never fire in the running game. The
    * clamp is proven against synthetic fixtures only, and this test exists so the green above is not
@@ -1286,7 +1286,7 @@ describe("the BOON's +10% has exactly one home (G11 / balance.json _singleSource
   });
 
   it("has no second home: retirement.boonStatPct was deleted at integration", () => {
-    // DEVIATIONS D-A4-13, resolved. balance.json used to state the boon percentage twice
+    // balance.json used to state the boon percentage twice
     // (`stats.boonModPct` and `retirement.boonStatPct`); core/battle.ts read the first and
     // core/lifecycle.ts the second, so retuning either alone made the creature card and the
     // battle disagree silently. The duplicate is gone and must not come back — a re-added key

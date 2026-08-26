@@ -30,7 +30,7 @@ const HINT_STRIP_PX = 16;
  * that parses but has lost its `colors` array would throw while this scene's module graph loaded —
  * turning the fail-loud screen into the silent black page it exists to replace. Not importing
  * `MenuScene` also keeps the whole slot/settings graph off the failure path. Every other C1 screen
- * paints from the palette (`MenuScene.UI`); this one is the documented exception (C1-D10).
+ * paints from the palette (`MenuScene.UI`); this one is the deliberate exception.
  */
 const FAIL = {
   backdropHex: "#2a1414",

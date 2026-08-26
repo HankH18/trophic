@@ -123,7 +123,7 @@
       "file": "assets/raw/palette-trials/pt-fenmaw.png",
       "set": "held-out",
       "heldOutForCandidate": true,
-      "note": "round-1 Fenmaw — snout regressed to a generic croc (B-D19); excluded from the fit, kept as held-out evidence"
+      "note": "round-1 Fenmaw — snout regressed to a generic croc; excluded from the fit, kept as held-out evidence"
     },
     {
       "id": "fenmaw-3q",

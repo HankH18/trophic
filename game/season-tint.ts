@@ -238,7 +238,7 @@ export function seasonBrightness(balance: Balance, season: Season): number {
  *
  * Year 1 is 1.0 by construction: the first year is the reference the later ones are read against.
  *
- * ⚠ IT SATURATES, AND IT HAS TO (D-Q3-1). The ramp was written against a six-year game and only ever
+ * ⚠ IT SATURATES, AND IT HAS TO. The ramp was written against a six-year game and only ever
  * needed to reach year 6 (1 − 0.08×5 = 0.60). The calendar is unbounded now, and a linear ramp
  * clamped only at 0 reaches **pure black at year 13.5** — the painted maps would go out entirely for
  * a player who takes their time, which is a supported way to play. So the ELAPSED term saturates at

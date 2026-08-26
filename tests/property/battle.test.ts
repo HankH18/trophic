@@ -382,7 +382,7 @@ describe("battle invariants over random play", () => {
   });
 
   /* ──────────────────────────────────────────────────────────────────────────
-   * build-doc §7.4 as AMENDED 2026-08-25 (DEVIATIONS D-A5-1): the bait term now scales with the
+   * build-doc §7.4 as AMENDED 2026-08-25: the bait term now scales with the
    * CATCHING creature's Instinct. The unit cases live in tests/unit/catch.test.ts; these are the
    * two laws that must hold for EVERY catcher the roster can produce, not just the tabled ones.
    * ────────────────────────────────────────────────────────────────────────── */

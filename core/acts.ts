@@ -3,7 +3,7 @@
  *
  * ⚠ READ THIS BEFORE TOUCHING ANYTHING THAT SAYS "year".
  *
- * TROPHIC has two clocks and neither drives the other (docs/DEVIATIONS.md D-Q3-1, authorised by
+ * TROPHIC has two clocks and neither drives the other (authorised by
  * Hank: *"the game should progress based on the player going through the gyms and side events, not
  * based on year progression. Simply switch out the time check points for event check points."*).
  *
@@ -242,7 +242,7 @@ export function runCompleteFlag(balance: Balance): string {
  *
  * ⚠ IT READS TWO THINGS, AND IT HAD TO. `balance.acts.runCompleteFlag` is `story.greaves.beaten`,
  * which `data/dialogue.json` writes at the end of the Sanctum chain — and NOTHING IN `game/` READS
- * `data/dialogue.json` yet (docs/QUEUED-CHANGES.md Q7). Measured: awarding all six badges to a
+ * `data/dialogue.json` yet. Measured: awarding all six badges to a
  * fresh save left `runIsComplete` FALSE, so `onRunComplete` — "the seam the ending hangs off", and
  * on build-doc §16's never-cut list — was unreachable in the shipped build, where the calendar
  * condition it replaced did fire. Beating every leader in `gyms` is the same claim stated in the
@@ -331,7 +331,7 @@ export function markActEntered<S extends Pick<SaveFile, "questFlags">>(save: S, 
  *
  * Exported because the act ladder's FIRST rung is the one nothing in the shipped build can climb:
  * the flags are written by `data/dialogue.json`'s opening chain, and nothing in `game/` reads that
- * file yet (docs/QUEUED-CHANGES.md Q7). `game/scenes/OverworldScene.ts` uses this to say exactly
+ * file yet. `game/scenes/OverworldScene.ts` uses this to say exactly
  * which flags are missing, and — while no lane owns the opening beat — to stand in for it.
  */
 export function prologueExitFlags(balance: Balance): string[] {

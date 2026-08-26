@@ -6,7 +6,8 @@
  *   npm run harness -- --balance /tmp/tuned.json      build-doc §6 INV-3 (`ext_retune`)
  *   npm run harness -- --help
  *
- * Writes the markdown report to `docs/BALANCE-REPORT.md` and prints it.
+ * Writes the markdown report to `build/BALANCE-REPORT.md` and prints it. The report is generated
+ * output, not a document: it is written outside `docs/` and is git-ignored.
  */
 
 import { mkdirSync, writeFileSync } from "node:fs";

@@ -761,8 +761,8 @@ describe("fixtures/battle-scripts replay headlessly (build-doc §11)", () => {
       nickname: s.nickname ?? null,
     });
     expect(gym.input.enemyParty.map(shape)).toEqual(fromData.map(shape));
-    // …and the fixture's own uids stay distinct. The roster carried two Nibbins until DEVIATIONS
-    // D-A5-G1 cut the duplicate; the check stays, because a repeated line is legal in every roster.
+    // …and the fixture's own uids stay distinct. The roster carried two Nibbins until the
+    // duplicate was cut; the check stays, because a repeated line is legal in every roster.
     expect(new Set(gym.input.enemyParty.map((s) => s.uid)).size).toBe(gym.input.enemyParty.length);
   });
 
@@ -838,7 +838,7 @@ describe("fixtures/battle-scripts replay headlessly (build-doc §11)", () => {
     const gym = gymJson as unknown as BattleScript;
     const { state, events } = replay(gym);
     expect(gym.input.kind).toBe("gym");
-    // bible §7 as amended by DEVIATIONS D-A5-G1 — gym 1 roster size, signature included. Read off
+    // bible §7 as amended — gym 1 roster size, signature included. Read off
     // gyms.json rather than retyped, so this asserts "the fixture fields the WHOLE roster" and
     // cannot drift into asserting a stale number of its own.
     expect(gym.input.enemyParty).toHaveLength(content.gyms.find((g) => g.id === "maribel")!.slots.length + 1);
@@ -1086,7 +1086,7 @@ describe("Burrow/Roost and the un-wired food web", () => {
   it("ANNOUNCES the duck in the event log, immediately before the reduced hit", () => {
     /*
      * `evaded` was added to the BattleEvent union at INTEGRATION. bible §3's "+evasion" is
-     * implemented as damage reduction (DEVIATIONS D-A3-3), so without an event the reduced number
+     * implemented as damage reduction, so without an event the reduced number
      * is the only trace and a renderer cannot tell a duck from a weak hit — build-doc §4 makes the
      * scene "a renderer of its event log". Lane A3 reported this as a blocker it could not fix,
      * core/types.ts being another lane's file.
@@ -1215,7 +1215,7 @@ describe("predation and bait read core/foodweb.ts's derivation", () => {
 
   it("agrees with core/foodweb.ts's own baitMatchFor across every node's whole matrix", () => {
     // Every shipped node, because the rules only diverge at the edges: bible §4 leaves Steppe and
-    // Vale without a creature Producer (DEVIATIONS D12), so a flora-grazing target there can only
+    // Vale without a creature Producer, so a flora-grazing target there can only
     // be baited through `floraFeeders` — a case r1 and r2 cannot reach.
     let floraOnlyRoleMatches = 0;
     for (const node of content.nodes) {
@@ -1717,7 +1717,7 @@ describe("balance tunables are wired, not decorative", () => {
     expect(B.status.persistUntilCured).toBe(true);
     expect(burnFor(6, B)).toMatchObject({ name: "Burn", turnsActive: 6 });
     // Flipped: the status wears off, and the log says so. A flag nothing reads is worse than a
-    // literal, because retuning it looks applied (docs/DEVIATIONS.md D19).
+    // literal, because retuning it looks applied.
     const off = retuned((b) => {
       b.status.persistUntilCured = false;
     });

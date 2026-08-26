@@ -14,7 +14,7 @@
  *              │ ΔE map │  ΔE map   │  ΔE map          ← where the error lands, same scale
  *
  * Every column carries its own label, because the previous decision sheet's failure was that a
- * viewer could not tell a palette problem from a pipeline problem (B-D50/B-D51): under the old
+ * viewer could not tell a palette problem from a pipeline problem: under the old
  * background tolerance the candidate sprites were solid rectangles, and an unlabelled panel gives a
  * tired reader no way to know which of the two they are looking at.
  *
@@ -42,7 +42,7 @@ const PALETTES = [
 const fitSources = JSON.parse(await readFile('tools/palette/candidate-sources.json', 'utf8'));
 const EXTRA = [
   { id: 'fenmaw-GENERIC', class: 'creature-battle', file: 'assets/raw/palette-trials/pt-fenmaw.png',
-    note: 'round-1 Fenmaw — snout regressed to a generic croc (B-D19); held out of both fits' },
+    note: 'round-1 Fenmaw — snout regressed to a generic croc; held out of both fits' },
   { id: 'fenmaw-3q', class: 'creature-battle', file: 'assets/raw/palette-trials/pt-fenmaw-c.png',
     note: 'three-quarter Fenmaw — jaw doubled; held out of both fits' },
 ];

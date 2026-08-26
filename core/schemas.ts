@@ -236,7 +236,7 @@ export const zGymTeamSlot = z.strictObject({
 export const zGymLeader: z.ZodType<GymLeader> = z.strictObject({
   id: z.string().min(1),
   name: z.string().min(1),
-  // RENAMED from `year` (D-Q3-1): this is an ACT index, and the calendar no longer bounds it.
+  // RENAMED from `year`: this is an ACT index, and the calendar no longer bounds it.
   act: zNonNegInt,
   town: z.string().min(1),
   type: z.union([zTypeName, z.literal("mixed")]),
@@ -271,10 +271,10 @@ export const zGymsFile = z.object(zGymsFileShape);
 
 /**
  * The CONTRACT, not the colours. build-doc §8.4 fixes the size ("32 colors, k-means over the
- * approved trial set, frozen at gate B0"); docs/LANE-A-STATUS.md §4 tells Lane B that "the ids are
- * the stable contract" and that gate B0 is "a value swap, not a restructure". The hexes are
- * therefore free to change and are pinned NOWHERE; the id sequence, the count and the freeze claim
- * are what every downstream consumer indexes against, and they are checked in validateBundle().
+ * approved trial set, frozen at gate B0"), and gate B0 is a value swap rather than a restructure:
+ * the hexes are free to change and are pinned NOWHERE, while the id sequence, the count and the
+ * freeze claim are what every downstream consumer indexes against, and they are checked in
+ * validateBundle().
  */
 const zPaletteFileShape = {
   frozen: z.boolean(),
@@ -367,7 +367,7 @@ const zBalanceShape = {
     baseCatchAncient: zFrac,
     snareTier: z.record(zSnareTier, z.number().positive()),
     baitMult: z.record(zBaitMatch, z.number().positive()),
-    // build-doc §7.4 as amended (DEVIATIONS D-A5-1). The pivot is an Instinct SHARE, so it is a
+    // build-doc §7.4 as amended. The pivot is an Instinct SHARE, so it is a
     // fraction; the slope is a rate per unit of share and is unbounded above but must not be
     // negative, or a point of Instinct would once again cost catch odds instead of buying them.
     instinctBaitPivot: zFrac,
@@ -458,7 +458,7 @@ const zBalanceShape = {
     seasonOrder: z.array(zSeason).length(4),
     startYear: zInt.min(1),
     startTick: zNonNegInt,
-    // NOT a cap — the EXPECTED year count under normal pacing (D-Q3-1). The calendar is unbounded.
+    // NOT a cap — the EXPECTED year count under normal pacing. The calendar is unbounded.
     yearsTotal: zInt.min(1),
   }),
   // The act model (core/acts.ts) — the second clock. Badges and flags only; never time.
@@ -502,18 +502,18 @@ const zBalanceShape = {
     heirInheritedTraitsMin: zNonNegInt,
     heirInheritedTraitsMax: zNonNegInt,
     // Merged at integration from data/balance.additions.A4.json. `boonStatPct` is deliberately
-    // absent: the boon's magnitude is `stats.boonModPct` and has exactly one home (D-A4-13).
+    // absent: the boon's magnitude is `stats.boonModPct` and has exactly one home.
     heirLevelMin: zInt.min(1),
     boonMaxStacksPerStat: zInt.min(1),
   }),
   // Merged at integration from data/balance.additions.A4.json — build-doc §7.5 step 5 raid scripts.
   yearEvents: z.object({
-    // D-Q6-1: a strip-harvest takes the standing stock. `max(remove, round(count × this))`.
+    // A strip-harvest takes the standing stock. `max(remove, round(count × this))`.
     harvestFractionOfStanding: zFrac,
     raids: z.array(
       z.object({
         id: z.string().min(1),
-        // RE-KEYED from `year` (D-Q3-1): a raid fires on ENTRY TO ITS ACT, not on a year turn.
+        // RE-KEYED from `year`: a raid fires on ENTRY TO ITS ACT, not on a year turn.
         act: zNonNegInt,
         nodeId: z.string().min(1),
         targets: z.array(z.object({ lineId: z.string().min(1), remove: zInt.min(1) })).min(1),
@@ -726,7 +726,7 @@ export const zNodeState = z.strictObject({
 export function zSaveFileFor(party: Balance["party"]): z.ZodType<SaveFile> {
   return z.object({
     // A positive integer, not a literal: the VALUE is balance.party.saveVersion and core/save.ts
-    // checks a loaded save against it. A second pin here made a version bump unloadable (D-A4-18).
+    // checks a loaded save against it. A second pin here made a version bump unloadable.
     version: zInt.min(1),
     seed: zInt,
     year: zInt.min(1),
@@ -777,8 +777,7 @@ export interface RawContentBundle {
  *
  * Gym 1 is 3, not the originally-shipped 4: build-doc Hard Req 9 and bible §7 both read 4/4/5/6/6/6
  * until Hank authorised reducing Maribel to three creatures on the strength of the balance harness
- * (gym 1 measured 26.0% against an 80–95% target — the hardest fight in the game). The amendment,
- * the authorisation and the measurements are logged in docs/DEVIATIONS.md (D-A5-G1). The ramp is
+ * (gym 1 measured 26.0% against an 80–95% target — the hardest fight in the game). The ramp is
  * otherwise untouched, so the array still says "the first gym is the smallest and they grow".
  *
  * The species count (27) and node count (12) are deliberately NOT here — §6 INV-1/INV-2 say adding
@@ -791,7 +790,7 @@ const SEASONAL_MIGRANT_COUNT = 4;
 const GYM_ROSTER_SIZES: readonly number[] = [3, 4, 5, 6, 6, 6];
 const PALETTE_SWATCH_COUNT = 32;
 
-/** build-doc §8.4 / LANE-A-STATUS §4: the ids are positional and are the stable contract. */
+/** build-doc §8.4: the ids are positional and are the stable contract. */
 const paletteSwatchId = (index: number): string => `c${String(index).padStart(2, "0")}`;
 
 /**
@@ -1020,7 +1019,7 @@ export function validateBundle(raw: RawContentBundle): Content {
 
   // ── gym cross-checks ────────────────────────────────────────────────────
   // Hard Req 9 — "Gym rosters fixed per bible §7", counting the signature, AS AMENDED to
-  // 3/4/5/6/6/6 by DEVIATIONS D-A5-G1 (Maribel reduced to three on Hank's authorisation). The sizes
+  // 3/4/5/6/6/6 (Maribel reduced to three on Hank's authorisation). The sizes
   // were held only by tests/unit/transcription.test.ts, so the shipped tree was safe but the BOOT
   // validator was not: gym 6 grown to seven, or a seventh leader appearing, all parsed cleanly —
   // and boot is what stands between a live save and corrupt content. Gym 1 at 4 now fails here too,
@@ -1135,7 +1134,7 @@ export function validateBundle(raw: RawContentBundle): Content {
     if (propIds.size !== n.props.length) issues.push(`node ${n.id}: duplicate prop ids`);
   }
 
-  // ── act-model cross-checks (D-Q3-1) ─────────────────────────────────────
+  // ── act-model cross-checks ──────────────────────────────────────────────
   // The act gates are the second clock's whole definition, and every id in them is a reference into
   // data/nodes/. A gate naming a node that does not exist is a town that never unlocks; a gate list
   // that is not ascending is an act a save can skip; a leader on an act with no gate is a gym the
@@ -1213,7 +1212,7 @@ export function validateBundle(raw: RawContentBundle): Content {
     }
   }
 
-  // ── palette cross-check (build-doc §8.4 / LANE-A-STATUS §4) ─────────────
+  // ── palette cross-check (build-doc §8.4) ────────────────────────────────
   // The CONTRACT, never the colours: gate B0 is a value swap, so the hexes are legitimately in
   // flux. What Lane B indexes against — the count, the positional ids, and whether the file's
   // freeze claim is true — had no gate at all: a `c00` → `z00` rename and a `frozen: false → true`
@@ -1231,7 +1230,7 @@ export function validateBundle(raw: RawContentBundle): Content {
     if (c.id !== expected) {
       issues.push(
         `palette.json: swatch ${i} is "${c.id}", expected "${expected}" — the ids are positional and are ` +
-          `the stable contract Lane B indexes against (LANE-A-STATUS §4)`,
+          `the stable contract the art pipeline indexes against`,
       );
     }
   });

@@ -5,10 +5,10 @@
  * web already crashed by Cullbrand strip-harvest"*. Two earlier decisions settle HOW that sentence
  * is meant to become true:
  *
- *   • **D11** — `data/nodes/r4.json` ships HEALTHY. build-doc §7.2 says "sim initial state = the
+ *   • `data/nodes/r4.json` ships HEALTHY. build-doc §7.2 says "sim initial state = the
  *     file as shipped", and baking a crash into the shipped counts would pre-script a collapse the
  *     sim is supposed to produce, which is the exact shape G6 forbids.
- *   • **D-Q3-6** — the crash therefore arrives through the scripted act-4 Cullbrand raid, applied
+ *   • The crash therefore arrives through the scripted act-4 Cullbrand raid, applied
  *     by `core/lifecycle.ts` `enterPendingActs` on ENTRY to act 4, not at a year turn.
  *
  * WHAT THIS FILE IS EVIDENCE OF, AND WHY IT HAD TO EXIST. Act-keying the raid was asserted by
@@ -176,7 +176,7 @@ function isStarvingOrGone(node: EcoNode, lineId: string): boolean {
 }
 
 /**
- * The four arrivals. Not "year 4" — the calendar is unbounded and decoupled (D-Q3-1), so the only
+ * The four arrivals. Not "year 4" — the calendar is unbounded and decoupled, so the only
  * honest statement of "when the player gets there" is how many seasons the world ran first.
  */
 const ARRIVALS = [

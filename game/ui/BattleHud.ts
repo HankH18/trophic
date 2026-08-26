@@ -20,8 +20,9 @@ import { placeholderImage } from "../placeholder";
 /* ────────────────────────────────────────────────────────────────────────────
  * Asset keys — the rows Lane B's battle-sprite batch actually ships.
  *
- * build-doc §9.7 (corrected by DEVIATIONS D2) counts 150 battle sprites: 75 forms × front/back,
- * where a form is one (line, age class). The key is that tuple, built from data at runtime — no
+ * ⚠ build-doc §9.7 says 154 battle sprites (77 forms) and the shipped roster does not give that:
+ * the count is 150 — 75 forms × front/back, where a form is one (line, age class), which is also
+ * what `tools/comfy/manifest.json` ships. The key is that tuple, built from data at runtime — no
  * species name is ever written in this file (build-doc §8.3 / G2).
  *
  * WHAT WAS WRONG WITH THE FIRST CUT

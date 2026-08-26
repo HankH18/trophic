@@ -6,7 +6,7 @@
  * or roster changes). It reads the shipped JSON off disk — NOT through core/schemas.ts — so a
  * schema that quietly widened cannot hide a content drift. Every expectation below is transcribed
  * from docs/content-bible.md; if the data and the bible disagree, this test fails and the fix is the
- * data or a DEVIATIONS.md row, never a weakened assertion.
+ * data, never a weakened assertion.
  *
  * The binding rule, learned the hard way: a COUNT is not an identity. Asserting "27 species" lets a
  * whole bible species be renamed or swapped for an invented one and stay green. So the bible's §4
@@ -75,9 +75,8 @@ const all3 = <T>(v: T): Record<AgeClass, T> => ({ J: v, A: v, E: v });
  *
  * Columns: "# | Name | Type(s) | Role | Habitat". Bogling (row 9) is the juvenile of the Mirefin
  * line (row 11) and Gloomgrub is the juvenile of Gloomoth (row 16, prose), per the §4 metamorphic
- * paragraph — so 28 numbered rows become 27 lines. "Grazer (large)" (row 18) rides as sizeClass
- * (DEVIATIONS D4); "starter" / "roaming" / "(hidden)" ride as habitat tags (D3); Vellsire's own
- * gate tag is D15.
+ * paragraph — so 28 numbered rows become 27 lines. "Grazer (large)" (row 18) rides as sizeClass;
+ * "starter" / "roaming" / "(hidden)" ride as habitat tags.
  * ────────────────────────────────────────────────────────────────────────── */
 interface BibleRow {
   id: string;
@@ -362,7 +361,9 @@ const BIBLE_ROSTER: BibleRow[] = [
     ancient: false,
     seasonalWindow: "winter",
   },
-  // row 26 — Vellsire | Beast/Dark | Ancient Apex | Sanctum ("hidden" gate tag: DEVIATIONS D15)
+  // row 26 — Vellsire | Beast/Dark | Ancient Apex | Sanctum. The "hidden" tag is added to the
+  // bible's habitat: it is what gates the Ancient behind its sign chain, and without it Vellsire
+  // derives as an ordinary wild encounter worth a third of the sanctum's weight.
   {
     id: "vellsire-line",
     forms: all3("Vellsire"),
@@ -401,7 +402,7 @@ const BIBLE_ROSTER: BibleRow[] = [
 describe("species roster — bible §4", () => {
   it("ships exactly the bible's lines, in the bible's order, under the bible's names", () => {
     // Identity, not cardinality: renaming a line, dropping one, or slipping in an invented one
-    // fails here. bible §4 asset count: "27 lines … + 35 named dex identities" (DEVIATIONS D2).
+    // fails here. bible §4 asset count: "27 lines … + 35 named dex identities".
     expect(species.map((s) => s.id)).toEqual(BIBLE_ROSTER.map((r) => r.id));
     expect(species.length).toBe(27);
     expect(species.reduce((n, s) => n + s.dexIds.length, 0)).toBe(35);
@@ -543,15 +544,15 @@ describe("species roster — bible §4", () => {
 /* ──────────────────────────────────────────────────────────────────────────
  * bible §3 — the 28-move pool, transcribed by id AND display name.
  * Four names are the bible's own (Singe/Pyre, Douse/Riptide) plus the 5 role and 7 utility names it
- * lists; the twelve remaining type-move names are coined (DEVIATIONS D6) and are pinned here too,
+ * lists; the twelve remaining type-move names are coined and are pinned here too,
  * because a "coined" name that drifts silently is still a content change nobody approved.
  *
- * Three utility names below are the AMENDED bible (D-Q1-1 … D-Q1-4): Harden, Screech and Snarl were
+ * Three utility names below are the AMENDED bible: Harden, Screech and Snarl were
  * real Pokémon moves, so §3 now reads Bristle / Shriek / Daunt, and the "Roost" alias on
  * burrow-roost is gone. This list still transcribes the bible verbatim — the bible moved first.
- * The `id`s deliberately did NOT move (D-Q1-5): they are opaque keys no player ever sees.
+ * The `id`s deliberately did NOT move: they are opaque keys no player ever sees.
  *
- * One coined type name below is the Q2 IP rename (D-Q2-1): the Plant heavy move, id `overgrow`,
+ * One coined type name below is the Q2 IP rename: the Plant heavy move, id `overgrow`,
  * now displays as "Thicket". "Overgrow" is a real Pokémon ABILITY (#65) — the one every Grass
  * starter line carries — and TROPHIC has a Plant starter line, so the collision landed in the
  * same slot of the same design. Thicket is Bramble scaled up: one thorny stem to a whole stand.
@@ -589,18 +590,18 @@ const BIBLE_MOVE_NAMES: Array<[string, string]> = [
   ["lure", "Lure"],
 ];
 
-/** docs/IP-SWEEP.md RED: every one of these is a real Pokémon move, and Harden and Screech were our
- *  name AND our exact effect. They were renamed out of the pool (DEVIATIONS D-Q1-1 … D-Q1-4). This
+/** Every one of these is a real Pokémon move, and Harden and Screech were our
+ *  name AND our exact effect. They were renamed out of the pool. This
  *  list is the thing that must never come back — as a name, or as the `altName` alias Roost was. */
 const RENAMED_AWAY_POKEMON_MOVE_NAMES = ["Harden", "Screech", "Snarl", "Roost"];
 
-/** docs/IP-SWEEP.md RED, second batch: real Pokémon ABILITY names. "Overgrow" was our Plant heavy
+/** Second banned batch: real Pokémon ABILITY names. "Overgrow" was our Plant heavy
  *  MOVE and "Keen Eye" / "Strong Jaw" were TRAIT names, so one banned list has to be checked
  *  against both namespaces — a name evicted from `data/moves.json` must not reappear in
- *  `data/balance.json`'s trait pool, or the other way round (DEVIATIONS D-Q4-1 … D-Q4-3). */
+ *  `data/balance.json`'s trait pool, or the other way round. */
 const RENAMED_AWAY_POKEMON_ABILITY_NAMES = ["Overgrow", "Keen Eye", "Strong Jaw"];
 
-/** bible §3 names these verbatim; the rest of the 16 type moves are coined (D6). */
+/** bible §3 names these verbatim; the rest of the 16 type moves are coined. */
 const BIBLE_NAMED_MOVES = [
   "singe", "pyre", "dous", "riptide",
   "regrow", "trample", "ambush", "terrify", "scrounge",
@@ -665,7 +666,7 @@ describe("move pool — bible §3", () => {
     expect(move("scrounge").role).toBe("Scavenger");
     expect(move("scrounge").power).toBe(40);
     expect(move("scrounge").effects).toEqual([{ kind: "heal", mode: "damageDealt" }]);
-    // The five role moves cover five of the six roles; AncientApex fields Terrify (DEVIATIONS D10).
+    // The five role moves cover five of the six roles; AncientApex fields Terrify.
     expect(movesFile.moves.filter((m) => m.kind === "role").map((m) => m.role)).toEqual([
       "Producer", "Grazer", "Mesopredator", "Apex", "Scavenger",
     ]);
@@ -677,20 +678,20 @@ describe("move pool — bible §3", () => {
     expect(move("focus").effects[0]).toMatchObject({ target: "self", stat: "ins", direction: "up" });
     expect(move("snarl").effects[0]).toMatchObject({ target: "enemy", stat: "atk", direction: "down" });
     expect(move("burrow-roost").effects[0]).toMatchObject({ kind: "evade", skipTurn: true });
-    // bible §3 used to name it "Burrow/Roost" and D8 shipped that as name + altName. Roost is a real
+    // bible §3 used to name it "Burrow/Roost", which shipped as name + altName. Roost is a real
     // Pokémon move (Flying/Status, recovers half max HP), so the amended §3 names it "Burrow" alone
-    // and the alias is deleted, not renamed (D-Q1-4). Asserting ABSENCE is the point: `altName` is
+    // and the alias is deleted, not renamed. Asserting ABSENCE is the point: `altName` is
     // still optional in core/schemas.ts, so nothing but this stops it drifting back in.
     expect(move("burrow-roost").altName).toBeUndefined();
     expect(move("lure").effects).toEqual([{ kind: "catchOdds", multiplierKey: "lureMult" }]);
 
     // Every named bible move carries the name bible §3 gives it and is never flagged coined. The
-    // three D-Q1 renames are still bible names — §3 was amended first, so Bristle / Shriek /
+    // three IP renames are still bible names — §3 was amended first, so Bristle / Shriek /
     // Daunt are transcribed, not coined, and `coined` must stay off them.
     for (const id of BIBLE_NAMED_MOVES) {
       expect(move(id).coined, `${id} is a bible name, not a coined one`).toBeUndefined();
     }
-    // The twelve coined type-move names are flagged for the G15 IP sweep (DEVIATIONS D6). These
+    // The twelve coined type-move names are flagged for the G15 IP sweep. These
     // are IDS: `overgrow` stays flagged coined after the Q2 rename, because "Thicket" is still an
     // agent coinage — bible §3 never named the Plant pair. Renaming it did not launder it.
     expect(movesFile.moves.filter((m) => m.coined).map((m) => m.id)).toEqual([
@@ -705,12 +706,12 @@ describe("move pool — bible §3", () => {
     expect([...used].sort()).toEqual(["Burn", "Daze", "Soak", "Toxin"]);
   });
 
-  // G15 / docs/IP-SWEEP.md. The four RED move collisions are gone and must not return by any route:
+  // G15. The four banned move collisions are gone and must not return by any route:
   // not as a `name`, not as the `altName` alias that carried Roost, and not on a move added later.
   it("carries no name that is a real Pokémon move — the four RED collisions are gone", () => {
     const surfaced = movesFile.moves.flatMap((m) => [m.name, m.altName].filter((n): n is string => !!n));
     for (const banned of RENAMED_AWAY_POKEMON_MOVE_NAMES) {
-      expect(surfaced, `"${banned}" is a real Pokémon move — see docs/IP-SWEEP.md`).not.toContain(banned);
+      expect(surfaced, `"${banned}" is a real Pokémon move — G15 bans it; rename the display name only, ids stay put`).not.toContain(banned);
     }
     // …and the replacements are actually in place, so this test cannot pass by the pool being empty.
     expect(surfaced).toContain("Bristle");
@@ -720,18 +721,18 @@ describe("move pool — bible §3", () => {
     expect(surfaced.length).toBe(28); // 28 names, 0 aliases — every alias is gone, not just Roost's
   });
 
-  // G15 / docs/IP-SWEEP.md, Q2. "Overgrow" is a real Pokémon ABILITY, not a move — the signature
+  // G15, Q2. "Overgrow" is a real Pokémon ABILITY, not a move — the signature
   // ability of every Grass starter line, and TROPHIC has a Plant starter line, so it landed in the
-  // same slot of the same design. It was the Plant HEAVY move and is now "Thicket" (D-Q4-1).
+  // same slot of the same design. It was the Plant HEAVY move and is now "Thicket".
   it("carries no name that is a real Pokémon ability either — Overgrow is gone", () => {
     const surfaced = movesFile.moves.flatMap((m) => [m.name, m.altName].filter((n): n is string => !!n));
     for (const banned of RENAMED_AWAY_POKEMON_ABILITY_NAMES) {
-      expect(surfaced, `"${banned}" is a real Pokémon ability — see docs/IP-SWEEP.md`).not.toContain(banned);
+      expect(surfaced, `"${banned}" is a real Pokémon ability — G15 bans it; rename the display name only, ids stay put`).not.toContain(banned);
     }
     // …and the replacement is in place, so this cannot pass by the Plant heavy slot going missing.
     const plantHeavy = movesFile.moves.find((m) => m.kind === "type" && m.type === "Plant" && m.weight === "heavy");
     expect(plantHeavy?.name).toBe("Thicket");
-    expect(plantHeavy?.id).toBe("overgrow"); // the ID did not move — D-Q4-5
+    expect(plantHeavy?.id).toBe("overgrow"); // the ID did not move
   });
 
   // The rename changed NAMES only. Effects are content and G2 protects them, so the seven utility
@@ -833,7 +834,7 @@ describe("type chart — bible §1", () => {
 /* ────────────────────────────────────────────────────────────────────────── */
 describe("gym rosters — bible §7", () => {
   it("ships six fixed leaders with roster sizes 3/4/5/6/6/6 including the signature", () => {
-    // 3, not the bible's 4, at gym 1 only: DEVIATIONS D-A5-G1, authorised by Hank on the harness
+    // 3, not the bible's 4, at gym 1 only, authorised by Hank on the harness
     // measurement that gym 1 was the hardest fight in the game (26.0% against an 80–95% target).
     // The same three numbers are pinned in core/schemas.ts GYM_ROSTER_SIZES, which now REJECTS a
     // four-creature Maribel at boot — so the amendment cannot be undone silently in either place.
@@ -843,14 +844,14 @@ describe("gym rosters — bible §7", () => {
     expect(gyms.every((g) => g.source === "fixed")).toBe(true); // Hard Req 9 / G8
     expect(gyms.map((g) => g.type)).toEqual(["Beast", "Water", "Poison", "Fire", "Dark", "mixed"]);
     expect(gyms.map((g) => g.town)).toEqual(["hearthollow", "brackwater", "bowerdeep", "cindershelf", "duskhollow", "sanctum"]);
-    // bible §7 labels the column "Yr"; the field is `act` since D-Q3-1 and the numbers are the same.
+    // bible §7 labels the column "Yr"; the field is `act` and the numbers are the same.
     expect(gyms.map((g) => g.act)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it("transcribes each roster line-for-line", () => {
     const roster = (g: GymLeader) => [...g.slots, g.signature].map((s) => `${s.lineId}:${s.age}`);
     // bible §7 reads "Nibbin (A), Bramblehog (A), Skir (A) | Old Nib — Nibbin (E)". The DUPLICATE
-    // Nibbin (A) is the slot cut by DEVIATIONS D-A5-G1; every other leader is still verbatim.
+    // Nibbin (A) is the slot that was cut; every other leader is still verbatim.
     expect(roster(gym("maribel"))).toEqual(["bramblehog-line:A", "skir-line:A", "nibbin-line:E"]);
     expect(roster(gym("odo"))).toEqual(["mirefin-line:J", "reedrick-line:A", "mirefin-line:A", "fenmaw-line:E"]);
     expect(roster(gym("vesper"))).toEqual(["gloomoth-line:J", "sporantle-line:A", "mirefin-line:A", "webvern-line:A", "webvern-line:E"]);
@@ -876,9 +877,9 @@ describe("gym rosters — bible §7", () => {
 
   it("levels EVERY slot by the published ramp, not just the leader's top slot", () => {
     // gyms.json `_levels`: "roster level = 8 + 6×(gym−1); the signature is +2". Checking only each
-    // leader's maximum let any non-signature slot drift downward undetected (DEVIATIONS D9).
+    // leader's maximum let any non-signature slot drift downward undetected.
     //
-    // Gym 1's signature premium is +0, not +2 (DEVIATIONS D-A5-G2). The rank-and-file ramp is
+    // Gym 1's signature premium is +0, not +2. The rank-and-file ramp is
     // untouched everywhere, including gym 1 — the exception is ONE number, and it is asserted here
     // as an exact value rather than as a range, so it cannot slide any further.
     const signaturePremium = (i: number) => (i === 0 ? 0 : 2);
@@ -893,8 +894,8 @@ describe("gym rosters — bible §7", () => {
     expect(gyms[gyms.length - 1]!.signature.level).toBe(balance.xp.levelCap); // build-doc §7.4 cap
   });
 
-  it("keeps the region's wild level ramp two levels under the gym it feeds (DEVIATIONS D-A5-G3)", () => {
-    // The UNTRAINED player model (docs/BALANCE-REPORT.md §1 clause 4) fields the level the grass
+  it("keeps the region's wild level ramp two levels under the gym it feeds", () => {
+    // The UNTRAINED player model fields the level the grass
     // sits at. At [4,10,16,22,28,34] that was FOUR under every leader and gym 1 measured 0.2% over
     // 500 seeds. This binds the relationship rather than the array, so a future retune of either
     // side has to move both.
@@ -1109,10 +1110,10 @@ describe("nodes — bible §6", () => {
     // The old form of this test was `if (producers > 0 && grazers > 0) expect(...)` — which cannot
     // fail at a node with no Producer, and five nodes have none. So the empty tiers are named here:
     // if a tier silently empties, the LIST assertion fails even though the inequality went vacuous.
-    const NO_PRODUCER = ["cindershelf", "duskhollow", "r4", "r5", "sanctum", "sanctum-approach"]; // D12: Steppe & Vale have no Producer species
+    const NO_PRODUCER = ["cindershelf", "duskhollow", "r4", "r5", "sanctum", "sanctum-approach"]; // Steppe & Vale have no Producer species
     const NO_GRAZER = ["sanctum", "sanctum-approach"];
     const NO_MESO = ["sanctum", "sanctum-approach"];
-    const NO_APEX = ["duskhollow", "hearthollow", "r1", "r5", "sanctum", "sanctum-approach"]; // D12: Meadow & Vale have no Apex
+    const NO_APEX = ["duskhollow", "hearthollow", "r1", "r5", "sanctum", "sanctum-approach"]; // Meadow & Vale have no Apex
 
     const roleOf = (id: string) => line(id).role[balance.ecosim.webRoleAgeClass];
     const totalAt = (n: NodeFile, role: Role) =>
@@ -1337,14 +1338,14 @@ describe("balance.json is the single home of every gameplay constant (G11 / INV-
     // The rare pool is what an Elder roll is FOR — it never hands out a penalty.
     expect(pool.filter((t) => t.rarity === "rare").every((t) => t.direction === "up")).toBe(true);
 
-    // G15 / docs/IP-SWEEP.md, Q2. "Keen Eye" (#51) and "Strong Jaw" (#173) are real Pokémon
-    // Abilities and were two of the fifteen trait names (DEVIATIONS D-Q4-2 / D-Q4-3). Same banned
+    // G15, Q2. "Keen Eye" (#51) and "Strong Jaw" (#173) are real Pokémon
+    // Abilities and were two of the fifteen trait names. Same banned
     // list as the move pool uses, checked here too: an evicted name must not reappear in the other
     // namespace. The two `id`s did NOT move — `keen-eye` and `strong-jaw` are read by
-    // tests/unit/{catch,lifecycle}.test.ts and by core/, and no player ever sees them (D-Q4-5).
+    // tests/unit/{catch,lifecycle}.test.ts and by core/, and no player ever sees them.
     const traitNames = pool.map((t) => t.name);
     for (const banned of RENAMED_AWAY_POKEMON_ABILITY_NAMES) {
-      expect(traitNames, `"${banned}" is a real Pokémon ability — see docs/IP-SWEEP.md`).not.toContain(banned);
+      expect(traitNames, `"${banned}" is a real Pokémon ability — G15 bans it; rename the display name only, ids stay put`).not.toContain(banned);
     }
     // The replacements are in place under the untouched ids, so this cannot pass by the two traits
     // going missing. The pool is a 5×3 lattice and each name has to read as its column: "Bright
@@ -1392,7 +1393,7 @@ describe("balance.json is the single home of every gameplay constant (G11 / INV-
 
   it("states the derivation rules the sim would otherwise have to invent", () => {
     // bible §5 tracks a line as age-structured while NodeFile.populations carries one scalar count,
-    // so SOMETHING has to say which age's role drives the web (DEVIATIONS D14).
+    // so SOMETHING has to say which age's role drives the web.
     expect(balance.ecosim.webRoleAgeClass).toBe("A");
     expect(AGE_CLASSES).toContain(balance.ecosim.webRoleAgeClass);
     // A foray costs one tick (L8) but "rolls encounters" (build-doc §4) — the pair below is what
@@ -1427,7 +1428,7 @@ describe("referential integrity across the content files", () => {
     for (const s of species) {
       const roleMove = movesFile.moves.find((m) => m.id === s.movePool.role);
       const adultRole = s.role[balance.ecosim.webRoleAgeClass];
-      // DEVIATIONS D10: bible §3 defines five role moves for six roles, so AncientApex fields the
+      // bible §3 defines five role moves for six roles, so AncientApex fields the
       // Apex move. Every other line must field its own role's move.
       expect(roleMove?.role, `${s.id} role move`).toBe(adultRole === "AncientApex" ? "Apex" : adultRole);
     }

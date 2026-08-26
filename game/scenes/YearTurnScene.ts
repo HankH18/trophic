@@ -1,9 +1,9 @@
 /**
  * game/scenes/YearTurnScene.ts — the year turn as a played sequence (build-doc §15 C6).
  *
- * build-doc §4, runtime narrative step 5 AS AMENDED (D-Q2-1/D-Q3-1): "At tick 16 — and at nothing
- * else — the **year turn** runs: festival, aging of every owned+boxed creature, retirement flow for
- * expiring creatures, map variant swap, town aging arcs." build-doc §7.5 numbers the same steps.
+ * build-doc §4, runtime narrative step 5 AS AMENDED: "At tick 16 — and at nothing else — the
+ * **year turn** runs: festival, aging of every owned+boxed creature, retirement flow for expiring
+ * creatures, map variant swap, town aging arcs." build-doc §7.5 numbers the same steps.
  *
  * TWO THINGS THAT USED TO BE HERE ARE NOT. A gym victory no longer ends a year, so the turn has ONE
  * trigger; and the **event scripts (Cullbrand raids)** have moved off the calendar to ACT ENTRY —
@@ -14,8 +14,8 @@
  *   - aging, the J→A→E schedule, the metamorphic latch, the boxed-creature rule and the Ancient
  *     exemption (G10 / Hard Req 4) are `runYearTurn`'s, and this file never touches `yearsRemaining`;
  *   - the scripted raid is applied by `enterPendingActs` from `balance.yearEvents.raids` — on ACT
- *     entry, not at a year turn (D-Q3-1); game/year-events.ts only reads the result (G6 — the raid
- *     is scripted, the cascade above it is not);
+ *     entry, not at a year turn; game/year-events.ts only reads the result (G6 — the raid is
+ *     scripted, the cascade above it is not);
  *   - the year-variant swap is `runYearTurn`'s `mapVariantSwaps`;
  *   - the retirement choice is game/scenes/RetirementScene.ts's `RetirementFlow`, which itself only
  *     calls `rollHeirChoice` / `retirementChoiceProblem` / `resolveRetirement`.
@@ -106,7 +106,7 @@ export type YearTurnBeat =
       t: "festival";
       festival: FestivalBeat;
       /**
-       * The Cullbrand raids are no longer the year turn's (D-Q3-1) — they fire on ACT ENTRY — so
+       * The Cullbrand raids are no longer the year turn's — they fire on ACT ENTRY — so
        * this list is EMPTY on a year-turn festival and carries the previews on an act-entry
        * sequence ({@link actEntryBeats}). The field stays because the two sequences share one
        * renderer, and an empty array is how "no harvest is coming" is expressed, never an absent
@@ -174,16 +174,16 @@ export interface YearTurnDriveDeps {
    *
    * It used to be documented as insufficient on its own, because build-doc §4's OTHER trigger — a
    * gym victory — reported the year that had just begun as ended and sailed through. That trigger
-   * is gone (D-Q2-1): the meter is the only way a year ends, filling it costs `ticksPerYear` ticks
-   * by construction, and the state is now unreachable rather than refused.
+   * is gone: the meter is the only way a year ends, filling it costs `ticksPerYear` ticks by
+   * construction, and the state is now unreachable rather than refused.
    */
   endedYear: number;
   /**
    * Why the year ended — `yearTurnTrigger(...).reason`.
    *
    * Omitted ⇒ `"meter"`, which is also the only member `YearEndReason` still has: build-doc §4 gave
-   * the turn two triggers and the amended L8 leaves ONE (D-Q2-1, "At tick 16 — and at nothing else
-   * — the year turn runs"). It is CARRIED, never branched on — it reaches the banner and the beats
+   * the turn two triggers and the amended L8 leaves ONE ("At tick 16 — and at nothing else — the
+   * year turn runs"). It is CARRIED, never branched on — it reaches the banner and the beats
    * and nothing reads it to decide anything. The guard it used to be read for is gone with the
    * trigger it guarded; see the note in `driveYearTurn` about the third guard.
    */
@@ -231,8 +231,8 @@ export interface YearTurnDrive {
  *
  * build-doc §4 gave the turn two triggers ("At gym victory or tick 16") and `core/clock.ts` reported
  * both as `{t:"yearEnd"}`. Collapsing them HERE, once, is what stopped a shell that watched for both
- * from firing two turns. One trigger survives (D-Q2-1) and the collapse survives with it: there is
- * one trigger per action because there is one call to this.
+ * from firing two turns. One trigger survives and the collapse survives with it: there is one
+ * trigger per action because there is one call to this.
  */
 export interface YearTurnTrigger {
   /** The year that ended — hand this to {@link YearTurnDriveDeps.endedYear}. */
@@ -281,8 +281,8 @@ export function yearTurnTrigger(advanced: ClockAdvance): YearTurnTrigger | null 
  * things core/ecosim.ts guarantees for a region: Ancient presence effects reach across adjacent
  * nodes (`balance.ecosim.presenceRadiusNodes`), and `stepAll` costs the parent stream exactly ONE
  * draw for the whole region — which is what makes adding a node not move every other node's
- * trajectory (INV-2, the defect LANE-A-STATUS I10 records). So the whole region is stepped once,
- * up front, and the per-node hook hands back the precomputed state for its node.
+ * trajectory (INV-2). So the whole region is stepped once, up front, and the per-node hook hands
+ * back the precomputed state for its node.
  *
  * The season is read from `core/clock.ts` `seasonsOfYear` and then CHECKED against the season the
  * year turn actually reports stepping; a mismatch throws instead of silently stepping the region for
@@ -293,7 +293,7 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
   const { balance } = content;
 
   /*
-   * THE GAME IS NOT SIX YEARS LONG, AND THIS IS WHERE THAT STOPPED BEING TRUE (D-Q3-1).
+   * THE GAME IS NOT SIX YEARS LONG, AND THIS IS WHERE THAT STOPPED BEING TRUE.
    *
    * A refusal lived here: `save.year > finalYearOf(balance)` threw, because build-doc §1's "six
    * in-game years" was read as a hard end. It is not one. The calendar is unbounded, has no final
@@ -334,7 +334,7 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
   }
 
   /*
-   * A YEAR NOBODY HAS PLAYED A TICK OF CANNOT END — AND NOW IT STRUCTURALLY CANNOT (D-Q2-1).
+   * A YEAR NOBODY HAS PLAYED A TICK OF CANNOT END — AND NOW IT STRUCTURALLY CANNOT.
    *
    * A THIRD GUARD USED TO STAND HERE and it is gone with the trigger it guarded. The two checks
    * above are keyed on the ENDED year and on the BEGUN year, and a gym victory slipped between
@@ -343,7 +343,7 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
    * `save.year`, so guard 1 passed, and the flag (N+1) was below `save.year + 1` (N+2), so
    * `canRunYearTurn` passed too. Reproduced against the shipped content: a meter-triggered turn out
    * of year 1 followed by a gym victory ran a SECOND full turn and left the save in year 3, burning
-   * a year with zero ticks played in it. It needed a guard on the REASON (C56-D2).
+   * a year with zero ticks played in it. It needed a guard on the REASON.
    *
    * Under the amended L8 a gym victory does not end a year at all, so the state is unreachable
    * rather than refused: the meter is the only trigger, and filling it costs `ticksPerYear` ticks,
@@ -403,7 +403,7 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
   }
 
   /*
-   * THE RAID GUARD MOVED WITH THE RAID (D-Q3-1) — see {@link actEntryBeats}.
+   * THE RAID GUARD MOVED WITH THE RAID — see {@link actEntryBeats}.
    *
    * A check stood here that the year turn had actually emitted the raid events its year's script
    * called for, because bible §9 promises "populations visibly drop at a named node" and a silent
@@ -439,7 +439,7 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
  * year-variant swap. So the retirement beat sits between the form changes and the raid survey — and
  * the scene ANSWERS its prompts there, not after every other beat has played, which is where they
  * used to be answered. build-doc §4 step 5 lists the same six items with the map swap ahead of the
- * raid scripts; §7.5 is the one that numbers them and it wins. Logged as C56-D1.
+ * raid scripts; §7.5 is the one that numbers them and it wins.
  */
 export function beatsFor(
   before: SaveEnvelope,
@@ -574,7 +574,7 @@ export function beatsFor(
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * Act entry — where the Cullbrand raid lives now (D-Q3-1)
+ * Act entry — where the Cullbrand raid lives now
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
@@ -583,7 +583,7 @@ export function beatsFor(
  * bible §9's raids are "scripted per act, populations visibly drop at a named node", and they fire
  * on entry to their act rather than at a year turn — so Cindershelf is entered mid-collapse whether
  * the player arrives in calendar year 2 or year 11, and a player who arrives early WATCHES it
- * happen instead of finding the node already crashed (Q6).
+ * happen instead of finding the node already crashed.
  *
  * THE SCRIPTED BEAT EITHER HAPPENS OR IT IS SAID OUT LOUD. `enterPendingActs` emits one `raid` event
  * per harvested line, so an act whose script has targets and whose event log has none is a beat that
@@ -684,7 +684,7 @@ export function beatLines(beat: YearTurnBeat): string[] {
         `FESTIVAL · ${beat.festival.label}`,
         /*
          * ALWAYS EMPTY ON A YEAR-TURN FESTIVAL, and kept so the two sequences share one renderer.
-         * The Cullbrand raids are not the year turn's any more — they fire on ACT ENTRY (D-Q3-1) and
+         * The Cullbrand raids are not the year turn's any more — they fire on ACT ENTRY and
          * render under the `actEntry` beat, which is where this preview copy lives now. An empty
          * array is how "no harvest is coming" is expressed, never an absent field.
          */

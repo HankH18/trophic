@@ -73,7 +73,7 @@
  * 227–259 GAINED) are all accepted.
  *
  * ─────────────────────────────────────────────────────────────────────────────
- * AND THE RESIDUAL, WHICH IS THE OTHER HALF OF THAT SENTENCE (B-D39).
+ * AND THE RESIDUAL, WHICH IS THE OTHER HALF OF THAT SENTENCE.
  * ─────────────────────────────────────────────────────────────────────────────
  * 25 of 25 is where the gate WORKS, not where it stops. HALVE the feature and it stops: a 32px
  * feature — 2×2 collision cells, an object smaller than the 32×48 player — displaced by one cell is
@@ -85,7 +85,7 @@
  * `balance.overlayDiff` cannot move that boundary in silence — in either direction.
  *
  * The OTHER direction is unmeasured and is the bigger unknown: the false-REJECT rate on real aged
- * variants (B-D25). The largest drift seen on real material ran 7–18 cells against a limit of 6 on
+ * variants. The largest drift seen on real material ran 7–18 cells against a limit of 6 on
  * 3 of 5 maps, but no §9.5 img2img run has ever happened, so nothing here has been pointed at an
  * actual year variant. Neither number is a reason to hand-wave a REJECT: G4 forbids overriding one.
  *
@@ -466,7 +466,7 @@ export function overlayDiff(input: OverlayDiffInput): OverlayDiffResult {
  * WHERE THIS STOPS WORKING, stated here as well as in the file header because this function is
  * where the limit is decided: 151 against 150 is one pixel of margin, and a feature half that size
  * falls off the other side. A 32px feature displaced one cell is ACCEPTED at 8 of those same 25
- * pairs (B-D39). Pinned by tests/unit/overlay-diff.test.ts so a retune cannot move it quietly.
+ * pairs. Pinned by tests/unit/overlay-diff.test.ts so a retune cannot move it quietly.
  */
 function worstRegion(
   cellData: { drifted: Uint8Array; judged: Uint8Array; lost: Int32Array; gained: Int32Array },
@@ -545,7 +545,7 @@ function worstRegion(
  * §8.2 / §9.5's regeneration ladder: "regenerated at lower denoise (start 0.35, step −0.05, floor
  * 0.2)", capped at `maxRegenAttempts`. Returns the next denoise to try, or null when the ladder is
  * spent — at which point §9.5 says that year reuses the nearest passing variant, and G4 says a
- * failing variant is NEVER accepted by hand without a DEVIATIONS entry.
+ * failing variant is NEVER accepted by hand.
  *
  * `tools/comfy/comfy-batch.ts` walks this ladder on the live path; it is not documentation.
  */

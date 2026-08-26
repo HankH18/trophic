@@ -54,8 +54,8 @@ import type { SummarySceneData } from "./SummaryScene";
  *
  * It is DEFINED in `game/menu-model.ts` — the six values used to be hexes inlined here, none of them
  * one of the 32 now-frozen swatches, and a rule that lives in a scene is a rule no node test can
- * import and therefore no test can hold (C1-D4). `tests/unit/game-menu-model.test.ts` asserts every
- * one of them is a real swatch id in `data/palette.json`.
+ * import and therefore no test can hold. `tests/unit/game-menu-model.test.ts` asserts every one of
+ * them is a real swatch id in `data/palette.json`.
  */
 export { UI, UI_SWATCH_ID } from "../menu-model";
 

@@ -10,7 +10,7 @@
  * not the subject, not the proportions clause, not the style skeleton, not the negative.
  * That is what makes the back/side reads the *same character* rather than a near-miss.
  *
- * SEED. Held at 42 — the validated trial seed (B-D1) and the approved front's seed. Same latent
+ * SEED. Held at 42 — the validated trial seed and the approved front's seed. Same latent
  * noise + same prompt minus one clause is the strongest available lever for cross-view coherence.
  * G5 is not in play: these are NEW manifest rows for views that have no approved asset yet, not a
  * regeneration of the approved front.
@@ -39,7 +39,7 @@ export const APPROVED_VIEW_CLAUSE = 'standing facing forward';
 
 const prompt = (view: string) => `${APPROVED_PREFIX}, ${view}, ${APPROVED_SUFFIX}`;
 
-/** Frozen negative + the player-class cape lock (B-D7). Unchanged from the approved row. */
+/** Frozen negative + the player-class cape lock. Unchanged from the approved row. */
 const NEGATIVE =
   'low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, ' +
   'cape, cloak, hood, mantle';
@@ -59,7 +59,7 @@ const client = new ComfyClient(env);
 const base = JSON.parse(await readFile('tools/comfy/pixel-txt2img-api.json', 'utf8')) as Graph;
 
 const creditsBefore = await client.credits();
-console.log(`credits endpoint: ${creditsBefore === null ? 'none (B-D10)' : creditsBefore}`);
+console.log(`credits endpoint: ${creditsBefore === null ? 'none' : creditsBefore}`);
 console.log(`B0 views: ${VIEWS.length} generations (< 20, so no --confirm gate per G13)\n`);
 
 const rows: Record<string, unknown>[] = [];

@@ -13,8 +13,7 @@
  * in before the player met its giver, a census that paid exactly one milestone for a whole run, and
  * an annual arrangement whose own flags forbade the year after. They are repaired here and in
  * `core/quests.ts`; `tests/gates/quest-layer.test.ts` pins the shapes and
- * `tests/unit/quests.test.ts` drives every one of them down the path a player takes. Every
- * departure the repairs required is logged as **D-Q9-*** in `docs/DEVIATIONS.md`.
+ * `tests/unit/quests.test.ts` drives every one of them down the path a player takes.
  *
  * ═══════════════════════════════════════════════════════════════════════════════════════════════
  * WHY THE OBJECTIVE TABLE IS IN `game/` AND NOT IN `data/balance.json` — READ THIS BEFORE MOVING IT
@@ -24,9 +23,8 @@
  * `tests/gates/guardrails.test.ts` "balance_keys_survive_validation" requires every leaf of
  * balance.json to be declared in BOTH `core/types.ts` `Balance` and `core/schemas.ts` `zBalance`
  * (`z.object` strips what it does not declare, so an undeclared knob is a decoy). Those two files
- * belong to another stream in this wave, so adding the block would have shipped a red gate. The
- * three-file change that gives this table its real home is logged as **D-Q7-2** in
- * `docs/DEVIATIONS.md`.
+ * belong to another stream in this wave, so adding the block would have shipped a red gate. Moving
+ * this table to its real home is a three-file change: balance.json, `Balance`, `zBalance`.
  *
  * Two things the table therefore may NOT do, and does not:
  *   • **name a species.** `tests/property/foodweb.test.ts` "no shipping source names a species"
@@ -242,16 +240,15 @@ export const QUEST_OBJECTIVES: Readonly<Record<string, QuestObjective>> = {
    * ⚠ WAS `{kind: "flagSet", flag: RETIREMENT_MILESTONE_FLAG}` AND THAT MADE THE QUEST HOLLOW.
    * `bram.quest.forge.offer` REQUIRES `lifecycle.first-retirement` in its own `when.flagsSet`, so
    * an objective naming that same flag is true at the instant the offer becomes eligible. The
-   * offer writes its own acceptance (D-Q9-7), so the very next `syncQuestFlags` — the one
+   * offer writes its own acceptance, so the very next `syncQuestFlags` — the one
    * `OverworldScene.interact` runs before the next [E] — found the quest `accepted` with its
    * objective already satisfied and wrote the turn-in. Measured: two consecutive [E] presses at
    * Cindershelf, no travel, no catch, no release, and the Legacy beat's side quest closed itself.
    *
    * The objective is now the verb the offer's own copy names — "Bring it here and I'll set it" —
-   * transcribed as arriving at Bram's town after taking the job. D-Q9-7 refused the plan's
-   * `{visitedSince, node: "r4"}` because the shipped copy says HERE and not Cinder Steppe; this is
-   * that same objection honoured, with `here` resolved to the node the offer is spoken in. No
-   * prose moves, so the pair D-Q9-7 said must land together is not split. DEVIATIONS D-W3-2.
+   * transcribed as arriving at Bram's town after taking the job. It is NOT `{visitedSince, node:
+   * "r4"}`: the shipped copy says HERE and not Cinder Steppe, so `here` resolves to the node the
+   * offer is spoken in. No prose moves, so the objective and the copy still land together.
    */
   "forge-a-legacy": { kind: "visitedSince", node: "cindershelf" },
 
@@ -635,7 +632,7 @@ export function stillOwed(
 ): string[] {
   // `externallyGrantedFlags` covers `flagEquals` as well as `flagsSet`, which is where the two
   // `story.vellsire.*` outcome keys live — a hand-rolled scan of `flagsSet` alone misses them, and
-  // missing them is exactly how they came to have no writer at all (D-INT-4).
+  // missing them is exactly how they came to have no writer at all.
   return externallyGrantedFlags(file).filter((key) => !flagIsSet(save.questFlags, key));
 }
 

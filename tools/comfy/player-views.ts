@@ -26,7 +26,7 @@
  * the VALIDATED txt2img graph so every other parameter is byte-identical to the trial that produced
  * the approved art. `img2img-graph.json` is that graph materialised for the record.
  *
- * B-D8: Comfy Cloud has no `/api/history`. Outputs arrive ONLY over the WebSocket during execution.
+ * Comfy Cloud has no `/api/history`. Outputs arrive ONLY over the WebSocket during execution.
  * `ComfyClient.run` opens the socket before submitting; this file never bypasses it.
  *
  * ─────────────────────────────────────────────────────────────────────────────
@@ -73,12 +73,13 @@ export const PROMPT_TAIL =
 /** The approved front's own view clause — substituting this is the only permitted variation. */
 export const FRONT_VIEW_CLAUSE = 'standing facing forward';
 
-/** Player-class negative, frozen at B-D7 (cape/cloak/hood/mantle appended for this class only). */
+/** Player-class negative: cape/cloak/hood/mantle appended for this class only, because L6 forbids a
+ *  cape and the style reference has one. Every other class uses the frozen negative unchanged. */
 export const NEGATIVE =
   'low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, ' +
   'cape, cloak, hood, mantle';
 
-export const SEED = 42; // G5 / B-D1. Never varies without versioning the manifest row.
+export const SEED = 42; // G5: the validated trial seed. Never varies without versioning the manifest row.
 
 export const VIEW_CLAUSES: Record<string, string> = {
   back: 'seen from directly behind, facing away from the viewer',
@@ -413,7 +414,7 @@ export const VIEWS_DIR = resolve(REPO_ROOT, 'assets/approved-trials/_player-view
 /**
  * §9.3 order: trim -> nearest downscale to 32x48 -> quantize -> background removal.
  *
- * THE BACKGROUND OPTIONS COME FROM THE MANIFEST, not from a literal here (G11, B-D35). Step 3 runs
+ * THE BACKGROUND OPTIONS COME FROM THE MANIFEST, not from a literal here (G11). Step 3 runs
  * AFTER quantize, so its tolerance is a property of the palette rather than of this file: it has to
  * admit whatever the palette maps white to. This function used to carry `{ key: WHITE, tolerance:
  * 12 }`, which passed only because `data/palette.json` happens to put white at deviation 4; both

@@ -6,7 +6,7 @@
  *
  * Every other lane reads this file and must never need to edit it. Where the build doc names a
  * field, the field name and type here are that name and type verbatim. Additive fields beyond the
- * build doc are marked `[additive]` and carry a DEVIATIONS.md row.
+ * build doc are marked `[additive]`.
  *
  * NOTE ON CONSTANTS (guardrail G11 / INV-4): nothing in this file is a gameplay number. The `as
  * const` tuples below are the *vocabulary* the schemas and iteration order are built from — the
@@ -77,7 +77,7 @@ export type PresenceEffect = (typeof PRESENCE_EFFECTS)[number];
 export const PRESENCE_MODES = ["breedMult", "typeBreedMult", "typeBreedFloor"] as const;
 export type PresenceMode = (typeof PRESENCE_MODES)[number];
 
-/** How one Ancient presence effect acts (bible §4). Entirely data — DEVIATIONS A2-D4. */
+/** How one Ancient presence effect acts (bible §4). Entirely data. */
 export interface PresenceEffectRule {
   mode: PresenceMode;
   /** The type the effect acts on; absent = it acts on every line in range. */
@@ -117,7 +117,7 @@ export interface SpeciesLine {
   dietExceptions?: string[]; // extra prey line-ids (Fenmaw -> Reedrick)
   presenceEffect?: PresenceEffect; // Ancients only
   /**
-   * [additive — DEVIATIONS D4] bible §5: "Apex eats Mesopredators and **large** Grazers".
+   * [additive] bible §5: "Apex eats Mesopredators and **large** Grazers".
    * build-doc §7.1 has no field carrying "large", so the §7.3 derivation could not be written
    * without one. Set only on Barkhide (the sole "Grazer (large)" in bible §4).
    */
@@ -260,7 +260,7 @@ export interface MoveDef {
   text: string;
   /** [additive] display alias — bible §3 lists one utility as "Burrow/Roost". */
   altName?: string;
-  coined?: boolean; // true => name coined by the agent, logged in DEVIATIONS.md (G15 IP sweep)
+  coined?: boolean; // true => name coined by the agent (G15 IP sweep)
 }
 
 export interface MovesFile {
@@ -513,12 +513,12 @@ export interface GymLeader {
   slots: GymTeamSlot[];
   signature: GymTeamSlot;
   source: "fixed" | "ghost";
-  /** [additive — DEVIATIONS D5] display name ("Magnate Greaves"). */
+  /** [additive] display name ("Magnate Greaves"). */
   name: string;
   /**
    * The ACT this leader belongs to — bible §7's leftmost column, which the bible labels "Yr".
    *
-   * ⚠ RENAMED FROM `year` (D-Q3-1). It was never a calendar year: the harness has always read it as
+   * ⚠ RENAMED FROM `year`. It was never a calendar year: the harness has always read it as
    * "how far along the player is" (`tools/harness/player.ts` `actNodeIds`), and content-bible §6's
    * "Six acts = six years" equation is what made the two look like one axis. Under the amended L8
    * the calendar is unbounded and story progression is `core/acts.ts`'s, so a leader beaten in
@@ -588,8 +588,7 @@ export interface SaveFile {
    * build-doc §7.8 shows `{version:1, …}`; 1 is the shipped VALUE, not the rule. The one home for
    * the number is `balance.party.saveVersion` (INV-3: retuning balance touches balance.json only),
    * and core/save.ts checks a loaded save against it. Pinning `1` as a TYPE here made bumping that
-   * tunable produce a save the build that wrote it could not load — resolved at integration,
-   * DEVIATIONS D-A4-18.
+   * tunable produce a save the build that wrote it could not load — resolved at integration.
    */
   version: number;
   seed: number;
@@ -717,7 +716,7 @@ export interface Balance {
     snareTier: Record<SnareTier, number>;
     baitMult: Record<BaitMatch, number>;
     /**
-     * build-doc §7.4 as amended 2026-08-25 (DEVIATIONS D-A5-1) — bible §2's "bait success" job for
+     * build-doc §7.4 as amended 2026-08-25 — bible §2's "bait success" job for
      * Instinct. The bait term is multiplied by `1 + instinctBaitSlope × (insShare − instinctBaitPivot)`,
      * where `insShare` is the CATCHING creature's Instinct as a fraction of its five effective stats.
      * `instinctBaitPivot` is the allocation at which the term is 1 (the roster median, 45/300).
@@ -773,7 +772,7 @@ export interface Balance {
     /**
      * Which age class's `role` drives the derived web for an age-structured line (bible §5: "the
      * population sim tracks the line as one age-structured species", while NodeFile.populations
-     * carries one scalar count). "A" = the adult role — DEVIATIONS D14.
+     * carries one scalar count). "A" = the adult role.
      */
     webRoleAgeClass: AgeClass;
     /**
@@ -883,9 +882,9 @@ export interface Balance {
     boonMaxStacksPerStat: number;
     /**
      * NOTE: there is deliberately no `boonStatPct` here. The boon's magnitude is
-     * `stats.boonModPct` and has exactly one home — the duplicate was deleted at integration
-     * (DEVIATIONS D-A4-13): core/battle.ts read one key and core/lifecycle.ts the other, so
-     * retuning either alone made the creature card and the battle disagree.
+     * `stats.boonModPct` and has exactly one home — the duplicate was deleted at integration:
+     * core/battle.ts read one key and core/lifecycle.ts the other, so retuning either alone made
+     * the creature card and the battle disagree.
      */
   };
   /**
@@ -894,7 +893,7 @@ export interface Balance {
    * Acts are driven by badges and quest flags and NEVER by time. They gate town/route unlocks,
    * story beats, the Cullbrand raids, rival encounters and the finale; the calendar drives aging,
    * retirement, the ecosim's season steps, map year-variant art and the season tint, and the two do
-   * not touch. See docs/DEVIATIONS.md D-Q3-1.
+   * not touch.
    *
    * The gate ROWS are content-bible §6/§7 transcribed (which town, which route, which leader), and
    * the thresholds are tunables — both live here because balance.json is the one file `core/` may
@@ -954,7 +953,7 @@ export interface Balance {
    * applies whatever this list says, and a raid may only decrement what it harvests — the predator
    * collapse above it must EMERGE from the §7.3 rules (G6).
    *
-   * ⚠ `raids[].year` was RENAMED to `act` (D-Q3-1). The raid used to be applied by the year turn
+   * ⚠ `raids[].year` was RENAMED to `act`. The raid used to be applied by the year turn
    * that BEGAN its year; it is now applied on entry to its act, so Cindershelf is entered
    * mid-collapse whether the player arrives in calendar year 2 or year 11 (content-bible §6).
    * The group keeps the name `yearEvents` because build-doc §7.5 step 5 names it that; only the
@@ -962,7 +961,7 @@ export interface Balance {
    */
   yearEvents: {
     /**
-     * The fraction of a target's STANDING stock a strip-harvest takes (D-Q6-1).
+     * The fraction of a target's STANDING stock a strip-harvest takes.
      *
      * `targets[].remove` is a body count authored against the node's shipped state, and a node the
      * act ladder has not opened yet still breeds every season — so once the raid was keyed on the

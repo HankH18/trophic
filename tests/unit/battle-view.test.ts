@@ -1289,7 +1289,7 @@ describe("game/scenes/BattleScene.ts is a renderer, not a rulebook", () => {
  * ════════════════════════════════════════════════════════════════════════════ */
 
 /*
- * ⚠ THIS WAS A HAND-WRITTEN LIST OF NINE FILES, AND THAT IS THE BF-3 DEFECT.
+ * ⚠ THIS WAS A HAND-WRITTEN LIST OF NINE FILES, AND THAT IS THE DEFECT.
  *
  * `LANE_C3_FILES` named `game/battle-view.ts` … `game/ui/Palette.ts` and scanned exactly those.
  * G7 — "no moralizing copy about catching, anywhere, in any string" — is a guardrail whose whole
@@ -1400,7 +1400,7 @@ describe("G7 and Hard Req 8 — the copy of every shipped source, discovered not
       }
     }
     // RE-ANCHORED, and stronger than what it replaces. This used to be `> 80`, a magic figure
-    // pinned to the fixtures as first recorded; lane A5 re-recorded them (commit 7d9a322, the D-A5-1
+    // pinned to the fixtures as first recorded; lane A5 re-recorded them (commit 7d9a322, the
     // catch-formula amendment) and the total is now 79, so the bound was measuring another lane's
     // recording rather than this compiler. The claim is now an IDENTITY against the fixtures' own
     // declared event counts — a compiler that silently dropped a caption cannot satisfy it at any
@@ -1777,7 +1777,7 @@ describe("battle UI widget models", () => {
         .filter((row) => row.class === "creature-battle")
         .map((row) => assetId(row.finalFile)),
     );
-    expect(manifestIds.size).toBe(150); // build-doc §9.7 as corrected by DEVIATIONS D2.
+    expect(manifestIds.size).toBe(150); // build-doc §9.7 says 154; its form arithmetic is off, and 75 forms × 2 facings is 150.
 
     // The keys the manifest OWES: every (line, age) a battler is supposed to be built at, both
     // facings. Ancients are pinned to "E" by core/lifecycle.ts:346 (`line.ancient ? "E" : opts.age`),
@@ -1833,7 +1833,7 @@ describe("battle UI widget models", () => {
      * every (line, age) it actually produced into a battle sprite key, and subtracts the manifest.
      *
      * MEASURED: three Ancient lines × {J, A} × {front, back} = 12 keys with no row. `textureFor`
-     * substitutes a hatched box for each, silently (BF-7), so the large majority of unlocked-Ancient
+     * substitutes a hatched box for each, silently, so the large majority of unlocked-Ancient
      * encounters would ship as placeholders with nothing reporting it.
      *
      * FIXED in `game/encounters.ts`: the age is clamped to "E" for an Ancient while `rollAge`'s draw
@@ -3002,7 +3002,7 @@ describe("BattleScene, executed: it renders the log and holds no rule", () => {
  * 11b. A hand-built fight for the beats no recorded fixture contains.
  *
  * The three shipped fixtures produce eight of the twenty-two event kinds between
- * them (see docs/DEVIATIONS-lane-c3.md C3-G6). A self-buff, an item, a heal and a
+ * them. A self-buff, an item, a heal and a
  * refusal are all reachable through the real reducer with a hand-built input, so
  * the scene's branches for them are executed here rather than assumed.
  * ════════════════════════════════════════════════════════════════════════════ */
@@ -3140,7 +3140,7 @@ describe("BattleScene, executed: the beats the fixtures do not contain", () => {
 
     const uncovered = VIEW_STEP_KINDS.filter((kind) => !covered.has(kind));
     // Declared, not silent: these are the branches no reachable fight in this suite reaches.
-    // They are covered by `compileBattleEvents` tests only. docs/DEVIATIONS-lane-c3.md C3-G6.
+    // They are covered by `compileBattleEvents` tests only.
     expect([...uncovered].sort()).toEqual(
       ["evade", "levelUp", "statusApply", "statusClear", "statusSkip", "statusTick"].sort(),
     );

@@ -6,8 +6,7 @@
  * update (§7.3). At tick 16 the year turn runs …" — so the events this module emits are the sim's
  * and the year turn's only cue, and their ORDER is load-bearing.
  *
- * ⚠ TWO ASSERTIONS IN THIS FILE WERE REWRITTEN BY AN AUTHORISED AMENDMENT, not by a failure
- * (docs/DEVIATIONS.md D-Q2-1 / D-Q3-1, Hank's words quoted there):
+ * ⚠ TWO ASSERTIONS IN THIS FILE WERE REWRITTEN BY AN AUTHORISED AMENDMENT, not by a failure:
  *   • "a gym win ends the year wherever the meter stands" — the trigger is gone; the assertion is
  *     now that a gym win leaves the meter EXACTLY where it stood, which is the opposite claim and
  *     is checked against the shipped act model in tests/unit/acts.test.ts;
@@ -178,7 +177,7 @@ describe("clock — the year ends on a full meter and on NOTHING else (L8 as ame
   });
 
   it("THE CALENDAR IS UNBOUNDED — year 12, year 40 and year 999 all advance normally", () => {
-    // D-Q3-1: nothing runs out. `isOver` used to say the run was over past year 6 and it is gone.
+    // Nothing runs out. `isOver` used to say the run was over past year 6 and it is gone.
     for (const year of [7, 12, 40, 999]) {
       const { clock, events } = advance({ year, tick: ticksPerYear - 1 }, 1, balance);
       expect(clock).toEqual({ year: year + 1, tick: 0 });
@@ -208,7 +207,7 @@ describe("clock — the year ends on a full meter and on NOTHING else (L8 as ame
     const events: ClockEvent[] = [];
     const years = balance.clock.yearsTotal;
     // Bounded by the EXPECTED pacing, not by an end: the loop stops because the test asked for six
-    // years, not because the calendar refused a seventh (D-Q3-1).
+    // years, not because the calendar refused a seventh.
     while (clock.year < balance.clock.startYear + years) {
       const result = advanceAction(clock, "foray", balance);
       clock = result.clock;

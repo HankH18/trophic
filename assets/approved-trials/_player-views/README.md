@@ -34,7 +34,7 @@ Identity drift starts *before* view rotation does. Raw sweep images and run logs
 | **side** | transformation: one global horizontal squeeze (21/32) so vertical features stay contiguous, far arm dropped, buckle moved to the leading edge | **authored** as a glyph map (`SIDE_HEAD` in `tools/comfy/player-views.ts`). A profile skull is geometry no transformation of a frontal face yields. Colours are still all front swatches. |
 
 The side's head is the one place the word "derived" is doing work. It is called out here, in the
-manifest row, and in `DEVIATIONS-lane-b.md` B-D21 so nobody later mistakes it for a transformation.
+manifest row, so nobody later mistakes it for a transformation.
 
 ## Files
 
@@ -91,7 +91,7 @@ Dominant frozen swatch per identity band, the measure `tools/palette/cross-view.
 3. **The star is not absent from the side** — 4 px of `#f9db10` sit at the leading edge of the crown,
    because the badge is on the cap front and from a profile you see it edge-on. If it should be
    absent from the side too, that is a one-line change (delete the star write in `deriveSide`).
-4. **B-D15 is unfixed and applies to all three views equally.** `nearestResample` stretches the
+4. **The aspect stretch is unfixed and applies to all three views equally.** `nearestResample` stretches the
    sprite ~16% horizontally at 32×48. The derived views inherit the front's stretch by construction,
    so switching the pipeline to `fitResample` later changes all three together — but these files
    would then be stale and must be rebuilt with `derive`.

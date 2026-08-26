@@ -1,7 +1,7 @@
 /**
  * game/ui/Palette.ts — swatch lookup for every UI surface.
  *
- * build-doc §8.4 / LANE-A-STATUS §4: `data/palette.json` carries 32 swatches with ids `c00`–`c31`,
+ * build-doc §8.4: `data/palette.json` carries 32 swatches with ids `c00`–`c31`,
  * and **the ids are the stable contract**. Gate B0 freezes the palette by swapping the 32 hex VALUES
  * in place; nothing about the file's shape changes. So UI code names a swatch by id and resolves the
  * hex here — a widget that inlines `0xe8e4c9` silently survives the freeze and then disagrees with
@@ -82,7 +82,7 @@ export const SWATCH_IDS: readonly string[] = SWATCHES.map((swatch) => swatch.id)
 /* ────────────────────────────────────────────────────────────────────────────
  * Contrast — WCAG 2.x relative luminance.
  *
- * CONSTANTS (G11, narrowing C3-D1): the coefficients below are the W3C's published
+ * CONSTANTS (G11, deliberately narrowed): the coefficients below are the W3C's published
  * sRGB luminance formula, not gameplay tunables. A balance retune must not be able
  * to change what "legible" means, and nothing in `core/` reads any of them.
  * ──────────────────────────────────────────────────────────────────────────── */

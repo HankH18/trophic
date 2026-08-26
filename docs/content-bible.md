@@ -1,9 +1,23 @@
-# TROPHIC — Content Bible v0.1
-*Ideation artifact for review. Not a build doc.*
+# TROPHIC — Content Bible
 
-Region: **Fallowmere**. **Six acts; the calendar runs independently.** Five gym towns + one boss site. All names are placeholders pending an IP sweep.
+Canonical for **content**: types, stats, moves, species, the food web, towns, gyms, story, quests,
+NPCs, items, screens, audio. **G2**: no agent invents or alters a value here.
 
-> **AMENDED 2026-08-25** (`docs/DEVIATIONS.md` D-Q3-1, authorised by Hank). This line used to read *"Six acts = six years"*, and the whole document inherited that equation — towns listed by year, leaders by year, map variants indexed 2–6. Years and acts were never two things; they were one axis wearing two names, and the "year 6 gate" nobody designed came out of it. They are now **two independent clocks**: the CALENDAR (ticks → seasons → years) never waits and never ends, and drives ageing, retirement, the ecosim and the aged art; ACTS are driven by badges and quest flags, and drive town/route unlocks, story beats, Cullbrand raids, the rival and the finale. **Six remains the EXPECTED year count under normal pacing — a correlation, not a rule.** Everywhere below that a table column reads "Yr", read **act**; where a town's *ageing arc* is described, that stays on the calendar.
+- Where `docs/build-doc.md` also specifies something, **the build doc wins**.
+- Where this file and `data/` disagree, **`data/` is what ships** — raise it in `docs/STATUS.md`, never
+  reconcile silently.
+- **IP renames moved display names only; every `id` is unchanged**: `overgrow` → Thicket · `harden` →
+  Bristle · `screech` → Shriek · `snarl` → Daunt · `burrow-roost` → Burrow (alias "Roost" deleted) ·
+  `dous` → Douse · `keen-eye` → Bright Eye · `strong-jaw` → Broad Jaw · speaker `nessa` → Hetty. A
+  replacement is a single plain word, never a compound. Screened and ruled **kept unchanged**: the
+  status `Soak`, the moves `Harry` and `Lure`, and the names Maren, Maribel, Vesper, Odo, Bram.
+
+Region: **Fallowmere**. Six acts. Five gym towns + one boss site.
+
+**Two clocks, independent.** The **calendar** (ticks → seasons → years) is unbounded and drives ageing,
+retirement, the ecosim and the aged art; **acts** are driven by badges and quest flags and drive
+unlocks, story beats, raids, the rival and the finale. Every column headed **Act** is an act index; a
+town's **ageing arc** is the exception and stays on the calendar.
 
 ---
 
@@ -22,7 +36,8 @@ Eight types. Multipliers: strong ×1.5, resisted ×0.67, neutral ×1.0. **Predat
 | Poison | Plant, Beast | Fire, Wind | rot corrupts |
 | Dark | Wind, Beast | Fire | dusk swallows |
 
-Exact multipliers are tunable via the balance harness (§13.15); the chart shape is the content.
+The chart **shape** is the content and is transcribed to `data/moves.json` `typeChart`; the multiplier
+**values** are tunable and live in `data/balance.json` `types`.
 
 ## 2. Stats & Application
 
@@ -31,29 +46,25 @@ Five stats: **HP, Attack, Defense, Speed** (turn order, flee), **Instinct** (cri
 - Species base stats: 30–100 per stat.
 - Age multiplier: Juvenile ×0.75 · Adult ×1.0 · Elder ×1.15.
 - Levels 1–40, standard XP from battles. Effective stat = Base × AgeMult × (1 + 0.02 × Level) + trait modifiers.
-- Traits: flat ±10% modifiers with names ("Thick Pelt: +10% Defense"). 1 per wild creature, +1 slot via inheritance, Elders roll rare traits.
-- Damage = (Attack × MovePower / Defense) × TypeMult × Predation × roll(0.9–1.1).
+- Traits: flat ±10% modifiers with names ("Thick Pelt: +10% Defense"). 1 per wild creature, +1 slot via inheritance, Elders roll rare traits. Pool: `data/balance.json` `.traits.pool`.
 - Status conditions (4): Burn (Fire, chip damage), Toxin (Poison, ramping chip), Soak (Water, −Speed), Daze (Dark, 25% skip turn).
 
-> **NOTE 2026-08-25 — trait DISPLAY names, not the trait rule (`docs/DEVIATIONS.md` D-Q4-2 / D-Q4-3, authorised by Hank).** "Thick Pelt" above is bible-verbatim and is unchanged. The other fourteen names in `data/balance.json` `.traits.pool` are coined (DEVIATIONS D16), and two of them — **Keen Eye** and **Strong Jaw** — were exact matches for real Pokémon **Abilities** (#51 and #173). They are now **Bright Eye** and **Broad Jaw**. The pool is a deliberate 5×3 lattice, so the replacements had to read as their column: *Bright Eye* is the positive of *Dulled Sense* and sits beside *Long Memory*; *Broad Jaw* is the positive of *Soft Bite* and sits beside *Ember-Heart*. **Only the display names moved.** The trait `id`s `keen-eye` and `strong-jaw` are untouched — they are opaque keys read by `core/` and the tests and are never rendered — and the ±10% magnitude, the slot counts and the Elder rare roll are all byte-identical. Screened against Pokémon species, moves, abilities, items and characters; both are clean of exact matches (near-misses recorded in `docs/IP-SWEEP.md`).
-
-> **NOTE 2026-08-25 — the status names have now been screened, and one is a real Pokémon move (`docs/DEVIATIONS.md` D-Q4-8).** **Soak** is an exact match for the Generation V Pokémon move *Soak* (Water, status). Ours is a Water status that cuts Speed; theirs retypes the target, so the effect differs — but the name is identical and it is on screen in battle. **Hank screened it and ruled it KEPT.** Burn, Toxin and Daze are clean. Status names had never been screened at all before this pass — `docs/IP-SWEEP.md` did not mention them.
+The damage formula, the status magnitudes, the catch formula and the XP curve are **build-doc §7.4**.
+**KO = faint only** — lifespan is the mortality system (build-doc Hard Req 8).
 
 ## 3. Move System
 
 Each creature has exactly 4 move slots: **2 type moves + 1 role move + 1 utility**, unlocked at levels 1/5/10/15. Move pool is 28 total — small by design.
 
 - **Type moves (16):** one light (~40 power, secondary effect) + one heavy (~70 power) per type. E.g. Fire: *Singe* (40, 20% Burn) / *Pyre* (70). Water: *Douse* (40, 20% Soak) / *Riptide* (70). Same pattern all eight types.
-
-> **NOTE 2026-08-25 — the Water light move's spelling was corrected (`docs/DEVIATIONS.md` D-W4-1, authorised by Hank).** This bullet used to read ***Dous***. The shipped `data/moves.json` `name` is **`Douse`**, and has been since the Q2 IP pass; the bible was the last place the old spelling survived. **"Douse" alone matches no Pokémon species, move, ability, item or character** — the nearest thing is the **Douse Drive**, a real Pokémon *item* (Genesect's Water-type drive), which is a two-word item name and not this move. That is recorded rather than acted on, per the owner's stated bar for this sweep: only actual Pokémon *names* are in scope. **Only the display name is affected** — the move `id` is still `dous`, an opaque key that never renders, on the same reasoning as D-Q1-5 and D-Q4-5.
-
-> **NOTE 2026-08-25 — one coined type-move name moved (`docs/DEVIATIONS.md` D-Q4-1, authorised by Hank).** This bullet names only the Fire and Water pairs, so the other twelve type-move names are coined (DEVIATIONS D6) and are not bible content. One of them, the **Plant heavy** move, was called **Overgrow** — an exact match for the real Pokémon **Ability** *Overgrow* (#65), the one every Grass starter line carries. TROPHIC has a Plant starter line, so the collision sat in the same slot of the same design. It is now **Thicket**: Bramble is one thorny stem, Thicket is the whole stand. Screened clean against Pokémon species, moves, abilities, items and characters (the only near neighbour is the Paldean location *Tagtree Thicket*). **Only the display name moved** — the move id is still `overgrow`, and the power (70), type, weight, `text` and empty effects list are byte-identical.
 - **Role moves (5):** Producer — *Regrow* (self-heal 30%); Grazer — *Trample* (50 power, +25 vs Producer); Mesopredator — *Ambush* (60 power, always first on entry turn); Apex — *Terrify* (enemy −Attack 2 turns); Scavenger — *Scrounge* (40 power, heal for damage dealt).
 - **Utility (7):** Bristle (+Defense), Quicken (+Speed), Shriek (−enemy Defense), Focus (+Instinct/crit), Daunt (−enemy Attack), Burrow (skip turn, +evasion), Lure (raise catch odds on this target this battle).
 
-> **AMENDED 2026-08-25 — utility move names only (`docs/DEVIATIONS.md` D-Q1-1 … D-Q1-5, authorised by Hank: *"go ahead and rename the Pokemon move duplications"*).** This line used to read *"Harden (+Defense) … Screech (−enemy Defense) … Snarl (−enemy Attack), Burrow/Roost (skip turn, +evasion)"*. **Harden**, **Screech**, **Snarl** and **Roost** are all four real Pokémon moves — Harden and Screech share our name *and* our exact effect — so `docs/IP-SWEEP.md` rated them RED. **Harden → Bristle**, **Screech → Shriek**, **Snarl → Daunt**, and the alias "Roost" is deleted so the move is just **Burrow** (D8's one-move-two-names reading is retired; the pool is still 7 utility / 28 total). **Only the names moved.** Every effect in the parentheses is byte-identical to what it was, because effects are content and G2 protects them. **CORRECTION 2026-08-25 (`docs/DEVIATIONS.md` D-Q4-6):** this note used to claim that "the three replacements were screened against the Pokémon move *and* ability lists, Cassette Beasts, Temtem, Coromon, Monster Sanctuary and Digimon…". **That screen was run on the FIRST three replacements — Rootfast / Scoldcall / Baretooth — which Hank withdrew the same day** (commit `64b04b5`) because compounds fought this document's own register, which is single plain words. Bristle / Shriek / Daunt came from the earlier verified-clean shortlists but had **never been checked against the Pokémon ability list**, and that commit said so. They have now been screened against Pokémon species, moves, abilities, items and characters: **Bristle** and **Shriek** are clean of exact matches — but **`Daunt` is an exact match for a Pokémon Shuffle skill (ひるませる)**, which nobody knew when it was adopted. **That is recorded, not fixed:** G2 forbids an agent deciding it, and Hank has not ruled. See `docs/IP-SWEEP.md` and DEVIATIONS D-Q4-7. **Still unruled and unchanged:** *Focus* (a real Cassette Beasts move), and the coined type moves *Miasma* and *Shade* (both exact Digimon attack names). *Burrow* itself remains a Temtem / Coromon / Monster Sanctuary skill name — AMBER, Hank's call.
+**Rules**
 
-## 4. Species Roster (26)
+- **`Burrow` is ONE move.** Reading "Burrow/Roost" as two makes the pool 29 and breaks the stated 28.
+
+## 4. Species Roster (27 lines · 35 dex identities)
 
 All species have three age forms (J/A/E). Lifespan on catch: J = 3 years, A = 2, E = 1. **Hybrid evolution model:** most species keep one identity across all three age forms; five *metamorphic lines* change species identity as they age — evolution mapped onto the existing age system, so it costs zero extra mechanics and zero extra battle sprites.
 
@@ -62,6 +73,9 @@ All species have three age forms (J/A/E). Lifespan on catch: J = 3 years, A = 2,
 - *Wild lines (2-stage, larval juvenile → evolved adult/elder):* **Bogling → Mirefin** (tadpole to lungfish; Grazer→Mesopredator, Water→Water/Poison — role and type shift at metamorphosis, so what it eats and what eats it changes mid-life) · **Gloomgrub → Gloomoth** (Poison/Plant grub → Dark/Wind moth). Wild adults of a line only appear in evolved form; the population sim tracks the line as one age-structured species.
 
 Metamorphosis stat jump: ×1.15 on top of the normal age multiplier at the J→A transition for metamorphic lines. Role/type per age class is one extra column in the species JSON.
+
+The 28 dex identities with authored concepts (the other seven are the metamorphic starters' adult and
+elder forms and Gloomgrub — see Rules):
 
 | # | Name | Type(s) | Role | Habitat | Concept |
 |---|---|---|---|---|---|
@@ -90,13 +104,24 @@ Metamorphosis stat jump: ×1.15 on top of the normal age multiplier at the J→A
 | 23 | Carricrow | Dark/Wind | Scavenger | roaming | carrion crow — spawn weight rises where webs crash |
 | 24 | Umbrat | Dark | Grazer | Vale | shade rat |
 | 25 | Wispurr | Dark/Beast | Mesopredator | Vale | will-o-wisp cat |
-| 26 | Vellsire | Beast/Dark | Ancient Apex | Sanctum | vanished keystone stag — primary Ancient, story/finale |
+| 26 | Vellsire | Beast/Dark | Ancient Apex | Sanctum (hidden) | vanished keystone stag — primary Ancient, story/finale |
 | 27 | Kilnback | Fire/Earth | Ancient Apex | Steppe (hidden) | kiln-shelled tortoise dormant beneath the vents — minor legendary |
 | 28 | Undermere | Water/Dark | Ancient Apex | Marsh (hidden) | eyeless serpent of the lake-beneath-the-lake — minor legendary |
 
 **Ancient Apexes (3).** Returned legendaries: they **do not age and do not evolve** — permanently Elder stage, implied centuries-to-millennia old. One form each. Caught Ancients are exempt from year-turn aging: the single exception to the everything-ages rule, which is what makes them worth the hunt. Very hard catches, gated behind rare sign-card chains unlocked by side content (Kilnback via Cindershelf mine lore, Undermere via ferryman Sel's tales, Vellsire via the finale). Each exerts a presence effect on the sim: Vellsire buffs all breeding rates in adjacent nodes (keystone), Kilnback keeps the steppe vents warm (Fire spawns active), Undermere steadies the marsh water table (Water breeding). **Lore surfaces (required content):** NPC dialogue — Sel's serpent tales, Bram and the miners on "the warm shell below," Maren's keystone lectures, Duskhollow astronomers on the Vellsire's vanishing — plus environmental decorations: antler standing-stones on routes, shell-kiln shrines in the mine, sunken idols visible in the marsh shallows. These props double as the sign-chain trailheads.
 
-Asset count: 27 lines (Bogling merges into the Mirefin line; Kilnback and Undermere are single-form) — 25 aging lines × 3 forms + 2 Ancients × 1 form = 77 forms × (front + back) = 154 battle sprites, + 35 named dex identities with painted illustrations, + overworld mini-sprites for encounterable species.
+Asset count (derived in `tools/comfy/manifest.json`): 24 aging lines × 3 forms + 3 Ancients × 1 form =
+75 forms × (front + back) = **150 battle sprites**, + **35** painted dex identities, + overworld
+mini-sprites for encounterable species.
+
+**Rules**
+
+- **`starter`, `roaming` and `hidden` are habitat sentinels, not biomes.** The three Ancients carry
+  `hidden`, which is what gates them behind their sign chains instead of encounter weight.
+- **Presence effects ship as one key per Ancient** — `keystoneBreed`, `ventWarmth`, `waterTable`.
+- **Barkhide's "Grazer (large)" ships as an explicit flag**; largeness is never inferred from stats.
+- **A dex identity with no concept text here inherits its line's, plus its age stage** — by published
+  rule, never by taste: `tools/comfy/manifest.json` `_derivedFormRule`.
 
 ## 5. Food Web (rule-derived)
 
@@ -111,6 +136,12 @@ The web is derived from roles within a shared habitat, not enumerated per-pair:
 
 Populations, breeding rates, and starting counts live in one JSON per node — this file is simultaneously the encounter table, the ecology sim's initial state, and the bait lookup. Single source of truth.
 
+**Rules**
+
+- **Producers and Scavengers are exempt from the starvation step** — a literal "eats nothing" starves
+  them out and takes Carricrow and the flora chain with it.
+- **Steppe and Vale have no creature Producer**; their Grazers feed on `floraStock` alone.
+
 ## 6. Region Map — Towns
 
 | Act | Town | Biome | Unique feature | Aging arc |
@@ -122,35 +153,53 @@ Populations, breeding rates, and starting counts live in one JSON per node — t
 | 5 | Duskhollow | Dusk vale | observatory; star census (dex-completion rewards); Vellsire lore | dark encroaches as the Sanctum destabilizes |
 | 6 | The Sanctum Fallow | Sealed caldera | league + finale; no shops, one long approach | revealed in the state your ecology earned |
 
-> **The "Act" column was labelled "Yr" and is an ACT index (`docs/DEVIATIONS.md` D-Q3-1).** A town opens when the player reaches its act, whatever the calendar says — `balance.acts.gates` carries the row. The **Aging arc** column is the exception and stays on the CALENDAR: docks rot, canopy thins and vents flare with the world, not with the plot, so a player who rushes sees a younger town and that is correct.
+Routes: one primary route per biome (R1 Meadow Reach, R2 Brackmarsh, R3 Bowerdeep Wilds, R4 Cinder Steppe, R5 Duskhollow Vale) + the Sanctum Approach. 12 walkable maps total (6 towns/sites + 6 routes), vertical-slice priority: Hearthollow, R1, Brackwater, R2 fully walkable first; later nodes fall back to vignette cards.
 
-Routes: one primary route per biome (R1 Meadow Reach, R2 Brackmarsh, R3 Bowerdeep Wilds, R4 Cinder Steppe, R5 Duskhollow Vale) + the Sanctum Approach. 12 walkable maps total (6 towns/sites + 6 routes), vertical-slice priority: Hearthollow, R1, Brackwater, R2 fully walkable first; later nodes fall back to vignette cards if the week compresses.
+**Rules**
+
+- **A town opens when the player reaches its act**, whatever the calendar says (`balance.acts.gates`).
+  The **Aging arc** column stays on the calendar: a player who rushes sees a younger town, correctly.
+- **Routes have no aging arc here**; a route inherits the arc of the town sharing its biome
+  (`tools/comfy/manifest.json` `_nodes`).
+- **Cindershelf's "arrival mid-collapse" is produced, never baked.** `data/nodes/r4.json` ships the
+  year-1 state; the act-4 raid fires on entry and the predator collapse must emerge (G6).
 
 ## 7. Gym Leaders (fixed rosters)
 
 | Act | Leader | Type | Team (age class) | Signature |
 |---|---|---|---|---|
-| 1 | Maribel | Beast | ~~Nibbin (A),~~ Bramblehog (A), Skir (A) — **AMENDED, see below** | "Old Nib" — Nibbin (E), Thick Pelt |
+| 1 | Maribel | Beast | Bramblehog (A), Skir (A) | "Old Nib" — Nibbin (E), Thick Pelt |
 | 2 | Odo | Water | Bogling (J), Reedrick (A), Mirefin (A) | Fenmaw (E) |
 | 3 | Vesper | Poison | Gloomgrub (J), Sporantle (A), Mirefin (A), Webvern (A) | Webvern (E), rare trait |
 | 4 | Sable | Fire | Ashvole (A), Cragmar (A), Ashvole (E), Stonewing (A), Pyrelisk (A) | Pyrelisk (E) |
 | 5 | Noct | Dark | Gloomoth (A), Umbrat (A), Carricrow (A), Wispurr (A), Umbrat (E) | Duskstalk (E) |
 | 6 | Magnate Greaves | mixed/industrial | Carricrow (A), Pyrelisk (A), Mirefin (A), Duskstalk (E), Fenmaw (E) | Stonewing (E) |
 
-> **AMENDED 2026-08-25 — gym 1 only (`docs/DEVIATIONS.md` D-A5-G1, authorised by Hank).** Maribel fields **three**, not four: the duplicate Nibbin (A) is cut and she keeps Bramblehog (A), Skir (A) and the signature. The balance harness measured this fight at **26.0%** against build-doc §10.5's 80–95% target for gym 1 — the hardest fight in the game, against a year-6 finale at 36.2%. All three possible cuts were measured over 500 seeds and Nibbin (A) won on every axis; cutting it also removes the roster's only repeated line, and the Nibbin she keeps is the named signature. Her Beast identity therefore rides on "Old Nib" alone, which is the stated cost of the change. Her signature also drops its assigned +2 level premium (D-A5-G2). The rows for gyms 2–6 are untouched.
->
-> **Roster sizes (signature included) are therefore 3 / 4 / 5 / 6 / 6 / 6**, not the 4 / 4 / 5 / 6 / 6 / 6 stated below.
+Roster sizes (signature included): **3 / 4 / 5 / 6 / 6 / 6** (`core/schemas.ts` `GYM_ROSTER_SIZES`). Elder count ramps with the acts — one Elder in early gyms, two-to-three by the endgame; Greaves fields harvested prime specimens, which is the point of him. Juvenile line-forms in gyms 2–3 (Bogling, Gloomgrub) quietly showcase the metamorphic lines before the player's own creatures reach them.
 
-> **The "Act" column was labelled "Yr" and is an ACT index (`docs/DEVIATIONS.md` D-Q3-1)**, shipped as `data/gyms.json` `act`. Odo is the act-2 leader whether the player reaches him in calendar year 2 or year 11. **Beating a leader no longer ends the year** (L8 as amended, D-Q2-1); it writes a badge flag, which is the act model's only numeric input.
+**Rules**
 
-Roster sizes (signature included): 4 / 4 / 5 / 6 / 6 / 6 *(gym 1 amended to 3 — see the note above)*. Elder count ramps with the acts — one Elder in early gyms, two-to-three by the endgame; Greaves fields harvested prime specimens, which is the point of him. Juvenile line-forms in gyms 2–3 (Bogling, Gloomgrub) quietly showcase the metamorphic lines before the player's own creatures reach them.
+- **This section gives no levels.** The ramp is assigned by published rule in `data/gyms.json` `_levels`;
+  gym 1's signature is its one exception.
+- **The Act column is an act index** (`data/gyms.json` `act`). **Beating a leader does not end the year**
+  — it writes a badge flag, the act model's only input.
+- **Juvenile line-forms are keyed by line id**: Bogling = `mirefin-line` J, Gloomgrub = `gloomoth-line` J.
 
 ## 8. Story Spine
 
+- **Opening:** 3–4 painted stills + Maren dialogue.
 - **Mentor:** Warden Maren — regional ecologist, gives starter + snares + the survey notebook. Frames the premise: Fallowmere's keystone (Vellsire) vanished a generation ago; the webs have been fragile since.
 - **Rival:** Wick — a Cullbrand Company apprentice your age. Battles you each act. His philosophy is harvest-first; the routes he's worked are visibly degraded when you reach them. His team always includes Carricrow — he profits from collapse.
 - **Antagonist:** The Cullbrand Company — industrial creature-harvesters. Their operations are the scripted, large-scale version of the player's own over-catching. Act 4 opens on a route they've already crashed: the collapse mechanic taught at scale, no tutorial text needed.
 - **Finale:** Greaves breaches the Sanctum to take the Vellsire. Beat him, then face the Vellsire yourself: **catch it or release it — locked: catchable, with honest costs.** Release = restoration ending; epilogue shows adjacent nodes re-blooming under the keystone buff. Catch = it's yours forever (Ancients don't age), and the epilogue survey shows the same nodes *without* the buff — measurably poorer, stated in numbers, never in judgment. The game does not moralize: it reports the counts and says nothing about them.
+
+**Rules**
+
+- **Wick's six rosters are authored, not derived** (`rival[]` in `data/gyms.json`), under one
+  machine-checkable rule: **every slot's line lives on a route he has already worked**, at the region's
+  own wild level band for that act.
+- **Every end of the Vellsire fight except a reported catch resolves as `released`** — a failed snare, a
+  flee, a party wipe, a defeated stag (`game/finale.ts`). A failed snare is the *common* outcome.
 
 ## 9. Side Quests (2/town)
 
@@ -169,62 +218,36 @@ Roster sizes (signature included): 4 / 4 / 5 / 6 / 6 / 6 *(gym 1 amended to 3 �
 
 **Regional events:** Annual Festival (the year's closing celebration); Great Migration (Gloomoth flocks shift spawns region-wide); Cullbrand Harvest raids (scripted per act, populations visibly drop at a named node); Bloom Year (a route whose producers thrive — positive feedback made visible).
 
-> **AMENDED 2026-08-25** (`docs/DEVIATIONS.md` D-Q2-1 / D-Q2-2, authorised by Hank).
->
-> **The Annual Festival is no longer a "diegetic gym gate" and no longer "closes the year."** A gym victory does not end a year — only the full meter does (L8 as amended) — so the festival cannot gate on one and cannot close anything. It is the year's closing celebration: it spans the year's **final season** and ends when the meter fills.
->
-> **All four events are SEASON-LONG WINDOWS**, on Hank's constraint: *"events like that last for a whole season and not just for one in-game day."* Each opens at a season boundary, stays open for `balance.clock.ticksPerSeason` ticks, and closes at the next — `core/regional-events.ts`. The Festival is the year's last season; the Migration is a migrant's own `seasonalWindow`; a **raid's** window is the season **its act was entered in**, not a year; a **Bloom Year** is a node whose flora clears `balance.regionalEvents.bloomFloraFraction` of the sim's ceiling at a season boundary.
->
-> **Two halves of this sentence are deliberately NOT built, and are recorded rather than quietly dropped:** the Migration's "shift spawns region-wide" (the migrant window removes Gloomoth out of season; it does not raise them elsewhere in season) and the Bloom Year's "gets bonus spawns" (story-review decision D10, unruled — building an encounter-weight multiplier would be G3). The WINDOWS ship; those two effects do not.
->
-> **Season note (unresolved, story-review D7):** §9 says the Migration is *spring*; §5 and every shipped row in `data/species.json` say **autumn**. The data wins in code; the discrepancy is Hank's to rule on.
+**Rules**
+
+- **All four events are season-long windows** (`core/regional-events.ts`) — open on a season boundary,
+  closed at the next. Never one in-game day.
+- **The Annual Festival is the year's final season, every year.** It gates no gym and closes no year;
+  only a full meter ends a year.
+- **No regional event weights an encounter** — a second weight table is G3. The Migration's "shift spawns
+  region-wide" and the Bloom Year's "bonus spawns" ship as windows and nothing more.
+- **The Great Migration is autumn**, and as an event *kind* it is open 16 ticks of every 16 (one migrant
+  per season) — so every published flag is per line and no copy may say "the Great Migration is on".
+- **Raids fire on entry to their act, never on a year turn**, take a fraction of standing stock, and may
+  decrement only the harvested prey — the collapse above them must emerge (G6). Only the act-4 R4 harvest
+  is authored; the rest are content to write into `balance.yearEvents.raids`, not numbers to invent.
+- ***The Fallow Field* re-arms annually**, a year after it settles — both endings promise it
+  (`ANNUAL_QUESTS`, `game/quests.ts`).
 
 ## 10. NPCs
 
 Named: Maren (mentor), Wick (rival), Greaves (boss), 5 gym leaders, forge-smith Bram (Cindershelf), ferryman Sel (Brackwater), + ~2 quest NPCs per town. Generic: innkeepers (rest = 2 ticks), market vendors, ~4–6 ambient townsfolk per town (static sprites, turn-to-face only).
 
-> **NOTE 2026-08-25 — one quest-NPC given name moved, and five bible-canon names were screened and KEPT (`docs/DEVIATIONS.md` D-Q4-4 / D-Q4-8, authorised by Hank).** The "~2 quest NPCs per town" this line asks for were given coined names in `docs/DIALOGUE-NOTES.md` D-1 — Tolm, Halder, Pell, Gerta, Ives, Orrin and, in Brackwater, **Nessa**. **Nessa is the Galar Gym Leader of Hulbury** (Sword/Shield), a **Water-type** specialist whose father is canonically a fisher; ours was the angler of the marsh/fishery town running a shallows survey. Same name, same element, same role shape. She is now **Hetty** — one word, archaic English pastoral, unglamorous, sharing no first syllable with any bible-canon name, and clean of any in-universe Pokémon name. **Only the display name moved:** the speaker id `nessa` and every `nessa.*` dialogue entry id are untouched.
->
-> **Screened and KEPT, on Hank's ruling — every one of these is an exact match for a real but minor Pokémon character, and every one stays:** **Maren** (boat owner, *Pokémon the Movie 2000*), **Maribel** (Club Look-See, *My Pokémon Ranch*), **Vesper** (Diamond Clan, *Legends: Arceus*), **Odo** (*Legends: Arceus*, Bogbound Camp), **Bram** (Battle Maison Trainer #108, XY/ORAS). All five are ordinary given names with independent provenance and none is a headline character. Evidence in `docs/IP-SWEEP.md`.
+**"Generic" is a role tier, not a naming convention.** 41 background speakers — 10 generic (innkeepers,
+vendors) and 31 ambient — take real given names, assigned by register tier.
 
-> **NOTE 2026-08-25 — "Generic" no longer means anonymous (`docs/DEVIATIONS.md` D-W4-3).** The
-> sentence above still describes the *cast structure* correctly — the counts, the sprite rule and the
-> inn's 2-tick rest are unchanged — but **"generic" is now a role tier, not a naming convention.**
-> `docs/DIALOGUE-NOTES.md` D-2 originally gave background townsfolk **trade labels** in place of
-> personal names ("Old Drover", "Net-Mender", "Shaft-Hand", "Fishery Buyer"), deliberately, to keep
-> the coined-name surface small. That has been replaced: **41 background speakers — 10 generic
-> (innkeepers, vendors) and 31 ambient — take real given names.**
->
-> **The convention, which is what this section is now canonical for.** Register is set by the work,
-> never by money, in four tiers:
-> - **HANDS** — field, dock, shaft, road, crew, boat. One hard syllable, or two with a closed ending.
-> - **SKILLED / SALARIED** — innkeepers, stallholders, winders, lampwrights, shepherds, elders. A
->   softer two syllables, often a real saint's or grandmother's name.
-> - **INSTITUTIONAL** — anyone who speaks for a contract or a company is addressed by **surname
->   alone**, exactly the way Greaves is. Every Cullbrand employee in every town is surname-only, so
->   the player hears "company" before the character says a word.
-> - **CHILDREN** — diminutives, and the only vowel-final or pet-form names in the cast.
->
-> **The mechanical rules**, verified against `data/species.json`, `data/nodes/*.json`, `data/gyms.json`,
-> `data/moves.json` and `data/balance.json`: no cast name exactly matches any species form, dex id,
-> line id, node id, node display name, town, gym name, nickname, trait name, move name or item name;
-> **no cast name shares its first three letters with any of those tokens**; and no two cast names —
-> nor any cast name against the protected bible canon — share their first three letters. *(The one
-> surviving head-collision, `Maren`/`Maribel`, is bible canon and out of scope.)* Every name was also
-> screened against the Pokémon corpora, which produced 11 exact character hits: 5 renamed, 6 kept —
-> see `docs/IP-SWEEP.md`, *"Ordinary English given names are a dense Pokémon-collision space"*.
->
-> **The 41 names themselves are deliberately NOT transcribed here.** They live in one place — the
-> cast table in **`docs/CAST-AND-VOICE.md`** §4 + Appendix E, which is now in this repository.
-> **The durable source of truth for a shipped name is `data/dialogue.json`**; `CAST-AND-VOICE.md`
-> is the roster and the reasoning behind it, and the two must be reconciled when the names land.
->
-> None of them is
-> in `data/dialogue.json` yet**; the prose lane is applying them. Verified: every affected speaker id
-> still carries its trade label (`innkeeper-duskhollow` → `"Innkeeper"`, `duskhollow-elder` → `"Vale
-> Elder"`). Copying a 41-row roster into the bible before it ships would create a second source of
-> truth that drifts from the first. **This section owns the convention; the cast table owns the
-> names.** When they land, `docs/DIALOGUE-NOTES.md` §2 D-2 is the row they supersede.
+**Rules**
+
+- **This section owns the fact of the cast and never lists it.** The names have landed in
+  `data/dialogue.json`, the durable source of truth for a shipped name; `docs/CAST-AND-VOICE.md` holds
+  the roster, the four register tiers and the name-collision rule that governs adding one.
+- **Dialogue budget:** ~10 lines per named NPC, ~3 per ambient, **400–560 total**
+  (`data/dialogue.json` `_budget`); `tests/unit/dialogue.test.ts` enforces both.
 
 ## 11. Items & Economy
 
@@ -233,6 +256,9 @@ Named: Maren (mentor), Wick (rival), Greaves (boss), 5 gym leaders, forge-smith 
 - **Medicines** — salve (field heal), tonic (status cure), inn rest (full heal, 2 ticks).
 - **Relics** — from retirement, craftable at the forge into held items (+trait-like effects).
 - Currency from quests + trainer battles; sinks: snares, bait mats, inn, forge.
+
+Prices and medicine magnitudes are tunables in `data/balance.json` `economy` / `medicine` — this section
+names the effects, not the numbers.
 
 ## 12. Systems Inventory (screens & plumbing)
 
@@ -269,27 +295,9 @@ Jingles (short stingers): catch success, gym victory, level-up, item get, dex en
 
 **SFX set:** menu move/confirm/cancel, battle hit, super-effective hit (brighter), status apply, snare throw / shake ×3 / catch success, flee, footsteps (grass, wood, stone), door, sign-card reveal, survey open.
 
-## 13. Gaps I Flagged (things not in your list)
+**Rules**
 
-1. **Moves & learnsets** — the biggest missing axis; specced §3 as a deliberately tiny 28-move pool.
-2. **Damage formula + status conditions** — §2.
-3. **Evolution** — RESOLVED: hybrid. Age forms carry most species; 5 metamorphic lines (3 starters full-stage, 2 wild larval lines) ride the same age system. No sprite-count increase.
-4. **Starter trio + mentor** — §4, §8.
-5. **Rival, antagonist, story spine** — a Pokémon-like without a rival reads hollow; §8 ties them to the ecology mechanic instead of bolting on a villain.
-6. **Release/restoration verb** — catching's inverse; makes the ecology two-directional and enables the ending choice. Cheap: same population math, sign flipped.
-7. **Healing loop** — inn rest costs ticks so healing isn't free time-wise.
-8. **Box/storage aging rule** — boxed creatures age at year turns (anti-hoarding).
-9. **Population tables = encounter tables = bait lookup** — one JSON per node, single source of truth (§5).
-10. **Aging-art pipeline constraint** — year-variant maps must be img2img at low denoise with layout frozen, so one collision mask per map survives all six years. This is load-bearing; if layout drifts, collision work ×6.
-11. **Audio** — RESOLVED: single-source CC0 chiptune pack curated against the §12a track manifest, procedural SFX, DSP treatments for season/year. 
-12. **Balance harness** — headless autobattler simulating gym fights + type-chart winrates; the thing that lets agents tune §1–§3 overnight.
-13. **Dialogue budget** — ~10 lines per named NPC, ~3 per ambient = roughly **400–560** lines total. Draftable in bulk, but it's a real content item.
-
-> **AMENDED 2026-08-25 — the total band was raised 400–500 → 400–560 (`docs/DEVIATIONS.md` D-BUDGET-1, authorised by Hank).** The **per-speaker** figures above are unchanged, and so are the per-speaker ceilings the test enforces — this moves the total only, so the budget still has a real upper bound rather than a nominal one. Two measured reasons, both recorded in the test's own comment at `tests/unit/dialogue.test.ts` (the `is "roughly 400–500 lines total"` case): wiring the previously unreachable entries added a finale loss branch, which pinned the corpus at exactly 500/500 with no headroom at all; and the amended prose standard favours plainer, baggier speech, which sometimes splits one cramped line into two. **The test title still quotes this document's original phrase**, which is deliberate — the title names the bible clause the case exists to enforce, and the assertion beneath it carries the amended number.
-14. **KO semantics** — recommend faint-only (no battle death; lifespan is the mortality system). Nuzlocke-style permadeath as a post-week toggle.
-15. **Tutorial beat + opening** — 3–4 painted stills + Maren dialogue; cheap, needed.
-16. **IP sweep** — every coined name above needs a quick trademark/collision pass before anything ships publicly.
-
-## 14. Open Decisions
-
-None — content bible settled, pending your review pass.
+- **The Context column's `y1…y6` are act indices.** Town themes cue on acts; the **Festival cue is on
+  the calendar** (the year's final season, every year), and the two can be arbitrarily far apart.
+- **"Year aging progressively darkens" is the calendar**, and the ramp **saturates** at
+  `balance.clock.yearsTotal - 1` (`game/season-tint.ts` `yearDarkening`).

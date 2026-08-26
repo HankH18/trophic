@@ -24,7 +24,7 @@
  *   `[...rival.slots, rival.signature]` mapped one-for-one onto `BattlerSpec`.
  * • **No content invented (G2).** No line, level or age is written here; the file reads
  *   `content.rival` and nothing else. `data/gyms.json`'s `_rival` note records what is authored and
- *   under which constraint (DEVIATIONS D-Q8-1).
+ *   under which constraint.
  * • **No badge.** `kind: "trainer"`, and nothing here touches `awardBadge`. The act ladder's only
  *   numeric input is gym badges; the rival must not move it.
  * • **No engine.** No Phaser import, so the whole hand-off runs in a node test with no DOM.

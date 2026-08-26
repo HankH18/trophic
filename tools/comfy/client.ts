@@ -1,7 +1,7 @@
 /**
  * Comfy Cloud client (build-doc §9.1).
  *
- * IMPORTANT ARCHITECTURAL CONSTRAINT, discovered live and logged as B-D8:
+ * IMPORTANT ARCHITECTURAL CONSTRAINT, discovered live:
  * Comfy Cloud does NOT implement local ComfyUI's `GET /api/history/{id}`. Job outputs are
  * delivered ONLY over the WebSocket, in the `executed` message, while the job runs. A job can
  * finish in ~3s, so the socket must be OPEN BEFORE the job is submitted or the output is lost

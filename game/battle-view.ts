@@ -35,8 +35,7 @@
  * drawn. The step's own carried state is the only correct source for "what should the card read
  * right now", so the scene never reads `snapshot` mid-playback.
  *
- * Three beats the event union cannot express, handled honestly rather than recomputed (all three
- * reported as MISSING EVENTS by lane C3 — see docs/DEVIATIONS-lane-c3.md):
+ * Three beats the event union cannot express, handled honestly rather than recomputed:
  *   · `levelUp` carries the new LEVEL but not the new `maxHp`/`curHp`, and core/battle.ts raises
  *     both on a level-up (core/battle.ts:944-945). The new level comes off the log; the new maxHp is
  *     RE-READ off the `BattleState` the reducer returned (the same absolute read `syncTo` does,
@@ -522,8 +521,8 @@ export function compileBattleEvents(
    *
    * So the attribution is CONSUMED: cleared the moment it is spent, as well as at `turnStart` and
    * `switched`. A second `damage` with no new `moveUsed` in front of it reports `attackerUid: null`,
-   * which is the honest answer, instead of naming the wrong combatant. Reported as the core gap
-   * C3-G7 in docs/DEVIATIONS-lane-c3.md; one field on the event closes it.
+   * which is the honest answer, instead of naming the wrong combatant. An `attackerUid` on
+   * `BattleEvent.damage` would remove the inference entirely.
    */
   let actorUid: string | null = null;
 
@@ -933,7 +932,7 @@ export function compileBattleEvents(
         // travels on `reason`, which no message box reads, and the caption carries nothing.
         //
         // It stays EMPTY rather than becoming a player-facing line because neither document supplies
-        // one and writing one here would be inventing content (docs/DEVIATIONS-lane-c3.md C3-G4).
+        // one and writing one here would be inventing content (G2).
         // The player-facing answer to "why can't I do that" is the greyed row.
         emit({
           kind: "rejected",

@@ -10,7 +10,8 @@
  * teammate would become. Every number is either read off core/ or produced by ASKING core/ what a
  * choice does — see {@link RetirementFlow}. There is no arithmetic in this file that build-doc §7.5
  * describes; a second implementation of the heir's level or the boon's size is exactly the drift
- * DEVIATIONS D-A4-13 was written about.
+ * that once had the creature card and the battle reading two different keys for one +10%, so
+ * retuning either alone made them disagree.
  *
  * G7 — no moralizing copy. Nothing here characterises retirement, catching or loss. The card shows
  * a level, a trait list, five stats and two dates; the arrow between the numbers is the whole of the
@@ -534,7 +535,6 @@ export class RetirementFlow {
    * removed and the seeded stream already advanced. That is exactly the state this method exists to
    * avoid. So a doubly-refused prompt is recorded twice and PASSED OVER: the retiree is gone and
    * nothing replaced it, which is the true outcome and the only one that does not lose the turn.
-   * See docs/DEVIATIONS-lane-c56.md C56-D4.
    *
    * ⚠ AND IT IS CHECKED BEFORE THE HEIR IS ROLLED, which is a determinism question, not a
    * performance one. A skipped prompt reaches no `retirement` entry in the action log, and
@@ -605,7 +605,7 @@ export class RetirementFlow {
   }
 
   /**
-   * Record a prompt neither side could answer, and pass over it (docs/DEVIATIONS-lane-c56.md C56-D4).
+   * Record a prompt neither side could answer, and pass over it.
    *
    * Two `choiceRejected` events and two `rejected` rows — the offered choice and the fallback — then
    * the cursor moves on. The retiree is gone and nothing replaced it: that is the true outcome, and

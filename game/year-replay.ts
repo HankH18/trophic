@@ -10,8 +10,8 @@
  *    `runYearTurn`'s step 5), while the live shell steps the whole REGION in one call
  *    (`stepRegionStates`, see game/scenes/YearTurnScene.ts `driveYearTurn`). Those are not the same
  *    computation: region stepping costs the parent stream exactly ONE draw for the whole region
- *    (which is what makes adding a node not move every other node's trajectory — INV-2,
- *    LANE-A-STATUS I10) and it lets Ancient presence effects reach across adjacent nodes. Measured
+ *    (which is what makes adding a node not move every other node's trajectory — INV-2)
+ *    and it lets Ancient presence effects reach across adjacent nodes. Measured
  *    with the obvious per-node hook: 17 population counts across 6 nodes differed from the live run
  *    after ONE year turn. {@link replayRegionHooks} steps the region once per season and serves each
  *    node from that step, which reproduces the live numbers exactly.

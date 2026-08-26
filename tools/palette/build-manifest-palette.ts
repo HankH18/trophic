@@ -43,17 +43,17 @@ const classEq = JSON.parse(await readFile('assets/approved-trials/_palette-candi
 
 const manifest = {
   purpose: 'Cool-region palette trials + the CANDIDATE re-freeze they support. '
-    + 'DEVIATIONS-lane-b B-D13 asked whether the frozen palette should be re-fitted over a broadened '
-    + 'source set; this file is the provenance for the trials that answer it.',
+    + 'The frozen palette was fitted over five warm/green trials that carry almost no cyan, blue or '
+    + 'magenta; this file is the provenance for the trials asking whether it should be re-fitted.',
   status: 'CANDIDATE — nothing here is approved and nothing is promoted. data/palette.json is FROZEN and UNTOUCHED.',
   _readme: 'Regenerate with `npx tsx tools/palette/build-manifest-palette.ts`. Rows are read back from '
     + 'assets/raw/palette-trials/_run{1,2}.json; every sha256 is computed from the bytes on disk. '
     + 'tools/comfy/manifest.json is a concurrent workflow\'s file — these rows do NOT merge into it, '
     + 'because none of these images is a shipped asset.',
-  _seedRule: 'Every row uses seed 42, the validated trial seed (B-D1) — the same seed every gate-B0 trial '
+  _seedRule: 'Every row uses seed 42, the validated trial seed — the same seed every gate-B0 trial '
     + 'used. `manifestDerivedSeed` records what tools/comfy/manifest.json would use for the corresponding '
     + 'SHIPPED row, so the two are never confused. G5 is untouched: no approved asset is regenerated here, '
-    + 'and no row here is approved. See deviation B-D18.',
+    + 'and no row here is approved.',
   _generationCount: {
     round1: run1.generations, round2: run2.generations,
     total: (run1.generations as number) + (run2.generations as number),
@@ -79,7 +79,7 @@ const manifest = {
       file: 'assets/approved-trials/_palette-candidate/palette.candidate-classequal.json', frozen: false,
       colorsSha256: shaJson(classEq.colors),
       method: 'srgb / class-equal — same source set, each ASSET CLASS given an equal vote',
-      why: 'Measured secondary option. See deviation B-D21: over 19 images "equal per image" no longer '
+      why: 'Measured secondary option. Over 19 images "equal per image" no longer '
         + 'delivers the thing it was chosen for at B0 ("every asset class gets an equal vote"), because '
         + 'creature-battle now holds 12 images and overworld-character holds 1.',
       tool: 'npx tsx tools/palette/fit.mjs --sources=tools/palette/candidate-sources.json --with-class-equal --pick=srgb/class-equal --reason="…" --out=assets/approved-trials/_palette-candidate/palette.candidate-classequal.json --outdir=assets/approved-trials/_palette-candidate/classequal',

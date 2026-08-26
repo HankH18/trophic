@@ -67,7 +67,7 @@ const DEFAULTS = {
   runSeeds: 32,
   overcatchSeeds: 128,
   partyDrafts: 8,
-  reportPath: "docs/BALANCE-REPORT.md",
+  reportPath: "build/BALANCE-REPORT.md",
 } as const;
 
 /** Every budget divided by this in `--quick`, to a floor of 1. */

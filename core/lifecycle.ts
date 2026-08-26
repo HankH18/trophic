@@ -16,7 +16,6 @@
  * `zBalance` (core/schemas.ts) — without the schema entry a key in the file never reaches these
  * accessors and every retune of it is silently ignored (INV-3). `tests/gates/schemas.test.ts`
  * (`balance_keys_survive_validation`) gates every leaf of balance.json against exactly that.
- * See docs/DEVIATIONS-lane-a4.md D-A4-11.
  *
  * The module is a set of PURE state transitions. `runYearTurn` never mutates its input and never
  * asks a question: creatures that reach zero years come back as `RetirementPrompt[]`, so the Phaser
@@ -45,7 +44,7 @@ import type {
 } from "./types";
 import { AGE_CLASSES } from "./types";
 /*
- * The ACT model (D-Q3-1). One-way edge: core/acts.ts imports nothing but core/types.ts, so the
+ * The ACT model. One-way edge: core/acts.ts imports nothing but core/types.ts, so the
  * second clock can be reasoned about — and driven headlessly by the harness — without the year turn.
  */
 import { markActEntered, pendingActEntries } from "./acts";
@@ -159,7 +158,7 @@ export function nextAgeClass(age: AgeClass): AgeClass {
 export interface RaidTarget {
   lineId: string;
   /**
-   * The authored body count — the FLOOR of the harvest, not the whole of it (D-Q6-1).
+   * The authored body count — the FLOOR of the harvest, not the whole of it.
    *
    * See {@link raidRemovalAt}: what a strip-harvest actually takes is the larger of this and
    * `balance.yearEvents.harvestFractionOfStanding` of whatever is standing when it fires.
@@ -170,7 +169,7 @@ export interface RaidTarget {
 export interface RaidScript {
   id: string;
   /**
-   * The ACT this raid fires on entry to — RE-KEYED from `year` (D-Q3-1).
+   * The ACT this raid fires on entry to — RE-KEYED from `year`.
    *
    * bible §9 always said "scripted per act"; the field said `year` because content-bible §6 equated
    * the two. Under the amended L8 the calendar is unbounded and independent, so a raid keyed on a
@@ -263,12 +262,12 @@ export function yearEventsOf(balance: Balance, override?: readonly RaidScript[])
 }
 
 /**
- * What a strip-harvest actually takes from a population of `count` — D-Q6-1.
+ * What a strip-harvest actually takes from a population of `count`.
  *
  * ⚠ AN ABSOLUTE BODY COUNT CANNOT SURVIVE THE ACT MODEL, and this is where that was measured.
  * `targets[].remove` was authored against the node's SHIPPED counts (the file as shipped IS the sim's
- * initial state, build-doc §7.2). Once the raid was keyed on the ACT rather than the calendar
- * (D-Q3-1) it fires whenever the player earns the act — and a node the act ladder has not opened yet
+ * initial state, build-doc §7.2). Once the raid was keyed on the ACT rather than the calendar it
+ * fires whenever the player earns the act — and a node the act ladder has not opened yet
  * is not frozen: `core/ecosim.ts` steps EVERY node at EVERY season boundary, so it breeds toward
  * `carryCap` the whole time the player is elsewhere. Measured on the shipped `r4` through this
  * module and `core/ecosim.ts`: entering act 4 at calendar year 1 left the Grazer tier at 5 of 24 and
@@ -347,7 +346,7 @@ export function ageMultiplier(age: AgeClass, balance: Balance): number {
  * `metamorphosed` latch answers when it is present (a creature raised from J through the year turn);
  * when it is absent the AGE answers, because bible §4 says "wild adults of a line only appear in
  * evolved form". Restating the rule here is how a wild-caught Mirefin Adult ended up 15% weaker on
- * the creature card than an identical raised one — see docs/DEVIATIONS-lane-a4.md D-A4-12.
+ * the creature card than an identical raised one.
  */
 export function metamorphicStatMultiplier(
   creature: OwnedCreature,
@@ -376,7 +375,7 @@ export function ageFormMultiplier(
  * The percentage is `balance.stats.boonModPct` — the SAME key core/battle.ts `effectiveStats` reads.
  * balance.json also carries `retirement.boonStatPct` with the same value today; two homes for one
  * number is exactly what its own `_singleSource` rule forbids, and reading the other one is how the
- * card and the battle silently disagreed under a retune (docs/DEVIATIONS-lane-a4.md D-A4-13).
+ * card and the battle silently disagreed under a retune.
  */
 export function boonMultiplier(creature: OwnedCreature, stat: StatKey, balance: Balance): number {
   let n = 0;
@@ -464,13 +463,13 @@ export function newOwnedCreature(
  * bible §12 / build-doc §15 C4 — the creature summary card shows a projected retirement year, and
  * a creature born late enough projects past `balance.clock.yearsTotal` years of play.
  *
- * ⚠ THE NAME OUTLIVED ITS MEANING AND THE MEANING IS NOW THE WEAKER ONE (D-Q3-1). It used to mean
+ * ⚠ THE NAME OUTLIVED ITS MEANING AND THE MEANING IS NOW THE WEAKER ONE. It used to mean
  * "past the last year the game HAS" — year 7 of a six-year game, a year that never arrived — so the
  * card added "(past year 6)" rather than promising it. The calendar is unbounded now: year 7 arrives,
  * and so does year 40. What survives is a PACING readout — this creature will still be alive after
  * the six years normal pacing expects — which is worth showing beside a projection and is no longer
- * a warning about a year that cannot happen. Kept under its old name because D-A4-14 records the
- * decision under it and `game/survey-view.ts` renders it; the sentence it renders was reworded.
+ * a warning about a year that cannot happen. Kept under its old name because
+ * `game/survey-view.ts` renders it; the sentence it renders was reworded.
  */
 export function retiresBeyondFinalYear(creature: OwnedCreature, balance: Balance): boolean {
   if (isNever(creature.projectedRetirementYear)) return false;
@@ -631,7 +630,7 @@ export function ageOneYear(
    * as an Adult). Every term of build-doc §7.4's effective stat except the age form is unchanged by
    * aging, and the trait/boon modifiers are proportional to the raw stat, so effective HP scales
    * exactly with the age form — the ratio below preserves the fraction without lifecycle needing to
-   * know the creature's max HP. A fainted creature (0) stays fainted. See DEVIATIONS D-A4-15.
+   * know the creature's max HP. A fainted creature (0) stays fainted.
    */
   if (creature.curHp !== undefined) {
     const before = ageFormMultiplier(creature, line, balance);
@@ -710,7 +709,7 @@ export function ageOneYear(
  *
  * [additive] `where` is not in build-doc §7.1's `RetirementPrompt`, and without it the heir of a
  * BOXED parent gets pushed onto the active party whenever there is room — the box quietly promoting
- * juveniles onto the player's team. See docs/DEVIATIONS-lane-a4.md D-A4-16.
+ * juveniles onto the player's team.
  */
 export interface YearRetirementPrompt extends RetirementPrompt {
   where: Cohort;
@@ -773,12 +772,12 @@ export interface YearTurnResult {
  * Where the year turn records the last year it completed.
  *
  * build-doc §4 USED TO GIVE THE TURN TWO TRIGGERS ("At gym victory or tick 16") and firing it twice
- * for one year was reachable from the game shell. There is one trigger now (D-Q2-1) and the raid has
+ * for one year was reachable from the game shell. There is one trigger now and the raid has
  * moved off the calendar entirely, but the flag stays: a reload, a double call or a replay can still
  * ask for the same year twice, and that would re-age everyone and re-retire. `questFlags` is the
  * save's own extensible bag (build-doc
  * §7.8) and is the only field this module may add to without editing core/types.ts. Namespaced so a
- * quest flag cannot collide with it. See docs/DEVIATIONS-lane-a4.md D-A4-17.
+ * quest flag cannot collide with it.
  */
 export const YEAR_TURN_FLAG = "lifecycle.lastYearTurn";
 
@@ -800,7 +799,7 @@ export function canRunYearTurn(save: SaveFile): boolean {
  * The turn ENDS year N and BEGINS year N+1 (build-doc §4 as amended: "At tick 16 — and at nothing
  * else — the year turn runs"), so the resulting save carries `year = N+1` and the tick meter resets.
  *
- * There is no last year. `save.year` may be 11 or 40 and this runs identically (D-Q3-1).
+ * There is no last year. `save.year` may be 11 or 40 and this runs identically.
  */
 export function runYearTurn(save: SaveFile, deps: YearTurnDeps): YearTurnResult {
   const { balance } = deps;
@@ -868,7 +867,7 @@ export function runYearTurn(save: SaveFile, deps: YearTurnDeps): YearTurnResult 
    * build-doc §7.5 step 5's second half USED TO BE HERE — "year events fire (Cullbrand raid scripts
    * decrement scripted node populations at named nodes)". It has moved to {@link enterPendingActs}.
    *
-   * The raids are keyed on the ACT now (D-Q3-1), and acts are not on the calendar: bible §6 wants
+   * The raids are keyed on the ACT now, and acts are not on the calendar: bible §6 wants
    * Cindershelf entered "mid-collapse" whether the player arrives in calendar year 2 or year 11, so
    * a year turn is the wrong trigger for it. Nothing else in step 5 moved — the fourth season step
    * is still the year turn's, above.
@@ -943,12 +942,12 @@ export interface ActEntryResult {
 /**
  * Enter every act this save has earned and not yet entered, in order, applying each act's scripts.
  *
- * ⚠ THIS REPLACES THE YEAR TURN AS THE RAID'S TRIGGER (D-Q3-1). bible §9 says the raids are
+ * ⚠ THIS REPLACES THE YEAR TURN AS THE RAID'S TRIGGER. bible §9 says the raids are
  * "scripted per act"; they were applied by the year turn that BEGAN the raid's year, which made
  * bible §6's "arrival mid-collapse" true only for a player whose calendar happened to line up. Now
  * the raid fires when the act is entered, so Cindershelf is entered mid-collapse in calendar year 2
  * and in calendar year 11 — and a player who arrives early watches it happen rather than finding
- * the node already crashed (Q6).
+ * the node already crashed.
  *
  * ONCE, EVER, PER ACT. `core/acts.ts` `ACT_ENTERED_FLAG` records the highest act entered, exactly as
  * `YEAR_TURN_FLAG` records the last year turn and for the same reason: a reload, a double call or a
@@ -1001,7 +1000,7 @@ export function enterPendingActs(save: SaveFile, deps: ActEntryDeps): ActEntryRe
         // it over-reports the harvest and over-credits `recentDeaths`, which is the Scavenger
         // encounter weight (build-doc §7.2) and a survey number (Hard Req 2).
         // What the harvest REACHES for is `raidRemovalAt` — the authored body count or the same
-        // fraction of whatever is standing, whichever is larger (D-Q6-1). One home for that rule:
+        // fraction of whatever is standing, whichever is larger. One home for that rule:
         // game/year-events.ts `raidPreviews` calls the same function to price the same harvest.
         const reach = raidRemovalAt(pop.count, target, balance);
         const remaining = Math.max(balance.ecosim.populationFloor, pop.count - reach);
@@ -1017,7 +1016,7 @@ export function enterPendingActs(save: SaveFile, deps: ActEntryDeps): ActEntryRe
           remaining,
         });
       }
-      // The raid is visible for the whole season it fired in, not for one tick (D-Q2-2).
+      // The raid is visible for the whole season it fired in, not for one tick.
       next = openRaidWindow(next, raid.id, { year: next.year, tick: next.tick }, balance);
     }
     next = markActEntered(next, act);

@@ -1,12 +1,12 @@
 /**
  * core/regional-events.ts — bible §9's four regional events, as SEASON-LONG WINDOWS.
  *
- * Hank, 2026-08-25 (docs/DEVIATIONS.md D-Q2-2): *"events like that last for a whole season and not
+ * Hank, 2026-08-25: *"events like that last for a whole season and not
  * just for one in-game day."* So the Annual Festival, the Great Migration, the Cullbrand raids and
  * the Bloom Year are **windows**: each opens on a season boundary, stays open for
  * `balance.clock.ticksPerSeason` ticks, and closes at the next boundary. Before this, only the
  * Migration was season-long and it was so by accident — a side effect of the migrant model, not
- * because anyone built an event (docs/STORY-REVIEW.md §5.2). The festival was ONE FRAME of the year
+ * because anyone built an event. The festival was ONE FRAME of the year
  * turn ("FESTIVAL · Y3/6") and the raid was a single decrement inside it.
  *
  * TWO OF THE FOUR ARE DERIVED; TWO ARE LATCHED. The split is not a style choice — it is what an
@@ -27,7 +27,7 @@
  *     is a level, and under the shipped ecosim every node's flora climbs to `floraMax` and stays
  *     there. Driven honestly (four `stepRegionStates` a year for ten years, seeded), the derived
  *     reading was open at **12 nodes of 12, every season from year 3 to year 10 and onward** — one
- *     unbroken 150-tick run per node, never the 4 ticks this module and D-Q2-2 both claim. So the
+ *     unbroken 150-tick run per node, never the 4 ticks this module claims. So the
  *     bloom LATCHES on the RISE: a node crossing the threshold upward opens one season-long window,
  *     and no second window opens until its producers have been pushed back under. `syncEventFlags`
  *     is the latcher, exactly as act entry is the raid's.
@@ -36,11 +36,9 @@
  *     that tick.
  *
  * WHAT THIS MODULE DELIBERATELY DOES NOT DO. bible §9's Bloom Year sentence ends "gets bonus
- * spawns", and nothing here weights an encounter. That half is story-review decision D10 and is
- * unruled; building it would be a second opinion about encounter weight, which is exactly what G3
- * forbids — `core/foodweb.ts` is the only thing that may compute one. The window ships; the
- * multiplier does not, and `docs/DEVIATIONS.md` says so out loud rather than letting the beat
- * quietly not happen.
+ * spawns", and nothing here weights an encounter. That half is unruled; building it would be a
+ * second opinion about encounter weight, which is exactly what G3 forbids — `core/foodweb.ts` is
+ * the only thing that may compute one. The window ships; the multiplier does not.
  *
  * Pure TypeScript, zero engine imports (L11), zero gameplay literals (G11).
  */
@@ -164,7 +162,7 @@ export const FESTIVAL_WINDOW_ID = "festival";
 /**
  * The Annual Festival: the year's FINAL season, every year.
  *
- * bible §9 as amended (D-Q2-2) — it no longer closes the year, because nothing but the meter can.
+ * bible §9 as amended — it no longer closes the year, because nothing but the meter can.
  * It spans the season the meter fills in, so it opens at the boundary into `seasonOrder[last]` and
  * ends with the year turn. Null outside that season.
  */
@@ -182,8 +180,8 @@ export function festivalWindow(clock: ClockState, balance: Balance): EventWindow
  * The Great Migration: one window per migrant line that is in its `seasonalWindow` right now.
  *
  * The season comes from data/species.json and nowhere else. bible §9 says "spring — Gloomoth flocks
- * shift spawns region-wide" while bible §5 and every shipped row say AUTUMN; the data wins here and
- * the discrepancy is docs/STORY-REVIEW.md D7, not something to fix by inventing a season (G2).
+ * shift spawns region-wide" while bible §5 and every shipped row say AUTUMN; the data wins here,
+ * and the discrepancy is not something to fix by inventing a season (G2).
  */
 export function migrationWindows(
   clock: ClockState,
@@ -402,8 +400,8 @@ export function regionalEventFlags(
  * Move the latches, then publish the open windows into the save's quest flags and retract the
  * closed ones.
  *
- * `data/dialogue.json` gates on `event.festival.open` and nothing has ever written it
- * (docs/STORY-REVIEW.md §5.1 lists it among the externally-granted flags). This is that writer.
+ * `data/dialogue.json` gates on `event.festival.open` and nothing has ever written it — it is one
+ * of the corpus's externally-granted flags. This is that writer.
  * Total and idempotent: every flag this module owns is removed first and re-added if still open, so
  * a window that closed while the game was not looking cannot linger. Pure.
  *

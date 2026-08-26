@@ -10,8 +10,7 @@
  * regenerates at the next denoise on the ladder (§9.5) and gives up after
  * `balance.overlayDiff.maxRegenAttempts` rather than lowering the bar.
  *
- * G4: a REJECT is never overridden by hand. If a variant has to ship anyway, it needs a
- * DEVIATIONS entry, not a flag on this command — which is why there is no --force here.
+ * G4: a REJECT is never overridden by hand — which is why there is no --force here.
  */
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -54,7 +53,7 @@ async function main(): Promise<number> {
         '  npx tsx tools/overlay-diff/run.ts --base=<png> --candidate=<png> [--mask=<png>] [--json]\n' +
         '  npx tsx tools/overlay-diff/run.ts --node=<nodeId> --candidate=<png>\n\n' +
         'exit 0 = ACCEPT, 1 = REJECT. There is no override flag: G4 says a failing variant is never\n' +
-        'accepted by hand without a DEVIATIONS entry.',
+        'accepted by hand.',
     );
     return 2;
   }

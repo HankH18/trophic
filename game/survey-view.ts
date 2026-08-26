@@ -493,8 +493,7 @@ export interface SpeciesRate {
  *
  * **Why it asks `step` instead of doing the arithmetic.** §7.3's rule has exactly one
  * implementation, in `core/ecosim.ts`; a second one here is how a screen and an engine come to
- * disagree after a retune (see the Lane A integration defect I3, where two implementations of the
- * population write differed in both directions). So the sim is asked — and for a line that has
+ * disagree after a retune. So the sim is asked — and for a line that has
  * individuals, `inForce` is read back as `births / count`, which is *by construction* whatever the
  * sim multiplied by, with no rule about food or starvation restated here at all. Only an EMPTY line
  * has to fall back to the product of the reported factors, because its births are 0 by arithmetic
@@ -1046,7 +1045,7 @@ export interface SummaryCard {
   /**
    * True when the projection lands past `balance.clock.yearsTotal` years of play.
    *
-   * A PACING note, not a warning (D-Q3-1): the calendar is unbounded, so year 7 does arrive. It used
+   * A PACING note, not a warning: the calendar is unbounded, so year 7 does arrive. It used
    * to mean "past the last year the game has".
    */
   beyondFinalYear: boolean;
@@ -1124,8 +1123,8 @@ export function buildSummaryCard(args: SummaryArgs): SummaryCard {
  * The bible §12 hard-requirement line. Three honest answers, never a rounded-off one:
  *  - a year number, for anything with a countdown;
  *  - "never", for a caught Ancient (bible §4: Ancients do not age);
- *  - the year plus a pacing note when it lands past the years normal pacing expects (D-A4-14, as
- *    amended by D-Q3-1: that year DOES arrive now, so the note reads "beyond" rather than "past").
+ *  - the year plus a pacing note when it lands past the years normal pacing expects (the
+ *    calendar is unbounded, so that year DOES arrive — the note reads "beyond", not "past").
  */
 export function renderRetirementYear(card: SummaryCard, balance: Balance): string {
   if (card.projectedRetirementYear === null) return "retires: never";

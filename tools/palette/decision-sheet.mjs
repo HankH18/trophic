@@ -19,7 +19,7 @@
  * SECTION 0b EXISTS BECAUSE THIS SHEET WAS WRONG ONCE. Its previous version was assembled from
  * strips written at a hardcoded background tolerance of 12, which cleared exactly zero pixels under
  * both candidate palettes: every CANDIDATE and CLASS-EQ sprite on it was a solid opaque rectangle
- * beside a correctly cut-out FROZEN one (B-D22 → B-D33 → B-D50). A viewer judging by eye would have
+ * beside a correctly cut-out FROZEN one. A viewer judging by eye would have
  * rejected both candidates for a reason that had nothing to do with their colours, and nothing on
  * the sheet let them tell a palette problem from a pipeline problem. So every panel now names its
  * palette, and the opaque-pixel count that proves step 3 fired is printed before any picture.
@@ -78,7 +78,7 @@ add(Buffer.from(
   + `<text x="18" y="46" font-family="monospace" font-size="30" fill="#9fe08a">PALETTE DECISION — which of three do we ship?</text>`
   + `<text x="18" y="80" font-family="monospace" font-size="16" fill="#8fae7a">${esc(`data/palette.json is FROZEN and untouched. Nothing has been swapped — this sheet prepares the call, it does not take it.`)}</text>`
   + `<text x="18" y="106" font-family="monospace" font-size="16" fill="#8fae7a">${esc(`Read section 0 and section 2 and you have the answer. Sections 1 and 3 are the working.`)}</text>`
-  + `<text x="18" y="134" font-family="monospace" font-size="16" fill="#e8c07a">${esc(`REGENERATED after B-D50. The previous edition of this sheet showed every CANDIDATE and CLASS-EQ sprite as a solid rectangle — see section 0b.`)}</text>`
+  + `<text x="18" y="134" font-family="monospace" font-size="16" fill="#e8c07a">${esc(`REGENERATED after the background-tolerance fix. The previous edition of this sheet showed every CANDIDATE and CLASS-EQ sprite as a solid rectangle — see section 0b.`)}</text>`
   + '</svg>'), 150);
 
 /* ── 0. the verdict, in numbers, before any picture ────────────────────────── */
@@ -122,7 +122,7 @@ const VERDICT_ROWS = [
   ['skin', [0, 1, 2].map((i) => feature('skin', i))],
   ['leather brown', [0, 1, 2].map((i) => feature('leather brown', i))],
   ['dark outline', [0, 1, 2].map((i) => feature('dark outline', i))],
-  ['— THE COOL HALF (B-D13 probes) —', null],
+  ['— THE COOL HALF (cool-region probes) —', null],
   ['deep water  #1b4f7a', [0, 1, 2].map((i) => probe('deep water', i))],
   ['sky blue  #7ec8f0', [0, 1, 2].map((i) => probe('sky blue', i))],
   ['marsh teal  #2f7f7a', [0, 1, 2].map((i) => probe('marsh teal', i))],
@@ -175,7 +175,7 @@ const cardH = HDR + VERDICT_ROWS.length * RH + 128;
 
 /* ── 0b. pipeline integrity ────────────────────────────────────────────────── */
 add(heading('0b — IS THIS A PALETTE DIFFERENCE OR A PIPELINE DIFFERENCE?',
-  'Background removal (§9.3 step 3) runs AFTER quantize, so it must match whatever the palette maps white to. Its tolerance is read from the manifest, never hardcoded (B-D50).'), 78);
+  'Background removal (§9.3 step 3) runs AFTER quantize, so it must match whatever the palette maps white to. Its tolerance is read from the manifest, never hardcoded.'), 78);
 {
   const rows = ship.subjects;
   const h = 66 + rows.length * 26 + 96;
@@ -206,7 +206,7 @@ add(heading('0b — IS THIS A PALETTE DIFFERENCE OR A PIPELINE DIFFERENCE?',
   svg += bad
     ? `<text x="18" y="${foot + 24}" font-family="monospace" font-size="17" fill="#ff8a6a">${esc(`${bad} subject(s) are still solid rectangles. The sprites below are NOT comparable — fix the pipeline before judging the palette.`)}</text>`
     : `<text x="18" y="${foot + 24}" font-family="monospace" font-size="17" fill="#9fe08a">All three palettes cut out on all ${rows.length} subjects, within a few pixels of each other. Every difference you see below is a COLOUR difference.</text>`;
-  svg += `<text x="18" y="${foot + 50}" font-family="monospace" font-size="14" fill="#8fae7a">${esc('For contrast, at the pre-B-D50 hardcoded tolerance of 12 these same candidate strips measured 1536/1536 and 9216/9216 — every one a filled box.')}</text>`;
+  svg += `<text x="18" y="${foot + 50}" font-family="monospace" font-size="14" fill="#8fae7a">${esc('For contrast, at the old hardcoded tolerance of 12 these same candidate strips measured 1536/1536 and 9216/9216 — every one a filled box.')}</text>`;
   add(Buffer.from(svg + '</svg>'), h);
 }
 

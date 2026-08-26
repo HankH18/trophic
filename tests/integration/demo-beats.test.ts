@@ -25,7 +25,7 @@
  *
  * WHAT IT IS NOT EVIDENCE OF: no Phaser scene is constructed, so nothing here proves a pixel, an
  * input binding or a scene transition. The live drive of Title → Overworld → Battle → catch →
- * Survey → year turn is recorded in docs/LANE-BC-STATUS.md, not here.
+ * Survey → year turn is not covered here.
  *
  * G6: nothing below scripts a population, a predator or an heir. The catches are the ones the
  * recorded demo script (`fixtures/overcatch-script.json`) names; everything after them is the sim.
@@ -80,11 +80,11 @@ const script = JSON.parse(
  *
  * ⚠ `PREY` IS THE OVER-CAUGHT TARGET, NOT "the mesopredator" BY CONSTRUCTION. It is the same animal
  * here only because of which node `fixtures/overcatch-script.json` names: at `r4` the apex's ONLY
- * prey pool is its mesopredator (the fixture's own `_why` says that is why it picked the node, and
- * docs/CASCADE-RELEASE.md §2.1 shows it is the only shipped site where the two coincide). At the
- * other four apex sites the apex also eats a Grazer, so the over-caught line is a Grazer and this
+ * prey pool is its mesopredator (the fixture's own `_why` says that is why it picked the node).
+ * At an apex site that also carries a LARGE Grazer the apex eats that too, so the over-caught
+ * line there would be a Grazer and this
  * constant would be one — which is exactly the mis-measurement that `tools/harness/full-run.ts` was
- * carrying (docs/CASCADE-RELEASE.md §3). The release test below asserts the role before it measures
+ * carrying. The release test below asserts the role before it measures
  * the clause, so re-pointing the fixture at another node turns it red instead of silently scoring a
  * herbivore rebound as the beat.
  */
@@ -251,24 +251,25 @@ describe("I2 — over-catching a prey line through the production catch starves 
 
   it("HONEST GAP — the RELEASE half is not a law; it is a minority of seeds", () => {
     /*
-     * build-doc §10.2 asks for the mesopredator "strictly rising within 4 seasons". LANE-A-STATUS
-     * §6.2 already records that this is not a per-run law on the shipped content (16% of seeds at 4
-     * seasons, measured on the SIM path). This is the same measurement on the GAME path, and it
+     * build-doc §10.2 asks for the mesopredator "strictly rising within 4 seasons". That is not a
+     * per-run law on the shipped content: 16% of seeds at 4 seasons, measured on the SIM
+     * path. This is the same measurement on the GAME path, and it
      * agrees: the apex clause holds everywhere, the release clause does not.
      *
      * TWO THINGS THIS TEST HAS TO GET RIGHT BEFORE ITS NUMBER MEANS ANYTHING, and it used to get
      * both wrong in the same direction — crediting more seeds than §10.2 grants:
      *
      *   WHICH LINE. §10.2 names ONE tier. `PREY` is the fixture's over-catch TARGET, which is that
-     *   tier at `r4` and a Grazer at four of the six apex sites (see the note on `PREY` above), so
+     *   tier at `r4` and a Grazer at any apex site carrying a large one (see the note on `PREY`
+     *   above), so
      *   the role is ASSERTED here rather than assumed. Assuming it is the mis-measurement
      *   `tools/harness/full-run.ts` was carrying, where a rebounding Grazer read as a release
-     *   (docs/CASCADE-RELEASE.md §3). The role comes from `core/foodweb.ts`, the repo's one home
+     *   The role comes from `core/foodweb.ts`, the repo's one home
      *   for it (§8.3, G3); no role name is written in this file.
      *
      *   WHICH SEASONS. "within 4 seasons" is `balance.cascade.mesoReleaseSeasons` (G11 — not a
      *   literal), counted from the season the apex hits 0. That is the arithmetic
-     *   `tools/harness/full-run.ts` uses and docs/CASCADE-RELEASE.md §10 publishes, restated here
+     *   `tools/harness/full-run.ts` uses, restated here
      *   so this figure is comparable to the sim-path figure it claims to agree with. This test used
      *   to accept a rise ANYWHERE in the six seasons after catching stopped — a window the balance
      *   file does not grant. MEASURED on the shipped content: the old predicate scored 5 of 24
@@ -398,7 +399,7 @@ describe("I3 — the starter retires and its heir is in the party at the league"
     const simContext = defaultContext();
     const starterUid = starter!.uid;
     /*
-     * ⚠ NOT A GATE, AND NOT "THE LEAGUE YEAR" — there is no such thing (D-Q3-1). The finale is an ACT
+     * ⚠ NOT A GATE, AND NOT "THE LEAGUE YEAR" — there is no such thing. The finale is an ACT
      * condition and the calendar never ends, so this is the year NOMINAL pacing reaches, and this
      * test measures the Legacy beat at that pace. The beat on the axis that actually decides the
      * finale is measured by playing, in `tests/unit/overworld-scene.test.ts` §10.5: a run that
@@ -433,8 +434,8 @@ describe("I3 — the starter retires and its heir is in the party at the league"
     /*
      * HONEST GAP, and now BOUND rather than merely described: the shipped `balance.age` schedule
      * retires the starter early. bible §4 wants it to "peak right before the league"; measured on
-     * this run it is gone at the year-3→4 turn. LANE-A-STATUS §6.4 (D-A4-9) records the same number
-     * from the lifecycle side; this is it on the played path. The beat survives — an heir does fight
+     * this run it is gone at the year-3→4 turn — the same turn the lifecycle tests measure from
+     * their side, and this is it on the played path. The beat survives — an heir does fight
      * the finale — but the flavour does not, and fixing it is a `balance.age` retune (A5's call).
      *
      * ⚠ THIS USED TO ASSERT `< leagueYear`, WHICH THE FIX WOULD ALSO SATISFY. A schedule retuned so

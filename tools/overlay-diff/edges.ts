@@ -273,7 +273,7 @@ export interface EdgeOptions {
  * So the range is read from the same population the IoU is: when a mask is supplied, only walkable
  * pixels vote. Blocked pixels are still normalised (and still Sobelled) with that range, because a
  * building's OUTLINE is the boundary between blocked and walkable and it must keep registering — but
- * repainting the inside of a building can no longer reach across the map. Tint invariance (B-D23) is
+ * repainting the inside of a building can no longer reach across the map. Tint invariance is
  * untouched: a linear tint scales the walkable range exactly as it scales the whole-frame one.
  *
  * With no mask, `within` is undefined and this is the whole frame, exactly as before.

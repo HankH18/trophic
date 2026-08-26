@@ -329,7 +329,7 @@ describe("SEAM — Hard Req 2: a real battle catch moves a real number in the su
 
   it("the join is PRODUCTION code now, and the tape it writes replays to the same number (L10)", () => {
     /*
-     * THIS REPLACED A GREEN TEST THAT ASSERTED THE NEGATION OF THE TRUTH (BF-3).
+     * THIS REPLACED A GREEN TEST THAT ASSERTED THE NEGATION OF THE TRUTH.
      *
      * It read `it("HONEST GAP: nothing in production wires battle's catch to the survey yet")` and
      * asserted `callsBoth === false` over a source list of nine `core/*.ts` files plus
@@ -448,7 +448,7 @@ describe("SEAM — the fourth season runs exactly once (build-doc §7.5 step 5)"
     /*
      * The amended L8: "year = full meter", and nothing else. This test used to assert the opposite
      * ("a year ended early by a gym win still advances the ecology exactly once") and is inverted
-     * on Hank's authorisation, quoted in docs/DEVIATIONS.md D-Q2-1.
+     * on Hank's authorisation.
      *
      * Asserted through the SEAM rather than by the absence of an export: for every tick of a year,
      * awarding the badge that a gym win writes moves neither half of the clock and produces no
@@ -515,13 +515,13 @@ describe("SEAM — the fourth season runs exactly once (build-doc §7.5 step 5)"
 describe("SEAM — every lane draws from core/rng.ts", () => {
   it("core/rng.ts is the only generator: every OTHER core module takes one, it does not make one", () => {
     /*
-     * ⚠ THIS WAS THE UNFIXED TWIN OF BF-3, IN THIS FILE, ONE BLOCK BELOW THE TEST BF-3 NAMED.
+     * ⚠ THIS WAS THE UNFIXED TWIN OF THE DEFECT ABOVE, ONE BLOCK BELOW IT IN THIS FILE.
      *
      * It read `for (const m of ["battle","ecosim","lifecycle","save","clock","foodweb"])` — six
      * `core/` modules named by hand. `core/` holds twelve: `acts.ts`, `regional-events.ts`,
      * `dialogue-schema.ts`, `quests.ts`, `schemas.ts` and `types.ts` were never scanned, so a second
      * xorshift landing in any of them was invisible to the one test that exists to forbid it. That
-     * is exactly the mechanism BF-3 describes — "a hand-written source list is the defect, not the
+     * is exactly the same mechanism — "a hand-written source list is the defect, not the
      * regex it fed" — and the repair pass fixed the instance it was pointed at and left this one.
      *
      * So the modules are DISCOVERED. Measured across all twelve: `core/rng.ts` is the only file that
@@ -568,7 +568,7 @@ describe("SEAM — every lane draws from core/rng.ts", () => {
      * destructures the first three POSITIONALLY as (battle, sim, encounter), so a reorder silently
      * hands the harness the wrong stream for every battle it runs.
      *
-     * "lifecycle" was appended on 2026-08-26 (BF-11). Before that the list was exactly the three,
+     * "lifecycle" was appended on 2026-08-26. Before that the list was exactly the three,
      * and the heir roll — which is lifecycle randomness — had no stream to name, so
      * `game/scenes/OverworldScene.ts` composed its key out of the SIM tag. Each tag is seeded
      * independently, so appending one moved no existing stream by a draw; the next assertion is
