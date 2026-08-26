@@ -2363,3 +2363,163 @@ speaker whose EVERY line leans on a noun has props rather than a voice, and is w
 
 **No line in the shipped corpus is to be rewritten on the strength of this appendix.** It withdraws
 a bar. It does not commission a pass.
+
+---
+
+# APPENDIX I — READABILITY, AND THE INSTRUCTION MUST LAND. GOVERNING, OVERRIDES APPENDICES F, G AND H WHERE THEY CONFLICT.
+
+Hank read the shipped fifth-pass corpus and ruled, in three parts. The third part overrides the
+first where they pull against each other, and it is the one to read first.
+
+> **1. "The dialogue is still barely readable. Make them sound human, simple linear sentences."**
+
+> **2. "With the dialogue that's supposed to be tutorial or instructive in nature, we should be
+> checking that the tutorial or instructions are actually understandably conveyed."**
+
+> **3. "I'M OK WITH LONG SENTENCES IF THEY ARE UNDERSTANDABLE."**
+
+## PART ZERO — WHAT RULING 3 SETTLES, BEFORE ANYONE STARTS COUNTING WORDS
+
+The first draft of this appendix read ruling 1 as a length problem. It set a 24-word ceiling on a
+sentence and a ceiling on the corpus share of long ones. **That was wrong, and ruling 3 is what
+corrected it.**
+
+**Length is not the defect and is not measured here, in either direction, except by one floor.**
+A long sentence that runs straight from its subject to its end is correct and needs no repair:
+
+> *"The levy comes off the buyer's price and pays for the pilings and the harbour wall."*
+
+Twenty words, one subject, nothing held in suspense, entirely clear. Meanwhile:
+
+> *"Where the nearer trunk has gone flat against the granite, the bark is dead."*
+
+Fifteen words, and the reader waits nine of them holding a condition with nothing to attach it to.
+**The short one is the defect.** Any standard that would have flagged the first sentence and passed
+the second is measuring the wrong thing.
+
+## PART ONE — WHAT IS ACTUALLY WRONG
+
+A reader loses a sentence when it makes them **hold something unresolved**. There are three ways to
+do that, and all three are independent of length:
+
+| | what it does to a reader | fifth-pass corpus |
+|---|---|---|
+| **Subject switching** | three or more subjects before the first is finished with | 72 sentences, 36 of 62 speakers |
+| **Front-loading** | the condition arrives before the thing it modifies | 8 sentences, 7 speakers |
+| **Interruption** | a clause wedged between a subject and its verb | measured per beat |
+
+The signature case, and every part of it is plain English:
+
+> *"Fenmaw take Mirefin, and Mirefin is the animal the contract is written on, so the marsh figures
+> go in the file and I price off the channel, because clause four has not been amended in sixty
+> years and it does not say marsh."*
+
+Nothing in that is a hard word. It is hard because the reader has to hold **four subjects at once**,
+and the sentence is not about any of the first three.
+
+## THE RULE
+
+> **One idea to a sentence. Say it in the order it happens. When the subject changes, start a new
+> sentence.**
+
+Five things follow, and they are the whole standard:
+
+1. **Break the subject chains.** `A does X, and B is Y, so C does Z` becomes three sentences. Two
+   subjects joined is ordinary speech and is fine. Three is a chain, and the chain is the defect —
+   **not the word count that usually comes with it.**
+2. **Main clause first.** Say what happened, then the condition on it. *"The bark is dead where the
+   trunk has gone flat"* — not the reverse. A short fronted clause is fine.
+3. **Don't interrupt yourself.** Subject, then verb. A relative clause between them makes the reader
+   hold the subject open.
+4. **Keep every fact.** Numbers, species, places, prices, mechanics — carried over exactly.
+   Guardrail G2 is not relaxed by one word of this appendix.
+5. **Keep the person.** Straightening the syntax is not flattening the voice. The grievance, the
+   expertise and the opinion all stay.
+
+**Rewriting a long sentence that already reads straight is out of scope.** If it does not switch
+subjects, front-load, or interrupt itself, leave it alone at any length.
+
+## THE OVERCORRECTION THIS APPENDIX EXPECTS, NAMED IN ADVANCE
+
+**This is the fourth standard written against this corpus, and the previous three each became the
+defect they were written against.** Appendix F's vocabulary standard produced four aphorisms in its
+own examples. Appendix G's length floor was read as a length target. Appendix H's distinctiveness
+bar was read as a quota. The pattern is reliable enough to predict: **a bar every line must clear is
+a bar every line will be bent to clear.**
+
+So, written down before the pass rather than after it: **read as a quota, "simple linear sentences"
+produces five hundred telegrams.** Uniform seven-word declaratives, no subordination anywhere, every
+speaker clipped to one length. That corpus would satisfy rules 1 through 3 completely and be worse
+than the one it replaced, because a person who only ever speaks in short flat sentences is not a
+person — and it would directly contradict ruling 3.
+
+**Vary the lengths.** Some beats are one short sentence. Some are a single long one that runs
+straight through. The check governing this has a **floor and no ceiling**, and it fails a corpus for
+having *too few* long sentences.
+
+## PART TWO — THE INSTRUCTION HAS TO LAND
+
+A separate bar, and it binds a named subset of the corpus.
+
+> **A beat that teaches the player how to play must leave a first-time reader able to say what to
+> do, how to do it, and what happens as a result. If the reader cannot, the beat has failed, and it
+> has failed no matter how well it reads or how well it is voiced.**
+
+This is the one place in the corpus where **being understood outranks being in character.**
+
+### Which beats this binds — 29 of 212
+
+`maren.opening`, the three starter beats, `maren.tutorial.snare`, `maren.tutorial.survey`,
+`maren.tutorial.release`, `maren.retirement`, the eleven `*.quest.*.offer` beats, the five `*.rest`
+and five `*.shop` service beats, and `sel.service.ferry`. **A beat is bound by this rule if the
+player has no other source for the thing it says.**
+
+### The test, and it is a rig, not an opinion
+
+Attributability could be argued about. This cannot, because it is measurable:
+
+> **Give the beat's text — and nothing else: no code, no design document, no glossary, no other
+> beat — to a reader who has never seen this game. Ask three questions. What am I supposed to do?
+> How do I do it? What happens when I do? Compare the three answers against what the code actually
+> does.**
+
+A mismatch is a defect in the beat. **The reader is never wrong.** If a reader concludes bait is
+optional when the code makes it a multiplier, the line is unclear, and the repair is the line.
+
+The rig's one hard requirement: **the reader must not be able to see the answer.** A reader with
+repo access will reconstruct the mechanic from the code and report that the beat was clear. That
+result measures nothing.
+
+### What this does NOT license
+
+- **It does not make anyone a tutor.** CHECK 5 stands. Nobody explains the game to the player as a
+  game. Maren explains her job; the player learns the mechanic because the job *is* the mechanic.
+- **It does not license system vocabulary.** The `TOOLTIP` check stands, unrelaxed. "Node", "count",
+  "base rate", "coefficient", "age class" stay out of every mouth. **An instruction that needs a
+  system word is an instruction pointed at the wrong noun** — name the thing in the world, not the
+  field in the save file.
+- **It does not license moralising.** G7 stands over every word of this appendix. A tutorial beat
+  explaining that catching lowers a number is reporting a number. The moment it implies the player
+  ought to feel something about that number, the pass has failed.
+- **It does not extend to flavour.** An ambient line by a logger is not an instruction.
+
+## ENFORCEMENT
+
+`tools/prose/prose-lint.py` gains `R1-SUBJECT-SWITCH`, `R2-FRONTLOAD`, `R3-INTERRUPT` and the
+corpus-level `R4-NOT-TELEGRAMS`. **No check counts sentence length as a defect.** Read the comment
+block above `R1` before touching a threshold — `R4` is a floor with no ceiling, and it fails a
+corpus for being chopped or flattened. Its controls include a corpus of long sentences that must
+pass and a corpus of short ones that must fail, so driving length down turns the linter red.
+
+The linter cannot check Part Two at all. **No regex reads for comprehension.** Part Two is checked
+by the reader rig above and by nothing else, and a green linter is not evidence that it passed.
+
+## WHAT IS NOT WEAKENED
+
+Everything in Appendix H stands. The four-line test is still scoped to lines doing characterisation
+work; ordinary functional speech is still correct; `G13-NOUN-CARRIED`'s corpus share is still not a
+target. §2's HARD CAP, CHECK 3, CHECK 4, CHECK 5, F1/F2/F3, the SMALL-TALK QUOTA and §6's six-slot
+grid are all untouched.
+
+**Nothing here asks for a line to be made distinctive. Nothing here asks for a line to be made
+short. It asks for a line to run in a straight line, and for an instruction to be understood.**

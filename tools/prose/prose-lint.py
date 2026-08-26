@@ -118,50 +118,206 @@ def _(entry, lines):
             out.append((i, m.group(0)))
     return out
 
+
 # ═════════════════════════════════════════════════════════════════════════════
-#  THE STRUCTURAL LAYER
+#  READABILITY — CAST-AND-VOICE Appendix I. Hank, in two rulings:
+#
+#    "The dialogue is still barely readable. Make them sound human, simple
+#     linear sentences."
+#    "I'M OK WITH LONG SENTENCES IF THEY ARE UNDERSTANDABLE."
+#
+#  THE SECOND RULING IS THE ONE THAT SHAPES THIS FILE, so read it before you
+#  touch a threshold. The first draft of this block counted WORDS: a sentence of
+#  24 or more was a defect and the corpus had a ceiling on its share of them.
+#  That was wrong, and it was wrong in the exact way the three previous prose
+#  standards were wrong — it took the visible correlate of the defect for the
+#  defect. Long sentences are not the disease. Length is not measured here at
+#  all, in either direction, except by one floor whose only job is to stop this
+#  pass from chopping the corpus into telegrams.
+#
+#  WHAT IS ACTUALLY MEASURED: whether a sentence runs in a straight line.
+#  A reader loses a sentence when it makes them hold something unresolved —
+#  a subject whose verb has not arrived, a subordinate clause before the thing
+#  it modifies, a third subject before the first two are finished with. All
+#  three are independent of length. "The levy comes off the buyer's price and
+#  pays for the pilings and the harbour wall" is twenty words, one subject, and
+#  perfectly clear. "Where the nearer trunk has gone flat against the granite,
+#  the bark is dead" is fifteen words and makes you wait nine of them.
+#
+#  THE APPROXIMATION, STATED PLAINLY. Nothing here parses. "Subject of a clause"
+#  is approximated as "the first pronoun, or determiner-plus-noun, after a clause
+#  boundary", and clause boundaries are themselves approximated. It over-counts
+#  an appositive and under-counts a bare-noun subject. It is a floor. A sentence
+#  can pass every check below and still be impossible, which is why Appendix I
+#  Part Two is a reader rig and not a regex — NO CHECK IN THIS FILE READS FOR
+#  COMPREHENSION, and a green run here is not evidence that an instruction
+#  landed.
+#
+#  THE KNOWN BLIND SPOT, with its evidence, because a floor that hides its misses
+#  is worse than no floor. R1 counts SUBJECTS. It therefore does not catch a
+#  sentence made hard by piling up appositives and relative clauses that never
+#  introduce a new subject. Both of these are in the shipped corpus, both are
+#  plainly hard to read, and both pass R1 clean:
+#
+#    "That was the lampkeeper's family who sent it up, his father before him and
+#     his father's brother as well, and I came up to the walk myself the year they
+#     re-cut the lower stair, which was the year after my father died."
+#
+#    "Gloomgrub are the little ones and they turn into the big ones out of the
+#     high lines, only they don't, they're a different thing altogether, and the
+#     silk comes off the wings when they come through and the lamps go out, whoomf."
+#
+#  Attempts to catch these by counting commas or clause boundaries fire on plain
+#  lists ("Meadow Reach, then Brackmarsh, then the Wilds, then the steppe"), which
+#  are easy to read. No cheap rule separates the two, so the miss is accepted and
+#  written down instead of being papered over with a noisier check. THE FLAG COUNT
+#  IS A LOWER BOUND ON THE WORK. A pass that repairs exactly the flagged sentences
+#  and stops has not done the job.
 # ═════════════════════════════════════════════════════════════════════════════
-#
-#  WHY IT EXISTS. Everything above this line matches WORDS. Four rewrite passes
-#  have now removed a named chorus and watched 62 speakers converge on a new one
-#  inside a single pass, because thirteen writers working to one specification on
-#  disjoint slices always converge. Every word-matching check reads clean the
-#  moment the vocabulary turns over, so a lexical chorus list is a fossil of the
-#  costume that was removed two passes ago, not an instrument. At the fourth
-#  audit, 36 of 62 speakers shared ONE construction while every check in this
-#  file reported zero.
-#
-#  So these checks discard the words and measure the SHAPE: how long the parts
-#  are, what class of word opens them, what class of word ends them, and whether
-#  they are negative. A shape signature is a costume the writer cannot change by
-#  reaching for a fresh noun.
-#
-#  THE APPROXIMATION, STATED PLAINLY. There is no POS tagger here and no
-#  dependency on one. Word class is decided by membership in the closed lists
-#  below plus a suffix guess for verbs. What that WILL miss, and a reader of a
-#  report from this tool must hold all of it in mind:
-#    * A content word is classed OTHER, so an opener that is a noun, an
-#      adjective and a bare-infinitive imperative all collapse into one bucket.
-#      OPEN.VERB fires only on a small hand-written imperative list.
-#    * END.VERB is an -ed/-ing/-en suffix guess plus a small verb list, so
-#      "the shed" reads as a verb and "he ran" reads as a noun.
-#    * Nothing here parses. "opens a new independent clause" is approximated as
-#      "is not introduced by a subordinator or coordinator", which lets in bare
-#      noun-phrase fragments ("Same mark.") — deliberately, because those ARE
-#      the defect — and lets in the occasional genuine continuation.
-#    * Homographs are not disambiguated: "no" as determiner vs. negation, "that"
-#      as subordinator vs. demonstrative. Precedence order decides, arbitrarily.
-#    * Sentence splitting is punctuation-only, so an abbreviation splits a
-#      sentence and a comma splice does not.
-#  Every one of those makes the signature COARSER than a linguist's would be,
-#  which means two beats can share a signature without sharing a construction.
-#  The cap is therefore evidence of convergence, not proof of it. That trade is
-#  taken on purpose: an honest approximation that fires is worth more than a
-#  precise one that cannot.
-#
-#  DO NOT REPLACE ANY OF THIS WITH A LIST OF BANNED STRINGS. That is the move
-#  that produced four costumes. If a check here is too noisy, refine the buckets
-#  and re-run the controls — do not narrow it until it stops firing.
+
+SUBJECT_SWITCH = 3      # distinct clause subjects inside ONE sentence
+SUBORD_MIN     = 6      # a subordinate clause shorter than this is not a burden
+FRONTLOAD_MIN  = 6      # words of subordinate opener before the main clause arrives
+INTERRUPT_MIN  = 6      # words of parenthetical wedged between subject and verb
+
+_FINITE = (r"(?:is|are|was|were|has|have|had|does|do|did|will|would|can|could|should|"
+           r"must|goes|comes|gets|takes|makes|made|said|says|went|came|puts|keeps|holds|"
+           r"reads|pays|costs|sits|stands|runs|walks|sends|brings|wants|needs|knows|"
+           r"thinks|looks|leaves|left|found|feels|seems|means|"
+           r"isn't|aren't|wasn't|weren't|hasn't|haven't|hadn't|doesn't|don't|didn't|"
+           r"won't|can't|couldn't|shouldn't|mustn't|'s|'re|'ve|'ll|'d|'m)")
+
+_SUBORD = (r"(?:where|when|while|because|since|although|though|if|after|before|once|"
+           r"given|until|whenever|wherever|having|seeing|whereas|unless|which|who|whom|whose)")
+
+_PRONOUN_SUBJ = r"(?:I|you|he|she|it|they|we|there|that|this|those|these|nothing|nobody|" \
+                r"everyone|everything|someone|somebody|one)"
+_DET = r"(?:the|a|an|my|your|his|her|its|our|their|every|each|no|some|any|most|both)"
+
+
+def _clause_joins(s):
+    """Coordinators in `s` that look like they join clauses rather than list items:
+    preceded by a comma, or followed within four words by a finite verb. Over-counts
+    a comma-separated list, under-counts a clause whose verb is off the list."""
+    out = []
+    for m in re.finditer(r"(,\s*|\s+)\b(and|but|so|or|yet)\b\s+", s, re.I):
+        if ',' in m.group(1) or re.match(r"(?:\S+\s+){0,3}" + _FINITE + r"\b", s[m.end():], re.I):
+            out.append(m)
+    return out
+
+
+_PREP_OR_CONJ = {'and','but','so','or','yet','of','in','on','at','to','for','with','from',
+                 'by','off','out','up','down','over','under','than','then','as','not','no'}
+
+
+def _clause_seg(s, i):
+    """The clause beginning at offset i: cut at the next comma or clause coordinator,
+    so a subject search cannot run past its own clause into the next one."""
+    seg = s[i:]
+    cut = len(seg)
+    m = re.search(r",", seg)
+    if m: cut = min(cut, m.start())
+    m = re.search(r"\s+\b(?:and|but|so|or|yet)\b\s+", seg)
+    if m: cut = min(cut, m.start())
+    return seg[:cut]
+
+
+def _subject_of(seg):
+    """The subject of one clause, or None when the clause has none of its own (a
+    compound predicate sharing the previous subject). Approximate — see the block
+    above. Returned only as an identity for counting DISTINCT subjects, so a head
+    noun and a modifier are equally good as long as the choice is consistent."""
+    toks = [t.strip("’'\".;:!?()") for t in seg.split()]
+    toks = [t for t in toks if t]
+    if not toks:
+        return None
+    if re.fullmatch(_PRONOUN_SUBJ, toks[0], re.I):
+        return toks[0].lower()
+    vi = None
+    for j, t in enumerate(toks[:6]):
+        if re.fullmatch(_FINITE, t, re.I):
+            vi = j; break
+    if vi == 0:
+        return None                       # "and pays for the pilings" — no new subject
+    if vi is not None:
+        return toks[vi - 1].lower().rstrip("'s")
+    j = 0
+    if re.fullmatch(_DET, toks[0], re.I):
+        j = 1
+        while j < len(toks) - 1 and j < 3 and toks[j].lower() in _PREP_OR_CONJ:
+            j += 1
+    if j >= len(toks):
+        return None
+    w = toks[j].lower().rstrip("'s")
+    return None if w in _PREP_OR_CONJ else w
+
+
+def _clause_subjects(s):
+    """Distinct subjects, one per clause boundary, in order of appearance."""
+    starts = [0] + [m.end() for m in _clause_joins(s)]
+    for m in re.finditer(r"\b" + _SUBORD + r"\b\s+", s, re.I):
+        # A subordinator only opens a clause if a finite verb follows inside it;
+        # "since six o'clock this morning" is a prepositional phrase, not a clause.
+        # And a SHORT trailing subordinate clause is not a burden on the reader —
+        # "...the one post since they made it" costs nothing, so it does not count
+        # as a switch. Without this floor the check fires on ordinary speech.
+        seg = _clause_seg(s, m.end())
+        if len(seg.split()) >= SUBORD_MIN and any(
+                re.fullmatch(_FINITE, t, re.I) for t in seg.split()[:6]):
+            starts.append(m.end())
+    seen, order = set(), []
+    for i in sorted(set(starts)):
+        w = _subject_of(_clause_seg(s, i))
+        if w and w not in seen:
+            seen.add(w); order.append(w)
+    return order
+
+
+@check('R1-SUBJECT-SWITCH', f'{SUBJECT_SWITCH}+ different clause subjects inside one sentence')
+def _(entry, lines):
+    """The signature defect of the fifth pass, and it has nothing to do with length.
+    "Fenmaw take Mirefin, and Mirefin is the animal the contract is written on, so the
+    marsh figures go in the file and I price off the channel" asks the reader to hold
+    four subjects. A long sentence that stays on ONE subject does not fire, however long."""
+    out = []
+    for i, t in enumerate(lines):
+        for s in sentences(t):
+            subs = _clause_subjects(s)
+            if len(subs) >= SUBJECT_SWITCH:
+                out.append((i, f'[{len(subs)}: {", ".join(subs)}] {s}'))
+    return out
+
+
+@check('R2-FRONTLOAD', 'the main clause arrives after a long subordinate opener')
+def _(entry, lines):
+    """Order, not length. A listener given nine words of condition has nothing to
+    attach them to until the main clause lands. A SHORT fronted clause is ordinary
+    speech ("When it rains, we stop.") and does not fire."""
+    out = []
+    for i, t in enumerate(lines):
+        for s in sentences(t):
+            if not re.match(r"^\W*" + _SUBORD + r"\b", s, re.I):
+                continue
+            head, _, rest = s.partition(',')
+            if rest and len(head.split()) >= FRONTLOAD_MIN:
+                out.append((i, f'[{len(head.split())}w opener] {s}'))
+    return out
+
+
+@check('R3-INTERRUPT', 'a parenthetical wedged in before the main clause finishes')
+def _(entry, lines):
+    """The other way a sentence stops being linear: the subject arrives, then a clause
+    of its own turns up before the verb does. Length-neutral — a twenty-word sentence
+    that never interrupts itself is clear, and a twelve-word one that does is not."""
+    out = []
+    for i, t in enumerate(lines):
+        for s in sentences(t):
+            for m in re.finditer(r",\s*(?:and\s+)?" + _SUBORD + r"\b([^,]*),", s, re.I):
+                if len(m.group(0).split()) >= INTERRUPT_MIN:
+                    out.append((i, f'[interrupt] {s}'))
+                    break
+    return out
+
 
 CORPUS_CHECKS = []
 def corpus(code, desc):
@@ -577,6 +733,41 @@ def _(entries):
                'a low ratio is not a score and is nobody\'s to chase', body)]
 
 
+
+# ── R4: the anti-telegram floor. A FLOOR ONLY. There is no ceiling. ──────────
+#  Hank: "I'M OK WITH LONG SENTENCES IF THEY ARE UNDERSTANDABLE." So this check
+#  has no upper bound and never will. Its entire job is to catch the one failure
+#  mode this pass is most likely to produce: reading "simple linear sentences" as
+#  a quota and chopping five hundred lines into uniform fragments. A person who
+#  only ever speaks in seven-word declaratives is not a person.
+R_MEDIAN_MIN  = 7      # below this the corpus has been chopped
+R_SHORT_SHARE = 0.60   # share of sentences of 6 words or fewer
+R_VARIETY_MIN = 0.12   # share of sentences of 20 words or more — a corpus with none
+                       # has been flattened, which is its own kind of unreadable
+
+
+@corpus('R4-NOT-TELEGRAMS', 'the corpus has not been chopped into uniform fragments')
+def _(entries):
+    lens = [len(s.split()) for e in entries for l in e['lines'] for s in sentences(l['text'])]
+    if not lens:
+        return []
+    med = sorted(lens)[len(lens) // 2]
+    short = sum(1 for n in lens if n <= 6) / len(lens)
+    longs = sum(1 for n in lens if n >= 20) / len(lens)
+    body = (f'median {med}w (floor {R_MEDIAN_MIN}, NO ceiling) · 6w- {short:.1%} '
+            f'(max {R_SHORT_SHARE:.0%}) · 20w+ {longs:.1%} (min {R_VARIETY_MIN:.0%}) · '
+            f'{len(lens)} sentences')
+    bad = []
+    if med < R_MEDIAN_MIN:
+        bad.append(f'median sentence is {med} words — the corpus has been chopped')
+    if short > R_SHORT_SHARE:
+        bad.append(f'{short:.1%} of sentences are 6 words or fewer — nobody speaks only in fragments')
+    if longs < R_VARIETY_MIN:
+        bad.append(f'only {longs:.1%} of sentences reach 20 words — a long sentence is not a '
+                   f'defect and a corpus with none of them has been flattened')
+    return [('cadence below the floor', body, bad)] if bad else []
+
+
 # ═════════════════════════════════════════════════════════════════════════════
 #  CONTROLS — every structural check has a positive and a negative control, and
 #  they run on EVERY invocation before any corpus is read. A check that cannot
@@ -752,6 +943,75 @@ def run_controls():
     want('4/4 lines (100%)' in r[0][0], f'G13 positive control did not read 100%: {r[0][0]}')
     r = _fired('G13-NOUN-CARRIED', G13_NEG)
     want('0/2 lines (0%)' in r[0][0], f'G13 negative control did not read 0%: {r[0][0]}')
+
+    # ── Appendix I readability layer. Every check gets both signs, and the
+    #    negative controls are all LONG, because length is not the defect. ─────
+    def _beat(code, *ls):
+        for c, _d, fn in CHECKS:
+            if c == code:
+                return fn({}, list(ls))
+        f.append(f'control names a per-beat check that does not exist: {code}')
+        return []
+
+    # R1: four subjects fires. A 20-word ONE-subject sentence must NOT fire, and a
+    # 26-word two-subject sentence must NOT fire — that is the whole ruling.
+    want(bool(_beat('R1-SUBJECT-SWITCH',
+        "Fenmaw take Mirefin, and Mirefin is the animal the contract is written on, so the "
+        "marsh figures go in the file and I price off the channel.")),
+        'R1 positive control did NOT fire on a sentence carrying four subjects')
+    want(not _beat('R1-SUBJECT-SWITCH',
+        "The levy comes off the buyer's price and pays for the pilings and the harbour wall."),
+        'R1 negative control fired on a twenty-word sentence with ONE subject — length is not '
+        'the defect and this check must never become a length check')
+    want(not _beat('R1-SUBJECT-SWITCH',
+        "The kettle has been on since six o'clock this morning and nobody in this whole "
+        "building has drunk so much as a cup of it."),
+        'R1 negative control fired on a 26-word TWO-subject sentence — long and linear is fine')
+
+    # R2: a nine-word fronted clause fires; a short one does not; and the SAME
+    # content in main-clause-first order must not fire at any length.
+    want(bool(_beat('R2-FRONTLOAD',
+        "Where the nearer trunk has gone flat against the granite, the bark is dead.")),
+        'R2 positive control did NOT fire on a nine-word subordinate opener')
+    want(not _beat('R2-FRONTLOAD', "When it rains, we stop."),
+        'R2 negative control fired on a short fronted clause')
+    want(not _beat('R2-FRONTLOAD',
+        "The bark is dead a hand either side of the place where the nearer trunk has gone "
+        "flat against the granite and taken the moss off with it."),
+        'R2 negative control fired on a 27-word sentence already in main-clause-first order')
+
+    # R3: an interruption fires; a plain list of commas does not.
+    want(bool(_beat('R3-INTERRUPT',
+        "The tide table, which they issue to everyone at intake, has the slack twenty "
+        "minutes late.")),
+        'R3 positive control did NOT fire on a parenthetical wedged before the verb')
+    want(not _beat('R3-INTERRUPT',
+        "Meadow Reach, then Brackmarsh, then the Wilds, then the steppe, then the vale."),
+        'R3 negative control fired on a plain comma-separated list')
+
+    # R4 is a FLOOR. It must fail on telegrams and on a flattened corpus, and it must
+    # NOT fail on a corpus of long sentences — there is no ceiling and never will be.
+    _short = _mk(('a', ['Four in.', 'Up by four.', 'Right.', 'That is it.', 'No.', 'Two.'] * 4))
+    r = _fired('R4-NOT-TELEGRAMS', _short)
+    want(r and any('chopped' in x for x in r[0][2]),
+         'R4 did NOT fail a corpus of fragments — the floor is gone, and this pass can now be '
+         'passed by chopping every line up, which is the overcorrection Appendix I predicts')
+    _flat = _mk(('a', ['The lambs are carrying weight this year at last.',
+                       'I have the north stretch on my sheet every week.',
+                       'Two coppers for the mesh and it is out the back.',
+                       'Bed is a copper and breakfast is not included.'] * 4))
+    r = _fired('R4-NOT-TELEGRAMS', _flat)
+    want(r and any('flattened' in x for x in r[0][2]),
+         'R4 did NOT fail a corpus with no long sentences at all')
+    _long = _mk(('a', ['The levy comes off the buyer price and pays for the pilings and the '
+                       'harbour wall and the second landing besides, which is why a thin year '
+                       'in the channel is felt on the dock before it is felt anywhere else.',
+                       'Short one.', 'Two coppers.',
+                       'I have had the north stretch on my sheet every single week from the '
+                       'thaw onward and I have never once missed a reading on it.']))
+    want(not _fired('R4-NOT-TELEGRAMS', _long),
+         'R4 fired on a corpus of LONG sentences — it has grown a ceiling, and Hank ruled '
+         'explicitly that long sentences are fine when they are understandable')
 
     # The per-beat layer must also still bite. One known-bad sample for the two checks
     # whose zeros the rewrite is asserted to hold.
