@@ -19,6 +19,8 @@
 
 import Phaser from "phaser";
 import {
+  SCREEN_COLOR,
+  SCREEN_HEX,
   SCREEN_TEXT,
   SUMMARY_ART_BOX,
   buildSummaryCard,
@@ -48,10 +50,12 @@ export interface SummarySceneData {
   onClose?: () => void;
 }
 
-const INK = "#e8e4d8";
-const INK_DIM = "#8a8676";
-const INK_FLAG = "#d8a24a";
-const BACKDROP = 0x14140f;
+// One home for the screen's colours, in game/survey-view.ts — see DexScene. These four WERE
+// `#e8e4d8`, `#8a8676`, `#d8a24a` and `0x14140f`, none of them a frozen swatch (build-doc §8.4).
+const INK = SCREEN_HEX.ink;
+const INK_DIM = SCREEN_HEX.inkDim;
+const INK_FLAG = SCREEN_HEX.inkFlag;
+const BACKDROP = SCREEN_COLOR.backdrop;
 
 // The screen's text metrics have one home, in game/survey-view.ts (see SurveyScene).
 const FONT = SCREEN_TEXT.fontFamily;

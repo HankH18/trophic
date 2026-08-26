@@ -986,6 +986,12 @@ export interface Balance {
     denoiseStep: number;
     denoiseFloor: number;
     maxRegenAttempts: number;
+    /**
+     * build-doc §8.2 criterion (2) — the largest walkable-mask drift a year variant may carry,
+     * in collision cells. Was derived from `map.playerSpriteW/H ÷ map.collisionCellPx` inside
+     * `tools/overlay-diff/config.ts`, which put the §9.5 acceptance criterion out of INV-3's reach.
+     */
+    driftFootprintCells: { cols: number; rows: number };
   };
   map: {
     virtualWidth: number;
@@ -999,6 +1005,16 @@ export interface Balance {
     playerSpriteH: number;
     tileStepPx: number;
     propInteractionRadiusDefault: number;
+    /** build-doc §9.3 downscale target — "battle 96²". Square, so one number. */
+    battleSpritePx: number;
+    /** build-doc §9.3 downscale target — "minis 32²". Square, so one number. */
+    miniSpritePx: number;
+    /**
+     * Presentation walk pace, ms per tile. NOT a simulation number — a foray is counted in steps
+     * (`encounter.stepsPerForay`), so a faster walk costs the same ticks and moves no population —
+     * but it was a literal in `game/movement.ts` and INV-3 says a retune touches balance.json alone.
+     */
+    walkMsPerTile: number;
   };
   party: {
     maxPartySize: number;
@@ -1019,6 +1035,14 @@ export interface Balance {
     seasonBrightness: Record<Season, number>;
     yearDarkenPerYear: number;
   };
+  /**
+   * Hard Requirement 6 — the four season HUES the runtime tint multiplies over the painted map.
+   * Channels are 0–255 (255 = leave this channel alone; `setTint` multiplies); `overlayAlpha` is
+   * the optional full-screen overlay pass above the tinted map. The two magnitudes that dim them
+   * live in `audio` (`seasonBrightness`, `yearDarkenPerYear`) and always did — these are the hues,
+   * which were literals in `game/season-tint.ts` until 2026-08-26.
+   */
+  seasonTint: Record<Season, { r: number; g: number; b: number; overlayAlpha: number }>;
   harness: {
     seeds: number;
     gymWinRateTargets: Array<[number, number]>;

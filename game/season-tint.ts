@@ -20,11 +20,13 @@
  *   module reads them (G11). A retune of the season presets moves the picture and the sound
  *   together, which is what "one track, six readings" means.
  *
- *   HUES are NOT in balance.json, because there is no `balance.seasonTint` group — see
- *   {@link PROVISIONAL_SEASON_TINTS}. `core/schemas.ts` validates balance.json with a plain
- *   `z.object`, which STRIPS undeclared keys, so a `seasonTint` group added to the file today would
- *   never reach a reader. Adding it needs data/balance.json + `Balance` (core/types.ts) + `zBalance`
- *   (core/schemas.ts) in one change, and core/ is not this lane's to edit. Reported as a blocker.
+ *   HUES are data too, as of 2026-08-26: `balance.seasonTint` carries one preset per season and
+ *   {@link seasonTintTable} is what every default in this file reads. They used to be literals here
+ *   ({@link PROVISIONAL_SEASON_TINTS}) because the group did not exist and adding it is necessarily
+ *   a three-file change — `core/schemas.ts` validates balance.json with `z.object`, which STRIPS
+ *   undeclared keys, so a `seasonTint` group added to the JSON alone would have reached no reader
+ *   at all. So: data/balance.json + `Balance` (core/types.ts) + `zBalance` (core/schemas.ts), in one
+ *   change, and then this file's default. A hue retune is now an edit to balance.json alone (INV-3).
  *
  * Pure TypeScript. This module imports no engine code at runtime — Phaser cannot be imported under
  * vitest's node environment (measured: `ReferenceError: window is not defined` from
@@ -45,7 +47,11 @@ export interface SeasonTintRgb {
   b: number;
 }
 
-/** One season's colour reading. `provisional` is true while the hue is not in balance.json. */
+/**
+ * One season's colour reading. `provisional` says the hue is a placeholder rather than data — false
+ * for everything {@link seasonTintTable} produces, true only for a table a caller supplies itself
+ * (see {@link PROVISIONAL_SEASON_TINTS}).
+ */
 export interface SeasonTintPreset {
   rgb: SeasonTintRgb;
   /** Strength of an optional overlay pass a scene may draw on top of the tinted map, 0–1. */
@@ -105,14 +111,40 @@ export class SeasonTintError extends Error {
 const CHANNEL_MAX = 255;
 
 /**
- * PLACEHOLDER ART DIRECTION — the four hues are the only part of a season reading that is not read
- * from data/balance.json, and they are flagged `provisional: true` so nothing downstream can mistake
- * them for a tuned value. They are the tint equivalent of the flat labelled rectangles the art lane
- * uses for unbuilt sprites: honest about being unfinished, and visibly a placeholder on screen.
+ * The four season hues, from `balance.seasonTint` (Hard Req 6). `provisional` is false on every
+ * preset this returns: the hue is data now, so nothing downstream should label it a placeholder.
  *
- * They move to `balance.seasonTint` the moment core/types.ts `Balance` and core/schemas.ts `zBalance`
- * declare that group; this constant is then deleted, not edited, and `seasonTint()`'s `table`
- * argument is fed from balance instead. Nothing else in this file changes.
+ * A `Record<Season, …>` is exhaustive by type AND by schema — `zBalance` validates the group as a
+ * `z.record` over the `Season` enum, which requires every key — so this cannot hand back a table
+ * with a season missing. {@link assertCoversSeasonOrder} still runs on every read, because
+ * `balance.clock.seasonOrder` is a tunable and the two could be retuned apart.
+ */
+export function seasonTintTable(balance: Balance): SeasonTintTable {
+  const out: Partial<Record<Season, SeasonTintPreset>> = {};
+  for (const [season, preset] of Object.entries(balance.seasonTint)) {
+    out[season as Season] = {
+      rgb: { r: preset.r, g: preset.g, b: preset.b },
+      overlayAlpha: preset.overlayAlpha,
+      provisional: false,
+    };
+  }
+  return out as SeasonTintTable;
+}
+
+/**
+ * ⚠ NOT READ BY ANYTHING BY DEFAULT, AND NOT A SECOND HOME FOR THE HUES.
+ *
+ * These four were the placeholder art direction while `balance.seasonTint` did not exist: the tint
+ * equivalent of the flat labelled rectangles the art lane uses for unbuilt sprites, flagged
+ * `provisional: true` so nothing downstream could mistake them for a tuned value. The group exists
+ * now (core/types.ts `Balance`, core/schemas.ts `zBalance`, data/balance.json), {@link
+ * seasonTintTable} reads it, and every default in this file points there — so the shipped picture
+ * comes from balance.json and a retune of a hue is an edit to that file alone (INV-3).
+ *
+ * The constant survives ONLY as the fixture the season-tint suite passes EXPLICITLY, to exercise
+ * the missing-preset and unreachable-extra paths and the `provisional` flag itself. Retuning it
+ * changes no pixel the player sees. It should be deleted together with the assertions in
+ * `tests/unit/year-turn-ux.test.ts` that construct tables out of it.
  */
 export const PROVISIONAL_SEASON_TINTS: SeasonTintTable = {
   spring: { rgb: { r: 198, g: 232, b: 178 }, overlayAlpha: 0.1, provisional: true },
@@ -260,14 +292,16 @@ export function hueOf(rgb: SeasonTintRgb): SeasonTintRgb {
  *     check throws for a MISSING preset only; an extra one is warned about (see
  *     {@link assertCoversSeasonOrder}, and the fatal-on-a-legal-retune defect it records).
  *
- * `table` defaults to {@link PROVISIONAL_SEASON_TINTS} and is a parameter rather than a lookup so
- * the day `balance.seasonTint` exists the call site changes, not this function.
+ * `table` defaults to {@link seasonTintTable}`(balance)` — i.e. `balance.seasonTint`, the group
+ * this file's header used to say did not exist. It stays a PARAMETER rather than a lookup so a
+ * caller (a preview screen, a test exercising the missing-preset path) can ask about a table that
+ * is not the shipped one without the shipped path growing a branch.
  */
 export function seasonTint(
   balance: Balance,
   season: Season,
   year: number,
-  table: SeasonTintTable = PROVISIONAL_SEASON_TINTS,
+  table: SeasonTintTable = seasonTintTable(balance),
 ): SeasonTint {
   // (3) — the live path is checked exactly as the preview path is. seasonOrder is a tunable (INV-3)
   // and a retune of it must not silently degrade the picture at the frame that needed it.
@@ -307,7 +341,7 @@ export function seasonTint(
 export function seasonTintForClock(
   clock: ClockState,
   balance: Balance,
-  table: SeasonTintTable = PROVISIONAL_SEASON_TINTS,
+  table: SeasonTintTable = seasonTintTable(balance),
 ): SeasonTint {
   return seasonTint(balance, seasonOf(clock, balance), clock.year, table);
 }
@@ -316,7 +350,7 @@ export function seasonTintForClock(
 export function seasonTintsForYear(
   balance: Balance,
   year: number,
-  table: SeasonTintTable = PROVISIONAL_SEASON_TINTS,
+  table: SeasonTintTable = seasonTintTable(balance),
 ): SeasonTint[] {
   assertCoversSeasonOrder(table, balance);
   return balance.clock.seasonOrder.map((season) => seasonTint(balance, season, year, table));

@@ -6,6 +6,9 @@
  *   no_phaser_in_core  §3 L11         — zero Phaser anywhere under core/, transitively.
  *   no_shadow_tables   §8.3 / G3      — only core/foodweb.ts computes diet edges; no encounter
  *                                       weight is tabled anywhere.
+ *   no_moralizing_copy §16 / G7       — no string literal under game/ or core/ moralises about
+ *                                       catching. SCOPE IS DELIBERATELY PARTIAL — see the section's
+ *                                       own header for exactly what it does and does not cover.
  *
  * Plus one the integration merge made necessary:
  *
@@ -696,5 +699,238 @@ describe("balance_keys_survive_validation — build-doc §6 INV-3", () => {
     const decoyPaths = leafPaths(withDecoy).filter((p) => p.at(-1) === "notInSchema");
     expect(decoyPaths).toHaveLength(1);
     expect(at(validated, decoyPaths[0] as string[])).toBeUndefined(); // …which is what the gate flags
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * no_moralizing_copy — build-doc §16 / guardrail G7
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * ⚠ READ THE SCOPE BEFORE TRUSTING THIS GREEN. THE GATE IS DELIBERATELY PARTIAL.
+ *
+ * WHAT IT COVERS: every string and template literal in every `.ts` file under `game/` and `core/`.
+ * WHAT IT DOES NOT COVER: `data/**` — none of it, including `data/dialogue.json`, which is where
+ * the overwhelming majority of the player-facing copy actually lives.
+ *
+ * That omission is a decision, not an oversight. When this gate was written the prose lane was
+ * mid-rewrite of `data/dialogue.json`; a gate over a file being rewritten in another lane goes red
+ * for reasons its owner cannot act on, and a gate people learn to ignore is worse than no gate.
+ * `data/dialogue.json` is scanned today by the vocabulary tripwire in `tests/unit/dialogue.test.ts`
+ * §8, from which this pattern list is taken. **The next holder of this file should widen
+ * `COPY_SCAN_DIRS` to `data/` once that rewrite has landed** — at which point the dialogue-side scan
+ * becomes the redundant copy, not this one. Until then: a green here says nothing whatsoever about
+ * the dialogue copy.
+ *
+ * WHY THIS FILE. G7 is a fail-the-task guardrail whose whole value is that it holds for code nobody
+ * has written yet, and until now `grep -rn "G7" tests/gates/` returned nothing. The only enforcement
+ * anywhere was inside three lane-scoped unit tests (`battle-view`, `survey-view`, `year-turn-ux`),
+ * two of which scan hand-written file lists. A guardrail enforced only inside the unit tests of the
+ * lanes that happened to think about it is enforced for those lanes and for nobody else.
+ *
+ * WHY STRING LITERALS ONLY, NOT COMMENTS. The prose that reaches a player is a literal; the prose in
+ * a comment is engineering notes, and those legitimately discuss guilt, blame and moralising —
+ * `core/schemas.ts:753` says "smuggled in under an innocent name", and this very header uses half
+ * the banned vocabulary. Scanning comments would make the gate unsatisfiable by honest means, which
+ * is the shape of a gate that gets exempted into uselessness.
+ *
+ * WHY THE PATTERN LIST IS DUPLICATED. It is copied from `tests/unit/dialogue.test.ts` rather than
+ * imported, because importing a test module executes its whole suite. The two lists can therefore
+ * drift; folding the dialogue scan into this one when `data/` comes into scope is what ends that.
+ *
+ * WHAT THIS CANNOT DO — the caveat is inherited verbatim from the dialogue scan and matters just as
+ * much here: a regex cannot detect tone. "I do not need the ledger to know which way you walked" is
+ * a reprimand and trips nothing. Treat a green as "no banned vocabulary", NEVER as "G7 satisfied".
+ */
+const COPY_SCAN_DIRS = ["game", "core"] as const;
+
+const COPY_FILES = COPY_SCAN_DIRS.flatMap((d) => walk(join(ROOT, d), [".ts"])).sort();
+
+/**
+ * The vocabulary. Rows 1-40 are `tests/unit/dialogue.test.ts` §8's `MORALIZING_PATTERNS` verbatim.
+ * The `sermon-register` row is the residue of the older, weaker inline list in
+ * `tests/unit/battle-view.test.ts:1352` that the dialogue list does not carry, so consolidating here
+ * loses nothing that list caught.
+ *
+ * Four of that older list's words are DELIBERATELY NOT ADOPTED — `sorry`, `innocent`, `suffer` and
+ * a bare `too many` — because each has an ordinary non-moralising use in UI copy ("Sorry, that slot
+ * could not be opened", "too many entries"). A gate that fires on honest copy gets exemptions bolted
+ * to it, and an exemption list is how a scanner stops being a scanner. The accusatory forms of those
+ * are covered by pattern rows that require the second person (`took-too-many`, `you-are-destroying`).
+ * `tests/unit/battle-view.test.ts` still bans all four in its own corpus; nothing is weakened here.
+ *
+ * Words that only ever appear in a reprimand are banned outright even inside a negating sentence
+ * ("that isn't cruelty") — a scanner with exemptions is not a scanner, so the copy is written around
+ * them instead.
+ */
+const MORALIZING_PATTERNS: { name: string; re: RegExp }[] = [
+  { name: "fault", re: /\byour fault\b|\bat fault\b/i },
+  { name: "blame", re: /\bblames?\b|\bblamed\b|\bblaming\b|\bto blame\b|\bhold \w+ against\b/i },
+  { name: "guilt", re: /\bguilt\b|\bguilty\b/i },
+  { name: "shame", re: /\bshame\b|\bshameful\b|\bashamed\b/i },
+  { name: "you-did-this", re: /\byou (did|have done|'ve done) this\b/i },
+  { name: "what-have-you-done", re: /\bwhat have you done\b/i },
+  { name: "how-could-you", re: /\bhow could you\b/i },
+  { name: "greed", re: /\bgreed\b|\bgreedy\b|\bselfish\b/i },
+  { name: "cruelty", re: /\bcruel\b|\bcruelty\b|\bheartless\b|\bmerciless\b/i },
+  { name: "shouldnt-have", re: /\bshould(n'?t| not) have (caught|taken|snared|hunted|killed|left)\b/i },
+  { name: "could-have", re: /\bcould have (left|spared|stopped|walked away)\b/i },
+  { name: "when-to-stop", re: /\bwhen to stop\b|\bknow when to\b/i },
+  { name: "you-shouldnt", re: /\byou (should ?n'?t|should not|must ?n'?t|must not) (catch|take|snare|hunt|kill)\b/i },
+  { name: "no-right", re: /\bno right to\b/i },
+  { name: "lesson", re: /\blesson\b|\bteach you\b/i },
+  { name: "moral", re: /\bmoral\b|\bmorally\b|\bimmoral\b/i },
+  { name: "conscience", re: /\bconscience\b/i },
+  { name: "sin", re: /\bsin\b|\bsinful\b|\bsins\b/i },
+  { name: "evil", re: /\bevil\b|\bwicked\b|\bmonstrous\b/i },
+  { name: "you-monster", re: /\byou monster\b/i },
+  { name: "deserve", re: /\bdeserve[sd]?\b|\bdeserving\b/i },
+  { name: "repent", re: /\brepent\b|\batone\b|\batonement\b|\bforgive (you|yourself)\b/i },
+  { name: "karma", re: /\bkarma\b|\breckoning\b/i },
+  { name: "poacher", re: /\bpoacher\b|\bpoachers\b|\bpoaching\b/i },
+  { name: "slaughter", re: /\bslaughter\w*\b|\bmurder\w*\b|\bmassacre\w*\b|\bbutcher\w*\b/i },
+  { name: "you-are-destroying", re: /\byou'?(re| are) (killing|ruining|destroying|wrecking|emptying)\b/i },
+  { name: "you-destroyed", re: /\byou (ruined|destroyed|wrecked|emptied|killed) (it|this|them|us|everything|the)\b/i },
+  { name: "hope-youre-happy", re: /\bhope you'?re (happy|proud|pleased)\b/i },
+  { name: "be-proud", re: /\bwould be proud of you\b|\bproud of yourself\b/i },
+  { name: "at-what-cost", re: /\bat what cost\b/i },
+  { name: "worth-it", re: /\b(was|is) it worth it\b/i },
+  { name: "think-about-what", re: /\bthink (about|of) what you\b/i },
+  { name: "nature-sermon", re: /\bmother nature\b|\bbalance of nature\b|\bnature'?s (revenge|way)\b/i },
+  { name: "land-will-judge", re: /\bthe \w+ will (remember|judge|never forgive)\b/i },
+  { name: "youll-pay", re: /\byou'?(ll| will) (pay|answer) for\b/i },
+  { name: "have-you-no", re: /\bhave you no\b/i },
+  { name: "took-too-many", re: /\byou'?(ve| have)? ?(took|taken|caught|snared) too many\b/i },
+  { name: "how-many-more", re: /\bleave them be\b|\bhow many more\b/i },
+  { name: "not-an-accusation", re: /\bnot an accusation\b|\bnot accusing\b/i },
+  { name: "sermon-register", re: /\bremorse\w*\b|\bsenseless\b|\bneedless\b|\bwanton\b|\bcallous\b|\bbarbaric\b/i },
+];
+
+/** The first pattern a piece of text trips, or undefined. */
+const firstMoralizingHit = (text: string): string | undefined =>
+  MORALIZING_PATTERNS.find((p) => p.re.test(text))?.name;
+
+/** Returns one message per offending literal; empty means the file's copy is clean. */
+function moralizingViolations(relPath: string, src: string): string[] {
+  const out: string[] = [];
+  for (const literal of stringLiterals(src)) {
+    const hit = firstMoralizingHit(literal);
+    if (hit === undefined) continue;
+    out.push(
+      `${relPath}: [${hit}] ${JSON.stringify(literal)} — G7: the counts are reported, never judged`,
+    );
+  }
+  return out;
+}
+
+/**
+ * Deliberately moralizing samples. Every one must be caught, or the scan is decorative.
+ * The last five are the interesting ones: each is a reprimand with no obviously banned word in it.
+ */
+const KNOWN_BAD_COPY = [
+  "You should be ashamed of what you took out of this marsh.",
+  "That's your fault. The Fenmaw are gone because of you.",
+  "Was it worth it? Look at the shallows now.",
+  "Every creature you snare is a life you had no right to take.",
+  "I hope you're proud of yourself, warden.",
+  "The meadow will remember what you did here.",
+  "Poachers like you are why the count is down.",
+  "Think about what you're doing before you set that snare.",
+  "You've taken too many. Some day you'll learn the lesson.",
+  "It's cruel, what you people do out there.",
+  "How could you? There were only three left.",
+  "You're destroying this marsh one snare at a time.",
+  "Have you no conscience at all?",
+  "How many more will you take before you stop?",
+  "Maren showed you how to count. Nobody showed you when to stop.",
+  "You could have left one.",
+  "Wick would be proud of you.",
+  "Every count you touch goes down. That is not an accusation, it is arithmetic.",
+  "Numbers are the numbers; I don't hold books against people.",
+  "A needless waste of a good marsh.",
+];
+
+/**
+ * Real copy of the kind these screens print. None may trip the scan, or the gate is over-broad and
+ * the next honest line to be written gets rejected by it. The last four are verbatim literals from
+ * `game/`, so this is a claim about the copy that actually ships, not about invented samples.
+ */
+const KNOWN_GOOD_COPY = [
+  "The shallows used to take three nets. Now it's one.",
+  "Haven't seen a Fenmaw this season.",
+  "recent deaths 4",
+  "weighted snare · 84% · 3 shakes",
+  "Sorry, that slot could not be opened.",
+  "Nibbin fainted",
+  "Browser storage is unavailable, so this session cannot be saved. ",
+  "Walk the trail in order and bring me what the stones say.",
+  "One of yours has run out of years, then.",
+  "Five counts on Cinder Steppe. Bring me all five and the flora reading with them.",
+];
+
+/** A literal with enough words in it to be prose rather than an identifier or a texture key. */
+const looksLikeProse = (s: string): boolean =>
+  s.trim().split(/\s+/).length >= 5 && /[a-z]{3}\s+[a-z]{3}/.test(s);
+
+describe("no_moralizing_copy — build-doc §16 / G7 (game/ + core/ only — see header)", () => {
+  it("finds a corpus of real copy, not an empty list", () => {
+    // Without this the scan below passes by looking at nothing: a wrong path, a walk that stopped
+    // at the first directory, or a lexer change that stopped emitting strings all read as green.
+    expect(COPY_FILES.length, "the source walk is looking in the wrong place").toBeGreaterThan(40);
+    for (const named of [
+      "game/quests.ts",
+      "game/props.ts",
+      "game/battle-view.ts",
+      "game/survey-view.ts",
+      "game/scenes/OverworldScene.ts",
+      "core/battle.ts",
+    ]) {
+      expect(COPY_FILES.map(rel), `${named} is not in the walk`).toContain(named);
+    }
+    const prose = COPY_FILES.flatMap((abs) => stringLiterals(readFileSync(abs, "utf8"))).filter(looksLikeProse);
+    expect(prose.length, "the walk found files but almost no prose — the lexer is not emitting strings").toBeGreaterThan(100);
+  });
+
+  it("catches every known-bad sample (the scan is not decorative)", () => {
+    expect(KNOWN_BAD_COPY.filter((s) => firstMoralizingHit(s) === undefined)).toEqual([]);
+  });
+
+  it("does not fire on plain observation or on ordinary UI copy (it is not over-broad)", () => {
+    expect(
+      KNOWN_GOOD_COPY.map((s) => [s, firstMoralizingHit(s)] as const).filter(([, hit]) => hit !== undefined),
+    ).toEqual([]);
+  });
+
+  it("no string literal under game/ or core/ moralises about catching", () => {
+    const violations = COPY_FILES.flatMap((abs) => moralizingViolations(rel(abs), readFileSync(abs, "utf8")));
+    expect(violations, violations.join("\n")).toEqual([]);
+  });
+
+  it("BINDS — a moralizing line smuggled into a copy of EACH real source is caught", () => {
+    // The positive control runs against every file the gate guards, not against a sample string, so
+    // a file whose literals the lexer cannot see would fail here instead of passing silently above.
+    for (const abs of COPY_FILES) {
+      const relPath = rel(abs);
+      const src = readFileSync(abs, "utf8");
+      const sabotaged = `${src}\nconst caption = "You should be ashamed of what you took out of this marsh.";\n`;
+      expect(
+        moralizingViolations(relPath, sabotaged).join(" "),
+        `${relPath}: the gate did not catch a smuggled moralizing line`,
+      ).toMatch(/\[shame\]/);
+    }
+  });
+
+  it("BINDS — it sees a template literal and a single-quoted string, not just double quotes", () => {
+    // The likeliest home for a moralizing caption is an interpolated one.
+    expect(moralizingViolations("game/x.ts", "const c = `${name} — you have no right to take it`;")).toHaveLength(1);
+    expect(moralizingViolations("game/x.ts", "const c = 'poaching pays badly';")).toHaveLength(1);
+  });
+
+  it("BINDS — a comment discussing the guardrail is not a violation", () => {
+    // The gate reads literals, never prose about the gate. This file, and core/schemas.ts:753, would
+    // otherwise fail it — and the fix for that would be an exemption, which is how scanners die.
+    expect(moralizingViolations("core/x.ts", "// the allow-list catches a table under an innocent name\n")).toEqual([]);
+    expect(moralizingViolations("core/x.ts", "/* G7 forbids guilt, blame and shame in shipped copy. */\n")).toEqual([]);
+    expect(moralizingViolations("core/x.ts", "const s = 1; // no lesson, no moralizing\n")).toEqual([]);
   });
 });

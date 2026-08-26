@@ -99,7 +99,7 @@ import {
   setQuestFlags,
   unlockActOf,
 } from "../../core/acts";
-import { enterPendingActs } from "../../core/lifecycle";
+import { enterPendingActs, heirStreamKey } from "../../core/lifecycle";
 import { activeWindows, syncEventFlags } from "../../core/regional-events";
 import { buildGymBattle, gymAtNode, gymBattleProblem, gymBattleWon } from "../gym-battle";
 import {
@@ -192,6 +192,12 @@ export const OVERWORLD_SCENE_KEY = "Overworld";
 const ENCOUNTER_STREAM = "encounter";
 const SIM_STREAM = "sim";
 const BATTLE_STREAM = "battle";
+/*
+ * The heir roll's subsystem tag is NOT declared here. It is `LIFECYCLE_STREAM` in core/lifecycle.ts,
+ * beside `heirStreamKey`, which is the one place the heir stream's key is spelled and the one place
+ * that checks the tag against `balance.rng.subsystemTags`. A copy of it here is exactly how the two
+ * replay harnesses ended up modelling a stream the game no longer used.
+ */
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Seams
@@ -1891,22 +1897,29 @@ export class OverworldScene extends Phaser.Scene {
     let drive: YearTurnDrive;
     try {
       /*
-       * ⚠ THERE IS NO "lifecycle" SUBSYSTEM STREAM. `balance.rng.subsystemTags` declares exactly
-       * three — battle, sim, encounter — so build-doc §8.1's per-subsystem stream for the heir roll
-       * does not exist to open, and adding one needs data/balance.json + core/types.ts +
-       * core/schemas.ts in one change (core/ is not this lane's to edit). Reported as a blocker.
+       * THE HEIR STREAM. `balance.rng.subsystemTags` declares "lifecycle" (added 2026-08-26 — until
+       * then it declared exactly three, battle/sim/encounter, and this line composed its key out of
+       * the SIM tag because build-doc §8.1's per-subsystem stream for the heir roll did not exist to
+       * name). `core/lifecycle.ts` `heirStreamKey` checks the tag is really there before it is used.
        *
-       * Until it exists, the heir rolls come from a stream keyed on (save seed, year turn) —
-       * core/rng.ts's own `subsystemRng`, i.e. `hashSeed` + a fresh state, with the tag composed
-       * from the sim tag so it is legibly parented. It used to be a CHILD of the live sim stream
+       * ⚠ THE KEY IS NOT SPELLED HERE ANY MORE, and it must never be spelled here again. While this
+       * line composed it, two test harnesses that replicate the year turn — one of them the Legacy
+       * demo-beat test — carried their own copy of the old `sim:heir:y<N>` and went on replaying a
+       * stream the game had stopped using, green throughout. `heirStreamKey` is the single spelling;
+       * those harnesses import it now.
+       *
+       * ⚠ IT IS STILL KEYED PER YEAR TURN, deliberately, and NOT a persistent "lifecycle" stream
+       * opened by `streamFor`.
+       * A persistent subsystem stream carries a POSITION, and the heir roll's position is the one
+       * thing that must not depend on history: it used to be a CHILD of the live sim stream
        * (`deriveStream`), which cost the sim stream a draw per year turn and made every heir roll
        * depend on how many draws the ECOLOGY happened to have taken — the exact cross-coupling
-       * `deriveStream`'s own header warns about, and it put the roll's position where neither
-       * core/save.ts `replay` nor a mid-run reload could reproduce it. Keyed on the seed and the
-       * year, it is the same roll in a live run, in a reloaded run, and in a replay, and it moves no
-       * other stream by a single draw.
+       * `deriveStream`'s own header warns about — and it put the roll where neither core/save.ts
+       * `replay` nor a mid-run reload could reproduce it. Keyed on (seed, subsystem, year) through
+       * core/rng.ts's own `subsystemRng` (`hashSeed` + a fresh state), it is the same roll in a live
+       * run, in a reloaded run and in a replay, and it moves no other stream by a single draw.
        */
-      const heirStream = subsystemRng(this.save.seed, `${SIM_STREAM}:heir:y${String(endedYear)}`);
+      const heirStream = subsystemRng(this.save.seed, heirStreamKey(this.balance, endedYear));
       drive = driveYearTurn(atEndedYear, {
         content: this.content,
         simRng: this.streamFor(SIM_STREAM),

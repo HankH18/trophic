@@ -11,6 +11,10 @@
  *
  * Re-running is always safe and always starts from assets/raw/ — see chain.ts's header for the
  * precise statement of what "idempotent" does and does not mean here.
+ *
+ * `--class` / `--id` are checked against the manifest before anything runs: a filter that matches
+ * no class and no row is refused (exit 3, with the near miss named), never reported as a run of
+ * zero images that succeeded.
  */
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -21,9 +25,9 @@ import { loadPalette, paletteBanner, REPO_ROOT } from './palette.ts';
 import { classOf, finalPathOf, processRow, rawPathOf, recipeFor } from './chain.ts';
 import { readRaster, writeRaster } from './raster.ts';
 import { atlasDescriptor, packAtlas, type AtlasEntry } from './atlas.ts';
-import { makePlaceholder } from './placeholder.ts';
+import { makePlaceholder, placeholderLabel } from './placeholder.ts';
 import type { ManifestFile, ManifestRow } from '../comfy/comfy-batch.ts';
-import { loadManifest } from '../comfy/comfy-batch.ts';
+import { assertFiltersMatch, isGuardrail, loadManifest, ManifestError } from '../comfy/comfy-batch.ts';
 
 const ATLAS_DIR = 'assets/final/atlas';
 
@@ -83,7 +87,11 @@ export async function writePlaceholders(
       continue;
     }
     const recipe = recipeFor(classOf(m, row.class), row);
-    await writeRaster(dest, makePlaceholder(row.id, recipe.targetW, recipe.targetH, { palette }));
+    // The label is derived from `finalFile`, NOT from `row.id`: the game's stand-in for a missing
+    // asset names it by the same convention (game/placeholder.ts `assetId`), and a reviewer must
+    // read one name for one asset whether they are looking at a built file or a screenshot.
+    const label = placeholderLabel(row.finalFile);
+    await writeRaster(dest, makePlaceholder(label, recipe.targetW, recipe.targetH, { palette }));
     report.written.push(dest);
   }
   return report;
@@ -101,7 +109,25 @@ async function main(): Promise<number> {
   const m = await loadManifest();
   const cls = opt('class');
   const id = opt('id');
+  // A filter that matches NOTHING is a typo, not a finished run. `--class=creature-batle` used to
+  // print "0 processed · 0 rows have no raw file yet" and exit 0 — success, with zero images
+  // post-processed and no way for an unattended run to tell. Same guard, same message, same
+  // "did you mean" as the generator side (comfy-batch.ts's `run`), because it is the same mistake.
+  assertFiltersMatch(m, { ...(cls === undefined ? {} : { class: cls }), ...(id === undefined ? {} : { id }) });
   const matches = (r: ManifestRow) => (!cls || r.class === cls) && (!id || r.id === id);
+  // …and `assertFiltersMatch` checks each filter on its own, so a COMBINATION that selects nothing
+  // (`--class=player --id=battle-fenmaw-e-front` — both real, never the same row) still walks
+  // straight past it into the same silent zero-row success. The row count is the thing that has to
+  // be non-zero, so that is what is asserted.
+  const selected = m.rows.filter(matches);
+  if (selected.length === 0) {
+    throw new ManifestError(
+      `no manifest row matches ${[cls === undefined ? '' : `--class=${cls}`, id === undefined ? '' : `--id=${id}`]
+        .filter(Boolean)
+        .join(' ')} — every filter names something real, but no single row satisfies all of them.\n` +
+        '  Drop one of them, or run `npx tsx tools/comfy/comfy-batch.ts status` to see what exists by class.',
+    );
+  }
 
   console.log(paletteBanner());
 
@@ -113,8 +139,7 @@ async function main(): Promise<number> {
 
   let done = 0;
   let missing = 0;
-  for (const row of m.rows) {
-    if (!matches(row)) continue;
+  for (const row of selected) {
     const res = await processRow(m, row);
     if (res.skipped) {
       missing++;
@@ -132,5 +157,17 @@ async function main(): Promise<number> {
 }
 
 if (isEntrypoint()) {
-  process.exitCode = await main();
+  try {
+    process.exitCode = await main();
+  } catch (e) {
+    // A refusal is an expected outcome, not a crash — print what the operator needs to fix the
+    // command and stop. Exit 3 matches comfy-batch.ts so a script wrapping either tool reads the
+    // same code for the same class of answer. A stack trace here would read as a bug in the tool.
+    if (e instanceof Error && isGuardrail(e)) {
+      console.error(`\n${e.message}\n`);
+      process.exitCode = 3;
+    } else {
+      throw e;
+    }
+  }
 }

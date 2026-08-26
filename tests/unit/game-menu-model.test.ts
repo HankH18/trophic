@@ -34,6 +34,7 @@ import {
   titleNotes,
 } from "../../game/menu-model";
 import { SaveStorage, slotLabel, type SlotStatus } from "../../game/storage";
+import { UI_SWATCH, contrastRatio, roleHex } from "../../game/ui/Palette";
 
 const content: Content = validateContent();
 const balance: Balance = content.balance;
@@ -256,9 +257,9 @@ describe("UI colours come from data/palette.json, not from hexes typed into a sc
   });
 
   it("text, dim, accent, danger and ok are all legible on the bg swatch", () => {
-    // Palette compliance that made the menu unreadable would be a different defect, not a fix. The
-    // battle HUD's `UI_SWATCH.text` (c07, #765b4e) is 3.3 : 1 on c00 and is why that table is not
-    // reused here.
+    // Palette compliance that made the menu unreadable would be a different defect, not a fix.
+    // (Why the battle HUD's UI_SWATCH is not reused instead is the next test, which reads that
+    // table out of the palette rather than restating a swatch id — see BF-19.)
     const rgb = (hex: string): [number, number, number] => [
       Number.parseInt(hex.slice(1, 3), 16) / 255,
       Number.parseInt(hex.slice(3, 5), 16) / 255,
@@ -274,6 +275,36 @@ describe("UI colours come from data/palette.json, not from hexes typed into a sc
       const l = lum(UI[role]);
       const ratio = (Math.max(l, bg) + 0.05) / (Math.min(l, bg) + 0.05);
       expect(ratio, `${role} contrast on bg`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("BINDS — UI_SWATCH is not reusable here, and the reason is GROUND, not ink", () => {
+    // BF-19. The comment this replaces (here, and at game/menu-model.ts:41) restated a swatch id:
+    // "the battle HUD's UI_SWATCH.text (c07, #765b4e) is 3.3 : 1 on c00, which is why that table is
+    // not reused". Both clauses were false — the HUD was un-inverted, UI_SWATCH.text became c18 and
+    // c07 was repurposed to cursorInkMuted — and nothing went red, because both sites were prose.
+    // Every clause below is now READ out of game/ui/Palette.ts at run time.
+    const voidHex = roleHex("void");
+    expect(voidHex.toLowerCase(), "the menu's bg IS the HUD's void swatch").toBe(UI.bg.toLowerCase());
+
+    // 1. Where the two tables share a role name they name the SAME swatch, so "different ink" is
+    //    not the reason they are separate. If this ever stops holding, the prose must be re-read.
+    expect(UI_SWATCH.text, "UI_SWATCH.text vs UI_SWATCH_ID.text").toBe(UI_SWATCH_ID.text);
+    expect(UI_SWATCH.accent, "UI_SWATCH.accent vs UI_SWATCH_ID.accent").toBe(UI_SWATCH_ID.accent);
+
+    // 2. The real reason: UI_SWATCH's cursor-bar roles are DARK ink for the light `cursor` bar they
+    //    are drawn on. The menu has no such bar — it paints straight onto the c00 void, where all
+    //    three fall under 4.5 : 1. Both halves are asserted, so "it is dark ink" is not assumed.
+    for (const role of ["cursorInk", "cursorInkMuted", "cursorInkDim"] as const) {
+      const onBar = contrastRatio(roleHex(role), roleHex("cursor"));
+      expect(onBar, `${role} on the cursor bar`).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(roleHex(role), voidHex), `${role} on the void`).toBeLessThan(4.5);
+    }
+
+    // 3. And four of the six roles this screen needs have no counterpart in UI_SWATCH at all.
+    for (const role of ["bg", "dim", "danger", "ok"] as const) {
+      expect(role in UI_SWATCH, `UI_SWATCH must not carry "${role}"`).toBe(false);
+      expect(role in UI_SWATCH_ID, `UI_SWATCH_ID carries "${role}"`).toBe(true);
     }
   });
 });

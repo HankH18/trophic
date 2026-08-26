@@ -1,5 +1,24 @@
 /**
- * game/placeholder.ts — the ONE helper the whole game uses for art that does not exist yet.
+ * game/placeholder.ts — the RUNTIME half of the placeholder pair: every stand-in the GAME draws.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  THERE ARE TWO PLACEHOLDER HELPERS AND THIS IS ONE OF THEM.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * This header used to open "the ONE helper the whole game uses"; `tools/postprocess/placeholder.ts`
+ * opened "the one honest-placeholder helper". Both were true of their own side, both were false as
+ * written, and neither file admitted the other existed. They are deliberately NOT merged: this one
+ * is a Phaser canvas drawer that reads `data/balance.json` and produces a texture nobody writes to
+ * disk; that one is an offline `sharp` PNG producer that writes a file at a manifest row's
+ * `finalFile` with a built-in bitmap font so its bytes are reproducible. Neither can do the other's
+ * job.
+ *
+ * What is NOT allowed to be two answers is the ID/LABEL CONVENTION, and `assetId()` below is this
+ * side's statement of it. `placeholderLabel()` in `tools/postprocess/placeholder.ts` is the other,
+ * and `tests/unit/postprocess-run.test.ts` runs both over every manifest row and every node asset
+ * and fails if they disagree — because a reviewer must get ONE name for one missing asset whether
+ * they are reading a built file or a screenshot. (`hash32` here is bit-for-bit core/rng.ts's
+ * `hashSeed` at save seed 0, which the tools side uses, so agreeing on the string also means
+ * agreeing on the swatch.)
  *
  * Build-doc §15 ships Lane C ("game shell") in parallel with Lane B ("asset factory"), so every
  * scene is drawing something before its art exists. Two failure modes are worth more than the code

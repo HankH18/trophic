@@ -73,6 +73,23 @@
  * 227–259 GAINED) are all accepted.
  *
  * ─────────────────────────────────────────────────────────────────────────────
+ * AND THE RESIDUAL, WHICH IS THE OTHER HALF OF THAT SENTENCE (B-D39).
+ * ─────────────────────────────────────────────────────────────────────────────
+ * 25 of 25 is where the gate WORKS, not where it stops. HALVE the feature and it stops: a 32px
+ * feature — 2×2 collision cells, an object smaller than the 32×48 player — displaced by one cell is
+ * still ACCEPTED at **8 of the same 25 (map, position) pairs**. At 48px it is accepted at 1 of 25.
+ * And the tightest true positive kept has ONE PIXEL of margin: 151 lost against a limit of 150.
+ * So the honest statement of this gate is: it catches a displaced object at player scale and above,
+ * it does not reliably catch one below that, and it is one pixel from not catching the smallest
+ * case it does. `tests/unit/overlay-diff.test.ts` pins the 32px count so a retune of
+ * `balance.overlayDiff` cannot move that boundary in silence — in either direction.
+ *
+ * The OTHER direction is unmeasured and is the bigger unknown: the false-REJECT rate on real aged
+ * variants (B-D25). The largest drift seen on real material ran 7–18 cells against a limit of 6 on
+ * 3 of 5 maps, but no §9.5 img2img run has ever happened, so nothing here has been pointed at an
+ * actual year variant. Neither number is a reason to hand-wave a REJECT: G4 forbids overriding one.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
  * THE WALKABLE RESTRICTION, AND ITS COST — stated because it is not free.
  * ─────────────────────────────────────────────────────────────────────────────
  * §8.2 restricts the comparison to walkable cells, and the reason is sound: a year variant is
@@ -445,6 +462,11 @@ export function overlayDiff(input: OverlayDiffInput): OverlayDiffResult {
  * pairs, because displacing a thing always vacates where it was. Failing on TOTAL disagreement
  * instead was measured to reject the rot blotches (242 px) while still accepting the tightest real
  * displacement (151 px) — i.e. exactly backwards.
+ *
+ * WHERE THIS STOPS WORKING, stated here as well as in the file header because this function is
+ * where the limit is decided: 151 against 150 is one pixel of margin, and a feature half that size
+ * falls off the other side. A 32px feature displaced one cell is ACCEPTED at 8 of those same 25
+ * pairs (B-D39). Pinned by tests/unit/overlay-diff.test.ts so a retune cannot move it quietly.
  */
 function worstRegion(
   cellData: { drifted: Uint8Array; judged: Uint8Array; lost: Int32Array; gained: Int32Array },

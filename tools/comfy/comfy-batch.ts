@@ -200,9 +200,19 @@ export interface ManifestFile {
    */
   _versions?: Record<string, number>;
   /**
-   * Whether the img2img graph has ever been executed and reviewed. While false, `assertSupervised`
-   * allows at most ONE img2img row per invocation — §9.5/§9.6 call the first run a SUPERVISED gate,
-   * and tools/comfy/README.md records that the graph "was never trialled".
+   * Whether either use build-doc asks the img2img graph for has been run and REVIEWED. While false,
+   * `assertSupervised` allows at most ONE img2img row per invocation — §9.5/§9.6 call the first run
+   * a SUPERVISED gate.
+   *
+   * ⚠ IT IS NOT "the graph has never executed". The graph is built and has run live (a 7-denoise ×
+   * 2-view sweep off the approved player static, `assets/raw/player/img2img/`); what that
+   * established was a LIMIT, not an approval, so the flag is deliberately still false.
+   *
+   * The README section that says so is the one headed
+   * `Built and executed — but NOT approved for the two uses build-doc asks for`. Cited by SECTION,
+   * not by sentence: the sentence this comment used to quote has since been retracted, and
+   * tests/unit/manifest.test.ts now fails any tools/comfy source that quotes a line the README no
+   * longer contains.
    */
   _img2img?: { trialled: boolean; [k: string]: unknown };
   _credits: { perImageCredits: number | null; measuredFrom: string | null; [k: string]: unknown };
@@ -533,10 +543,11 @@ export function assertSupervised(
 
   if (img2imgUntrialled(m) && img2img.length > 1) {
     throw new SupervisedGateError(
-      `${img2img.length} img2img rows in this batch, and the img2img graph has never been executed ` +
-        `(manifest._img2img.trialled is false; tools/comfy/README.md: "does not exist and cannot be ` +
-        `retrieved; it was never trialled"). §9.5 and §9.6 both call its first run a SUPERVISED gate ` +
-        `of ONE image.\n  ${img2img.slice(0, 6).map((r) => r.id).join(', ')}${img2img.length > 6 ? ', …' : ''}\n` +
+      `${img2img.length} img2img rows in this batch, and neither use build-doc asks the img2img ` +
+        `graph for has been run and reviewed (manifest._img2img.trialled is false: no §9.5 map ` +
+        `year-variant run and no §9.6 walk-cycle run has happened). §9.5 and §9.6 both call the ` +
+        `first run a SUPERVISED gate of ONE image.\n` +
+        `  ${img2img.slice(0, 6).map((r) => r.id).join(', ')}${img2img.length > 6 ? ', …' : ''}\n` +
         'Run one row (--id=<row>), have the result reviewed, log it in docs/DEVIATIONS-lane-b.md, ' +
         'then set manifest._img2img.trialled = true. There is no flag that skips this.',
     );

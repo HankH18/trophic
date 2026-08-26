@@ -40,6 +40,9 @@ import {
   NOT_IN_ENCOUNTER_POOL,
   NO_PRESENCE,
   NO_VALUE,
+  SCREEN_COLOR,
+  SCREEN_HEX,
+  SCREEN_SWATCH_ID,
   SCREEN_TEXT,
   SUMMARY_ART_BOX,
   buildDexEntries,
@@ -69,6 +72,15 @@ import {
   type SurveySample,
 } from "../../game/survey-view";
 import { surveyHistory } from "../../game/survey-history";
+import { contrastRatio, relativeLuminance, swatchHex } from "../../game/ui/Palette";
+import {
+  DEFAULT_SEASON_METER_STYLE,
+  SEASON_METER_SWATCH_ID,
+} from "../../game/ui/SeasonMeter";
+import {
+  RETIREMENT_SWATCH_ID,
+  defaultRetirementStyle,
+} from "../../game/scenes/RetirementScene";
 import { registry } from "../../game/registry";
 import { SCENE_KEYS } from "../../game/scene-keys";
 import {
@@ -2106,15 +2118,17 @@ describe("C4 scenes — what the source proves", () => {
      * every method each scene declares and asks whether anything reaches it — `this.name` anywhere
      * in the file, or a Phaser lifecycle hook the engine calls.
      *
-     * MEASURED, and this is a REAL DEFECT this sweep uncovered rather than a hypothetical:
-     * `SurveyScene.setStates` and `SurveyScene.webLines` are declared public for callers that do not
-     * exist — `grep -rn "setStates\|webLines" game/ core/ tests/` returns their declarations and
-     * nothing else. `webLines`'s own doc says it is "in a form a test can assert" and no test
-     * asserts it; it is also the only other caller of `renderWebEdge`, the symbol whose deadness
-     * this whole section was written about. Fixing that is a change to
-     * `game/scenes/SurveyScene.ts`, which this sweep does not own, so it is PINNED instead: a new
-     * dead method fails immediately, and wiring or deleting either of these two also fails and
-     * whoever does it shortens this list.
+     * THE TWO IT PINNED ARE GONE (D-SWEEP-2, and this list is shortened because the repair landed,
+     * not because the check was relaxed). `SurveyScene.setStates` and `SurveyScene.webLines` were
+     * declared public for callers that did not exist. Both are DELETED rather than wired:
+     *   - `setStates` was a second mechanism for what `NodeStatesSource` already does once, and
+     *     that type's own doc tells a reassigning caller to hand over the function instead.
+     *   - `webLines` claimed to put the diagram "in a form a test can assert" and no test asserted
+     *     it; it was a pass-through to `game/web-view.ts` `renderWebEdge`, which the tests in this
+     *     file call DIRECTLY (see `renderWebEdge(page, edge)` above) and always could.
+     * The list below is now empty for all three scenes, so the check has gone from "these two are
+     * known-dead" to "nothing here is dead" — strictly stronger. It still fails the moment a scene
+     * grows a method nothing reaches.
      */
     const LIFECYCLE = new Set(["init", "preload", "create", "update", "shutdown", "destroy", "render", "constructor"]);
     const census = new Map<string, string[]>();
@@ -2136,10 +2150,26 @@ describe("C4 scenes — what the source proves", () => {
       "a C4 scene method is reached by nothing — either wire it or delete it. If one of the two " +
         "named below now HAS a caller, that is the repair landing: shorten this list.",
     ).toEqual({
-      "SurveyScene.ts": ["setStates", "webLines"],
+      "SurveyScene.ts": [],
       "DexScene.ts": [],
       "SummaryScene.ts": [],
     });
+  });
+
+  it("BINDS — the two dead methods are gone from the source, and the dead import with them", () => {
+    // The census above would also pass if `webLines` had merely been given a caller inside the
+    // scene, so this states what actually happened. `renderWebEdge` is the symbol §13 of this file
+    // was written about: it was imported for a method `redraw` never called, so the word
+    // "collapsed" and its reason existed for tests and never reached the screen. The screen's
+    // reason-words now come from `collapsedEdgeLabels` (asserted below), and this file's own
+    // `renderWebEdge` tests call `game/web-view.ts` directly — so the scene has no business
+    // importing it, and re-importing it is the defect coming back.
+    for (const gone of ["setStates(", "webLines(", "renderWebEdge"]) {
+      const code = SURVEY.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/.*$/gm, "$1");
+      expect(code, `SurveyScene.ts still carries ${gone}`).not.toContain(gone);
+    }
+    // …and the survey still renders, so the deletion took dead weight and not a live path.
+    expect(SURVEY).toContain("collapsedEdgeLabels(web, layout, balance)");
   });
 
   it("every drawing helper the survey imports is CALLED from a method redraw reaches", () => {
@@ -2307,6 +2337,276 @@ describe("C4 scene keys", () => {
       for (const key of Object.values(SCENE_KEYS)) {
         expect(src, `${file} spells "${key}" as a literal`).not.toContain(`"${key}"`);
       }
+    }
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * BF-18 — the screens are painted out of `data/palette.json`, and the ban is enforced
+ *
+ * `data/palette.json` is `"frozen": true, "frozenAt": "2026-08-25"` (gate B0, build-doc §8.4). The
+ * freeze is a VALUE SWAP over 32 stable ids `c00`–`c31`, which is exactly why UI code must name an
+ * id and resolve the hex: a widget that inlines `0xe8e4c9` survives the freeze untouched and then
+ * disagrees with every generated asset drawn beside it. `game/ui/Palette.ts` says so in its header
+ * and `game/menu-model.ts` had already applied it to the menu.
+ *
+ * Five files had not. THIRTY-ONE hexes were written out across them — `DexScene` 4, `SurveyScene`
+ * 8, `SummaryScene` 4, `RetirementScene` 5, `SeasonMeter` 5, plus the same roles the year-turn lane
+ * repeats — and **not one of the thirty-one was one of the 32 swatches**. That is asserted below,
+ * not assumed.
+ *
+ * WHY THIS IS A SCAN AND NOT FIVE MORE ASSERTIONS. Applying the fix is not the same as banning the
+ * defect. `tests/unit/game-menu-model.test.ts:241` proved the menu's own six ids were swatches, and
+ * while it was green thirty-one more hexes shipped in five neighbouring files. So the last test in
+ * this section reads all of `game/` and fails on ANY non-swatch hex outside a named, reasoned
+ * exemption — which is the difference between a fix that holds and a fix that gets re-typed.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("BF-18 — every UI colour names a frozen swatch", () => {
+  const byId = new Map(content.palette.colors.map((c) => [c.id, c.hex.toLowerCase()]));
+  const swatches = new Set([...byId.values()]);
+
+  /** `0xRRGGBB` as `"#rrggbb"` — how a Phaser fill argument is compared to a swatch. */
+  const asHex = (color: number): string => `#${color.toString(16).padStart(6, "0")}`;
+
+  /**
+   * Every id table these screens paint from, with the surface each role is READ AGAINST.
+   * Named as roles rather than as a flat list because "is a swatch" is the cheap half of the check
+   * and "is legible on the thing it is drawn on" is the half that catches a compliant, unreadable
+   * screen — which would be a different defect, not a fix.
+   */
+  const TABLES: Array<[string, Readonly<Record<string, string>>]> = [
+    ["game/survey-view.ts SCREEN_SWATCH_ID", SCREEN_SWATCH_ID],
+    ["game/scenes/RetirementScene.ts RETIREMENT_SWATCH_ID", RETIREMENT_SWATCH_ID],
+    ["game/ui/SeasonMeter.ts SEASON_METER_SWATCH_ID", SEASON_METER_SWATCH_ID],
+  ];
+
+  it("every role in all three tables names a real swatch", () => {
+    for (const [name, table] of TABLES) {
+      expect(Object.keys(table).length, `${name} is empty`).toBeGreaterThan(0);
+      for (const [role, id] of Object.entries(table)) {
+        expect(byId.has(id), `${name}.${role} names swatch "${id}"`).toBe(true);
+      }
+    }
+  });
+
+  it("BINDS — none of the 31 hexes these tables replaced is a swatch", () => {
+    // The whole reason the fix was needed, stated as a fact about the frozen file rather than as a
+    // claim in a comment. If a future palette regeneration happened to reintroduce one of these,
+    // this test going red is the correct outcome: the note above would then be false.
+    const replaced = [
+      // DexScene / SummaryScene (4 each, same four roles)
+      "#e8e4d8", "#8a8676", "#d8a24a", "#14140f",
+      // SurveyScene's other four
+      "#c26a6a", "#8a3b3b", "#4f6d4a", "#e8e4d8",
+      // RetirementScene
+      "#14171a", "#23282c", "#ffd76a", "#e8e4c9", "#7d8478",
+      // SeasonMeter
+      "#3a4038", "#8fb08a",
+    ];
+    for (const gone of replaced) {
+      expect(swatches.has(gone), `${gone} IS a swatch — the premise of BF-18 has changed`).toBe(false);
+    }
+  });
+
+  it("the three C4 screens resolve to the swatch hex, in both the string and the number form", () => {
+    // Two forms, because Phaser takes CSS strings for text and `0xRRGGBB` for fills — and a table
+    // that resolved one correctly and the other by hand is precisely how these files got here.
+    for (const [role, id] of Object.entries(SCREEN_SWATCH_ID)) {
+      const want = byId.get(id) as string;
+      expect(SCREEN_HEX[role as keyof typeof SCREEN_HEX].toLowerCase(), `SCREEN_HEX.${role}`).toBe(want);
+      expect(asHex(SCREEN_COLOR[role as keyof typeof SCREEN_COLOR]), `SCREEN_COLOR.${role}`).toBe(want);
+    }
+  });
+
+  it("the C4 text and the C4 marks are both legible on the backdrop they are drawn on", () => {
+    const bg = SCREEN_HEX.backdrop;
+    // WCAG 1.4.3 for text…
+    for (const role of ["ink", "inkDim", "inkFlag", "inkCollapsed"] as const) {
+      expect(contrastRatio(SCREEN_HEX[role], bg), `${role} on backdrop`).toBeGreaterThanOrEqual(4.5);
+    }
+    // …and 1.4.11's 3 : 1 for the diagram's graphical marks, which carry no text.
+    for (const role of ["lineLive", "lineCollapsed", "vertexLive", "vertexZero"] as const) {
+      expect(contrastRatio(SCREEN_HEX[role], bg), `${role} on backdrop`).toBeGreaterThanOrEqual(3);
+    }
+    // The web diagram's whole job is telling a live edge from a collapsed one at a glance, so those
+    // two must not be the same mark. Same for a live vertex and one at zero — and "not the same
+    // swatch" is not enough: the first choice for `vertexLive` was `c25`, the swatch NEAREST the
+    // hex it replaced, which lands 1.03 : 1 from `vertexZero`. Two different greens/reds at the
+    // same brightness is one dot as far as the player is concerned, and this screen is where the
+    // cascade is read. Held to a real separation, not merely to inequality.
+    expect(SCREEN_SWATCH_ID.lineLive).not.toBe(SCREEN_SWATCH_ID.lineCollapsed);
+    expect(SCREEN_SWATCH_ID.vertexLive).not.toBe(SCREEN_SWATCH_ID.vertexZero);
+    expect(contrastRatio(SCREEN_HEX.lineLive, SCREEN_HEX.lineCollapsed)).toBeGreaterThanOrEqual(3);
+    expect(contrastRatio(SCREEN_HEX.vertexLive, SCREEN_HEX.vertexZero)).toBeGreaterThanOrEqual(1.5);
+  });
+
+  it("BINDS — the Legacy card's REAL style object is the palette, not a copy of it", () => {
+    // Bound to `defaultRetirementStyle(balance)` — the object `createRetirementScene` actually
+    // draws from — rather than to the id table, because a table that is right while the style block
+    // still holds hexes is the exact state this finding describes.
+    const style = defaultRetirementStyle(balance);
+    expect(asHex(style.bgColor)).toBe(byId.get(RETIREMENT_SWATCH_ID.bg));
+    expect(asHex(style.panelColor)).toBe(byId.get(RETIREMENT_SWATCH_ID.panel));
+    expect(asHex(style.selectedColor)).toBe(byId.get(RETIREMENT_SWATCH_ID.selected));
+    expect(style.textColor.toLowerCase()).toBe(byId.get(RETIREMENT_SWATCH_ID.text));
+    expect(style.dimColor.toLowerCase()).toBe(byId.get(RETIREMENT_SWATCH_ID.dim));
+
+    // …and it is still a readable card. The plate is a PLATE: a shade off the background, never
+    // text, so it is held to "distinguishable and lighter", not to a text ratio.
+    const panel = swatchHex(RETIREMENT_SWATCH_ID.panel);
+    const bg = swatchHex(RETIREMENT_SWATCH_ID.bg);
+    expect(RETIREMENT_SWATCH_ID.panel).not.toBe(RETIREMENT_SWATCH_ID.bg);
+    expect(relativeLuminance(panel)).toBeGreaterThan(relativeLuminance(bg));
+    for (const role of ["text", "dim", "selected"] as const) {
+      const ink = swatchHex(RETIREMENT_SWATCH_ID[role]);
+      expect(contrastRatio(ink, panel), `${role} on the plate`).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(ink, bg), `${role} on the letterbox`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("BINDS — the season meter's REAL default style is the palette, and the pips stay tellable apart", () => {
+    const style = DEFAULT_SEASON_METER_STYLE;
+    expect(asHex(style.filledColor)).toBe(byId.get(SEASON_METER_SWATCH_ID.filled));
+    expect(asHex(style.emptyColor)).toBe(byId.get(SEASON_METER_SWATCH_ID.empty));
+    expect(asHex(style.currentColor)).toBe(byId.get(SEASON_METER_SWATCH_ID.current));
+    expect(asHex(style.seasonStartColor)).toBe(byId.get(SEASON_METER_SWATCH_ID.seasonStart));
+    expect(style.textColor.toLowerCase()).toBe(byId.get(SEASON_METER_SWATCH_ID.text));
+
+    // The meter is HUD over the map, so there is no fixed ground to measure text against — the
+    // fixed ground is the EMPTY pip, which is the track the other three are read against. A pip
+    // that cannot be told from the track is a meter that does not report the clock.
+    const empty = swatchHex(SEASON_METER_SWATCH_ID.empty);
+    for (const role of ["filled", "current", "seasonStart"] as const) {
+      const hex = swatchHex(SEASON_METER_SWATCH_ID[role]);
+      expect(contrastRatio(hex, empty), `${role} against the empty track`).toBeGreaterThanOrEqual(3);
+      // …and against the darkest ground the map can put behind it.
+      expect(contrastRatio(hex, "#000000"), `${role} on black`).toBeGreaterThanOrEqual(3);
+    }
+    // The empty pip is the absence of a mark: dimmest of the four, by construction.
+    const lum = (role: keyof typeof SEASON_METER_SWATCH_ID): number =>
+      relativeLuminance(swatchHex(SEASON_METER_SWATCH_ID[role]));
+    for (const role of ["filled", "current", "seasonStart"] as const) {
+      expect(lum(role), `${role} vs empty`).toBeGreaterThan(lum("empty"));
+    }
+    // `colorFor` resolves current > filled > seasonStart > empty, so the three that can win must be
+    // three different colours or the meter reports one state as another.
+    expect(new Set([SEASON_METER_SWATCH_ID.filled, SEASON_METER_SWATCH_ID.current, SEASON_METER_SWATCH_ID.seasonStart]).size).toBe(3);
+  });
+
+  /* ── the ban itself ──────────────────────────────────────────────────────── */
+
+  /** Every non-swatch colour literal in a `.ts` file, comments stripped. */
+  function nonSwatchHexes(source: string): string[] {
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:])\/\/.*$/gm, "$1");
+    const found: string[] = [];
+    // `0x` is restricted to SIX digits on purpose: `game/placeholder.ts`'s FNV constants
+    // (`0x811c9dc5`, `0x01000193`) are eight, and a scan that called a hash seed a colour would be
+    // a scan nobody could keep green. CSS's 8-digit `#rrggbbaa` is matched, because that IS a
+    // colour — it is the form `game/scenes/OverworldScene.ts` hides two of its literals in.
+    for (const m of code.matchAll(/#[0-9a-fA-F]{8}\b|(?:0x|#)[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3,4}\b/gu)) {
+      const body = m[0].replace(/^0x|^#/u, "").toLowerCase();
+      const rgb = body.length === 8 ? body.slice(0, 6) : body.length === 4 ? body.slice(0, 3) : body;
+      const full = rgb.length === 3 ? `${rgb[0]}${rgb[0]}${rgb[1]}${rgb[1]}${rgb[2]}${rgb[2]}` : rgb;
+      if (!swatches.has(`#${full}`)) found.push(m[0]);
+    }
+    return found;
+  }
+
+  it("the scanner sees what it claims to see", () => {
+    // Green that proves nothing is the failure mode of every source scan, so the instrument is
+    // checked before it is trusted: it must find a non-swatch in each form, pass a real swatch in
+    // each form, ignore comments, and not mistake a 32-bit hash constant for a colour.
+    const live = content.palette.colors[7]?.hex as string;
+    expect(nonSwatchHexes('const a = "#123456";')).toEqual(["#123456"]);
+    expect(nonSwatchHexes("const a = 0x123456;")).toEqual(["0x123456"]);
+    expect(nonSwatchHexes('const a = "#123456aa";')).toEqual(["#123456aa"]);
+    expect(nonSwatchHexes('const a = "#abc";')).toEqual(["#abc"]);
+    expect(nonSwatchHexes(`const a = "${live}";`)).toEqual([]);
+    expect(nonSwatchHexes(`const a = ${live.replace("#", "0x")};`)).toEqual([]);
+    expect(nonSwatchHexes('// #123456\n/* 0x123456 */')).toEqual([]);
+    expect(nonSwatchHexes("const H = 0x811c9dc5;")).toEqual([]);
+  });
+
+  it("no file in game/ paints outside data/palette.json, except the ones named here", () => {
+    /*
+     * THE BAN, not the fix. Every `.ts` under `game/` is read; a non-swatch colour literal in any
+     * file not listed below fails immediately, including a brand-new file.
+     *
+     * The exemptions are a CEILING, never a licence: the count is the debt each file carries today,
+     * `toBeLessThanOrEqual`, so clearing one of them passes and re-typing a hex anywhere fails.
+     * Whoever empties a file should delete its row.
+     *
+     *   game/scenes/BootScene.ts   PERMANENT (C1-D10, reasoned at that file's :24-33). It is the
+     *                              screen that reports `data/` being unreadable, and `Palette.ts`
+     *                              resolves `palette.json` at module scope — making the watchdog
+     *                              palette-dependent re-creates the silent black page it exists to
+     *                              prevent. This row is not debt and does not get cleared.
+     *   game/scenes/OverworldScene.ts, game/scenes/YearTurnScene.ts
+     *                              BF-18's other two files, owned by a concurrent lane in this same
+     *                              wave. Not touched here; listed so the ban still covers them.
+     *   game/boot.ts, game/mapview.ts, game/placeholder.ts, game/scenes/DialogueScene.ts
+     *                              FOUR FILES BF-18 DID NOT LIST — found by this scan, 13 more
+     *                              literals. `boot.ts` shares BootScene's watchdog reasoning and
+     *                              probably shares its exemption; the other three do not, and are
+     *                              unowned work. Pinned rather than silently fixed: they are
+     *                              outside this repair's declared file scope.
+     */
+    const EXEMPT: Record<string, number> = {
+      "game/scenes/BootScene.ts": 5,
+      "game/scenes/OverworldScene.ts": 4,
+      "game/scenes/YearTurnScene.ts": 3,
+      "game/boot.ts": 4,
+      "game/mapview.ts": 1,
+      "game/placeholder.ts": 4,
+      "game/scenes/DialogueScene.ts": 4,
+    };
+    const fs = require("node:fs") as typeof import("node:fs");
+    const root = new URL("../../", import.meta.url).pathname;
+
+    const walk = (dir: string, out: string[] = []): string[] => {
+      for (const entry of fs.readdirSync(`${root}${dir}`, { withFileTypes: true })) {
+        const rel = `${dir}/${entry.name}`;
+        if (entry.isDirectory()) walk(rel, out);
+        else if (rel.endsWith(".ts")) out.push(rel);
+      }
+      return out;
+    };
+    const files = walk("game").sort();
+    // If this ever reads an empty tree the whole test is a no-op, so it says how many it saw.
+    expect(files.length, "the scan found no game/ sources").toBeGreaterThan(10);
+
+    const offenders: Record<string, string[]> = {};
+    for (const file of files) {
+      const hits = nonSwatchHexes(fs.readFileSync(`${root}${file}`, "utf8"));
+      if (hits.length > 0) offenders[file] = hits;
+    }
+
+    // The five repaired files are named, so "it passed" cannot mean "the scan missed them".
+    for (const fixed of [
+      "game/survey-view.ts",
+      "game/scenes/DexScene.ts",
+      "game/scenes/SurveyScene.ts",
+      "game/scenes/SummaryScene.ts",
+      "game/scenes/RetirementScene.ts",
+      "game/ui/SeasonMeter.ts",
+    ]) {
+      expect(files, `${fixed} is not being scanned`).toContain(fixed);
+      expect(offenders[fixed] ?? [], fixed).toEqual([]);
+    }
+
+    for (const [file, hits] of Object.entries(offenders)) {
+      const ceiling = EXEMPT[file];
+      expect(
+        ceiling,
+        `${file} paints outside data/palette.json: ${hits.join(" ")} — name a swatch id and ` +
+          "resolve it through game/ui/Palette.ts (worked example: game/menu-model.ts UI_SWATCH_ID).",
+      ).toBeDefined();
+      expect(hits.length, `${file} added a colour literal`).toBeLessThanOrEqual(ceiling as number);
+    }
+    // …and an exemption for a file that no longer exists is a row nobody will ever delete.
+    for (const file of Object.keys(EXEMPT)) {
+      expect(files, `${file} is exempted and is not in game/`).toContain(file);
     }
   });
 });

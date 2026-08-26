@@ -76,7 +76,7 @@ import { BattleView, VIEW_TIMING, type BattleViewNames, type BattlerView, type V
 import { BattleInput, applyKey, menuContextLine, type BattleKey } from "../battle-input";
 import { BattleMessageBox } from "../ui/BattleMessageBox";
 import { BattleMenuPanel } from "../ui/BattleMenuPanel";
-import { CombatantPanel, type CardExtras } from "../ui/BattleHud";
+import { CombatantPanel, defaultCardStyle, type CardExtras, type CombatantCardStyle } from "../ui/BattleHud";
 import { battleScreenLayout, type BattleScreenLayout } from "../ui/BattleLayout";
 import { catchBurst, catchSettle, damageNumberText, effectivenessRole, faintFade, flash, fleeDash, floatingNumber, hitShake, levelUpFlash, lunge, snareShake } from "../ui/BattleFx";
 import { roleColor } from "../ui/Palette";
@@ -127,6 +127,12 @@ export class BattleScene extends Phaser.Scene {
   private view!: BattleView;
   private menuInput!: BattleInput;
   private layout!: BattleScreenLayout;
+  /**
+   * The card style THIS fight draws with, built from `ctx.balance` rather than taken from
+   * `DEFAULT_CARD_STYLE`. `spriteW/spriteH` come from `balance.map.battleSpritePx` (build-doc §9.3),
+   * and this is the only route that number takes to a drawn sprite — see game/ui/BattleHud.ts.
+   */
+  private cardStyle!: CombatantCardStyle;
   private retirementYears: Record<string, number> = {};
   /**
    * Core's last refusal string. A DIAGNOSTIC — never printed (core/types.ts), kept for debugging.
@@ -174,7 +180,8 @@ export class BattleScene extends Phaser.Scene {
 
   create(): void {
     const map = this.ctx.balance.map;
-    this.layout = battleScreenLayout(map.virtualWidth, map.virtualHeight);
+    this.cardStyle = defaultCardStyle(this.ctx.balance);
+    this.layout = battleScreenLayout(map.virtualWidth, map.virtualHeight, this.cardStyle);
 
     const backdrop = this.add.rectangle(0, 0, this.layout.width, this.layout.height, roleColor("void"));
     backdrop.setOrigin(0, 0);
@@ -283,6 +290,7 @@ export class BattleScene extends Phaser.Scene {
         cardX: this.layout.playerCard.x,
         cardY: this.layout.playerCard.y,
         view: player,
+        style: this.cardStyle,
         ...this.playerExtras(player.uid),
       });
     }
@@ -294,6 +302,7 @@ export class BattleScene extends Phaser.Scene {
         cardX: this.layout.enemyCard.x,
         cardY: this.layout.enemyCard.y,
         view: enemy,
+        style: this.cardStyle,
         ...this.enemyExtras(lureActive),
       });
     }

@@ -31,6 +31,7 @@ import { defaultContext, stepRegionStates } from "@core/ecosim";
 import {
   boonMultiplier,
   enterPendingActs,
+  heirStreamKey,
   indexSpecies,
   isNever,
   newOwnedCreature,
@@ -537,14 +538,49 @@ describe("season tint — Hard Req 6 'season variation is a runtime tint; never 
     }
   });
 
-  it("follows the clock, and every preset is flagged provisional while the hues are not in balance", () => {
+  it("follows the clock, and the hues it reads are balance.seasonTint — not a placeholder", () => {
+    /*
+     * ⚠ THIS TEST WAS THE OTHER WAY ROUND until 2026-08-26. It read "every preset is flagged
+     * provisional while the hues are not in balance" and asserted `.provisional === true` on the
+     * shipped reading — it was holding the slot for `balance.seasonTint`, which did not exist
+     * (BF-13). The group exists now, `game/season-tint.ts` `seasonTintTable` reads it, and it is the
+     * default at all three entry points, so the slot-holder is replaced by the law it stood in for:
+     * the shipped reading is DATA, and its authored channels are byte-for-byte balance.json's.
+     *
+     * `provisional` did not become dead with it — it still distinguishes a table a caller supplies
+     * itself, which is what the constant below is for now and what the next assertion checks.
+     */
     const clock = { year: balance.clock.startYear, tick: balance.clock.ticksPerSeason };
     const tint = seasonTintForClock(clock, balance);
     expect(tint.season).toBe(balance.clock.seasonOrder[1]);
-    // The hues are a placeholder, and say so — see the blocker in the lane report.
+    for (const season of balance.clock.seasonOrder) {
+      const reading = seasonTint(balance, season, balance.clock.startYear);
+      expect(reading.provisional, `${season} still reads as a placeholder`).toBe(false);
+      // `base` is the preset as authored, before hueOf/brightness/darkening — so this is the
+      // authored hue itself, asked of the shipped call site rather than of the table helper.
+      const authored = balance.seasonTint[season];
+      expect(reading.base).toEqual({ r: authored.r, g: authored.g, b: authored.b });
+      expect(reading.overlayAlpha).toBe(authored.overlayAlpha);
+      /*
+       * A retune of the hue moves the picture, and nothing but balance.json has to change (INV-3).
+       * The claim is RELATIVE, not absolute: the reading is a ratio (hueOf normalises the preset to
+       * peak 255) and `seasonBrightness > 1` spends its surplus moving the hue toward WHITE, so
+       * zeroing a channel does not zero the pixel — summer's red comes back as 38, not 0. Halving
+       * the authored red lowers the reading's red under every one of those terms.
+       */
+      const retuned = clone(balance);
+      retuned.seasonTint[season] = { ...authored, r: authored.r / 2 };
+      expect(
+        seasonTint(retuned, season, retuned.clock.startYear).rgb.r,
+        `${season}: halving balance.seasonTint.${season}.r did not move the picture`,
+      ).toBeLessThan(reading.rgb.r);
+    }
+    // The placeholder table is still what `provisional: true` means, and nothing reads it by default.
     for (const season of balance.clock.seasonOrder) {
       expect(PROVISIONAL_SEASON_TINTS[season].provisional).toBe(true);
-      expect(seasonTint(balance, season, balance.clock.startYear).provisional).toBe(true);
+      expect(
+        seasonTint(balance, season, balance.clock.startYear, PROVISIONAL_SEASON_TINTS).provisional,
+      ).toBe(true);
     }
   });
 
@@ -2733,7 +2769,10 @@ function liveRun(
 
     const trigger = yearTurnTrigger(advanced);
     if (!trigger) continue;
-    const heir = subsystemRng(save.seed, `sim:heir:y${String(trigger.endedYear)}`);
+    // The shipped key, imported from core/lifecycle.ts — never re-spelled here. `liveRun` claims to
+    // replay "the run the game actually produces", and while this line said `sim:heir:y<N>` it was
+    // replaying a stream `OverworldScene.beginYearTurn` had stopped opening.
+    const heir = subsystemRng(save.seed, heirStreamKey(balance, trigger.endedYear));
     const drive = driveYearTurn(
       { ...save, year: trigger.endedYear, tick: tickBefore },
       {

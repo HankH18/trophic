@@ -26,6 +26,8 @@
 import Phaser from "phaser";
 import {
   DEX_ART_BOX,
+  SCREEN_COLOR,
+  SCREEN_HEX,
   SCREEN_TEXT,
   buildDexEntries,
   regionalCount,
@@ -59,10 +61,14 @@ export interface DexSceneData {
   onClose?: () => void;
 }
 
-const INK = "#e8e4d8";
-const INK_DIM = "#8a8676";
-const INK_FLAG = "#d8a24a";
-const BACKDROP = 0x14140f;
+// The screen's colours have one home, in game/survey-view.ts, for the reason its text metrics do:
+// a scene cannot be imported by a node test, so a palette rule inside one is a palette rule nothing
+// can check. These four WERE `#e8e4d8`, `#8a8676`, `#d8a24a` and `0x14140f` — not one of which is
+// one of the 32 swatches `data/palette.json` froze at gate B0 (build-doc §8.4).
+const INK = SCREEN_HEX.ink;
+const INK_DIM = SCREEN_HEX.inkDim;
+const INK_FLAG = SCREEN_HEX.inkFlag;
+const BACKDROP = SCREEN_COLOR.backdrop;
 
 // The screen's text metrics have one home, in game/survey-view.ts (see SurveyScene).
 const FONT = SCREEN_TEXT.fontFamily;

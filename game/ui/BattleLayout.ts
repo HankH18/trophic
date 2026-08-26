@@ -16,12 +16,17 @@
  * it, and the one number that was silently duplicated before.
  *
  * CONSTANTS (G11): every number here is a pixel offset inside the §7.6 virtual screen. No gameplay
- * constant is written in this file; `width`/`height` arrive from `balance.map`.
+ * constant is written in this file; `width`/`height` arrive from `balance.map`, and the §9.3 battle
+ * sprite target is read from `balance.map.battleSpritePx` ({@link battleSpritePx}).
  *
- * ENGINE: no phaser import at all, not even a type one.
+ * ENGINE: no phaser import at all, not even a type one. `@core/schemas` is safe to import here —
+ * it static-imports the shipped JSON, so it bundles for the browser and loads under vitest's node
+ * environment alike, which is how `tools/overlay-diff/config.ts` reads its own tunables.
  */
 
-import { DEFAULT_CARD_STYLE, type CombatantCardStyle } from "./BattleHud";
+import { validateContent } from "@core/schemas";
+import type { Balance } from "@core/types";
+import { battleSpritePx, DEFAULT_CARD_STYLE, type CombatantCardStyle } from "./BattleHud";
 
 /** An axis-aligned box in virtual-screen pixels. `x`/`y` are the top-left corner. */
 export interface Rect {
@@ -76,21 +81,15 @@ const MESSAGE_H = 46;
 const MESSAGE_PADDING = 6;
 const MESSAGE_FONT = "8px";
 /**
- * build-doc §9.3 — "nearest-neighbor downscale to target (battle 96², overworld chars 32×48,
- * minis 32²)". The battle slot is the size the art pipeline is going to hand it, not a size the
- * layout picked: a 72² slot drew every finished 96² sprite at 0.75 and made the placeholder's own
- * label a lie about what Lane B is producing.
+ * build-doc §9.3's battle sprite target, re-exported from the file that DRAWS the sprite.
  *
- * It is a literal here on purpose, and it is the only honest place for it today: `data/balance.json`
- * `map` declares `playerSpriteW/H` for the overworld and has NO battle-sprite key, so there is no
- * tunable to read (adding one is a core/types.ts + core/schemas.ts + balance.json change, which is
- * not Lane C's to make). Reported as a gap rather than papered over with a private constant table.
- *
- * HEADROOM, measured before changing it at the shipped 480×320: the 96² rects are player y131..227
- * and enemy y42..138 against `message.y = 274`, so neither sprite reaches the message box.
+ * It used to be `const SPRITE_W = SPRITE_H = 96` here, then `balance.map.battleSpritePx` read here —
+ * and both times the number the battle screen actually drew with was a different one,
+ * `DEFAULT_CARD_STYLE.spriteW` in game/ui/BattleHud.ts. One accessor, owned by the drawer, is what
+ * makes `spriteRect`'s answer and the drawn sprite the same number by construction rather than by
+ * agreement.
  */
-const SPRITE_W = 96;
-const SPRITE_H = 96;
+export { battleSpritePx } from "./BattleHud";
 
 /**
  * The whole screen, bottom-up.
@@ -139,9 +138,24 @@ export function rectsOverlap(a: Rect, b: Rect): boolean {
   return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 }
 
-/** The box a centred sprite occupies — what a disjointness check needs. */
-export function spriteRect(at: Point, w: number = SPRITE_W, h: number = SPRITE_H): Rect {
-  return { x: at.x - Math.floor(w / 2), y: at.y - Math.floor(h / 2), w, h };
+/**
+ * The box a centred sprite occupies — what a disjointness check needs.
+ *
+ * `w` defaults to the §9.3 battle target from `balance.map.battleSpritePx` and `h` to `w`, so a
+ * caller can still ask about a non-square art slot. `balance` overrides only the DEFAULT, and is
+ * there so a test can retune the key and watch this function's answer move — without it the default
+ * reads the shipped file directly and no test can tell the key apart from a literal that happens to
+ * agree with it.
+ */
+export function spriteRect(at: Point, w?: number, h?: number, balance?: Balance): Rect {
+  const width = w ?? battleSpritePx(balance);
+  const height = h ?? width;
+  return {
+    x: at.x - Math.floor(width / 2),
+    y: at.y - Math.floor(height / 2),
+    w: width,
+    h: height,
+  };
 }
 
 /**

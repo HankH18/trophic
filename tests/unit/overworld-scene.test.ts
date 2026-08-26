@@ -2192,3 +2192,68 @@ describe("§10.7 a quest is offered, worked and closed BY PLAYING", () => {
     ).toBe(true);
   });
 });
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §9 The heir stream is the DECLARED lifecycle stream (BF-11), and the scene reads the tag
+ *
+ * `beginYearTurn` opens the heir's stream with `core/lifecycle.ts` `heirStreamKey(balance, year)`.
+ * Everything about that claim used to be checkable only by reading the line: the key was composed
+ * in the scene, and the two harnesses that replicate the year turn — `tests/integration/demo-beats.ts`
+ * §I3 (the Legacy never-cut beat) and `year-turn-ux`'s `liveRun` — carried their own copies of the
+ * OLD `sim:heir:y<N>` and stayed green while replaying a stream the game had stopped opening.
+ *
+ * The key now has one spelling and `tests/unit/balance-inv3.test.ts` forbids a second. What is left
+ * to prove is that THIS SCENE goes through it, and the observable for that is the refusal:
+ * `heirStreamKey` checks the tag against `balance.rng.subsystemTags` at call time, so a balance
+ * without the tag can only produce a refused year turn IF the scene really asks.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("§9 the year turn's heir roll goes through heirStreamKey", () => {
+  /** Enough inn rests to end at least one year, whatever the clock is retuned to. */
+  const REST_PRESSES = balance.clock.ticksPerYear;
+
+  function balanceWithout(tag: string): Content {
+    return {
+      ...content,
+      balance: {
+        ...balance,
+        rng: { ...balance.rng, subsystemTags: balance.rng.subsystemTags.filter((t) => t !== tag) },
+      },
+    };
+  }
+
+  /** Rest at the inn `presses` times, playing out any year turn that starts. */
+  function rest(h: Harness, presses: number, settle: boolean): void {
+    for (let i = 0; i < presses; i += 1) {
+      h.press(KEY_R);
+      if (settle) frameAndSettle(h);
+      else h.frame();
+    }
+  }
+
+  /** The turns the SAVE records — `finishYearTurn` → `appendYearTurn` is the only writer. */
+  const turnsRun = (h: Harness): number =>
+    h.scene.save.actionLog.filter((e) => e.action.t === "yearTurn").length;
+
+  it('BINDS — drop "lifecycle" from balance.rng.subsystemTags and the scene runs no year turn', () => {
+    const h = mount({ content: balanceWithout("lifecycle") });
+    rest(h, REST_PRESSES, false);
+
+    // The CLOCK still moves — the refusal is the turn, not the calendar — so the run really did
+    // reach the thing under test rather than stopping short of it.
+    expect(h.scene.save.year, "no year ever ended, so nothing was refused").toBeGreaterThan(balance.clock.startYear);
+    expect(turnsRun(h), "the year turn ran without the declared tag — the scene is not asking").toBe(0);
+    // Refused, not half-run: nothing was handed to the year-turn sequence either.
+    expect(h.parts.launches.some((l) => l.key === SCENE_KEYS.yearTurn)).toBe(false);
+    expect(h.scene.isHandedOver()).toBe(false);
+  });
+
+  it("BINDS THE OTHER SIDE — with the shipped balance the very same run turns the year", () => {
+    // Without this the case above would pass for a scene that refuses every year turn, or one that
+    // never reaches a year end at all.
+    const h = mount();
+    rest(h, REST_PRESSES, true);
+    expect(h.scene.save.year).toBeGreaterThan(balance.clock.startYear);
+    expect(turnsRun(h), "the shipped balance turns no year either — the rig is measuring nothing").toBeGreaterThan(0);
+  });
+});

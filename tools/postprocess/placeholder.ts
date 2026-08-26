@@ -1,5 +1,30 @@
 /**
- * tools/postprocess/placeholder.ts — the one honest-placeholder helper.
+ * tools/postprocess/placeholder.ts — the OFFLINE half of the placeholder pair: it writes PNG files.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  THERE ARE TWO PLACEHOLDER HELPERS AND THIS IS ONE OF THEM.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * This file's header used to open "the one honest-placeholder helper", and `game/placeholder.ts`'s
+ * opened "the ONE helper the whole game uses for art that does not exist yet". Both sentences were
+ * true of their own side and false as written, and nothing in either file admitted the other
+ * existed. They are not merged, and merging them would be wrong:
+ *
+ *   · THIS file is an offline PNG producer. It depends on `sharp` through `Raster`, it runs under
+ *     node in `npm run postprocess`, and its output is a FILE on disk at a manifest row's
+ *     `finalFile`. It draws with a built-in 3×5 bitmap font (see below) so the bytes are stable.
+ *   · `game/placeholder.ts` is a RUNTIME canvas drawer. It depends on Phaser and on
+ *     `data/balance.json`, it runs in the browser, it draws into a Phaser texture that is never
+ *     written anywhere, and it tiles its label so a map-sized stand-in stays labelled at any zoom.
+ *
+ * Neither can do the other's job, so two implementations of the DRAWING is the right answer. What
+ * is NOT allowed to be two answers is the ID/LABEL CONVENTION — the string a reviewer reads off a
+ * screenshot has to be the string they read off the built file, or "which asset is missing" gets a
+ * different answer depending on where you look. `placeholderLabel()` below is this side's statement
+ * of that convention, `assetId()` in `game/placeholder.ts` is the runtime's, and
+ * `tests/unit/postprocess-run.test.ts` runs BOTH over every manifest row and every node asset and
+ * fails if they ever disagree. The colour is hashed from that same string with core/rng.ts's
+ * FNV-1a, which is bit-for-bit what `game/placeholder.ts`'s `hash32` computes at save seed 0 — so
+ * once the strings agree, the two sides pick the same swatch for the same asset too.
  *
  * Real generated art exists for exactly two things right now: the gate-B0 player sweep
  * (assets/raw/b0/) and the five approved style trials. Everything else in the 288-row manifest is
@@ -21,6 +46,29 @@ import type { Raster } from './raster.ts';
 import { blankRaster, idx } from './raster.ts';
 import { hashSeed } from '../../core/rng.ts';
 import type { PaletteRgb } from './palette.ts';
+
+const FINAL_DIR = 'assets/final/';
+const ASSET_EXT = /\.(png|jpe?g|webp|gif|json|mp3|ogg|wav)$/i;
+
+/**
+ * The label written into a placeholder for an asset at `path`, and the id its colour is hashed
+ * from: the path with the `assets/final/` prefix and the extension removed.
+ *
+ * THIS IS THE HALF OF THE TWO PLACEHOLDER HELPERS THAT MUST AGREE. `game/placeholder.ts`'s
+ * `assetId()` is the same convention on the runtime side, reached by a different route — the game
+ * has a `mapAsset` / `collisionMask` path out of a node JSON, this tool has a manifest row's
+ * `finalFile`, and both must land on the same string for the same asset. Before this existed, the
+ * offline placeholder for `assets/final/creature-battle/battle-fenmaw-e-front.png` was labelled
+ * `battle-fenmaw-e-front` (the manifest row id) while the game's stand-in for the very same file
+ * was labelled `creature-battle/battle-fenmaw-e-front` — two names and, because the colour is
+ * hashed from the label, two different swatches for one missing asset.
+ */
+export function placeholderLabel(path: string): string {
+  let s = path.trim().replace(/^\.?\/+/, '');
+  const at = s.indexOf(FINAL_DIR);
+  if (at >= 0) s = s.slice(at + FINAL_DIR.length);
+  return s.replace(ASSET_EXT, '');
+}
 
 /** 3×5 glyphs, five rows of three bits each. Unknown characters fall back to `?`. */
 const GLYPHS: Record<string, string> = {

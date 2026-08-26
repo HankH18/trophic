@@ -22,6 +22,9 @@
 import type { ClockActionKind, ClockEvent, ClockState } from "@core/clock";
 import { advanceAction, meter, seasonAt, ticksForAction } from "@core/clock";
 import type { Balance, Season } from "@core/types";
+// Engine-free (`data/palette.json` and arithmetic, no phaser import), so the meter's colours can be
+// resolved here without breaking this file's own rule about the module graph.
+import { swatchColor, swatchHex } from "./Palette";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Model — pure, testable, engine-free
@@ -236,6 +239,35 @@ export interface SeasonMeterStyle {
   fontFamily: string;
 }
 
+/**
+ * The meter's colours, as PALETTE IDS.
+ *
+ * THE DEFECT THIS REPLACES: {@link DEFAULT_SEASON_METER_STYLE} wrote out `0xe8e4c9`, `0x3a4038`,
+ * `0xffd76a`, `0x8fb08a` and `#e8e4c9`, and **not one of them is one of the 32 swatches**
+ * `data/palette.json` froze at gate B0. This is HUD: it is on screen while the overworld is, drawn
+ * directly over the generated town and route art, so a pip painted outside the freeze is the one
+ * widget on the map that cannot match anything beside it (build-doc §8.4). The freeze is a value
+ * swap over stable ids, which is why the ids are what gets written down.
+ *
+ * Measured against `c00` on the shipped frozen file: `filled` 17.5 : 1, `current` 12.3 : 1,
+ * `seasonStart` 9.4 : 1, `empty` 2.1 : 1. The pips are graphical marks rather than text, so
+ * WCAG 1.4.11's 3 : 1 is the bar — `empty` is deliberately BELOW it, because an empty pip is the
+ * absence of a mark and reading as one is what it is for; the three pips that carry meaning all
+ * clear it, and each is separated from the others. `tests/unit/survey-view.test.ts` recomputes it.
+ */
+export const SEASON_METER_SWATCH_ID = {
+  /** A tick the meter has passed. */
+  filled: "c18",
+  /** A tick still to come. Reads as unmarked track, not as a pip. */
+  empty: "c29",
+  /** The tick the meter is standing on. */
+  current: "c15",
+  /** The first pip of a season — where the sim steps (build-doc §4). */
+  seasonStart: "c27",
+  /** "Y2 · summer · 7/16". */
+  text: "c18",
+} as const;
+
 export const DEFAULT_SEASON_METER_STYLE: SeasonMeterStyle = {
   x: 8,
   y: 8,
@@ -243,11 +275,11 @@ export const DEFAULT_SEASON_METER_STYLE: SeasonMeterStyle = {
   cellH: 10,
   cellGap: 2,
   seasonGap: 5,
-  filledColor: 0xe8e4c9,
-  emptyColor: 0x3a4038,
-  currentColor: 0xffd76a,
-  seasonStartColor: 0x8fb08a,
-  textColor: "#e8e4c9",
+  filledColor: swatchColor(SEASON_METER_SWATCH_ID.filled),
+  emptyColor: swatchColor(SEASON_METER_SWATCH_ID.empty),
+  currentColor: swatchColor(SEASON_METER_SWATCH_ID.current),
+  seasonStartColor: swatchColor(SEASON_METER_SWATCH_ID.seasonStart),
+  textColor: swatchHex(SEASON_METER_SWATCH_ID.text),
   fontSize: "10px",
   fontFamily: "monospace",
 };

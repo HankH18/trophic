@@ -428,7 +428,7 @@ import {
   monoTextWidth,
   retirementLabel,
 } from "../../game/ui/BattleHud";
-import { battleScreenLayout, layoutPanels, rectsOverlap, spriteRect } from "../../game/ui/BattleLayout";
+import { battleScreenLayout, battleSpritePx, layoutPanels, rectsOverlap, spriteRect } from "../../game/ui/BattleLayout";
 import {
   PALETTE_FROZEN,
   UI_SWATCH,
@@ -3151,6 +3151,61 @@ describe("BattleScene, executed: the beats the fixtures do not contain", () => {
 /* ════════════════════════════════════════════════════════════════════════════
  * 11c. The widgets, executed. Same stub Phaser, one object at a time.
  * ════════════════════════════════════════════════════════════════════════════ */
+
+/*
+ * BF-14 — `balance.map.battleSpritePx` reaches the DRAWN sprite.
+ *
+ * The key was added to balance.json and `game/ui/BattleLayout.ts` was moved off its `SPRITE_W = 96`
+ * onto it — but `spriteRect`/`battleSpritePx` had no production caller. What sizes a combatant
+ * sprite is `CombatantCardStyle.spriteW/spriteH`, passed to `placeholderImage` in
+ * `CombatantPanel`'s constructor, and that was still the literal 96 in `DEFAULT_CARD_STYLE`. So the
+ * knob turned nothing: setting `map.battleSpritePx` to 48 left every battle sprite at 96 and only
+ * `tests/unit/balance-inv3.test.ts` — asserting the unused helper — went red.
+ *
+ * The observable here is the stand-in's TEXTURE KEY, which `game/placeholder.ts` `placeholderKey`
+ * builds as `placeholder:<assetId>@<w>x<h>` from the width and height the panel asked for. It is the
+ * size the scene actually drew at, read back off the display list.
+ */
+describe("BF-14 — the size a battle sprite is drawn at comes from balance.map.battleSpritePx", () => {
+  const spriteKeys = (fake: FakeSceneParts): string[] =>
+    fake
+      .imagesOnScreen()
+      .map((o) => o.texture)
+      .filter((k) => k.startsWith("placeholder:"));
+
+  const contextAt = (px: number): BattleContext =>
+    makeBattleContext(
+      { ...content, balance: { ...content.balance, map: { ...content.balance.map, battleSpritePx: px } } },
+      predationOracleFromWebs([GYM.foodWeb]),
+    );
+
+  it("BINDS — a retuned key moves the drawn size; the shipped key is what the shipped screen draws", () => {
+    const shipped = content.balance.map.battleSpritePx;
+    const { fake } = openScene(GYM.input, contextFor(GYM), cyclic(GYM.rngScript));
+    const drawn = spriteKeys(fake);
+    expect(drawn.length, "no combatant sprite was drawn at all").toBeGreaterThan(0);
+    for (const key of drawn) expect(key, key).toContain(`@${String(shipped)}x${String(shipped)}`);
+
+    // The retune. 48 is half the shipped target, so a stale literal cannot coincide with it.
+    const retuned = Math.floor(shipped / 2);
+    expect(retuned).not.toBe(shipped);
+    const { fake: after } = openScene(GYM.input, contextAt(retuned), cyclic(GYM.rngScript));
+    const drawnAfter = spriteKeys(after);
+    expect(drawnAfter.length).toBe(drawn.length);
+    for (const key of drawnAfter) expect(key, key).toContain(`@${String(retuned)}x${String(retuned)}`);
+    // …and it really is the SAME sprites, differing only in size — not a different set of assets.
+    expect(drawnAfter.map((k) => k.split("@")[0])).toEqual(drawn.map((k) => k.split("@")[0]));
+  });
+
+  it("…and the layout helper answers with the same number the panel drew with", () => {
+    // `spriteRect` used to be the ONLY reader of the key. It is still a real reader — a disjointness
+    // sweep uses it — so it is held to the same answer rather than deleted.
+    const px = content.balance.map.battleSpritePx;
+    expect(battleSpritePx()).toBe(px);
+    expect(spriteRect({ x: 100, y: 100 }).w).toBe(DEFAULT_CARD_STYLE.spriteW);
+    expect(DEFAULT_CARD_STYLE.spriteH).toBe(px);
+  });
+});
 
 describe("CombatantPanel, executed", () => {
   const { openingState } = replay(WILD);

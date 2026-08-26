@@ -823,6 +823,61 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
     },
     180_000,
   );
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * THE RESIDUAL — the gate's own false-ACCEPT limit, pinned (B-D39 / BF-26).
+   *
+   * The header of tools/overlay-diff/diff.ts states the POSITIVE result: a 64px feature displaced
+   * by ONE collision cell is rejected at 25 of 25 (map, position) pairs. That is true and it is
+   * tested above. What it did not state, and what nothing tested, is where the gate stops working:
+   * HALVE the feature to 32px — 2×2 collision cells, still a real object, smaller than the 32×48
+   * player — and a one-cell displacement is ACCEPTED at some pairs. B-D39 measured 8 of 25.
+   *
+   * This test exists so that number cannot move in silence. It is a CHARACTERISATION test: it
+   * asserts what the gate does today, not what it ought to do. If a retune of `balance.overlayDiff`
+   * changes it — in either direction — this goes red and whoever is here has to look at the
+   * residual, decide deliberately, and update B-D39 and diff.ts's header with the new figure.
+   * A green run here is NOT a claim that 32px false-accepts are acceptable. It is the opposite:
+   * it is the limit being held still where a reader of tools/overlay-diff/ can see it.
+   * ────────────────────────────────────────────────────────────────────────── */
+  it(
+    'STATES THE LIMIT: a 32px feature displaced one cell is still ACCEPTED at some pairs (B-D39)',
+    async () => {
+      const acceptedAt: string[] = [];
+      const rejectedAt: string[] = [];
+      for (const rel of REAL_MAPS) {
+        const map = await readRaster(resolve(REPO_ROOT, rel));
+        const mask = maskFromLuminance(map);
+        for (const [px, py] of MOVE_POSITIONS) {
+          // 2 × CELL = 32px, against the 4 × CELL = 64px the test above rejects at 25 of 25.
+          const v = run(map, moveBlock(map, px, py, 2 * CELL, CELL, 20, 900), mask);
+          (v.accepted ? acceptedAt : rejectedAt).push(`${rel.split('/').pop()}@(${px},${py})`);
+        }
+      }
+      const total = acceptedAt.length + rejectedAt.length;
+      expect(total, 'the sweep must cover every (map, position) pair').toBe(REAL_MAPS.length * MOVE_POSITIONS.length);
+
+      // The residual is real: the gate does NOT catch every 32px displacement.
+      expect(
+        acceptedAt.length,
+        `32px displacements accepted at: ${acceptedAt.join(', ') || 'none'}`,
+      ).toBeGreaterThan(0);
+      // …and it is not a total failure either: at most pairs a 32px move IS caught.
+      expect(rejectedAt.length, `32px displacements rejected at: ${rejectedAt.join(', ')}`).toBeGreaterThan(0);
+
+      // PINNED. Change this only together with B-D39 and the header of tools/overlay-diff/diff.ts.
+      expect(
+        { accepted: acceptedAt.length, of: total },
+        `the residual moved — accepted at ${acceptedAt.join(', ')}`,
+      ).toEqual({ accepted: 8, of: 25 });
+
+      // And the half that matters most: whatever the count, the 64px case above must stay at 0
+      // accepted. A retune that "fixes" 32px by loosening nothing is fine; one that tightens 32px
+      // by loosening 64px is the failure this pair of tests is arranged to catch.
+      expect(acceptedAt.length).toBeLessThan(total);
+    },
+    180_000,
+  );
 });
 
 /* ════════════════════════════════════════════════════════════════════════════

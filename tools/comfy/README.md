@@ -49,13 +49,37 @@ there is nothing to restate, and inventing one to make the generator happy is th
 and flag it for a supervised first generation instead; `_concepts.Pyrelisk.source` is the worked
 example.
 
-Logged as `manifest._deviations` **LB-M9** and `docs/DEVIATIONS-lane-b.md` **B-D33**.
+Logged as `docs/DEVIATIONS.md` **B-D62** (staged as `manifest._deviations` LB-M9 until the merge)
+and `docs/DEVIATIONS-lane-b.md` **B-D33**.
 
-## Not yet built
+## Built and executed — but NOT approved for the two uses build-doc asks for
 
-- **img2img graph** — does not exist and cannot be retrieved; it was never trialled. Build it from
-  the stock Comfy Cloud img2img template with the same model/settings (VAEEncode + LoadImage
-  replacing `EmptySD3LatentImage`, denoise < 1.0). Its first run — map year-variant (§9.5) or the
-  walk-cycle trial (§9.6) — is a **SUPERVISED validation gate**, same standing as the painted-dex
-  trial (§9.4).
-- **Cloud API client + manifest runner** — build order B1, gated behind B0.
+This section used to read *"Not yet built"* and list the img2img graph as *"does not exist and
+cannot be retrieved"* and the client/runner as unbuilt. Both statements are stale. What is actually
+true:
+
+- **img2img graph — BUILT and EXECUTED, neither of its uses approved.** `img2img.ts` +
+  `img2img-graph.json` exist and are built from the validated txt2img graph (`LoadImage` +
+  `VAEEncode` replacing `EmptySD3LatentImage`, denoise < 1.0), so every locked §9.2 parameter is
+  carried over rather than restated. It has run live: `POST /api/upload/image` is verified
+  (**B-D18**) and a 7-denoise × 2-view sweep off the approved player static produced the 14 images
+  in `assets/raw/player/img2img/` (**B-D19**). That sweep established a **limit, not an approval**:
+  img2img on this model is for deltas *within* a view and cannot turn one.
+  **`manifest._img2img.trialled` therefore stays `false`, and it is correct that it does.** Neither
+  use build-doc asks for has been run and reviewed — map year-variant (§9.5) and the walk-cycle
+  trial (§9.6) are each still a **SUPERVISED validation gate**, same standing as the painted-dex
+  trial (§9.4) — and `assertSupervised` refuses to plan more than one img2img row while that flag
+  is false.
+- **Cloud API client + manifest runner — BUILT.** `client.ts` and `comfy-batch.ts` ship, `npm run
+  factory` is wired to the runner, and 69 files in `assets/raw/` came from live runs.
+
+**What genuinely has not happened** — do not read the above as "the pipeline is done":
+
+- The **B1 gate** has never been run. 288 manifest rows, 287 `pending`, and exactly one `sha256`
+  on the record (`player-front`) — and that one is a byte-identical *promotion*, not a manifest
+  reproduction.
+- `_credits.perImageCredits` is `null`: the G13 estimate is **uncalibrated** (B-D10 — Comfy Cloud
+  exposes no credit-balance endpoint). Read the dashboard before/after a known batch and pass
+  `--credits-per-image=N`.
+- The **denoise ladder has never been walked against a real map**, because no §9.5 run has
+  happened. Its false-REJECT rate on real aged variants is unmeasured (**B-D25**).

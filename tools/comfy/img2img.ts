@@ -11,9 +11,9 @@
  * year variants and §9.6's walk frames are both still unreviewed uses, so `manifest._img2img.trialled`
  * stays false and `comfy-batch`'s `assertSupervised` refuses to plan more than one img2img row.
  *
- * tools/comfy/README.md is explicit about where this came from: the img2img workflow "does not exist
- * and cannot be retrieved; it was never trialled". So this file is not a port of something known-good
- * — it is the stock
+ * Where it came from: at the handoff there was no img2img workflow to port — none existed, none
+ * could be retrieved, and none had been trialled. So this file is not a port of something
+ * known-good — it is the stock
  * Comfy Cloud img2img shape (`LoadImage` → `VAEEncode` → KSampler.latent_image, denoise < 1)
  * grafted onto the VALIDATED txt2img graph so that every other parameter — the z_image_turbo UNET,
  * the qwen_3_4b lumina2 CLIP, the `ae` VAE, `ModelSamplingAuraFlow` shift 3, 8 steps, cfg 1.0,
@@ -21,14 +21,20 @@
  * DEVIATIONS-lane-b B-D2). The graph is BUILT from the trial rather than authored beside it, so the
  * two cannot drift.
  *
- * What is unverified, and must be checked by a human on the first run:
- *   1. `POST /api/upload/image` — local ComfyUI's upload endpoint. Comfy Cloud's `/api/history`
- *      turned out not to exist (B-D8), so no cloud endpoint is assumed to work until it has.
- *      `uploadInitImage` reports the raw status text on failure instead of retrying, because a
- *      retry against a wrong endpoint just bills twice.
- *   2. Whether `VAEEncode` accepts this VAE at 1024² without a resize node in between.
- *   3. Whether the denoise ladder (§8.2: start 0.35, step −0.05, floor 0.2) actually holds map
- *      layout — that is what tools/overlay-diff measures, and it is the whole point of §9.5.
+ * Three things were listed here as unverified. Two of them have since been run live, and the third
+ * has not:
+ *   1. ✔ `POST /api/upload/image` — VERIFIED on Comfy Cloud (B-D18). It had been in doubt because
+ *      Comfy Cloud's `/api/history` turned out not to exist (B-D8), so no endpoint was assumed to
+ *      work until it had. It returns `200 {"name":"<sha256>.png","subfolder":"","type":"input"}` —
+ *      the server content-addresses the upload, so re-uploading identical bytes is idempotent.
+ *      `uploadInitImage` still reports the raw status text on failure instead of retrying, because
+ *      a retry against a wrong endpoint just bills twice.
+ *   2. ✔ `VAEEncode` accepts this VAE at 1024² with no resize node in between — 14 images at
+ *      1024×1024 came back from a 1024² init during B-D19's sweep (assets/raw/player/img2img/).
+ *   3. ✘ STILL UNVERIFIED: whether the denoise ladder (§8.2: start 0.35, step −0.05, floor 0.2)
+ *      actually holds map layout. That is what tools/overlay-diff measures and it is the whole
+ *      point of §9.5 — and img2img has never been run for §9.5 at all, so the ladder has never
+ *      been walked against a real map. See B-D25.
  *
  * `runSmoke()` is therefore ONE image. It refuses to run a batch (`SupervisedGateError`) — and that
  * promise is now kept on the BATCH path too: `runBatch` never called `runSmoke`, it built img2img
@@ -118,7 +124,9 @@ export function buildImg2ImgGraph(base: Graph, o: Img2ImgOptions): Graph {
 }
 
 /**
- * Upload an init image so `LoadImage` can find it. UNVERIFIED against Comfy Cloud — see the header.
+ * Upload an init image so `LoadImage` can find it. VERIFIED against Comfy Cloud (B-D18): the server
+ * content-addresses the upload and returns its own name, so the caller's filename is discarded and
+ * re-uploading identical bytes is idempotent.
  * Returns the name the graph should reference (subfolder-qualified when the server says so).
  */
 export async function uploadInitImage(env: ComfyEnv, filePath: string, name?: string): Promise<string> {
@@ -136,8 +144,9 @@ export async function uploadInitImage(env: ComfyEnv, filePath: string, name?: st
   if (!r.ok) {
     throw new ComfyError(
       `POST /api/upload/image -> ${r.status}: ${text.slice(0, 500)}\n` +
-        'This endpoint is UNVERIFIED on Comfy Cloud (B-D8 showed /api/history is absent there). ' +
-        'Do not add a retry loop around it — confirm the endpoint first.',
+        'This endpoint is verified on Comfy Cloud (B-D18), so a failure here is about THIS request ' +
+        '— credentials, size, or the multipart body — not about whether the endpoint exists. ' +
+        'Do not add a retry loop around it; a retry against a rejected request just bills twice.',
     );
   }
   const body = JSON.parse(text) as { name?: string; subfolder?: string };

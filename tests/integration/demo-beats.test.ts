@@ -40,6 +40,7 @@ import { startBattle, step as battleStep } from "@core/battle";
 import { advanceAction, seasonOf } from "@core/clock";
 import { defaultContext, stepRegionStates } from "@core/ecosim";
 import { indexSpecies, isMesopredator } from "@core/foodweb";
+import { heirStreamKey } from "@core/lifecycle";
 import { subsystemRng } from "@core/rng";
 import { validateContent } from "@core/schemas";
 import { appendAction, newSave, openStreams, type RngStreams, type SaveEnvelope } from "@core/save";
@@ -364,8 +365,12 @@ function spend(
       const atEnded: SaveEnvelope = { ...save, year: event.year, tick: save.tick };
       const sim = streams[SIM];
       if (!sim) throw new Error("no sim stream");
-      // The overworld's own heir stream (game/scenes/OverworldScene.ts beginYearTurn).
-      const heir = subsystemRng(save.seed, `${SIM}:heir:y${String(event.year)}`);
+      // The overworld's own heir stream — the SAME key `game/scenes/OverworldScene.ts`
+      // `beginYearTurn` opens, imported rather than re-spelled. This harness carried its own copy of
+      // `sim:heir:y<N>` for a while after the scene moved to the lifecycle tag, which meant §I3 —
+      // the test that certifies the Legacy never-cut beat — was driving an heir sequence the shipped
+      // game does not produce, and was green because it compared itself with itself.
+      const heir = subsystemRng(save.seed, heirStreamKey(balance, event.year));
       const drive = driveYearTurn(atEnded, {
         content,
         simRng: sim,

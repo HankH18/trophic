@@ -269,7 +269,9 @@
     "denoiseStart": 0.35,
     "denoiseStep": 0.05,
     "denoiseFloor": 0.2,
-    "maxRegenAttempts": 3
+    "maxRegenAttempts": 3,
+    "_driftFootprintCells": "build-doc §8.2 criterion (2) — the largest walkable-mask drift a year variant may carry, in collision cells. It used to be DERIVED in tools/overlay-diff/config.ts as ceil(map.playerSpriteW / map.collisionCellPx) × ceil(map.playerSpriteH / map.collisionCellPx), which put the §9.5 acceptance criterion out of INV-3's reach: loosening it after a supervised run meant editing code. Shipped at the derived value (2 × 3) so this is a no-op move; a retune raises it here alone. The floor is the player's own footprint — a tolerance smaller than the player admits a drift that can strand him — and tests/unit/balance-inv3.test.ts holds it there.",
+    "driftFootprintCells": { "cols": 2, "rows": 3 }
   },
   "map": {
     "_source": "build-doc §7.6 — virtual 480×320 integer-scaled; painted maps 1024² rendered 2×; mask sampled on a 16px grid (64×64 cells); player 32×48, tile step 32.",
@@ -283,7 +285,12 @@
     "playerSpriteW": 32,
     "playerSpriteH": 48,
     "tileStepPx": 32,
-    "propInteractionRadiusDefault": 48
+    "propInteractionRadiusDefault": 48,
+    "_spriteTargets": "build-doc §9.3 — 'nearest-neighbor downscale to target (battle 96², overworld chars 32×48, minis 32²)'. The overworld size has been playerSpriteW/H all along; the other two were literals in game/ui/BattleLayout.ts and pins in tools/comfy/manifest.json (deviation LB-M4 asked for exactly these two keys). Both are square, so one number each.",
+    "battleSpritePx": 96,
+    "miniSpritePx": 32,
+    "_walkMsPerTile": "PRESENTATION pace, not a simulation number: a foray is counted in STEPS (balance.encounter.stepsPerForay), so a faster walk costs exactly the same ticks and moves no population. It is here because it was a literal in game/movement.ts and INV-3 says a retune touches this file only. 160ms/tile is four tiles a second at the §7.6 virtual resolution.",
+    "walkMsPerTile": 160
   },
   "party": {
     "_source": "build-doc §3 L12 / §7.8 — versioned JSON in localStorage, 3 slots.",
@@ -307,6 +314,13 @@
     "seasonLowpassHz": { "spring": 20000, "summer": 20000, "autumn": 8000, "winter": 4500 },
     "seasonBrightness": { "spring": 1.0, "summer": 1.15, "autumn": 0.9, "winter": 0.75 },
     "yearDarkenPerYear": 0.08
+  },
+  "_seasonTint": "Hard Requirement 6 — 'Season variation is a runtime tint shader; year variation is art. Never generate seasonal map art.' The four hues are the tint game/season-tint.ts multiplies over whichever painted map is on screen. The MAGNITUDES that dim them (audio.seasonBrightness, audio.yearDarkenPerYear) are their own keys above; these are the HUES, and they were literals in game/season-tint.ts until 2026-08-26. A channel is 0–255 and 255 means 'leave this channel alone' — setTint multiplies — so the reading normalises each preset to peak 255 before the two magnitudes are applied (see hueOf). overlayAlpha is the strength of the optional full-screen overlay pass a scene may draw above the tinted map. One preset per season, exhaustively: the group is a z.record over the Season enum, which unlike every other group here REJECTS an unrecognised key rather than stripping it — hence this note living outside the group.",
+  "seasonTint": {
+    "spring": { "r": 198, "g": 232, "b": 178, "overlayAlpha": 0.1 },
+    "summer": { "r": 255, "g": 224, "b": 160, "overlayAlpha": 0.12 },
+    "autumn": { "r": 226, "g": 150, "b": 76, "overlayAlpha": 0.18 },
+    "winter": { "r": 150, "g": 186, "b": 226, "overlayAlpha": 0.22 }
   },
   "harness": {
     "_source": "build-doc §10.5 — gym win-rate targets 80–95 / 60–80 / 45–65 by pair, round-robin flags outside 35–65%, 500 seeds.",
@@ -334,6 +348,7 @@
   "rng": {
     "_source": "build-doc §8.1 — one seeded xorshift128 stream per subsystem, seeds derived from save seed + subsystem tag. the seeded stream is the only source of randomness in the project (G11).",
     "defaultSeed": 1337,
-    "subsystemTags": ["battle", "sim", "encounter"]
+    "_subsystemTags": "APPEND-ONLY, and the order is load-bearing: tools/harness/content.ts reads the first three positionally as (battle, sim, encounter). 'lifecycle' was added on 2026-08-26 — core/lifecycle.ts's heir roll draws randomness and had no stream of its own, so game/scenes/OverworldScene.ts composed its key out of the SIM tag. Each tag is seeded independently (hashSeed(saveSeed + tag)), so adding one moves no other stream by a single draw.",
+    "subsystemTags": ["battle", "sim", "encounter", "lifecycle"]
   }
 }

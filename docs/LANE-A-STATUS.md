@@ -115,7 +115,9 @@ Test counts by file:
 | `core/rng.ts` | §8.1 seeded xorshift128, per-subsystem streams, per-node child streams, stochastic rounding | Complete. |
 
 **`data/` — all content transcribed from the bible.** 27 species lines / 35 dex identities, 28
-moves + the type chart shape, 6 gym rosters (4/4/5/6/6/6), 12 node files, 32-swatch placeholder
+moves + the type chart shape, 6 gym rosters (**3**/4/5/6/6/6 — gym 1 was amended from 4 on
+2026-08-25, `DEVIATIONS.md` D-A5-G1; the sizes are enforced at boot by `GYM_ROSTER_SIZES`,
+`core/schemas.ts:739`), 12 node files, 32-swatch placeholder
 palette, and `balance.json` carrying every tunable in one place.
 
 ---
@@ -137,8 +139,8 @@ palette, and `balance.json` carrying every tunable in one place.
 | no-`Math.random` | §8.1, §10.3 | `gates/guardrails.test.ts` | **passes** — repo-wide, was four files |
 | `no_phaser_in_core` | L11, §10 | `gates/guardrails.test.ts` | **passes** — direct + transitive import-closure walk, and verified physically |
 | `perf_sim` | §12 | `property/ecosim.test.ts` | **passes** |
-| `overlay_diff` | §8.2, §10.4 | — | **DOES NOT EXIST.** Lane B scope; `tools/overlay-diff/` is empty. |
-| harness gym-sim / round-robin / full-run | §10.5 | — | **DOES NOT EXIST.** Lane A5; `tools/harness/` is empty. |
+| `overlay_diff` | §8.2, §10.4 | `tools/overlay-diff/` + `tests/unit/overlay-diff.test.ts` | **EXISTS** (6 modules, `npm run overlay-diff`; 65 tests pass). Lane B scope — whether it has been run over shipped year-2..6 art is Lane B's to state, and no node carries a `yearVariants` entry yet (§6.6). |
+| harness gym-sim / round-robin / full-run | §10.5 | `tools/harness/` (`npm run harness`) | **EXISTS and has been run.** All three modes; writes `docs/BALANCE-REPORT.md`. See §6.3. |
 | postprocess idempotency, manifest seed reuse | §10.4 | — | **DOES NOT EXIST.** Lane B scope. |
 
 **Every gate is proven to bind, not merely to be green.** Each one is run a second time inside the
@@ -207,8 +209,11 @@ caller's job (see the gap in §6).
 retirees, an event log, the map-variant swaps, and `seasonStepRan`. `advanceYear` answers the
 prompts for you (harness/headless). `resolveRetirement` applies one player choice.
 `retirementChoiceProblem` / `boonTargetUids` let C6 grey out an unapplicable choice instead of
-discovering it mid-turn. `retiresBeyondFinalYear` lets C4's card render an heir's year-7 projection
-honestly.
+discovering it mid-turn. `retiresBeyondFinalYear` is a **pacing readout, not a warning about a year
+that cannot happen** — the calendar is unbounded since D-Q3-1, so year 7 arrives and so does year 40.
+It answers "this creature is still alive after the six years normal pacing expects", which is what
+C4's card renders beside the projection. The name outlived its meaning and was kept because D-A4-14
+records the decision under it; see the header at `core/lifecycle.ts:428-439`.
 
 **Clock.** `advanceAction(clock, "travel"|"foray"|"inn", balance)` → `{clock, events}`.
 **Read this carefully — it is the seam most likely to be re-broken:**
@@ -281,18 +286,53 @@ demonstrated**. Closing it needs either a release-scale `breedRate` on mesopreda
 `data/nodes/*.json` or larger shipped counts — both content edits under DEVIATIONS D9's licence, and
 both properly the balance harness's call (A5). See `docs/DEVIATIONS-lane-a2.md` A2-D1 and A2-D10.
 
-### 6.3 There is no balance harness. (Lane A5.)
+**CLOSED by the harness, and not the way this paragraph expected** — no content edit was needed.
+Measured over 128 seeds per node, `r2` (Fenmaw over Reedrick + Mirefin) produces the complete beat in
+**43%** of seeds against `r4`'s 13%, and `r2` is on the walkable slice. `docs/BALANCE-REPORT.md` §5
+INFERRED names this section by name as the risk it closes. See §6.3.
 
-`tools/harness/` is empty. So:
+### 6.3 The balance harness exists, and every §10.5 mode has been run. (Lane A5.)
 
-- the §10.5 gym win-rate bands (80–95 / 60–80 / 45–65) are **unmeasured** — the gym levels are an
-  assigned ramp (8/14/20/26/32/38, signature +2, DEVIATIONS D9), not a tuned one;
-- the type-chart round-robin (flag any line outside 35–65%) has **never been run**, so "no line is
-  strictly dominant" rests on the stat-template argument, not on data;
-- the full-run sim ("no unintended extinction under normal play") is **unverified**;
-- the over-catch feasibility figure in §6.2 is an **upper-bound calculation**, not a played run.
+~~There is no balance harness. `tools/harness/` is empty.~~ **Stale, and it was the most misleading
+line in this file — all four bullets under it were false.** `tools/harness/` holds 12 modules,
+`npm run harness` (`package.json`) runs all three §10.5 modes against the same `core/` the game
+imports (L11), and it writes `docs/BALANCE-REPORT.md`, last regenerated 2026-08-26. Each former
+bullet, replaced by what was actually measured:
 
-Every number in `balance.json` should be read as *plausible and internally consistent*, not *tuned*.
+- the §10.5 gym win-rate bands are **measured**, 500 seeds per gym, and **1 of 6 is inside its band**
+  on the TRAINED model: Maribel 38.6% (-41.4 pp), Odo 66.0% (-14.0 pp), Vesper 56.8% (-3.2 pp),
+  Sable 59.8% (-0.2 pp), Noct 60.6% (in band), Magnate Greaves 36.2% (-8.8 pp). The ramp is no longer
+  purely assigned: D-A5-G1 (gym 1's roster 4 → 3), D-A5-G2 (gym 1's signature premium +2 → +0, so the
+  signature ladder is `[8,16,22,28,34,40]` and the rank-and-file ramp 8/14/20/26/32/38 is untouched)
+  and D-A5-G3 (`encounter.levelByYear` → 6/12/18/24/30/36) were each decided by measurement. **Gym 1
+  is NOT closed, and is stated rather than tuned around** (D-A5-G4): it reaches the band on the
+  full-party reading (93.4%) and not on the harness's headline matched-party one, and what remains of
+  the gap is act 1's encounter pool — content, and the owner's decision.
+- the type-chart round-robin **has been run** (64 seeds per ordered pair, 702 ordered matchups) and
+  it does not clear the 35–65% band: **10 of 24 non-Ancient lines sit outside it**, from Bramblore at
+  79% down to Carricrow at 7.9%, and **59.0% of matchups are decided** — one side wins all 64 seeds.
+  The stat-template argument survives in a narrower form than it was offered in: every non-Ancient
+  line spends exactly 300 base-stat points and the total correlates with win rate at r = 0.000, so
+  the tail is an ALLOCATION result rather than a budget one — chiefly Instinct, which correlates
+  **negatively** at r = -0.582 because `core/battle.ts` reads it for crit alone and `catchChance`
+  never looks at it at all.
+- the full-run sim is **verified for the claim it makes**: 32 seeds × 3 profiles × 24 season steps,
+  and the `dex` profile — normal play, 20.6 catches per six-year run — drove nothing to zero outside
+  the raid node, so *"no unintended extinction under normal play"* holds. The `collector` profile,
+  the heaviest load the rules permit without releasing, reached zero on 6 player-driven (node, line)
+  pairs. The `baseline` profile with no player in the region at all still loses four `r4` lines,
+  which is G6 working: the raid decrements what it harvests and §7.3 starves the tier above it.
+- the over-catch beat is **a played rate now, not an upper-bound calculation** — 128 seeds per node —
+  and it closes §6.2's open risk from the other side. `r2` (Fenmaw over Reedrick + Mirefin) produces
+  the complete beat in 43% of seeds against `r4`'s 13%, and `r2` is on the walkable slice where
+  build-doc §1 says the video is shot. `fixtures/overcatch-script.json` still reproduces its recorded
+  trace exactly at seed 12, but that seed is a winner rather than a representative: re-run at `r4`
+  over 128 seeds under the fixture's own protocol shape, the complete beat lands in 0% of them.
+
+Every number in `balance.json` should now be read as **measured where `docs/BALANCE-REPORT.md` says
+it was measured, and plausible-but-untuned everywhere else.** The report draws that line itself: its
+§5 separates MEASURED from INFERRED, and its §6 deltas are suggestions measured on a *copy* — a
+harness run leaves the shipped `balance.json` untouched (build-doc §6 INV-3).
 
 ### 6.4 Two lifecycle numbers are known-suspicious and were left alone deliberately.
 
@@ -318,17 +358,22 @@ scope for the G15 IP sweep.
 - ~~`game/` is a `console.info` and an `export {}`. No scenes exist.~~ **Stale.** Lanes B+C landed:
   the overworld, battle, year-turn and retirement scenes exist and are executed headlessly by
   `tests/unit/overworld-scene.test.ts`, `battle-view.test.ts` and `year-turn-ux.test.ts`.
-- ~~`tools/harness/` … are empty directories.~~ **Stale for the harness** — `npm run harness` runs and
-  writes `docs/BALANCE-REPORT.md`. `tools/overlay-diff/` and `tools/collision-editor/` are still empty.
+- ~~`tools/harness/` … are empty directories.~~ **Stale for all three.** `npm run harness` runs and
+  writes `docs/BALANCE-REPORT.md` (§6.3); `tools/overlay-diff/` holds 6 modules behind
+  `npm run overlay-diff`; `tools/collision-editor/` holds a Vite app behind `npm run collision`.
 - ~~`data/dialogue.json` (build-doc §5) **does not exist**~~ **Stale.** It exists: 211 entries, 62
   speakers, re-gated onto the act axis by Q3a. **But nothing in `game/` reads it** — that is Q7/C7 and
   it is the largest remaining item in the repo. Two of the shipped build's story flags are written by
   provisional stand-ins in `OverworldScene` (`onOpeningBeat` for `story.opening.done`) rather than by
   the corpus, and two more (`story.vellsire.resolved` / `.outcome`) are written by nobody at all.
-- `yearVariants` is `{}` on every node — no year-2..6 map art has passed overlay-diff, because
-  overlay-diff does not exist.
-- `balance.yearEvents.raids` holds **one** raid, the bible-pinned year-4 R4 strip-harvest. The other
-  per-act Cullbrand raids (bible §9) are unwritten content, not numbers to invent.
+- `yearVariants` is `{}` on all 12 nodes — no year-2..6 map art has passed overlay-diff. ~~because
+  overlay-diff does not exist.~~ **Stale on the reason:** `tools/overlay-diff/` holds 6 modules,
+  `npm run overlay-diff` is wired, and `tests/unit/overlay-diff.test.ts` passes 65 tests. The gap is
+  the ART, not the tool.
+- `balance.yearEvents.raids` holds **one** raid, the bible-pinned Cullbrand strip-harvest at `r4`.
+  It is keyed to an **ACT, not a year** — `data/balance.json:254` `"act": 4` — and fires on act entry
+  via `enterPendingActs`, never at a year turn (D-Q3-1; build-doc: *"A year turn fires no raid,
+  ever."*). The other per-act Cullbrand raids (bible §9) are unwritten content, not numbers to invent.
 - Ghost gym teams are schema-only, correctly (Hard Req 9 / G8).
 - `fixtures/mega-node.json` does **not** stress 27 lines — bible §5's habitat clause admits at most
   7 lines at any biome, so build-doc §11/§13's "all 27 lines at one node" is not constructible. The

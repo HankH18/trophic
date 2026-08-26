@@ -182,6 +182,41 @@ export interface RaidScript {
   targets: RaidTarget[];
 }
 
+/**
+ * The heir roll's own subsystem tag (build-doc §8.1), declared in `balance.rng.subsystemTags`.
+ *
+ * It lives HERE, in the module that owns the heir roll, and not in the scene that happens to
+ * compose the key — see {@link heirStreamKey}.
+ */
+export const LIFECYCLE_STREAM = "lifecycle";
+
+/**
+ * THE ONE PLACE THE HEIR STREAM'S KEY IS SPELLED (build-doc §8.1).
+ *
+ * `game/scenes/OverworldScene.ts` `beginYearTurn` opens `subsystemRng(save.seed, heirStreamKey(…))`
+ * for each year turn — a FRESH stream keyed on (seed, subsystem, year) rather than a position in a
+ * persistent one, so the same roll comes out of a live run, a reloaded run and a replay, and the
+ * roll moves no other stream by a draw.
+ *
+ * ⚠ IT IS A FUNCTION BECAUSE THE STRING WAS COPIED, AND THE COPIES ROTTED. The key used to be
+ * composed out of the SIM tag (`sim:heir:y<N>`); when the heir got its own declared stream the
+ * scene moved to `lifecycle:heir:y<N>` and two test harnesses that hand-replicate the year turn —
+ * including the one that certifies the Legacy demo beat — kept the old spelling and went on
+ * replaying a stream the game does not play. They were green the whole time, because each of them
+ * constructed the key it then asserted on. Nothing may spell this key again: import it.
+ *
+ * The tag is CHECKED against `balance.rng.subsystemTags` rather than trusted, so a retune that
+ * renames or drops it is a loud failure instead of a silently different heir.
+ */
+export function heirStreamKey(balance: Balance, endedYear: number): string {
+  if (!balance.rng.subsystemTags.includes(LIFECYCLE_STREAM)) {
+    throw new Error(
+      `balance.rng.subsystemTags has no "${LIFECYCLE_STREAM}" stream — the heir roll needs it`,
+    );
+  }
+  return `${LIFECYCLE_STREAM}:heir:y${String(endedYear)}`;
+}
+
 /** Minimum level an heir can land on (bible §2: "Levels 1–40"). */
 export function heirLevelMin(balance: Balance): number {
   return requireTunable(balance.retirement.heirLevelMin, "retirement.heirLevelMin");

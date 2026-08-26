@@ -39,7 +39,7 @@
  * Each of those assertions is now the corrected one, with the reason it changed written beside it.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
@@ -1049,7 +1049,7 @@ describe('the runner (build-doc §9.1)', () => {
  * `row.gate` and a class's `trialled: false` used to be strings nothing read. Measured before the
  * fix, through the real CLI:
  *   `run --class=map-variant --confirm --dry-run` printed "NOTE: untrialed class(es)…" and then
- *   planned 28 img2img rows through a graph that has never been executed;
+ *   planned 28 img2img rows through a graph neither of whose two uses had been reviewed;
  *   `run --class=player --dry-run` planned 8 rows including 6 img2img walk frames with NO --confirm
  *   at all, because 8 sits under the 20-row credit gate.
  * Both are refusals now, and these tests are what keeps them refusals.
@@ -1068,7 +1068,7 @@ describe('supervised gates (build-doc §9.4 / §9.5 / §9.6)', () => {
     const variants = rowsFor('map-variant');
     expect(variants.length).toBeGreaterThan(1);
     expect(() => assertSupervised(variants, manifest, true)).toThrow(SupervisedGateError);
-    expect(() => assertSupervised(variants, manifest, true)).toThrow(/never been executed/);
+    expect(() => assertSupervised(variants, manifest, true)).toThrow(/has been run and reviewed/);
     expect(() => assertSupervised(variants, manifest, false)).toThrow(SupervisedGateError);
   });
 
@@ -1080,7 +1080,72 @@ describe('supervised gates (build-doc §9.4 / §9.5 / §9.6)', () => {
     expect(player.filter((r) => r.mode === 'img2img').length).toBeGreaterThan(1);
     expect(planBatch(player, manifest).requiresConfirm).toBe(false); // G13 alone would wave it through
     expect(() => assertSupervised(player, manifest, false)).toThrow(SupervisedGateError);
-    expect(() => assertSupervised(player, manifest, true)).toThrow(/never been executed/);
+    expect(() => assertSupervised(player, manifest, true)).toThrow(/has been run and reviewed/);
+  });
+
+  /*
+   * BF-21's SIBLING. The README's "Not yet built" section was retracted (B-D66) — the img2img graph
+   * is built and HAS run live — but the refusal a human reads still quoted the retracted sentence
+   * verbatim: `tools/comfy/README.md: "does not exist and cannot be retrieved; it was never
+   * trialled"`. A shipped error citing a document that contradicts it is worse than one citing
+   * nothing, because the operator goes and reads the document.
+   *
+   * The second half of this is the general form, and it is the part that survives the next
+   * rewrite: every sentence any tools/comfy source attributes to the README must still BE in the
+   * README. That is what makes retracting a README paragraph a red test rather than a silent lie in
+   * an error message.
+   */
+  it('the refusal states its own condition, and no tools/comfy source quotes a retracted README line', () => {
+    const readme = readFileSync(resolve(REPO_ROOT, 'tools/comfy/README.md'), 'utf8');
+
+    let msg = '';
+    try {
+      assertSupervised(rowsFor('map-variant'), manifest, true);
+    } catch (e) {
+      msg = (e as Error).message;
+    }
+    expect(msg, 'the gate did not refuse at all').not.toBe('');
+    // Its own condition — the flag it actually reads, and what has actually not happened.
+    expect(msg).toMatch(/manifest\._img2img\.trialled is false/);
+    expect(msg).toMatch(/§9\.5/);
+    expect(msg).toMatch(/§9\.6/);
+    // …and NOT the two claims the README now contradicts: the graph exists and has executed.
+    expect(msg).not.toMatch(/never been executed|does not exist and cannot be retrieved|never trialled/);
+
+    /*
+     * The general form: `README.md … "<sentence>"` anywhere in tools/comfy/*.ts must be quoting
+     * something the README still says.
+     *
+     * The quotations are JOINED FIRST. Both of the stale ones were split across a `+` at the line
+     * break (`"does not exist and cannot be ` + `retrieved; it was never trialled"`), so a matcher
+     * that stops at a newline finds neither of them — it would have read green through the whole
+     * life of the defect.
+     */
+    const readmeQuotations = (src: string): string[] =>
+      [
+        ...src
+          .replace(/`\s*\+\s*[\r\n\s]*`/g, '')
+          .replace(/'\s*\+\s*[\r\n\s]*'/g, '')
+          .matchAll(/README\.md[^"]{0,60}"([^"]{10,200})"/g),
+      ].map((m) => m[1]!);
+
+    // POSITIVE CONTROL, on the exact shape the defect had — otherwise a sweep that finds nothing
+    // (which is what a clean tree looks like) is indistinguishable from a sweep that cannot see.
+    const asItWas =
+      'tools/comfy/README.md: "does not exist and cannot be ` +\n' +
+      '        `retrieved; it was never trialled"';
+    expect(readmeQuotations(asItWas)).toEqual(['does not exist and cannot be retrieved; it was never trialled']);
+    expect(readme).not.toContain('does not exist and cannot be retrieved; it was never trialled');
+
+    const sources = readdirSync(resolve(REPO_ROOT, 'tools/comfy')).filter((f) => f.endsWith('.ts'));
+    expect(sources.length).toBeGreaterThan(2);
+    for (const file of sources) {
+      for (const quoted of readmeQuotations(readFileSync(resolve(REPO_ROOT, 'tools/comfy', file), 'utf8'))) {
+        expect(readme, `tools/comfy/${file} quotes the README on "${quoted}", which it no longer says`).toContain(
+          quoted,
+        );
+      }
+    }
   });
 
   it('lets exactly ONE img2img row through, and only with --confirm — the §9.5/§9.6 smoke', () => {

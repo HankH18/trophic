@@ -59,6 +59,9 @@ import type {
   Trait,
 } from "@core/types";
 import { AGE_CLASSES, STAT_KEYS } from "@core/types";
+// Engine-free (`data/palette.json` and arithmetic, no phaser), so the card's colours can be
+// resolved here without pulling the engine into a node test's module graph.
+import { swatchColor, swatchHex } from "@game/ui/Palette";
 
 /** The class an heir is born at, taken from core's vocabulary rather than written out here. */
 const YOUNGEST_AGE_CLASS: AgeClass = AGE_CLASSES[0];
@@ -903,6 +906,37 @@ export interface RetirementSceneStyle {
 }
 
 /**
+ * The five colours the Legacy card paints with, as PALETTE IDS.
+ *
+ * THE DEFECT THIS REPLACES: {@link defaultRetirementStyle} wrote out `0x14171a`, `0x23282c`,
+ * `0xffd76a`, `#e8e4c9` and `#7d8478`, and **not one of them is one of the 32 swatches**
+ * `data/palette.json` froze at gate B0. The freeze is a value swap over stable ids (build-doc
+ * §8.4), so a hex typed into a style block survives it and then disagrees with every generated
+ * asset on the same screen — and this screen is build-doc §1's never-cut Legacy beat, the one the
+ * demo video ends on. `game/ui/Palette.ts` is engine-free, so the resolution happens here rather
+ * than in the Phaser class and `tests/unit/survey-view.test.ts` can check it on the real style
+ * object the scene draws from.
+ *
+ * Roles follow the house table in `game/menu-model.ts` (`UI_SWATCH_ID`), so the card and the menu
+ * are one palette. Measured against the shipped frozen file: `text` reads 14.9 : 1 on the panel and
+ * 17.5 : 1 on the background, `dim` 5.6 : 1 on the panel, `selected` 10.4 : 1 on the panel. The
+ * panel is a PLATE, not text — it sits a shade off the background exactly as the hexes it replaces
+ * did — and the test recomputes every one of those ratios from `data/palette.json`.
+ */
+export const RETIREMENT_SWATCH_ID = {
+  /** The letterbox behind the card. */
+  bg: "c00",
+  /** The plate the choice is drawn on — a shade off the background, never a text colour. */
+  panel: "c03",
+  /** The row the cursor is on. */
+  selected: "c15",
+  /** Primary text: the retiree's numbers, the heir's, the boon rows. */
+  text: "c18",
+  /** Secondary text: the footer, a row core refused, the mods line. */
+  dim: "c12",
+} as const;
+
+/**
  * The card's layout at the virtual resolution balance.json states.
  *
  * A function rather than a constant because the two numbers that size it are DATA: every other scene
@@ -920,11 +954,11 @@ export function defaultRetirementStyle(balance: Balance): RetirementSceneStyle {
     portrait: 48,
     charWidth: 6,
     confirmArmFrames: 6,
-    bgColor: 0x14171a,
-    panelColor: 0x23282c,
-    selectedColor: 0xffd76a,
-    textColor: "#e8e4c9",
-    dimColor: "#7d8478",
+    bgColor: swatchColor(RETIREMENT_SWATCH_ID.bg),
+    panelColor: swatchColor(RETIREMENT_SWATCH_ID.panel),
+    selectedColor: swatchColor(RETIREMENT_SWATCH_ID.selected),
+    textColor: swatchHex(RETIREMENT_SWATCH_ID.text),
+    dimColor: swatchHex(RETIREMENT_SWATCH_ID.dim),
     fontFamily: "monospace",
     fontSize: "10px",
     titleSize: "12px",

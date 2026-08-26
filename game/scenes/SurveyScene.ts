@@ -23,6 +23,8 @@
 
 import Phaser from "phaser";
 import {
+  SCREEN_COLOR,
+  SCREEN_HEX,
   SCREEN_TEXT,
   buildSurveyPage,
   renderSurveyHeader,
@@ -34,7 +36,6 @@ import {
   buildWebPage,
   collapsedEdgeLabels,
   layoutWebPage,
-  renderWebEdge,
   renderWebTotals,
   webDiagramBox,
   webVertexLabels,
@@ -84,15 +85,24 @@ export interface SurveySceneData {
   onClose?: () => void;
 }
 
-/** UI chrome colours. Not art: `data/palette.json` governs generated assets (build-doc §8.4). */
-const INK = "#e8e4d8";
-const INK_DIM = "#8a8676";
-const INK_COLLAPSED = "#c26a6a";
-const LINE_LIVE = 0xe8e4d8;
-const LINE_COLLAPSED = 0x8a3b3b;
-const VERTEX_LIVE = 0x4f6d4a;
-const VERTEX_ZERO = 0x8a3b3b;
-const BACKDROP = 0x14140f;
+/*
+ * UI chrome colours — resolved through `data/palette.json`, named as roles in game/survey-view.ts.
+ *
+ * The comment that used to sit here said "Not art: `data/palette.json` governs generated assets",
+ * and that was the defect stated as a policy: eight hexes were written out below (`#e8e4d8`,
+ * `#8a8676`, `#c26a6a`, `0xe8e4d8`, `0x8a3b3b`, `0x4f6d4a`, `0x8a3b3b`, `0x14140f`) and NOT ONE of
+ * them is one of the 32 swatches the palette froze at gate B0. Chrome and art sit on the same
+ * screen, so chrome painted outside the freeze disagrees with every asset beside it (build-doc
+ * §8.4). The table is in the engine-free module so a node test can check it.
+ */
+const INK = SCREEN_HEX.ink;
+const INK_DIM = SCREEN_HEX.inkDim;
+const INK_COLLAPSED = SCREEN_HEX.inkCollapsed;
+const LINE_LIVE = SCREEN_COLOR.lineLive;
+const LINE_COLLAPSED = SCREEN_COLOR.lineCollapsed;
+const VERTEX_LIVE = SCREEN_COLOR.vertexLive;
+const VERTEX_ZERO = SCREEN_COLOR.vertexZero;
+const BACKDROP = SCREEN_COLOR.backdrop;
 
 /** Radius of a vertex dot on the diagram. */
 const DOT_RADIUS = 3;
@@ -154,14 +164,15 @@ export class SurveyScene extends Phaser.Scene {
     return typeof source === "function" ? source() : source;
   }
 
-  /**
-   * Point the scene at a different states record — for a caller that reassigns rather than mutates
-   * and would rather not pass a function. Redraws, so the screen is never behind the call.
+  /*
+   * `setStates(source)` USED TO SIT HERE and is deleted (D-SWEEP-2). It existed "for a caller that
+   * reassigns rather than mutates and would rather not pass a function", and after a full sweep of
+   * `game/`, `core/` and `tests/` that caller did not exist — in either lane. It was also the second
+   * way to answer a question {@link NodeStatesSource} already answers once, and the doc there tells
+   * a reassigning caller to hand over the FUNCTION, which `statesNow` re-reads on every redraw. Two
+   * mechanisms for one job, one of them reached by nothing, is the shape the dead-method census in
+   * `tests/unit/survey-view.test.ts` exists to catch; it caught this.
    */
-  setStates(states: NodeStatesSource): void {
-    this.args = { ...this.args, states };
-    if (this.layer) this.redraw();
-  }
 
   /** The node currently being browsed. Public so a test harness or the epilogue can drive it. */
   currentNodeId(): string {
@@ -332,12 +343,15 @@ export class SurveyScene extends Phaser.Scene {
     }
   }
 
-  /** Every edge of the current node as text — what the diagram says, in a form a test can assert. */
-  webLines(): string[] {
-    const web = this.webPage();
-    if (!web) return [];
-    return web.edges.map((e) => renderWebEdge(web, e));
-  }
+  /*
+   * `webLines()` USED TO SIT HERE and is deleted (D-SWEEP-2). Its doc claimed it put the diagram
+   * "in a form a test can assert" and no test asserted it — and the form it produced was already
+   * available to any test without going through a Phaser scene at all, because it was a pass-through
+   * to `game/web-view.ts` `renderWebEdge`, which `tests/unit/survey-view.test.ts` calls directly.
+   * Deleting it takes the last of `renderWebEdge`'s dead references out of this scene: the import is
+   * gone with it, which is the defect §13 of that test file was written about, closed at the source
+   * rather than re-checked by name.
+   */
 
   private text(x: number, y: number, value: string, color: string): Phaser.GameObjects.Text {
     return this.add

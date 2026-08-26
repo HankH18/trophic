@@ -12,6 +12,8 @@
 import type PhaserNS from "phaser";
 import type { BattlerView } from "../battle-view";
 import { isNever } from "../../core/lifecycle";
+import { validateContent } from "../../core/schemas";
+import type { Balance } from "../../core/types";
 import { roleColor, roleHex, type UiSwatchRole } from "./Palette";
 import { placeholderImage } from "../placeholder";
 
@@ -212,17 +214,56 @@ export const CARD_PADDING = 4;
  * a column wide enough for four digits either side of the slash, and {@link hpReadoutFits} is
  * asserted against every battler in the recorded fixtures.
  */
-export const DEFAULT_CARD_STYLE: CombatantCardStyle = {
+const CARD_GEOMETRY = {
   cardW: 150,
   cardH: 46,
   hpBarW: 92,
   hpBarH: 5,
-  // build-doc §9.3 — battle sprites are 96². See game/ui/BattleLayout.ts's SPRITE_W for why this is
-  // a literal (data/balance.json declares no battle-sprite size) and for the measured headroom.
-  spriteW: 96,
-  spriteH: 96,
   fontSize: "8px",
-};
+} as const;
+
+/**
+ * build-doc §9.3 — "nearest-neighbor downscale to target (battle 96², overworld chars 32×48, minis
+ * 32²)". The battle slot is the size the ART PIPELINE hands it, so it is read from
+ * `balance.map.battleSpritePx` and is not a literal here (G11/INV-3).
+ *
+ * ⚠ THIS IS THE NUMBER THE BATTLE SCREEN ACTUALLY DRAWS WITH, and for a while it was the decoy of
+ * the pair. `game/ui/BattleLayout.ts` was moved off its `SPRITE_W = 96` onto the balance key while
+ * `DEFAULT_CARD_STYLE` here kept `spriteW: 96` — and `spriteW` is what reaches
+ * {@link CombatantPanel}'s `placeholderImage` call, the only place a combatant sprite is sized. So
+ * retuning `map.battleSpritePx` moved a helper with no production callers and left every drawn
+ * sprite at 96. The layout's `spriteRect` and this style now read the same accessor, and
+ * `game/scenes/BattleScene.ts` passes the style it built from ITS OWN `ctx.balance` rather than
+ * taking a module-level default.
+ */
+export function defaultCardStyle(balance?: Balance): CombatantCardStyle {
+  const px = battleSpritePx(balance);
+  return { ...CARD_GEOMETRY, spriteW: px, spriteH: px };
+}
+
+/**
+ * The card style for the SHIPPED balance. A convenience for callers that have no `Balance` to hand
+ * (layout maths, tests about the plate); anything that draws a sprite should build its own from the
+ * balance it is running against — see {@link defaultCardStyle}.
+ */
+export const DEFAULT_CARD_STYLE: CombatantCardStyle = defaultCardStyle();
+
+/**
+ * build-doc §9.3's battle target, read from `data/balance.json` (`map.battleSpritePx`).
+ *
+ * It WAS a literal in `game/ui/BattleLayout.ts` (`SPRITE_W = SPRITE_H = 96`) because `balance.map`
+ * declared `playerSpriteW/H` for the overworld and had no battle-sprite key at all — a gap the art
+ * lane had reported from the other side (tools/comfy/manifest.json deviation LB-M4).
+ *
+ * It lives in THIS file, not in the layout, because this is the file that draws the sprite;
+ * `BattleLayout.ts` re-exports it for its own `spriteRect`, and the two therefore cannot disagree.
+ *
+ * HEADROOM, measured at the shipped 480×320: the 96² rects are player y131..227 and enemy y42..138
+ * against `message.y = 274`, so neither sprite reaches the message box.
+ */
+export function battleSpritePx(balance?: Balance): number {
+  return (balance ?? validateContent().balance).map.battleSpritePx;
+}
 
 /** Local x of the HP readout's RIGHT edge. Right-aligned, so a long value grows away from the border. */
 export function hpReadoutRightX(style: CombatantCardStyle): number {

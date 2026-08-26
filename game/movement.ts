@@ -23,10 +23,12 @@
  *
  * ENGINE-FREE. No Phaser import: the scene owns keyboard reading and drawing, this owns the rules.
  *
- * NUMBERS (G11): the tile step and the sprite size are `balance.map`. Walk PACE is not in
- * balance.json and is not a gameplay constant — it changes how the game feels, not what the
- * simulation does — so it is a presentation default here, overridable per call. Flagged in the lane
- * report: if pace should be tunable it wants a `balance.map` key, and data/ was read-only to C2.
+ * NUMBERS (G11): the tile step, the sprite size and the walk pace are all `balance.map` — there is
+ * no gameplay constant written in this file. Pace was a literal (`DEFAULT_MS_PER_TILE = 160`) on the
+ * argument that it changes how the game FEELS rather than what the simulation does, which is true
+ * and is still written on {@link movementConfig} — but INV-3 says a retune is an edit to
+ * data/balance.json and nothing else, and a number no retune can reach is a number in the wrong
+ * place whatever it governs. It is now `balance.map.walkMsPerTile`, still overridable per call.
  */
 
 import type { Balance } from "../core/types";
@@ -88,7 +90,7 @@ export interface MovementState {
 export interface MovementConfig {
   /** build-doc §7.6 — 32px tile step, in WORLD pixels. */
   tileStepPx: number;
-  /** Milliseconds one tile takes. Presentation pace, not a balance tunable (see file header). */
+  /** Milliseconds one tile takes — `balance.map.walkMsPerTile` unless a call site overrides it. */
   msPerTile: number;
   /** build-doc §7.6 — the 32×48 logical sprite, for {@link spriteWorldPosition}. */
   spriteW: number;
@@ -96,14 +98,17 @@ export interface MovementConfig {
 }
 
 /**
- * Presentation pace. Four tiles a second reads as a brisk Gold walk at the 480×320 virtual
- * resolution; it is a feel value, deliberately not in balance.json, and every call site can override
- * it. It is NOT a gameplay constant: no simulation number, encounter rate or population depends on
- * it — a foray is counted in STEPS, so a faster walk costs exactly the same ticks.
+ * Presentation pace, from `balance.map.walkMsPerTile`. The shipped 160ms is four tiles a second,
+ * which reads as a brisk Gold walk at the 480×320 virtual resolution.
+ *
+ * It is a FEEL value rather than a simulation one — no encounter rate or population depends on it,
+ * because a foray is counted in STEPS (`balance.encounter.stepsPerForay`), so a faster walk costs
+ * exactly the same ticks. That is why it can be overridden per call (the scene tests drive movement
+ * at their own pace). It still belongs in balance.json: it was a literal here, and INV-3 says a
+ * retune is an edit to data/balance.json and nothing else. The override is a parameter, not a
+ * second home — pass nothing and the file decides.
  */
-const DEFAULT_MS_PER_TILE = 160;
-
-export function movementConfig(balance: Balance, msPerTile = DEFAULT_MS_PER_TILE): MovementConfig {
+export function movementConfig(balance: Balance, msPerTile = balance.map.walkMsPerTile): MovementConfig {
   return {
     tileStepPx: balance.map.tileStepPx,
     msPerTile,

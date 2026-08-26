@@ -52,6 +52,9 @@ import {
 } from "../core/foodweb";
 import { isNever, projectedRetirementYear, retiresBeyondFinalYear } from "../core/lifecycle";
 import { createRng } from "../core/rng";
+// Engine-free (`data/palette.json` and arithmetic, no phaser), so importing it here keeps this
+// module importable from a node test — which is the whole reason the colour table lives here.
+import { swatchColor, swatchHex } from "./ui/Palette";
 import { AGE_CLASSES } from "../core/types";
 import type {
   AgeClass,
@@ -211,6 +214,89 @@ export const SUMMARY_ART_BOX = { x: 8, y: 32, width: 96, height: 96 } as const;
 export function textLeftOf(box: { x: number; width: number }): number {
   return box.x + box.width + SCREEN_TEXT.padPx;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The three screens' colours (build-doc §8.4 / the gate-B0 palette freeze)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Every colour the dex, the survey and the summary card paint with, as PALETTE IDS.
+ *
+ * THE DEFECT THIS REPLACES. `DexScene`, `SurveyScene` and `SummaryScene` each opened with a block
+ * of inlined hexes — `#e8e4d8`, `#8a8676`, `#d8a24a`, `0x14140f`, `0xc26a6a`, `0x8a3b3b`,
+ * `0x4f6d4a` — and **not one of them is one of the 32 frozen swatches**. `data/palette.json` is
+ * `frozen: true`, so those screens were painted in colours no generated asset will ever contain:
+ * exactly what `game/ui/Palette.ts`'s header warns about ("a widget that inlines `0xe8e4c9`
+ * silently survives the freeze and then disagrees with every generated asset around it").
+ *
+ * They live HERE, not in the three scenes, for the same reason `SCREEN_TEXT` does: a Phaser scene
+ * cannot be imported by a node test, so a palette rule written inside one is a palette rule nothing
+ * can check. `tests/unit/survey-view.test.ts` asserts every id below is a real swatch, that each
+ * resolves to that swatch's hex, and that the replaced hexes are not swatches.
+ *
+ * Roles follow the house table in `game/menu-model.ts` (`UI_SWATCH_ID`: bg `c00`, text `c18`, dim
+ * `c12`, accent `c15`, danger `c09`) so these screens and the menu are one palette rather than two.
+ *
+ * Chosen by MEASURED CONTRAST against `backdrop`, not by eye — a screen that is palette compliant
+ * and unreadable is a different defect, not a fix. Against `c00` (#030202): 17.5 : 1 (`ink`),
+ * 6.6 : 1 (`inkDim`), 12.3 : 1 (`inkFlag`), 5.4 : 1 (`inkCollapsed`), 11.0 : 1 (`vertexLive`).
+ * The graphical marks — the two web lines and the vertex dots — carry no text, so WCAG 1.4.11's
+ * 3 : 1 is the bar they are held to and all of them clear it.
+ *
+ * `vertexLive` is `c20` and NOT the swatch nearest the hex it replaced. `#4f6d4a` quantizes to
+ * `c25` (#688b2d), and `c25` reads 1.03 : 1 against `vertexZero` — a living vertex and an emptied
+ * one would have been the same brightness, on the one screen whose job is telling them apart. That
+ * is the cascade beat rendered as an indistinguishable dot. `c20` is the house `ok` role and sits
+ * 2.03 : 1 off `vertexZero`. The test in `tests/unit/survey-view.test.ts` is what found it.
+ */
+export const SCREEN_SWATCH_ID = {
+  /** The letterbox behind all three screens. */
+  backdrop: "c00",
+  /** Primary text: the heading, the rows, every integer. */
+  ink: "c18",
+  /** Chrome and secondary text: the column header, the footer, a dormant vertex's count. */
+  inkDim: "c12",
+  /** The dex/summary flag column — "dormant", "not in the wild encounter pool". */
+  inkFlag: "c15",
+  /** The web diagram's `collapsed (…)` label. */
+  inkCollapsed: "c09",
+  /** A living diet edge. */
+  lineLive: "c18",
+  /** A collapsed diet edge, drawn broken. */
+  lineCollapsed: "c09",
+  /** A vertex with individuals in it. Must be tellable from `vertexZero` — see the note above. */
+  vertexLive: "c20",
+  /** A vertex at zero. */
+  vertexZero: "c09",
+} as const;
+
+export type ScreenSwatchRole = keyof typeof SCREEN_SWATCH_ID;
+
+/** The same roles as `"#rrggbb"` — the form a Phaser text style takes. */
+export const SCREEN_HEX = {
+  backdrop: swatchHex(SCREEN_SWATCH_ID.backdrop),
+  ink: swatchHex(SCREEN_SWATCH_ID.ink),
+  inkDim: swatchHex(SCREEN_SWATCH_ID.inkDim),
+  inkFlag: swatchHex(SCREEN_SWATCH_ID.inkFlag),
+  inkCollapsed: swatchHex(SCREEN_SWATCH_ID.inkCollapsed),
+  lineLive: swatchHex(SCREEN_SWATCH_ID.lineLive),
+  lineCollapsed: swatchHex(SCREEN_SWATCH_ID.lineCollapsed),
+  vertexLive: swatchHex(SCREEN_SWATCH_ID.vertexLive),
+  vertexZero: swatchHex(SCREEN_SWATCH_ID.vertexZero),
+} as const;
+
+/** …and as `0xRRGGBB` — the form every Phaser fill, tint and line-style argument takes. */
+export const SCREEN_COLOR = {
+  backdrop: swatchColor(SCREEN_SWATCH_ID.backdrop),
+  ink: swatchColor(SCREEN_SWATCH_ID.ink),
+  inkDim: swatchColor(SCREEN_SWATCH_ID.inkDim),
+  inkFlag: swatchColor(SCREEN_SWATCH_ID.inkFlag),
+  inkCollapsed: swatchColor(SCREEN_SWATCH_ID.inkCollapsed),
+  lineLive: swatchColor(SCREEN_SWATCH_ID.lineLive),
+  lineCollapsed: swatchColor(SCREEN_SWATCH_ID.lineCollapsed),
+  vertexLive: swatchColor(SCREEN_SWATCH_ID.vertexLive),
+  vertexZero: swatchColor(SCREEN_SWATCH_ID.vertexZero),
+} as const;
 
 /* ════════════════════════════════════════════════════════════════════════════
  * 1. The ecology survey (bible §12 "ecology survey (per-node populations + web view)")

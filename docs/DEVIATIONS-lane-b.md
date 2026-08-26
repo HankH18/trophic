@@ -218,3 +218,49 @@ It now opens with the numbers, then a **pipeline-integrity panel** that prints t
 per subject per palette *before* any picture — because the previous edition's failure was not a wrong
 number, it was that a viewer had no way to tell a palette problem from a pipeline problem. Every panel
 on it names its palette. **`data/palette.json` is untouched; the call is Hank's.**
+
+---
+
+## Merged into `docs/DEVIATIONS.md`, and the duplicate ids ruled (2026-08-26)
+
+**The nine `LB-M` deviations staged in `tools/comfy/manifest.json._deviations` are merged** into
+`docs/DEVIATIONS.md` as **B-D54 … B-D62**, in that order (LB-M1 → B-D54 … LB-M9 → B-D62). They were
+staged in the manifest because this file was held by a concurrent workflow appending its own B-D
+numbers; that hold is over. The `_deviations` array stays in `manifest.json` as the record of what
+was staged and now carries a `mergedAs` id per entry — `tools/postprocess/steps.ts:40` cites it by
+name, so deleting it would break a live cross-reference for no gain.
+
+**The renumber target is B-D54, not the B-D50 an earlier note proposed:** B-D50 … B-D53 were taken
+by waves 3 and 4 while the merge waited.
+
+### The duplicate ids — the ruling
+
+`B-D18` … `B-D24` are each used **twice** in this file, by lanes that ran in parallel:
+
+| id | "…@palette" — *Cool-region trials + the CANDIDATE re-freeze* | "…@views" — *Player back/side views* / "…@gate" — *B1 repair wave* |
+|---|---|---|
+| B-D18 | palette trials use seed 42, not the derived per-row seed | **@views** `POST /api/upload/image` DOES exist on Comfy Cloud |
+| B-D19 | Fenmaw regressed to a generic croc again | **@views** img2img cannot turn this model's view |
+| B-D20 | a CANDIDATE re-freeze exists, measured, not applied | **@views** back/side sprites are DERIVED, not generated |
+| B-D21 | `equal` weighting stops doing its job over 19 images | **@views** the side view's head is authored geometry |
+| B-D22 | background removal is coupled to the lightest neutral | **@views** "twice the pixel density" does not reproduce |
+| B-D23 | the magenta gap has almost no game content behind it | **@gate** `sobelThreshold` reads against the image's own range |
+| B-D24 | `pt-puddlisk` — an observation for the IP checklist | **@gate** a second, LOCAL acceptance criterion was added |
+
+**They are NOT renumbered, and that is a deliberate ruling, not an omission.** Both senses are cited
+live from files across the tree — `tools/comfy/img2img.ts`, `tools/comfy/manifest.json`,
+`tools/comfy/manifest-palette.json`, `tools/palette/*.ts`, `tools/postprocess/chain.ts`,
+`tests/unit/postprocess.test.ts`, `docs/QUEUED-CHANGES.md`, `docs/BLOCKED-FINDINGS.md` and two
+`assets/approved-trials/**/_compare.json` — and those citations are split across BOTH senses.
+Renumbering one lane means rewriting every one of them, in files four other lanes hold, to fix an
+ambiguity a reader resolves in one glance at the table above. The same reasoning the integrator
+applied at `DEVIATIONS.md` D-INT-6: a ledger that rewrites its own history to look tidy is worth
+less than one that says plainly where it is untidy.
+
+**The rule from here:**
+1. When citing one of these seven ids, **qualify it** — `B-D18@views`, `B-D23@palette`. An
+   unqualified `B-D18`…`B-D24` in new writing is a defect.
+2. **New Lane B rows start at B-D68.** B-D54–B-D62 are the merge above; B-D63–B-D67 are the
+   BF-6 / BF-20 / BF-21 / BF-25 / BF-26 repair rows, all recorded in `docs/DEVIATIONS.md`.
+3. There is now exactly **one** open-ended id sequence in Lane B and it is bounded in
+   `DEVIATIONS.md`'s per-lane index.

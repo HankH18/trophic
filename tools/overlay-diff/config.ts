@@ -1,10 +1,10 @@
 /**
  * tools/overlay-diff/config.ts — the tool's numbers come from data/balance.json, always.
  *
- * G11: no gameplay constant is a literal in code. `balance.overlayDiff` already carries every
- * number §8.2 names — iouThreshold, sobelThreshold, dilatePx, the denoise ladder, the regen cap —
- * and `balance.map` carries the collision grid. So the tool owns no constants of its own, and
- * retuning the gate is an edit to balance.json (INV-3), not to this directory.
+ * G11: no gameplay constant is a literal in code. `balance.overlayDiff` carries every number §8.2
+ * names — iouThreshold, sobelThreshold, dilatePx, the denoise ladder, the regen cap, and now the
+ * drift footprint — and `balance.map` carries the collision grid. So the tool owns no constants of
+ * its own, and retuning the gate is an edit to balance.json (INV-3), not to this directory.
  *
  * `validateContent()` is used rather than a bare JSON read so the tool sees exactly the balance the
  * game sees, schema-validated, and fails loudly on a malformed file instead of quietly reading
@@ -27,13 +27,31 @@ export function overlayDiffConfig(balance?: Balance): OverlayDiffConfig {
 }
 
 /**
- * The player's own footprint, in collision cells — diff.ts's criterion (2) size limit.
+ * The largest walkable-mask drift a year variant may carry — diff.ts's criterion (2) size limit,
+ * in collision cells. Read from `balance.overlayDiff.driftFootprintCells`.
  *
- * `balance.map` already carries every number: the sprite is `playerSpriteW × playerSpriteH` and the
- * mask is sampled on a `collisionCellPx` grid, so the footprint is a division and not a new tunable
- * (G11). It is rounded UP: a sprite that straddles part of a cell occupies that cell.
+ * ⚠ IT USED TO BE DERIVED HERE, and that was the defect. The old body was
+ * `ceil(map.playerSpriteW / map.collisionCellPx) × ceil(map.playerSpriteH / map.collisionCellPx)` —
+ * the player's own footprint, which is the right FLOOR and was defensible as "not a new tunable".
+ * But it made the §9.5 acceptance criterion the one number in the gate that INV-3 could not reach:
+ * every sibling (`iouThreshold`, `sobelThreshold`, `dilatePx`, the denoise ladder, the regen cap) is
+ * a balance key, and loosening this one after a supervised run meant editing this file. The shipped
+ * value is the derived one (2 × 3 at the shipped `balance.map`), so the move changed no verdict.
+ *
+ * The floor survives as a law rather than as arithmetic: `tests/unit/balance-inv3.test.ts` requires
+ * the configured footprint to be at least the player's, because a tolerance smaller than the player
+ * accepts a variant that can strand him.
  */
 export function driftFootprint(balance?: Balance): CellFootprint {
+  const cells = (balance ?? validateContent().balance).overlayDiff.driftFootprintCells;
+  return { cols: cells.cols, rows: cells.rows };
+}
+
+/**
+ * The player's own footprint in collision cells — the FLOOR {@link driftFootprint} must not go
+ * under. Exported so the binding test asks this file rather than restating the division.
+ */
+export function playerFootprintCells(balance?: Balance): CellFootprint {
   const m = (balance ?? validateContent().balance).map;
   return {
     cols: Math.max(1, Math.ceil(m.playerSpriteW / m.collisionCellPx)),

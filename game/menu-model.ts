@@ -38,9 +38,19 @@ import { swatchHex } from "./ui/Palette";
  * Chosen by measured contrast against the background swatch rather than by eye — a menu whose text
  * the player cannot read is not palette compliance, it is a different defect. Against `c00`
  * (#030202) these are 17.5 : 1 (text), 6.6 : 1 (dim), 12.3 : 1 (accent), 5.4 : 1 (danger) and
- * 11.0 : 1 (ok). `game/ui/Palette.ts`'s `UI_SWATCH` is deliberately NOT reused: its roles are tuned
- * for the battle HUD's panel plates, where `text: c07` (#765b4e, 3.3 : 1 on black) is read against a
- * light panel fill rather than against the void.
+ * 11.0 : 1 (ok). `game/ui/Palette.ts`'s `UI_SWATCH` is deliberately NOT reused — but NOT because its
+ * ink differs. Where the two tables share a role name they name the SAME swatch: `text` is `c18` in
+ * both, `accent` is `c15` in both. They are separate because they are tuned against different
+ * GROUND. `UI_SWATCH` paints the battle HUD, whose plate is `panel: c05` (#6e3620) and whose
+ * selection bar is `cursor: c02`, so its `cursorInk` (c03), `cursorInkMuted` (c07) and `cursorInkDim`
+ * (c08) are DARK ink meant to be read ON a light bar: against the `c00` void THIS table paints on
+ * they are 1.2 : 1, 3.3 : 1 and 3.4 : 1 — unreadable here. `UI_SWATCH` also carries no `bg`, `dim`,
+ * `danger` or `ok` role at all, which is four of the six roles below.
+ *
+ * `tests/unit/game-menu-model.test.ts` READS both tables out of `game/ui/Palette.ts` and pins every
+ * clause of that paragraph, rather than restating a swatch id. It has to: the sentence this replaces
+ * claimed `UI_SWATCH.text` was `c07` (#765b4e, 3.3 : 1 on black), which stopped being true when the
+ * battle HUD was un-inverted and `c07` was repurposed to `cursorInkMuted`, and nothing caught it.
  */
 export const UI_SWATCH_ID = {
   bg: "c00",

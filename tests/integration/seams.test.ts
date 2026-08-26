@@ -562,7 +562,19 @@ describe("SEAM — every lane draws from core/rng.ts", () => {
   });
 
   it("the subsystem tags are data, and each tag is an independent stream", () => {
-    expect(balance.rng.subsystemTags).toEqual(["battle", "sim", "encounter"]);
+    /*
+     * ⚠ ORDER IS LOAD-BEARING and the list is APPEND-ONLY, which is why this is `toEqual` on the
+     * whole array rather than a `toContain` per tag: `tools/harness/content.ts` `subsystemTags`
+     * destructures the first three POSITIONALLY as (battle, sim, encounter), so a reorder silently
+     * hands the harness the wrong stream for every battle it runs.
+     *
+     * "lifecycle" was appended on 2026-08-26 (BF-11). Before that the list was exactly the three,
+     * and the heir roll — which is lifecycle randomness — had no stream to name, so
+     * `game/scenes/OverworldScene.ts` composed its key out of the SIM tag. Each tag is seeded
+     * independently, so appending one moved no existing stream by a draw; the next assertion is
+     * what proves that, and `tests/property/determinism.test.ts` proves it end to end.
+     */
+    expect(balance.rng.subsystemTags).toEqual(["battle", "sim", "encounter", "lifecycle"]);
     const seed = 20260825;
     const heads = balance.rng.subsystemTags.map((tag) => {
       const r = subsystemRng(seed, tag);

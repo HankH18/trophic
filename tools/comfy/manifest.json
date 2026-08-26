@@ -13,60 +13,69 @@
   "_deviations": [
     {
       "id": "LB-M1",
+      "mergedAs": "B-D54",
       "spec": "build-doc §9.7 / bible §4 asset-count paragraph",
       "finding": "154 battle sprites is arithmetically impossible against the shipped roster. data/species.json holds 27 lines of which 3 are Ancients; 24 aging lines × 3 age forms + 3 Ancients × 1 form = 75 forms × front/back = 150.",
       "action": "The manifest derives 150 creature-battle rows from data/species.json. This is DEVIATIONS.md D2, already logged by Lane A; recorded here because §9.7's number is the one an art reviewer counts against."
     },
     {
       "id": "LB-M2",
+      "mergedAs": "B-D55",
       "spec": "build-doc §9.3 step 3 (\"rembg\")",
       "finding": "rembg is a Python/ONNX salient-object segmenter; it is not installed, it is not deterministic across versions, and it is not idempotent — a second pass re-mattes an already-matted sprite.",
       "action": "Background removal is a border flood fill against the flat generated background key. Every prompt ends in `plain white background` (the §9.2 skeleton, verbatim), so the background is a known flat key, not an unknown photograph. The fill is exact, deterministic and idempotent, which is what §9.3's own 'every step idempotent' clause requires and what §10.4's idempotency test measures. If a class ever generates on a non-flat background, that class needs a real matte and this note is where to start."
     },
     {
       "id": "LB-M3",
+      "mergedAs": "B-D56",
       "spec": "build-doc §9.3 step order",
       "finding": "§9.3's chain starts at 'nearest-neighbour downscale to target'. The raw outputs are 1024² frames containing a subject that occupies a fraction of the canvas; downscaling that to 96² yields a creature ~20px tall floating in white.",
       "action": "A trim-to-content step runs BEFORE step 1 for the sprite classes (declared per class as `postprocess.trim`), and the downscale then fits the trimmed subject into the target frame preserving aspect. §9.3's three named steps keep their order and their semantics; this is an addition, not a reordering. Maps and painted dex do not trim."
     },
     {
       "id": "LB-M4",
+      "mergedAs": "B-D57",
       "spec": "build-doc §9.2 / §9.7",
       "finding": "Two post-process target sizes named in §9.3 — battle 96² and mini 32² — have no home in data/balance.json, unlike the overworld character size (balance.map.playerSpriteW/H), the map size (balance.map.mapNativePx) and the prop scale (balance.map.propInteractionRadiusDefault).",
       "action": "They ship as `targetW`/`targetH` on the class specs in this file, which is the art lane's data file. tests/unit/manifest.test.ts binds every class target that DOES have a balance source to that source, so the three sizes that are shared with the game can never drift; the two that are art-only are reviewable in one place. Raised for Lane A: `balance.map.battleSpritePx` and `balance.map.miniSpritePx` would close it."
     },
     {
       "id": "LB-M5",
+      "mergedAs": "B-D58",
       "spec": "bible §4 Concept column",
       "finding": "Seven of the 35 dex identities have no concept text anywhere in the bible: Vulkindle, Pyrevane, Rillisk, Maelstrisk, Bramblore, Thornwald (the metamorphic starters' adult/elder identities) and — partially — Gloomgrub.",
       "action": "Handled the way DEVIATIONS D9 handles every other number the bible leaves open: BY PUBLISHED RULE, not by taste. A form with no concept of its own inherits its line's bible concept plus its age stage ('grown to its adult form'). No new anatomy, colour or creature is invented; the entry records `derivedFrom` and its rule so a reviewer can audit it in one place. Gloomgrub's concept IS bible-sourced (§4 row 16 and the metamorphic paragraph: 'Poison/Plant grub')."
     },
     {
       "id": "LB-M6",
+      "mergedAs": "B-D59",
       "spec": "build-doc §9.2 class variants",
       "finding": "§9.2 proves four class variants: creature battle sprite, trainer battle sprite, overworld character sprite, top-down town map. The build needs five more: route maps, environment props, UI frames, the painted dex class (§9.4, untrialed by design) and img2img year variants (§9.5, untrialed).",
       "action": "map-route adapts the PROVEN town skeleton, swapping 'town' for 'route' and dropping 'clear building entrances'; prop and ui-frame reuse the pixel skeleton verbatim with their own class noun. dex-painted uses §9.4's prompt direction verbatim. All five are marked `trialled: false` on the class spec, so an operator can see at a glance which classes are running on a proven style lock and which are not."
     },
     {
       "id": "LB-M7",
+      "mergedAs": "B-D60",
       "spec": "bible §6 aging-arc column",
       "finding": "bible §6 gives an aging arc for each of the 6 towns/sites and NONE for the 6 routes, but §9.5 needs an arc string per node to append to the year-variant prompt.",
       "action": "A route inherits the aging arc of the town that shares its biome (R1↔Hearthollow Meadow, R2↔Brackwater Marsh, R3↔Bowerdeep Forest, R4↔Cindershelf Steppe, R5↔Duskhollow Vale, Sanctum Approach↔The Sanctum Fallow). Recorded per node in `_nodes` with its source, so a bible-sourced arc and an inherited one are never confused."
     },
     {
       "id": "LB-M8",
+      "mergedAs": "B-D61",
       "spec": "build-doc §9.2 / locked decision L6",
       "finding": "L6 says the string `green shirt, ranger cap with star badge, leather satchel, walking boots` appears VERBATIM in every player prompt. The prompt that actually produced the gate-B0-approved sprite does not contain it verbatim — it elaborates: `a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots`.",
       "action": "The approved prompt wins, and this is why: §8.4 and G5 make an approved asset's prompt+seed its identity, and the approved sprite is the one Hank signed off at a SUPERVISED gate. Substituting the L6 string would generate a different character while claiming to be a regeneration — the exact failure G5 exists to prevent. Every L6 ELEMENT is present (green shirt · ranger cap · star badge · leather satchel · walking boots) and the cape ban is enforced on the negative side (B-D7), so L6's intent holds; only its 'verbatim' clause does not. `_player.l6Verbatim` keeps the spec string on the record, and tests/unit/manifest.test.ts asserts the elements plus byte-equality with manifest-b0.json's approved row."
     },
     {
       "id": "LB-M9",
+      "mergedAs": "B-D62",
       "spec": "build-doc §9.2 fidelity rule",
       "finding": "§9.2 says 'front-load and repeat distinctive anatomy (Fenmaw's gharial snout class of failure)'. The derivation did exactly that and Fenmaw STILL came back a generic crocodile — the subject already read `bulk gharial with a long narrow gharial snout` twice (assets/raw/palette-trials/pt-fenmaw.png). Repetition is not the missing piece: this model reads the SPECIES TERM `gharial` as its common relative `crocodile`, so repeating the term repeats the wrong animal. Confirmed by one generation per hypothesis: replacing the term with the SHAPE — `an extremely long thin tube-shaped snout, a narrow needle-like jaw far longer than the head is wide` — produced a true gharial (pt-fenmaw-b.png). The same collapse is visible in every other trial whose identity rests on a specialist term: `lungfish` rendered a generic bipedal fish blob (pt-mirefin.png), the `wyrm` of `spider-wyrm` vanished and left a plain spider (pt-webvern.png), `spore-antlered` rendered plain deer antlers (pt-sporantle.png), `eyeless` rendered a serpent with large eyes (pt-undermere.png), `will-o-wisp` rendered nothing at all (pt-wispurr.png), `dusk moth` rendered butterfly filaments (pt-gloomoth.png), `mudball tadpole` rendered a bipedal blob with no tail (pt-bogling.png).",
       "action": "§9.2's fidelity rule gains a second clause, and `_concepts` is where it is applied: NAME DISTINCTIVE ANATOMY BY ITS SHAPE, NEVER BY ITS SPECIES TERM — the term stays (it is the bible's word and G2 protects it), the shape is added beside it and both are then front-loaded and repeated by the derivation. Rewritten: Fenmaw, Mirefin, Webvern, Sporantle, Undermere, Bogling, Wispurr, Gloomoth (each measured above) and Stonewing (reasoned, not measured — no trial exists). Deliberately NOT rewritten: Pyrelisk, because 'basilisk' fixes no anatomy in the bible and a shape restatement would have to invent one. THIS IS A PROMPT CHANGE, NOT A CONTENT CHANGE: every bible name, type, role, habitat and concept term is untouched and still appears verbatim in the subject; only the wording that steers the generator is added. Rewriting what Fenmaw IS would be a G2 violation; describing the gharial's snout by its geometry is a pipeline fidelity fix. Seeds are unaffected — `deriveSeed` is pure in (id, version), so no row's seed moves and G5 is not engaged. Recorded in docs/DEVIATIONS-lane-b.md as B-D33 and in tools/comfy/README.md so the next agent building subjects does not reintroduce it."
     }
   ],
-  "_deviationsNote": "These are staged HERE, with an LB-M prefix, because docs/DEVIATIONS-lane-b.md is held by a concurrent workflow that is appending its own B-D numbers — two lanes numbering into the same sequence produced a collision once already. They fold into DEVIATIONS.md with B-D numbers at Lane B integration. Every one of them is a departure from build-doc §9 that a reviewer should see before trusting a count, a prompt or a post-process step.",
+  "_deviationsNote": "MERGED 2026-08-26. These nine were staged HERE, with an LB-M prefix, because docs/DEVIATIONS-lane-b.md was held by a concurrent workflow appending its own B-D numbers and two lanes numbering into one sequence had already collided once. They are now merged into docs/DEVIATIONS.md as B-D54 ... B-D62 (each entry carries its `mergedAs` id), which is CANONICAL; this array is kept as the staging record because tools/postprocess/steps.ts cites it by name. Every one of them is a departure from build-doc \u00a79 that a reviewer should see before trusting a count, a prompt or a post-process step. Edit the DEVIATIONS.md row, not this one.",
   "_yearVariantPolicy": "build-doc §9.7 caps accepted year variants at 30 and cut line C-2 is 'year variants beyond year 2 for non-slice nodes'. Rows are therefore generated for the four vertical-slice nodes (hearthollow, r1, brackwater, r2) at years 2–6 and for every other node at year 2 only: 4×5 + 8×1 = 28 rows, inside the cap and exactly matching the cut line. Every one of them is img2img (§9.5) and NONE may enter a node JSON without passing tools/overlay-diff (§8.2 / G4).",
   "schemaVersion": 1,
   "workflowGraph": "tools/comfy/pixel-txt2img-api.json",
@@ -764,7 +773,7 @@
   "_versionsNote": "build-doc §8.4's licensed escape, persisted: 'any asset regenerated must reuse its manifest seed unless the manifest entry is versioned'. deriveRows() reads a row's version from here, so a bump survives `rebuild` and actually moves the seed. Bump either this map or the row's own `version` field and run `rebuild` — the rebuild promotes a row-level bump into this map, clears that row's recorded seed/file (the old art is superseded, not deleted) and sets it back to pending. An id absent from this map is version 1.",
   "_img2img": {
     "trialled": false,
-    "_source": "tools/comfy/README.md: the img2img workflow 'does not exist and cannot be retrieved; it was never trialled'. The graph has since been EXECUTED (DEVIATIONS-lane-b B-D18 verified the upload endpoint, B-D19 ran a denoise sweep off the approved player static), but that sweep established a LIMIT rather than an approval — img2img on this model is for deltas within a view and cannot turn one. Neither of the two uses build-doc asks for, §9.5 map year variants and §9.6 walk frames, has been run and reviewed.",
+    "_source": "At the handoff there was no img2img workflow: none existed, none could be retrieved, none had been trialled — tools/comfy/README.md carried that as its 'Not yet built' section until it was corrected (BF-21). The graph has since been BUILT and EXECUTED (DEVIATIONS-lane-b B-D18 verified the upload endpoint, B-D19 ran a denoise sweep off the approved player static), but that sweep established a LIMIT rather than an approval — img2img on this model is for deltas within a view and cannot turn one. Neither of the two uses build-doc asks for, §9.5 map year variants and §9.6 walk frames, has been run and reviewed.",
     "_enforcement": "While this is false, comfy-batch's assertSupervised() refuses any batch containing more than ONE img2img row, with or without --confirm. Set it to true only after one image has been generated through tools/comfy/img2img.ts, reviewed by a human, and the result logged in docs/DEVIATIONS-lane-b.md."
   },
   "rows": [

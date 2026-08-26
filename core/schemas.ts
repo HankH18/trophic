@@ -292,6 +292,18 @@ export const zPaletteFile: z.ZodType<PaletteFile> = z.object(zPaletteFileShape);
 const zAgeRecord = z.record(zAgeClass, z.number());
 const zSeasonRecord = z.record(zSeason, z.number());
 
+/**
+ * A season-tint colour channel.
+ *
+ * ⚠ NO UPPER BOUND, and that is not laxity. `game/season-tint.ts` `hueOf` normalises every preset
+ * so its brightest channel is the maximum before the two magnitudes are applied, and `packRgb`
+ * clamps on the way out — so a preset is a RATIO and (1000, 800, 600) is the same hue as
+ * (255, 204, 153). An 8-bit ceiling here would assert a convention nothing downstream depends on,
+ * and it would put a magic number in `core/` to do it (INV-4). What IS load-bearing is below: a
+ * channel cannot be negative, and a preset cannot be all zeroes.
+ */
+const zTintChannel = z.number().min(0);
+
 const zBalanceShape = {
   types: z.object({
     superEffective: z.number().positive(),
@@ -516,6 +528,10 @@ const zBalanceShape = {
     denoiseStep: zFrac,
     denoiseFloor: zFrac,
     maxRegenAttempts: zNonNegInt,
+    // build-doc §8.2 criterion (2). A zero-cell tolerance rejects every variant ever generated, so
+    // the smallest meaningful value is one cell on each axis; the real floor (the player's own
+    // footprint) is a cross-file identity and is bound in tests/unit/balance-inv3.test.ts.
+    driftFootprintCells: z.object({ cols: zInt.min(1), rows: zInt.min(1) }),
   }),
   /**
    * build-doc §7.6, verbatim: "Painted maps 1024×1024 native rendered 2× (2048² world). Collision
@@ -544,6 +560,12 @@ const zBalanceShape = {
       playerSpriteH: zInt.min(1),
       tileStepPx: zInt.min(1),
       propInteractionRadiusDefault: z.number().positive(),
+      // build-doc §9.3 downscale targets — "battle 96², overworld chars 32×48, minis 32²". The
+      // overworld pair has been playerSpriteW/H all along; these are the other two.
+      battleSpritePx: zInt.min(1),
+      miniSpritePx: zInt.min(1),
+      // Presentation pace (game/movement.ts). A step that takes zero ms is not a step, so min 1.
+      walkMsPerTile: zInt.min(1),
     })
     .superRefine((m, ctx) => {
       // "at map native res, sampled on a 16px grid (64×64 cells)" — the cell count IS the division.
@@ -594,6 +616,36 @@ const zBalanceShape = {
     seasonBrightness: zSeasonRecord,
     yearDarkenPerYear: z.number().min(0),
   }),
+  /**
+   * Hard Requirement 6 — the four season hues `game/season-tint.ts` multiplies over the painted
+   * map. A channel outside 0–255 is not a colour `setTint` can take, and an alpha outside 0–1 is
+   * not an alpha, so both are bounded here rather than clamped silently at the frame that needed
+   * them. One preset per `Season`, exhaustively — `z.record` over the enum requires every key, so a
+   * season added to the type without a hue is a boot failure, not an untinted map.
+   */
+  seasonTint: z.record(
+    zSeason,
+    z
+      .object({
+        r: zTintChannel,
+        g: zTintChannel,
+        b: zTintChannel,
+        overlayAlpha: zFrac,
+      })
+      .superRefine((preset, ctx) => {
+        // `hueOf` returns black for a peak of zero rather than dividing by it, so an all-zero
+        // preset is not a validation error anywhere downstream — it is a season that paints the
+        // map black with no warning. It is refused here, at boot, where it can still be read.
+        if (Math.max(preset.r, preset.g, preset.b) <= 0) {
+          ctx.addIssue({
+            code: "custom",
+            message:
+              "every channel of this season's tint is 0 — `setTint` MULTIPLIES, so this season " +
+              "would paint the map black rather than tint it (Hard Requirement 6)",
+          });
+        }
+      }),
+  ),
   harness: z.object({
     seeds: zInt.min(1),
     gymWinRateTargets: z.array(z.tuple([zFrac, zFrac])).min(1),

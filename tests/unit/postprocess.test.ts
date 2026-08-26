@@ -54,6 +54,7 @@ import { toSprite } from '../../tools/comfy/player-views.ts';
 import { atlasDescriptor, packAtlas } from '../../tools/postprocess/atlas.ts';
 import { fontScale, makePlaceholder, wrapLabel } from '../../tools/postprocess/placeholder.ts';
 import { loadManifest, type ClassSpec, type ManifestFile, type ManifestRow } from '../../tools/comfy/comfy-batch.ts';
+import { writePlaceholders } from '../../tools/postprocess/run.ts';
 
 const PALETTE = loadPalette();
 
@@ -762,11 +763,20 @@ describe('placeholders never look like finished art', () => {
     expect(wrapLabel('PROP-SUNKEN-IDOL', smallest[0]).length).toBeGreaterThan(0);
   });
 
+  /*
+   * The REAL writer, not a hand-built stand-in for it. This used to do
+   * `writeRaster(dest, makePlaceholder(row.id, …))` — which is the pre-BF-25 label convention,
+   * constructed here and then asserted on, so it would have gone on encoding `row.id` for ever
+   * however `writePlaceholders` was labelling things. `tools/postprocess/run.ts` owns the label; ask
+   * it. (`tests/unit/postprocess-run.test.ts` reads the PIXELS back and proves which string it used;
+   * what is asserted here is the destination.)
+   */
   it('writes to the row destination the node data already references', async () => {
     const row = manifest.rows.find((r) => r.id === 'map-hearthollow')!;
-    const dest = finalPathOf(row, tmp);
-    await writeRaster(dest, makePlaceholder(row.id, 32, 32, { palette: PALETTE }));
-    expect(resolve(dest)).toBe(resolve(tmp, 'assets/final/maps/hearthollow.png'));
+    const report = await writePlaceholders(manifest, (r) => r.id === row.id, { force: true, root: tmp });
+    expect(report.written).toEqual([finalPathOf(row, tmp)]);
+    expect(resolve(finalPathOf(row, tmp))).toBe(resolve(tmp, 'assets/final/maps/hearthollow.png'));
+    expect(existsSync(finalPathOf(row, tmp))).toBe(true);
   });
 });
 
