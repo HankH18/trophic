@@ -21,7 +21,7 @@ npm run harness
 | full-run seeds per profile | 32 |
 | over-catch seeds per node | 128 |
 | candidate parties drafted per seed | 8 |
-| wall-clock | gym 833ms · gym.mirror 251ms · gym.levelSweep 1561ms · gym.ageControl 1020ms · gym.partySizeControl 415ms · chart 377ms · run.profiles 377ms · run.fixture 0ms · run.overcatch 287ms · probes 575ms |
+| wall-clock | gym 833ms · gym.mirror 241ms · gym.levelSweep 1510ms · gym.ageControl 1021ms · gym.partySizeControl 412ms · chart 370ms · run.profiles 387ms · run.fixture 1ms · run.overcatch 269ms · probes 580ms |
 
 **TWO CLOCKS (D-Q3-1).** The calendar (ticks → seasons → years) and the ACT (badges and quest flags)
 are independent, so a harness has to CHOOSE a pacing model rather than inherit one. Mode (c) drives
@@ -117,6 +117,14 @@ price the last one exactly.
 - **Vesper** (act 3, Poison) measured **56.8%** against a target of 60%–80% — **-3.2 pp**. The player's drafted team covered 5.0 of the leader's 5 creatures super-effectively, so this is not a coverage failure.
 - **Sable** (act 4, Fire) measured **59.8%** against a target of 60%–80% — **-0.2 pp**. The player's drafted team covered 6.0 of the leader's 6 creatures super-effectively, so this is not a coverage failure.
 - **Magnate Greaves** (act 6, mixed) measured **36.2%** against a target of 45%–65% — **-8.8 pp**. The player's drafted team covered 6.0 of the leader's 6 creatures super-effectively, so this is not a coverage failure.
+
+
+**Verdict at the party size the game allows: 4 of 6 gyms are inside the §10.5 band.**
+
+The verdict above fields a party matched to the leader's roster (clause 3). The game lets the player bring six. For gyms whose leader fields fewer than six, those are different fights, and only one of them is the shipped one.
+
+- **Sable** (act 4) measures **59.8%** at full party against 60%–80% — **-0.2 pp**. This one is a real miss under both conventions.
+- **Magnate Greaves** (act 6) measures **36.2%** at full party against 45%–65% — **-8.8 pp**. This one is a real miss under both conventions.
 
 
 #### 2.3 The seat control — is the player seat itself fair?

@@ -197,6 +197,45 @@ function renderGymSim(loaded: LoadedContent, m: HarnessMeasurements): string {
               )
               .join("\n") + "\n");
 
+  /**
+   * The verdict above is measured under clause 3 — a player party MATCHED to the leader's roster
+   * size. The shipped game lets the player bring six to every gym, so for gyms 1-3 that verdict
+   * describes a fight nobody has. Reported alongside rather than instead: the same seeds, the same
+   * model, the party size the game actually allows. §2.5 prices the gap per leader.
+   *
+   * This matters because the matched-party number reads as a balance defect and is not one. Tuning
+   * a leader DOWN toward it would make the real fight easier than build-doc §10.5 asks for.
+   */
+  const fullPartyVerdict =
+    trained === undefined || !m.partySizeControl
+      ? ""
+      : (() => {
+          const atFull = trained.gyms.map((g) => {
+            const cell = m.partySizeControl?.find((c) => c.gymId === g.gymId);
+            const rate = cell?.winRate ?? g.winRate;
+            return { g, rate, inBand: rate >= g.band[0] && rate <= g.band[1] };
+          });
+          const n = atFull.filter((x) => x.inBand).length;
+          const out = atFull.filter((x) => !x.inBand);
+          return (
+            `**Verdict at the party size the game allows: ${n} of ${atFull.length} ` +
+            `${n === 1 ? "gym is" : "gyms are"} inside the §10.5 band.**\n\n` +
+            `The verdict above fields a party matched to the leader's roster (clause 3). The game lets ` +
+            `the player bring six. For gyms whose leader fields fewer than six, those are different ` +
+            `fights, and only one of them is the shipped one.\n\n` +
+            (out.length === 0
+              ? "Every gym is in band at full party.\n"
+              : out
+                  .map(
+                    (x) =>
+                      `- **${x.g.gymName}** (act ${x.g.act}) measures **${pct(x.rate)}** at full party ` +
+                      `against ${pct(x.g.band[0], 0)}–${pct(x.g.band[1], 0)} — **${pp(x.rate - (x.rate < x.g.band[0] ? x.g.band[0] : x.g.band[1]))}**. ` +
+                      `This one is a real miss under both conventions.`,
+                  )
+                  .join("\n") + "\n")
+          );
+        })();
+
   const controls: string[] = [];
 
   if (m.mirror) {
@@ -278,7 +317,7 @@ function renderGymSim(loaded: LoadedContent, m: HarnessMeasurements): string {
     );
   }
 
-  return section("## 2. Mode (a) — gym-sim", [...blocks, verdict, ...controls].filter(Boolean).join("\n\n"));
+  return section("## 2. Mode (a) — gym-sim", [...blocks, verdict, fullPartyVerdict, ...controls].filter(Boolean).join("\n\n"));
 }
 
 /* ── 3. round-robin ─────────────────────────────────────────────────────── */
