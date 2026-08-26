@@ -1,289 +1,289 @@
 {
- "_slice": "S8a-amb-hearthollow",
- "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
- "entries": [
-  {
-   "id": "amb.hearthollow-elder.base",
-   "speaker": "hearthollow-elder",
-   "node": "hearthollow",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
+  "_slice": "S8a-amb-hearthollow",
+  "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
+  "entries": [
     {
-     "text": "You'll be off up the Reach, then. I drove cattle up there. We didn't go out of this gate, we went out of the old gate down past the mill, and they'd no cause to move it that I ever saw. Grass does well up on the Reach. Which is — anyway. Mind the gate on your way through."
+      "id": "amb.hearthollow-elder.base",
+      "speaker": "hearthollow-elder",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "You'll be off up the Reach, then. I drove cattle up there. Through the old gate, down past the mill, and there was never any call to move it that I saw."
+        },
+        {
+          "text": "Grass does well up there. Always has. Which is — anyway. Skir come over the hedge at dusk hunting Nibbin out of the tussock. I watched one drop, come up with nothing, go up, and drop again twenty foot along."
+        },
+        {
+          "text": "Mind the gate on your way through. The far latch drops if you don't lift it, and the one down past the mill was the better gate anyway, only they"
+        }
+      ]
     },
     {
-     "text": "Skir come over the hedge at dusk, hunting the Nibbin out of the tussock. I've watched one drop and come up with nothing at all, and go up again, and drop again twenty foot along."
+      "id": "amb.hearthollow-elder.bloom",
+      "speaker": "hearthollow-elder",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 2,
+        "floraStock": [
+          {
+            "node": "r1",
+            "op": "gte",
+            "value": 80
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "The Reach has come up green right down to the fence line."
+        },
+        {
+          "text": "Tolm will get a crop off his west side in a year like this. His father had that field in oats. Or barley — it was one of the two. Tolm put it down to grass the day he took it on."
+        }
+      ]
     },
     {
-     "text": "I had cattle on the Reach fifty-two years. Or fifty. My daughter has it wrote down somewhere. I've told you about the gate already, I should think."
-    }
-   ]
-  },
-  {
-   "id": "amb.hearthollow-elder.bloom",
-   "speaker": "hearthollow-elder",
-   "node": "hearthollow",
-   "kind": "ambient",
-   "priority": 40,
-   "when": {
-    "yearMin": 2,
-    "floraStock": [
-     {
+      "id": "amb.hearthollow-elder.thin",
+      "speaker": "hearthollow-elder",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 2,
+        "floraStock": [
+          {
+            "node": "r1",
+            "op": "lte",
+            "value": 45
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "The Reach is short this year. I'd have had the beasts down off that rise a month early."
+        },
+        {
+          "text": "The town fields go the way the Reach goes and Tolm's west side goes first. It went first the year of the wet harvest and all, and that was years before ever he touched the drainage down at that end."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-child.base",
+      "speaker": "hearthollow-child",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Maren let me hold the survey book and I looked at every page of it and there isn't a single drawing anywhere in the whole thing."
+        },
+        {
+          "text": "My da says I'm not to keep on at her about it. I'm going to, though."
+        },
+        {
+          "text": "There's a Nibbin under the mill step and her name is Kettle, and I told Maren her name was Kettle and she wrote her in as a Nibbin and Kettle isn't in the book anywhere at all."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-child.older",
+      "speaker": "hearthollow-child",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 5
+      },
+      "lines": [
+        {
+          "text": "Kettle's gone white round the face."
+        },
+        {
+          "text": "She's the same one and I'd know her anywhere and Maren wrote her in again at the turn and it still only says Nibbin. I'm learning my letters. There's a white bit down the side of the page."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-farmhand.base",
+      "speaker": "hearthollow-farmhand",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "West gate's down again. Bramblehog, same post. Back up before dark."
+        },
+        {
+          "text": "Loamunder go along under the west field all night. I've ploughed it top and bottom and never turned one up."
+        },
+        {
+          "text": "Six weeks to harvest and dry all week. Two hands, four fields."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-forager.base",
+      "speaker": "hearthollow-forager",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "A track's the easy sign. A browse line takes longer. It's where something's come along and eaten the tips off a bush and left the stems standing, and the bush is still stood there, mind. With me?"
+        },
+        {
+          "text": "The stems are what I measure. A folding rule, notched down the side, off my mother."
+        },
+        {
+          "text": "Scrapes now. A scrape is bark rubbed off. Dug is different. Dug leaves a cast, which is to say a little heap thrown out at the side of it. Seen one? Pollywisp you'll not see till the spring. Rest of the year they're down in the wet."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-fenceman.base",
+      "speaker": "hearthollow-fenceman",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Post's out of the ground down the west end. Whole post, root and all."
+        },
+        {
+          "text": "Something comes through the wire there and takes it away with it. Cart gets to the second stile and I carry the rest from there, so that's a morning gone before I've started on anything."
+        },
+        {
+          "text": "Warden wants a number off me. I showed her the post. She wrote something down."
+        }
+      ]
+    },
+    {
+      "id": "amb.r1-forager.base",
+      "speaker": "r1-forager",
       "node": "r1",
-      "op": "gte",
-      "value": 80
-     }
-    ]
-   },
-   "lines": [
-    {
-     "text": "The Reach has come up green right down to the fence line this year. The grass didn't come that far down the slope when I was droving."
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "The best week of my year, this. Third year I've come up for the picking."
+        },
+        {
+          "text": "The grass is four or five days further on than the same week last year, and the tussock's crept north on me as well. A hundred paces from the old edge to the new."
+        },
+        {
+          "text": "Wet springs, that'll be. There's an antler stone up on the north rise and it's where I stop for my dinner."
+        }
+      ]
     },
     {
-     "text": "Tolm will get a crop off his west side out of a year like this one. His father had that field in oats and the oats did all right down there. Then Tolm put it down to grass when he took it on. He'll have had a reason."
-    }
-   ]
-  },
-  {
-   "id": "amb.hearthollow-elder.thin",
-   "speaker": "hearthollow-elder",
-   "node": "hearthollow",
-   "kind": "ambient",
-   "priority": 40,
-   "when": {
-    "yearMin": 2,
-    "floraStock": [
-     {
+      "id": "amb.r1-forager.thin",
+      "speaker": "r1-forager",
       "node": "r1",
-      "op": "lte",
-      "value": 45
-     }
-    ]
-   },
-   "lines": [
-    {
-     "text": "The Reach is short this year. I'd have had the beasts down off that rise a month early."
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 2,
+        "population": [
+          {
+            "node": "r1",
+            "lineId": "nibbin-line",
+            "op": "lte",
+            "value": 4
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "I walked the whole tussock this morning and turned up two Nibbin, and last year I'd have seen a dozen of them before I got as far as the gate."
+        },
+        {
+          "text": "The Skir are still about. They're over the far hedge these days. Somebody else's ground now."
+        }
+      ]
     },
     {
-     "text": "The town fields go the way the Reach goes. Tolm's west side goes first, and it went first the year of the wet harvest as well. He tells me it's his drainage doing it. I didn't follow the half of what he did down there."
-    }
-   ]
-  },
-  {
-   "id": "amb.hearthollow-child.base",
-   "speaker": "hearthollow-child",
-   "node": "hearthollow",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "Maren let me hold the survey book. It's numbers all down the page and not one drawing."
-    },
-    {
-     "text": "There's a Nibbin lives under the mill step and I gave her a name. I said her name to Maren and she wrote down one Nibbin. Da says I'm not to keep on at her. I'm going to keep on at her about it."
-    },
-    {
-     "text": "When I'm bigger I'm walking all the way up to the Sanctum Fallow on my own. It's shut, but there's a wall down at the back of it. I'm going up to look at the wall."
-    }
-   ]
-  },
-  {
-   "id": "amb.hearthollow-child.older",
-   "speaker": "hearthollow-child",
-   "node": "hearthollow",
-   "kind": "ambient",
-   "priority": 40,
-   "when": {
-    "yearMin": 5
-   },
-   "lines": [
-    {
-     "text": "The lanterns were better when I was small. They say it's the same lanterns and it's me that got bigger. They were bigger, though. I remember."
-    },
-    {
-     "text": "The Nibbin under the mill step has gone white round the face. She's the same one, I'd know her anywhere. Maren wrote her down again and the book still just says Nibbin."
-    }
-   ]
-  },
-  {
-   "id": "amb.hearthollow-farmhand.base",
-   "speaker": "hearthollow-farmhand",
-   "node": "hearthollow",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "West gate's down again. Bramblehog, same post as last time. Back up before dark."
-    },
-    {
-     "text": "Loamunder in the furrows all night. Stand in the west field after dark and you can hear them under the ground. I've ploughed it top and bottom and never turned one up."
-    },
-    {
-     "text": "Six weeks to harvest. Two hands, four fields. Tolm's taking another pair on once the crop's in, which is a bit after I want them."
-    }
-   ]
-  },
-  {
-   "id": "amb.hearthollow-forager.base",
-   "speaker": "hearthollow-forager",
-   "node": "hearthollow",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "A track's the easy sign. A browse line takes longer. That's where something's come along and eaten the tips off a bush and left the stems standing. Which is to say the bush is still stood there. With me?"
-    },
-    {
-     "text": "Pollywisp you only get in the spring. Every summer somebody stops me to say the Pollywisp have gone out of the Reach. They're down in the wet ground, which is to say you won't see them till the spring."
-    },
-    {
-     "text": "I measure the browse height off a folding rule. Cut the notches on it myself."
-    }
-   ]
-  },
-  {
-   "id": "amb.hearthollow-fenceman.base",
-   "speaker": "hearthollow-fenceman",
-   "node": "hearthollow",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "Fence line's four miles. I walk it spring and back end and mend what's down. Cart gets to the second stile. I carry the rest."
-    },
-    {
-     "text": "Something comes through the wire down the west end. Takes the post clean out of the ground with it. It's heavy, whatever it is. Post's in the barrow if you want a look at it."
-    },
-    {
-     "text": "Warden wants a number off me. I showed her the post. She wrote something down."
-    }
-   ]
-  },
-  {
-   "id": "amb.r1-forager.base",
-   "speaker": "r1-forager",
-   "node": "r1",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "This is the third year I've come up for the picking. The grass is further on than it was this same week last year. Four or five days further on, I'd say."
-    },
-    {
-     "text": "The tussock's crept north on me as well. Where I was picking last year is bare ground now, and I make it a hundred paces from the old edge to the new one. Wet springs, I'd say."
-    },
-    {
-     "text": "There's a stone up on the north rise cut into a pair of antlers. No idea what it's for."
-    }
-   ]
-  },
-  {
-   "id": "amb.r1-forager.thin",
-   "speaker": "r1-forager",
-   "node": "r1",
-   "kind": "ambient",
-   "priority": 40,
-   "when": {
-    "yearMin": 2,
-    "population": [
-     {
+      "id": "amb.r1-forager.bloom",
+      "speaker": "r1-forager",
       "node": "r1",
-      "lineId": "nibbin-line",
-      "op": "lte",
-      "value": 4
-     }
-    ]
-   },
-   "lines": [
-    {
-     "text": "I walked the whole tussock this morning and turned up two Nibbin. Two. Last year I'd have seen a dozen before I got as far as the gate."
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 2,
+        "floraStock": [
+          {
+            "node": "r1",
+            "op": "gte",
+            "value": 88
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "I've not picked the Reach this thick before. Knee-high on the north rise."
+        },
+        {
+          "text": "The same week last year it was no higher than my boot. The Nibbin have grazed that rise all week and there's grass standing yet. A Bramblehog on the path this morning hardly troubled to move for me."
+        }
+      ]
     },
     {
-     "text": "The Skir are still about, only they're over the far hedge now instead of the rise. I'm up here three weeks a year, so there's a good deal I don't see."
-    }
-   ]
-  },
-  {
-   "id": "amb.r1-forager.bloom",
-   "speaker": "r1-forager",
-   "node": "r1",
-   "kind": "ambient",
-   "priority": 40,
-   "when": {
-    "yearMin": 2,
-    "floraStock": [
-     {
+      "id": "festival.hearthollow",
+      "speaker": "hearthollow-elder",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "priority": 65,
+      "when": {
+        "flagsSet": [
+          "event.festival.open"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Lanterns are up on the green. When the season's out the year goes over with it."
+        },
+        {
+          "text": "Every beast on the place gets a year older at the turn, whether it's been out on the grass all year or shut in the byre since spring. We brought ours down off the Reach the fortnight before, the way we always did."
+        }
+      ]
+    },
+    {
+      "id": "amb.hearthollow-fenceman.late",
+      "speaker": "hearthollow-fenceman",
+      "node": "hearthollow",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 6
+      },
+      "lines": [
+        {
+          "text": "Three posts down the west end won't hold now. I pack stone round them."
+        },
+        {
+          "text": "Put them back in the holes I dug six years ago. Ground's gone soft at that end. They'll not hold another winter."
+        }
+      ]
+    },
+    {
+      "id": "amb.r1-forager.late",
+      "speaker": "r1-forager",
       "node": "r1",
-      "op": "gte",
-      "value": 88
-     }
-    ]
-   },
-   "lines": [
-    {
-     "text": "I've not picked the Reach this thick before. The grass is knee-high on the north rise and the same week last year it was no higher than my boot."
-    },
-    {
-     "text": "The Nibbin have been grazing that rise all week and there's still grass standing. I put a Bramblehog up on the path this morning and it barely got out of my way."
+      "kind": "ambient",
+      "priority": 39,
+      "when": {
+        "yearMin": 6
+      },
+      "lines": [
+        {
+          "text": "The tussock's six hundred paces north of where I picked my first year. I pace it the same week every year."
+        },
+        {
+          "text": "Six years of the same four miles, and the Nibbin graze that rise flatter every year of it. Wet springs, I'd have said, and I only see it the one week. Picking's better than it ever was. Two more baskets in that rise before dark."
+        }
+      ]
     }
-   ]
-  },
-  {
-   "id": "festival.hearthollow",
-   "speaker": "hearthollow-elder",
-   "node": "hearthollow",
-   "kind": "cutscene",
-   "priority": 65,
-   "when": {
-    "flagsSet": [
-     "event.festival.open"
-    ]
-   },
-   "lines": [
-    {
-     "text": "Lanterns are up on the green. They go up the last week of the season, and when the season's out the year goes over with it."
-    },
-    {
-     "text": "Every beast on the place gets a year older at the turn. Makes no odds whether it's been out on the grass all year or shut up in the byre since spring. We'd bring the beasts down off the Reach the week before, most years."
-    }
-   ]
-  },
-  {
-   "id": "amb.hearthollow-fenceman.late",
-   "speaker": "hearthollow-fenceman",
-   "node": "hearthollow",
-   "kind": "ambient",
-   "priority": 40,
-   "when": {
-    "yearMin": 6
-   },
-   "lines": [
-    {
-     "text": "Same four miles I had six years ago. Still one man on it."
-    },
-    {
-     "text": "I put the posts back in the same holes I dug six years ago. Three down the west end won't hold now without stone packed round. So I carry stone up with me."
-    }
-   ]
-  },
-  {
-   "id": "amb.r1-forager.late",
-   "speaker": "r1-forager",
-   "node": "r1",
-   "kind": "ambient",
-   "priority": 39,
-   "when": {
-    "yearMin": 6
-   },
-   "lines": [
-    {
-     "text": "The tussock's gone six hundred paces north of where I picked my first year up here. Six years of that. I pace it out the same week every year."
-    },
-    {
-     "text": "The tracker out of Hearthollow says it's the water under the ground, shifting with whatever's been grazed off up top. I still say it's the wet springs. She's here the year round and I'm here three weeks of it."
-    }
-   ]
-  }
- ]
+  ]
 }

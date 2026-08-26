@@ -1,132 +1,132 @@
 {
- "_slice": "S8e-amb-duskhollow",
- "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
- "entries": [
-  {
-   "id": "amb.duskhollow-astronomer.base",
-   "speaker": "duskhollow-astronomer",
-   "node": "duskhollow",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
+  "_slice": "S8e-amb-duskhollow",
+  "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
+  "entries": [
     {
-     "text": "Second hour of my night and nothing has crossed the vale yet. I sleep through the afternoons now, and my landlady thinks that's a disgrace in a grown man."
+      "id": "amb.duskhollow-astronomer.base",
+      "speaker": "duskhollow-astronomer",
+      "node": "duskhollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Second hour of my night. I've not seen this town in daylight since the spring."
+        },
+        {
+          "text": "Third hour nothing, fourth hour nothing. What goes in the margin is mostly Wispurr, and they're up once the cold comes."
+        },
+        {
+          "text": "Fourteen in a night last winter and not one since the thaw, so the page has stayed empty."
+        }
+      ]
     },
     {
-     "text": "Anything that crosses the vale while I've got the instrument on the vale goes in the margin of the page, and somebody has been up here doing that every night for ninety years. Ives calls the margin a census. Orrin has a good deal to say about Ives calling it that, and I've had the whole argument off Ives on the stair and the whole of it again off Orrin in the archive."
+      "id": "amb.duskhollow-elder.base",
+      "speaker": "duskhollow-elder",
+      "node": "duskhollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Whatever Bly told you. A jar and a half left, second week of the month."
+        },
+        {
+          "text": "Same three rooms, same two lamps, and I am buying oil now at a rate I never used to. The lampwright wants what he wanted in the spring and I have told him so to his face."
+        },
+        {
+          "text": "There was a wick in my hand when you came through that door and there is a wick in it still. I trim my own. The week is not out yet, so I could not tell you what it has cost me even if you asked me to."
+        }
+      ]
     },
     {
-     "text": "Most of what goes in that margin is Wispurr, and the Wispurr are only up once the cold comes, so the page fills through the winter and sits empty the rest of the year. Eleven crossings in one night last winter and my hand ached by the end of it. In summer I can sit the whole night through and mark nothing at all, and I'm back up here at dusk the next day all the same."
+      "id": "amb.duskhollow-child.base",
+      "speaker": "duskhollow-child",
+      "node": "duskhollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "My shutters are open all night and my lamp's out. So if I get a Wispurr I'm keeping it in the shed. That's settled."
+        },
+        {
+          "text": "It has to be winter, she says, and winter takes forever, it's been nearly a week already."
+        },
+        {
+          "text": "So you'll say it to her when you're passing. I'll leave the shed door on the latch. Then it's done and nobody has to keep on about it."
+        }
+      ]
+    },
+    {
+      "id": "amb.duskhollow-lampwright.base",
+      "speaker": "duskhollow-lampwright",
+      "node": "duskhollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Cold-pressed, then strained, then strained again through flannel. Four burns to the fill."
+        },
+        {
+          "text": "I would stand on four. Anything giving you less was strained the once and jarred while the oil was still warm, and you can taste that on the second burn. The wick gauge matters more than the oil does anyway."
+        },
+        {
+          "text": "Fourteen to the inch. Any finer will not draw and any coarser smokes."
+        }
+      ]
+    },
+    {
+      "id": "amb.duskhollow-shepherd.base",
+      "speaker": "duskhollow-shepherd",
+      "node": "duskhollow",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "The ground's thin up the vale and dark half the day. The flock does very well on it."
+        },
+        {
+          "text": "The lambs are carrying weight this year and you can put a hand on one and feel it. So."
+        },
+        {
+          "text": "Umbrat graze that ground alongside my sheep. The Wispurr come hunting the Umbrat once the cold's in, and neither has ever had a lamb off me. The dogs and I go up past the Sanctum gate of a morning and come down at dusk."
+        }
+      ]
+    },
+    {
+      "id": "amb.r5-astronomer.base",
+      "speaker": "r5-astronomer",
+      "node": "r5",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Stand off the east side while I'm reading. Town's lamps in the glass again."
+        },
+        {
+          "text": "I am out here rather than in the town because in the town the lamps sit in the glass all night."
+        },
+        {
+          "text": "The vale goes dark at about a degree a decade. The chart carries the rate and it carries no reason for it."
+        }
+      ]
+    },
+    {
+      "id": "amb.sanctum-approach-scout.base",
+      "speaker": "sanctum-approach-scout",
+      "node": "sanctum-approach",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "My figure for the day is nought. Company scout, posted here at first light to write down what comes back down."
+        },
+        {
+          "text": "The approach took six teams at first light and it is past noon."
+        },
+        {
+          "text": "Written out longhand. n, o, u, g, h, t. The gate was already open when we got here. The people I report to would not want that said out loud. I've gone and said it anyway. I am going to stop now."
+        }
+      ]
     }
-   ]
-  },
-  {
-   "id": "amb.duskhollow-elder.base",
-   "speaker": "duskhollow-elder",
-   "node": "duskhollow",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "Ingram will tell you his oil is as good as it ever was. Ingram would, wouldn't he."
-    },
-    {
-     "text": "Four jars I bought the year I was married. Nine jars I bought last year. Same three rooms, same two lamps, and I have kept every bill of it in the drawer under the window. They've a chart up at the observatory with how fast it's going dark written on it, or so I'm told, because I've not been up there and I'm not going."
-    },
-    {
-     "text": "Four jars the year I was married, nine last year. Effie tells me to shut the shutters at night and let the observatory say what it likes. Effie is thirty. My room's cold by two in the morning, and when I'm awake I light the lamp, and the lamp burns oil."
-    }
-   ]
-  },
-  {
-   "id": "amb.duskhollow-child.base",
-   "speaker": "duskhollow-child",
-   "node": "duskhollow",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "The shutters have to stay open all night, even in my room, even when it's freezing in there. Mother says it's for the observatory and that's all she'll say about it."
-    },
-    {
-     "text": "If I get a Wispurr I'm keeping it in the shed and I'll feed it myself. Mother says winter. Winter takes ages."
-    },
-    {
-     "text": "Orrin let me hold one of the old books in the archive and he didn't even mind that I'd come up. It's heavier than it looks and he made me hold it with both hands. I said I'd come back tomorrow and hold another one, so that's what I'm doing."
-    }
-   ]
-  },
-  {
-   "id": "amb.duskhollow-lampwright.base",
-   "speaker": "duskhollow-lampwright",
-   "node": "duskhollow",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "Cold-pressed, then strained, then strained again through flannel. Four burns to the fill, and I'll stand behind four. Anything that gives you less than four was strained the once and jarred while the oil was still warm, and that's where the smoke comes from."
-    },
-    {
-     "text": "The observatory takes my whole autumn stock, every autumn, and they pay on the day the cart goes up. I've no complaint about them at all."
-    },
-    {
-     "text": "The wick gauge matters more than the oil does and most people won't be told that. Too fine and the wick won't draw the oil up at all. Too coarse and it smokes, and then it wants trimming every hour of the evening, which nobody does. I cut every wick I sell to the one gauge and I put a card in the box with the gauge written on it, and people throw the card away."
-    }
-   ]
-  },
-  {
-   "id": "amb.duskhollow-shepherd.base",
-   "speaker": "duskhollow-shepherd",
-   "node": "duskhollow",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "Up the vale the ground's thin and it's dark half the day, and my flock does well enough on it. People tell me that can't be right. They've not been up to see this year's lambs."
-    },
-    {
-     "text": "The Umbrat graze that thin ground alongside my sheep, and when the cold comes in the Wispurr are up there hunting the Umbrat. In all the years I've been up there, neither of them has taken a lamb off me. Not one lamb."
-    },
-    {
-     "text": "The Sanctum gate is up at the head of the vale road. It hasn't been opened in my lifetime that I know of, and my father said the same about his. I go up past it in the morning with the dogs and I come back down past it at dusk. The only time I stop there is to get a stone out of my boot, because the step at the foot of it stays dry and there's nowhere else on that road to sit."
-    }
-   ]
-  },
-  {
-   "id": "amb.r5-astronomer.base",
-   "speaker": "r5-astronomer",
-   "node": "r5",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "This is the field station. The observatory has the better instrument and the better roof, and I am out here instead."
-    },
-    {
-     "text": "We read from out here because in the town the lamps sit in the glass of the instrument all night. The dark in the vale has been deepening at about a degree a decade, and that is the rate, and the chart out here carries the rate and nothing else. People walk out and ask me whether the town's lamps are what is making the vale darker. They are not. I read past the lamps and I get the same rate."
-    },
-    {
-     "text": "The antler stone out in the open ground north of here is what everyone wants to talk about, and I have nothing to tell them about it. I paced that ground out for the north sightline and it carries no cover for a quarter mile in any direction. Stand off the east side of the station while I am reading, because the town's lamps come up over the ridge on that side."
-    }
-   ]
-  },
-  {
-   "id": "amb.sanctum-approach-scout.base",
-   "speaker": "sanctum-approach-scout",
-   "node": "sanctum-approach",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "Company scout. Six teams went up the approach at first light. My instruction is to sit at this post and write down what comes back down."
-    },
-    {
-     "text": "It is past noon. Nothing has come back down and I have had nothing to write, so my figure for the day is nought. I have written the word out longhand on the sheet, n-o-u-g-h-t, because that is how we are told to keep a sheet with no figure on it. Six teams went up. Four men to a corner of the cradle they took with them."
-    },
-    {
-     "text": "The gate was already open when we got here. The people I report to would not want that said out loud. I have said it to you and I am not taking it back. Somebody opened that gate before we arrived, and I do not know who, and I am going to stop talking about the gate now."
-    }
-   ]
-  }
- ]
+  ]
 }

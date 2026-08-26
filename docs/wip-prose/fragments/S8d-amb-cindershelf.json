@@ -1,164 +1,164 @@
 {
- "_slice": "S8d-amb-cindershelf",
- "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
- "entries": [
-  {
-   "id": "amb.cindershelf-miner.base",
-   "speaker": "cindershelf-miner",
-   "node": "cindershelf",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
+  "_slice": "S8d-amb-cindershelf",
+  "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
+  "entries": [
     {
-     "text": "Warm? Third's warm, aye. Hands know it before I'm off the second ladder. Comes off the vents. Gerta says it doesn't. Gerta takes the readings, not me."
+      "id": "amb.cindershelf-miner.base",
+      "speaker": "cindershelf-miner",
+      "node": "cindershelf",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Warm? Third's warm, aye. Hands know it before I'm off the second ladder. Comes off the vents, that."
+        },
+        {
+          "text": "Pyrelisk? Up the vent line when it flares. Took the hair off my arm, the once."
+        },
+        {
+          "text": "Come round this side and say it again. Left ear's no good since the fourth shaft."
+        }
+      ]
     },
     {
-     "text": "Come round this side and say it again. Left ear's no good since the fourth shaft."
+      "id": "amb.cindershelf-shafthand.base",
+      "speaker": "cindershelf-shafthand",
+      "node": "cindershelf",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Right. A vent opens, the ground round it goes soft, and soft ground is what we cut. The housing went up behind it, which is why the east row leans. Mind the loose bit by the winch."
+        },
+        {
+          "text": "The shrines. We didn't put them there and we don't move them."
+        },
+        {
+          "text": "Ashvole burrow, and where they've been at the cinder it's loose enough to open a face."
+        }
+      ]
     },
     {
-     "text": "Pyrelisk? Up the vent line when it flares. Not every flare. Enough that the boss won't send a crew up on a flare day. Took the hair off my arm, the once. I'm on the low workings now."
-    }
-   ]
-  },
-  {
-   "id": "amb.cindershelf-shafthand.base",
-   "speaker": "cindershelf-shafthand",
-   "node": "cindershelf",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "Right — a vent opens, the ground round it goes soft, and soft ground is what we can cut, so that's where the workings go. Housing goes up behind the shaft after that. Which is why the east row leans downhill. My place settles an inch a year. Mind the loose bit by the winch."
+      "id": "amb.cindershelf-elder.base",
+      "speaker": "cindershelf-elder",
+      "node": "cindershelf",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Young men in good coats, in the front room, with a folder each."
+        },
+        {
+          "text": "One of them kept his gloves on indoors in high summer, in a room with a fire going in it, and I have never worked out why."
+        },
+        {
+          "text": "There were Stonewing on the west scarp when I was a girl, and Cragmar grazing the flat below them. If you say they went in the third contract, that will be right. If you say the second, I'd not argue with you either."
+        }
+      ]
     },
     {
-     "text": "The shrines. We didn't put them there and we don't move them."
+      "id": "amb.cindershelf-child.base",
+      "speaker": "cindershelf-child",
+      "node": "cindershelf",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "The mine's boring."
+        },
+        {
+          "text": "There's a shrine at the bottom of the third shaft bigger than a cart. I've not seen it and nobody's taking me down."
+        },
+        {
+          "text": "Sable's Pyrelisk is loud. Was that all you wanted? Only I was doing something."
+        }
+      ]
     },
     {
-     "text": "Right — Ashvole. Little burrowing things, and where they've been at the cinder it's loose enough to open a face in the wall. Don't ask me how many there are, it isn't my job to know. I'm on nights, six in eight, and I put in for it myself. Mind that step going down, it's wet all year."
-    }
-   ]
-  },
-  {
-   "id": "amb.cindershelf-elder.base",
-   "speaker": "cindershelf-elder",
-   "node": "cindershelf",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "Four contracts in my life. Three of them good ones. I don't say which three."
+      "id": "amb.cindershelf-worker.base",
+      "speaker": "cindershelf-worker",
+      "node": "cindershelf",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "The overalls are company issue and there's no company here to issue them."
+        },
+        {
+          "text": "West scarp crew. Six-year contract, came in on weight in four. I was on it, I took the early bonus and I spent it, and I'm not going to tell you I didn't."
+        },
+        {
+          "text": "My wife was born here, three doors up from where we live now."
+        }
+      ]
     },
     {
-     "text": "There were Stonewing on the west scarp when I was a girl. A pair of them, off the same shelf of rock. My mother pointed them out every time we walked up. I'd already seen them. She liked doing it."
-    },
-    {
-     "text": "The men who come to sign a contract are always young. A young man in a good coat, in my father's front room, and years after, in mine. One kept his gloves on indoors in high summer. Three of the four were good ones."
-    }
-   ]
-  },
-  {
-   "id": "amb.cindershelf-child.base",
-   "speaker": "cindershelf-child",
-   "node": "cindershelf",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "Bram lets me put my hands flat on his floor. It's warm even when the forge is cold. Do you want to feel it? You have to be quick, because he comes back."
-    },
-    {
-     "text": "Everyone asks me about the mine. The mine's boring. There's a shrine at the bottom of the third shaft, bigger than a cart. Bigger than two carts."
-    },
-    {
-     "text": "Sable's Pyrelisk is the loudest thing in the whole town. Are you going to fight Sable?"
-    }
-   ]
-  },
-  {
-   "id": "amb.cindershelf-worker.base",
-   "speaker": "cindershelf-worker",
-   "node": "cindershelf",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "Overalls are company issue. No company here to issue them now. They're good overalls."
-    },
-    {
-     "text": "Contract came in on weight in four years. It was written for six. West scarp crew, and I was on it. Every man on it took the early bonus. I took mine and I spent it, and I'm not going to stand here and tell you I didn't."
-    },
-    {
-     "text": "I'm still here because my wife was born here. The rest of the crew went off after the next contract. Two of them still write at the turn of the year."
-    }
-   ]
-  },
-  {
-   "id": "amb.r4-worker.base",
-   "speaker": "r4-worker",
-   "node": "r4",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "Salvage, that's me. On my own out here since the spring."
-    },
-    {
-     "text": "The contract's shut, so I'm pulling out cable and rail, and you can follow the cable runs the whole way up from the vent line to the west scarp — I'll walk you up if you've a morning to spare. There's a rail up top four of us couldn't shift. The winch gave out on it."
-    },
-    {
-     "text": "Carricrow come down whenever I get a crate open. Three or four of them sit up on the rail the whole time I'm working and they don't shift when I shout at them. There's nothing in the crates for them but cable and packing straw."
-    }
-   ]
-  },
-  {
-   "id": "amb.r4-worker.arrival",
-   "speaker": "r4-worker",
-   "node": "r4",
-   "kind": "ambient",
-   "priority": 40,
-   "when": {
-    "actMin": 4,
-    "flagsUnset": [
-     "story.steppe.arrival.seen"
-    ]
-   },
-   "lines": [
-    {
-     "text": "First time up here? It's quiet in the middle of the day and it ought to be. It's gone quiet at dusk as well now, and it wasn't before."
-    },
-    {
-     "text": "The warden's up and down this scarp with a book under her arm. I was on the crew that worked it, and I'd sooner you had that from me than off somebody else. Four years we ran it and I was here for the last two. Now I'm pulling that same cable back out. Kettle's on if you want a cup."
-    }
-   ],
-   "setFlags": {
-    "story.steppe.arrival.seen": true
-   }
-  },
-  {
-   "id": "amb.r4-worker.emptied",
-   "speaker": "r4-worker",
-   "node": "r4",
-   "kind": "ambient",
-   "priority": 41,
-   "when": {
-    "actMin": 4,
-    "population": [
-     {
+      "id": "amb.r4-worker.base",
+      "speaker": "r4-worker",
       "node": "r4",
-      "lineId": "stonewing-line",
-      "op": "lte",
-      "value": 1
-     }
-    ]
-   },
-   "lines": [
-    {
-     "text": "The nest on the west scarp is empty. I go past it every time I'm up for the rail. Nothing on it, nothing round it. The white streak on the rock under it has gone grey."
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Watch that crate, the lid's off. They come open on their own now and the Carricrow have worked that out."
+        },
+        {
+          "text": "Contract's shut, so I'm pulling cable and rail out, and you can follow the cable runs the whole way up from the vent line. I'll walk you up if you've a morning to give it."
+        },
+        {
+          "text": "There's a rail up top that four of us couldn't shift, and it's still up there, and I have a go at it most mornings going past, on my own, which tells you how that goes."
+        }
+      ]
     },
     {
-     "text": "More Carricrow than there used to be. There were Stonewing lifting off that rock when I started."
+      "id": "amb.r4-worker.arrival",
+      "speaker": "r4-worker",
+      "node": "r4",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "actMin": 4,
+        "flagsUnset": [
+          "story.steppe.arrival.seen"
+        ]
+      },
+      "lines": [
+        {
+          "text": "First time up here? There's a kettle on at the hut if you want a cup before you go up."
+        },
+        {
+          "text": "The warden's up and down this scarp with a book under her arm, and I was on the crew that worked it, right to the end. Quiet in the middle of the day, and it ought to be. Come dusk it's quiet as well now, and it never used to be."
+        }
+      ],
+      "setFlags": {
+        "story.steppe.arrival.seen": true
+      }
+    },
+    {
+      "id": "amb.r4-worker.emptied",
+      "speaker": "r4-worker",
+      "node": "r4",
+      "kind": "ambient",
+      "priority": 41,
+      "when": {
+        "actMin": 4,
+        "population": [
+          {
+            "node": "r4",
+            "lineId": "stonewing-line",
+            "op": "lte",
+            "value": 1
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "More Carricrow than there used to be, and there were Stonewing lifting off that rock when I started."
+        },
+        {
+          "text": "The nest on the west scarp is empty and I go past it every time I'm up for the rail, with nothing on it and nothing round it, and the white streak underneath has gone grey."
+        }
+      ]
     }
-   ]
-  }
- ]
+  ]
 }

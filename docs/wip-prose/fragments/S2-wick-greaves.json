@@ -1,567 +1,523 @@
 {
- "_slice": "S2-wick-greaves",
- "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
- "entries": [
-  {
-   "id": "wick.act1.pre",
-   "speaker": "wick",
-   "node": "r1",
-   "kind": "battle-pre",
-   "priority": 80,
-   "when": {
-    "actMin": 1,
-    "flagsUnset": [
-     "rival.act1.fought"
-    ]
-   },
-   "lines": [
+  "_slice": "S2-wick-greaves",
+  "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
+  "entries": [
     {
-     "text": "You'll be Maren's, then — the one she's got walking the Reach for her. I'm Wick, second year with the Cullbrand Company, and this route's on my intake sheet."
+      "id": "wick.act1.pre",
+      "speaker": "wick",
+      "node": "r1",
+      "kind": "battle-pre",
+      "priority": 80,
+      "when": {
+        "actMin": 1,
+        "flagsUnset": [
+          "rival.act1.fought"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You'll be Maren's, then. The one she's got walking the Reach for her. I'm Wick, second year with the Cullbrand Company, and this route's on my intake sheet. Company pays by the head and doesn't ask whose."
+        },
+        {
+          "text": "I'm grade four. Eleven a head."
+        },
+        {
+          "text": "The bird's a Carricrow. Down as common on the sheet, and it pays like it."
+        }
+      ]
     },
     {
-     "text": "Company pays by the head and it doesn't ask whose. I'm grade four. That's eleven a head."
+      "id": "wick.act1.win",
+      "speaker": "wick",
+      "node": "r1",
+      "kind": "battle-win",
+      "priority": 80,
+      "when": {
+        "actMin": 1
+      },
+      "lines": [
+        {
+          "text": "Five to four on the last exchange, and the returns sheet gets that figure tonight."
+        },
+        {
+          "text": "It'll say I lost, which is the whole use of a returns sheet. I'm on the marsh road tomorrow either way, with a room over the net loft and a column to fill."
+        }
+      ],
+      "setFlags": {
+        "rival.act1.fought": true,
+        "rival.act1.playerResult": "win"
+      }
     },
     {
-     "text": "The bird's a Carricrow. They laugh at me for it at intake. I'm keeping it — in a bad week my team comes back with nothing and this route still pays, and that's on my returns."
-    }
-   ]
-  },
-  {
-   "id": "wick.act1.win",
-   "speaker": "wick",
-   "node": "r1",
-   "kind": "battle-win",
-   "priority": 80,
-   "when": {
-    "actMin": 1
-   },
-   "lines": [
-    {
-     "text": "You were quicker than me the whole way through. Not just at the end. The whole way."
+      "id": "wick.act1.loss",
+      "speaker": "wick",
+      "node": "r1",
+      "kind": "battle-loss",
+      "priority": 79,
+      "when": {
+        "actMin": 1
+      },
+      "lines": [
+        {
+          "text": "You had the better of me by less than the returns sheet will make it look, and I'll say so on the sheet. You've walked the whole Reach for her. Cullbrand puts a man on half of it."
+        }
+      ],
+      "setFlags": {
+        "rival.act1.playerResult": "loss"
+      }
     },
     {
-     "text": "I'll write it up in the returns tonight and it'll say I lost. Find me on the marsh road when you get down that way — I take a room over the net loft."
-    }
-   ],
-   "setFlags": {
-    "rival.act1.fought": true,
-    "rival.act1.playerResult": "win"
-   }
-  },
-  {
-   "id": "wick.act1.loss",
-   "speaker": "wick",
-   "node": "r1",
-   "kind": "battle-loss",
-   "priority": 79,
-   "when": {
-    "actMin": 1
-   },
-   "lines": [
-    {
-     "text": "Closer than the returns sheet will make it look, and I'll say so on the sheet. You'll have walked the whole Reach for her by now, end to end. We don't. There's half of this route nobody puts a man on."
-    }
-   ],
-   "setFlags": {
-    "rival.act1.playerResult": "loss"
-   }
-  },
-  {
-   "id": "wick.act2.pre",
-   "speaker": "wick",
-   "node": "r2",
-   "kind": "battle-pre",
-   "priority": 80,
-   "when": {
-    "actMin": 2,
-    "flagsUnset": [
-     "rival.act2.fought"
-    ]
-   },
-   "lines": [
-    {
-     "text": "Brackwater's whole fishery is priced off the Fenmaw and it has been for sixty years. That's what the intake schedule says and I can show you the page."
-    },
-    {
-     "text": "Down here they just call it the season. Their fathers called it the season and they eat off it."
-    }
-   ]
-  },
-  {
-   "id": "wick.act2.win",
-   "speaker": "wick",
-   "node": "r2",
-   "kind": "battle-win",
-   "priority": 80,
-   "when": {
-    "actMin": 2
-   },
-   "lines": [
-    {
-     "text": "Your timing in the shallows is better than mine. I went early, the way I always go early out here."
-    },
-    {
-     "text": "Sel poles the channel crossing here. Stand still long enough and he'll tell you what's under the channel, and it takes him the best part of an hour."
-    }
-   ],
-   "setFlags": {
-    "rival.act2.fought": true,
-    "rival.act2.playerResult": "win"
-   }
-  },
-  {
-   "id": "wick.act2.loss",
-   "speaker": "wick",
-   "node": "r2",
-   "kind": "battle-loss",
-   "priority": 79,
-   "when": {
-    "actMin": 2
-   },
-   "lines": [
-    {
-     "text": "The marsh is slow ground and I've walked it all year, so I had that fight before either of us put anything out. They put me up to grade five last month. Two more a head, and I've told everybody I've met since."
-    }
-   ],
-   "setFlags": {
-    "rival.act2.playerResult": "loss"
-   }
-  },
-  {
-   "id": "wick.act3.pre",
-   "speaker": "wick",
-   "node": "r3",
-   "kind": "battle-pre",
-   "priority": 80,
-   "when": {
-    "actMin": 3,
-    "flagsUnset": [
-     "rival.act3.fought"
-    ]
-   },
-   "lines": [
-    {
-     "text": "First thing. I had the Brackwater fishery wrong. It's priced off the channel and it has been for sixty years. The buyer took the contract down off his shelf and made me read the clause out in front of two other men."
-    },
-    {
-     "text": "They put me up to grade six the same week. I've stopped quoting what I haven't read."
-    },
-    {
-     "text": "This town runs on silk. My buyer list has a name off every house on all three levels, and the council as well. Maren doesn't pay you, though. I've checked, and you're not on anybody's books."
-    }
-   ]
-  },
-  {
-   "id": "wick.act3.win",
-   "speaker": "wick",
-   "node": "r3",
-   "kind": "battle-win",
-   "priority": 80,
-   "when": {
-    "actMin": 3
-   },
-   "lines": [
-    {
-     "text": "Three years running and you've had me every time. If you were ours I'd move you up two grades in one afternoon."
-    },
-    {
-     "text": "You're not ours, and here you are anyway. I've asked about you in three towns. A woman in the market had you down as the warden's own family. A man on the barge had you paid by the head, and neither had ever set eyes on you."
-    }
-   ],
-   "setFlags": {
-    "rival.act3.fought": true,
-    "rival.act3.playerResult": "win"
-   }
-  },
-  {
-   "id": "wick.act3.loss",
-   "speaker": "wick",
-   "node": "r3",
-   "kind": "battle-loss",
-   "priority": 79,
-   "when": {
-    "actMin": 3
-   },
-   "lines": [
-    {
-     "text": "I've had this canopy on my sheet since the spring, so I know which branches take a landing and which drop you. You don't yet. Come and find me after dark — nothing in this town opens before sundown."
-    }
-   ],
-   "setFlags": {
-    "rival.act3.playerResult": "loss"
-   }
-  },
-  {
-   "id": "wick.act4.pre",
-   "speaker": "wick",
-   "node": "r4",
-   "kind": "battle-pre",
-   "priority": 80,
-   "when": {
-    "actMin": 4,
-    "flagsUnset": [
-     "rival.act4.fought"
-    ]
-   },
-   "lines": [
-    {
-     "text": "You've walked the steppe. I worked it. Two seasons on the west scarp with a Cullbrand crew, and I took the bonus."
-    },
-    {
-     "text": "Cullbrand paid out on Cinder Steppe for four years and the money went a long way past the scarp. Families in four towns ate off it. Hearthollow was one of the four."
-    },
-    {
-     "text": "I'd work it again if they put me back on that crew. I'm not dressing it up for you. I'm grade seven now, and part of that came off the steppe bonus. The scarp went empty in the fifth year and it hasn't come back."
-    }
-   ]
-  },
-  {
-   "id": "wick.act4.win",
-   "speaker": "wick",
-   "node": "r4",
-   "kind": "battle-win",
-   "priority": 80,
-   "when": {
-    "actMin": 4
-   },
-   "lines": [
-    {
-     "text": "Not much left standing on this scarp and you came off it with a team on its feet."
-    },
-    {
-     "text": "Bram keeps the forge under Cindershelf and he does relic work. My first Carricrow aged out two winters back, and Bram set the relic off it into the harness I'm wearing now."
-    }
-   ],
-   "setFlags": {
-    "rival.act4.fought": true,
-    "rival.act4.playerResult": "win"
-   }
-  },
-  {
-   "id": "wick.act4.loss",
-   "speaker": "wick",
-   "node": "r4",
-   "kind": "battle-loss",
-   "priority": 79,
-   "when": {
-    "actMin": 4
-   },
-   "lines": [
-    {
-     "text": "I've walked every part of this scarp with a crew behind me, so I know where the ground gives out under you. Take the rest of the day. I'll be here until the salvage crew packs up."
-    }
-   ],
-   "setFlags": {
-    "rival.act4.playerResult": "loss"
-   }
-  },
-  {
-   "id": "wick.act5.pre",
-   "speaker": "wick",
-   "node": "r5",
-   "kind": "battle-pre",
-   "priority": 80,
-   "when": {
-    "actMin": 5,
-    "flagsUnset": [
-     "rival.act5.fought"
-    ]
-   },
-   "lines": [
-    {
-     "text": "Greaves gave me the whole of his argument once, in a corridor. The animals out there belong to nobody. Somebody is going to take them. And the money off them paid for the vale road and the lamp oil and my wages."
-    },
-    {
-     "text": "I've looked for the answer to that and I haven't got one. I'm grade eight now. If you find it, say it to me first. I'm asking you for that."
-    }
-   ]
-  },
-  {
-   "id": "wick.act5.win",
-   "speaker": "wick",
-   "node": "r5",
-   "kind": "battle-win",
-   "priority": 80,
-   "when": {
-    "actMin": 5
-   },
-   "lines": [
-    {
-     "text": "I could put in for a transfer tomorrow and they'd sign it off inside the week. Two men at intake have asked for the vale already."
-    },
-    {
-     "text": "I'm not going to, though. I want to beat you, and that's most of it. The rest is that you argue with me and you're still there when it's over, and I've not had much of that."
-    }
-   ],
-   "setFlags": {
-    "rival.act5.fought": true,
-    "rival.act5.playerResult": "win"
-   }
-  },
-  {
-   "id": "wick.act5.loss",
-   "speaker": "wick",
-   "node": "r5",
-   "kind": "battle-loss",
-   "priority": 79,
-   "when": {
-    "actMin": 5
-   },
-   "lines": [
-    {
-     "text": "You'll not meet a Wispurr up here outside the cold months. They come in for the winter, and while they're here you don't cross this ground without running into one. I had the season and the ground and you had neither."
-    }
-   ],
-   "setFlags": {
-    "rival.act5.playerResult": "loss"
-   }
-  },
-  {
-   "id": "wick.act6.pre",
-   "speaker": "wick",
-   "node": "sanctum-approach",
-   "kind": "battle-pre",
-   "priority": 80,
-   "when": {
-    "actMin": 6,
-    "flagsUnset": [
-     "rival.act6.fought"
-    ]
-   },
-   "lines": [
-    {
-     "text": "Greaves went up past the gate stone. I saw the build sheet for the thing they've got on rollers — it's rated to carry the weight of a barge."
-    },
-    {
-     "text": "I'm not going in with him."
-    },
-    {
-     "text": "I was on the crew for the last draw of a contract once, up on the steppe, so I know what the column looks like the season after. There's nothing under it, and nobody above me has looked at that page since the payout cleared."
-    },
-    {
-     "text": "I'm grade nine now, so they'll say at the office that I've gone soft. I did the sums anyway. What the Company has that animal valued at, and what's left standing up here once it's gone. Beat me first, then go and put it to him yourself."
-    }
-   ],
-   "setFlags": {
-    "story.greaves.entered": true
-   }
-  },
-  {
-   "id": "wick.act6.win",
-   "speaker": "wick",
-   "node": "sanctum-approach",
-   "kind": "battle-win",
-   "priority": 80,
-   "when": {
-    "actMin": 6
-   },
-   "lines": [
-    {
-     "text": "Six years I've been writing you up in the returns, whichever way it went. My first year's returns are still in a box at intake."
-    },
-    {
-     "text": "The way up is past the gate stone and Greaves has left it clear. There's a man posted, but he's paid by the day, and he's not putting his hands on anybody for that."
-    }
-   ],
-   "setFlags": {
-    "rival.act6.fought": true,
-    "story.greaves.entered": true,
-    "rival.act6.playerResult": "win"
-   }
-  },
-  {
-   "id": "wick.act6.loss",
-   "speaker": "wick",
-   "node": "sanctum-approach",
-   "kind": "battle-loss",
-   "priority": 79,
-   "when": {
-    "actMin": 6
-   },
-   "lines": [
-    {
-     "text": "Then I'll be here a while longer, and that suits me. I'm in no hurry to be the one who walks in behind Greaves. Come back when your team's slept."
-    }
-   ],
-   "setFlags": {
-    "rival.act6.playerResult": "loss"
-   }
-  },
-  {
-   "id": "wick.greeting.town",
-   "speaker": "wick",
-   "node": "brackwater",
-   "kind": "greeting",
-   "when": {},
-   "lines": [
-    {
-     "text": "Half this job is invoices. A barge three days late, a buyer who won't sign until he's seen it, and I pay for the room over the net loft either way."
-    },
-    {
-     "text": "I'll be out on whichever route the Company's put me on, and it'll be one you're walking anyway. Come and find me when you're done in town."
-    }
-   ]
-  },
-  {
-   "id": "greaves.act3.intro",
-   "speaker": "greaves",
-   "node": "bowerdeep",
-   "kind": "cutscene",
-   "priority": 70,
-   "when": {
-    "actMin": 3,
-    "flagsUnset": [
-     "story.greaves.met"
-    ]
-   },
-   "lines": [
-    {
-     "text": "You will have been told a good deal about the Cullbrand Company, and very little of it will have been accurate. My name is Greaves and the Bowerdeep accounts are mine, which is why I am standing in a night market at this hour."
-    },
-    {
-     "text": "Cullbrand does not log Bowerdeep and never has. Cullbrand buys timber and finished silk from parties who log Bowerdeep, under contracts drafted by people I pay well, and my lawyers regard that distinction as material."
-    },
-    {
-     "text": "Maren has you counting, I understand, and we keep something of the same sort. Ours is called an inventory, it is audited in the spring and again in the autumn by people engaged to find it wrong, and it balances to the individual animal."
-    },
-    {
-     "text": "I do not say that to score a point off the warden. I say it because she is doing the same work with a notebook and no staff."
-    }
-   ],
-   "setFlags": {
-    "story.greaves.met": true
-   }
-  },
-  {
-   "id": "greaves.act4.steppe",
-   "speaker": "greaves",
-   "node": "cindershelf",
-   "kind": "cutscene",
-   "priority": 70,
-   "when": {
-    "actMin": 4,
-    "flagsUnset": [
-     "story.greaves.steppe"
-    ]
-   },
-   "lines": [
-    {
-     "text": "Cinder Steppe was let to Cullbrand on a six-year contract. The schedule was met in four."
-    },
-    {
-     "text": "The board took the view that finishing two years early was good management, and against the schedule it was. Nothing else was being measured. I am told the company store shut in the same week the crew were paid off."
-    },
-    {
-     "text": "This town had four years of wages out of that contract and nothing since. There are men on this street who ate better in those four years than in any year since. My spring report carries both facts and the board has not asked me about the second."
-    }
-   ],
-   "setFlags": {
-    "story.greaves.steppe": true
-   }
-  },
-  {
-   "id": "greaves.finale.pre",
-   "speaker": "greaves",
-   "node": "sanctum",
-   "kind": "battle-pre",
-   "priority": 90,
-   "when": {
-    "actMin": 6,
-    "flagsUnset": [
-     "story.greaves.beaten"
-    ]
-   },
-   "lines": [
-    {
-     "text": "You have been counting for the warden for six years, and she has your figures, and I have no quarrel with the figures. My own people would have arrived at much the same numbers eventually, and it would have taken them longer."
-    },
-    {
-     "text": "The animal in that ring belongs to nobody, and the board takes the view that an animal of that size with no owner is an asset this Company is entitled to acquire. That view was put to me in writing and it is minuted."
-    },
-    {
-     "text": "You are standing between the ring and the teams on the rim, and I take that as deliberate. I would rather get on with this than discuss it."
-    }
-   ]
-  },
-  {
-   "id": "greaves.finale.post",
-   "speaker": "greaves",
-   "node": "sanctum",
-   "kind": "battle-win",
-   "priority": 90,
-   "when": {
-    "actMin": 6
-   },
-   "lines": [
-    {
-     "text": "The afternoon has gone to somebody who walked up here on foot, and I would like that entered accurately. It will not be."
-    },
-    {
-     "text": "The animal is behind you, in the ring, and nobody is going to stop you doing what you came to do. Cullbrand holds contracts in five regions, and the board will have moved on from this one before I am back down the approach."
-    }
-   ],
-   "setFlags": {
-    "story.greaves.beaten": true
-   }
-  },
-  {
-   "id": "greaves.finale.loss",
-   "speaker": "greaves",
-   "node": "sanctum",
-   "kind": "battle-loss",
-   "priority": 89,
-   "when": {
-    "actMin": 6
-   },
-   "lines": [
-    {
-     "text": "The result has been entered and the schedule is not affected by it. Neither is the view I took of you when we first met, which was favourable. Come back up when you are ready — the teams are paid to the end of the week."
-    }
-   ]
-  },
-  {
-   "id": "wick.greeting.marsh-thin",
-   "speaker": "wick",
-   "node": "brackwater",
-   "kind": "greeting",
-   "priority": 10,
-   "when": {
-    "population": [
-     {
+      "id": "wick.act2.pre",
+      "speaker": "wick",
       "node": "r2",
-      "lineId": "mirefin-line",
-      "op": "lte",
-      "value": 4
-     }
-    ]
-   },
-   "lines": [
+      "kind": "battle-pre",
+      "priority": 80,
+      "when": {
+        "actMin": 2,
+        "flagsUnset": [
+          "rival.act2.fought"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Brackwater's whole fishery is priced off the Fenmaw, and has been for sixty years. It's in the intake schedule and I can show you the page."
+        },
+        {
+          "text": "Same schedule as my first week. They call it the season down here, and they eat off it."
+        }
+      ]
+    },
     {
-     "text": "Four days on the marsh route this week and I came back light on three of them. There's next to no Mirefin out there. Another month of that and they'll take a man off the route."
-    }
-   ]
-  },
-  {
-   "id": "wick.greeting.marsh-full",
-   "speaker": "wick",
-   "node": "brackwater",
-   "kind": "greeting",
-   "priority": 10,
-   "when": {
-    "population": [
-     {
+      "id": "wick.act2.win",
+      "speaker": "wick",
       "node": "r2",
-      "lineId": "mirefin-line",
-      "op": "gte",
-      "value": 9
-     }
-    ]
-   },
-   "lines": [
+      "kind": "battle-win",
+      "priority": 80,
+      "when": {
+        "actMin": 2
+      },
+      "lines": [
+        {
+          "text": "I'm grade five and you're on nobody's books, and you had me by two exchanges out here."
+        },
+        {
+          "text": "I went early. I always go early out here. Sel poles the channel crossing at the far end and he'll take you over for the rate on his post."
+        }
+      ],
+      "setFlags": {
+        "rival.act2.fought": true,
+        "rival.act2.playerResult": "win"
+      }
+    },
     {
-     "text": "The marsh is thick with Mirefin this month and I'm paid by the head. It's the best month I've had since the Reach, and I made sure the right people at intake saw the sheet."
+      "id": "wick.act2.loss",
+      "speaker": "wick",
+      "node": "r2",
+      "kind": "battle-loss",
+      "priority": 79,
+      "when": {
+        "actMin": 2
+      },
+      "lines": [
+        {
+          "text": "The tide table they issue at intake has the slack twenty minutes late on this stretch and I went on the table. I have asked intake twice for the corrected one and they have sent me the same table twice."
+        }
+      ],
+      "setFlags": {
+        "rival.act2.playerResult": "loss"
+      }
+    },
+    {
+      "id": "wick.act3.pre",
+      "speaker": "wick",
+      "node": "r3",
+      "kind": "battle-pre",
+      "priority": 80,
+      "when": {
+        "actMin": 3,
+        "flagsUnset": [
+          "rival.act3.fought"
+        ]
+      },
+      "lines": [
+        {
+          "text": "First thing. I had the fishery wrong. It's priced off the channel and it always was."
+        },
+        {
+          "text": "The buyer took the contract off his shelf and made me read the clause out in front of two other men. They put me up to grade six the same week. My buyer list now has a name off every house on all three levels."
+        },
+        {
+          "text": "I've checked. Maren doesn't pay you, and you're not on anybody's books."
+        }
+      ]
+    },
+    {
+      "id": "wick.act3.win",
+      "speaker": "wick",
+      "node": "r3",
+      "kind": "battle-win",
+      "priority": 80,
+      "when": {
+        "actMin": 3
+      },
+      "lines": [
+        {
+          "text": "Three years running and you've had me every time. If you were ours I'd move you up two grades in an afternoon."
+        },
+        {
+          "text": "You're not ours and here you are anyway. I put a query in to intake asking whose books you are on, because I wanted it on paper. The answer came back blank and they filed the blank."
+        }
+      ],
+      "setFlags": {
+        "rival.act3.fought": true,
+        "rival.act3.playerResult": "win"
+      }
+    },
+    {
+      "id": "wick.act3.loss",
+      "speaker": "wick",
+      "node": "r3",
+      "kind": "battle-loss",
+      "priority": 79,
+      "when": {
+        "actMin": 3
+      },
+      "lines": [
+        {
+          "text": "There's a clause in the wilds contract that puts a Company man on a marked stand a fortnight before anybody else. I've been on this one since the day the marks went up."
+        }
+      ],
+      "setFlags": {
+        "rival.act3.playerResult": "loss"
+      }
+    },
+    {
+      "id": "wick.act4.pre",
+      "speaker": "wick",
+      "node": "r4",
+      "kind": "battle-pre",
+      "priority": 80,
+      "when": {
+        "actMin": 4,
+        "flagsUnset": [
+          "rival.act4.fought"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You've walked the steppe. I worked it."
+        },
+        {
+          "text": "Two seasons on the west scarp with a Cullbrand crew, and I took the bonus. Cullbrand paid out on Cinder Steppe for four years, and there were families in four towns eating off that money."
+        },
+        {
+          "text": "The scarp went empty in the fifth year. Grade seven now, and part of that came off the steppe."
+        }
+      ]
+    },
+    {
+      "id": "wick.act4.win",
+      "speaker": "wick",
+      "node": "r4",
+      "kind": "battle-win",
+      "priority": 80,
+      "when": {
+        "actMin": 4
+      },
+      "lines": [
+        {
+          "text": "Not much left standing on this scarp and you came off it with a team on its feet."
+        },
+        {
+          "text": "Bram keeps the forge under Cindershelf and does relic work. My first Carricrow aged out two winters back and he set the relic off it into this harness."
+        }
+      ],
+      "setFlags": {
+        "rival.act4.fought": true,
+        "rival.act4.playerResult": "win"
+      }
+    },
+    {
+      "id": "wick.act4.loss",
+      "speaker": "wick",
+      "node": "r4",
+      "kind": "battle-loss",
+      "priority": 79,
+      "when": {
+        "actMin": 4
+      },
+      "lines": [
+        {
+          "text": "Grade seven, beaten on a dead scarp. The salvage crew doesn't pack up till dark if you want the walk down."
+        }
+      ],
+      "setFlags": {
+        "rival.act4.playerResult": "loss"
+      }
+    },
+    {
+      "id": "wick.act5.pre",
+      "speaker": "wick",
+      "node": "r5",
+      "kind": "battle-pre",
+      "priority": 80,
+      "when": {
+        "actMin": 5,
+        "flagsUnset": [
+          "rival.act5.fought"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Greaves gave me his whole argument once, in a corridor. The animals out there belong to nobody, somebody is going to take them, and the money off them paid for the vale road and my wages."
+        },
+        {
+          "text": "I've looked for the answer to that and I haven't got one. I'm grade eight now. If you find it, say it to me first."
+        }
+      ]
+    },
+    {
+      "id": "wick.act5.win",
+      "speaker": "wick",
+      "node": "r5",
+      "kind": "battle-win",
+      "priority": 80,
+      "when": {
+        "actMin": 5
+      },
+      "lines": [
+        {
+          "text": "I could put in for a transfer tomorrow and they'd sign it inside the week. Two men at intake have asked for the vale already. I'm not going to, though."
+        },
+        {
+          "text": "I want to beat you first. Then I'll put the form in."
+        }
+      ],
+      "setFlags": {
+        "rival.act5.fought": true,
+        "rival.act5.playerResult": "win"
+      }
+    },
+    {
+      "id": "wick.act5.loss",
+      "speaker": "wick",
+      "node": "r5",
+      "kind": "battle-loss",
+      "priority": 79,
+      "when": {
+        "actMin": 5
+      },
+      "lines": [
+        {
+          "text": "I'll not give you a reason for that one. Wispurr all over this ground since the winter came in, and I lost it anyway. There's a transfer form on my table with the vale written in and the date left blank."
+        }
+      ],
+      "setFlags": {
+        "rival.act5.playerResult": "loss"
+      }
+    },
+    {
+      "id": "wick.act6.pre",
+      "speaker": "wick",
+      "node": "sanctum-approach",
+      "kind": "battle-pre",
+      "priority": 80,
+      "when": {
+        "actMin": 6,
+        "flagsUnset": [
+          "rival.act6.fought"
+        ]
+      },
+      "lines": [
+        {
+          "text": "There's a thing up on rollers past the gate stone and I've seen the build sheet. It's rated to carry the weight of a barge."
+        },
+        {
+          "text": "I'm not going in with him."
+        },
+        {
+          "text": "I was on the steppe crew for a last draw once, so I know what the column looks like the season after. There's nothing under it. That page hasn't been looked at above me since the payout cleared."
+        },
+        {
+          "text": "I'm grade nine now, so the office will say I've gone soft. I did the sums anyway. What the Company has that animal valued at, and what's left up here once it's gone. Beat me first, and then go and put it to him yourself."
+        }
+      ],
+      "setFlags": {
+        "story.greaves.entered": true
+      }
+    },
+    {
+      "id": "wick.act6.win",
+      "speaker": "wick",
+      "node": "sanctum-approach",
+      "kind": "battle-win",
+      "priority": 80,
+      "when": {
+        "actMin": 6
+      },
+      "lines": [
+        {
+          "text": "Every one of those six years is written up in the returns, whichever way it went. My first year's sheets are still in a box at intake with my own hand all over them."
+        },
+        {
+          "text": "The way up past the gate stone is clear. There's a man posted and his rate's on the build sheet."
+        }
+      ],
+      "setFlags": {
+        "rival.act6.fought": true,
+        "story.greaves.entered": true,
+        "rival.act6.playerResult": "win"
+      }
+    },
+    {
+      "id": "wick.act6.loss",
+      "speaker": "wick",
+      "node": "sanctum-approach",
+      "kind": "battle-loss",
+      "priority": 79,
+      "when": {
+        "actMin": 6
+      },
+      "lines": [
+        {
+          "text": "Then I'll be here a while longer, and that suits me. I'm in no hurry to be the one who walks in behind Greaves. The office can find me at the gate stone with my sheet."
+        }
+      ],
+      "setFlags": {
+        "rival.act6.playerResult": "loss"
+      }
+    },
+    {
+      "id": "wick.greeting.town",
+      "speaker": "wick",
+      "node": "brackwater",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Half this job is invoices."
+        },
+        {
+          "text": "A barge three days late, a buyer who won't sign till he's seen it, and the standing charge comes off my column and not off theirs."
+        }
+      ]
+    },
+    {
+      "id": "greaves.act3.intro",
+      "speaker": "greaves",
+      "node": "bowerdeep",
+      "kind": "cutscene",
+      "priority": 70,
+      "when": {
+        "actMin": 3,
+        "flagsUnset": [
+          "story.greaves.met"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You will have been told a good deal about the Cullbrand Company and very little of it will have been accurate. My name is Greaves. The Bowerdeep accounts are mine, which is why I am standing in a night market at this hour."
+        },
+        {
+          "text": "Cullbrand does not log Bowerdeep and never has. Cullbrand buys timber and finished silk from parties who log Bowerdeep, under contracts drafted by people I pay well, and my lawyers regard that distinction as material."
+        },
+        {
+          "text": "Maren has you counting, I understand. We keep something of the same sort. Ours is called an inventory, it is audited in the spring and again in the autumn by people engaged to find it wrong, and it balances to the individual animal."
+        },
+        {
+          "text": "She is doing that work with a notebook and no staff."
+        }
+      ],
+      "setFlags": {
+        "story.greaves.met": true
+      }
+    },
+    {
+      "id": "greaves.act4.steppe",
+      "speaker": "greaves",
+      "node": "cindershelf",
+      "kind": "cutscene",
+      "priority": 70,
+      "when": {
+        "actMin": 4,
+        "flagsUnset": [
+          "story.greaves.steppe"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Cinder Steppe was let to Cullbrand on a six-year contract. The schedule was met in four. The board took the view that finishing ahead of schedule was good management, and against the schedule it was."
+        },
+        {
+          "text": "Nothing else was being measured. I am told the company store shut in the week the crew were paid off. This town had four years of wages out of that contract and nothing since."
+        },
+        {
+          "text": "There are men on this street who ate better under that contract than in any year after."
+        }
+      ],
+      "setFlags": {
+        "story.greaves.steppe": true
+      }
+    },
+    {
+      "id": "greaves.finale.pre",
+      "speaker": "greaves",
+      "node": "sanctum",
+      "kind": "battle-pre",
+      "priority": 90,
+      "when": {
+        "actMin": 6,
+        "flagsUnset": [
+          "story.greaves.beaten"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You have been counting for the warden for six years, and she has your figures, and I have no quarrel with the figures. My own people would have arrived at much the same numbers eventually, and later."
+        },
+        {
+          "text": "That they would have been later was put to me in writing by a man I employ, and it is minuted."
+        },
+        {
+          "text": "The animal in that ring belongs to nobody, and the board takes the view that an animal of that size with no owner is an asset this Company is entitled to acquire. You are standing between the ring and the teams on the rim."
+        }
+      ]
+    },
+    {
+      "id": "greaves.finale.post",
+      "speaker": "greaves",
+      "node": "sanctum",
+      "kind": "battle-win",
+      "priority": 90,
+      "when": {
+        "actMin": 6
+      },
+      "lines": [
+        {
+          "text": "The afternoon has gone to somebody who walked up here on foot, and I would like that entered accurately. It will not be. I have forty years of records and not one page about a region after a contract closed."
+        },
+        {
+          "text": "The animal is behind you and nobody is going to stop you."
+        }
+      ],
+      "setFlags": {
+        "story.greaves.beaten": true
+      }
+    },
+    {
+      "id": "greaves.finale.loss",
+      "speaker": "greaves",
+      "node": "sanctum",
+      "kind": "battle-loss",
+      "priority": 89,
+      "when": {
+        "actMin": 6
+      },
+      "lines": [
+        {
+          "text": "The result has been entered and the schedule is not affected by it. Neither is the view I took of you when we first met, which was favourable. Come back up when you are ready. The teams are paid to the end of the week."
+        }
+      ]
     }
-   ]
-  }
- ]
+  ]
 }

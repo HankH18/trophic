@@ -1,803 +1,803 @@
 {
- "_slice": "S1-maren",
- "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
- "entries": [
-  {
-   "id": "maren.opening",
-   "speaker": "maren",
-   "node": "hearthollow",
-   "kind": "cutscene",
-   "priority": 100,
-   "when": {
-    "act": [
-     0
-    ],
-    "flagsUnset": [
-     "story.opening.done"
-    ]
-   },
-   "lines": [
+  "_slice": "S1-maren",
+  "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
+  "entries": [
     {
-     "text": "You'll be the one who keeps coming up here asking after work. Good, I'll take you on. There's more ground in this region than one person can walk in a season, and no money in the year for a second warden."
+      "id": "maren.opening",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "priority": 100,
+      "when": {
+        "act": [
+          0
+        ],
+        "flagsUnset": [
+          "story.opening.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Right. You came up here after work and there's work going, so you're taken on. The pay is poor and the walking is most of it, and there's more ground out there than one person gets round in a season."
+        },
+        {
+          "text": "My name's Maren. Warden for the region, and it's been the one post since they made it."
+        },
+        {
+          "text": "There was a keystone animal here once. The Vellsire, a stag. The last of that herd went out of Fallowmere about thirty years back, and the ground up here has been without them ever since."
+        },
+        {
+          "text": "Three in the pen behind you. A Cindril, a Puddlisk and a Thornlet, all of them out of this spring. A young one has about three years of work in it, and after that it comes back here and lives on without working."
+        },
+        {
+          "text": "Have a proper look at all three, because I can't swap it over afterwards."
+        }
+      ],
+      "choices": [
+        {
+          "text": "I'll take the Cindril.",
+          "goto": "maren.starter.cindril"
+        },
+        {
+          "text": "I'll take the Puddlisk.",
+          "goto": "maren.starter.puddlisk"
+        },
+        {
+          "text": "I'll take the Thornlet.",
+          "goto": "maren.starter.thornlet"
+        }
+      ]
     },
     {
-     "text": "My name's Maren. Warden for the region, which sounds grander than it is."
+      "id": "maren.starter.cindril",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "when": {
+        "act": [
+          0
+        ],
+        "flagsUnset": [
+          "story.opening.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The Cindril, then. Fire animal, and the quickest of the three by a long way."
+        },
+        {
+          "text": "It'll be a Vulkindle at two and a Pyrevane at three. Same animal the whole way through with a new name on it each time. Bring it down when it changes and I'll weigh it."
+        }
+      ],
+      "setFlags": {
+        "story.starter": "cindril-line",
+        "story.opening.done": true
+      },
+      "goto": "maren.tutorial.snare"
     },
     {
-     "text": "There was a keystone animal here once — the Vellsire, a stag. The last of the herd went out of Fallowmere about thirty years ago, and nothing out there now does what they did for the ground."
+      "id": "maren.starter.puddlisk",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "when": {
+        "act": [
+          0
+        ],
+        "flagsUnset": [
+          "story.opening.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The Puddlisk, then. Water animal."
+        },
+        {
+          "text": "The skin's clear enough to watch its dinner go down inside it. Rillisk at two, Maelstrisk at three, and they go over in the night, so you come down to something bigger with a different name on the card."
+        }
+      ],
+      "setFlags": {
+        "story.starter": "puddlisk-line",
+        "story.opening.done": true
+      },
+      "goto": "maren.tutorial.snare"
     },
     {
-     "text": "Three young ones in the pen behind you: a Cindril, a Puddlisk and a Thornlet, all in this spring. A young one has about three years of work in it, then it comes back here and stops."
+      "id": "maren.starter.thornlet",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "when": {
+        "act": [
+          0
+        ],
+        "flagsUnset": [
+          "story.opening.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The Thornlet, then. Plant animal, and it'll open your forearm up if you carry it against your chest, so use the crook of your arm. Bramblore at two, Thornwald at three."
+        },
+        {
+          "text": "Same animal each time, only bigger. By the third year you'll not lift it."
+        }
+      ],
+      "setFlags": {
+        "story.starter": "thornlet-line",
+        "story.opening.done": true
+      },
+      "goto": "maren.tutorial.snare"
     },
     {
-     "text": "Have a proper look at all three before you say. I can't swap it over for you afterwards."
+      "id": "maren.tutorial.snare",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "when": {
+        "flagsUnset": [
+          "tutorial.snare.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Snares first. Three of them, in the satchel by the door. The satchel comes back to me."
+        },
+        {
+          "text": "One snare holds one animal long enough for you to get your hands on it, and after that there's one fewer where you took it from. Bait makes a snare likelier to hold, and you make the bait out of whatever the animal eats."
+        },
+        {
+          "text": "A base one lets go of anything that fights hard. A weighted one holds, and the smith sends them up when he has the iron for it. Keep the weighted for whatever's already put a team down."
+        }
+      ],
+      "setFlags": {
+        "tutorial.snare.done": true
+      },
+      "goto": "maren.tutorial.survey"
+    },
+    {
+      "id": "maren.tutorial.survey",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "when": {
+        "flagsUnset": [
+          "tutorial.survey.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "And this is the survey board. Every place in the region down one side, what's living in it written against the place, and a number against that."
+        },
+        {
+          "text": "Most of what's on it is mine, which is the reason it reads three weeks out of date anywhere north of the gate, and further behind than that up on the steppe."
+        },
+        {
+          "text": "So read it on your way out the north gate and again coming back. Take four of the Nibbin off Meadow Reach and the board reads four fewer when I write it up that evening."
+        }
+      ],
+      "setFlags": {
+        "tutorial.survey.done": true,
+        "quest.first-signs.offered": true
+      }
+    },
+    {
+      "id": "maren.quest.first-signs.offer",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "quest",
+      "quest": "first-signs",
+      "priority": 60,
+      "when": {
+        "flagsSet": [
+          "quest.first-signs.offered"
+        ],
+        "flagsUnset": [
+          "quest.first-signs.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "One more thing before you go far. There'll be tracks out on the Reach, and droppings, and a flattened patch where something's lain up. Read one and you'll know what came past and roughly when."
+        },
+        {
+          "text": "Some things are only here part of the year. Pollywisp are a spring animal on the Reach, so a card read on one in autumn comes back dormant. And a dull animal reads nothing off a good clear track."
+        },
+        {
+          "text": "Walk Meadow Reach and write me three cards."
+        }
+      ]
+    },
+    {
+      "id": "maren.quest.first-signs.done",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "quest",
+      "quest": "first-signs",
+      "priority": 61,
+      "when": {
+        "flagsSet": [
+          "quest.first-signs.turnin"
+        ],
+        "flagsUnset": [
+          "quest.first-signs.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Three cards. A Loamunder, a Nibbin, and one you weren't sure of. I'd put that down as Bramblehog."
+        },
+        {
+          "text": "Three more than I had for the Reach at the start of the week. There's a word you'll want off me before you go much further and it's keystone. Ask me for it at the station any morning this week."
+        }
+      ],
+      "setFlags": {
+        "quest.first-signs.done": true,
+        "chain.vellsire.unlocked": true
+      }
+    },
+    {
+      "id": "maren.tutorial.release",
+      "speaker": "maren",
+      "node": "brackwater",
+      "kind": "cutscene",
+      "priority": 60,
+      "when": {
+        "actMin": 2,
+        "flagsUnset": [
+          "tutorial.release.done"
+        ]
+      },
+      "lines": [
+        {
+          "text": "One more thing about the snares. They work the other way round as well, which is the half people don't get told. You can open one and let the animal back out."
+        },
+        {
+          "text": "Whatever you let out goes into the ground or the water you're standing on."
+        },
+        {
+          "text": "Not back where you caught it. A release goes on the board the same way a catch does, only the number goes up instead of down. Hetty has wanted somebody putting Boglings back since spring. Go and see her."
+        }
+      ],
+      "setFlags": {
+        "tutorial.release.done": true
+      }
+    },
+    {
+      "id": "maren.greeting.act1",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "greeting",
+      "when": {
+        "act": [
+          1
+        ],
+        "floraStock": [
+          {
+            "node": "r1",
+            "op": "gte",
+            "value": 46
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "The green's holding up out on the Reach this year."
+        },
+        {
+          "text": "I'd put a fair bit of that down to the Loamunder turning the soil as they go, and that's a guess, mind. Maribel keeps the gym at the bottom of the green, and it's the old Nibbin that'll give you trouble."
+        }
+      ],
+      "priority": 45
+    },
+    {
+      "id": "maren.greeting.act2",
+      "speaker": "maren",
+      "node": "brackwater",
+      "kind": "greeting",
+      "when": {
+        "act": [
+          2
+        ]
+      },
+      "lines": [
+        {
+          "text": "Odo has the gym out on the east stilts. Three weeks since I was over at Brackmarsh, and it rained every day of it, so what I've got written for that marsh is short of what's in it."
+        }
+      ],
+      "priority": 45
+    },
+    {
+      "id": "maren.greeting.act3",
+      "speaker": "maren",
+      "node": "bowerdeep",
+      "kind": "greeting",
+      "when": {
+        "act": [
+          3
+        ]
+      },
+      "lines": [
+        {
+          "text": "The silk and the timber come off the same trees here, and the two trades want different things off them. Vesper keeps the gym, and she's on the council over exactly that."
+        }
+      ],
+      "priority": 45
+    },
+    {
+      "id": "maren.greeting.act4",
+      "speaker": "maren",
+      "node": "cindershelf",
+      "kind": "greeting",
+      "when": {
+        "act": [
+          4
+        ]
+      },
+      "lines": [
+        {
+          "text": "Gerta has the steppe survey and she can't walk the whole of it on her own, which is the reason I'm asking. She's at the third shaft head most mornings and below all week."
+        }
+      ],
+      "priority": 45
+    },
+    {
+      "id": "maren.greeting.act5",
+      "speaker": "maren",
+      "node": "duskhollow",
+      "kind": "greeting",
+      "when": {
+        "act": [
+          5
+        ]
+      },
+      "lines": [
+        {
+          "text": "Orrin's shelves go back further than anything I keep, and I've been up there every morning this week instead of walking the vale. He'll read the whole page out to you if you let him."
+        }
+      ],
+      "priority": 45
+    },
+    {
+      "id": "maren.greeting.act6",
+      "speaker": "maren",
+      "node": "sanctum-approach",
+      "kind": "greeting",
+      "when": {
+        "act": [
+          6
+        ]
+      },
+      "lines": [
+        {
+          "text": "The gate is standing open. It has not been open in my lifetime and it was not me that opened it. The crows on this approach want counting before noon and I've not started."
+        }
+      ],
+      "priority": 45
+    },
+    {
+      "id": "maren.keystone.1",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "lore",
+      "signChain": "vellsire-chain",
+      "chainStep": 1,
+      "priority": 50,
+      "when": {
+        "flagsSet": [
+          "chain.vellsire.unlocked"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step1"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You asked what a keystone is."
+        },
+        {
+          "text": "It's an animal a great many other things turn out to depend on, far more than you'd guess from how few there are. Take one out and everything shifts about after it, slowly."
+        },
+        {
+          "text": "Some go up, some go down, and none of it shows on paper for four seasons. Where the Vellsire herd grazed, the ground came back richer the next year, and three people who didn't know each other wrote that down separately."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step1": true
+      }
+    },
+    {
+      "id": "maren.keystone.2",
+      "speaker": "maren",
+      "node": "brackwater",
+      "kind": "lore",
+      "signChain": "vellsire-chain",
+      "chainStep": 3,
+      "priority": 50,
+      "when": {
+        "actMin": 2,
+        "flagsSet": [
+          "chain.vellsire.step2"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step3"
+        ]
+      },
+      "lines": [
+        {
+          "text": "You read one of the stones out on the Reach. There are more."
+        },
+        {
+          "text": "I've walked to three of the others myself this season. The rest I have off Orrin, who has them off a surveyor's letter, and I'd want to walk them before I said anything about them."
+        },
+        {
+          "text": "Whoever cut them was keeping a tally. The ones that still have a face carry the same six figures. The herd has not passed in thirty years and the stones go back a good deal further than that."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step3": true
+      }
+    },
+    {
+      "id": "maren.keystone.3",
+      "speaker": "maren",
+      "node": "bowerdeep",
+      "kind": "lore",
+      "signChain": "vellsire-chain",
+      "chainStep": 5,
+      "priority": 50,
+      "when": {
+        "actMin": 3,
+        "flagsSet": [
+          "chain.vellsire.step4"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step5"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The felling crews let me at a fresh stump when I ask, and I've had forty-odd off them. You can read a tree's years off a stump: a wide ring is a fat year, a thin one is a poor year."
+        },
+        {
+          "text": "Every one of those forty reads wide, wide, wide, and then thin to the bark."
+        },
+        {
+          "text": "The thin starts within a season of the last time anybody wrote down seeing a Vellsire. One stump like that is a bad tree. Forty like that and I still can't call it anything, and I'd rather say so than guess."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step5": true
+      }
+    },
+    {
+      "id": "maren.keystone.4",
+      "speaker": "maren",
+      "node": "cindershelf",
+      "kind": "lore",
+      "signChain": "vellsire-chain",
+      "chainStep": 6,
+      "priority": 50,
+      "when": {
+        "actMin": 4,
+        "flagsSet": [
+          "chain.vellsire.step5"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step6"
+        ]
+      },
+      "lines": [
+        {
+          "text": "I've not been up that steppe since the thaw. Anything I tell you about it is Gerta's work."
+        },
+        {
+          "text": "There's less green up there than on the Reach. A place empties from the bottom up. Green goes first, then whatever lived on the green. Whatever was at the top goes last, and it has been hungry a long while by then."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step6": true
+      }
+    },
+    {
+      "id": "maren.keystone.5",
+      "speaker": "maren",
+      "node": "duskhollow",
+      "kind": "lore",
+      "signChain": "vellsire-chain",
+      "chainStep": 8,
+      "priority": 50,
+      "when": {
+        "actMin": 5,
+        "flagsSet": [
+          "chain.vellsire.step7"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step8"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Four days I've been up at Orrin's shelves, and what I wanted off them was not the total."
+        },
+        {
+          "text": "I wanted to know who took each entry and where they were standing, and thirty years of those nights carry nothing in the margin at all."
+        },
+        {
+          "text": "Not one of those hands put down the hour, or the weather, or whether they went out looking or just happened to be at the window. I can use figures like that. Putting a season on them is another matter."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step8": true
+      }
+    },
+    {
+      "id": "maren.keystone.6",
+      "speaker": "maren",
+      "node": "sanctum-approach",
+      "kind": "lore",
+      "signChain": "vellsire-chain",
+      "chainStep": 10,
+      "priority": 50,
+      "when": {
+        "actMin": 6,
+        "flagsSet": [
+          "chain.vellsire.step9",
+          "quest.vellsires-trail.done"
+        ],
+        "flagsUnset": [
+          "chain.vellsire.step10"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The Sanctum Fallow was shut before those stones were cut. Fallow is a farming word and it means ground you've left to rest on purpose, so somebody shut it and meant it to come back."
+        },
+        {
+          "text": "If the herd went anywhere it went in there."
+        },
+        {
+          "text": "There'll be no herd left to find, though. One animal at the outside, and an old one. What you do standing in front of it is yours to decide, and it'll be a long while before it shows in anything I can measure."
+        }
+      ],
+      "setFlags": {
+        "chain.vellsire.step10": true,
+        "chain.vellsire.complete": true
+      }
+    },
+    {
+      "id": "maren.retirement",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "cutscene",
+      "priority": 55,
+      "when": {
+        "yearMin": 2,
+        "flagsSet": [
+          "lifecycle.first-retirement"
+        ],
+        "flagsUnset": [
+          "lifecycle.first-retirement.spoken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The animal's out of working years. It's come to the end of what it had in it, and there's nothing wrong with it otherwise."
+        },
+        {
+          "text": "Two things can come of this. Either a young one out of the same stock carrying one or two of the things this one was good at, or something you've already got gets better at one thing for good, in this one's name."
+        },
+        {
+          "text": "It'll be down at the station from tomorrow, fed, with the run of the yard and no work at all for the rest of its life. The yard gets fed at four, same as it always has."
+        }
+      ],
+      "setFlags": {
+        "lifecycle.first-retirement.spoken": true
+      }
+    },
+    {
+      "id": "maren.crash-survey",
+      "speaker": "maren",
+      "node": "cindershelf",
+      "kind": "lore",
+      "priority": 52,
+      "when": {
+        "actMin": 4,
+        "population": [
+          {
+            "node": "r4",
+            "lineId": "stonewing-line",
+            "op": "lte",
+            "value": 1
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "The west scarp has carried three big Stonewing every year I've had this job. Gerta walked it five days back and found one."
+        },
+        {
+          "text": "I can't tell you yet what took them off. If it's gone the usual way, the Cragmar and the Ashvole thinned out first, then the Pyrelisk that feed on the Ashvole, and a bird that size feels it last of all."
+        }
+      ]
+    },
+    {
+      "id": "maren.finale",
+      "speaker": "maren",
+      "node": "sanctum-approach",
+      "kind": "cutscene",
+      "priority": 70,
+      "when": {
+        "actMin": 6,
+        "flagsSet": [
+          "story.greaves.entered",
+          "rival.act6.playerResult"
+        ],
+        "flagsUnset": [
+          "story.finale.spoken"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Greaves went through the gate about an hour ago, on foot, and he did not hurry any part of it."
+        },
+        {
+          "text": "I'll be up on the rim with the board. There's a morning's work still on it and I'd like it done before the light goes."
+        }
+      ],
+      "setFlags": {
+        "story.finale.spoken": true
+      }
+    },
+    {
+      "id": "maren.epilogue.caught",
+      "speaker": "maren",
+      "node": "sanctum",
+      "kind": "cutscene",
+      "priority": 95,
+      "when": {
+        "actMin": 6,
+        "flagsSet": [
+          "story.vellsire.resolved"
+        ],
+        "flagsUnset": [
+          "story.epilogue.shown"
+        ],
+        "flagEquals": [
+          {
+            "key": "story.vellsire.outcome",
+            "value": "caught"
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "You've got the stag, then. Let me look at it a minute. It's narrower through the shoulder than the drawings have it, and the near antler's been broken and grown back crooked. It won't age."
+        },
+        {
+          "text": "Right. The numbers, then. Meadow Reach, Brackmarsh, Bowerdeep Wilds, Cinder Steppe, Duskhollow Vale and the Approach, all six walked and counted this morning. Five by me and the steppe by Gerta."
+        },
+        {
+          "text": "With that animal held, the ground round the Sanctum and along the Approach holds at the rate it has held every year I've walked it: two young brought on, where three is what it makes with the stag loose in there."
+        },
+        {
+          "text": "I'll put in the book that the snare held and what was in it, and the six figures under it, with Gerta's name against the steppe one."
+        }
+      ],
+      "setFlags": {
+        "story.epilogue.shown": true
+      }
+    },
+    {
+      "id": "maren.epilogue.released",
+      "speaker": "maren",
+      "node": "sanctum",
+      "kind": "cutscene",
+      "priority": 95,
+      "when": {
+        "actMin": 6,
+        "flagsSet": [
+          "story.vellsire.resolved"
+        ],
+        "flagsUnset": [
+          "story.epilogue.shown"
+        ],
+        "flagEquals": [
+          {
+            "key": "story.vellsire.outcome",
+            "value": "released"
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "The stag went up the scarp and over the rim and out of sight. It stopped the once at the top, side on, long enough for me to see all of it. I had a pencil in my hand and never wrote a thing down."
+        },
+        {
+          "text": "Right. The numbers, then. Meadow Reach, Brackmarsh, Bowerdeep Wilds, Cinder Steppe, Duskhollow Vale and the Approach, all six walked and counted this morning. Five by me and the steppe by Gerta."
+        },
+        {
+          "text": "With that animal loose, the ground round the Sanctum and along the Approach comes off that rate for the first time: three young brought on, where two is what it has always made."
+        },
+        {
+          "text": "You were six years getting to it. In nine years somebody will ask me why the numbers moved, and I'd rather they had all of it from me."
+        }
+      ],
+      "setFlags": {
+        "story.epilogue.shown": true
+      }
+    },
+    {
+      "id": "maren.greeting.hearthollow",
+      "speaker": "maren",
+      "node": "hearthollow",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Station's open, come in. This morning's numbers are up on the board, and the Reach column is the only one I've walked this week. The rest are last month's and I've marked them as last month's."
+        }
+      ]
+    },
+    {
+      "id": "maren.greeting.brackwater",
+      "speaker": "maren",
+      "node": "brackwater",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "The board goes under one arm and I'm out along the stilts most days this season. Four hours out of a day is what I get before the damp's into the pages."
+        }
+      ]
+    },
+    {
+      "id": "maren.greeting.bowerdeep",
+      "speaker": "maren",
+      "node": "bowerdeep",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Bowerdeep is slow ground for me. I'm on the forest floor with a glass looking up. That gets me about a third of the canopy, and I write the third down and mark it as a third."
+        }
+      ]
+    },
+    {
+      "id": "maren.greeting.cindershelf",
+      "speaker": "maren",
+      "node": "cindershelf",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Steppe survey, and I'm behind on it. Read over my shoulder if you like."
+        }
+      ]
+    },
+    {
+      "id": "maren.greeting.duskhollow",
+      "speaker": "maren",
+      "node": "duskhollow",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "Shelves in the morning, out in the vale from dusk, because that's when the things I'm after are up and moving, which gives me about four hours before the light comes back."
+        }
+      ]
+    },
+    {
+      "id": "maren.greeting.sanctum-approach",
+      "speaker": "maren",
+      "node": "sanctum-approach",
+      "kind": "greeting",
+      "when": {},
+      "lines": [
+        {
+          "text": "I'm up at the rim most of the day with the board. Crows are the only thing living on this approach, and they're what I'm counting."
+        }
+      ]
     }
-   ],
-   "choices": [
-    {
-     "text": "I'll take the Cindril.",
-     "goto": "maren.starter.cindril"
-    },
-    {
-     "text": "I'll take the Puddlisk.",
-     "goto": "maren.starter.puddlisk"
-    },
-    {
-     "text": "I'll take the Thornlet.",
-     "goto": "maren.starter.thornlet"
-    }
-   ]
-  },
-  {
-   "id": "maren.starter.cindril",
-   "speaker": "maren",
-   "node": "hearthollow",
-   "kind": "cutscene",
-   "when": {
-    "act": [
-     0
-    ],
-    "flagsUnset": [
-     "story.opening.done"
-    ]
-   },
-   "lines": [
-    {
-     "text": "The Cindril, then. A fire animal, and the quickest of the three by a long way."
-    },
-    {
-     "text": "It'll be a Vulkindle at two and a Pyrevane at three. Same animal the whole way through, under a new name each time. Bring it down when it changes and I'll weigh it in front of you."
-    }
-   ],
-   "setFlags": {
-    "story.starter": "cindril-line",
-    "story.opening.done": true
-   },
-   "goto": "maren.tutorial.snare"
-  },
-  {
-   "id": "maren.starter.puddlisk",
-   "speaker": "maren",
-   "node": "hearthollow",
-   "kind": "cutscene",
-   "when": {
-    "act": [
-     0
-    ],
-    "flagsUnset": [
-     "story.opening.done"
-    ]
-   },
-   "lines": [
-    {
-     "text": "The Puddlisk, then. A water animal, and it'll suit you down in the marsh. The skin's clear enough to watch its dinner go down inside it."
-    },
-    {
-     "text": "Rillisk at two, then Maelstrisk at three. They go over in the night, so you come down in the morning to something bigger with a different name on the card, and the same animal underneath it."
-    }
-   ],
-   "setFlags": {
-    "story.starter": "puddlisk-line",
-    "story.opening.done": true
-   },
-   "goto": "maren.tutorial.snare"
-  },
-  {
-   "id": "maren.starter.thornlet",
-   "speaker": "maren",
-   "node": "hearthollow",
-   "kind": "cutscene",
-   "when": {
-    "act": [
-     0
-    ],
-    "flagsUnset": [
-     "story.opening.done"
-    ]
-   },
-   "lines": [
-    {
-     "text": "The Thornlet, then. A plant animal, and it'll open your forearm up if you carry it against your chest. Use the crook of your arm."
-    },
-    {
-     "text": "Bramblore at two, Thornwald at three. Same animal each time, only bigger. By the third year you'll not be lifting it, so think now about how you'll get it through a gate."
-    }
-   ],
-   "setFlags": {
-    "story.starter": "thornlet-line",
-    "story.opening.done": true
-   },
-   "goto": "maren.tutorial.snare"
-  },
-  {
-   "id": "maren.tutorial.snare",
-   "speaker": "maren",
-   "node": "hearthollow",
-   "kind": "cutscene",
-   "when": {
-    "flagsUnset": [
-     "tutorial.snare.done"
-    ]
-   },
-   "lines": [
-    {
-     "text": "Snares first. Three of them in the satchel by the door, and they're yours to keep. The satchel isn't."
-    },
-    {
-     "text": "One snare holds one animal long enough for you to get your hands on it, and after that there's one fewer of it where you took it from."
-    },
-    {
-     "text": "Bait makes a snare likelier to hold, and you make it out of whatever the animal you're after eats. Plain ones let go of anything that fights hard and a weighted one holds better, but the smith's heavy ones cost more than this station gets in a year."
-    }
-   ],
-   "setFlags": {
-    "tutorial.snare.done": true
-   },
-   "goto": "maren.tutorial.survey"
-  },
-  {
-   "id": "maren.tutorial.survey",
-   "speaker": "maren",
-   "node": "hearthollow",
-   "kind": "cutscene",
-   "when": {
-    "flagsUnset": [
-     "tutorial.survey.done"
-    ]
-   },
-   "lines": [
-    {
-     "text": "And this is the survey board. Every place in the region down one side, what's living in it written against the place, and a number against that."
-    },
-    {
-     "text": "Most of it I took myself, and there's only the one of me. I can't be on the Reach and down in Brackwater the same day."
-    },
-    {
-     "text": "So read the board on your way out the north gate, and again coming back. Take four of the Nibbin off Meadow Reach and the board reads four fewer when I write it up that evening. Go on out and see what's standing in it."
-    }
-   ],
-   "setFlags": {
-    "tutorial.survey.done": true,
-    "quest.first-signs.offered": true
-   }
-  },
-  {
-   "id": "maren.quest.first-signs.offer",
-   "speaker": "maren",
-   "node": "hearthollow",
-   "kind": "quest",
-   "quest": "first-signs",
-   "priority": 60,
-   "when": {
-    "flagsSet": [
-     "quest.first-signs.offered"
-    ],
-    "flagsUnset": [
-     "quest.first-signs.done"
-    ]
-   },
-   "lines": [
-    {
-     "text": "One more thing before you go far. Out on the Reach there'll be tracks, and droppings, and a flattened patch where something's been lying up. Read one and you'll know what came past and roughly when."
-    },
-    {
-     "text": "Walk Meadow Reach and write me three cards. Take the sharpest animal you've got — a dull one gets nothing off a good clear track."
-    },
-    {
-     "text": "Some things are only here for part of the year, and the card says so. Pollywisp are a spring animal on the Reach. Read a card on one in autumn and it comes back dormant."
-    }
-   ]
-  },
-  {
-   "id": "maren.quest.first-signs.done",
-   "speaker": "maren",
-   "node": "hearthollow",
-   "kind": "quest",
-   "quest": "first-signs",
-   "priority": 61,
-   "when": {
-    "flagsSet": [
-     "quest.first-signs.turnin"
-    ],
-    "flagsUnset": [
-     "quest.first-signs.done"
-    ]
-   },
-   "lines": [
-    {
-     "text": "Three cards. A Loamunder, a Nibbin, and one you weren't sure of — I'd put that down as Bramblehog."
-    },
-    {
-     "text": "That's three more than I had for the Reach at the start of the week. People who read sign work round to the same question sooner or later: how a few animals can matter far more than their numbers suggest. Come and find me in the mornings."
-    }
-   ],
-   "setFlags": {
-    "quest.first-signs.done": true,
-    "chain.vellsire.unlocked": true
-   }
-  },
-  {
-   "id": "maren.tutorial.release",
-   "speaker": "maren",
-   "node": "brackwater",
-   "kind": "cutscene",
-   "priority": 60,
-   "when": {
-    "actMin": 2,
-    "flagsUnset": [
-     "tutorial.release.done"
-    ]
-   },
-   "lines": [
-    {
-     "text": "One more thing about the snares. They work the other way round as well."
-    },
-    {
-     "text": "You can open one and let the animal back out. Whatever you let out goes into the ground or the water you're standing on, not back where you caught it."
-    },
-    {
-     "text": "A release goes on the board the same way a catch does, only the number goes up instead of down. Hetty on the shallows has wanted somebody putting Boglings back in that water since spring, so go and see her."
-    }
-   ],
-   "setFlags": {
-    "tutorial.release.done": true
-   }
-  },
-  {
-   "id": "maren.greeting.act1",
-   "speaker": "maren",
-   "node": "hearthollow",
-   "kind": "greeting",
-   "when": {
-    "act": [
-     1
-    ],
-    "floraStock": [
-     {
-      "node": "r1",
-      "op": "gte",
-      "value": 46
-     }
-    ]
-   },
-   "lines": [
-    {
-     "text": "The green's holding up out on the Reach this year, and I'd put a fair bit of that down to the Loamunder turning the soil as they go. That's a guess, mind."
-    },
-    {
-     "text": "Maribel keeps the gym at the bottom of the green. Three animals on her bench, and it's the old Nibbin that'll give you trouble."
-    }
-   ],
-   "priority": 45
-  },
-  {
-   "id": "maren.greeting.act2",
-   "speaker": "maren",
-   "node": "brackwater",
-   "kind": "greeting",
-   "when": {
-    "act": [
-     2
-    ]
-   },
-   "lines": [
-    {
-     "text": "My Brackmarsh numbers are three weeks old, and it rained through most of those weeks. Odo has the gym out on the east stilts and takes his own time, so don't hurry him."
-    }
-   ],
-   "priority": 45
-  },
-  {
-   "id": "maren.greeting.act3",
-   "speaker": "maren",
-   "node": "bowerdeep",
-   "kind": "greeting",
-   "when": {
-    "act": [
-     3
-    ]
-   },
-   "lines": [
-    {
-     "text": "The silk and the timber come off the same trees here. I keep a page for the floor of the Wilds and none at all for what's above it, because I can't climb."
-    }
-   ],
-   "priority": 45
-  },
-  {
-   "id": "maren.greeting.act4",
-   "speaker": "maren",
-   "node": "cindershelf",
-   "kind": "greeting",
-   "when": {
-    "act": [
-     4
-    ]
-   },
-   "lines": [
-    {
-     "text": "Gerta has the steppe survey and can't walk the whole of it on her own. Put your head in on her before you go up."
-    }
-   ],
-   "priority": 45
-  },
-  {
-   "id": "maren.greeting.act5",
-   "speaker": "maren",
-   "node": "duskhollow",
-   "kind": "greeting",
-   "when": {
-    "act": [
-     5
-    ]
-   },
-   "lines": [
-    {
-     "text": "Orrin's archive goes back further than anything I keep, and I've been up there every morning this week. Ask him straight out and he'll let you read the margins too."
-    }
-   ],
-   "priority": 45
-  },
-  {
-   "id": "maren.greeting.act6",
-   "speaker": "maren",
-   "node": "sanctum-approach",
-   "kind": "greeting",
-   "when": {
-    "act": [
-     6
-    ]
-   },
-   "lines": [
-    {
-     "text": "The gate is standing open. It hasn't been open in my lifetime, and it wasn't me that opened it. I'm meant to be counting crows this morning and I've not written a thing down yet."
-    }
-   ],
-   "priority": 45
-  },
-  {
-   "id": "maren.keystone.1",
-   "speaker": "maren",
-   "node": "hearthollow",
-   "kind": "lore",
-   "signChain": "vellsire-chain",
-   "chainStep": 1,
-   "priority": 50,
-   "when": {
-    "flagsSet": [
-     "chain.vellsire.unlocked"
-    ],
-    "flagsUnset": [
-     "chain.vellsire.step1"
-    ]
-   },
-   "lines": [
-    {
-     "text": "You asked what a keystone is. It's an animal a great many other things turn out to depend on, far more than you'd guess from how few there are."
-    },
-    {
-     "text": "Take one out and everything else shifts about after it. Not quickly. Some things go up, some go down, and none of it shows on paper for four seasons."
-    },
-    {
-     "text": "The Vellsire were Fallowmere's own. Where that herd grazed, the ground came back richer the next year than the year before, and three people who didn't know one another wrote that down separately."
-    }
-   ],
-   "setFlags": {
-    "chain.vellsire.step1": true
-   }
-  },
-  {
-   "id": "maren.keystone.2",
-   "speaker": "maren",
-   "node": "brackwater",
-   "kind": "lore",
-   "signChain": "vellsire-chain",
-   "chainStep": 3,
-   "priority": 50,
-   "when": {
-    "actMin": 2,
-    "flagsSet": [
-     "chain.vellsire.step2"
-    ],
-    "flagsUnset": [
-     "chain.vellsire.step3"
-    ]
-   },
-   "lines": [
-    {
-     "text": "You read one of the stones out on the Reach. There are more: another on the Reach, one on the causeway here, one in the Wilds, one on the steppe, one in the vale, two on the Approach."
-    },
-    {
-     "text": "Somebody set them where that herd used to pass. The herd hasn't passed in thirty years, and the stones go back a great deal further."
-    },
-    {
-     "text": "Whoever cut them was keeping a tally, and I'd like to know what of. I've been meaning to sit at the causeway one and copy the whole face of it off."
-    }
-   ],
-   "setFlags": {
-    "chain.vellsire.step3": true
-   }
-  },
-  {
-   "id": "maren.keystone.3",
-   "speaker": "maren",
-   "node": "bowerdeep",
-   "kind": "lore",
-   "signChain": "vellsire-chain",
-   "chainStep": 5,
-   "priority": 50,
-   "when": {
-    "actMin": 3,
-    "flagsSet": [
-     "chain.vellsire.step4"
-    ],
-    "flagsUnset": [
-     "chain.vellsire.step5"
-    ]
-   },
-   "lines": [
-    {
-     "text": "The felling crews let me at a fresh stump when I ask, and I've had forty-odd off them. You can read a tree's years off a stump — a wide ring is a fat year, a thin one is a poor year."
-    },
-    {
-     "text": "Every one of those forty reads wide, wide, wide, and then thin to the bark."
-    },
-    {
-     "text": "The thin starts within a season of the last time anybody wrote down seeing a Vellsire. One stump like that and I'd have called it a bad tree; forty of the same I can't. I don't know that the two things are connected, and I'd rather say so."
-    }
-   ],
-   "setFlags": {
-    "chain.vellsire.step5": true
-   }
-  },
-  {
-   "id": "maren.keystone.4",
-   "speaker": "maren",
-   "node": "cindershelf",
-   "kind": "lore",
-   "signChain": "vellsire-chain",
-   "chainStep": 6,
-   "priority": 50,
-   "when": {
-    "actMin": 4,
-    "flagsSet": [
-     "chain.vellsire.step5"
-    ],
-    "flagsUnset": [
-     "chain.vellsire.step6"
-    ]
-   },
-   "lines": [
-    {
-     "text": "I've not been up on that steppe since the thaw. Anything I tell you about it is Gerta's work. There's less green up there than on the Reach."
-    },
-    {
-     "text": "When a place empties out, it empties from the bottom up. The green goes first, then whatever was living on the green. The last to go is whatever was at the top, and by then it's had nothing to live on since winter."
-    }
-   ],
-   "setFlags": {
-    "chain.vellsire.step6": true
-   }
-  },
-  {
-   "id": "maren.keystone.5",
-   "speaker": "maren",
-   "node": "duskhollow",
-   "kind": "lore",
-   "signChain": "vellsire-chain",
-   "chainStep": 8,
-   "priority": 50,
-   "when": {
-    "actMin": 5,
-    "flagsSet": [
-     "chain.vellsire.step7"
-    ],
-    "flagsUnset": [
-     "chain.vellsire.step8"
-    ]
-   },
-   "lines": [
-    {
-     "text": "Four days in that archive, and I've read every margin entry myself rather than take a total on trust."
-    },
-    {
-     "text": "Two I still can't read at all; the ink's gone brown. There are herds of nine in there, and herds of twelve, and herds of four, and none of them wrote down how they got the figure."
-    },
-    {
-     "text": "There's one night in the whole book with three people on the roof, and it's the last entry in it. There isn't a word in there about the standing stones, and I've been through it page by page. After that the margin is blank for thirty years."
-    }
-   ],
-   "setFlags": {
-    "chain.vellsire.step8": true
-   }
-  },
-  {
-   "id": "maren.keystone.6",
-   "speaker": "maren",
-   "node": "sanctum-approach",
-   "kind": "lore",
-   "signChain": "vellsire-chain",
-   "chainStep": 10,
-   "priority": 50,
-   "when": {
-    "actMin": 6,
-    "flagsSet": [
-     "chain.vellsire.step9",
-     "quest.vellsires-trail.done"
-    ],
-    "flagsUnset": [
-     "chain.vellsire.step10"
-    ]
-   },
-   "lines": [
-    {
-     "text": "The Sanctum Fallow was shut before those stones were cut. Fallow is a farming word — ground you've left to rest on purpose."
-    },
-    {
-     "text": "If the herd went anywhere, it went in there. There'll be no herd left to find, though — one animal at the outside, and an old one."
-    },
-    {
-     "text": "I can't tell you what to do when you're standing in front of that animal. Whatever you do, it'll be a long time before it shows in anything I can measure. I'll be out walking the ground and reading it either way, same as I do now."
-    }
-   ],
-   "setFlags": {
-    "chain.vellsire.step10": true,
-    "chain.vellsire.complete": true
-   }
-  },
-  {
-   "id": "maren.retirement",
-   "speaker": "maren",
-   "node": "hearthollow",
-   "kind": "cutscene",
-   "priority": 55,
-   "when": {
-    "yearMin": 2,
-    "flagsSet": [
-     "lifecycle.first-retirement"
-    ],
-    "flagsUnset": [
-     "lifecycle.first-retirement.spoken"
-    ]
-   },
-   "lines": [
-    {
-     "text": "The animal's out of years. Nothing wrong with it — it isn't hurt and it isn't ill, it's come to the end of what it had in it."
-    },
-    {
-     "text": "Two things can come out of this. Either a young one out of the same stock, carrying one or two of the things this one was good at, or an animal you've already got gets stronger in one thing for good, under this one's name in the book."
-    },
-    {
-     "text": "It'll be down at the station from tomorrow, and you can come and see it whenever you're passing. I couldn't tell you which of the two is better, because I've not enough written down to say."
-    }
-   ],
-   "setFlags": {
-    "lifecycle.first-retirement.spoken": true
-   }
-  },
-  {
-   "id": "maren.crash-survey",
-   "speaker": "maren",
-   "node": "cindershelf",
-   "kind": "lore",
-   "priority": 52,
-   "when": {
-    "actMin": 4,
-    "population": [
-     {
-      "node": "r4",
-      "lineId": "stonewing-line",
-      "op": "lte",
-      "value": 1
-     }
-    ]
-   },
-   "lines": [
-    {
-     "text": "The west scarp has carried three big Stonewing every year I've had this job. Gerta walked it five days ago and could only find the one."
-    },
-    {
-     "text": "I can't tell you yet what took them off. If it's gone the way these things usually go, the Cragmar and the Ashvole thinned out first, then the Pyrelisk that feed on the Ashvole, and a bird that size feels it last of all."
-    }
-   ]
-  },
-  {
-   "id": "maren.finale",
-   "speaker": "maren",
-   "node": "sanctum-approach",
-   "kind": "cutscene",
-   "priority": 70,
-   "when": {
-    "actMin": 6,
-    "flagsSet": [
-     "story.greaves.entered",
-     "rival.act6.playerResult"
-    ],
-    "flagsUnset": [
-     "story.finale.spoken"
-    ]
-   },
-   "lines": [
-    {
-     "text": "Greaves went through the gate about an hour ago. He didn't hurry any part of it, and I've been sitting here since."
-    },
-    {
-     "text": "I'll be up on the rim with the board. There's a morning's work still on it. Go on up."
-    }
-   ],
-   "setFlags": {
-    "story.finale.spoken": true
-   }
-  },
-  {
-   "id": "maren.epilogue.caught",
-   "speaker": "maren",
-   "node": "sanctum",
-   "kind": "cutscene",
-   "priority": 95,
-   "when": {
-    "actMin": 6,
-    "flagsSet": [
-     "story.vellsire.resolved"
-    ],
-    "flagsUnset": [
-     "story.epilogue.shown"
-    ],
-    "flagEquals": [
-     {
-      "key": "story.vellsire.outcome",
-      "value": "caught"
-     }
-    ]
-   },
-   "lines": [
-    {
-     "text": "You've got the stag, then. Let me look at it a minute. It's narrower through the shoulder than the drawings have it, and the near antler has been broken and grown back crooked. It won't age."
-    },
-    {
-     "text": "Right. The numbers, then. Meadow Reach, Brackmarsh, Bowerdeep Wilds, Cinder Steppe, Duskhollow Vale and the Approach, all six walked and counted this morning, five by me and the steppe by Gerta."
-    },
-    {
-     "text": "With that animal in a snare, the ground round the Sanctum and along the Approach goes on bringing young on at the rate it has every year I've walked it. Loose in there, it brings on three young where it now brings on two."
-    },
-    {
-     "text": "I'll write in the book that the snare held. You'll not see the difference on my page for four seasons, and I'd not swear to it for eight."
-    }
-   ],
-   "setFlags": {
-    "story.epilogue.shown": true
-   }
-  },
-  {
-   "id": "maren.epilogue.released",
-   "speaker": "maren",
-   "node": "sanctum",
-   "kind": "cutscene",
-   "priority": 95,
-   "when": {
-    "actMin": 6,
-    "flagsSet": [
-     "story.vellsire.resolved"
-    ],
-    "flagsUnset": [
-     "story.epilogue.shown"
-    ],
-    "flagEquals": [
-     {
-      "key": "story.vellsire.outcome",
-      "value": "released"
-     }
-    ]
-   },
-   "lines": [
-    {
-     "text": "The stag went up the scarp and over the rim and out of sight. It stopped the once at the top, side on, long enough for me to see the whole of it. I had a pencil in my hand and never wrote a thing down."
-    },
-    {
-     "text": "Right. The numbers, then. Meadow Reach, Brackmarsh, Bowerdeep Wilds, Cinder Steppe, Duskhollow Vale and the Approach, all six walked and counted this morning, five by me and the steppe by Gerta."
-    },
-    {
-     "text": "And while that animal is loose out there, the ground round the Sanctum and along the Approach brings on three young where it has brought on two every year I've walked it."
-    },
-    {
-     "text": "You were six years getting to it. In nine years somebody will ask me why the numbers moved, and I'd rather they had the whole of it from me."
-    }
-   ],
-   "setFlags": {
-    "story.epilogue.shown": true
-   }
-  },
-  {
-   "id": "maren.greeting.hearthollow",
-   "speaker": "maren",
-   "node": "hearthollow",
-   "kind": "greeting",
-   "when": {},
-   "lines": [
-    {
-     "text": "Station's open, come in. This morning's numbers are up on the board. There's tea if you want it, but you'll have to make it yourself."
-    }
-   ]
-  },
-  {
-   "id": "maren.greeting.brackwater",
-   "speaker": "maren",
-   "node": "brackwater",
-   "kind": "greeting",
-   "when": {},
-   "lines": [
-    {
-     "text": "I'm out along the stilts most days this season with the board under one arm. I get about four hours out of a day before the damp gets into the pages."
-    }
-   ]
-  },
-  {
-   "id": "maren.greeting.bowerdeep",
-   "speaker": "maren",
-   "node": "bowerdeep",
-   "kind": "greeting",
-   "when": {},
-   "lines": [
-    {
-     "text": "Bowerdeep is slow ground for me. I'm on the forest floor with a glass looking up, and that gets me about a third of the canopy. The rest is Vesper's counting, with her name against it on my board."
-    }
-   ]
-  },
-  {
-   "id": "maren.greeting.cindershelf",
-   "speaker": "maren",
-   "node": "cindershelf",
-   "kind": "greeting",
-   "when": {},
-   "lines": [
-    {
-     "text": "Steppe survey, and I'm behind on it. Read over my shoulder if you like."
-    }
-   ]
-  },
-  {
-   "id": "maren.greeting.duskhollow",
-   "speaker": "maren",
-   "node": "duskhollow",
-   "kind": "greeting",
-   "when": {},
-   "lines": [
-    {
-     "text": "Archive in the morning, out in the vale from dusk, because that's when the things I'm after are up and moving. I've not had a proper night's sleep since I came up here."
-    }
-   ]
-  },
-  {
-   "id": "maren.greeting.sanctum-approach",
-   "speaker": "maren",
-   "node": "sanctum-approach",
-   "kind": "greeting",
-   "when": {},
-   "lines": [
-    {
-     "text": "I'm up at the rim most of the day with the board. Nothing living on this approach but crows. I lost a pencil over the edge on the first day and I've been careful since."
-    }
-   ]
-  }
- ]
+  ]
 }

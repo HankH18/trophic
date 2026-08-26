@@ -1,140 +1,140 @@
 {
- "_slice": "S8c-amb-bowerdeep",
- "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
- "entries": [
-  {
-   "id": "amb.bowerdeep-logger.base",
-   "speaker": "bowerdeep-logger",
-   "node": "bowerdeep",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
+  "_slice": "S8c-amb-bowerdeep",
+  "_rules": "Rewrite ONLY the human-readable text: every lines[].text and every choices[].text. PRESERVE EXACTLY: entry id, speaker, node, kind, priority, the whole `when` object, every line-level condition key other than `text`, and every choices[].goto. You may ADD entries only if the repair plan tells you to, and then only with ids in your own speaker namespace. Never delete an entry.",
+  "entries": [
     {
-     "text": "I'm my own crew, me. Nobody's bought a stick off me since the back end of last year."
+      "id": "amb.bowerdeep-logger.base",
+      "speaker": "bowerdeep-logger",
+      "node": "bowerdeep",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Give me a minute, I'm wedging this one and it'll go where I put it."
+        },
+        {
+          "text": "My back went two summers ago and I can still put a tree down exactly where I want it. Getting up off the ground after is the trouble, and my wife has heard that one often enough to say it for me."
+        },
+        {
+          "text": "Below the town the Barkhide eat the low growth back to the dirt. On ground like that a log walks down to the road one-handed."
+        }
+      ]
     },
     {
-     "text": "My back went two summers ago. I can still put a tree down exactly where I want it. I just can't get myself up off the ground after. My wife stopped asking how the day went, so I tell her anyway."
+      "id": "amb.bowerdeep-logger.thin",
+      "speaker": "bowerdeep-logger",
+      "node": "bowerdeep",
+      "kind": "ambient",
+      "priority": 40,
+      "when": {
+        "yearMin": 4,
+        "population": [
+          {
+            "node": "r3",
+            "lineId": "barkhide-line",
+            "op": "lte",
+            "value": 4
+          }
+        ]
+      },
+      "lines": [
+        {
+          "text": "There's not a stick left in there worth me walking in for, and I've not had a saw out past the east stair in four years."
+        },
+        {
+          "text": "No Barkhide on those slopes now, so the low growth has come right up and the young trees under it all came on in one season. The canopy is thinner than when we were cutting under it."
+        }
+      ]
     },
     {
-     "text": "The Barkhide don't come up the north side. Below the town they eat the low growth back to the dirt, and on ground like that I can walk a log down to the road with one hand on it."
-    }
-   ]
-  },
-  {
-   "id": "amb.bowerdeep-logger.thin",
-   "speaker": "bowerdeep-logger",
-   "node": "bowerdeep",
-   "kind": "ambient",
-   "priority": 40,
-   "when": {
-    "yearMin": 4,
-    "population": [
-     {
+      "id": "amb.bowerdeep-silkwinder.base",
+      "speaker": "bowerdeep-silkwinder",
+      "node": "bowerdeep",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Grown Webvern silk I can tell through a glove. Both hands on a strand, pull as hard as I like, it holds. Young stuff comes apart on the frame while you're winding it."
+        },
+        {
+          "text": "Second grade. It doesn't leave here as anything else."
+        },
+        {
+          "text": "And the moths make none of it — that's Webvern work, all of it. The stall on the corner will tell you different and the stall has never had a hand on the stuff."
+        }
+      ]
+    },
+    {
+      "id": "amb.bowerdeep-child.base",
+      "speaker": "bowerdeep-child",
+      "node": "bowerdeep",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "You want the winding house? It's the — no, wait, are you going up the east stair, because I'm not allowed on the east stair."
+        },
+        {
+          "text": "Gloomgrub are the little ones and they turn into the big ones out of the high lines, only they don't, they're a different thing altogether, and the silk comes off the wings when they come through and the lamps go out, whoomf."
+        },
+        {
+          "text": "One went down my collar and got away — hold on, that's my sister, she's not meant to be"
+        }
+      ]
+    },
+    {
+      "id": "amb.bowerdeep-elder.base",
+      "speaker": "bowerdeep-elder",
+      "node": "bowerdeep",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "Floor stair, was it? They all come up that way. On the walk we would have called that a floor matter, and on the floor they would have sent it up to the walk."
+        },
+        {
+          "text": "In my day a person knew which."
+        },
+        {
+          "text": "That was the lampkeeper's family who sent it up, his father before him and his father's brother as well. I came up to the walk myself the year they re-cut the lower stair, which was the year after my father died, or the year before it — I have had it both ways round for a while now."
+        }
+      ]
+    },
+    {
+      "id": "amb.bowerdeep-lampkeeper.base",
+      "speaker": "bowerdeep-lampkeeper",
+      "node": "bowerdeep",
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "First the lower run. Forty-one, forty-two, forty — no. Lost my place. Start again."
+        },
+        {
+          "text": "Oil's in the shed behind the winding house. — Was it oil you wanted?"
+        },
+        {
+          "text": "Pell has the stair. Mine's the walk, and mine is two hundred and eleven. In the autumn the moths put the lot out. Then it is two hundred and eleven again, from the first lamp up."
+        }
+      ]
+    },
+    {
+      "id": "amb.r3-logger.base",
+      "speaker": "r3-logger",
       "node": "r3",
-      "lineId": "barkhide-line",
-      "op": "lte",
-      "value": 4
-     }
-    ]
-   },
-   "lines": [
-    {
-     "text": "I've not had a saw out past the east stair in four years. The canopy up there is thinner than it was when we were cutting under it."
-    },
-    {
-     "text": "No Barkhide on those slopes now. The low growth has come right up over the ground, and the young trees under it all came on in the one season. There's not a stick in there worth me walking in for."
+      "kind": "ambient",
+      "when": {},
+      "lines": [
+        {
+          "text": "We cut marked stands and nothing else. The marks come down from the town."
+        },
+        {
+          "text": "Webvern in the tops over this stand, so we cut round those trees. Reason given is the silk pays better than the timber. Off the stand by dusk, and the reason given there is Duskstalk."
+        },
+        {
+          "text": "Two hours out at the start and two hours back at the end, and that is in the terms."
+        }
+      ]
     }
-   ]
-  },
-  {
-   "id": "amb.bowerdeep-silkwinder.base",
-   "speaker": "bowerdeep-silkwinder",
-   "node": "bowerdeep",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "Grown Webvern silk, I can tell through a glove. Both hands on a strand and pull as hard as I like, it doesn't go. Young stuff comes apart on the frame while you wind it."
-    },
-    {
-     "text": "Big frame wobbled all winter. I said so the once and it was mended inside the week."
-    },
-    {
-     "text": "The stallholder's lad goes round the market telling people the moths make the silk. The moths make no silk. It's Webvern that make it, up in the high lines. My frame's stood idle since I came out here."
-    }
-   ]
-  },
-  {
-   "id": "amb.bowerdeep-child.base",
-   "speaker": "bowerdeep-child",
-   "node": "bowerdeep",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "When the moths come through the lamps go out, poof, poof, poof. One went down my collar and I had it in both hands and then the stall man shouted and it got away."
-    },
-    {
-     "text": "Gloomgrub are the little ones and they go up in the high lines and come back down big as my hand with the wings on, and that's where the silk comes off them. I'm not allowed up the east stair."
-    },
-    {
-     "text": "I mind the stall man's stall while he gets his supper. Got a copper?"
-    }
-   ]
-  },
-  {
-   "id": "amb.bowerdeep-elder.base",
-   "speaker": "bowerdeep-elder",
-   "node": "bowerdeep",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "I was born on the floor, I raised my family on the walk, and I am in the canopy now."
-    },
-    {
-     "text": "In my day a man could stand on the floor and see clear across. It has grown over a great deal since. The Mosslet were down there then and they are down there still, and the Sporantle come up in what falls off the walk."
-    },
-    {
-     "text": "The lampkeeper was a boy on the floor when I was a married man up on the walk. I could take you through the whole of his family if you have an afternoon."
-    }
-   ]
-  },
-  {
-   "id": "amb.bowerdeep-lampkeeper.base",
-   "speaker": "bowerdeep-lampkeeper",
-   "node": "bowerdeep",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "First the lower run. Forty-one, forty-two, forty — no. Lost my place. Back down to the first lamp and start again. Most nights now. Most nights."
-    },
-    {
-     "text": "Oil's in the shed behind the winding house. — Was it oil you wanted?"
-    },
-    {
-     "text": "Pell has the road past the stair, and people say his is the harder one. I've not asked him. In autumn the moths put the lamps out behind me, so I light the two hundred and eleven and light most of them again."
-    }
-   ]
-  },
-  {
-   "id": "amb.r3-logger.base",
-   "speaker": "r3-logger",
-   "node": "r3",
-   "kind": "ambient",
-   "when": {},
-   "lines": [
-    {
-     "text": "We cut marked stands and nothing else. The marks come down from the town. It's in the crew book if you want the wording."
-    },
-    {
-     "text": "Two hours out at the start of the day, two hours back at the end. That's in the terms."
-    },
-    {
-     "text": "Webvern in the tops over this stand, so we cut round those trees. The reason given is that the silk pays better than the timber. Off the stand by dusk, and the reason given for that is the Duskstalk."
-    }
-   ]
-  }
- ]
+  ]
 }
