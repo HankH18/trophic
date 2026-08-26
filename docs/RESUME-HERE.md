@@ -42,11 +42,6 @@ Three levers are measured in that document; all three are content or spec edits 
 taken. `LANE-A-STATUS` §6.2's risk is recorded as **still open**, and the balance report now
 retracts its own recommendation to move the beat to a vertical-slice node.
 
-**53% of dialogue lines lean on a proper noun or a trade object for their identity.** Blind
-attribution scores 85%, but 43% of the correct calls ride on a noun rather than a voice. The linter
-reports this as `G13-NOUN-CARRIED`, diagnostic-only *by design* so it cannot be gamed into silence.
-The fifth pass did not move it. This is the honest remaining gap in the prose.
-
 **A fresh line-by-line G7 read is OWED** — `docs/DIALOGUE-NOTES.md` says so. The old read analysed
 text that no longer exists. A regex cannot detect tone; the gate is a human-style read.
 
@@ -55,6 +50,18 @@ green. Filed in `DEVIATIONS.md` D-BAL-3. Same shape as the decoy knobs below.
 
 **Owner-decision BLOCKED-FINDINGS, untouched:** BF-8 (what a battle loss costs), BF-22/23 (a live
 API run and the first painted map), BF-24, BF-27/28, BF-29, BF-30, BF-31, BF-32, BF-33.
+
+## DECIDED — NOT OPEN, so nobody re-opens it
+
+**Attributability is no longer a universal bar.** Hank ruled: *"Not all dialogue has to be so
+stylized that it can be directly tied to a character. Some things are simply normal for anyone to
+say. So, let's drop that."* `CAST-AND-VOICE.md` **Appendix H** is that ruling — the four-line test
+now applies only to lines doing characterisation work, not to greetings, prices, directions or the
+ordinary business of a transaction. **The 53% `G13-NOUN-CARRIED` figure this file previously listed
+as "the honest remaining gap in the prose" is therefore not a gap and is not to be driven down** —
+ordinary speech names ordinary things, and chasing the number is how you get sixty-two aphorists.
+The check stays, diagnostic-only; its actionable reading is per speaker (`duskhollow-shepherd` at
+3/3), never the corpus share. Logged as `DEVIATIONS.md` **D-PR-10**. **No dialogue was rewritten.**
 
 ## THE LESSON THIS SESSION KEPT RE-LEARNING
 

@@ -1,5 +1,31 @@
 # Final prose audit — findings from the fourth pass
 
+> ## ⚠ RETIREMENT NOTE — 2026-08-26, added after the fact. Read before acting on anything below.
+>
+> **Hank's ruling:** *"Not all dialogue has to be so stylized that it can be directly tied to a
+> character. Some things are simply normal for anyone to say. So, let's drop that."*
+> `CAST-AND-VOICE.md` **Appendix H** installs it; `DEVIATIONS.md` **D-PR-10** logs it.
+> **This file is a record and nothing in it is deleted.** What the ruling does to it, precisely:
+>
+> **RETIRED — the blind-attribution instrument.** This audit graded lines by covering the name
+> plate and trying to name the speaker, and reported the misses as defects in their own right.
+> Under Appendix H that is no longer a defect: a functional line any of five people could have
+> said is a correct line. So every clause of the form *"I attributed X's line to Y in the blind
+> test"* is **retired as a warrant**. It survives below only as colour beside a finding's real
+> evidence. Two places where it is the whole of the claim, and both are retired outright:
+> **§23's** trailing observation that *"the gym-leader tier was the least differentiated in my
+> blind test — five of nine misses paired a gym leader with someone outside that tier"*, and
+> **§13's** *"the strongest single reason this beat is unattributable"* — §13's actual warrant is
+> the canon collision with Sel's grandfather plus the voice-sheet's MOTHER, and that stands.
+>
+> **NOT RETIRED — everything else, which is all 29 findings.** No finding here rests on
+> universal attributability alone. Their warrants are §2's two-speaker construction cap
+> (§§4, 5, 6, 7, 11, 14, 15, 16, 17, 18, 24, 25, 26), a speaker contradicting their own voice
+> sheet (§§1, 13, 23), a duplicated beat between two speakers (§§2, 12), or a hard content /
+> gate / test defect (§§3, 8, 9, 10, 19, 20, 21, 22, 27, 28, 29). **Appendix H scopes the demand
+> that every line be distinctive; it does not license five speakers to share one rhetorical
+> shape, and it does not license a character to speak out of another character's sheet.**
+
 ## 1. [BLOCKER] /private/tmp/claude-501/-Users-hankholcomb-Documents-code-parent-folders-gauntlet-repos-trophic/d58ab7c7-bc89-47aa-ba19-fa42d827a893/scratchpad/fragments/S2-wick-greaves.json — wick.act2.loss, wick.act3.loss, wick.act4.loss, wick.act5.loss (line 1 of each); wick.act1.win, wick.act2.win (line 1 of each)
 
 **Problem.** Wick's twelve battle beats are two sentences written six times. Four consecutive defeat beats (acts 2-5) run one armature: [I have had this ground a season/a year] + [therefore I know a specific property of it] + [you don't]. Two victory beats open on a bare unnumbered comparative compliment, which his own voice sheet forbids ('Never concedes with a maxim — he concedes with a number'). This is invisible to every check that has been run: the cross-speaker chorus scanner only fires across speakers, the structural diff preserves ids, and prose-lint reads one beat at a time. The player meets Wick more than any other character and loses to him at least once, so this is the repetition a demo video actually exposes.

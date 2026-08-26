@@ -2276,3 +2276,90 @@ Maren explaining method, Sel telling a story, Greaves stating a position, Orrin 
 job with their hands while they talk. Those people speak in fragments and get interrupted by the
 work. The rewrite has innkeepers and vendors averaging 310 characters, longer than Maren — that is
 backwards, and it is the clearest single symptom of a length target applied uniformly.
+
+---
+
+# APPENDIX H — THE FOUR-LINE TEST IS NOT UNIVERSAL. GOVERNING, OVERRIDES APPENDIX G, APPENDIX F, §1 AND §2.
+
+Hank read the bar this document opens with and ruled:
+
+> **"Not all dialogue has to be so stylized that it can be directly tied to a character. Some things
+> are simply normal for anyone to say. So, let's drop that."**
+
+That withdraws §1's **CHECK 1** as a universal requirement, and with it §1's **SPECIFICITY FLOOR**,
+which is the same demand wearing different words.
+
+## What is withdrawn, exactly
+
+CHECK 1 said: *"A reader who knows the cast must be able to say which is which. If your line could
+be moved into another character's mouth without anyone noticing, it is not a line yet — it is corpus
+filler with a different sprite over it."* The SPECIFICITY FLOOR said every line must carry *"at
+least one thing only this speaker would know."*
+
+**As rules about EVERY line, both are withdrawn.** Both stand, unchanged, over the lines that are
+doing characterisation work.
+
+## THE SCOPED TEST — the replacement, and it is the whole rule
+
+> **The four-line test applies to a line doing characterisation work: a beat where someone reveals a
+> position, a grievance, an expertise, or a relationship. It does not apply to functional speech.**
+
+Functional speech is greetings, prices, directions, confirmations, refusals — the ordinary business
+of a transaction, a person saying the thing the situation requires and then stopping.
+**"Morning." · "It's over there." · "Two coppers."** are correct lines. Each of them could have come
+out of any of five mouths, and that is fine, because what they are doing is any-of-five-mouths work.
+**Ordinary functional speech is not a failure of characterisation. It is what most speech is.**
+
+The corollary carries as much weight as the rule: **a line does not get better by being made
+distinctive.** If a vendor's price line is a price, leave it a price. Reaching for something only
+this vendor would say, in a slot whose whole job is to name a number, is the move this appendix
+exists to stop.
+
+## The failure mode it prevents, named
+
+**A standard demanding that every line be attributable pushes a writer to make every line
+distinctive — and a corpus in which every line is distinctive is a corpus of sixty-two aphorists.**
+That is the disease five rewrite passes were fighting, and chasing attributability is not a defence
+against it; it is its engine. Appendix F's compression, Appendix G's uniform length and §2's shared
+frames are three costumes of the one illness, and each of them is what a writer produces when told
+that an ordinary line is not yet a line.
+
+**This is the third correction of the same kind**, and the pattern is now clear enough to write
+down. Appendix F withdrew a vocabulary standard that had produced four aphorisms in its own
+examples. Appendix G withdrew a length floor thirteen writers had read as a target. **Appendix H
+withdraws a distinctiveness requirement that was being read as a quota.** Every time, a bar written
+to raise quality got applied uniformly and became the defect it was written against. A standard that
+every single line must clear is a standard every single line will be bent to clear.
+
+## What is NOT weakened
+
+Nothing below is scoped by this appendix, because none of it asks a line to be attributable:
+
+- **§2's HARD CAP.** No construction shared by more than two speakers in the whole game. Two people
+  independently saying "Morning." is not a shared construction; five speakers running one rhetorical
+  frame still is, and is still a defect. Functional speech converging on the plain form of the words
+  is not the cap's business — converging on a *shape* is.
+- **CHECK 3, the job test.** A line that reaches for another trade's instrument is still wrong.
+- **CHECK 4, the competence test**, and §6's six-slot grid. A town still needs its boring person, its
+  wrong person, its repeater and its non-answerer. §6's remark that the grid is "what makes the
+  four-line test survivable" now reads as: it is what makes the SCOPED test survivable.
+- **CHECK 5, the mentor test.** Nobody is the player's tutor.
+- **F1 / F2 / F3.** Referents resolve, sentences are literally true of their literal subjects, no
+  structural cleverness in the last sentence of a beat. Plain functional speech satisfies all three
+  by construction — which is a reason to reach for it, not a reason to distrust it.
+- **The SMALL-TALK QUOTA.** Unchanged, and it points the same direction this appendix does: a line
+  carrying no ecological payload is a person being a person and needs no further warrant.
+- **Appendix G's distribution.** Short functional lines are how the sub-80-character band gets filled.
+
+## Enforcement, and the one number that stops being a target
+
+`tools/prose/prose-lint.py`'s `G13-NOUN-CARRIED` reports what share of a speaker's lines lean on a
+proper noun or a speaker-unique trade term. **Its corpus-wide figure is not a defect and is not to
+be driven down.** Roughly half the lines in the corpus naming a proper noun or a trade object is
+what a working population of tradespeople in a named region sounds like; ordinary speech names
+ordinary things. The reading that survives is **per speaker**, and it is the top of the list: a
+speaker whose EVERY line leans on a noun has props rather than a voice, and is worth a look.
+`duskhollow-shepherd` at 3/3 is that reading. **53% corpus-wide is not, and never was.**
+
+**No line in the shipped corpus is to be rewritten on the strength of this appendix.** It withdraws
+a bar. It does not commission a pass.

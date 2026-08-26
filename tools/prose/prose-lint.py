@@ -172,6 +172,11 @@ def corpus(code, desc):
 CAP = 2          # docs/PROSE-DIAGNOSIS.md Defect 2 / CAST-AND-VOICE §2: no construction
                  # may be shared by more than TWO speakers in the whole game.
 
+NOUN_EVERY_LINE = 0.90   # G13's only actionable reading (CAST-AND-VOICE Appendix H): a speaker
+                         # at or above this leans on a proper noun or a trade term in effectively
+                         # every line, i.e. has props rather than a voice. It marks rows for a
+                         # human look; it fails nothing, and the corpus-wide share is not a target.
+
 # ── closed word lists: the whole of this tool's "grammar" ────────────────────
 NEG   = {"not", "no", "never", "none", "nothing", "nobody", "neither", "nor", "cannot",
          "nowhere", "hardly", "barely", "n't", "isn't", "wasn't", "aren't", "weren't",
@@ -487,12 +492,25 @@ def _(entries):
     return []
 
 
-@corpus('G13-NOUN-CARRIED', 'DIAGNOSTIC ONLY — identity carried by nouns rather than by voice')
+@corpus('G13-NOUN-CARRIED', 'DIAGNOSTIC ONLY — the PER-SPEAKER share of lines leaning on a noun')
 def _(entries):
-    """NOT PASS/FAIL. Blind attribution scored 85% while 43% of its correct calls were
-    carried by a proper noun or a job-specific object rather than by a voice. That is
-    the number this reports: per speaker, the share of their lines that hand the reader
-    a name or an object they alone own. A speaker at 1.00 has props, not a voice.
+    """NOT PASS/FAIL, and the CORPUS-WIDE percentage is NOT A TARGET. Read
+    CAST-AND-VOICE.md Appendix H before acting on anything this prints.
+
+    Appendix H governs this check: a line that any of five people could have said is
+    fine when what it is doing is any-of-five-people work — a greeting, a price, a
+    direction. Ordinary speech names ordinary things, so a corpus-wide figure around
+    half is EXPECTED AND UNREMARKABLE. It is not a gap and nobody is to rewrite a line
+    to move it. A lower number is not a better corpus: driving it down means making
+    every line distinctive, which is how you get sixty-two aphorists — the exact
+    disease five rewrite passes were fighting.
+
+    THE READING THAT MATTERS IS PER SPEAKER, and it is the TOP of the printed list.
+    A speaker whose EVERY line leans on a proper noun or a trade term has props rather
+    than a voice, and is worth a look; `duskhollow-shepherd` at 3/3 is that reading.
+    The corpus share is printed as context for that column and for nothing else.
+    Rows are ordered most-noun-leaning first, so the head of the list is the thing to
+    look at — the tail is not a leaderboard and low is not a virtue.
 
     A line counts as noun-carried if it contains either
       (a) an in-world PROPER NOUN — a capitalised token appearing mid-sentence
@@ -502,8 +520,9 @@ def _(entries):
           twice, all of whose corpus occurrences belong to this one speaker.
     MISSES: a proper noun that only ever appears at the start of a sentence; a trade
     object named with a common word two speakers happen to share ('board', 'post');
-    a unique term used exactly once. It therefore UNDER-reports, so treat the number
-    as a floor on how much of the identity is nouns.
+    a unique term used exactly once. Every per-speaker ratio is therefore a floor on
+    that speaker's real figure, not an exact reading — which matters only for the
+    speakers near the top, since that is the only end anyone acts on.
 
     Two false-positive classes the first live run turned up and this version excludes:
     proper nouns were matched case-insensitively, so 'Old Nib' put every lowercase
@@ -544,12 +563,18 @@ def _(entries):
     lines_all = sum(tot.values())
     lines_hit = sum(hit.values())
     rows = sorted(((hit[s] / tot[s], hit[s], tot[s], s) for s in tot), reverse=True)
+    flagged = [s for r, _, _, s in rows if r >= NOUN_EVERY_LINE]
     body = [f'{s:34} {h}/{n}  {r:.2f}   {", ".join(sorted(owners[s])[:6])}'
+            + ('   <-- every line leans on a noun' if r >= NOUN_EVERY_LINE else '')
             for r, h, n, s in rows]
-    return [(f'noun-carried identity: {lines_hit}/{lines_all} lines ({100.0*lines_hit/max(lines_all,1):.0f}%) '
-             f'name a proper noun or a speaker-unique term  [DIAGNOSTIC, never fails]',
-             f'{sum(1 for r,_,_,_ in rows if r >= 0.9)} speakers at >=0.90, '
-             f'{sum(1 for r,_,_,_ in rows if r <= 0.34)} at <=0.34', body)]
+    return [(f'corpus-wide: {lines_hit}/{lines_all} lines ({100.0*lines_hit/max(lines_all,1):.0f}%) '
+             f'name a proper noun or a speaker-unique term — CONTEXT, NOT A TARGET '
+             f'(ordinary speech names ordinary things; CAST-AND-VOICE Appendix H)',
+             f'the reading is the PER-SPEAKER column below, most-noun-leaning first: '
+             + (f'{len(flagged)} speaker(s) at >={NOUN_EVERY_LINE:.2f} — {", ".join(flagged)}'
+                if flagged else f'no speaker at >={NOUN_EVERY_LINE:.2f}')
+             + '. A speaker whose every line leans on a noun has props, not a voice; '
+               'a low ratio is not a score and is nobody\'s to chase', body)]
 
 
 # ═════════════════════════════════════════════════════════════════════════════
