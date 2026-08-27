@@ -14,20 +14,39 @@ cannot be worked by an agent — **T-1's open decision** — is first.
 while several agents were editing it.** Where a ticket's own predicted number turned out to be wrong,
 the measurement is recorded and the prediction is marked as wrong rather than quietly replaced.
 
-**Re-verified again on 2026-08-27 at 14:57:54Z**, one complete run. `npm run test` reads **3 failed of
-2,915, 2,912 passing, 2 files of 70**; `npx tsc --noEmit` reads **exit 0** at 14:59:15Z. **The passing
-total rose because tests were ADDED, not because anything regressed** (2,876 → 2,915 over the same 70
-files). **`main` is in sync with `origin/main`.** **No commit hash is quoted here any more, and
-neither is the dirty-path count or a commit tally** — "in sync with origin" stays true; a hash does
-not, and neither does a count. Every dirty path belongs to a lane working right now.
-⚠ **THIS IS A READING AT A TIMESTAMP AND THE TREE WAS BEING WRITTEN TO WHILE IT WAS TAKEN.** The quest
-lane holds `core/quests.ts`, `game/quests.ts`, `tests/unit/quests.test.ts` and
-`tests/gates/quest-layer.test.ts` and **its work has not landed**; the art lane holds
-`tools/comfy/manifest.json`. `tests/unit/quests.test.ts` passed in this run and that is a fact about
-14:57, not a verdict on unlanded work. ⚠ **Seven of the ten failures this preamble used to carry are
-GONE, and a lower failure count is the reading nobody re-checks** (STATUS item 39 №11) — so it was
-checked: `tests/gates/player-art-contract.test.ts` passes because the committed sprites were rebuilt
-(T-24), not because the file stopped running.
+**Re-verified again on 2026-08-27 at 15:58:43Z**, one complete run. `npm run test` reads **5 failed of
+2,950, 2,945 passing, 4 files of 70**, 49.87 s; `npx tsc --noEmit` reads **exit 1** at 15:58:36Z with
+**two errors, both in UNTRACKED art-lane files** (`tools/comfy/trials/creature-batch6-view.ts` — a
+`sharp` namespace error — and `tools/comfy/trials/creature-batch6.ts` — a `poseV3` property error).
+**No tracked file produces a type error, and this is NOT a repo-wide regression.**
+**`main` is in sync with `origin/main`.** **No commit hash is quoted here any more, and neither is the
+dirty-path count or a commit tally** — "in sync with origin" stays true; a hash does not, and neither
+does a count.
+⚠ **THIS IS A READING AT A TIMESTAMP AND THE TREE WAS BEING WRITTEN TO WHILE IT WAS TAKEN**, and this
+time **the failure count went UP while nothing in the tracked tree regressed** — which is the mirror of
+the trap this preamble carried last pass. **Attributed one by one, because a count is not a diagnosis:**
+three of the five (`tests/property/foodweb.test.ts` no-shadow-tables, `tests/unit/postprocess.test.ts`
+BF-5, and the seed half of `tests/unit/manifest.test.ts`) fire on **art-lane files that are untracked
+or uncommitted** — the gates are working exactly as written; **one** is T-46's fossilised precondition;
+and **one** is the cascade feasibility gate, which is the open decision at the top of this file and is
+the only failure reading shipped data. **The dirty paths are the art lane in `tools/` and `assets/`,
+`.claude/scheduled_tasks.lock`, and `game/scenes/OverworldScene.ts` + `tests/unit/overworld-scene.test.ts`,
+which a lane is holding right now to repair the wipe softlock (T-29). Nothing dirty is abandoned work.**
+
+**Opened on the playtest pass (2026-08-27, latest): T-60, T-61, T-62 — and T-60 is the largest item on
+this queue.** The game was driven in a browser for the first time, and **catching turns out to be
+unreachable**: the canon promises three snares in Maren's tutorial, a dialogue entry has no field that
+can give the player anything, no grant machinery exists, no starting inventory is written and the shop
+tile plays flavour text. **Demo beat 1 cannot be played, and the same fact explains the red cascade
+gate** — the reference player that gate prices is holding a weighted snare nothing can supply, so
+tuning the budget cannot fix it. **T-12 clause 4 and T-38 gained the consequence rather than a
+duplicate**, and **T-29 gained three ⛔ findings appended to its `DONE`**: a party wipe ends the run,
+the blackout has no black screen, and the player does not wake at the inn. **A lane is repairing all
+three right now and none of it has landed — do not read any of them as fixed.**
+**What landed and is verified in the tree:** the quest layer's year-turn defect (age is read off the
+tape's `gained`), the deadline guard made real rather than deleted, `r2`'s Ancient, the release
+refusal naming *which* reason, and **both quest gates rewritten to OBSERVE a driven player** instead
+of confirming a row exists.
 
 **Closing on the collision pass (2026-08-27, later): T-24.** The derived player views were rebuilt
 against the re-frozen palette and `tests/gates/player-art-contract.test.ts` reads **16 of 16** — the
@@ -447,8 +466,20 @@ line when the player is inside one.
 
 **❌ Clause 4 — items sold in the town shops.** No shop sells anything. `balance.economy` ships
 `innCost` 40, `trainerPayoutPerLevel` 12, and snare / bait / salve / tonic prices, and **every one of
-them has zero readers** outside `core/schemas.ts` and `core/types.ts`. The only `money` occurrence in
-`core/` or `game/` is still `core/save.ts:420` `money: opts.money ?? 0` — no earner, no spender.
+them has zero readers** outside `core/schemas.ts` and `core/types.ts`. ⚠ **The sentence that stood
+here is CORRECTED, not rephrased:** it said the *only* `money` occurrence in `core/` or `game/` is
+`core/save.ts:420`. There are **five** — `core/schemas.ts:826`, `core/types.ts:770`, `core/save.ts:4`
+(a doc comment), `:384` (`NewSaveOpts`) and `:420` — and **zero in `game/`**. The claim that was
+meant, and that survives measurement: **`core/save.ts:420` `money: opts.money ?? 0` is the only
+*executable statement* in the repo that touches money.** No earner, no spender.
+
+⚠ **AND THIS CLAUSE NOW BLOCKS A NEVER-CUT DEMO BEAT — see T-60.** The economy's emptiness has been
+recorded here for two passes as an unfinished feature. **A live playtest found what it actually
+costs**: with no starting inventory, no grant path and no shop, **nothing in the game can be caught**,
+so build-doc §1 beat 1 and §15's I1 and I2 are all unplayable. **T-60 is the snare grant and is NOT
+this clause** — it is the one thing the canon already specifies (*"Three of them, in the satchel by the
+door"*), and it must not be answered by shipping a shop, because a shop needs an earner and an earner
+is the ordering problem this clause has always been. **T-60 first, T-12 clause 4 after it.**
 
 ⚠ **The urgency this ticket carried is DISCHARGED, and the paragraph that carried it is corrected
 rather than deleted, because the reasoning is what justified the fix.** It read: with damage
@@ -970,6 +1001,10 @@ cited.
 | T-56 | Landing a mask is a gate recalibration | One gate reds on any mask; one is already red for another reason | TODO · **behind T-57** |
 | T-57 | Painting or layout — which is authored first? | Nothing reconciles them; a mask today blocks the painted road | TODO · **Hank's** |
 | T-58 | A wall under half a cell wide blocks nothing | A property of the majority rule; bites only on a hand-edited mask | TODO · **record only** |
+| T-59 | The layout→mask round trip is demonstrated, not protected | The sabotage that proves it ran in a scratchpad, not in the suite | TODO |
+| T-60 | Three snares are promised and never delivered | **Catching is unreachable; demo beat 1 cannot be played** | TODO · **shape is Hank's** |
+| T-61 | A debug HUD covers most of the screen | Unconditional, no toggle; `[C]` is a different overlay | TODO |
+| T-62 | The battle log disagrees with the HP bar | `-62 HP` printed against 56 removed | TODO |
 
 ### T-28 · Wire the persistence spine — nothing calls `applyBattleResult`
 **Status:** **DONE for the wiring, and three of its own *done when* clauses did NOT land and go back
@@ -1099,6 +1134,38 @@ be sent out"* at `:217`), four launcher guards, and a last-ditch `unfieldablePro
 survivable only because HP never persisted. **T-28 made it reachable and terminal**, which would have
 contradicted the closed ruling that a forced choice exists *"so the game cannot block"* — which is why
 the two had to ship together and did.
+
+⚠ **REOPENED IN SUBSTANCE BY THE 2026-08-27 PLAYTEST: THE PRICE IS RIGHT AND THE RULING IS NOT ON
+SCREEN. THE STATUS ABOVE STAYS `DONE` FOR WHAT IT CLAIMS — the decision layer — and this is appended
+rather than overwriting it, because the tick charge is the part that DID work.** A lane is repairing
+all three items below right now and **its work has not landed; none of this is fixed.**
+
+The blackout fires and its prose lands `[SAW, verbatim]` — *"Nothing is standing, and the next part of
+the day is missing."* The charge is exact: the banner read `hearthollow 5 ticks` and the meter moved by
+five, which is `2 × innTicks + travelTicks` on the shipped keys. Then:
+
+1. ⛔ **THE OVERWORLD ACCEPTS NO INPUT AFTER THE RECOVERY. THE RUN IS OVER.** `[SAW]`, **3 of 3** — a
+   lost wild fight, a lost rival fight and a lost gym fight. After the last narration line closes,
+   arrows, `[C]`, `[E]` and ESC all do nothing. **It is not the harness and not a stopped game loop**:
+   measured in the same instant, `{ keydownsSeen: 1, framesAdvanced: 56 over ~500 ms }`, with **no
+   console error, no exception and no Phaser warning.** The key reaches `window`, the game steps, and
+   the overworld does nothing with it. The playtester's reading of the cause — more `scene.pause()`
+   calls than `scene.resume()` across a chained pair the file's own comment says is *"not
+   ref-counted"* — is marked `[INFERRED]` **by them** and is preserved as an inference here.
+2. ⛔ **There is no black screen.** What draws is the ordinary dialogue box over the **live overworld**,
+   with the debug HUD (T-61) still on top of it. Hank's ruling names it in as many words: *"a dialogue
+   shows up with a black background."*
+3. ⛔ **The player does not wake at the inn — they wake where they fell.** `[SAW]`: the tile before the
+   fight and after the whole recovery sequence were both `18,29`; the inn door is at `18,24` and the
+   interior was never entered. The move that exists is `recovery.wakeNode`, and **for a wipe in
+   Hearthollow the wake node IS Hearthollow**, so the node move is a correct no-op and *nothing puts
+   the player in the room the prose describes*. The other half of the ruling is *"and then you wake up
+   at the inn."*
+
+**Read the shape of this, because it is this repository's own recurring one.** The node-level move was
+bound at every shipped node by a test written in this very ticket, and that test is right — and it
+cannot see that a wake node equal to the current node leaves the player standing on the tile they fell
+on, inside no building. **The thing asserted was the graph hop; the thing ruled was the room.**
 
 ### T-30 · XP is written out and never read back in
 **Status:** **DONE — landed with T-28.**
@@ -1392,9 +1459,28 @@ real run: ~80% losses and ~79% one-shots, now with the loss persisting. **Half t
 opening.** The material is in STATUS's waiting-on-the-owner register as one item, deliberately, rather
 than filed twice.
 
-**Nothing was tuned to produce any of it and nothing should be** (G2, G14, and T-11's own ruling).
+⚠ **THE "10 CATCHES" IN THAT RE-MEASUREMENT IS A READING OF A PLAYER THE SHIPPED GAME CANNOT PRODUCE,
+and it is marked rather than deleted, because the loss and tick figures beside it are unaffected.**
+The harness hands its reference player a snare tier as a parameter with **no inventory check at all**
+(`tools/harness/full-run.ts:235` passes `ref.snareTier` straight to `catchChance`), and a gym bag is
+constructed outright (`tools/harness/player.ts:495`, *"one salve per party member, nothing else"*). A
+real player holds none of it — **T-60**. So *"the vertical slice catches again"* is true of the model
+and false on screen. **The wipes, the ticks and the losses stand; the catches do not.**
 
-**Nothing was tuned to produce these numbers and nothing should be.** Levels, rosters, stats and
+**AND THE TABLE IS NOW CONFIRMED ON SCREEN, WHICH IS NEW EVIDENCE OF A KIND THIS TICKET DID NOT HAVE.**
+The 2026-08-27 playtest `[SAW]`, on the **first random encounter of a new game, in the starting town,
+on turn one, at full health**: Cindril **Lv 5, 58/58** against a wild **Lv 5 Loamunder, 111/111**.
+Cindril's Singe took the Loamunder 111 → 87 (**24**, five more turns needed); the Loamunder's Sunder
+took Cindril **58 → 0 in one hit**. Message: `Party down`. The rival's **Lv 6 Nibbin** did the same.
+**Cindril's own Pyre reads 58** — the starter's best move is exactly its own HP total.
+
+**This is a balance question for the owner, not a defect for an agent to patch** (G2, G14, T-11's
+ruling). What the playtest adds is the consequence, which is not a balance claim: **combined with the
+wipe softlock appended to T-29, a new player's run ends inside a minute of play**, and the vertical
+slice past R1 is unreachable in practice — Brackwater is behind the act gate, which needs Maribel's
+badge, which needs a creature that survives one hit `[SAW/INFERRED]`.
+
+**Nothing was tuned to produce any of these numbers and nothing should be.** Levels, rosters, stats and
 balance values are Hank's; G2 and T-11's ruling forbid an agent moving them, and G14 forbids moving a
 target to accommodate a result.
 
@@ -2023,6 +2109,173 @@ spent debugging a wall that loads correctly and does not work.
 
 ---
 
+## Opened 2026-08-27 by the first live playtest — the game was driven in a browser
+
+**Someone played it.** A session built the app, served it and drove it with real keys through the
+title, the opening cutscene, Hearthollow, an interior, a wild fight, a rival fight, a gym, the in-run
+menu and the survey. **The findings below are the first evidence in this repository that is not a
+test.** Read STATUS's playtest section for the full account, including what works — which is a great
+deal, and the survey most of all.
+
+⚠ **PROVENANCE, AND IT BINDS EVERY LINE BELOW.** The bundle played was built from the tree **before
+several of the commits that have since landed**, and `game/scenes/OverworldScene.ts` was being edited
+by another lane *while the run was in progress*. **Every scene-level line number the playtest cited is
+a reading against a stale tree and is not reproduced here** — where a line is quoted below it was
+re-read on the current tree. The playtester marked their own observations `[SAW]` and their readings
+of code `[INFERRED]`; **that distinction is preserved and must not be collapsed** — an inference is
+not an observation because it turned out to be right.
+
+**Two of the playtest's ⛔ findings are IN FLIGHT and are deliberately NOT ticketed here**: the party-wipe
+softlock and the blackout's missing black screen / missing wake at the inn. A lane is repairing both
+right now and its work has not landed. They are recorded as open in STATUS and appended to T-29,
+which is the ruling they fail against. **Do not mark either as fixed on the strength of this
+paragraph.**
+
+### T-60 · The canon ships three snares, nothing delivers them, and the CATCH VERB IS UNREACHABLE
+**Status:** TODO — **the SHAPE is the owner's; that the work is owed is not in question.**
+This is implementing shipped canon, not inventing content (G2-safe).
+
+⚠ **This is not a new discovery about the economy.** T-12 clause 4 and STATUS item 36 have recorded
+"no earner, no sink, zero readers" for two passes. **What is new is the CONSEQUENCE: it blocks a
+never-cut demo beat**, and the canon already specifies the fix in the player's own tutorial.
+
+**The chain, re-verified end to end on 2026-08-27.**
+
+1. **The canon grants three snares, and the entry fires.** `data/dialogue.json:611`
+   `maren.tutorial.snare` ships, verbatim: *"Snares first. Three of them, in the satchel by the door.
+   The satchel comes back to me."* It is correctly gated — `when: { flagsUnset: ["tutorial.snare.done"] }`
+   — reached by `goto` from all three starter picks (`:554`, `:581`, `:608`), sets
+   `tutorial.snare.done`, and `goto`s `maren.tutorial.survey`. **The reachability gate is right about
+   it: the line reaches the screen.**
+2. **A dialogue entry has no way to give the player anything.** The key union over all **215** entries
+   is exactly fourteen keys — `chainStep, choices, goto, id, kind, lines, node, priority, propId,
+   quest, setFlags, signChain, speaker, when` — counted, not assumed. `zDialogueEntry`
+   (`core/dialogue-schema.ts:356`) is a **`z.strictObject`** over those same fields, so an `items` key
+   is a *validation error*, not an ignored one; `zDialogueChoice` (`:350`) carries text/goto/setFlags
+   only. **A dialogue entry can set a flag and nothing else.**
+3. **No grant machinery exists anywhere.** `addItem|giveItem|grantItem|awardItem` returns **zero hits
+   repo-wide**. Every production write to `items` is a **replace** from the battle bag as the reducer
+   left it (`core/save.ts:523`, `:598`, built at `game/wild-battle.ts:484`) — spend-only, and
+   structurally unable to increase a stack. The only places a snare ever enters a bag are two test
+   constructions (`tests/unit/overworld-scene.test.ts:955`, `:3518`).
+4. **No starting inventory.** `newSave` (`core/save.ts:404`) writes `items: { ...(opts.items ?? {}) }`
+   at `:421`, and **not one caller passes `items`** — `game/boot.ts:412`,
+   `game/scenes/OverworldScene.ts:566`, `tools/ui-frames/contact-sheet.ts:60`,
+   `tools/harness/full-run.ts:397`. A new game starts with `{}` and the bag can only shrink.
+5. **No shop, and the shop copy ships anyway.** `vendor-hearthollow.shop` (`data/dialogue.json:4329`,
+   `kind: "service"`) carries the full vendor scene — *"Snares and salve. Tonic's behind me and it
+   costs what it costs."* The supply shop's SERVICE anchor
+   (`data/interiors/hearthollow-supply.json:38-47`, `shop` at 5,2) resolves through `interiorEntryId`
+   (`game/scenes/OverworldScene.ts:3693`) into `playEntry` (`:1143`) — **it plays that dialogue.** There
+   is no store UI and no buy path: `openStore`, `shopMenu`, `purchase` and `buyItem` return **zero
+   hits** across `core/` and `game/`. The in-run menu's BAG is honestly greyed *"Not built yet —
+   build-doc §15 C4."*
+6. **`game/wild-battle.ts:266-267` is deliberately correct and says so**, verbatim: *"No snare is
+   conjured for the fight: a player with no snares cannot catch anything, which is the honest state and
+   the one the economy tunes."* Confirmed on screen: SNARE opens `Base — / Weighted — / Master —`, the
+   dash meaning zero held, and selecting one **consumes the turn silently** — no snare message reached
+   the log at all `[SAW]`.
+7. **Money cannot buy them either.** ⚠ **A figure this queue has published twice is CORRECTED here:**
+   it said the *only* `money` occurrence in `core/` or `game/` is `core/save.ts:420`. There are **five**
+   — `core/schemas.ts:826`, `core/types.ts:770`, `core/save.ts:4` (a doc comment), `:384`
+   (`NewSaveOpts`) and `:420` — and **zero in `game/`**. The substantive claim survives and is what
+   should have been written: **`core/save.ts:420` `money: opts.money ?? 0` is the only *executable
+   statement* in the repo that touches money**, and nothing reads, awards or spends it.
+   `trainerPayoutPerLevel` has zero readers outside `core/schemas.ts:676`, `core/types.ts:1237` and
+   `data/balance.json:538`; the same holds for `innCost`, `snarePrice`, `baitPrice`, `salvePrice` and
+   `tonicPrice`.
+
+**THEREFORE NOTHING CAN BE CAUGHT, AND DEMO BEAT 1 CANNOT BE PLAYED.** Build-doc §15's integration
+gates name it twice: **I1** *"vertical slice playable end-to-end (**catch**, battle, survey moves, year
+turn)"* and **I2** *"cascade demo reproducible from `overcatch-script.json` in real play."* And
+`fixtures/overcatch-script.json`'s own `_why` states the standard it is failing: *"Nothing here is a
+forcing helper or a test-only shortcut: every entry is an action a player can take."* **Every entry in
+it is a `{t:"catch"}`, and the only production mint site of that action is `game/wild-battle.ts:396`,
+inside the snare-throw resolution the player cannot reach.**
+
+**AND IT EXPLAINS THE RED CASCADE GATE — the two are one problem seen from opposite ends.**
+`tests/unit/transcription.test.ts:1264` asks whether a determined player can drive an Apex's derived
+prey pool under the starvation threshold, and `data/balance.json:615-621` `harness.overcatch` names
+that reference player: `snareTier: "weighted"`, `baitMatch: "species"`, `referenceHpFrac 0.5`,
+`yearsBudget 1`. **A weighted snare costs 60 (`data/balance.json:528`) and cannot be obtained by any
+means in the shipped game**, and `tools/harness/full-run.ts:235` hands `ref.snareTier` straight to
+`catchChance` **with no inventory check at all**. So the gate is red against a budget, and the budget
+is being spent by a player who could not exist. ⚠ **Tuning the budget therefore cannot fix this**, and
+**the gate going green would not prove reachability** — read that as the honest limit of T-1's open
+decision, not as a reason to defer it.
+
+**Two candidate shapes, recorded WITHOUT choosing between them. The shape is the owner's.**
+
+| shape | what it costs | what it buys |
+|---|---|---|
+| **A — a general `items` grant on the dialogue schema** | a new key on `zDialogueEntry` (a `strictObject`, so it is a real schema change), a runner arm that applies it, and a reachability-gate rule so a grant cannot be authored onto an unreachable entry | the canon becomes the source: *"three of them"* is authored beside the line that says it, and every later grant — a quest reward, Hild's bait, a found item — uses the same door |
+| **B — a flag-driven grant in code** | a table in `game/` keyed on `tutorial.snare.done` (or on the entry id), applied where flags are written | no schema change, and no new authoring surface for content to drift into; but the number three then lives in code, next to a line of dialogue that also states it, and the two can disagree in silence |
+
+**Neither is chosen here and no agent may choose.** A is a content-authoring decision (G2's territory);
+B puts a gameplay quantity in code where G11's spirit and this repo's whole "derived, verified, or
+absent" rule point away from it. **Note what is NOT in question: that three snares are owed.** Hank's
+canon says so in the player's own tutorial.
+
+**Do not answer this by handing the harness a bag instead.** The harness already does that
+(`tools/harness/player.ts:495` builds a gym bag of *"one salve per party member, nothing else"*), and
+it is exactly why nothing went red for two passes.
+
+**Done when:** a new game that plays the opening beat holds three base snares in `save.items`, the
+count is visible somewhere the player can read it, a wild SNARE throw spends one and can succeed, and a
+gate outside the test layer asserts it — *a precondition is only real if something outside the test
+produces it.* **T-12 clause 4 is the sibling and is not closed by this**: an earner and a sink are a
+separate question, and this ticket must not be answered by shipping a shop.
+
+### T-61 · A debug HUD covers most of the screen from the moment gameplay starts
+**Status:** TODO — **presentation, and nothing in the tree can see it**
+
+**What was seen** `[SAW]`: sixteen lines of diagnostics drawn over roughly the top-left three quarters
+of the 480×320 canvas from the instant the overworld opens — node id and biome, foray counter, door
+tile coordinates, player tile and facing, party and box counts, per-species encounter weights, the
+season-tint numbers, the map/collision provenance line, act, travel targets, quest ids, sign chains and
+the key hints. **The bottom lines overdraw each other**, and it sits over the dialogue box and the
+choice list.
+
+**What the tree says, re-read on the current file.** **`this.hud`** is one `text` object created in
+`create()` at `setDepth(100)` and `setScrollFactor(0)`, word-wrapped to the screen width — and it is
+**unconditional**: there is no debug flag, no build-time gate and no key that hides it. **No line
+number is published for it — `game/scenes/OverworldScene.ts` is being edited right now and the
+citation drifted by one while this ticket was being written.** Its body opens with seven fixed lines,
+then pushes **one line per
+encounter-table row** (six at Hearthollow), then the act, travel, gym, interior, quest, chain, release
+and rest lines. `[C]` is the **collision overlay**, a different object entirely; nothing toggles the
+HUD.
+
+⚠ **This is not "delete the HUD".** Several of its lines are the only place the game tells the truth
+about itself — the collision provenance line (*"SYNTHESISED collision … NOT an authored mask"*) is what
+STATUS item 41 relies on reaching the player, the `[R]` line is deliberately printed from
+`restRefusal` so the advertisement and the behaviour cannot drift, and the `[X]` line prints the
+refusal reason for the same reason. **Whatever lands must keep those readable to a developer.**
+
+**Done when:** the HUD is off by default and bound to a key, or split into a one-line status strip plus
+a toggled diagnostic panel; the provenance, `[R]` and `[X]` lines survive in whichever form a developer
+sees; and a test asserts the default state, so this cannot silently come back on.
+
+### T-62 · The battle log's damage figure disagrees with the HP bar
+**Status:** TODO — **not diagnosed; the observation is the ticket**
+
+`[SAW]`, in the Maribel gym fight: the log printed **`Cindril -62 HP · Resisted`** while the HP bar
+moved **58 → 2**, which is **56 removed**. Two numbers for one event, on screen, six apart.
+
+**No cause is asserted here.** The plausible shapes — the log printing a pre-clamp figure while the bar
+shows the clamped application, or a resist multiplier applied on one path and not the other — are
+**readings, not findings**, and this queue's standing rule is to mark a reading as a reading. The
+battle scene is a pure replayer over `BattleEvent[]` and holds no rules (L11), so the two figures
+should be coming from the same event; that they differ means either the event carries two fields that
+disagree or the view derives one of them.
+
+**Done when:** the printed figure and the applied figure come from **one** field of one event, and a
+test drives a resisted hit that would clamp and asserts the log text against the HP delta. **A test
+that reads the number the log prints and compares it to itself is the failure mode** — assert against
+the bar's own source.
+
+---
+
 ## Closed — recorded so nobody re-raises them
 
 | Item | Ruling |
@@ -2079,7 +2332,8 @@ spent debugging a wall that loads correctly and does not work.
 - **LOOKING IS A CHECK, NEVER THE ANSWER.** *Look before trusting a number* still stands, with its
   scope narrowed: looking **disqualifies** a number, it does not qualify one. A rule that told you to
   look and let you stop there is what produced the LoRA reversal — a ground that looked stippled was
-  2,451 colours differing by one per channel. The full list of nine is in STATUS item 39.
+  2,451 colours differing by one per channel. The full list — **ELEVEN, not nine; it has grown twice
+  since this rule was written** — is in STATUS item 39.
 - **RETIRE AN INSTRUMENT THAT HAS PRODUCED A WRONG ANSWER — do not merely correct the answer.** A
   corrected conclusion leaves the tool in service, and the tool is what produced it. Self-reported by
   the art session after a crude hue-family bucketer produced a second wrong claim: *"Second time from

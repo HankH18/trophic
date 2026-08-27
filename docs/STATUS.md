@@ -2,29 +2,63 @@
 
 A 2D monster-catching RPG whose region is a living ecosystem: every catch decrements a real per-node
 population, the food web is derived from those numbers rather than authored beside them, and the
-calendar ages every creature and map underneath the story. **A run is playable end to end today** —
-Hearthollow → R1 → Brackwater → R2 on foot, catching off the node's real counts, quests, gyms and
-badges, a year turn that ages the party and the box, a retirement that puts an heir in the party,
-and the Sanctum with the Vellsire choice and the epilogue survey, and buildings the player can walk
-into. **A fight now costs something and is survivable**: damage, levels, XP and the bag persist
-across battles, a rest at an inn heals what it charges for, **replays**, **and now asks where the
-player is standing before it does**, and a wiped party blacks out and wakes at an inn instead of
-holding an unactable save. **Ten painted maps are on disk and everything else on screen is a labelled
-placeholder** — no sprite, no dex plate, no UI frame, no audio, **and no collision**. The ten maps are
-WIP against T-17's amended top-down projection. ⚠ **"No collision" is not a missing polish item and is
-the largest single gap on this page**: all twelve nodes run on a synthesised border ring, so **19.5%
-to 43.1% of every node is walkable that its layout says is solid**, no building is solid and no water
-stops anyone — item 41, and the reason it is not simply fixed is item 43.
+calendar ages every creature and map underneath the story.
+
+## ⛔ THE GAME WAS PLAYED, AND DEMO BEAT 1 CANNOT BE PLAYED
+
+**On 2026-08-27 somebody drove the built app in a browser with real keys** — title, opening cutscene,
+Hearthollow, an interior, a wild fight, a rival fight, a gym, the in-run menu, the survey. **It is the
+first evidence on this page that is not a test**, and it is written up as items 45–50. **A great deal
+works, the survey most of all** (item 50 — do not read this section as a verdict on the build).
+
+⚠ **THE SENTENCE THAT OPENED THIS FILE UNTIL NOW IS FALSE AND IS CORRECTED, NOT REPHRASED.** It read
+*"**A run is playable end to end today** — Hearthollow → R1 → Brackwater → R2 on foot, **catching off
+the node's real counts**, quests, gyms and badges…"* **Nothing in the shipped game can be caught.**
+Maren's tutorial promises *"Snares first. Three of them, in the satchel by the door"*; a dialogue entry
+has no field that can give the player anything; no grant machinery exists; `newSave` starts the bag
+empty and no caller passes one; and the supply shop's service tile plays vendor dialogue instead of
+opening a store. **So build-doc §1 beat 1 (the cascade — never-cut) and §15's I1 and I2 are all
+unplayable, and the vertical slice past R1 is unreachable in practice.** The full chain is item 45 and
+the work is **T-60**.
+
+⚠ **And a party wipe ends the run** — 3 of 3, from a wild loss, a rival loss and a gym loss (item 46).
+**A lane is repairing that right now and its work has not landed; it is open, not fixed.**
+
+**What is true underneath both:** damage, levels, XP and the bag persist across battles; a rest at an
+inn heals what it charges for, **replays**, and asks where the player is standing before it does; a
+wiped party is charged, moved and healed correctly in the save. **Ten painted maps are on disk and
+everything that moves is a labelled placeholder** — no player sprite, no creature sprite, no dex plate,
+no UI frame, no audio, **and no collision**. The ten maps are WIP against T-17's amended top-down
+projection. ⚠ **"No collision" is still the largest gap in the *engine***: all twelve nodes run on a
+synthesised border ring, so **19.5% to 43.1% of every node is walkable that its layout says is solid**,
+no building is solid and no water stops anyone — item 41, and the reason it is not simply fixed is
+item 43.
 
 ---
 
 ## ⚠ THE OPEN DECISION — the year-1 over-catch beat no longer clears its gate
 
-`tests/unit/transcription.test.ts:1365` is **RED**, and it is red on the shipped numbers, not on
-anything in flight. It gates build-doc §1 beat 1 / §15 I2 — the cascade, a never-cut beat.
+`tests/unit/transcription.test.ts:1264` — *"keeps the year-1 over-catch beat reachable in real play
+(build-doc §1 beat 1, §15 I2)"* — is **RED**, failing at `:1365`, and it is red on the shipped numbers,
+not on anything in flight. It gates the cascade, a never-cut beat.
 
     AssertionError: brackwater: 19.2 removals needed to starve fenmaw-line,
     only 11.4/yr available: expected 11.423076923076922 to be greater than or equal to 19.2
+
+⚠ **READ THIS BEFORE THE ARITHMETIC: THE RED GATE AND THE UNREACHABLE CATCHING ARE ONE PROBLEM SEEN
+FROM TWO ENDS, AND THE KNOB CANNOT REACH THE OTHER END.** The gate prices a *reference player* named in
+`data/balance.json:615-621` `harness.overcatch` — `snareTier: "weighted"`, `baitMatch: "species"`,
+`referenceHpFrac 0.5`, `yearsBudget 1` — and `tools/harness/full-run.ts:235` hands `ref.snareTier`
+straight to `catchChance` **with no inventory check at all.** A weighted snare costs **60**
+(`data/balance.json:528`) and **cannot be obtained by any means in the shipped game** (item 45,
+**T-60**). So the budget below is being spent by a player who could not exist:
+
+- **Tuning `battleTicks` or `ticksPerYear` cannot make the beat playable**, because the shortfall it
+  closes is not the one that blocks the player.
+- **The gate going GREEN would not be evidence of reachability either.** Its own name says *"in real
+  play"* and its arithmetic never asks whether a snare can be held. **That is the sharper reading of
+  this decision, not a reason to defer it** — the knob question is still real and still the owner's;
+  it is simply no longer the whole of what stands between the region and beat 1.
 
 **What changed.** T-1's retune gave battles a tick cost and gated encounters to tall grass. The
 year's encounter budget fell from **138.24 to 54.0** — the old figure being `16 ticks × 48 steps ×
@@ -78,41 +112,50 @@ cannot see it.
 
 ## Verified state
 
-**Re-measured on 2026-08-27 at 14:57:54Z**, one complete run, on a tree with two lanes live in it.
-What landed since the 09:25 readings: **the replay arm for the inn rest** (L10 was false for any run
-that rested), **`[R]` checking where the player is standing** before it heals, and **the derived
-player views rebuilt** against the re-frozen palette. **No sha and no commit tally is written here** —
-`git log` holds both, and each rots inside a single pass.
+**Re-measured on 2026-08-27 at 15:58:43Z**, one complete run, on a tree with two lanes live in it.
+What landed since the 14:57 readings: **the quest layer's year-turn defect** (age is read off the
+tape's `gained`), **the deadline guard made real rather than deleted**, **the release refusal naming
+which reason**, and **both quest gates rewritten to observe a driven player**. **No sha and no commit
+tally is written here** — `git log` holds both, and each rots inside a single pass.
 
-⚠ **Read the figures below as READINGS AT A TIMESTAMP, not as the tree's health.** The quest lane is
-editing `core/quests.ts`, `game/quests.ts`, `tests/unit/quests.test.ts` and
-`tests/gates/quest-layer.test.ts` right now and the art lane is editing `tools/comfy/manifest.json`,
-so the totals moved under this pass and will move again. **The FAILURE SET is the stable part** and is
-named case by case.
+⚠ **Read the figures below as READINGS AT A TIMESTAMP, not as the tree's health.** The art lane is
+editing `tools/comfy/` and a lane is holding `game/scenes/OverworldScene.ts` and
+`tests/unit/overworld-scene.test.ts` right now to repair the wipe softlock (item 46), so the totals
+moved under this pass and will move again. **The FAILURE SET is the stable part** and is named case by
+case.
 
-- `npx tsc --noEmit` — **exit 0** at 14:59:15Z, with the quest lane's uncommitted edits in the tree.
-  ⚠ **That is a reading of a mid-edit tree, not a clearance**: the quest work has NOT landed, and a
-  run five minutes either side of this one may read differently. Note also that `cmd | tail; echo $?`
-  reports **tail's** status, not the command's — that mistake has already reported this repo's prose
-  linter as exit 0 when it is exit 1.
-- `npm run test` — **3 failed of 2,915; 2,912 passing; 2 files failed of 70**, 51.2 s.
-  **The passing total rose because tests were ADDED, not because anything regressed**: 2,876 → 2,915
-  over the same 70 files, the additions belonging to the replay arm and the `[R]` location check.
-  **Seven of the ten failures this section carried are GONE, and the reason is a repair, not a
-  loosened assertion** — `tests/gates/player-art-contract.test.ts` was RED on the committed player
-  sprites and is now green on rebuilt ones (T-24). **A lower failure count is exactly the reading
-  nobody re-checks** (item 39 №11), so it was checked: the seven are absent from the run because the
-  gate passes, not because the file was skipped, and the file's own case count is unchanged.
-  **`tests/unit/quests.test.ts` passed in this run** — the quest lane's edits typechecked and passed
-  at 14:57, which is a reading of a tree that is still being written to and is not a verdict on work
-  that has not landed. The three failures:
+- `npx tsc --noEmit` — **exit 1** at 15:58:36Z, **two errors, and NEITHER IS THIS TREE'S**:
+  `tools/comfy/trials/creature-batch6-view.ts(77,18): error TS2503: Cannot find namespace 'sharp'.`
+  and `tools/comfy/trials/creature-batch6.ts(229,19): error TS2551: Property 'poseV3' does not exist
+  on type '{ v2?…; v3?…; species?…; poseV2?… }'. Did you mean 'poseV2'?`
+  **Both files are UNTRACKED** — `git status --porcelain` returns `??` for each and `git ls-files`
+  returns nothing — and **no tracked file produces a type error.** ⚠ **Record it that way and do not
+  let it read as a repo-wide regression**: this is art-lane work in flight inside the typecheck's
+  scope, not a break in `core/`, `game/`, `data/` or `tests/`. Note also that `cmd | tail; echo $?`
+  reports **tail's** status, not the command's — and in **zsh** a `PIPESTATUS` read written for bash
+  comes back empty, which is how this run first mis-reported its own exit status.
+- `npm run test` — **5 failed of 2,950; 2,945 passing; 4 files failed of 70**, 49.87 s.
+  **The passing total rose because tests were ADDED, not because anything regressed**: 2,915 → 2,950
+  over the same 70 files, the additions belonging to the two rewritten quest gates and the release
+  refusal.
+  ⚠ **AND THE FAILURE COUNT ROSE, 3 → 5, WHILE NOTHING IN THE TRACKED TREE BROKE. That is the mirror
+  of the trap this section carried last pass** — a lower count was the reading nobody re-checks, and a
+  higher one is the reading everybody over-reads. **Attributed one by one, because a count is not a
+  diagnosis: three of the five fire on art-lane files that are untracked or uncommitted, one is a
+  fossilised precondition, and one is the cascade gate.** Only the last reads shipped data.
+  - **`tests/property/foodweb.test.ts` — 1 failure**, *"no shipping source names a species — a shadow
+    table has to name its rows"*. It names `tools/comfy/creatures-batch-7-accept.ts`, which is
+    **untracked**. The G2/G3 shadow-table gate is doing exactly its job on a file the art lane has not
+    committed. **Not a defect in shipped code.**
+  - **`tests/unit/postprocess.test.ts` — 1 failure**, *"every caller of the background steps resolves
+    its options from the manifest"* (BF-5). It names `tools/comfy/trials/derive-creatures-batch-2.ts`,
+    also **untracked**. Same shape.
   - **`tests/unit/manifest.test.ts` — 2 failures, and they are two different things.**
-    *"and the escape DOES move the seed for a derived row"* is the art lane mid-flight in
-    `tools/comfy/manifest.json`, which is a dirty path right now, and is not a defect: the row that
-    disagrees is a Sanctum map row, and its stored seed and version disagree with the derivation by
-    exactly one version step. **This section has twice published a line number for this failure and
-    it has drifted twice, and the previous pass published the wrong row as well — so it is named by
-    its TEST TITLE here, and neither the line nor the seeds are quoted.**
+    *"and the escape DOES move the seed for a derived row"* is the art lane mid-flight in the
+    **modified, uncommitted** `tools/comfy/manifest.json`: the `map-hearthollow` row's stored seed and
+    version disagree with the derivation by exactly one version step. **This section has twice
+    published a line number for this failure and it drifted twice, and a previous pass published the
+    wrong row as well — so it is named by its TEST TITLE, and the seeds are not quoted.**
     *"THE REAL GATE refuses a variant when the node has no collision mask on disk"* is a fossilised
     PRECONDITION: it asserts `existsSync(r1.mapAsset)` is `false`, under a comment reading *"The
     repo's true state today: no node has a base map or a mask on disk."* Ten maps landed; the premise
@@ -120,12 +163,14 @@ named case by case.
     "every pixel walkable" — is untouched and worth keeping; only its setup needs to stop asserting
     the repo is empty. Recorded as **T-46**, still open, not edited here.
   - **`tests/unit/transcription.test.ts` — 1 failure**, *"keeps the year-1 over-catch beat reachable
-    in real play"*. The cascade feasibility gate, the section at the top of this file. Re-read
-    verbatim off this run and **unmoved**: *"brackwater: 19.2 removals needed to starve fenmaw-line,
-    only 11.4/yr available"*, 11.423076923076922 against 19.2. Settled, and it is the owner's
-    decision, not a defect to fix.
-  - **`tests/unit/harness.test.ts` is GREEN.** The two clause-7 reds this section carried are closed
-    (T-32); the 77 → 76 was one deliberate deletion, not a lost test.
+    in real play (build-doc §1 beat 1, §15 I2)"* (`:1264`, failing at `:1365`). The cascade
+    feasibility gate, the section at the top of this file. Re-read verbatim off this run and
+    **unmoved**: *"brackwater: 19.2 removals needed to starve fenmaw-line, only 11.4/yr available"*,
+    11.423076923076922 against 19.2. **The only failure of the five that reads shipped data**, the
+    owner's decision, and now known to be **half** of what blocks the beat — see the two-ends note at
+    the top of this file and item 45.
+  - **`tests/unit/harness.test.ts` and `tests/unit/quests.test.ts` are GREEN**, and the quest lane's
+    work has now LANDED rather than being a mid-edit reading (item 51).
 - `python3 tools/prose/prose-lint.py data/dialogue.json` — **exit 1**, **215 entries, 63 speakers,
   512 lines**, re-derived independently off `data/dialogue.json` as well as read off the run. 27
   control assertions green over 7 structural checks. **0 corpus structural failures.** 3 per-beat
@@ -141,10 +186,12 @@ named case by case.
   hour three of them had been committed and three different ones had appeared — the count read six
   both times while naming a different tree, and it moved four more times during this pass alone.
   What is stable is the claim, so that is what is written: **every dirty path belongs to a lane that
-  is working right now** — the **quest lane** in `core/quests.ts`, `game/quests.ts` and its two test
-  files, the **art lane** in `tools/comfy/`, `tools/artverify/` and `assets/approved-trials/`, and
-  `.claude/scheduled_tasks.lock`, which is the harness. **Nothing dirty is abandoned work.** Run
-  `git status --porcelain` and read it; do not read it here.
+  is working right now** — the **art lane** in `tools/comfy/`, `tools/artverify/` and
+  `assets/approved-trials/`, the **softlock lane** holding `game/scenes/OverworldScene.ts` and
+  `tests/unit/overworld-scene.test.ts` (item 46), and `.claude/scheduled_tasks.lock`, which is the
+  harness. **The quest lane's paths are no longer dirty — that work landed.** Nothing dirty is
+  abandoned work, and **nothing untracked is under `core/`, `game/`, `data/`, `docs/` or `tests/`**.
+  Run `git status --porcelain` and read it; do not read it here.
 
 ## What is built
 
@@ -157,6 +204,7 @@ named case by case.
 | Tick costs | travel 1 · foray 1 · inn 2 · **battle 0.5, charged at launch** and wired — `spendTicks("battle", …)` inside `handOffToBattle`, which is the single launcher all four fights go through | `data/balance.json` `clock` |
 | Cadence validation | A 4-rule `.superRefine` refuses a retune at boot: year = season × seasons; `startTick` in range; every cost an exact multiple of `1/subTicksPerTick`; no cost ≥ a season | `core/schemas.ts:479` |
 | Encounter rate | Grass-gated. `stepEncounterChance()` is the **single** definition the game and the harness both roll against — no second one exists | `core/foodweb.ts:223` |
+| Catching | ⛔ **BUILT AND UNREACHABLE.** The reducer, the snare tiers, the bait maths, the `{t:"catch"}` action and `applyCaught` all exist and are tested; **the player can never hold a snare**, so the verb cannot be exercised in play and demo beat 1 cannot be performed — item 45, **T-60** | `game/wild-battle.ts:266`/`:396`, `core/save.ts` `applyCaught` |
 | Act model | Badges + quest flags gate towns, routes, raids, rival, finale | `core/acts.ts` |
 | Lifecycle | Aging, retirement, heirs, boxed aging, Cullbrand raid on act entry | `core/lifecycle.ts` |
 | Save + replay | Action log replays byte-identically **for the ten members that have an arm**; `subTick` and `forayStepsSinceTick` survive the SERIALIZER's round trip and the year turn. ⚠ **The citation this row carried was wrong and is corrected**: `forayStepsSinceTick` appears **nowhere** in `tests/property/`, and was covered there only vacuously by a whole-save comparison where both sides read 0. Its real coverage is `tests/unit/save.test.ts:212` (canonical keys) and `tests/unit/overworld-scene.test.ts:3124`/`:3452`. Through `replay()` it does **not** survive — T-54 | `core/save.ts`, `tests/unit/save.test.ts`, `tests/unit/overworld-scene.test.ts` |
@@ -165,7 +213,8 @@ named case by case.
 | Producer template | **Re-spent 85/40/80/35/60 → 85/60/80/35/40** — zero-sum, total still 300, Scavenger untouched, Carricrow untouched. Measured: Loamunder 26.7% → 50.7%, Sporantle 12.9% → 37.9%, both into band; 8 of 24 lines outside the ±15 band. The closed-tournament arithmetic is recorded in `_bandArithmetic` beside the templates, not in a doc | `data/species.json` |
 | Dialogue corpus | **215 entries, 512 lines, 63 speakers**; every entry has a path to the screen | `data/dialogue.json`, `game/dialogue-runner.ts` |
 | G7 gate | **Now reads `data/dialogue.json`** — every player-facing string plus a joined-body pass, and a prose census over 18 other `data/*.json` files | `tests/gates/guardrails.test.ts` `dialogueCopyViolations`, `:1129` |
-| Quests | Objectives, flag writers, sign chains | `core/quests.ts`, `game/quests.ts` |
+| Quests | Objectives, flag writers, sign chains. **Progress survives the year turn** — age is read off the tape's own `gained`, not off the aged individual — the deadline guard fires (it is reachable through Ancients, which never age, G10), and release refuses with a **named reason** both the key and the HUD read from one function | `core/quests.ts:341`, `game/quests.ts:555`/`:770`/`:791` |
+| Quest gates | **They OBSERVE a driven player** rather than confirming a row exists: the expander is deleted, turn-in flags come from a maximal player per node put through the real `syncQuestFlags`, GATE 2f checks satisfiability against a **measured** world, GATE 2g requires the objective's node to be one the quest's own copy names | `tests/gates/quest-layer.test.ts:1462`/`:1660`, `tests/gates/reachability.test.ts:402` |
 | Overworld | Walk, collision, travel, encounters, inn, gym challenge, talk, release | `game/scenes/OverworldScene.ts` |
 | Walkable slice | `hearthollow`, `r1`, `brackwater`, `r2`; the other 8 nodes are travel-only | `data/nodes/*.json` `walkable` |
 | Battle scene | A replayer over `BattleEvent[]` — it holds no rules | `game/scenes/BattleScene.ts`, `game/ui/` |
@@ -177,7 +226,7 @@ named case by case.
 | Harness control run | **`CATCH_PROFILES` × `RAID_POLICIES` = a 3×2 matrix**, raid suppression as an orthogonal flag rather than a fourth profile. Deep-copies `rawBalance` and empties `yearEvents.raids` in memory — `data/balance.json` is never touched. Extinctions attributed by measurement (`attributeExtinction`), not by a node lookup | `tools/harness/full-run.ts:250`/`:265`/`:335`, `report.ts:525` |
 | Battle persistence | **WIRED (T-28).** `applyBattleResult` is the first statement of all four finish handlers — wild, gym, rival, finale. **The four line numbers this row used to publish had all drifted by the next pass and are not published any more**; `grep -n 'applyBattleResult' game/scenes/OverworldScene.ts` returns exactly four call sites and that is the claim. `applyBattleAftermath` is the one writer of `curHp`/level/xp/bag outside creation and the year turn. The three docblocks that already called it *"the ONE writer all four launchers share"* **became true rather than needing repair** | `game/wild-battle.ts`, `core/save.ts` |
 | XP carry-in | `BattlerSpec.xp` exists, `makeBattler` reads it back as `xp: spec.xp ?? 0`, `battlerSpecOf` copies it verbatim — carried, never derived, so a replay sees the same number (T-30) | `core/types.ts` `BattlerSpec`, `core/battle.ts` |
-| Party-wipe recovery | Pure TS, zero engine imports. A wipe plays the fight's own losing beat, THEN blacks out, wakes the party healed at an inn and charges `2 × innTicks + 1 × travelTicks` = **5 ticks**, composed from existing keys — there is no `blackoutTicks` and there must not be one (T-29). The on-screen move is bound at **every shipped node**, and the test counts how many wake nodes actually differ so the fixture cannot go degenerate in silence. **It can no longer stack a dialogue on top of a year turn** — guarded after the charges, so the price and the move still stand and the cue stays owed. ⚠ **The premise `core/recovery.ts` prices the blackout against — a rest available "only for a player STANDING IN A TOWN" — was FALSE until `[R]` gained its location check**, so the owner's 2×inn+travel ruling had been priced against a baseline the code did not implement. It is true now | `core/recovery.ts`, `game/scenes/OverworldScene.ts` `recoverFromBlackout` |
+| Party-wipe recovery | Pure TS, zero engine imports. A wipe plays the fight's own losing beat, THEN blacks out, wakes the party healed at an inn and charges `2 × innTicks + 1 × travelTicks` = **5 ticks**, composed from existing keys — there is no `blackoutTicks` and there must not be one (T-29). The on-screen move is bound at **every shipped node**, and the test counts how many wake nodes actually differ so the fixture cannot go degenerate in silence. **It can no longer stack a dialogue on top of a year turn** — guarded after the charges, so the price and the move still stand and the cue stays owed. ⚠ **The premise `core/recovery.ts` prices the blackout against — a rest available "only for a player STANDING IN A TOWN" — was FALSE until `[R]` gained its location check**, so the owner's 2×inn+travel ruling had been priced against a baseline the code did not implement. It is true now. ⛔ **AND THE ON-SCREEN HALF IS BROKEN — items 46 and 47, open and in flight.** The SAVE is charged, moved and healed correctly; the PLAYER is left standing outdoors on the tile they fell on, there is no black background, and **the overworld then accepts no input at all — 3 of 3.** Read this row as a statement about `core/recovery.ts`, which is sound, and not about what a player sees | `core/recovery.ts`, `game/scenes/OverworldScene.ts` `recoverFromBlackout` |
 | Inn rest | **HEALS WHAT IT CHARGES FOR, REPLAYS, AND ASKS WHERE YOU ARE STANDING.** `restAtInn` is `restRefusal` → `innRestFor` → `applyInnRest` → `spendTicks`: refusal, then consequence, then price. The selection is the blackout's own `restoredUids` **reused, not re-spelled**; the heal rides as its own absolute `{t:"innRest"}` tape entry rather than being derived from the `{t:"inn"}` **price** beside it, because the blackout levies two of those itself — and `replay()` now has a named `case "innRest"` arm that calls the same `restoreParty` the live path does. **`[R]` refuses off-town and indoors except in the town's own inn** — the room is identified from CONTENT, not from an id. **The `innCost` charge stays OFF** until money has an earner | `core/recovery.ts` `innRestFor`/`applyInnRest`/`innkeeperAt`, `core/save.ts` `restoreParty`, `game/scenes/OverworldScene.ts` `restAtInn`/`restRefusal` |
 | Art-load deadline | `ensureNodeArt` takes a timeout (8000 ms default, a parameter so a test drives it) and **resolves** on it. A hung loader now costs one degraded visit instead of refusing travel for the rest of the session (T-31) | `game/mapview.ts` `ART_LOAD_TIMEOUT_MS`, `:278` |
 | Enemy AI tie-break | Ranks on `movePowerVs × typeMultiplier` alone — the dropped factors are common to a pool and cannot reorder it. 13 → 0 divergences; the argmax is still an exact strict `>` | `core/battle.ts:1371` |
@@ -656,11 +705,22 @@ while closing item 6.
       it; a test asserts both paths produce byte-identical parties.
     - **Money still has no earner and no sink.** Re-grepped this pass: `balance.economy` ships
       `innCost` 40, `trainerPayoutPerLevel` 12, snare/bait/salve/tonic prices — **zero readers of any
-      of them** outside `core/schemas.ts` and `core/types.ts`, and the only `money` occurrence in
-      `core/` or `game/` is still `core/save.ts` `money: opts.money ?? 0`. **This is why the inn heal
+      of them** outside `core/schemas.ts` and `core/types.ts`. ⚠ **The clause that followed is
+      CORRECTED, not rephrased:** this file said the *only* `money` occurrence in `core/` or `game/` is
+      `core/save.ts` `money: opts.money ?? 0`. There are **five** — `core/schemas.ts:826`,
+      `core/types.ts:770`, `core/save.ts:4` (a doc comment), `:384` and `:420` — and **zero in
+      `game/`**. What survives measurement, and what was meant: **`core/save.ts:420` is the only
+      *executable statement* in the repo that touches money.** **This is why the inn heal
       shipped with the charge OFF**: turning `innCost` on today, with nothing paying the player, makes
       the inn unpayable forever and re-creates the blockable run T-29 removed. The owner's question is
       therefore ordered — an earner first, then the sink.
+
+      ⚠ **AND THIS ITEM'S SEVERITY HAS CHANGED WITHOUT ITS FACTS CHANGING.** *"No earner, no sink,
+      zero readers"* has been recorded here for two passes as an unfinished feature. **The 2026-08-27
+      playtest found what it actually costs: nothing in the game can be caught, so a never-cut demo
+      beat is unplayable.** The full chain is **item 45**; the work is **T-60**, which is the snare
+      grant alone and is deliberately NOT this clause — the canon already specifies three snares, and
+      that needs no earner, no shop and no price. **T-60 first; the economy after it.**
     - **The explicit loss penalty exists, but as the blackout's 5 ticks**, and `core/recovery.ts`'s
       header argues in prose that this *is* the penalty T-12 asks for. **That is a reading, and it is
       marked as one here.** It prices a wipe; it does not price a loss that leaves something standing.
@@ -734,12 +794,12 @@ while closing item 6.
     3. Exact-RGB difference saturates on unquantized output and ranks everything alike.
     4. Colour concentration is a histogram and cannot see arrangement.
     5. **The eye.** A LoRA's ground looked stippled and was 2,451 colours differing by one per
-       channel. **This is the most important of the nine, not an appendix**: the others have an
+       channel. **This is the most important on this list, not an appendix**: the others have an
        instrument to blame and this one does not, and it is the fallback every reader assumes is
        always available.
     6. **A comparison that answered a different question, with a decision-sized conclusion drawn from
        it** — raw LoRA output measured against the target, when the question that decides adoption is
-       LoRA *plus postprocess*. Not an instrument at all, and the widest blast radius of the nine,
+       LoRA *plus postprocess*. Not an instrument at all, and the widest blast radius on this list,
        **because every number in it was correct.**
     7. **An assertion whose observation channel is silenced by the code under test.** A test watched
        `console.warn` to prove a watchdog timer had been cleared — but the callback's own
@@ -979,12 +1039,260 @@ while closing item 6.
       wireframe control drawings, which make the model draw roofs on posts. The strength and the drawing
       style moved together, so the reading cannot separate them.
 
+### Opened 2026-08-27 by the FIRST LIVE PLAYTEST — the game was driven in a browser
+
+⚠ **PROVENANCE, AND IT BINDS EVERY ITEM IN THIS SECTION.** The bundle that was played was built from
+the tree **before several of the commits that have since landed**, and `game/scenes/OverworldScene.ts`
+was being edited by another lane *while the run was in progress*. **Every scene-level line number the
+playtest cited is a reading against a stale tree and is NOT reproduced here** — where a line is quoted
+below, it was re-read on the current tree and says so. The playtester marked their own observations
+`[SAW]` and their readings of code `[INFERRED]`; **that distinction is theirs and is preserved.** An
+inference does not become an observation by turning out to be right.
+⚠ **And the few `game/scenes/OverworldScene.ts` lines cited below were exact when written and are
+citations into a file another lane is editing this minute** — re-read one before acting on it. The HUD
+citation had already drifted by one during this pass and was replaced with a symbol.
+
+⚠ **Two rig caveats they recorded, so nothing below is mistaken for a game bug.** The driving Chrome
+window was occluded, so `document.visibilityState === "hidden"` and Chrome starved `requestAnimationFrame`
+— Phaser does not stop itself when hidden, so only the browser's rAF was starved. They replaced it with
+a worker-driven pump (page-side only, **no repo file touched**) and measured ~110 fps. **With reliable
+synthetic input they never again saw a dropped or doubled key**, so the two intermittent input findings
+from the early run — a single Down moving two rows in the slot menu, and two rapid Rights advancing one
+step in Settings — **are discounted by their own author** as artefacts of the extension's key dispatch.
+They are recorded here as discounted rather than deleted, because "one keypress from overwriting the
+wrong save" is the kind of note that gets re-found.
+
+45. **⛔ CATCHING IS UNREACHABLE, SO DEMO BEAT 1 CANNOT BE PLAYED. This is the project's own thesis
+    landing on a never-cut beat: the reachability gate proves a path to the SCREEN, not to a MECHANIC.**
+    Verified end to end on the current tree, not taken from the playtest:
+    - **The canon grants three snares, and the entry fires.** `data/dialogue.json:611`
+      `maren.tutorial.snare` ships *"Snares first. Three of them, in the satchel by the door. The
+      satchel comes back to me."* It is correctly gated on `when: { flagsUnset: ["tutorial.snare.done"] }`,
+      reached by `goto` from all three starter picks, sets its flag, and `goto`s the survey tutorial.
+      **The gate is right about it. The line reaches the screen.**
+    - **A dialogue entry has no way to give the player anything.** The key union over all **215**
+      entries is exactly fourteen keys — `chainStep, choices, goto, id, kind, lines, node, priority,
+      propId, quest, setFlags, signChain, speaker, when` — counted, not assumed. `zDialogueEntry`
+      (`core/dialogue-schema.ts:356`) is a **`z.strictObject`** over those same fields, so an `items`
+      key would be a *validation error*, not an ignored one. **An entry can set a flag and nothing
+      else.**
+    - **No grant machinery exists.** `addItem|giveItem|grantItem|awardItem` returns **zero hits
+      repo-wide**. Every production write to `items` is a *replace* from the battle bag as the reducer
+      left it (`core/save.ts:523`, `:598`, built at `game/wild-battle.ts:484`) — spend-only, and
+      structurally unable to increase a stack. The only places a snare enters a bag are two test
+      constructions (`tests/unit/overworld-scene.test.ts:955`, `:3518`).
+    - **No starting inventory.** `newSave` (`core/save.ts:404`) writes `items: { ...(opts.items ?? {}) }`
+      at `:421` and **no caller passes `items`** — `game/boot.ts:412`,
+      `game/scenes/OverworldScene.ts:566`, `tools/ui-frames/contact-sheet.ts:60`,
+      `tools/harness/full-run.ts:397`. The playtester read the same fact out of `localStorage`
+      `[SAW]`: `{"money":0,"items":{}, …}`.
+    - **No shop — and the shop copy ships.** `vendor-hearthollow.shop` (`data/dialogue.json:4329`,
+      `kind: "service"`) carries the full vendor scene: *"Snares and salve. Tonic's behind me and it
+      costs what it costs."* The supply shop's SERVICE anchor
+      (`data/interiors/hearthollow-supply.json:38-47`) resolves through `interiorEntryId`
+      (`game/scenes/OverworldScene.ts:3693`) into `playEntry` (`:1143`) — **it plays that dialogue.**
+      There is no store UI and no buy path anywhere in `core/` or `game/`. The playtester stood on both
+      Kett's tile and the shop service tile and pressed `[E]` on each: both play Kett's lines `[SAW]`.
+    - **The code says the consequence out loud, deliberately.** `game/wild-battle.ts:266-267`: *"No
+      snare is conjured for the fight: a player with no snares cannot catch anything, which is the
+      honest state and the one the economy tunes."* On screen `[SAW]`: SNARE opens `Base — /
+      Weighted — / Master —`, the dash meaning zero held, and choosing one **consumed the turn with no
+      message in the log at all.**
+
+    **Build-doc §15 names it twice** — **I1** *"vertical slice playable end-to-end (**catch**, battle,
+    survey moves, year turn)"* and **I2** *"cascade demo reproducible from `overcatch-script.json` in
+    real play."* And `fixtures/overcatch-script.json`'s own `_why` states the standard it now fails:
+    *"Nothing here is a forcing helper or a test-only shortcut: every entry is an action a player can
+    take."* **Every entry in it is a `{t:"catch"}`, and the only production mint site of that action is
+    `game/wild-battle.ts:396`, inside the snare throw the player cannot reach.**
+
+    **THIS ALSO EXPLAINS THE RED CASCADE GATE — one problem, two ends.** See the note at the top of this
+    file: `harness.overcatch` names a reference player holding a **weighted** snare that costs 60 and
+    cannot be obtained, and `tools/harness/full-run.ts:235` hands `ref.snareTier` to `catchChance` with
+    **no inventory check at all**. **Tuning the budget cannot fix a snare the player cannot get**, and
+    the gate turning green would not be evidence of reachability. **The work is T-60, the shape is the
+    owner's, and it is implementing shipped canon rather than inventing (G2-safe).**
+
+    ⚠ **This is not a new discovery about the economy** — item 36 and T-12 clause 4 have recorded "no
+    earner, no sink, zero readers" for two passes. **What is new is the consequence.** Both entries are
+    updated in place rather than duplicated.
+
+46. **⛔ A PARTY WIPE PERMANENTLY ENDS THE RUN — 3 of 3. OPEN AND IN FLIGHT; NOT FIXED.** `[SAW]` after
+    a lost wild fight, a lost rival fight and a lost gym fight: once the last blackout-narration line
+    closes, **nothing responds** — arrows, `[C]`, `[E]`, ESC twice. **It is not the harness and not a
+    stopped game loop**, measured in the same instant: `{ keydownsSeen: 1, framesAdvanced: 56 over
+    ~500 ms }`, and separately 142 and 148 frames on the two later reproductions. **No console error, no
+    exception, no Phaser warning.** The key reaches `window`, the game steps, and the overworld does
+    nothing with it. The playtester's reading of the cause — more `scene.pause()` calls than
+    `scene.resume()` across a chained pair whose own comment says the pair is *"not ref-counted"* — is
+    marked **`[INFERRED]` by them** and is preserved as an inference. **A lane is repairing this now and
+    its work has NOT landed.** Appended to **T-29**.
+
+47. **⛔ THE BLACKOUT HAS NO BLACK SCREEN AND DOES NOT WAKE THE PLAYER AT THE INN. Both halves are
+    quoted in the owner's own ruling. OPEN AND IN FLIGHT.** Hank: *"a dialogue shows up with a black
+    background saying you passed out or something like that, **and then you wake up at the inn**"* —
+    recorded verbatim in `docs/TICKETS.md` T-29 and in `core/recovery.ts`'s header, both re-checked this
+    pass and intact. What draws `[SAW]` is the ordinary dialogue box over the **live overworld** with
+    the debug HUD still on top of it. And the player wakes where they fell: tile `18,29` before the
+    fight and after the whole sequence, with the inn door at `18,24` and the interior never entered.
+    **The node move is a correct no-op** — for a wipe in Hearthollow the wake node *is* Hearthollow —
+    so nothing puts the player in the room the prose describes.
+    ⚠ **THE TICK CHARGE IS NOT THE PART THAT FAILED.** The banner read `hearthollow 5 ticks` and the
+    meter moved by five, which is `2 × innTicks + travelTicks` exactly as ruled. **The shape worth
+    keeping: the test written under T-29 binds the node-level move at every shipped node and is right —
+    and it cannot see that a wake node equal to the current node leaves the player standing outdoors on
+    the tile they fell on. The thing asserted was the graph hop; the thing ruled was the room.**
+
+48. **🔴 NOTHING THAT MOVES IS DRAWN — and it is the art lane, not a regression.** `[SAW]`, each with
+    the placeholder's own printed label: the player is a box reading `player/player-front 32x48`; both
+    battlers are boxes reading `creature-battle/battle-loamunder-e-front 96x96` and
+    `battle-cindril-j-back 96x96`; TEAM's portrait is `dex-painted/dex-cindril 96x96`; the title banner
+    is `ui/title-banner 208x48`. Interiors render as untextured footprints and the HUD says so:
+    *"FOOTPRINT interior hearthollow-inn — 13x8 plan cells … NOT painted art."* **Only the ten painted
+    node maps and the town props are real art** — consistent with item 22 and with the placeholder
+    contract working as designed. **The player art that IS in the repo lives under
+    `assets/approved-trials/_player-views/derived/` and is never copied anywhere the game can load it**
+    — `assets/final/` holds `maps/` and nothing else. That last clause is worth acting on: it is a
+    *sync* gap, not a missing asset.
+
+49. **🔴 / 🟠 / 🟡 The rest of the ranked list, at the playtester's own severities.**
+    - 🔴 **A 16-line debug HUD covers ~75% of the 480×320 screen** from the moment gameplay starts,
+      bottom lines overdrawing each other, overlapping the dialogue box and the choice list, with no key
+      to dismiss it — `[C]` is a separate collision overlay. Re-read on the current tree: **`this.hud`**
+      is one text object created in `create()` at depth 100 with `setScrollFactor(0)`, and it is
+      **unconditional** — no debug flag, no toggle, no build-time gate. **No line is published for it:
+      `game/scenes/OverworldScene.ts` is being edited right now and the citation drifted by one while
+      this section was being written.** **T-61.**
+    - 🟠 **The battle log's arithmetic disagrees with the bar**: the log printed
+      `Cindril -62 HP · Resisted` while the bar moved 58 → 2, which is **56** removed `[SAW]`. **T-62**,
+      and no cause is asserted there.
+    - 🟠 **The SNARE turn is consumed silently when you hold none** — no message at all. Part of
+      **T-60**'s surface.
+    - 🟡 **The vertical slice past R1 is unreachable in practice**: the HUD offers only `[1] travel → r1`
+      from Hearthollow, Brackwater sits behind the act gate, the gate needs Maribel's badge, and the
+      badge needs a creature that survives one hit `[SAW/INFERRED]`.
+    - 🟡 **The starter choice does not choose the starter.** The party entry stays
+      `uid: "provisional-starter"`, `lineId: "cindril-line"` after the opening beat while `questFlags`
+      carries `"story.starter": "cindril-line"` as a flag only. The console says so on every new game,
+      verbatim: *"no opening beat yet — seeding the PROVISIONAL starter … Lane C7's opening beat
+      replaces this by passing `startNewGame({ party })`."* The playtester chose Cindril and so saw no
+      mismatch; **a player choosing Puddlisk or Thornlet would set the flag and still be handed a
+      Cindril** — `[INFERRED]` from the save and the console, correctly marked as such.
+    - 🟡 **TEAM prints max HP only** (`hp 58`), so no screen outside a battle reports how hurt anything
+      is.
+    - 🟡 **SURVEY's `seasons` column prints a number identical to `count` on every row** of both nodes
+      looked at. `[SAW the numbers; INFERRED that it is wrong.]`
+    - **There is no autosave.** SAVE in the ESC menu is the only writer, and CONTINUE after an unsaved
+      run restores the state written at NEW GAME. **Defensible design** — recorded because combined with
+      item 46 a wipe costs everything since the last manual save.
+
+50. **WHAT WORKS, AND IT IS SUBSTANTIAL — record this with the same weight as the failures.** All
+    `[SAW]`: boot and title (Phaser **3.90.0**, the pinned 3.x, not 4.x); save slots with per-slot
+    state, the v1-save warning rendered legibly, and an overwrite confirm whose cursor **starts on NO**;
+    settings that persist across a reload; grid movement, camera follow, the foray step counter, and
+    the 52-tick year meter with the correct tick costs. **Interiors work fully** — door-tile entry,
+    per-tile anchors, Aldis's line, `[R]` charging exactly `innTicks` = 2, exit to the right tile, and
+    indoor steps correctly **not** counting as foray steps. Dialogue: typewriter, ▼ caret,
+    complete-then-advance, multi-line entries, choice lists, chained cutscenes, flags persisted to the
+    save. Battles render and play, with **correct per-kind greying** (Bag/Snare/Team/Flee all greyed in
+    the rival fight, only Fight selectable) and a **visibly working type chart** — Pyre took a Plant
+    Bramblehog 93 → 18.
+    **AND THE SURVEY IS THE STRONGEST THING IN THE BUILD.** It prints **real derived populations that
+    match the overworld's encounter weights exactly** — Hearthollow reading nibbin 8/24, pollywisp 4/12,
+    bramblehog 6/18, skir 6/18, loamunder 24/72, carricrow 2/6 against `flora 60/100 · lines 6 ·
+    individuals 50` — ←/→ pages all **12** nodes, and TAB draws a real **food web** with tier labels and
+    edges (`links 9 · collapsed 0`). **The claim this page has always made about derivation is visible
+    on screen.**
+
+    ⚠ **BEAT 7 — "an inn heals damage" — IS NOT VERIFIED ON SCREEN, and the reason is worth keeping.**
+    The playtester could never construct *alive, damaged, and the overworld responsive*: every fight
+    either one-shot the starter or ended in a wipe and the softlock, **and TEAM shows only max HP**, so
+    **no screen in the game would have reported it even if they had.** The inn rest is asserted by tests
+    and by the replay arm; it has not been seen. That is a statement about the evidence, not about the
+    code.
+
+51. **CLOSED — the quest layer's year-turn defect, the deadline guard, the release refusal, and BOTH
+    quest gates rewritten to OBSERVE A DRIVEN PLAYER.** Each was re-verified against the tree, not read
+    off a commit message.
+    - **Quest progress is no longer destroyed at the year turn.** Age is read off the tape's own
+      `gained` field rather than off the live individual — `core/quests.ts:341`
+      (`if (a.gained?.age !== age) continue;`) with `stillHeld` split out as its own clause at `:303-305`,
+      so *"caught as"* and *"brought back"* stop being conflated. The tape carries it
+      (`core/types.ts:667`, written at `core/save.ts:861`, produced on the real catch path at
+      `game/wild-battle.ts:394-395`).
+    - **The deadline guard was made real rather than deleted, and the reason is G10.** It is live at
+      `game/quests.ts:555`, and its own justification block says why it is reachable in play: **an
+      Ancient never ages** (`core/lifecycle.ts:607-613`, `ageOneYear` returns the creature unchanged
+      with an `ancientSkipped` event), is **always taken at Elder** (`game/encounters.ts:239`), and
+      **`data/nodes/r2.json:43-47` carries one** — `undermere-line`, `count 1`, `ancient: true`. What
+      made the guard fire at all was moving the deadline off the wall clock onto each tape entry's own
+      year (`core/quests.ts:391-392`).
+    - **Release no longer offers a creature `applyRelease` would throw on.** The guard is `here()` at
+      `game/quests.ts:770`, applied at `:774`/`:779`, resolving against the save's **own `nodeStates`**
+      — the exact key set `applyRelease` sees — and returning `null` (filter nothing) when the question
+      is unanswerable rather than refusing falsely. What it prevents is `applyRelease` (`core/ecosim.ts:819`) throwing an
+      `EcosimError` for a line with no population at the node.
+    - **The release refusal now says WHICH reason, and five tests can finally see it.**
+      `releaseRefusal` (`game/quests.ts:791-798`) returns two distinct sentences, and the banner
+      (`game/scenes/OverworldScene.ts:2002`) and the HUD (`:3520`) read the **same function**, so the
+      advertisement cannot drift from the behaviour. **The production change had passed 125/125 while
+      completely unverified**; five tests now pin a specific reason and three more observe the mechanism
+      without pinning one.
+    - **BOTH QUEST GATES WERE REWRITTEN TO OBSERVE, NOT TO CONFIRM A ROW EXISTS.** The expander is
+      **deleted** — a repo-wide search returns no live code, only the tombstone at
+      `tests/gates/reachability.test.ts:325-338` recording what it used to certify. Turn-in flags are
+      now observed by **building a maximal player per node** — held counts capped by the node's own
+      standing count, real `catchAction`s onto the tape, half of them put back through the real
+      `releaseIntoNode`, the whole graph walked, retirement driven — and asking the **real**
+      `syncQuestFlags` (`questTurnInWrites()` at `:402`, with a binder at `:917` asserting the
+      observations are not vacuous). Two new gates: **GATE 2f** (`tests/gates/quest-layer.test.ts:1462`)
+      checks the objective against a **measured** world and takes the table as an argument so a sabotage
+      can hand it a damaged copy; **GATE 2g** (`:1660`) requires the objective's node to be one the
+      **quest's own copy names**, with a single reviewed exemption whose adjacency is re-derived rather
+      than waved through.
+    - **F6, F7 and F8 are closed** — three tautologies replaced, **and that count belongs to F7 alone**;
+      F6 was a season check that grepped a kind's *name*, F8 was the census. ⚠ **The labels F6/F7/F8
+      exist only in a commit message**: a repo-wide search finds them in exactly one comment
+      (`tests/gates/quest-layer.test.ts:990`) and nowhere in these docs, which is why the substance is
+      written out here instead of the labels.
+    - **The value-aware precondition census immediately surfaced a flag that had never been reviewed
+      because its own `false` write counted as a writer: `story.blackout.woke`.** `narration.blackout`
+      lowers it to `false`, so a key-based census counted that entry as its writer, while its real
+      writer is a bare literal in `core/recovery.ts`. It is now driven through the real
+      `applyBlackoutRecovery`, and the two reviewed exemption lists are both **empty**.
+
+52. **MEASURED, AND KEEP IT: THE GREEDY YIELD EQUALS EACH NODE'S SHIPPED STANDING COUNT, EXACTLY.**
+    `TAKEABLE_AT` (`tests/gates/quest-layer.test.ts:698-733`) asks how many individuals a player working
+    one node could ever take over the whole run. **Because a population at zero does not breed**, the
+    answer is the node's own shipped count and nothing more. Verified two ways — by summing
+    `populations[<line>].count` in each `data/nodes/*.json`, and by executing the real engine
+    (`core/ecosim`, `core/foodweb`, `core/rng`) over `yearsTotal` × 4 seasons:
+
+    | r1 | r2 | r3 | r4 | sanctum |
+    |---|---|---|---|---|
+    | **67** | **71** | **70** | **44** | **3** |
+
+    The identity holds at **all twelve** nodes, not only these five (hearthollow 50, brackwater 52,
+    bowerdeep 52, cindershelf 31, duskhollow 26, r5 35, sanctum-approach 3). The mechanism is in the
+    source: births are `count × breedRate × foodFactor × presenceMult` (`core/ecosim.ts:550`),
+    identically zero at `count === 0`, and nothing re-seeds an emptied population.
+    ⚠ **This is a measured FLOOR, not a ceiling** — the gate's own words — and it is the honest
+    denominator for any question about what a node can supply.
+
 ## What is next
 
 The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
 
+0. **THE SNARE GRANT (T-60), AND THE WIPE SOFTLOCK THAT IS ALREADY IN FLIGHT (item 46).** These are
+   ahead of everything below because they are the two things that stop a player playing. **T-60's
+   shape is the owner's** — a general `items` grant on the dialogue schema, or a flag-driven grant in
+   code — but that three snares are owed is not in question: the canon says so in the player's own
+   tutorial. **It is not the economy, and it must not be answered by shipping a shop.**
 1. **Get a ruling on the cascade budget** (the section at the top). Nothing about beat 1 is settled
    until a knob moves or the beat's site changes, and no agent may pick either under G6/G14.
+   ⚠ **And read the two-ends note first**: the knob alone cannot make the beat playable, because the
+   gate's reference player is holding a snare the game cannot supply (item 45). **Both halves are
+   needed; neither substitutes for the other.**
 2. **Finish T-12 — the ECONOMY half, which is now the whole of the remainder.** T-28, T-29 and T-30
    shipped together: damage, levels, XP and the bag persist, a wipe blacks out and wakes healed at an
    inn for 5 ticks, and XP carries across fights. **The inn heal has since landed too**, so T-28's
@@ -1014,8 +1322,30 @@ The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
 
 ## Waiting on the owner
 
+- **WHAT SHAPE THE SNARE GRANT TAKES** (**T-60**). **Not whether** — the canon already grants three
+  snares in Maren's tutorial, so building it is implementing shipped content, not inventing it
+  (G2-safe). The two candidates, recorded without a preference: **(A)** a general `items` grant on the
+  dialogue schema — a real change, since `zDialogueEntry` is a `strictObject` — which makes the canon
+  the source and gives every later grant the same door; or **(B)** a flag-driven grant in code, which
+  needs no schema change but puts the number three in code beside a line of dialogue that also states
+  it, where the two can disagree in silence. **No agent may pick.** A is content-authoring (G2's
+  territory); B puts a gameplay quantity in code, which G11's spirit and this file's own
+  *derived, verified, or absent* rule both point away from.
+
 - **The cascade budget.** The knob table at the top of this file is the choice. `battleTicks` or
-  `ticksPerYear`; `encounterTileFraction` cannot reach r2.
+  `ticksPerYear`; `encounterTileFraction` cannot reach r2. ⚠ **Read it together with T-60**: the two
+  are one problem from opposite ends, and the knob cannot reach the other end.
+
+- **WHETHER THE STARTER'S FIRST FIGHT IS ACCEPTABLE — now confirmed on screen, not only in a model**
+  (**T-38**, whose full table is below). The 2026-08-27 playtest `[SAW]`, on the **first random
+  encounter of a new game, in the starting town, on turn one, at full health**: Cindril **Lv 5, 58/58**
+  against a wild **Lv 5 Loamunder, 111/111**. Cindril's Singe removed **24** (five more turns needed);
+  the Loamunder's Sunder removed **≥58 in one hit** — `Party down`. The rival's **Lv 6 Nibbin** did the
+  same. **Cindril's best move, Pyre, reads 58 — exactly its own HP total.** ⚠ **This is a balance
+  question for the owner and NOT a defect for an agent to patch** (G2, G14, T-11's ruling). What the
+  playtest adds beyond the numbers is the consequence, which is not a balance claim: **combined with
+  the wipe softlock (item 46), a new player's run ends inside a minute**, and the slice past R1 is
+  unreachable in practice.
 
 - **When the painting and the collision layout disagree, which one is authored first?** (**T-57**.)
   The engine reads geometry from `tools/mapgen/layouts/*.txt`; the art lane is drawing composition from
@@ -1085,14 +1415,18 @@ The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
 
   | reading | figure |
   |---|---|
-  | catches | **10** — the pre-recovery measurement of the same slice was **zero** |
+  | catches | **10** in the MODEL — ⚠ **zero on screen**, see the note under the table |
   | wipes | **4**, at 5 ticks each |
   | ticks spent on wakes | **20 of the run's 40** |
   | where year 1 ends | `hearthollow` |
 
-  1. **The vertical slice catches again, and half the year buys it.** Ten catches where the
-     pre-recovery run got none — the recovery is what makes the slice playable at all — and **half the
-     run's ticks go on waking up.**
+  1. ⚠ **"The vertical slice catches again" IS A READING OF A PLAYER THE SHIPPED GAME CANNOT PRODUCE,
+     and it is MARKED rather than deleted, because the figures beside it are unaffected.** The harness
+     hands its reference player a snare tier as a parameter with **no inventory check at all**
+     (`tools/harness/full-run.ts:235`), and builds a gym bag outright (`tools/harness/player.ts:495`,
+     *"one salve per party member, nothing else"*). A real player holds none of it — item 45, **T-60**.
+     **So the ten catches are a property of the model, and the screen shows zero.** What stands
+     unchanged: the wipes, the ticks, and **half the run's ticks going on waking up.**
   2. **The opening is always lost.** The **first three encounters are all losses**: the granted
      juvenile starter loses to Elders and Adults alike, and the run only becomes viable once the
      fourth encounter's catch enlarges the party. That is the T-38 table arriving in a real run —
