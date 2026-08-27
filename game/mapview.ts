@@ -177,11 +177,109 @@ export function queueNodeArt(scene: Phaser.Scene, keys: NodeArtKeys): void {
 }
 
 /**
+ * How long {@link ensureNodeArt} waits for the loader before it stops waiting.
+ *
+ * ══ WHY THERE IS A DEADLINE AT ALL — A HUNG LOADER ENDED TRAVEL FOR THE SESSION ══
+ *
+ * `game/scenes/OverworldScene.ts::travelTo` awaits `ensureNodeArt` inside a `try` whose `finally`
+ * clears the `travelling` re-entry latch, and its own first guard is `if (this.travelling) return;`.
+ * A promise that never settles therefore does not stall one journey — the `finally` never runs, the
+ * latch stays set, and EVERY later travel is refused for the rest of the session with no throw, no
+ * banner and nothing on screen. Rejecting is no better from here: the sole caller is
+ * `void this.travelTo(target)` (OverworldScene.ts:1141) and `recoverFromBlackout`'s is
+ * `void ensureNodeArt(…).then(…)` with no `.catch` — neither has a handler, so a rejection is an
+ * unhandled rejection that produces exactly as little on screen as the hang did. See below.
+ *
+ * ══ THE THREE WAYS PHASER 3.90 FAILS TO EMIT `COMPLETE` — READ OFF node_modules, NOT ASSUMED ══
+ *
+ * A 404 is NOT one of them, which is why this was never seen in play. `Phaser.Loader.File.onLoad`
+ * (loader/File.js:349-355) turns a 4xx/5xx into `nextFile(file, false)`, which reaches
+ * `fileProcessComplete` → `loadComplete` → `COMPLETE` exactly as a success does. A missing file
+ * settles normally, and `hasRealAsset` means we rarely even ask for one. What does NOT settle:
+ *
+ *  1. A REQUEST THAT HANGS — the realistic one. `XHRSettings` defaults `timeout` to `0`
+ *     (loader/XHRSettings.js:28) and `XHRLoader` assigns it straight onto the request
+ *     (`xhr.timeout = config.timeout`, loader/XHRLoader.js:58). `0` means the DOM never fires
+ *     `timeout`, so the `xhr.ontimeout = file.onError` wiring at loader/XHRLoader.js:93 is dead
+ *     code. A half-open socket — a stalled connection, a server that accepts and never answers, a
+ *     laptop resumed from sleep mid-request — fires neither `load` nor `error`; the file never
+ *     leaves `inflight`, `loadComplete` is never reached, `COMPLETE` is never emitted. Images take
+ *     this path by default: `loader.imageLoadType` is `'XHR'` (core/Config.js:546), so
+ *     `ImageFile.useImageElementLoad` is false. The `HTMLImageElement` alternative is no safer — it
+ *     wires only `onload`/`onerror` (loader/filetypes/ImageFile.js:174-184) and has no timeout of
+ *     any kind.
+ *  2. `load.start()` DOING NOTHING. It early-returns unless `isReady()`, i.e. unless the loader is
+ *     `LOADER_IDLE` or `LOADER_COMPLETE` (loader/LoaderPlugin.js:915-919 and 895-898). During an
+ *     active load that is harmless and is NOT the hazard: `addFile` drops the file into `list`, and
+ *     the scene-UPDATE-driven `checkLoadQueue` picks it up, so the running load ends in one
+ *     `COMPLETE` that settles every waiter. It stops being harmless once the loader is
+ *     `LOADER_SHUTDOWN` or `LOADER_DESTROYED` (set at loader/LoaderPlugin.js:1261 and 1281) —
+ *     `start` returns, nothing is subscribed to scene UPDATE, and nothing will ever emit again.
+ *     (`LOADER_PROCESSING` exists in loader/const.js:34 but `LoaderPlugin` never assigns it in
+ *     3.90 — the only mention is `isLoading()` — so the "called during processing" framing of this
+ *     path is not reachable in the pinned version. The shutdown framing is.)
+ *  3. TEARDOWN MID-LOAD. `nextFile` returns early once the game is gone (`if (!this.inflight)`,
+ *     loader/LoaderPlugin.js:1035-1039) and `fileProcessComplete` once the scene is
+ *     (loader/LoaderPlugin.js:1081-1085). Either drops the last file without reaching
+ *     `loadComplete`. Lowest stakes — the scene is leaving anyway — but the same silence.
+ *
+ * ══ WHY THIS NUMBER IS NOT IN `data/balance.json` (G11) ══
+ *
+ * G11 bans a GAMEPLAY constant as a literal, and its gate says so in those words:
+ * `tests/gates/guardrails.test.ts`'s `no_magic_numbers` walks `core/` and only `core/`, because
+ * INV-3's claim is that RETUNING BALANCE touches one file. Nobody retunes a watchdog to balance a
+ * game. This number reaches no rule, no formula, no seed and no draw; `core/` never sees it; the
+ * headless harness — the reader INV-3 exists to keep honest — cannot exercise a wall-clock deadline
+ * at all, so putting it in `balance.json` would add a knob whose only possible reader is the
+ * browser. The in-repo precedent for exactly this shape is `BANNER_HOLD_MS` / `BANNER_FADE_MS`
+ * (game/scenes/OverworldScene.ts:3214-3215): presentation timings, named, in the module that uses
+ * them. `balance.map.walkMsPerTile` is the near miss that proves the line rather than blurring it —
+ * its own `_walkMsPerTile` note in `data/balance.json` argues it is presentation and moves it anyway
+ * because it is a PACE THE PLAYER FEELS EVERY SECOND and a plausible retune target. A deadline that
+ * fires only when the network is broken is neither.
+ *
+ * The value is a parameter with this as its default, so a test drives it instead of waiting on it.
+ * Eight seconds: long enough that a genuinely slow fetch of a 1024² map finishes and the player
+ * never sees a stand-in for a file that was going to arrive, short enough that a wedged loader is a
+ * hiccup rather than a session.
+ */
+const ART_LOAD_TIMEOUT_MS = 8000;
+
+/**
  * Queue and run the loader, resolving when it settles. Used for node transitions, which happen long
  * after `preload()`. Resolves immediately when there is nothing real to fetch — "the art is missing"
  * is a state the overworld renders, not an error it stops on.
+ *
+ * ══ IT RESOLVES ON THE DEADLINE TOO, AND THAT IS THE DESIGN, NOT A SHORTCUT ══
+ *
+ * The reasons a load can hang are cited on {@link ART_LOAD_TIMEOUT_MS}. When the deadline wins:
+ *
+ *   • The caller continues. `travelTo` adopts the node, spends the tick, and the `finally` clears
+ *     the `travelling` latch — so travel keeps working instead of ending for the session.
+ *   • The player arrives on the labelled stand-in. `MapView` asks `textureFor`, the texture is not
+ *     there, and it draws the ONE shared placeholder printed with the node's name, biome and year,
+ *     exactly as it does for a map the art lane has not painted yet. The mask is absent too, so the
+ *     caller synthesises a collision grid and says so in the same HUD line. Nothing is a
+ *     half-rendered or empty screen; this is a state the overworld already renders everywhere.
+ *   • IT IS NOT SILENT. {@link statusFor} separates "the file is not in the build" from "the file
+ *     IS in the build and the texture is not here" and prints the second as `did not load` in the
+ *     HUD note the scene already shows (`OverworldScene.ts:844`). A `console.warn` names the paths
+ *     for whoever is watching the console. That readout is the whole of what a rejection would have
+ *     bought — and unlike a rejection it reaches the screen rather than an unhandled-rejection log.
+ *
+ * WHAT IT COSTS, stated rather than glossed: the load is NOT cancelled, so a texture that arrives
+ * after the deadline sits in the TextureManager unused, and the player finishes that visit on a
+ * stand-in with a synthesised mask. It self-heals on the next entry to that node — `pending` is
+ * then empty, this resolves immediately, and the real art draws. A degraded visit is the price of
+ * not ending travel, and it is the right side of that trade.
+ *
+ * `timeoutMs` is a parameter so a test can drive the deadline rather than sleep through it.
  */
-export function ensureNodeArt(scene: Phaser.Scene, keys: NodeArtKeys): Promise<void> {
+export function ensureNodeArt(
+  scene: Phaser.Scene,
+  keys: NodeArtKeys,
+  timeoutMs: number = ART_LOAD_TIMEOUT_MS,
+): Promise<void> {
   const wanted = [
     [keys.mapKey, keys.mapPath],
     [keys.maskKey, keys.maskPath],
@@ -189,8 +287,30 @@ export function ensureNodeArt(scene: Phaser.Scene, keys: NodeArtKeys): Promise<v
   const pending = wanted.filter(([key, path]) => !scene.textures.exists(key) && hasRealAsset(path));
   if (pending.length === 0) return Promise.resolve();
   return new Promise<void>((resolve) => {
+    let settled = false;
+    // Assigned BEFORE `scene.load.start()`, which can emit `COMPLETE` synchronously — real
+    // `LoaderPlugin.start` calls `loadComplete()` inline when the queue came out empty. Arming the
+    // watchdog after that call would leave a live timer behind on the fast path.
+    let watchdog: ReturnType<typeof setTimeout> | null = null;
+    const onComplete = (): void => {
+      if (settled) return;
+      settled = true;
+      if (watchdog !== null) clearTimeout(watchdog);
+      resolve();
+    };
     queueNodeArt(scene, keys);
-    scene.load.once(Phaser.Loader.Events.COMPLETE, () => resolve());
+    scene.load.once(Phaser.Loader.Events.COMPLETE, onComplete);
+    watchdog = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      // Dropped rather than left attached: a stalled travel that keeps its listener would add one
+      // per journey to a loader that is never going to call any of them, and `onComplete` is
+      // idempotent anyway, so nothing is lost by letting a late `COMPLETE` find no subscriber.
+      scene.load.off(Phaser.Loader.Events.COMPLETE, onComplete);
+      const paths = pending.map(([, path]) => path).join(", ");
+      console.warn(`[assets] loader did not settle in ${String(timeoutMs)}ms — ${paths}`);
+      resolve();
+    }, timeoutMs);
     scene.load.start();
   });
 }
@@ -250,12 +370,28 @@ export interface MapArtStatus {
   note: string;
 }
 
+/**
+ * THE TWO HALVES ARE REPORTED SEPARATELY, AND THAT IS THE POINT.
+ *
+ * `painted` needs both — `hasRealAsset` is the BUILD-time census of `assets/final/` and
+ * `textures.exists` is the runtime truth — and this used to collapse both failures into
+ * `not built`. They are not the same fact, and the difference is the only thing on screen when
+ * `ensureNodeArt` gives up on a hung loader: the file IS in the build, the census says so, and the
+ * texture is simply not here. Printing `not built` for that would have told a reader the art lane
+ * had not shipped a map it had in fact shipped, which is how a network fault gets filed as an
+ * asset bug. `did not load` says what happened and nothing more (G7 — a path and a verb).
+ *
+ * The `PLACEHOLDER map — ` prefix is load-bearing: it is what the HUD readout is recognised by.
+ */
 function statusFor(scene: Phaser.Scene, keys: NodeArtKeys): MapArtStatus {
-  const painted = hasRealAsset(keys.mapPath) && scene.textures.exists(keys.mapKey);
+  const built = hasRealAsset(keys.mapPath);
+  const painted = built && scene.textures.exists(keys.mapKey);
   return {
     painted,
     path: keys.mapPath,
-    note: painted ? `map ${keys.mapPath}` : `PLACEHOLDER map — ${keys.mapPath} not built`,
+    note: painted
+      ? `map ${keys.mapPath}`
+      : `PLACEHOLDER map — ${keys.mapPath} ${built ? "did not load" : "not built"}`,
   };
 }
 
