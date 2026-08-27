@@ -23,7 +23,13 @@
  * channels), which are not gameplay constants and could not live in balance.json meaningfully.
  */
 
-import type { Balance, CollisionGrid } from "../core/types";
+import type { Balance, CollisionGrid, PropPlacement } from "../core/types";
+// The two functions `OverworldScene.interact()` uses to answer "is the player at this prop", reused
+// verbatim so the spawn rule below and the interact key cannot disagree about one tile. Neither
+// module imports an engine and neither imports this one, so nothing here gains a cycle or a Phaser
+// dependency. build-doc §7.6 still holds: props are NOT collision, and nothing here makes them so.
+import { createMovement, movementConfig, spriteWorldPosition } from "./movement";
+import { propInReach } from "./props";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Format facts — not gameplay constants (G11 / INV-4)
@@ -667,13 +673,48 @@ export function loadCollision(
 }
 
 /**
- * A tile the player can legally start on. Prefers the centre and spirals outward, so a synthesised
- * border grid puts the player in the middle of the map and an authored mask still finds ground.
- * Returns null when the node has no walkable tile at all — which is a broken mask, not a spawn bug.
+ * What a caller knows about the node that the collision grid cannot know.
+ *
+ * `props` is `NodeFile.props`. Passing it does NOT make props collision — see
+ * {@link firstWalkableTile} for the distinction, which is the whole point of this option existing
+ * as a spawn PREFERENCE rather than as a change to {@link tileWalkable}.
  */
-export function firstWalkableTile(
+export interface SpawnOptions {
+  /** The props overlaying this node. Omitted (or empty) reproduces the pre-prop behaviour exactly. */
+  props?: readonly PropPlacement[];
+}
+
+/** Where the player's sprite actually stands when they are on this tile — `interact()`'s own point. */
+function standingPoint(
+  tile: { col: number; row: number },
+  balance: Balance,
+): { x: number; y: number } {
+  return spriteWorldPosition(createMovement(tile), movementConfig(balance));
+}
+
+/**
+ * The prop whose interaction radius contains a player standing on this tile, or null.
+ *
+ * Asked through `game/props.ts` `propInReach` and through `game/movement.ts` `spriteWorldPosition`
+ * — the two functions `OverworldScene.interact()` itself uses — so "is the player at this prop"
+ * has ONE answer, and a spawn this module calls clear cannot be a prop the interact key then reads.
+ */
+function propCovering(
+  tile: { col: number; row: number },
+  balance: Balance,
+  props: readonly PropPlacement[],
+): PropPlacement | null {
+  if (props.length === 0) return null;
+  const at = standingPoint(tile, balance);
+  for (const prop of props) if (propInReach(prop, at, balance)) return prop;
+  return null;
+}
+
+/** The spiral itself: centre outward, first tile that is walkable AND accepted. */
+function spiralFor(
   grid: CollisionGrid,
   balance: Balance,
+  accept: (tile: { col: number; row: number }) => boolean,
 ): { col: number; row: number } | null {
   const tiles = tileGridSize(balance);
   const midCol = Math.floor(tiles.cols / 2);
@@ -686,11 +727,58 @@ export function firstWalkableTile(
         const col = midCol + dCol;
         const row = midRow + dRow;
         if (col < 0 || row < 0 || col >= tiles.cols || row >= tiles.rows) continue;
-        if (tileWalkable(grid, col, row, balance)) return { col, row };
+        if (tileWalkable(grid, col, row, balance) && accept({ col, row })) return { col, row };
       }
     }
   }
   return null;
+}
+
+/**
+ * A tile the player can legally start on. Prefers the centre and spirals outward, so a synthesised
+ * border grid puts the player in the middle of the map and an authored mask still finds ground.
+ * Returns null when the node has no walkable tile at all — which is a broken mask, not a spawn bug.
+ *
+ * ⚠ AND, GIVEN `opts.props`, IT PREFERS A TILE NO PROP'S INTERACTION RADIUS CONTAINS.
+ *
+ * "Keep the centre clear" and "mark the centrepiece of the painting with a prop" are two map rules
+ * that land on one cell, and today they do: the spiral starts at `Math.floor(64/2)` = tile (32,32),
+ * whose standing point is world (1040,1032), and MEASURED over the twelve shipped node files two
+ * props contain it — `sanctum-antler-ring` (native 512,512; 17.9 world px away) and
+ * `bowerdeep-sign-market` (native 520,560; 88.0 away, inside a 96px radius).
+ *
+ * That is not cosmetic, because `OverworldScene.interact()` gives a prop ABSOLUTE priority over
+ * everything a node has to say ("a prop wins over a person"). Driven through the real selectors at
+ * act 3, Bowerdeep — a town shipping twenty-two talk entries including both quest chains — answered
+ * [E] with `prop.bowerdeep-sign-market` from the arrival tile and from one tile east, and only
+ * reached `halder.quest.silk.offer` from two tiles away. The player had to walk out of a sign's
+ * radius before the town would talk to them, and nothing told them so. (The Sanctum ships no talk
+ * entries, so the same overlap there shadows nothing; its finale cutscene is selected by
+ * `autoplayEntryFor` on node and kind alone and never consulted the player's position.)
+ *
+ * ⚠ THIS IS NOT PROPS BAKED INTO COLLISION, and build-doc §7.6 is what forbids that: props
+ * "overlay the painted map" and are "not baked into collision". Nothing here touches
+ * {@link tileWalkable} — the covered tile stays walkable, the player may walk onto it and read the
+ * prop, and every other consumer of the grid is unchanged. The only question this answers is where
+ * the player is PUT when they did not choose, and putting them somewhere they did not walk to,
+ * inside a radius that then eats their interact key, is the thing being avoided.
+ *
+ * ⚠ AND IT IS A PREFERENCE, NOT A REQUIREMENT — the function is total. When every walkable tile is
+ * inside some radius (a small room, a densely propped map) the second pass is the ORIGINAL spiral,
+ * so this can never return null where it previously returned a tile, and never returns nothing
+ * because a map is crowded. {@link SpawnChoice.insideProp} is where that outcome is reported.
+ */
+export function firstWalkableTile(
+  grid: CollisionGrid,
+  balance: Balance,
+  opts: SpawnOptions = {},
+): { col: number; row: number } | null {
+  const props = opts.props ?? [];
+  if (props.length > 0) {
+    const clear = spiralFor(grid, balance, (tile) => propCovering(tile, balance, props) === null);
+    if (clear) return clear;
+  }
+  return spiralFor(grid, balance, () => true);
 }
 
 /** Where the player will stand, and — when that is nowhere legal — the sentence saying so. */
@@ -702,6 +790,20 @@ export interface SpawnChoice {
    * loud rather than looking like an ordinary spawn.
    */
   problem: string | null;
+  /**
+   * The id of the prop whose interaction radius contains this spawn, or null for none.
+   *
+   * Non-null means the preference in {@link firstWalkableTile} could not be satisfied: every
+   * walkable tile on this map is inside some radius, so the player lands at one and [E] will read
+   * it. That is a legal map and NOT a `problem` — the player can walk — but it is a fact about the
+   * painting that the map lane is the only one who can act on, so it is reported rather than
+   * absorbed.
+   *
+   * ABSENT, rather than null, when the caller passed no `props`: the question was never asked, and
+   * a manufactured `null` would read as "asked, and nothing was in reach". It also keeps the
+   * result of a prop-less call byte-identical to what it was before this option existed.
+   */
+  insideProp?: string | null;
 }
 
 /**
@@ -712,17 +814,32 @@ export interface SpawnChoice {
  * unable to move, with nothing on screen saying why. A `??` cannot be written against this signature
  * because the failure is not represented as a missing value; it is represented as a sentence the
  * caller has to do something with.
+ *
+ * Pass `opts.props` (i.e. `NodeFile.props`) to get the prop-clear preference; see
+ * {@link firstWalkableTile} for what it is and, just as importantly, what it is not.
  */
-export function chooseSpawnTile(grid: CollisionGrid, balance: Balance): SpawnChoice {
-  const found = firstWalkableTile(grid, balance);
-  if (found) return { tile: found, problem: null };
+export function chooseSpawnTile(
+  grid: CollisionGrid,
+  balance: Balance,
+  opts: SpawnOptions = {},
+): SpawnChoice {
+  const props = opts.props ?? [];
+  // Asked only when the caller supplied props — see {@link SpawnChoice.insideProp} for why the
+  // difference between "no prop in reach" and "nobody asked" is kept rather than flattened.
+  const reported = (tile: { col: number; row: number }): Pick<SpawnChoice, "insideProp"> =>
+    props.length === 0 ? {} : { insideProp: propCovering(tile, balance, props)?.id ?? null };
+
+  const found = firstWalkableTile(grid, balance, opts);
+  if (found) return { tile: found, problem: null, ...reported(found) };
   const tiles = tileGridSize(balance);
+  const fallback = { col: Math.floor(tiles.cols / 2), row: Math.floor(tiles.rows / 2) };
   return {
-    tile: { col: Math.floor(tiles.cols / 2), row: Math.floor(tiles.rows / 2) },
+    tile: fallback,
     problem:
       `NO WALKABLE TILE at "${grid.nodeId}" — all ${tiles.cols}×${tiles.rows} tiles are blocked by ` +
       `the ${grid.cols}×${grid.rows}-cell mask (${blockedCount(grid)} cells blocked). The player is ` +
       `standing in geometry and cannot move.`,
+    ...reported(fallback),
   };
 }
 
