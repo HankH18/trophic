@@ -33,12 +33,17 @@
  *   CORPUS   — `flagsWritten(DIALOGUE)`. The real function the game uses. 86 keys.
  *   DERIVED  — an explicit table of expanders that CALL the real exported constructors over the
  *              real shipped domains (`badgeFlagFor` × `data/gyms.json`, `windowFlagFor` × the
- *              shipped window ids, `linesMetFlag` × `data/nodes/`, `RETIREMENT_MILESTONE_FLAG`,
- *              and `syncQuestFlags`'s `due[def.owedFlag]` × `questDefinitions(DIALOGUE)`).
- *              Nothing here is a transcription: if the constant moves, the expansion moves.
- *   OBSERVED — flags that appear on a save after DRIVING the real writers (`syncEventFlags` over
- *              two years of ticks, `syncQuestFlags` on a fresh save and on one that has retired).
- *              This is the anti-stub-blindness half: not "a writer exists", but "the flag appeared".
+ *              shipped window ids, `linesMetFlag` × `data/nodes/`, `RETIREMENT_MILESTONE_FLAG`).
+ *              Nothing here is a transcription: if the constant moves, the expansion moves. The
+ *              quest turn-in flags were expanded here too, on the strength of an objective ROW
+ *              EXISTING, and that is the hole {@link questTurnInWrites} closed — see the note where
+ *              the expander used to be.
+ *   OBSERVED — flags that appear on a save after DRIVING the real writers: `syncEventFlags` over
+ *              two years of ticks; `syncQuestFlags` on a fresh save, on one that has retired, and
+ *              on one whose deadline ran out; a MAXIMAL PLAYER through the whole quest tracker,
+ *              capped by what the region and `balance.party` allow; and a wiped party through
+ *              `core/recovery.ts`. This is the anti-stub-blindness half: not "a writer exists", but
+ *              "the flag appeared".
  *   LITERAL  — flag-shaped string literals in COMMENT-STRIPPED shipping source. Weak, and treated
  *              as such: a flag whose only writer is a literal must be named in
  *              {@link LITERAL_ONLY_WRITERS} so a reviewer sees it. That list is empty today.
@@ -81,13 +86,14 @@ import {
   windowOpenedAtFlag,
 } from "../../core/regional-events";
 import { validateContent } from "../../core/schemas";
-import { appendAction, newSave, type SaveEnvelope } from "../../core/save";
+import { appendAction, catchAction, newSave, type SaveEnvelope } from "../../core/save";
 import { applyCatch, fromNodeState, stepRegionStates, toNodeState } from "../../core/ecosim";
 import { toEcoNode } from "../../core/foodweb";
-import { formNameOf } from "../../core/lifecycle";
+import { formNameOf, newOwnedCreature } from "../../core/lifecycle";
+import { applyBlackoutRecovery, blackoutRecoveryFor } from "../../core/recovery";
 import { createRng } from "../../core/rng";
-import { SEASONS } from "../../core/types";
-import type { NodeState } from "../../core/types";
+import { AGE_CLASSES, SEASONS } from "../../core/types";
+import type { AgeClass, NodeState, OwnedCreature, Season } from "../../core/types";
 import type { CaughtIndividual } from "../../core/battle";
 import { AUTOPLAY_KINDS, BATTLE_KINDS, TALK_KINDS, dialogueContext } from "../../game/dialogue-runner";
 import {
@@ -101,6 +107,8 @@ import {
   QUEST_OBJECTIVES,
   RETIREMENT_MILESTONE_FLAG,
   linesMetFlag,
+  recordLineMet,
+  releaseIntoNode,
   syncQuestFlags,
 } from "../../game/quests";
 
@@ -278,32 +286,15 @@ function requiredFlags(file: DialogueFile): Map<string, string[]> {
 
 const CORPUS_WRITERS: ReadonlySet<string> = flagsWritten(DIALOGUE);
 
+/** The same census, by VALUE — see {@link corpusTruthyWriters} for why the difference matters. */
+const CORPUS_TRUTHY_WRITERS: ReadonlyMap<string, string[]> = corpusTruthyWriters(DIALOGUE);
+
 /* ── DERIVED: real constructors, called over the real shipped domains ─────── */
 
 interface Expander {
   /** Where the writer lives, for the failure message. */
   where: string;
   flags: () => string[];
-}
-
-/**
- * ⚠ THE ONE EXPANDER WITH A CONDITION, AND THE CONDITION IS LOAD-BEARING.
- *
- * `syncQuestFlags` writes `due[def.owedFlag] = true` — but only after
- * `if (QUEST_OBJECTIVES[def.id] === undefined) continue`. So a quest with no row in the objective
- * table has NO writer for its turn-in flag, and its whole `.done` branch is dead copy. Expanding
- * over `questDefinitions()` unconditionally would hide exactly that, which is the permissive
- * direction this file exists to refuse. `tests/gates/quest-layer.test.ts` asserts the rows exist;
- * this only counts the ones that do.
- */
-function questOwedFlagWriters(): string[] {
-  const out: string[] = [];
-  for (const def of questDefinitions(DIALOGUE)) {
-    if (def.owedFlag === null) continue;
-    if (QUEST_OBJECTIVES[def.id] === undefined) continue;
-    out.push(def.owedFlag);
-  }
-  return out;
 }
 
 const EXPANDERS: readonly Expander[] = [
@@ -330,10 +321,23 @@ const EXPANDERS: readonly Expander[] = [
     where: "game/quests.ts linesMetFlag() × data/nodes/",
     flags: () => content.nodes.map((n) => linesMetFlag(n.id)),
   },
-  {
-    where: "game/quests.ts syncQuestFlags due[def.owedFlag] × questDefinitions() WITH an objective row",
-    flags: questOwedFlagWriters,
-  },
+  /*
+   * ⚠ THE QUEST TURN-IN EXPANDER USED TO STAND HERE, AND IT CERTIFIED THE ROW'S EXISTENCE.
+   *
+   * It read: for every quest, if `QUEST_OBJECTIVES[def.id] !== undefined`, count `def.owedFlag` as
+   * written. The condition looked load-bearing — a quest with no row is skipped by `syncQuestFlags`
+   * and its `.done` branch really is dead — but it asks whether a ROW EXISTS, never what is IN it.
+   * Measured on the shipped tree: setting *Silk Shortage*'s count to 999 (a node that yields 70
+   * individuals, a player who can hold 66) makes the quest permanently impossible, and this
+   * expander went on declaring its turn-in flag written, so GATE 1a stayed silent and GATE 1c
+   * certified `halder.quest.silk.done` — copy no player can ever see — as reachable. The same held
+   * for a node no player is sent to and a season the offer is never handed out in.
+   *
+   * The turn-in flags are now OBSERVED instead: {@link questTurnInWrites} puts a maximal player
+   * through the real tracker and keeps only the flags that LANDED. That is the same standard the
+   * rest of this census is held to — "not 'a writer exists', but 'the flag appeared'" — and it is
+   * the standard a table of objectives has to meet, because the row is a claim about the world.
+   */
 ];
 
 function derivedWriters(): Map<string, string> {
@@ -359,6 +363,159 @@ const freshSave = (): SaveEnvelope =>
  * retirement.
  */
 const OBSERVED_VALUES = new Map<string, Set<string>>();
+
+/** What `note` does, passed to the drivers below so each one records what it saw. */
+type Noter = (before: SaveEnvelope, after: SaveEnvelope, where: string) => void;
+
+/**
+ * THE MAXIMAL PLAYER — the driver that replaced the quest turn-in expander, and it is BLIND to the
+ * objective table.
+ *
+ * It reads no row. It builds, once per node, the save of somebody who has done everything the
+ * shipped world allows at that node and then asks the real `syncQuestFlags` what came due:
+ *
+ *   • they hold as many individuals as `balance.party` lets them — capped by the standing count the
+ *     node actually ships, because a node cannot hand over animals it has not got — with ages
+ *     cycling through `AGE_CLASSES`;
+ *   • every one of those is on the tape as a catch AT THAT NODE, built by the real `catchAction`,
+ *     so the entry carries the individual `core/quests.ts` `countCatches` reads the age off;
+ *   • half of them are put BACK through the real `releaseIntoNode`, which is the release verb and
+ *     can refuse;
+ *   • they have walked the whole graph, met every line at every node through `recordLineMet`, and
+ *     retired something;
+ *   • and the whole thing is asked again in each season the clock reaches and in the year after,
+ *     because a quest with a season and a quest with a deadline are answered by different moments.
+ *
+ * Two properties make this a census rather than a wish. It is capped by the world, so an objective
+ * asking for more than the region holds produces NOTHING here and its turn-in is correctly reported
+ * as having no writer. And it is blind to the table, so it cannot confirm a row by construction —
+ * whatever `QUEST_OBJECTIVES` says, what lands is what the tracker actually wrote.
+ *
+ * ⚠ WHAT IT GRANTS, AND THE ONE PIECE OF CIRCULARITY LEFT. The save starts carrying every flag the
+ * CORPUS writes SET, minus every quest's turn-in and completion flags — "a player who has said
+ * everything there is to say, and has been given none of the game's own quest bookkeeping". Those
+ * granted keys all have corpus writers; whether those writers are REACHABLE is GATE 1c's separate
+ * question, and it is asked independently. So a quest whose objective waits on a flag written only
+ * by an entry the player cannot reach would still be observed here — and GATE 1c would report that
+ * entry dead in the same run, which is where the reader should be sent.
+ */
+function questTurnInWrites(note: Noter): void {
+  const defs = questDefinitions(DIALOGUE);
+  const owedByTheGame = new Set<string>();
+  for (const def of defs) {
+    if (def.owedFlag !== null) owedByTheGame.add(def.owedFlag);
+    for (const flag of def.completionFlags) owedByTheGame.add(flag);
+  }
+
+  // Everything the player could have SAID. A `false` write is a latch being lowered, not a fact.
+  const said: Record<string, FlagValue> = {};
+  for (const e of DIALOGUE.entries) {
+    const bags = [e.setFlags ?? {}, ...(e.choices ?? []).map((c) => c.setFlags ?? {})];
+    for (const bag of bags) {
+      for (const [key, value] of Object.entries(bag)) {
+        if (value === false || owedByTheGame.has(key)) continue;
+        said[key] = value;
+      }
+    }
+  }
+
+  const tickOfSeason = new Map<Season, number>();
+  for (let tick = 0; tick < balance.clock.ticksPerYear; tick += 1) {
+    const season = seasonOf({ year: balance.clock.startYear, tick, subTick: 0 }, balance);
+    if (!tickOfSeason.has(season)) tickOfSeason.set(season, tick);
+  }
+
+  for (const node of content.nodes) {
+    const lineId = Object.keys(node.populations).find(
+      (id) => content.species.find((s) => s.id === id)?.ancient !== true,
+    );
+    const line = content.species.find((s) => s.id === lineId);
+    if (lineId === undefined || line === undefined) continue;
+    const standing = Object.values(node.populations).reduce((n, p) => n + p.count, 0);
+    const held = Math.min(balance.party.maxPartySize + balance.party.maxBoxSize, standing);
+
+    const creatures: OwnedCreature[] = [];
+    for (let i = 0; i < held; i += 1) {
+      creatures.push(
+        newOwnedCreature(
+          {
+            uid: `sweep-${node.id}-${String(i)}`,
+            lineId,
+            age: AGE_CLASSES[i % AGE_CLASSES.length] as AgeClass,
+            level: balance.xp.starterLevel,
+            caughtYear: balance.clock.startYear,
+          },
+          line,
+          balance,
+        ),
+      );
+    }
+
+    // The acceptances go on FIRST and are stamped by the real tracker, so everything below is
+    // counted from the moment the jobs were taken on rather than from the start of the tape.
+    let save: SaveEnvelope = {
+      ...freshSave(),
+      party: creatures.slice(0, balance.party.maxPartySize),
+      box: creatures.slice(balance.party.maxPartySize),
+      questFlags: { ...said },
+    };
+    for (const def of defs) {
+      if (def.acceptFlag === null) continue;
+      save = { ...save, questFlags: { ...save.questFlags, [def.acceptFlag]: true } };
+    }
+    // ⚠ THIS SYNC IS NOTED TOO, and leaving it out cost two turn-ins. *The Star Census* pays on a
+    // party the player already holds and *Vellsire's Trail* on stones they have already read, so
+    // both flags land in the very call that stamps the acceptances — and a census that only
+    // diffed the LATER syncs saw a save that already carried them and recorded nothing.
+    const stamped = syncQuestFlags(save, content);
+    note(save, stamped, `game/quests.ts syncQuestFlags (every job taken on, standing at ${node.id})`);
+    let played = stamped;
+
+    // The walk. Breadth-first over the shipped adjacency from where a save starts: a real route
+    // repeats hops, which changes nothing any objective reads — every objective asks whether a
+    // travel entry NAMING a node exists since the acceptance.
+    const seen = new Set<string>([played.currentNode]);
+    const frontier: string[] = [played.currentNode];
+    while (frontier.length > 0) {
+      const at = frontier.shift() as string;
+      for (const next of content.nodes.find((n) => n.id === at)?.adjacency ?? []) {
+        if (seen.has(next)) continue;
+        seen.add(next);
+        frontier.push(next);
+        played = { ...appendAction(played, { t: "travel", to: next }), currentNode: next };
+      }
+    }
+
+    for (const walked of content.nodes) {
+      for (const met of Object.keys(walked.populations)) played = recordLineMet(played, walked.id, met);
+    }
+    for (const creature of [...played.party, ...played.box]) {
+      played = appendAction(played, catchAction(node.id, creature));
+    }
+    // Half of them go back in, through the verb the game actually ships. The other half stay held,
+    // because `countCatches` only counts a catch while the player still has the individual.
+    for (const creature of [...played.party, ...played.box].slice(Math.ceil(held / 2))) {
+      const applied = releaseIntoNode(played, content, creature.uid, node.id);
+      if (applied.problem === null) played = applied.save;
+    }
+    played = appendAction(played, {
+      t: "retirement",
+      choice: { kind: "boon", parentUid: "gate-parent", targetUid: "gate-target", stat: "atk" },
+    });
+
+    for (const [season, tick] of tickOfSeason) {
+      for (const offset of [0, 1]) {
+        const at: SaveEnvelope = { ...played, tick, subTick: 0, year: played.year + offset };
+        note(
+          at,
+          syncQuestFlags(at, content),
+          `game/quests.ts syncQuestFlags (a player who did everything at ${node.id}, in ${season} of ` +
+            `year ${String(at.year)} — driven, and blind to QUEST_OBJECTIVES)`,
+        );
+      }
+    }
+  }
+}
 
 function observedWriters(): Map<string, string> {
   const out = new Map<string, string>();
@@ -484,6 +641,47 @@ function observedWriters(): Map<string, string> {
     );
   }
 
+  /*
+   * 6. THE QUEST TURN-INS, DRIVEN — see {@link questTurnInWrites} for why this is not an expander.
+   */
+  questTurnInWrites(note);
+
+  /*
+   * 7. THE BLACKOUT CUE, DRIVEN, because the corpus only ever LOWERS it.
+   *
+   * `story.blackout.woke` is required by `narration.blackout` and the only thing the corpus does
+   * with the key is `setFlags: {…: false}` on that same entry — the latch being lowered by the beat
+   * it gates. A key-shaped census reads that as "corpus-written" and exempts the flag from review
+   * entirely; the real writer is `core/recovery.ts` `applyBlackoutRecovery`, and the only trace of
+   * it a literal scan can see is `export const BLACKOUT_CUE_FLAG = "story.blackout.woke"`, which is
+   * indistinguishable from the read-only constant two lines above it in the same file. So the wipe
+   * is DRIVEN: a party with nobody standing, through the real recovery, and the cue is whatever
+   * lands on the save.
+   */
+  {
+    const starter = content.species.find((s) => !s.ancient);
+    if (starter === undefined) throw new Error("data/species.json ships no non-Ancient line");
+    const down: SaveEnvelope = {
+      ...freshSave(),
+      party: [
+        newOwnedCreature(
+          {
+            uid: "gate-wiped",
+            lineId: starter.id,
+            age: "A",
+            level: balance.xp.starterLevel,
+            caughtYear: balance.clock.startYear,
+          },
+          starter,
+          balance,
+        ),
+      ],
+    };
+    const recovery = blackoutRecoveryFor(down, content, (c) => (c.curHp ?? 0) > 0);
+    if (recovery === null) throw new Error("the blackout probe built a party that is not down");
+    note(down, applyBlackoutRecovery(down, recovery), "core/recovery.ts applyBlackoutRecovery (a wiped party)");
+  }
+
   return out;
 }
 
@@ -582,10 +780,47 @@ function codeValuesOf(flag: string): "any" | ReadonlySet<string> | null {
   return null;
 }
 
-/** True when SOMETHING writes the flag — another entry of `file`, or shipped code. Gate 1a's question. */
-function hasWriterIn(file: DialogueFile): (flag: string) => boolean {
-  const corpus = flagsWritten(file);
-  return (flag) => corpus.has(flag) || codeWriterOf(flag) !== null;
+/**
+ * flag -> the ids of the entries that write it SET, in the sense `conditionHolds` means SET.
+ *
+ * ⚠ `flagsWritten` COUNTS THE KEY AND NOT THE VALUE, AND THAT IS A HOLE AT THIS LAYER. Two shipped
+ * entries write their OWN precondition to `false` — `sel.quest.wager.lost` lowers
+ * `quest.ferrymans-wager.lapsed` and `narration.blackout` lowers `story.blackout.woke` — because
+ * that is how a latch closes itself once the beat has played. A key census reads those as
+ * corpus-written, so the entry was certified as its own writer: a precondition satisfied by the
+ * thing it gates, which is exactly what this file's opening rule refuses. Both flags are really
+ * written by shipped code (`settleCycles`, `applyBlackoutRecovery`), and both are OBSERVED landing
+ * on a save above — so the shipped tree stays green through the census that can tell the
+ * difference, and would go red the moment either code writer went away.
+ */
+function corpusTruthyWriters(file: DialogueFile): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const e of file.entries) {
+    const bags = [e.setFlags ?? {}, ...(e.choices ?? []).map((c) => c.setFlags ?? {})];
+    for (const bag of bags) {
+      for (const [key, value] of Object.entries(bag)) {
+        if (value === false) continue;
+        const list = out.get(key);
+        if (list) {
+          if (!list.includes(e.id)) list.push(e.id);
+        } else out.set(key, [e.id]);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * True when SOMETHING ELSE writes the flag — another entry of `file`, or shipped code.
+ *
+ * "Something else" is the whole of it: an entry that writes the very flag it requires has not
+ * satisfied its own precondition, it has closed itself, and counting that as a writer is how a flag
+ * whose only real writer lives in `core/` passed review as corpus-written. Gate 1a's question.
+ */
+function hasWriterIn(file: DialogueFile): (flag: string, requiredBy: readonly string[]) => boolean {
+  const corpus = corpusTruthyWriters(file);
+  return (flag, requiredBy) =>
+    (corpus.get(flag) ?? []).some((id) => !requiredBy.includes(id)) || codeWriterOf(flag) !== null;
 }
 
 /** What a seed answers: the values something outside the corpus can put on a flag, or null. */
@@ -668,11 +903,51 @@ describe("the writer census is not a grep", () => {
     expect(after.questFlags["quest.first-signs.turnin"]).toBe(true);
   });
 
+  /**
+   * BINDS the census that replaced the objective-row expander: every quest turn-in has to have been
+   * SEEN, and seen by the driver rather than declared by a table.
+   *
+   * The failure mode this guards is the quiet one. If {@link questTurnInWrites} ever stopped
+   * producing anything — a save shape it no longer builds, an exception swallowed upstream — the
+   * turn-in flags would simply be absent from the census, GATE 1a would report ten orphans and a
+   * reader would go looking in the corpus for a fault that is in this file. Naming the provenance
+   * sends them to the right place, and asserting it is non-empty keeps the census from passing
+   * vacuously.
+   */
+  it("BINDS — every quest turn-in flag was OBSERVED, and by the maximal-player driver", () => {
+    const turnIns = questDefinitions(DIALOGUE)
+      .map((d) => d.owedFlag)
+      .filter((f): f is string => f !== null);
+    expect(turnIns.length).toBeGreaterThan(0);
+    for (const flag of turnIns) {
+      const where = OBSERVED_WRITERS.get(flag);
+      expect(
+        where,
+        `no run of the tracker was ever seen writing "${flag}" — its quest cannot be closed, and ` +
+          "GATE 1a below is about to report it as an orphan",
+      ).toBeDefined();
+      // The provenance is the tracker itself, not a constructor and not a literal. Which DRIVER
+      // saw it first is not fixed: *The Fallow Field* waits for a year to turn, so the lapse loop
+      // above reaches it before the maximal player does, and both are real runs of the real writer.
+      expect(where, `"${flag}" was observed, but not by any run of the quest tracker`).toContain(
+        "game/quests.ts",
+      );
+      // …and it was seen landing as SET, which is what every `.done` entry reads it for.
+      expect([...(OBSERVED_VALUES.get(flag) ?? [])]).toContain("true");
+    }
+    // At least one of them must have come from the maximal-player sweep, or that driver is doing
+    // nothing and the census is being carried entirely by the two narrow probes beside it.
+    expect(turnIns.some((f) => (OBSERVED_WRITERS.get(f) ?? "").includes("did everything"))).toBe(true);
+  });
+
   it("every literal-only writer is named in the reviewed list", () => {
     const required = [...requiredFlags(DIALOGUE).keys()];
+    // The corpus exemption is BY VALUE. A key the corpus only ever writes `false` is a latch being
+    // lowered, and exempting it here is what kept `story.blackout.woke` — whose real writer is a
+    // bare literal in `core/recovery.ts` — out of review for as long as this list has existed.
     const literalOnly = required.filter(
       (f) =>
-        !CORPUS_WRITERS.has(f) &&
+        !CORPUS_TRUTHY_WRITERS.has(f) &&
         !DERIVED_WRITERS.has(f) &&
         !OBSERVED_WRITERS.has(f) &&
         LITERAL_WRITERS.has(f),
@@ -724,10 +999,13 @@ interface OrphanFlag {
   requiredBy: string[];
 }
 
-function orphanFlags(file: DialogueFile, hasWriter: (flag: string) => boolean): OrphanFlag[] {
+function orphanFlags(
+  file: DialogueFile,
+  hasWriter: (flag: string, requiredBy: readonly string[]) => boolean,
+): OrphanFlag[] {
   const out: OrphanFlag[] = [];
   for (const [flag, requiredBy] of [...requiredFlags(file)].sort((a, b) => a[0].localeCompare(b[0]))) {
-    if (hasWriter(flag)) continue;
+    if (hasWriter(flag, requiredBy)) continue;
     out.push({ flag, requiredBy: [...requiredBy].sort() });
   }
   return out;
@@ -765,6 +1043,51 @@ describe("GATE 1a — every flag the corpus requires has a writer", () => {
     ]);
     const orphans = orphanFlags(sabotaged, hasWriterIn(sabotaged));
     expect(orphans.map((o) => o.flag)).not.toContain("gate.sabotage.written");
+  });
+
+  /**
+   * BINDS the rule the whole file opens with, at the one layer that was not keeping it.
+   *
+   * An entry that writes the flag it requires is not that flag's writer — it is a latch closing
+   * itself. `sel.quest.wager.lost` is the shipped shape: `when.flagsSet:
+   * ["quest.ferrymans-wager.lapsed"]`, `setFlags: {"quest.ferrymans-wager.lapsed": false}`, and
+   * nothing else in the corpus touches the key. Under the key census that entry was its own
+   * precondition's writer and GATE 1a said nothing.
+   */
+  it("BINDS — an entry that writes its own precondition is not counted as its own writer", () => {
+    const sabotaged = withEntries(DIALOGUE, [
+      bogusEntry({
+        id: "gate.sabotage.selflatch",
+        when: { flagsSet: ["gate.sabotage.latch"] },
+        setFlags: { "gate.sabotage.latch": false },
+      }),
+    ]);
+    const orphans = orphanFlags(sabotaged, hasWriterIn(sabotaged));
+    expect(orphans.map((o) => o.flag)).toContain("gate.sabotage.latch");
+    expect(formatOrphans(orphans)).toContain("gate.sabotage.selflatch");
+    // …and the same is true when the write is `true` rather than `false`: a self-write is a cycle.
+    const cycle = withEntries(DIALOGUE, [
+      bogusEntry({
+        id: "gate.sabotage.selfcycle",
+        when: { flagsSet: ["gate.sabotage.cycle"] },
+        setFlags: { "gate.sabotage.cycle": true },
+      }),
+    ]);
+    expect(orphanFlags(cycle, hasWriterIn(cycle)).map((o) => o.flag)).toContain("gate.sabotage.cycle");
+  });
+
+  /**
+   * …and the same shape ON THE SHIPPED TREE, so the binder above is not the only thing keeping this
+   * honest. Both flags are corpus-written by KEY and by nothing but a `false` — so both would be
+   * orphans if their real writers, which are in `core/` and are DRIVEN into the census above, ever
+   * stopped writing them.
+   */
+  it("BINDS — the two shipped self-lowering latches are carried by code, not by the corpus", () => {
+    for (const key of ["quest.ferrymans-wager.lapsed", "story.blackout.woke"]) {
+      expect(CORPUS_WRITERS.has(key), `${key} is no longer written by the corpus at all`).toBe(true);
+      expect(CORPUS_TRUTHY_WRITERS.has(key), `${key} is now written SET by the corpus`).toBe(false);
+      expect(OBSERVED_WRITERS.get(key), `${key} has no observed code writer`).toBeDefined();
+    }
   });
 });
 
