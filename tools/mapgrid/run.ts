@@ -7,25 +7,31 @@
  * `maskRasterFrom` actually samples. Drawing a prettier grid would hide the thing worth
  * seeing: whether a door sits cleanly inside one cell or straddles two.
  */
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import sharp from 'sharp';
+import { zBalance } from '../../core/schemas';
+import { gridConsistencyProblem } from '../../game/collision';
+import type { Balance } from '../../core/types';
 
-interface MapConst {
-  mapNativePx: number;
-  collisionCellPx: number;
-  collisionCols: number;
-  collisionRows: number;
-}
-
-/** G11: every dimension comes from balance.json, none from a literal here. */
-async function mapConstants(): Promise<MapConst> {
-  const raw = JSON.parse(await readFile('data/balance.json', 'utf8')) as { map?: Partial<MapConst> };
-  const m = raw.map;
-  if (!m) throw new Error('data/balance.json has no `map` block');
-  for (const k of ['mapNativePx', 'collisionCellPx', 'collisionCols', 'collisionRows'] as const) {
-    if (typeof m[k] !== 'number') throw new Error(`data/balance.json map.${k} missing or not a number`);
+/**
+ * Parse balance.json through the ENGINE'S OWN schema and consistency check, not a hand-rolled read.
+ *
+ * `mapNativePx`, `collisionCols`, `collisionRows` and `collisionCellPx` are not four independent
+ * numbers — they are three statements of one fact, and `gridConsistencyProblem` is the check that
+ * they agree (game/collision.ts). A raw JSON.parse bypasses it, and then this tool would keep
+ * cheerfully drawing a 64x64 grid while the engine refused to boot on the same file: an instrument
+ * whose entire job is to be trusted over the eye, drawing a grid nobody samples. So it borrows the
+ * engine's check rather than restating it, because a restated check is one that can drift.
+ */
+async function mapConstants(): Promise<Balance['map']> {
+  const raw: unknown = JSON.parse(await readFile('data/balance.json', 'utf8'));
+  const parsed = zBalance.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(`data/balance.json failed the engine schema: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
   }
-  return m as MapConst;
+  const problem = gridConsistencyProblem(parsed.data);
+  if (problem) throw new Error(`REFUSED — the engine would not accept this balance.json: ${problem}`);
+  return parsed.data.map;
 }
 
 function arg(name: string): string | undefined {
@@ -39,7 +45,7 @@ function arg(name: string): string | undefined {
  * Labels every `labelEvery` cells rather than every cell: 64 labels per axis at 1024px is
  * unreadable, which would make the overlay worse than no overlay.
  */
-function gridSvg(c: MapConst, zoom: number, mark?: { x: number; y: number }): string {
+function gridSvg(c: Balance['map'], zoom: number, mark?: { x: number; y: number }): string {
   const S = c.mapNativePx * zoom;
   const cell = c.collisionCellPx * zoom;
   const labelEvery = 4;
