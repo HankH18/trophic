@@ -4,6 +4,11 @@
  *   no_magic_numbers   §6 INV-4 / G11 — no gameplay constant is a literal in core/.
  *   no_math_random     §8.1 / G11     — zero Math.random in the repo.
  *   no_phaser_in_core  §3 L11         — zero Phaser anywhere under core/, transitively.
+ *   no_phaser_in_node_reachable       — zero Phaser in anything a NODE-SIDE tool reaches, at any
+ *                                     depth. L11 covers core/ and stops; game/ may import the
+ *                                     engine — but tools/mapgen/ and tools/ui-frames/ import game/
+ *                                     modules and run under plain node. Browser-hosted tools (a
+ *                                     directory with an index.html or vite.config.ts) are exempt.
  *   no_shadow_tables   §8.3 / G3      — only core/foodweb.ts computes diet edges; no encounter
  *                                       weight is tabled anywhere.
  *   no_moralizing_copy §16 / G7       — no player-facing string moralises about catching: every
@@ -453,7 +458,12 @@ function importSpecifiers(src: string): string[] {
  */
 function resolveRelative(fromAbs: string, spec: string): string | null {
   if (!spec.startsWith(".")) return null;
-  const base = resolve(dirname(fromAbs), spec);
+  return probeFile(resolve(dirname(fromAbs), spec));
+}
+
+/** The extensionless/`.ts`/`.json`/index forms of one path, first that exists. Shared so the two
+ * import walks below cannot disagree about what a specifier points at. */
+function probeFile(base: string): string | null {
   for (const candidate of [base, `${base}.ts`, `${base}.json`, join(base, "index.ts")]) {
     if (existsSync(candidate) && !candidate.endsWith("/")) return candidate;
   }
@@ -514,6 +524,384 @@ describe("no_phaser_in_core — build-doc §3 L11 / §10 ('core suite must pass 
     expect(/\bPhaser\b/.test(executable("const s = new Phaser.Scene();"))).toBe(true);
     // A Phaser mention in a comment is not an import — core/ is full of them.
     expect(/\bPhaser\b/.test(executable("// the Phaser scene replays events[]"))).toBe(false);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * no_phaser_in_node_reachable — the layer rule L11 stops one layer too early
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * L11 keeps the engine out of core/ and stops there, deliberately: game/ is the layer that is
+ * ALLOWED to import Phaser. But node-side tools import game/ modules directly, on purpose —
+ * tools/mapgen/ takes the collision grid from game/collision.ts so the generator samples exactly
+ * what the runtime samples, tools/ui-frames/ takes the survey view and the palette so a contact
+ * sheet is drawn from the real UI code rather than a copy of it. Those tools run under plain node
+ * (`tsx tools/...`), and node cannot load Phaser.
+ *
+ * Nothing else in this suite notices. Adding `import Phaser from "phaser"` to game/movement.ts is a
+ * legal edit under every other gate here — movement.ts is under game/, and game/ may import the
+ * engine — and it would break tools/mapgen at run time, several hops from the edit, with a message
+ * about `window` that names neither file. This gate is the rule nobody wrote down.
+ *
+ * BROWSER-HOSTED TOOLS ARE EXEMPT, and the exemption is derived rather than listed: a tool
+ * directory holding an `index.html` or a `vite.config.ts` is a Vite target served to a browser
+ * (package.json: `"collision": "vite --config tools/collision-editor/vite.config.ts"`), and a
+ * browser tool may import the engine as freely as the game does. A new browser tool opts itself in
+ * by having those files; a new node tool needs no registration at all. Neither set is written down
+ * here, because a written-down set stops covering the tool added after it was written — which is
+ * the same failure this gate exists to prevent.
+ *
+ * The walk below reuses `importSpecifiers` above, so the two Phaser gates cannot drift apart on
+ * what counts as an import. That helper's patterns are newline-tolerant (`[^;'"]*?` spans lines),
+ * which matters: real import sites in this repo put the specifier on the closing line of a
+ * multi-line clause, and a `^import .* from` pattern reports a smaller, cleaner, wrong answer.
+ * Verified against a real one below rather than assumed.
+ */
+
+/** tsconfig.json `paths`, in the alias forms real imports here actually use. */
+const IMPORT_ALIASES: ReadonlyArray<readonly [string, string]> = [
+  ["@core/", "core"],
+  ["@game/", "game"],
+  ["@data/", "data"],
+  ["@tools/", "tools"],
+];
+
+/** One specifier → a repo file: the alias forms first, then the relative forms. */
+function resolveRepoImport(fromAbs: string, spec: string): string | null {
+  for (const [prefix, dir] of IMPORT_ALIASES) {
+    if (spec.startsWith(prefix)) return probeFile(join(ROOT, dir, spec.slice(prefix.length)));
+  }
+  return resolveRelative(fromAbs, spec);
+}
+
+/** A specifier that OUGHT to have resolved to a repo file. A walk that stopped early is not clean. */
+function looksRepoLocal(spec: string): boolean {
+  return spec.startsWith(".") || IMPORT_ALIASES.some(([prefix]) => spec.startsWith(prefix));
+}
+
+function isEngineSpecifier(spec: string): boolean {
+  return spec === "phaser" || spec.startsWith("phaser/");
+}
+
+/**
+ * Import/re-export statements removed, so `import Phaser from "phaser"` is reported once — as an
+ * import — instead of twice. Runs on already-lexed code, where a specifier is an empty `""`.
+ */
+function withoutModuleStatements(code: string): string {
+  return code
+    .replace(/\bimport\s+(?:type\s+)?[^;'"]*?from\s*["'][^"']*["']/g, " ")
+    .replace(/\bexport\s+(?:type\s+)?[^;'"]*?from\s*["'][^"']*["']/g, " ");
+}
+
+/** What one module does with the engine, and where it goes next. Cached: the graph is walked twice. */
+interface ModuleFacts {
+  specifiers: string[];
+  /** Uses the `Phaser` global in executable code — as fatal under node as importing it. */
+  usesEngineGlobal: boolean;
+}
+
+function moduleFacts(src: string): ModuleFacts {
+  return {
+    specifiers: importSpecifiers(src),
+    usesEngineGlobal: /\bPhaser\b/.test(withoutModuleStatements(executable(src))),
+  };
+}
+
+/**
+ * The file system the walk sees. Real for the gate; a plain object for the tests that sabotage it,
+ * so proving this gate can go red never requires editing a file under game/.
+ */
+interface ModuleView {
+  resolve(fromAbs: string, spec: string): string | null;
+  read(abs: string): string;
+  label(abs: string): string;
+}
+
+interface EngineReach {
+  /** The file that reaches for the engine. */
+  file: string;
+  /** How it reaches: the specifier, or the bare global. */
+  token: string;
+  /** entry → … → file. The head is the tool that breaks. */
+  chain: readonly string[];
+}
+
+interface ReachWalk {
+  /** Every file reached, entries included. */
+  files: string[];
+  engine: EngineReach[];
+  /** Repo-local specifiers that resolved to nothing — a broken walk must not read as a clean one. */
+  unresolved: { file: string; specifier: string }[];
+  packages: string[];
+}
+
+/** The transitive closure of `entries`, recording every path to the engine and how it was reached. */
+function reachEngine(
+  entries: readonly string[],
+  view: ModuleView,
+  memo: Map<string, ModuleFacts> = new Map(),
+): ReachWalk {
+  const seen = new Set<string>();
+  const chains = new Map<string, string[]>();
+  const packages = new Set<string>();
+  const out: ReachWalk = { files: [], engine: [], unresolved: [], packages: [] };
+  const queue: string[] = [];
+  for (const entry of entries) {
+    queue.push(entry);
+    if (!chains.has(entry)) chains.set(entry, [view.label(entry)]);
+  }
+  while (queue.length > 0) {
+    const abs = queue.shift() as string;
+    if (seen.has(abs)) continue;
+    seen.add(abs);
+    const here = view.label(abs);
+    out.files.push(here);
+    if (!abs.endsWith(".ts")) continue; // data/*.json is content, not code
+    let facts = memo.get(abs);
+    if (!facts) {
+      facts = moduleFacts(view.read(abs));
+      memo.set(abs, facts);
+    }
+    const chain = chains.get(abs) ?? [here];
+    if (facts.usesEngineGlobal) out.engine.push({ file: here, token: "the `Phaser` global", chain });
+    for (const spec of facts.specifiers) {
+      if (isEngineSpecifier(spec)) {
+        out.engine.push({ file: here, token: `import "${spec}"`, chain });
+        continue;
+      }
+      const resolved = view.resolve(abs, spec);
+      if (resolved === null) {
+        if (looksRepoLocal(spec)) out.unresolved.push({ file: here, specifier: spec });
+        else packages.add(spec.split("/")[0] as string);
+        continue;
+      }
+      if (!chains.has(resolved)) chains.set(resolved, [...chain, view.label(resolved)]);
+      queue.push(resolved);
+    }
+  }
+  out.files.sort();
+  out.packages = [...packages].sort();
+  return out;
+}
+
+/** The whole point of the gate: whoever trips it has to be able to fix it without asking anyone. */
+function engineReachReport(reaches: readonly EngineReach[]): string {
+  return [
+    "A node-side tool now depends on Phaser, transitively:",
+    ...reaches.map((r) => `  ${r.file} takes ${r.token}\n      reached by: ${r.chain.join(" → ")}`),
+    "",
+    "BEING UNDER game/ IS NOT AN EXEMPTION HERE. L11 (build-doc §3) forbids the engine in core/ and",
+    "says nothing about game/, because game/ is the layer that renders. But the head of each chain",
+    "above is a tool that runs under plain node (`tsx tools/...`), and node has no window: importing",
+    "phaser throws before the tool's first line, and a type-only import is that same dependency one",
+    "edit away from throwing. The failure surfaces inside the tool, far from the module that changed,",
+    "which is why this is a gate and not a comment.",
+    "",
+    "FIX (there is no exemption list to add yourself to): keep the engine-facing half in a module the",
+    "node-reachable one does not import. game/collision.ts ↔ game/mapview.ts is that split already —",
+    "what is DECIDED about walkability is engine-free, what is DRAWN is not. A tool that genuinely",
+    "needs the engine is a browser tool: give its directory an index.html and a vite.config.ts and",
+    "this gate exempts it.",
+  ].join("\n");
+}
+
+/**
+ * THE HOSTING RULE, as a pure function of a directory listing so it can be tested both ways:
+ * an index.html or a vite.config.ts makes a tool a Vite target served to a browser. Everything
+ * else under tools/ is something `tsx` runs, i.e. node.
+ */
+function isBrowserHosted(dirEntries: readonly string[]): boolean {
+  return dirEntries.includes("index.html") || dirEntries.includes("vite.config.ts");
+}
+
+function classifyToolDirs(): { node: string[]; browser: string[] } {
+  const node: string[] = [];
+  const browser: string[] = [];
+  for (const entry of readdirSync(join(ROOT, "tools"), { withFileTypes: true })) {
+    if (!entry.isDirectory() || entry.name.startsWith(".") || entry.name === "node_modules") continue;
+    const dir = join(ROOT, "tools", entry.name);
+    (isBrowserHosted(readdirSync(dir)) ? browser : node).push(dir);
+  }
+  return { node: node.sort(), browser: browser.sort() };
+}
+
+const REAL_VIEW: ModuleView = {
+  resolve: resolveRepoImport,
+  read: (abs) => readFileSync(abs, "utf8"),
+  label: rel,
+};
+
+/** A graph held in memory, addressed by fake absolute paths, for the sabotage tests. */
+function syntheticView(files: Readonly<Record<string, string>>): ModuleView {
+  const at = (p: string): string | null => (Object.prototype.hasOwnProperty.call(files, p) ? p : null);
+  return {
+    resolve(fromAbs, spec) {
+      for (const [prefix, dir] of IMPORT_ALIASES) {
+        if (spec.startsWith(prefix)) {
+          const aliased = `/repo/${dir}/${spec.slice(prefix.length)}`;
+          return at(aliased) ?? at(`${aliased}.ts`);
+        }
+      }
+      if (!spec.startsWith(".")) return null;
+      const base = resolve(dirname(fromAbs), spec);
+      return at(base) ?? at(`${base}.ts`);
+    },
+    read: (abs) => files[abs] as string,
+    label: (abs) => abs,
+  };
+}
+
+describe("no_phaser_in_node_reachable — node-side tools import game/, and node cannot load Phaser", () => {
+  const TOOL_DIRS = classifyToolDirs();
+  const entriesUnder = (dirs: readonly string[]): string[] =>
+    dirs.flatMap((d) => walk(d, [".ts"])).sort();
+  const NODE_ENTRIES = entriesUnder(TOOL_DIRS.node);
+  const BROWSER_ENTRIES = entriesUnder(TOOL_DIRS.browser);
+
+  // One cache across both walks: the browser tool and the node tools share most of what they reach.
+  const FACTS = new Map<string, ModuleFacts>();
+  const nodeWalk = reachEngine(NODE_ENTRIES, REAL_VIEW, FACTS);
+  const browserWalk = reachEngine(BROWSER_ENTRIES, REAL_VIEW, FACTS);
+  const gameReachedByNode = nodeWalk.files.filter((f) => f.startsWith("game/"));
+
+  it("nothing a node-side tool reaches, at any depth, takes the engine", () => {
+    expect(nodeWalk.engine, engineReachReport(nodeWalk.engine)).toEqual([]);
+    expect(nodeWalk.packages, "a node-side tool now has phaser as a package dependency").not.toContain("phaser");
+  });
+
+  it("the walk is not vacuous: the split is real and the node side does reach game/", () => {
+    // Every one of these guards a way this gate could pass by doing nothing at all.
+    expect(TOOL_DIRS.node.map(rel), "no node-side tool directory found under tools/").not.toEqual([]);
+    expect(TOOL_DIRS.node.map(rel)).toContain("tools/mapgen");
+    expect(TOOL_DIRS.browser.map(rel), "no browser-hosted tool found — the exemption rule matched nothing").toContain(
+      "tools/collision-editor",
+    );
+    expect(NODE_ENTRIES.length).toBeGreaterThan(1);
+    expect(
+      gameReachedByNode,
+      "no node-side tool reaches game/ any more. If that is deliberate the gate is now vacuous and " +
+        "should be re-argued in docs/STATUS.md, not quietly left green.",
+    ).not.toEqual([]);
+    expect(
+      nodeWalk.unresolved,
+      `the walk could not resolve repo-local specifiers, so its clean result means nothing: ${JSON.stringify(
+        nodeWalk.unresolved,
+      )}`,
+    ).toEqual([]);
+  });
+
+  it("BASELINE — the engine-taking module tools/ reaches is reached ONLY by the browser tool", () => {
+    // Recorded state, not a rule: a second engine-taking module reachable from a BROWSER tool is
+    // legal and this line is then updated. What must never change is the second assertion.
+    const engineModules = [...new Set(browserWalk.engine.map((r) => r.file))].sort();
+    expect(engineModules).toEqual(["game/placeholder.ts"]);
+    expect(
+      nodeWalk.files,
+      "a node-side tool now reaches game/placeholder.ts, which imports phaser — the tool cannot run",
+    ).not.toContain("game/placeholder.ts");
+  });
+
+  it("BINDS — the shared import parser really does survive a multi-line import block", () => {
+    // Checked, not assumed: a single-line `^import .* from` pattern misses these and reports a
+    // smaller, cleaner, wrong graph. One synthetic, one real site that is written this way.
+    expect(importSpecifiers('import {\n  a,\n  b,\n} from "../../game/collision.ts";')).toContain(
+      "../../game/collision.ts",
+    );
+    expect(importSpecifiers('import type {\n  X,\n} from "@game/collision";')).toContain("@game/collision");
+    expect(importSpecifiers(readSource("tools/mapgen/verify.ts"))).toContain("../../game/collision.ts");
+  });
+
+  it("BINDS — the resolver handles both specifier shapes this repo actually uses", () => {
+    expect(resolveRepoImport(join(ROOT, "tools/collision-editor/main.ts"), "@game/collision")).toBe(
+      join(ROOT, "game/collision.ts"),
+    );
+    expect(resolveRepoImport(join(ROOT, "tools/mapgen/layout.ts"), "../../game/collision.ts")).toBe(
+      join(ROOT, "game/collision.ts"),
+    );
+    expect(resolveRepoImport(join(ROOT, "game/props.ts"), "@core/types")).toBe(join(ROOT, "core/types.ts"));
+    expect(resolveRepoImport(join(ROOT, "game/collision.ts"), "./movement")).toBe(join(ROOT, "game/movement.ts"));
+    expect(resolveRepoImport(join(ROOT, "tools/mapgen/render.ts"), "phaser")).toBeNull();
+    expect(resolveRepoImport(join(ROOT, "tools/mapgen/render.ts"), "node:fs")).toBeNull();
+  });
+
+  it("BINDS — the hosting rule reads a directory, not a name", () => {
+    expect(isBrowserHosted(["main.ts", "index.html"])).toBe(true);
+    expect(isBrowserHosted(["main.ts", "vite.config.ts"])).toBe(true);
+    expect(isBrowserHosted(["run.ts", "README.md"])).toBe(false);
+    expect(isBrowserHosted([])).toBe(false);
+  });
+
+  /* The sabotage. Same walker, same parser, a graph shaped like the real one — so the only thing
+   * that differs between green and red is the Phaser import itself, and proving it never requires
+   * touching a file under game/. */
+  const CLEAN_GRAPH: Readonly<Record<string, string>> = {
+    "/repo/tools/mapgen/layout.ts": 'import { gridFromAscii } from "../../game/collision.ts";\nimport sharp from "sharp";\n',
+    "/repo/game/collision.ts": 'import { createMovement } from "./movement";\nimport { propInReach } from "./props";\nimport type { Balance } from "../core/types";\nexport const gridFromAscii = 1;\n',
+    "/repo/game/movement.ts": 'import type { Balance } from "@core/types";\nexport const createMovement = 1;\n',
+    "/repo/game/props.ts": "// mentions Phaser only in prose, which is not an import\nexport const propInReach = 1;\n",
+    "/repo/core/types.ts": "export type Balance = { map: unknown };\n",
+  };
+
+  it("BINDS — clean graph green, then red on the one import, three hops from the tool", () => {
+    const clean = reachEngine(["/repo/tools/mapgen/layout.ts"], syntheticView(CLEAN_GRAPH));
+    expect(clean.engine).toEqual([]);
+    expect(clean.unresolved).toEqual([]);
+    expect(clean.files).toHaveLength(5); // it walked the whole graph, not just the entry
+    expect(clean.packages).toEqual(["sharp"]);
+
+    const sabotaged = syntheticView({
+      ...CLEAN_GRAPH,
+      "/repo/game/movement.ts": 'import Phaser from "phaser";\nexport const createMovement = 1;\n',
+    });
+    const red = reachEngine(["/repo/tools/mapgen/layout.ts"], sabotaged);
+    expect(red.engine).toHaveLength(1);
+    expect(red.engine[0]?.file).toBe("/repo/game/movement.ts");
+    expect(red.engine[0]?.token).toBe('import "phaser"');
+    expect(red.engine[0]?.chain).toEqual([
+      "/repo/tools/mapgen/layout.ts",
+      "/repo/game/collision.ts",
+      "/repo/game/movement.ts",
+    ]);
+    // The message a person gets names the file, the specifier, and the tool that will break.
+    const report = engineReachReport(red.engine);
+    expect(report).toContain("/repo/game/movement.ts");
+    expect(report).toContain('import "phaser"');
+    expect(report).toContain("/repo/tools/mapgen/layout.ts");
+    expect(report).toContain("NOT AN EXEMPTION");
+  });
+
+  it("BINDS — the forms an engine dependency can take, and the ones it cannot", () => {
+    const through = (leaf: string): EngineReach[] =>
+      reachEngine(["/repo/tools/mapgen/layout.ts"], syntheticView({ ...CLEAN_GRAPH, "/repo/game/props.ts": leaf }))
+        .engine;
+
+    // Type-only counts: erased today, a value import tomorrow, and the dependency is the point.
+    expect(through('import type { Scene } from "phaser";\nexport const propInReach = 1;\n')).toHaveLength(1);
+    expect(through('import { Scene } from "phaser/src/scene";\nexport const propInReach = 1;\n')[0]?.token).toBe(
+      'import "phaser/src/scene"',
+    );
+    expect(through('export * from "phaser";\n')).toHaveLength(1);
+    expect(through("export const s = new Phaser.Scene();\n")[0]?.token).toBe("the `Phaser` global");
+    // Multi-line clause: the specifier is on the closing line.
+    expect(through('import {\n  Scene,\n  Game,\n} from "phaser";\nexport const propInReach = 1;\n')).toHaveLength(1);
+    // Prose and strings are not dependencies — game/ files talk about Phaser constantly.
+    expect(through("// the Phaser scene replays events[]\nexport const propInReach = 1;\n")).toEqual([]);
+    expect(through('export const why = "Phaser is loaded by the scene";\n')).toEqual([]);
+    // One import, reported once, not once as an import and again as the global it declares.
+    expect(through('import Phaser from "phaser";\nexport const propInReach = 1;\n')).toHaveLength(1);
+  });
+
+  it("BINDS — a specifier that resolves to nothing is reported, never silently skipped", () => {
+    const broken = reachEngine(
+      ["/repo/tools/mapgen/layout.ts"],
+      syntheticView({
+        ...CLEAN_GRAPH,
+        "/repo/game/collision.ts": 'import { x } from "./deleted-in-a-refactor";\nexport const gridFromAscii = 1;\n',
+      }),
+    );
+    expect(broken.unresolved).toEqual([
+      { file: "/repo/game/collision.ts", specifier: "./deleted-in-a-refactor" },
+    ]);
   });
 });
 
