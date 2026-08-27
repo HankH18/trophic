@@ -716,11 +716,52 @@ export function enterGameplay(scene: PhaserNS.Scene): void {
  */
 const menuKeyBound = new WeakSet<object>();
 
-function bindSessionMenuKey(overworld: PhaserNS.Scene | undefined): void {
+/**
+ * The overworld as this module needs it: a scene, which may also be able to say whether it has
+ * handed the screen over.
+ *
+ * OPTIONAL BECAUSE `ScenePlugin.get` ANSWERS WITH A BARE `Scene`, not because the answer is
+ * optional in the real game — `game/main.ts` registers `OverworldScene` under that key and nothing
+ * else can be there. Absence therefore means "not the overworld", and the handler below treats it
+ * as "not handed over" rather than refusing: see the ⚠ on the guard for which way this fails.
+ */
+type HandOffAwareScene = PhaserNS.Scene & Partial<Pick<OverworldScene, "isHandedOver">>;
+
+function bindSessionMenuKey(overworld: HandOffAwareScene | undefined): void {
   if (!overworld || menuKeyBound.has(overworld)) return;
   menuKeyBound.add(overworld);
   overworld.events.on("create", () => {
     overworld.input.keyboard?.on("keydown-ESC", () => {
+      /*
+       * ⚠ THE ONE FRAME THIS KEY IS LIVE AND MUST NOT ACT. Every other overworld key is polled in
+       * `OverworldScene.update`, which spends the whole of that frame draining a queued beat and
+       * `return`s before reading any of them (see `pendingEntry`). ESC is not polled — it is an
+       * InputPlugin listener, so it bypasses that early return entirely and is the only key that
+       * can reach the scene during the drain frame.
+       *
+       * It was safe until the party-wipe softlock was fixed (`9e3e4e7`). `DialogueScene.finish()`
+       * is `onDone(state)` then `scene.stop()`, and `ScenePlugin` calls are applied as a FIFO
+       * queue, so a beat chained from inside `onDone` was queued AHEAD of the closing box's own
+       * teardown and shut down the frame it opened. The fix holds a latch across `onDone` and
+       * queues the next beat for the following frame — which buys exactly one frame in which the
+       * overworld is RESUMED with a beat not yet on screen. A paused scene answers
+       * `KeyboardPlugin.isActive()` false and that is what used to disarm this handler; for that
+       * one frame nothing does. ESC there would `scene.start(Menu)` the overworld out from under
+       * a beat that has been asked for and never opened — and on the blackout path that beat is
+       * the wake at the inn, so the player would be charged the recovery and never receive it.
+       *
+       * IGNORED, NOT DEFERRED. Deferring would need a second queue beside `pendingEntry`, and two
+       * authorities on what happens next is the shape of the defect this is guarding: one frame of
+       * disagreement between them is what the softlock was. The cost of ignoring is one keypress
+       * inside a window no player can aim at, after which ESC works normally.
+       *
+       * `isHandedOver()` IS THE SHIPPED PREDICATE and it already covers this window: `playEntry`
+       * sets `dialogueRunning` true BEFORE it decides to queue, and nothing lowers it until the
+       * box opens, so a queued beat always reads as handed over. Asking the scene the question it
+       * already answers for [R], [C], [E], [G] and 1–6 is the point — a second spelling here would
+       * be a second thing to keep in step.
+       */
+      if (overworld.isHandedOver?.()) return;
       overworld.scene.start(SCENE_KEYS.menu, SESSION_MENU_REQUEST);
     });
   });

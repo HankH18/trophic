@@ -521,6 +521,28 @@ function fakeScene(registered: string[]): {
   sceneCalls: string[];
   fireCreate: () => void;
   pressEscape: () => void;
+  /**
+   * Put the overworld in the ONE-FRAME window opened by the party-wipe fix (`9e3e4e7`): a beat
+   * asked for from inside the closing box's `onDone`, held rather than launched, with the overworld
+   * already resumed and `update()` not yet run.
+   *
+   * The three shipped facts this models, each checkable in `game/scenes/OverworldScene.ts`:
+   *   • `playEntry` sets `dialogueRunning = true` BEFORE it decides to queue, and nothing lowers it
+   *     until `openBox` runs — so a queued beat always reads `isHandedOver()` true;
+   *   • `update()` drains `pendingEntry` at the top of the frame and `return`s, spending the whole
+   *     frame on it;
+   *   • a scene Phaser has stopped gets no `update()` at all — which is why `scene.start(Menu)`
+   *     here means the beat never opens, rather than opening late.
+   * The scene's own file drives the real thing against a stub engine; `boot.ts` cannot import it
+   * (see this file's header — a value import of a scene puts Phaser in the graph and everything in
+   * this file goes unreachable), so what is asserted HERE is only the composition root's half: does
+   * the ESC binding ask the question at all.
+   */
+  queueBeat: (id: string) => void;
+  /** Run the overworld's next `update()`. A stopped scene does not get one. */
+  drainFrame: () => void;
+  /** Beats that actually reached the screen, in order. */
+  beatsOpened: string[];
 } {
   const started: Started[] = [];
   const keys: Record<string, unknown> = {};
@@ -529,6 +551,9 @@ function fakeScene(registered: string[]): {
   const createHandlers: Array<() => void> = [];
   const escHandlers: Array<() => void> = [];
   const launched: Started[] = [];
+  let pendingBeat: string | null = null;
+  let overworldRunning = true;
+  const beatsOpened: string[] = [];
   const sceneCalls: string[] = [];
   const overworld = {
     events: {
@@ -543,11 +568,22 @@ function fakeScene(registered: string[]): {
         },
       },
     },
+    /*
+     * The real `OverworldScene.isHandedOver()` — `battleRunning || yearTurnRunning ||
+     * dialogueRunning`. Only the third matters at this seam, and a QUEUED beat is one of the states
+     * that sets it: see `queueBeat` above for why that is the shipped invariant and not this rig's
+     * invention.
+     */
+    isHandedOver(): boolean {
+      return pendingBeat !== null;
+    },
     scene: {
       manager: { keys },
       start(key: string, data?: unknown): void {
         started.push({ key, data });
         sceneCalls.push(`start:${key}`);
+        // `scene.start` on another key shuts this one down, and a stopped scene gets no `update()`.
+        if (key !== SCENE_KEYS.overworld) overworldRunning = false;
       },
       // The epilogue survey is LAUNCHED over the overworld, not started in place of it.
       launch(key: string, data?: unknown): void {
@@ -591,6 +627,16 @@ function fakeScene(registered: string[]): {
     sceneCalls,
     fireCreate: () => createHandlers.forEach((fn) => fn()),
     pressEscape: () => escHandlers.forEach((fn) => fn()),
+    queueBeat: (id: string) => {
+      pendingBeat = id;
+    },
+    drainFrame: () => {
+      if (!overworldRunning) return;
+      const beat = pendingBeat;
+      pendingBeat = null;
+      if (beat !== null) beatsOpened.push(beat);
+    },
+    beatsOpened,
   };
 }
 
@@ -1057,6 +1103,71 @@ describe("enterGameplay — the seam that decides whether the game is reachable"
     rig.pressEscape();
 
     expect(rig.started.map((s) => s.key)).toEqual([SCENE_KEYS.overworld, SCENE_KEYS.menu]);
+    expect(rig.started[1]?.data).toEqual({ mode: "session" });
+  });
+
+  /**
+   * …AND IT IS DEAF FOR THE ONE FRAME BETWEEN TWO BEATS OF A CHAIN.
+   *
+   * The party-wipe fix (`9e3e4e7`) made a chained beat wait a frame: `DialogueScene.finish()` is
+   * `onDone(state)` then `scene.stop()` and `ScenePlugin` calls are FIFO, so a beat launched inside
+   * `onDone` was queued ahead of the closing box's own teardown and shut down the instant it opened.
+   * `playEntry` now HOLDS the beat and `update()` opens it next frame — and in that frame the
+   * overworld is resumed with nothing over it, so its keyboard is live. Every other overworld key
+   * is polled inside the `update()` that spends the frame draining, and is `return`ed past; ESC is
+   * an InputPlugin listener bound HERE and is the only key that can reach a live scene in that gap.
+   *
+   * What ESC did there was `scene.start(Menu)` — the overworld stopped, no further `update()`, and
+   * the held beat never opened. On the blackout path that beat is the wake at the inn: the ticks
+   * are already spent and the party already healed when the narration starts, so losing the beat
+   * loses the sentence that tells the player any of it happened.
+   *
+   * ~16ms is not a window a test can arrive in by accident, so this one is PUT there: a beat queued
+   * and not yet drained is exactly the state, and `isHandedOver()` reads true throughout it because
+   * `playEntry` raises `dialogueRunning` before it decides to queue.
+   */
+  it("ESC is ignored in the frame a queued beat is waiting for, and the beat still opens", () => {
+    bootWith(new FakeLocalStorage());
+    startNewGame({ slot: 0 });
+    const rig = fakeScene([SCENE_KEYS.menu, SCENE_KEYS.overworld]);
+
+    enterGameplay(rig.scene as RouterScene);
+    rig.fireCreate();
+    rig.queueBeat("blackout.innkeeper");
+    rig.pressEscape();
+
+    expect(
+      rig.started.map((s) => s.key),
+      "ESC started the in-run menu over a beat that had been asked for and not yet opened",
+    ).toEqual([SCENE_KEYS.overworld]);
+
+    rig.drainFrame();
+    expect(
+      rig.beatsOpened,
+      "the queued beat never reached the screen — the player was charged a recovery they never read",
+    ).toEqual(["blackout.innkeeper"]);
+  });
+
+  /**
+   * THE CONTROL, and it is the half a guard could cheat. "ESC does nothing" is trivially satisfied
+   * by an ESC that does nothing ever, which is the one-way street the binding above exists to
+   * prevent — so the same rig, one frame later with the chain drained, has to open the menu.
+   */
+  it("ESC opens the menu again the moment the queued beat has been drained", () => {
+    bootWith(new FakeLocalStorage());
+    startNewGame({ slot: 0 });
+    const rig = fakeScene([SCENE_KEYS.menu, SCENE_KEYS.overworld]);
+
+    enterGameplay(rig.scene as RouterScene);
+    rig.fireCreate();
+    rig.queueBeat("blackout.innkeeper");
+    rig.drainFrame();
+    rig.pressEscape();
+
+    expect(
+      rig.started.map((s) => s.key),
+      "the window guard outlived its window — ESC is dead and the run cannot be saved or left",
+    ).toEqual([SCENE_KEYS.overworld, SCENE_KEYS.menu]);
     expect(rig.started[1]?.data).toEqual({ mode: "session" });
   });
 
