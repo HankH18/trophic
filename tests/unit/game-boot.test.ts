@@ -24,10 +24,12 @@ import type { CaughtIndividual } from "../../core/battle";
 import { subsystemRng } from "../../core/rng";
 import { ContentValidationError, validateContent } from "../../core/schemas";
 import { MemoryStorage, newSave, slotKey, type SaveEnvelope } from "../../core/save";
-import type { Balance, Content, NodeState } from "../../core/types";
+import type { Balance, Content, NodeState, Season } from "../../core/types";
+import { advance, createClock, seasonOf } from "../../core/clock";
 import {
   ancientAgeClass,
   buildVellsireBattle,
+  epilogueSeasons,
   finaleAncientLine,
   finaleNodeId,
   resolveVellsireCatch,
@@ -603,7 +605,14 @@ type RouterScene = Parameters<typeof enterGameplay>[0];
  * the save, which is the input the tests below vary — and the input that could be dropped entirely
  * without a single test noticing.
  */
-function epilogueStatesFor(save: SaveEnvelope): Record<string, NodeState> {
+interface EpilogueData {
+  states: Record<string, NodeState>;
+  year: number;
+  season: Season;
+  title?: string;
+}
+
+function epilogueDataFor(save: SaveEnvelope): EpilogueData {
   const rig = fakeScene([SCENE_KEYS.menu, SCENE_KEYS.overworld, SCENE_KEYS.survey]);
   enterGameplay(rig.scene as RouterScene);
   const routed = rig.started[0]?.data as {
@@ -611,9 +620,13 @@ function epilogueStatesFor(save: SaveEnvelope): Record<string, NodeState> {
   };
   expect(routed.hooks.onRunComplete, "nothing supplies the ending hook").toBeDefined();
   routed.hooks.onRunComplete?.(save, rig.overworld);
-  const launched = rig.launched[0]?.data as { states: Record<string, NodeState> } | undefined;
+  const launched = rig.launched[0]?.data as EpilogueData | undefined;
   expect(launched, "the ending launched nothing").toBeDefined();
-  return launched?.states ?? {};
+  return launched as EpilogueData;
+}
+
+function epilogueStatesFor(save: SaveEnvelope): Record<string, NodeState> {
+  return epilogueDataFor(save).states;
 }
 
 describe("enterGameplay — the seam that decides whether the game is reachable", () => {
@@ -839,6 +852,79 @@ describe("enterGameplay — the seam that decides whether the game is reachable"
       JSON.stringify(epilogueStatesFor(a)),
       "the ending's numbers do not depend on the save's seed — it is not replaying anything",
     ).not.toBe(JSON.stringify(epilogueStatesFor(b)));
+  });
+
+  /**
+   * THE CALENDAR THE ENDING REPORTS — and the assertion above is exactly why one was needed here.
+   *
+   * ⚠ THE DEFECT. `onRunComplete` passed `season: seasonOf({ year: save.year, tick: save.tick, … })`
+   * on scene data whose every count came from `projectEpilogueRegion`. That projection steps
+   * `epilogueSeasons(balance)` — `yearsTotal × seasonOrder`, a whole number of years — so it lands
+   * in the same place from every save: four saves differing ONLY in `tick` produce one projection
+   * (measured byte-identical, sha `e92439aeee1d`) under four different labels. The season is not a
+   * caption; `game/survey-view.ts` `buildSurveyPage` builds the `breed` column and every
+   * `dormant` / `migrating` note FROM it, so those four labels drew four different pages over the
+   * one set of numbers (`tests/unit/survey-scene.test.ts` reads them off a rendered scene).
+   *
+   * The tests already here could not see it. "Same save, same numbers" and "different seed,
+   * different numbers" are both claims about `states`, and every one of them stayed green while the
+   * label beside those states was wrong for three finishing seasons out of four.
+   */
+  it("the ending's season does not come off the save — four finishing seasons, one label", () => {
+    bootWith(new FakeLocalStorage());
+    startNewGame({ slot: 0, seed: 4242 });
+    const save = registry.save();
+    const { seasonOrder, ticksPerSeason } = balance.clock;
+    const ticks = seasonOrder.map((_, i) => i * ticksPerSeason);
+
+    // The fixture discriminates, asserted rather than assumed: these four ticks really are the four
+    // different seasons the old code would have read off them.
+    expect(
+      new Set(ticks.map((tick) => seasonOf({ year: save.year, tick, subTick: 0 }, balance))).size,
+      "the four ticks are not four different seasons — this test cannot see the defect",
+    ).toBe(seasonOrder.length);
+
+    const endings = ticks.map((tick) => epilogueDataFor({ ...save, tick }));
+    expect(
+      new Set(endings.map((e) => JSON.stringify(e.states))).size,
+      "the projections differ, so a differing label would be honest and this test is wrong",
+    ).toBe(1);
+    expect(
+      new Set(endings.map((e) => e.season)).size,
+      "the ending reports the season the player happened to stop in, over numbers taken years later",
+    ).toBe(1);
+  });
+
+  it("…and the one label is the season the region stands in when the projection stops", () => {
+    bootWith(new FakeLocalStorage());
+    startNewGame({ slot: 0, seed: 4242 });
+    const season = epilogueDataFor(registry.save()).season;
+
+    /*
+     * Derived through `core/clock.ts` and not through `game/boot.ts`'s own arithmetic, so this is a
+     * second route to the answer rather than a restatement of the first: run the calendar forward
+     * over the span the projection actually steps, and ask the clock what season it then reads.
+     */
+    const span = epilogueSeasons(balance).length * balance.clock.ticksPerSeason;
+    expect(span, "the projection steps nothing — there is no span to advance over").toBeGreaterThan(0);
+    const landed = advance(createClock(balance), span, balance).clock;
+    expect(
+      season,
+      "the ending's season is not the one the calendar reads after the projection's own span",
+    ).toBe(seasonOf(landed, balance));
+
+    /*
+     * …and specifically NOT the last season the projection applied, which is the other plausible
+     * wrong answer and the one the assertion above is here to exclude. Every survey in this game
+     * names the season the sim has NOT stepped yet — `game/scenes/OverworldScene.ts`
+     * `handleClockEvents` steps `event.seasonEnded` and the clock then reads the season that has
+     * begun — so a page shows the counts as they stand at the START of the season it names. Those
+     * counts already have winter in them.
+     */
+    expect(
+      season,
+      "the ending names a season its own numbers have already been through",
+    ).not.toBe(epilogueSeasons(balance).at(-1));
   });
 
   /**

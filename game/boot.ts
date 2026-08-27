@@ -27,7 +27,7 @@ import {
   validateContent,
 } from "@core/schemas";
 import { newSave, openStreams, type RngStreams, type SaveEnvelope } from "@core/save";
-import type { Balance, Content, OwnedCreature } from "@core/types";
+import type { Balance, Content, OwnedCreature, Season } from "@core/types";
 
 // The canvas has to be sized before content validation can be REPORTED, because reporting it is
 // itself something drawn on that canvas. So the two viewport numbers are read straight off
@@ -55,8 +55,9 @@ import {
 // testable under vitest's node environment exactly as the header requires.
 import { provisionalStarter } from "./wild-battle";
 // Engine-free too (no Phaser import), so the epilogue's projection is reachable from a node test.
-import { projectEpilogueRegion } from "./finale";
-import { seasonOf } from "@core/clock";
+// `epilogueSeasons` is imported beside it because the ending's SEASON is a fact about the horizon
+// that function publishes and about nothing else — see {@link epilogueSeason}.
+import { epilogueSeasons, projectEpilogueRegion } from "./finale";
 import { subsystemRng } from "@core/rng";
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -543,8 +544,42 @@ function overworldData(): OverworldSceneData {
         const data: SurveySceneData = {
           content,
           states,
+          /*
+           * ⚠ THE SAVE'S YEAR, ON PURPOSE, AND IT REACHES NOTHING THE PLAYER READS. `page.year` is
+           * printed by `game/survey-view.ts` `renderSurveyHeader` — which `renderSurveyHeading`
+           * does NOT call for a titled page, and the epilogue is the only titled caller — and by
+           * `game/web-view.ts` `renderWebPage`, which no scene calls (`SurveyScene.drawWeb` draws
+           * `renderWebTotals`, and that line carries no calendar). It is otherwise only matched
+           * against a season history, and the ending passes none. So the ending prints no year at
+           * all, and the field is left saying where the RUN ended rather than being quietly moved
+           * to a year nothing has decided how to report — commit 9454725 took the heading's year
+           * off the screen for that reason and left the question open. The season below is the half
+           * that DOES reach the player, and it is not left open; {@link epilogueSeason} says why.
+           */
           year: save.year,
-          season: seasonOf({ year: save.year, tick: save.tick, subTick: save.subTick ?? 0 }, content.balance),
+          /*
+           * ⚠ THE PROJECTION'S SEASON, NOT THE SAVE'S — AND THE SAVE'S WAS A LIVE FALSEHOOD.
+           *
+           * This read `seasonOf({ year: save.year, tick: save.tick, … })`: the season the player
+           * happened to finish in, stamped over numbers `projectEpilogueRegion` had already carried
+           * `balance.clock.yearsTotal` years past it. Measured on the shipped balance, four saves
+           * differing ONLY in `tick`: one projection, byte-identical to the sha (`e92439aeee1d`,
+           * 1217 individuals across the twelve nodes) — and four different labels, spring through
+           * winter.
+           *
+           * It is not a cosmetic label. `SurveySceneData.season` is what `buildSurveyPage` builds
+           * the page FROM: `effectiveRates` runs `core/ecosim.ts` `step` in that season for the
+           * `breed` column, and `migrantStatus` decides from it which lines read `dormant` /
+           * `migrating` / `window <season>`. The same four saves rendered four DIFFERENT twelve-node
+           * pages over the one set of counts — a player finishing in spring read `Reedrick …
+           * migrating` where a player finishing in winter read `Reedrick … dormant`, off the same
+           * number. Hard Req 10's whole point is that those words are a calendar fact.
+           *
+           * Commit 9454725 met the same problem on the heading and dropped the year rather than
+           * stamp `save.year` over year-12 numbers; it left the season stamped. This is that ruling
+           * carried through to the half that actually reaches the player.
+           */
+          season: epilogueSeason(content.balance),
           startNodeId: save.currentNode,
           title: EPILOGUE_SURVEY_TITLE,
           /*
@@ -616,6 +651,39 @@ const EPILOGUE_STREAM = "epilogue";
  * two now, so a title cannot take a node's name off the screen from here.
  */
 const EPILOGUE_SURVEY_TITLE = "EPILOGUE SURVEY";
+
+/**
+ * The season the epilogue's numbers stand in — read off the projection, never off the save.
+ *
+ * **The rule the whole survey is built on: the season on a page is the one the sim has NOT yet
+ * stepped.** `game/scenes/OverworldScene.ts` `handleClockEvents` steps `event.seasonEnded` and the
+ * clock then reads the season that has begun, so an in-run survey shows the counts as they stand at
+ * the START of the season it names, and `buildSurveyPage` previews that season's breed rates and
+ * flags who is out of window for it. Both halves of the page mean "now", not "just gone".
+ *
+ * So: `game/finale.ts` `epilogueSeasons` publishes the seasons the projection steps —
+ * `balance.clock.yearsTotal` × `balance.clock.seasonOrder`, spring through winter, six times over on
+ * the shipped balance — and the state that comes back has had the last of them applied. The season
+ * it stands in is therefore the NEXT one in the order, which is what the modulo returns. Nothing is
+ * spelled out here: change `yearsTotal`, `seasonOrder` or the horizon itself and this follows (G11).
+ *
+ * **It cannot come off the save, and that is the point rather than a simplification.** The
+ * projection's own calendar begins at `seasonOrder[0]` no matter where the player stopped — which is
+ * why four saves differing only in `tick` produce ONE set of counts — so the save's season is not a
+ * fact about these numbers at all. It was being printed as one; see `onRunComplete`.
+ *
+ * OPEN, AND NOT DECIDED HERE: whether `epilogueSeasons` should begin at the player's own season
+ * instead of always at `seasonOrder[0]`, and whether an ending should print a calendar at all. Both
+ * belong to whoever owns that horizon — this function reports where the projection lands, it does
+ * not choose where it should start, and neither question can make what it returns untrue.
+ */
+export function epilogueSeason(balance: Balance): Season {
+  const order = balance.clock.seasonOrder;
+  const stepped = epilogueSeasons(balance).length;
+  // seasonOrder is schema-guaranteed non-empty; this keeps noUncheckedIndexedAccess honest, the same
+  // way `core/clock.ts` `seasonAt` does.
+  return order[stepped % order.length] ?? (order[0] as Season);
+}
 
 /** Scenes are started with `unknown` data; this is the shape the menu keys off. */
 const SESSION_MENU_REQUEST = { mode: "session" } as const;

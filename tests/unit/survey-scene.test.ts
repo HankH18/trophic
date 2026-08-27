@@ -104,6 +104,7 @@ vi.mock("phaser", () => {
 });
 
 import { validateContent } from "../../core/schemas";
+import { seasonAt } from "../../core/clock";
 import type { Content } from "../../core/types";
 import type { SaveEnvelope } from "../../core/save";
 import { finaleNodeId } from "../../game/finale";
@@ -205,8 +206,18 @@ function fakeOverworld(registered: readonly string[]): OverworldRig {
 
 type RunCompleteHook = (save: SaveEnvelope, overworld: unknown) => void;
 
-/** Boot a run, route into gameplay, and fire the ending hook `game/boot.ts` really supplies. */
-function runToEpilogue(registered: readonly string[] = [SCENE_KEYS.menu, SCENE_KEYS.overworld, SCENE_KEYS.survey]): {
+/**
+ * Boot a run, route into gameplay, and fire the ending hook `game/boot.ts` really supplies.
+ *
+ * `finishTick` is WHERE IN THE YEAR THE RUN ENDED, and it is a parameter because it is the one
+ * input the ending's numbers provably do not depend on — `game/finale.ts` `epilogueSeasons` steps
+ * whole years from `seasonOrder[0]` whatever the save says — while the season the page was BUILT
+ * from was being read off it. See "the season the run ended in" below.
+ */
+function runToEpilogue(
+  registered: readonly string[] = [SCENE_KEYS.menu, SCENE_KEYS.overworld, SCENE_KEYS.survey],
+  finishTick?: number,
+): {
   overworld: OverworldRig;
   data: SurveySceneData | undefined;
 } {
@@ -232,7 +243,11 @@ function runToEpilogue(registered: readonly string[] = [SCENE_KEYS.menu, SCENE_K
     | { hooks: { onRunComplete?: RunCompleteHook } }
     | undefined;
   expect(routed?.hooks.onRunComplete, "nothing supplies the ending hook").toBeDefined();
-  routed?.hooks.onRunComplete?.(registry.save(), overworld.handle);
+  const save = registry.save();
+  routed?.hooks.onRunComplete?.(
+    finishTick === undefined ? save : { ...save, tick: finishTick },
+    overworld.handle,
+  );
 
   return { overworld, data: overworld.launched[0]?.data as SurveySceneData | undefined };
 }
@@ -277,6 +292,26 @@ function heading(scene: SurveyScene): string {
   const first = drawnText(scene)[0];
   expect(first, "the survey drew no text at all").toBeDefined();
   return first ?? "";
+}
+
+/**
+ * EVERY line of EVERY page the scene browses, in order — the whole ending as the player reads it.
+ *
+ * `headingsByNode` takes the top line only, which is all the heading defect needed. The season a
+ * page is built from never appears on a titled heading at all (`renderSurveyHeading` drops the
+ * calendar); it reaches the player further down, in the `breed` column and in the `dormant` /
+ * `migrating` / `window <season>` note at the end of a row. So an assertion about the season has to
+ * read the rows.
+ */
+function allDrawnText(scene: SurveyScene): string {
+  const start = scene.currentNodeId();
+  const out: string[] = [];
+  for (let guard = 0; guard <= content.nodes.length; guard += 1) {
+    out.push(`── ${scene.currentNodeId()}`, ...drawnText(scene));
+    scene.step(1);
+    if (scene.currentNodeId() === start) break;
+  }
+  return out.join("\n");
 }
 
 /** Walk every page the scene is browsing, collecting node id → the heading it drew. */
@@ -369,6 +404,88 @@ describe("the epilogue survey — twelve pages, and the heading says which node 
       if (page) expect(heading(scene)).toBe(renderSurveyHeader(page));
       scene.step(1);
     }
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The ending reports the season its own numbers were taken in
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * ⚠ THE DEFECT. `game/boot.ts` `onRunComplete` passed
+ * `season: seasonOf({ year: save.year, tick: save.tick, … })` — the season the PLAYER stopped in —
+ * on scene data whose every count came from `game/finale.ts` `projectEpilogueRegion`, which steps
+ * `epilogueSeasons(balance)` = `yearsTotal × seasonOrder` forward: a whole number of years, so the
+ * projection lands in the same place from every save. Measured on the shipped balance, four saves
+ * differing only in `tick`: one projection (sha `e92439aeee1d`, 1217 individuals) under four
+ * different labels.
+ *
+ * The label is not decoration. `buildSurveyPage` builds the page FROM it — `effectiveRates` runs
+ * `core/ecosim.ts` `step` in that season for the `breed` column, and `migrantStatus` decides which
+ * rows read `dormant` / `migrating`. The four saves drew four different twelve-node pages over one
+ * set of counts: `Reedrick … migrating` for a spring finish, `Reedrick … dormant` for a winter one,
+ * off the same number.
+ *
+ * WHY THE SCENE AND NOT THE SEAM. `tests/unit/game-boot.test.ts` can ask what `onRunComplete` put on
+ * the scene data; only a rendered page can say whether the difference reached the player, and that
+ * is the claim — the heading drops the calendar for a titled page, so a reader of the data alone
+ * would reasonably conclude the season never got to the screen.
+ */
+describe("the epilogue survey — the season the run ended in is not the season the numbers are from", () => {
+  const order = content.balance.clock.seasonOrder;
+  const ticksPerSeason = content.balance.clock.ticksPerSeason;
+
+  it("four runs ending in four different seasons draw the SAME twelve pages", () => {
+    const runs = order.map((_, i) => {
+      const tick = i * ticksPerSeason;
+      const { data } = runToEpilogue(undefined, tick);
+      expect(data, `the ending launched nothing for tick ${tick}`).toBeDefined();
+      return {
+        finishedIn: seasonAt(tick, content.balance),
+        states: JSON.stringify((data as SurveySceneData).states),
+        drawn: allDrawnText(open(data as SurveySceneData)),
+      };
+    });
+
+    /*
+     * THE FIXTURE HAS TO DISCRIMINATE, OR THE REST OF THIS PROVES NOTHING. Both halves are asserted
+     * rather than assumed: four ticks that are four different seasons on the player's own clock —
+     * the exact value the old code read — over one and only one set of projected numbers.
+     */
+    expect(
+      new Set(runs.map((r) => r.finishedIn)).size,
+      "the four ticks are not four different seasons — the test cannot see the defect",
+    ).toBe(order.length);
+    expect(
+      new Set(runs.map((r) => r.states)).size,
+      "the projections differ, so a differing page would be honest and this test is wrong",
+    ).toBe(1);
+
+    // …so every line the player reads, on all twelve pages, is the same line.
+    expect(
+      new Set(runs.map((r) => r.drawn)).size,
+      "the ending reads differently depending on when the player happened to finish",
+    ).toBe(1);
+  });
+
+  it("…and the season IS reaching the page — the same numbers under another season read differently", () => {
+    /*
+     * The other half, and without it the test above passes for the wrong reason: a `SurveyScene`
+     * that had stopped consulting the season at all would draw one page from every save too. So the
+     * SAME projected states are opened under a season the ending does not report, and the drawn
+     * text has to move.
+     */
+    const { data } = runToEpilogue();
+    expect(data).toBeDefined();
+    if (!data) return;
+    const other = order.find((s) => s !== data.season);
+    expect(other, "there is only one season — nothing here can be measured").toBeDefined();
+    if (!other) return;
+
+    expect(
+      allDrawnText(open({ ...data, season: other })),
+      "the season does not change what the survey draws — the ending's label is decoration",
+    ).not.toBe(allDrawnText(open(data)));
   });
 });
 

@@ -368,12 +368,46 @@ describe("SEAM — Hard Req 2: a real battle catch moves a real number in the su
      * Exact equality against the canonical constructor is kept, so this is strictly stronger than the
      * four-field version: it still admits no extra field and no missing one, and it now also pins the
      * creature. The four fields are asserted individually beneath it so a regression names itself.
+     *
+     * ⚠ AND IT IS BLIND IN ONE DIRECTION, WHICH IS WHY THE `gained` LINE BELOW IT EXISTS. The right
+     * side is `catchAction`'s OWN output, so a `catchAction` that stopped writing `gained` would
+     * produce two sides missing it and stay green — equality against a constructor cannot detect a
+     * field the constructor stopped constructing. The literal beneath names the creature instead.
      */
     const logged = applied.save.actionLog.at(-1);
     expect(logged?.action).toEqual(catchAction("r1", applied.gained!));
     expect(logged?.action).toMatchObject({ t: "catch", nodeId: "r1", lineId: "nibbin-line", uid: caught.uid });
+    expect(
+      (logged?.action as { gained?: { uid?: string } }).gained?.uid,
+      "the tape entry carries no creature — replay can only rebuild the population from this",
+    ).toBe(caught.uid);
+
+    /*
+     * ⚠ THE REPLAY STARTS FROM THE PRE-CATCH SAVE, AND THAT IS WHAT MAKES THE CREATURE HALF BIND.
+     *
+     * It used to start from `{ ...applied.save, actionLog: [], nodeStates: save.nodeStates }` — the
+     * POST-catch save with its tape emptied and only its POPULATIONS wound back. The count half
+     * therefore had something to prove and the creature half had nothing: `applied.save.party`
+     * already held the newcomer before `replay` read a single entry, so the last line compared that
+     * party to itself. Measured: strip `gained` from `core/save.ts` `catchAction` — the exact defect
+     * this test was added to bind — and nine tests go red across `tests/unit/save.test.ts` and
+     * `tests/property/determinism.test.ts` while this file stayed 26/26 green.
+     *
+     * `save` is the state before the catch: the shipped populations, an empty tape, and an EMPTY
+     * party. Both are asserted rather than assumed — a fixture that already carried the creature is
+     * exactly how this went vacuous the first time — so everything the two assertions below read has
+     * to arrive through the tape.
+     */
+    expect(
+      save.party,
+      "the pre-catch fixture already holds creatures — the replay would not have to rebuild one",
+    ).toEqual([]);
+    expect(
+      applied.save.party.map((c) => c.uid),
+      "the live catch kept no creature — there is nothing for the replay to be measured against",
+    ).toEqual([caught.uid]);
     const replayed = replay(
-      { ...applied.save, actionLog: [], nodeStates: save.nodeStates },
+      { ...save, actionLog: [] },
       applied.save.actionLog,
       { species: content.species, gyms: content.gyms, balance },
     );
