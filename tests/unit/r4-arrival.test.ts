@@ -223,12 +223,24 @@ describe("r4 does NOT ship pre-crashed (D11) — the file is a healthy node", ()
     }
   });
 
-  it("left alone by everyone, only GROWS — no line ever dips under its shipped count", () => {
+  it("left alone by everyone, no line ever dips under its shipped count", () => {
     /*
      * The sharp form of "not pre-crashed", and the one nothing else asserts. A node authored into a
-     * crash would sag under its own numbers here; this one climbs, at every seed, for three years.
-     * It is also the fact that breaks an absolute-body-count raid: what the player arrives into is
-     * NOT the file.
+     * crash would sag under its own numbers here; this one holds or climbs at every seed, for three
+     * years. It is also the fact that breaks an absolute-body-count raid: what the player arrives
+     * into is NOT the file.
+     *
+     * The name used to read "only GROWS" and this comment used to say "climbs, at every seed". Both
+     * outran the assertion below, which is `>=`. Measured over the shipped 12 seasons at all 32
+     * seeds: `ashvole-line` 14 → 17 at worst and `pyrelisk-line` 14 → 16 at worst, neither ever
+     * flat; but `cragmar-line` (10), `stonewing-line` (3) and `carricrow-line` (3) finish sitting at
+     * exactly their shipped count in 7, 11 and 5 seeds — 23 of the 160 line × seed cases grow by
+     * nothing at all over the three years.
+     *
+     * So `>=` is deliberate and `>` would be red. "Never dips" is the property that holds and the
+     * one worth asserting: a node authored into a crash sags, and none of these do. What the old
+     * name claimed — that every line visibly climbs — is false for three of the five, and a name
+     * that outruns its assertion is how a reader comes to trust a check nobody made.
      */
     for (let seed = 1; seed <= SEEDS; seed += 1) {
       const grown = standingAfter(12, seed);

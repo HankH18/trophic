@@ -177,8 +177,25 @@ describe("§3 a prop in reach reads out, a prop out of reach does not", () => {
     expect(trailheads.length).toBeGreaterThan(5);
     for (const { node: n, prop } of trailheads) {
       const authored = DIALOGUE.entries.filter((e) => e.propId === prop.id);
-      expect(authored.length, `${prop.id} has no authored reading`).toBeGreaterThanOrEqual(0);
-      if (authored.length === 0) continue;
+      /*
+       * This was `toBeGreaterThanOrEqual(0)` carrying the same message, followed by
+       * `if (authored.length === 0) continue;`. An array length is never negative, so the assertion
+       * could not fail for any corpus: it ran, it compared, and it resolved nothing, while its
+       * message promised exactly the check the docblock above asks for — and the `continue` under it
+       * then waved through the one state that docblock calls broken, "a chain with no way in". A
+       * trailhead with no reading was a silent pass twice over.
+       *
+       * The commit that introduced both said so at the time (1ecc234: "3 false-gap test files still
+       * certifying an absence"), so this is a known-unfinished instrument being finished, not a
+       * contract being changed.
+       *
+       * Measured on the shipped corpus before the matcher moved: 13 trailheads, every one authored —
+       * twelve with a single entry and `sanctum-antler-ring` with two. The strict form is what the
+       * content already satisfies, so this goes red only when a trailhead actually loses its last
+       * line. `> 0` is the whole claim here: the quantity is a count of authored entries and one is
+       * the smallest number of them that is a way in, so there is no margin to set above it.
+       */
+      expect(authored.length, `${prop.id} has no authored reading`).toBeGreaterThan(0);
       expect(authored.every((e) => e.node === n.id)).toBe(true);
     }
   });
