@@ -195,12 +195,15 @@ export const QUEST_OBJECTIVES: Readonly<Record<string, QuestObjective>> = {
    * player's own first creature closed bible §9's push-your-luck showcase by ageing on the bench,
    * from anywhere in the region, with an empty action tape — and the deadline the copy states three
    * times (the offer, `sel.quest.wager.done`, `sel.tale.3`) existed nowhere in the code.
-   *   • CAUGHT — the objective reads the action tape.
-   *   • BROUGHT BACK — the age is read off the individual, so one released or retired since does
-   *     not count (`core/quests.ts` `countCatches`).
-   *   • BEFORE THE YEAR TURNS — the window closes at the year turn, and a lapse re-opens the offer
-   *     (see {@link syncQuestFlags}). `chain.undermere.step4` gates on this quest's `.done`, so a
-   *     lapse that could not be retried would dead-end the Undermere chain and its Ancient.
+   *   • CAUGHT — the objective reads the action tape, and reads the AGE off the tape entry too
+   *     (`core/quests.ts` `countCatches`), so it is the age the animal was when it was taken and
+   *     not the age it has aged into since.
+   *   • BROUGHT BACK — the uid must still be in the party or the box, so one released or retired
+   *     since does not count.
+   *   • BEFORE THE YEAR TURNS — the entry must be logged in the year the wager was taken, and a
+   *     lapse re-opens the offer (see {@link syncQuestFlags}). `chain.undermere.step4` gates on
+   *     this quest's `.done`, so a lapse that could not be retried would dead-end the Undermere
+   *     chain and its Ancient.
    * The marsh is Brackmarsh (r2), which is where the channel Sel names is.
    */
   "ferrymans-wager": { kind: "catchesAtBeforeYearTurn", node: "r2", age: "E", count: 1 },
@@ -529,8 +532,26 @@ function settleCycles(
       if (questStage(def, next.questFlags) !== "accepted") continue;
       const acceptedYear = numberFlag(next, acceptedYearFlag(def.id));
       if (acceptedYear === null || next.year <= acceptedYear) continue;
-      // The objective is checked one last time before the window is called shut, so a run that
-      // completed it in the same moment the year turned is not failed by evaluation order.
+      /*
+       * The objective is checked one last time before the window is called shut, so a run that
+       * completed it in the same moment the year turned is not failed by evaluation order.
+       *
+       * ⚠ THIS GUARD WAS DEAD FOR AS LONG AS THE DEADLINE WAS A FACT ABOUT THE WALL CLOCK.
+       * `objectiveHolds` returned false for `catchesAtBeforeYearTurn` whenever the calendar had
+       * moved off `acceptedYear`, and this branch is only reached when it HAS — so the predicate
+       * was guaranteed false here and the `continue` could never be taken. The comment described a
+       * protection that did not exist. `core/quests.ts` now reads the deadline off each tape
+       * entry's own year, which is what makes the question answerable after the turn and this line
+       * live.
+       *
+       * AND IT IS REACHED IN PLAY, not only in a rig. The window can only be beaten by a creature
+       * that is still held after the year turn, and every ordinary Elder retires at that very turn
+       * (`balance.age.lifespanYears.E`) — but an Ancient never ages (G10, `core/lifecycle.ts`
+       * `ageOneYear`), is always taken at Elder (`game/encounters.ts`), and `data/nodes/r2.json`
+       * carries one. So the Undermere taken out of the marsh in the last moments of the year, with
+       * the meter filling while the fight is handed off, is exactly the run this defends — and it
+       * is the same Ancient whose chain `chain.undermere.step4` hangs off this quest's `.done`.
+       */
       if (objectiveHolds(objective, questWorld(next, content, def, file))) continue;
       next = clearFlags(next, [
         ...(def.acceptFlag === null ? [] : [def.acceptFlag]),
@@ -704,16 +725,76 @@ export function releaseIntoNode(
 }
 
 /**
- * Who the release verb would put back — the last creature the player caught that is not the only
- * one they have.
+ * The lines that have a population at `nodeId` — the exact set `applyRelease` will accept, or
+ * `null` when the save cannot say.
+ *
+ * ONE RESOLVER, AND IT IS THE VERB'S OWN. `releaseIntoNode` reaches `applyRelease` through
+ * `liveNodeOf`, which builds the live node with `fromNodeState` — and `fromNodeState` REPLACES the
+ * shipped file's populations with the save's, key for key. So whenever the save carries a state for
+ * this node, its keys are precisely the keys `applyRelease` will look in, and asking the save is
+ * asking the verb. `newSave` writes a state for every shipped node, so that is every real save.
+ *
+ * `null` is "unanswerable", not "empty": a node the save has no state for (INV-2, a save that
+ * predates the node) falls back inside `liveNodeOf` to the shipped file, which is not on the save
+ * to be read. Filtering against an empty set there would refuse every release the verb would in
+ * fact have allowed, so nothing is filtered and `releaseIntoNode`'s own `problem` stays the
+ * backstop it already is.
+ */
+function releasableLinesAt(save: SaveEnvelope, nodeId: string): ReadonlySet<string> | null {
+  const state = save.nodeStates[nodeId];
+  return state === undefined ? null : new Set(Object.keys(state.populations));
+}
+
+/**
+ * Who the release verb would put back — the last creature the player caught that both is not the
+ * only one they have AND has a count at the node they are standing in.
  *
  * The party is never emptied by a release: an empty party is what `wildBattleProblem` refuses a
  * battle for, so a verb that could produce one would be a verb that can end the run.
+ *
+ * ⚠ IT USED TO HAND BACK THE BOX TAIL UNCONDITIONALLY, AND THE LEGACY BEAT BROKE THE RELEASE VERB.
+ * `applyRelease` throws for a line with no population at the node (`core/ecosim.ts` — Hard Req 2
+ * makes it a real decrement of a real number, so a no-op would leave the survey wrong), and
+ * `core/lifecycle.ts` puts a starter-line heir at the BOX TAIL when its parent retired out of the
+ * box. Route 1 and Brackmarsh share exactly one line and it is not a starter line, so after the
+ * never-cut retirement beat the candidate at Brackmarsh was a creature that lives nowhere near it:
+ * every [X] press refused, with the ecosim's internal message on the banner, until the player had
+ * filled the party to six AND caught at Brackmarsh. That is the release verb *Restock the Shallows*
+ * introduces, dead at the node the quest names.
+ *
+ * The walk is tail-first through the box and then tail-first through the party, which is the old
+ * answer whenever the old answer was releasable: the box tail still wins if it has a count here.
  */
-export function releaseCandidate(save: SaveEnvelope): OwnedCreature | null {
-  if (save.box.length > 0) return save.box[save.box.length - 1] ?? null;
+export function releaseCandidate(save: SaveEnvelope, nodeId: string = save.currentNode): OwnedCreature | null {
+  const releasable = releasableLinesAt(save, nodeId);
+  const here = (c: OwnedCreature): boolean => releasable === null || releasable.has(c.lineId);
+
+  for (let i = save.box.length - 1; i >= 0; i -= 1) {
+    const c = save.box[i];
+    if (c && here(c)) return c;
+  }
   if (save.party.length <= 1) return null;
-  return save.party[save.party.length - 1] ?? null;
+  for (let i = save.party.length - 1; i >= 0; i -= 1) {
+    const c = save.party[i];
+    if (c && here(c)) return c;
+  }
+  return null;
+}
+
+/**
+ * Why [X] would refuse here, or `null` when it would not — the sentence the banner prints, from the
+ * same reader the candidate comes from so the readout and the refusal cannot drift apart. It is the
+ * shape `game/wild-battle.ts` `wildBattleProblem` and `OverworldScene.restRefusal` already have.
+ *
+ * G7: it names the party, the box and the node, and says nothing about what releasing means.
+ */
+export function releaseRefusal(save: SaveEnvelope, nodeId: string = save.currentNode): string | null {
+  if (releaseCandidate(save, nodeId) !== null) return null;
+  const held = save.box.length + save.party.length;
+  // A party of one with an empty box is the old refusal and still the commoner one; anything else
+  // reaching here is held stock that has no count at this node, which is a different sentence.
+  if (save.box.length === 0 && held <= 1) return `no release: the party would be empty`;
+  return `no release: nothing in the party or the box has a count at "${nodeId}"`;
 }
 
 /** The age classes a quest objective may name, re-exported so a caller need not reach into core. */

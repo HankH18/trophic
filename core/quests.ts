@@ -242,9 +242,23 @@ export type QuestObjective =
    * "caught and brought back before the year turns" states.
    *
    * Two halves, and the bug it was built for needed both. The catch half is a fact about the tape,
-   * so a creature that merely aged into the wanted class on the bench does not answer it; the year
-   * half closes the window, so the same tape stops answering it once the calendar has moved. The
-   * kind's NAME carries the deadline on purpose: `tests/gates/quest-layer.test.ts` recognises a
+   * so a creature that merely aged into the wanted class on the bench does not answer it; the
+   * deadline half is ALSO a fact about the tape — each entry carries the year it was logged in
+   * (`ActionLogEntry.year`), so a catch made inside the window keeps answering the objective after
+   * the calendar moves, and a catch made outside it never answers at all.
+   *
+   * ⚠ IT USED TO BE A FACT ABOUT THE WALL CLOCK — `world.year !== world.acceptedYear` returned
+   * false outright — and that is a different rule with a hole in it. Everything the player did
+   * inside the window stopped counting the instant the window shut, so a wager satisfied in the
+   * last moments of the year and not yet SEEN by the tracker (the year meter fills while a fight is
+   * handed off; `game/quests.ts` `syncQuestFlags` next runs a year later) failed on evaluation
+   * order alone: `settleCycles`' own "check it one last time" guard could not fire, because the
+   * predicate it consulted had already been made unanswerable by the same year turn it was
+   * defending against. Reading the deadline off the entries instead makes both readings agree —
+   * and the case is not hypothetical, because the one creature that can answer this objective
+   * across a year turn is an Ancient, which never ages (G10) and is exactly what r2 holds.
+   *
+   * The kind's NAME carries the deadline on purpose: `tests/gates/quest-layer.test.ts` recognises a
    * time-bounded objective by `/BeforeYearTurn|Deadline|Expires/`, so a future sibling declares
    * itself without that gate having to be edited.
    */
@@ -285,27 +299,47 @@ export interface QuestWorld {
   corpusWrittenFlags: ReadonlySet<string>;
 }
 
-function ageOfLoggedCatch(world: QuestWorld, uid: string): AgeClass | null {
-  for (const creature of [...world.party, ...world.box]) {
-    if (creature.uid === uid) return creature.age;
-  }
-  return null;
+/** Is the individual a tape entry names still in the player's hands? */
+function stillHeld(world: QuestWorld, uid: string): boolean {
+  return world.party.some((c) => c.uid === uid) || world.box.some((c) => c.uid === uid);
 }
 
 /**
- * Individuals of `age` taken at `node` since the quest was accepted.
+ * Individuals CAUGHT AS `age` at `node` since the quest was accepted, and still held.
+ * `throughYear` narrows it to the ones taken in that calendar year or earlier — the deadline half
+ * of {@link QuestObjective}'s `catchesAtBeforeYearTurn`, and nothing at all when it is omitted.
  *
- * The tape records a catch as `{nodeId, lineId, uid}` and carries no age (`core/types.ts`
- * `GameAction`), so the age is read off the individual the uid names — which also means a creature
- * released or retired since is no longer counted. That is the right reading for both callers: the
- * copy they transcribe says *brought back*, and something the player no longer has was not.
+ * ⚠ THE AGE COMES OFF THE TAPE, AND READING IT OFF THE LIVE CREATURE SILENTLY DESTROYED PROGRESS.
+ * A catch entry carries the individual `core/lifecycle.ts` `newOwnedCreature` built, whole, as
+ * `gained` (`core/types.ts` `GameAction`, written by `core/save.ts` `catchAction`) — so the age AT
+ * THE MOMENT OF THE CATCH is on the tape and always was. This function used to ignore it and look
+ * the uid up in the party instead, which asks a different question: *what age is it NOW*. The two
+ * answers agree until a year turns, and then both directions are wrong:
+ *
+ *   • **progress is destroyed.** Two Adults taken on Bowerdeep Wilds in year 1 are Elders in year
+ *     2 (`balance.age.yearsInClass.A`), so *Silk Shortage*'s three-adult count falls back to one.
+ *     The quest sits at `accepted` with no lapse, no copy and no message: the player is asked for
+ *     the same three animals twice and told nothing.
+ *   • **a quest closes on creatures that did not qualify.** Three Juveniles taken in year 1 are
+ *     Adults in year 2, and the turn-in is written for a catch that was never an adult catch.
+ *
+ * This is the same "aged on the bench" defect `game/quests.ts` records against the wager, which was
+ * only ever half-fixed: the objective was moved onto the tape while the AGE stayed on the bench.
+ *
+ * BROUGHT BACK is now its own clause rather than a side effect of where the age came from —
+ * {@link stillHeld} — because the copy both callers transcribe says *brought back*, and something
+ * released or retired since was not. An entry with no `gained` (a tape written before the field
+ * existed, INV-2; or `game/wild-battle.ts`'s kept-nothing case, where there is no creature to
+ * carry) states no age, so it answers no age question and is not counted.
  */
-function countCatches(world: QuestWorld, node: string, age: AgeClass): number {
+function countCatches(world: QuestWorld, node: string, age: AgeClass, throughYear?: number): number {
   let seen = 0;
   for (const entry of world.actionsSinceAccepted) {
     const a = entry.action;
     if (a.t !== "catch" || a.nodeId !== node) continue;
-    if (ageOfLoggedCatch(world, a.uid) !== age) continue;
+    if (throughYear !== undefined && entry.year > throughYear) continue;
+    if (a.gained?.age !== age) continue;
+    if (!stillHeld(world, a.uid)) continue;
     seen += 1;
   }
   return seen;
@@ -343,11 +377,19 @@ export function objectiveHolds(objective: QuestObjective, world: QuestWorld): bo
       return countCatches(world, objective.node, objective.age) >= objective.count;
 
     case "catchesAtBeforeYearTurn": {
-      // The deadline. `acceptedYear` is stamped when the quest is taken, so "the year has not
-      // turned since" is exactly "the calendar year is still the one it was taken in". A quest
-      // that was never stamped has no window and cannot be inside one.
-      if (world.acceptedYear === null || world.year !== world.acceptedYear) return false;
-      return countCatches(world, objective.node, objective.age) >= objective.count;
+      /*
+       * The deadline, read off the ENTRIES rather than off the clock. `acceptedYear` is stamped
+       * when the quest is taken, so "before the year turns" is "logged in the year it was taken
+       * in" — a question the tape can still answer next year, which is the difference from the
+       * `world.year !== world.acceptedYear` test this replaces (see the kind's own doc comment).
+       * A quest that was never stamped has no window and cannot be inside one.
+       *
+       * The slice starts at the acceptance and the calendar never runs backwards, so no entry here
+       * predates `acceptedYear`; `<=` is "in the accepted year" and is written this way so that a
+       * quest re-accepted after a lapse cannot be closed by a catch from its previous life.
+       */
+      if (world.acceptedYear === null) return false;
+      return countCatches(world, objective.node, objective.age, world.acceptedYear) >= objective.count;
     }
 
     case "returnedTo":

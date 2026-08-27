@@ -35,8 +35,8 @@ import {
 import { newOwnedCreature, runYearTurn } from "@core/lifecycle";
 import { questDefinitions, questStage, type QuestDefinition } from "@core/quests";
 import { validateContent } from "@core/schemas";
-import { appendAction, deserialize, newSave, serialize, type SaveEnvelope } from "@core/save";
-import type { AgeClass, Balance, Content, OwnedCreature, SpeciesLine } from "@core/types";
+import { appendAction, catchAction, deserialize, newSave, serialize, type SaveEnvelope } from "@core/save";
+import type { AgeClass, Balance, Content, OwnedCreature, Season, SpeciesLine } from "@core/types";
 import {
   applyRunFlags,
   autoplayEntryFor,
@@ -50,8 +50,10 @@ import {
   dexIdentities,
   lapsedFlag,
   linesMetFlag,
+  questReports,
   releaseCandidate,
   releaseIntoNode,
+  releaseRefusal,
   stillOwed,
   syncQuestFlags,
 } from "@game/quests";
@@ -133,14 +135,8 @@ function talkUntil(save: SaveEnvelope, nodeId: string, entryId: string, pick = 0
   throw new Error(`"${entryId}" never became the room's answer at ${nodeId}`);
 }
 
-/**
- * Take one creature out of a node, exactly as `applyCatchToSave` logs it.
- *
- * `which` picks among the node's own lines. It matters for the census: a line's three age forms can
- * share ONE name (`sporantle-line` is Sporantle at J, A and E), so two ages of one line are one dex
- * identity and two lines are two — which is the shipped data's answer, not this test's.
- */
-function catchAt(save: SaveEnvelope, nodeId: string, uid: string, age: AgeClass, which = 0): SaveEnvelope {
+/** The `which`-th line with a population at a node, resolved out of the shipped file. */
+function lineAtNode(nodeId: string, which = 0): SpeciesLine {
   const node = content.nodes.find((n) => n.id === nodeId);
   if (!node) throw new Error(`no node ${nodeId}`);
   const lines = Object.keys(node.populations);
@@ -148,15 +144,75 @@ function catchAt(save: SaveEnvelope, nodeId: string, uid: string, age: AgeClass,
   if (lineId === undefined) throw new Error(`${nodeId} has no populations`);
   const line = content.species.find((s) => s.id === lineId);
   if (!line) throw new Error(`no species ${lineId}`);
+  return line;
+}
+
+/**
+ * Take one creature out of a node onto the tape, exactly as `applyCatchToSave` logs it — and
+ * WITHOUT running the tracker, so a test can decide when the game next looks at the save.
+ *
+ * ⚠ IT MUST GO THROUGH `catchAction`. This helper used to append the bare
+ * `{t:"catch", nodeId, lineId, uid}` while its own comment claimed it logged what the game logs,
+ * and the difference is the whole of `core/quests.ts` `countCatches`: `catchAction` carries the
+ * individual as `gained`, which is the only record anywhere of what age the animal WAS when it was
+ * taken. A fixture that drops it cannot see an age-at-catch defect, because in that fixture there
+ * is no age at catch. `tests/integration/seams.test.ts` pins `catchAction`'s own output against the
+ * live path, so this borrows a constructor that is itself bound rather than restating it.
+ */
+function tapeCatch(
+  save: SaveEnvelope,
+  nodeId: string,
+  uid: string,
+  age: AgeClass,
+  line: SpeciesLine,
+): SaveEnvelope {
   const caught = creature(uid, age, line);
   const withCreature: SaveEnvelope = { ...save, party: [...save.party, caught] };
-  return syncQuestFlags(appendAction(withCreature, { t: "catch", nodeId, lineId, uid }), content);
+  return appendAction(withCreature, catchAction(nodeId, caught));
+}
+
+/**
+ * `tapeCatch` followed by the tracker, which is what one [X]-free catch looks like from the
+ * overworld: `applyCatchToSave` then `syncQuests`.
+ *
+ * `which` picks among the node's own lines. It matters for the census: a line's three age forms can
+ * share ONE name (`sporantle-line` is Sporantle at J, A and E), so two ages of one line are one dex
+ * identity and two lines are two — which is the shipped data's answer, not this test's.
+ */
+function catchAt(save: SaveEnvelope, nodeId: string, uid: string, age: AgeClass, which = 0): SaveEnvelope {
+  return syncQuestFlags(tapeCatch(save, nodeId, uid, age, lineAtNode(nodeId, which)), content);
 }
 
 /** Turn the year with the real lifecycle, then re-run the tracker as the scene does. */
 function turnYear(save: SaveEnvelope): SaveEnvelope {
   const turned = runYearTurn(save, { species: content.species, balance, nodes: content.nodes });
   return syncQuestFlags({ ...save, ...turned.save }, content);
+}
+
+/** Walk to a node, the way the overworld tapes an arrival. Does NOT run the tracker. */
+function travelTo(save: SaveEnvelope, to: string): SaveEnvelope {
+  return appendAction(save, { t: "travel", to });
+}
+
+/** Put creatures back through the shipped verb, one [X] press each, with the tracker after. */
+function releaseInto(save: SaveEnvelope, nodeId: string, uids: readonly string[]): SaveEnvelope {
+  let next = save;
+  for (const uid of uids) {
+    const applied = releaseIntoNode(next, content, uid, nodeId);
+    expect(applied.problem, `${uid} at ${nodeId}`).toBeNull();
+    next = syncQuestFlags(applied.save, content);
+  }
+  return next;
+}
+
+/**
+ * A tick at which the meter reads `season`, computed from `balance.clock` (G11 — the season
+ * boundary is 13 ticks today and that is a tuning value, not a fact this file may know).
+ */
+function tickInSeason(season: Season): number {
+  const at = balance.clock.seasonOrder.indexOf(season);
+  expect(at, `"${season}" is not in balance.clock.seasonOrder`).toBeGreaterThanOrEqual(0);
+  return at * balance.clock.ticksPerSeason;
 }
 
 const isSet = (save: SaveEnvelope, key: string): boolean => save.questFlags[key] === true;
@@ -316,6 +372,72 @@ describe("§2 Ferryman's Wager", () => {
     const save = syncQuestFlags({ ...takeTheWager(), tick: balance.clock.ticksPerSeason }, content);
     expect(save.questFlags[lapsedFlag("ferrymans-wager")]).toBeUndefined();
     expect(isSet(save, "quest.ferrymans-wager.taken")).toBe(true);
+  });
+
+  /**
+   * The Ancient the marsh carries — resolved the way `game/finale.ts` resolves the Sanctum's, so no
+   * species id is typed here (G2, and the species-name gate).
+   *
+   * It is the ONLY creature that can answer this objective on the far side of a year turn. Every
+   * ordinary Elder retires at the very turn the wager's window closes on
+   * (`balance.age.lifespanYears.E` is one year), so "caught, still held, and the calendar has
+   * moved" is a state only an Ancient can be in — they never age (G10, `core/lifecycle.ts`
+   * `ageOneYear`) and `game/encounters.ts` always rolls them at Elder.
+   */
+  function marshAncient(): SpeciesLine {
+    const marsh = content.nodes.find((n) => n.id === "r2");
+    const line = content.species.find((s) => s.ancient && marsh?.populations[s.id] !== undefined);
+    if (!line) throw new Error("r2 no longer carries an Ancient — this test has no subject");
+    return line;
+  }
+
+  it("an Elder taken inside the window, and not looked at until the year had turned, is NOT failed", () => {
+    /*
+     * ⚠ THE GUARD IN `settleCycles` THAT SAYS IT PROTECTS THIS COULD NOT FIRE, and this is the run
+     * it was written for. `syncQuestFlags` runs on every save move, so the only way the tracker
+     * does not see a catch in the year it happened is for the year to turn first — which is
+     * `OverworldScene.handOffToBattle` letting the meter fill while a fight is handed off. The
+     * turn then ran `settleCycles` before anything had written the turn-in, `objectiveHolds` was
+     * false by construction on the far side of the calendar, and the wager lapsed on a catch made
+     * inside its own window: `turnin: undefined, lapsed: true`.
+     *
+     * Nothing here is set by hand. The catch is `catchAction`'s own entry and the year is the real
+     * lifecycle's; the ONE thing this test does that `catchAt` does not is decline to run the
+     * tracker in between, which is the whole of the deferral.
+     */
+    let save = takeTheWager();
+    const acceptedYear = save.year;
+    save = tapeCatch(save, "r2", "undermere-elder", "E", marshAncient());
+    save = turnYear(save);
+
+    expect(save.year, "the year did not turn").toBeGreaterThan(acceptedYear);
+    expect(
+      [...save.party, ...save.box].some((c) => c.uid === "undermere-elder"),
+      "the Ancient did not survive the turn — G10 says caught Ancients never age",
+    ).toBe(true);
+    expect(
+      save.questFlags[lapsedFlag("ferrymans-wager")],
+      "the wager lapsed on a catch made inside its own window",
+    ).toBeUndefined();
+    expect(isSet(save, "quest.ferrymans-wager.turnin"), "no turn-in and no lapse — the quest is stranded").toBe(
+      true,
+    );
+
+    // …and Sel still has her own line to say about it, so the rescue reaches the screen.
+    save = talkUntil(save, "brackwater", "sel.quest.wager.done");
+    expect(isSet(save, "quest.ferrymans-wager.done")).toBe(true);
+  });
+
+  it("BINDS — an Ancient already in hand when the wager is taken does not close it", () => {
+    // The other half of "since the quest was accepted": the window is the tape from the acceptance
+    // forward, so a creature taken last year cannot be handed over as this year's wager.
+    let save = atAct(2, "brackwater");
+    save = syncQuestFlags(tapeCatch(save, "r2", "old-undermere", "E", marshAncient()), content);
+    save = turnYear(save);
+    save = talkUntil(save, "brackwater", "sel.quest.wager.offer", 0);
+    expect(isSet(save, "quest.ferrymans-wager.taken")).toBe(true);
+    expect([...save.party, ...save.box].some((c) => c.uid === "old-undermere")).toBe(true);
+    expect(syncQuestFlags(save, content).questFlags["quest.ferrymans-wager.turnin"]).toBeUndefined();
   });
 });
 
@@ -753,5 +875,313 @@ describe("§9 syncQuestFlags", () => {
     for (const def of DEFS) {
       expect(after.questFlags[String(def.owedFlag)], `${def.id} closed itself`).toBeUndefined();
     }
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §10 The four rows nothing bound
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ⚠ WHY THIS SECTION EXISTS, AND IT IS NOT COVERAGE FOR ITS OWN SAKE. A mutation sweep over
+ * `game/quests.ts` `QUEST_OBJECTIVES` changed one field of one row at a time and re-ran the whole
+ * suite. Five single-line mutations left it byte-identical — every file green, every gate green:
+ *
+ *   • `silk-shortage` count 3 → 999      (the quest becomes permanently impossible)
+ *   • `silk-shortage` node r3 → r1       (the canopy contract paid off the meadow)
+ *   • `restock-the-shallows` node r2 → brackwater
+ *   • `after-the-crash` node r4 → hearthollow
+ *   • `lanternless-night` season autumn → spring
+ *
+ * Four other mutations WERE caught, all four by this file — and the five that survived are exactly
+ * the four quests this file had no section for. Neither gate can see them: `quest-layer.test.ts`
+ * asserts that a row has the SHAPE its authored copy implies (a deadline where the copy states one,
+ * a node id that names a real node), which every mutation above still satisfies. Only playing the
+ * quest can tell r3 from r1.
+ *
+ * So each quest below is played from the giver's offer to the giver's thank-you, through the same
+ * three verbs §2–§8 use, and each row's fields are bound in BOTH directions: doing the authored
+ * thing closes it, and doing the same thing one node, one season or one age off does not.
+ */
+
+/** Accept Halder's contract the way a player does: hear him out and take the first choice. */
+function takeTheSilkContract(): SaveEnvelope {
+  const save = talkUntil(atAct(3, "bowerdeep"), "bowerdeep", "halder.quest.silk.offer", 0);
+  expect(isSet(save, "quest.silk-shortage.taken")).toBe(true);
+  return save;
+}
+
+describe("§10 Silk Shortage — three adults, out of the canopy", () => {
+  it("three taken on the wilds close it; two do not, and the giver's own line writes .done", () => {
+    let save = takeTheSilkContract();
+    save = catchAt(save, "r3", "canopy-1", "A", 0);
+    save = catchAt(save, "r3", "canopy-2", "A", 1);
+    expect(save.questFlags["quest.silk-shortage.turnin"], "closed on two").toBeUndefined();
+
+    save = catchAt(save, "r3", "canopy-3", "A", 2);
+    expect(isSet(save, "quest.silk-shortage.turnin"), "three adults did not close it").toBe(true);
+
+    save = talkUntil(save, "bowerdeep", "halder.quest.silk.done");
+    expect(isSet(save, "quest.silk-shortage.done")).toBe(true);
+  });
+
+  it("BINDS the node — the same three adults taken off the meadow instead close nothing", () => {
+    let save = takeTheSilkContract();
+    for (let i = 0; i < 3; i += 1) save = catchAt(save, "r1", `meadow-${String(i)}`, "A", i);
+    expect(save.questFlags["quest.silk-shortage.turnin"]).toBeUndefined();
+  });
+
+  it("BINDS brought back — one of the three put back again re-opens the count", () => {
+    let save = takeTheSilkContract();
+    for (let i = 0; i < 3; i += 1) save = catchAt(save, "r3", `canopy-${String(i)}`, "A", i);
+    expect(isSet(save, "quest.silk-shortage.turnin")).toBe(true);
+
+    // The turn-in is already written, so this asks the objective directly through a fresh
+    // acceptance: the same tape, one creature short, is not three adults in hand.
+    const shorn = releaseInto({ ...save, questFlags: { ...save.questFlags } }, "r3", ["canopy-2"]);
+    const reports = questReports(shorn, content).find((r) => r.id === "silk-shortage");
+    expect(reports?.met, "a released adult still counted as brought back").toBe(false);
+  });
+
+  /*
+   * ⚠ THE AGE USED TO BE READ OFF THE LIVE CREATURE, AND THE YEAR TURN THEN ATE THE PLAYER'S WORK.
+   * `core/quests.ts` `countCatches` looked the uid up in the party instead of reading the age the
+   * tape entry carries, so "three adults" quietly meant "three creatures that are adults RIGHT
+   * NOW". Both of the next two are that defect, in the two directions it runs.
+   */
+  it("progress survives the year turn — two taken last year plus one this year is three", () => {
+    let save = takeTheSilkContract();
+    save = catchAt(save, "r3", "before-1", "A", 0);
+    save = catchAt(save, "r3", "before-2", "A", 1);
+    save = turnYear(save);
+
+    // Both have aged a class (`balance.age.yearsInClass.A`) and both are still held — which is
+    // precisely the state that used to stop them counting.
+    const carried = save.party.filter((c) => c.uid.startsWith("before-"));
+    expect(carried.map((c) => c.age), "the two did not age").toEqual(["E", "E"]);
+    expect(save.questFlags["quest.silk-shortage.turnin"], "closed on two").toBeUndefined();
+
+    save = catchAt(save, "r3", "after-1", "A", 2);
+    expect(
+      isSet(save, "quest.silk-shortage.turnin"),
+      "the two adults taken before the turn stopped counting — the player is asked for them twice",
+    ).toBe(true);
+  });
+
+  it("and no quest closes on creatures that were juveniles when they were taken", () => {
+    let save = takeTheSilkContract();
+    for (let i = 0; i < 3; i += 1) save = catchAt(save, "r3", `juv-${String(i)}`, "J", i);
+    expect(save.questFlags["quest.silk-shortage.turnin"]).toBeUndefined();
+
+    save = turnYear(save);
+    expect(save.party.map((c) => c.age), "the three did not age into adults").toEqual(["A", "A", "A"]);
+    expect(
+      save.questFlags["quest.silk-shortage.turnin"],
+      "the contract paid out for three juveniles that grew up on the bench",
+    ).toBeUndefined();
+  });
+});
+
+/** Accept Nessa's job the way a player does. */
+function takeTheRestock(): SaveEnvelope {
+  const save = talkUntil(atAct(2, "brackwater"), "brackwater", "nessa.quest.restock.offer", 0);
+  expect(isSet(save, "quest.restock-the-shallows.taken")).toBe(true);
+  return save;
+}
+
+describe("§11 Restock the Shallows — four put back, on the Brackmarsh side", () => {
+  it("four into the marsh close it; three do not, and Nessa's own line writes .done", () => {
+    let save = takeTheRestock();
+    for (let i = 0; i < 4; i += 1) save = catchAt(save, "r2", `back-${String(i)}`, "A", i);
+
+    save = releaseInto(save, "r2", ["back-0", "back-1", "back-2"]);
+    expect(save.questFlags["quest.restock-the-shallows.turnin"], "closed on three").toBeUndefined();
+
+    save = releaseInto(save, "r2", ["back-3"]);
+    expect(isSet(save, "quest.restock-the-shallows.turnin"), "four releases did not close it").toBe(true);
+
+    save = talkUntil(save, "brackwater", "nessa.quest.restock.done");
+    expect(isSet(save, "quest.restock-the-shallows.done")).toBe(true);
+  });
+
+  it("BINDS the node — four put back at the town landing instead close nothing", () => {
+    let save = takeTheRestock();
+    for (let i = 0; i < 4; i += 1) save = catchAt(save, "r2", `town-${String(i)}`, "A", i);
+    save = releaseInto(save, "brackwater", ["town-0", "town-1", "town-2", "town-3"]);
+    expect(save.questFlags["quest.restock-the-shallows.turnin"]).toBeUndefined();
+  });
+});
+
+/** Accept Gerta's day the way a player does. */
+function takeTheCrashJob(): SaveEnvelope {
+  const save = talkUntil(atAct(4, "cindershelf"), "cindershelf", "gerta.quest.crash.offer", 0);
+  expect(isSet(save, "quest.after-the-crash.taken")).toBe(true);
+  return save;
+}
+
+describe("§12 After the Crash — five counts on Cinder Steppe", () => {
+  it("standing on the steppe closes it, and taking the job alone does not", () => {
+    let save = takeTheCrashJob();
+    expect(
+      syncQuestFlags(save, content).questFlags["quest.after-the-crash.turnin"],
+      "closed without the player going anywhere",
+    ).toBeUndefined();
+
+    save = syncQuestFlags(travelTo(save, "r4"), content);
+    expect(isSet(save, "quest.after-the-crash.turnin"), "the walk up did not close it").toBe(true);
+
+    save = talkUntil(save, "cindershelf", "gerta.quest.crash.done");
+    expect(isSet(save, "quest.after-the-crash.done")).toBe(true);
+  });
+
+  it("BINDS the node — walking to every OTHER node in the region closes nothing", () => {
+    let save = takeTheCrashJob();
+    for (const node of content.nodes) {
+      if (node.id === "r4") continue;
+      save = travelTo(save, node.id);
+    }
+    save = syncQuestFlags(save, content);
+    expect(save.questFlags["quest.after-the-crash.turnin"]).toBeUndefined();
+  });
+});
+
+/**
+ * The season Pell's own offer is gated to.
+ *
+ * Read out of the CORPUS rather than out of `QUEST_OBJECTIVES`, deliberately: the objective row
+ * transcribes the authored gate, so a test that took the season from the row would follow a
+ * mistranscription instead of catching one.
+ */
+function lanternlessSeason(): Season {
+  const offer = DIALOGUE.entries.find((e) => e.id === "pell.quest.lanternless.offer");
+  const season = offer?.when?.seasons?.[0];
+  if (season === undefined) throw new Error("pell.quest.lanternless.offer no longer names a season");
+  return season;
+}
+
+/** Take the relight kit — which the offer's own `when` only lets a player do in one season. */
+function takeTheRelightKit(): SaveEnvelope {
+  const base: SaveEnvelope = { ...atAct(3, "bowerdeep"), tick: tickInSeason(lanternlessSeason()) };
+  const save = talkUntil(base, "bowerdeep", "pell.quest.lanternless.offer", 0);
+  expect(isSet(save, "quest.lanternless-night.taken")).toBe(true);
+  return save;
+}
+
+describe("§13 Lanternless Night — out to the stair and back, one night, one season", () => {
+  it("the walk out and back, in the season the offer names, closes it", () => {
+    let save = takeTheRelightKit();
+    expect(
+      syncQuestFlags(save, content).questFlags["quest.lanternless-night.turnin"],
+      "closed without the walk",
+    ).toBeUndefined();
+
+    save = travelTo(save, "r3");
+    expect(
+      syncQuestFlags(save, content).questFlags["quest.lanternless-night.turnin"],
+      "closed on the way out",
+    ).toBeUndefined();
+
+    save = syncQuestFlags(travelTo(save, "bowerdeep"), content);
+    expect(isSet(save, "quest.lanternless-night.turnin"), "coming back did not close it").toBe(true);
+
+    save = talkUntil(save, "bowerdeep", "pell.quest.lanternless.done");
+    expect(isSet(save, "quest.lanternless-night.done")).toBe(true);
+  });
+
+  it("BINDS the season — the identical walk in any of the other three closes nothing", () => {
+    const walked = travelTo(travelTo(takeTheRelightKit(), "r3"), "bowerdeep");
+    const authored = lanternlessSeason();
+    let checked = 0;
+    for (const season of balance.clock.seasonOrder) {
+      if (season === authored) continue;
+      const elsewhere = syncQuestFlags({ ...walked, tick: tickInSeason(season) }, content);
+      expect(elsewhere.questFlags["quest.lanternless-night.turnin"], season).toBeUndefined();
+      checked += 1;
+    }
+    expect(checked, "the clock ships only one season, so this proved nothing").toBeGreaterThan(0);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §14 The release verb, at a node the held creatures do not live in
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/** A line with no population at `nodeId` — what `applyRelease` refuses, and [X] must not offer. */
+function lineNotAt(nodeId: string): SpeciesLine {
+  const node = content.nodes.find((n) => n.id === nodeId);
+  if (!node) throw new Error(`no node ${nodeId}`);
+  const line = ORDINARY_LINES.find((s) => node.populations[s.id] === undefined);
+  if (!line) throw new Error(`every shipped line has a population at ${nodeId}`);
+  return line;
+}
+
+describe("§14 [X] does not hand back a creature the node has no count for", () => {
+  /*
+   * ⚠ THE LEGACY BEAT USED TO BREAK THE RELEASE VERB AT THE QUEST THAT INTRODUCES IT.
+   * `releaseCandidate` always returned the BOX TAIL, and `core/lifecycle.ts` puts the heir in the
+   * box when its parent retired out of the box — a starter-line creature, and no starter line lives
+   * in the marsh. `applyRelease` throws for a line with no population at the node (Hard Req 2 makes
+   * it a real decrement of a real number), so after the never-cut retirement every [X] press at
+   * Brackmarsh refused with the ecosim's internal message, until the player had filled the party to
+   * six AND caught something at Brackmarsh. That is *Restock the Shallows*' own verb, dead at the
+   * node *Restock the Shallows* names.
+   */
+  function inTheMarsh(party: readonly OwnedCreature[], box: readonly OwnedCreature[]): SaveEnvelope {
+    return { ...atAct(2, "brackwater"), currentNode: "r2", party: [...party], box: [...box] };
+  }
+
+  it("skips the boxed heir and offers the boxed creature that does live here", () => {
+    const here = lineAtNode("r2", 0);
+    const save = inTheMarsh(
+      [creature("keeper", "A", here)],
+      [creature("boxed-local", "A", here), creature("boxed-heir", "J", lineNotAt("r2"))],
+    );
+
+    const candidate = releaseCandidate(save);
+    expect(candidate?.uid, "the verb offered the box tail, which has no count in the marsh").toBe("boxed-local");
+    expect(releaseRefusal(save)).toBeNull();
+
+    const applied = releaseIntoNode(save, content, String(candidate?.uid), "r2");
+    expect(applied.problem).toBeNull();
+    expect(applied.after).toBe(applied.before + 1);
+  });
+
+  it("BINDS — that heir is exactly what the verb refuses, so the skip is not cosmetic", () => {
+    const heir = creature("boxed-heir", "J", lineNotAt("r2"));
+    const save = inTheMarsh([creature("keeper", "A", lineAtNode("r2", 0))], [heir]);
+
+    const refused = releaseIntoNode(save, content, heir.uid, "r2");
+    expect(refused.problem, "applyRelease accepted a line with no population at r2").not.toBeNull();
+    expect(refused.save).toBe(save);
+
+    // …so [X] offers nobody, and says why in one sentence instead of throwing the ecosim's.
+    expect(releaseCandidate(save)).toBeNull();
+    expect(releaseRefusal(save)).toBe(`no release: nothing in the party or the box has a count at "r2"`);
+  });
+
+  it("falls through to the party tail when the box holds nothing that lives here", () => {
+    const here = lineAtNode("r2", 0);
+    const save = inTheMarsh(
+      [creature("first", "A", here), creature("second", "A", here)],
+      [creature("boxed-heir", "J", lineNotAt("r2"))],
+    );
+    expect(releaseCandidate(save)?.uid).toBe("second");
+    expect(releaseRefusal(save)).toBeNull();
+  });
+
+  it("still refuses to empty the party, and still says that instead", () => {
+    const save = inTheMarsh([creature("only", "A", lineAtNode("r2", 0))], []);
+    expect(releaseCandidate(save)).toBeNull();
+    expect(releaseRefusal(save)).toBe("no release: the party would be empty");
+  });
+
+  it("BINDS — the node it asks about is the one the player is standing in", () => {
+    // The same save reads differently at two nodes, which is what makes the default meaningful:
+    // `save.currentNode` is what `OverworldScene.releaseHere` puts the creature into.
+    const marshLine = lineAtNode("r2", 0);
+    const save = inTheMarsh([creature("a", "A", marshLine), creature("b", "A", marshLine)], []);
+    expect(releaseCandidate(save)?.uid).toBe("b");
+    const steppe = content.nodes.find((n) => n.id === "r4");
+    expect(steppe?.populations[marshLine.id], "r4 now carries the marsh line — pick another node").toBeUndefined();
+    expect(releaseCandidate(save, "r4")).toBeNull();
   });
 });
