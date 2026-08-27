@@ -26,17 +26,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { chooseEnemyAction, startBattle } from "../../core/battle";
+import { chooseEnemyAction, makeBattler, movesKnownAt, startBattle, typeMultiplier } from "../../core/battle";
 import { deriveFoodWeb, preyOf, toEcoNode, webRole } from "../../core/foodweb";
 import { createRng } from "../../core/rng";
-import type { BattleInput } from "../../core/types";
+import { AGE_CLASSES } from "../../core/types";
+import type { BattleInput, GymLeader, GymTeamSlot } from "../../core/types";
 
 import { bestMoveId, mirrorPolicy, runBattle } from "../../tools/harness/arena";
 import { loadContent, loadContentFromRaw, seedFor, subsystemTags } from "../../tools/harness/content";
 import { replayOvercatchFixture } from "../../tools/harness/fixture";
 import {
+  CATCH_PROFILES,
   OVERCATCH_SHAPES,
+  PLAY_PROFILES,
   PREY_READINGS,
+  RAID_POLICIES,
+  raidSuppressedContent,
   runFullRun,
   runOvercatch,
   summariseProfile,
@@ -45,13 +50,17 @@ import {
   type OvercatchRun,
   type OvercatchShape,
   type PreyReading,
+  type ProfileSummary,
+  type RunSpec,
 } from "../../tools/harness/full-run";
 import { runGymSim, runMirrorControl, runOneGym } from "../../tools/harness/gym-sim";
 import { measure } from "../../tools/harness/measure";
 import { defaultParams, gymSeedsFor, parseArgs } from "../../tools/harness/params";
 import {
+  aceLevelFor,
   actNodeIds,
   candidateLines,
+  coverageScore,
   draftParty,
   gymBag,
   gymParty,
@@ -62,7 +71,7 @@ import {
   starterLines,
 } from "../../tools/harness/player";
 import { contentWithDelta, probeDelta, readPath } from "../../tools/harness/probe";
-import { renderReport } from "../../tools/harness/report";
+import { attributeExtinction, renderReport } from "../../tools/harness/report";
 import { runRoundRobin } from "../../tools/harness/round-robin";
 
 import balanceJson from "../../data/balance.json";
@@ -285,12 +294,75 @@ describe("the reasonable player model (build-doc §10.5(a))", () => {
     for (const gym of loaded.gyms) {
       const trained = playerLevelFor(gym, balance, "trained");
       const untrained = playerLevelFor(gym, balance, "untrained");
-      expect(trained).toBe(Math.max(...gym.slots.map((s) => s.level)));
+      // TRAINED is the leader's rank and file — EXCEPT under the ceiling clause, where a leader
+      // whose ace stands on `balance.xp.levelCap` is fought AT the cap, because nothing exists
+      // above that ceiling for the player to have stopped short of. The assertion is not looser
+      // than the one it replaces: it pins BOTH arms of the clause, and the arm that fires is
+      // decided by shipped data rather than by a gym id (T-13).
+      const rankAndFile = Math.max(...gym.slots.map((s) => s.level));
+      const atCeiling = aceLevelFor(gym) >= balance.xp.levelCap;
+      expect(trained).toBe(atCeiling ? balance.xp.levelCap : rankAndFile);
       expect(untrained).toBe(balance.encounter.levelByYear[gym.act - 1]);
       expect(trained).toBeGreaterThan(untrained);
       const party = draftParty(gym, loaded, createRng(2), 2, "trained", 99);
       expect(party.level).toBeLessThanOrEqual(balance.xp.levelCap);
     }
+    // Shipped data must exercise both arms, or the clause above is only half tested.
+    const ceilingGyms = loaded.gyms.filter((g) => aceLevelFor(g) >= balance.xp.levelCap);
+    expect(ceilingGyms.length).toBeGreaterThan(0);
+    expect(ceilingGyms.length).toBeLessThan(loaded.gyms.length);
+  });
+
+  it("clause 4 ceiling: a leader whose ace stands on the level cap is measured AT the cap, not under it", () => {
+    // The defect this pins (T-13): the last gym was headlined at the rank-and-file level, two under
+    // an ace that already sits on `balance.xp.levelCap`. `makeBattler` clamps BOTH sides to the cap,
+    // so no creature above it exists and the fight the shipped ramp produces is cap against cap.
+    // The level-sensitivity sweep was already measuring that fight one column over.
+    for (const gym of loaded.gyms) {
+      if (aceLevelFor(gym) < balance.xp.levelCap) continue;
+      expect(playerLevelFor(gym, balance, "trained")).toBe(balance.xp.levelCap);
+      // …and the headline row of the gym table carries that level, not the rank and file's.
+      const outcome = runOneGym(gym, gym.act - 1, loaded, 6, 2, "trained");
+      expect(outcome.playerLevel).toBe(balance.xp.levelCap);
+      expect(outcome.playerLevel).toBe(outcome.topLevel);
+      expect(outcome.playerLevel).toBeGreaterThan(Math.max(...gym.slots.map((s) => s.level)));
+    }
+  });
+
+  it("BINDS — the ceiling clause reads `balance.xp.levelCap`, so raising the cap stops it firing", () => {
+    // Not a rule about one leader. Lift the cap in an overridden balance file (build-doc §6 INV-3)
+    // and every ace is below the ceiling again, so TRAINED falls back to the rank and file
+    // everywhere. If this stayed green with a gym id hard-coded in `playerLevelFor`, the clause
+    // would be a special case wearing a formula's clothes.
+    const highestAce = Math.max(...loaded.gyms.map((g) => aceLevelFor(g)));
+    const withCap = (cap: number): ReturnType<typeof loadContentFromRaw> => {
+      const raw = rawCopy();
+      (raw["xp"] as Record<string, unknown>)["levelCap"] = cap;
+      return loadContentFromRaw(raw, "test");
+    };
+
+    // Cap ON the highest ace: the clause fires for exactly the leaders standing on it.
+    const at = withCap(highestAce);
+    for (const gym of at.gyms) {
+      const expected =
+        aceLevelFor(gym) >= highestAce ? highestAce : Math.max(...gym.slots.map((s) => s.level));
+      expect(playerLevelFor(gym, at.balance, "trained")).toBe(expected);
+    }
+    expect(at.gyms.some((g) => aceLevelFor(g) >= highestAce)).toBe(true);
+
+    // Cap ONE level higher: no ace reaches the ceiling any more, so TRAINED is the rank and file
+    // everywhere and the clause is inert. A gym id hard-coded in `playerLevelFor` fails here.
+    const lifted = withCap(highestAce + 1);
+    expect(lifted.balance.xp.levelCap).toBeGreaterThan(balance.xp.levelCap);
+    for (const gym of lifted.gyms) {
+      expect(playerLevelFor(gym, lifted.balance, "trained")).toBe(
+        Math.max(...gym.slots.map((s) => s.level)),
+      );
+    }
+    // The other direction is not constructible and that is a property of the game, not a gap:
+    // core/schemas.ts rejects a balance file whose cap sits under any gym slot's level, so no
+    // override can put EVERY leader on the ceiling.
+    expect(() => withCap(highestAce - 1)).toThrow();
   });
 
   it("clauses 5–6: ages come from the shipped weights and every member carries the wild trait count", () => {
@@ -309,6 +381,286 @@ describe("the reasonable player model (build-doc §10.5(a))", () => {
     }
     // The shipped weights are all positive, so all three classes must appear over 40 drafts.
     expect([...seen].sort()).toEqual(["A", "E", "J"]);
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Clause 7's coverage key — the draft key that decides which team is FIELDED.
+   *
+   * It was scoring a creature as covering a matchup when it merely KNEW a super-effective move,
+   * never asking whether clause 8's greedy policy would pick that move over a bigger neutral one.
+   * Nothing in this suite looked at coverage at all, so the key was free to measure a plan the
+   * player does not follow — and, being the FIRST key, it changed which creatures got drafted and
+   * therefore every published win rate. These are the tests that would have caught it.
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  /** A one-creature gym, so `coverageScore` answers a single yes/no about a single matchup. */
+  const oneSlotGym = (slot: GymTeamSlot): GymLeader => ({ ...gym1, slots: [], signature: slot });
+
+  it("clause 7: coverage counts the move the policy would THROW, not one the creature merely knows", () => {
+    // The arithmetic that makes the two rules differ, from shipped data only: a super-effective hit
+    // is multiplied by `balance.types.superEffective`, so a low-power super move loses the greedy
+    // argmax to a higher-power neutral one and is never used.
+    let knowsButNeverThrows = 0;
+    let throwsIt = 0;
+
+    for (const gym of loaded.gyms) {
+      const level = playerLevelFor(gym, balance, "trained");
+      for (const slot of gymRoster(gym)) {
+        const defender = makeBattler(
+          { uid: "d", lineId: slot.lineId, age: slot.age, level: slot.level, traits: [] },
+          "enemy",
+          loaded.battle,
+          { isWild: false, enteredOnTurn: 0 },
+        );
+        for (const line of loaded.content.species) {
+          if (line.ancient) continue;
+          const knowsSuper = movesKnownAt(line, level, balance).some((id) => {
+            const move = loaded.battle.moves.get(id);
+            return (
+              move !== undefined &&
+              move.power > 0 &&
+              typeMultiplier(move.type, defender.types, loaded.battle.typeChart, balance).band ===
+                "super"
+            );
+          });
+          if (!knowsSuper) continue;
+
+          const covered = coverageScore([line], ["A"], [[]], level, oneSlotGym(slot), loaded.battle);
+          const attacker = makeBattler(
+            { uid: "a", lineId: line.id, age: "A", level, traits: [] },
+            "player",
+            loaded.battle,
+            { isWild: false, enteredOnTurn: 0 },
+          );
+          const thrown = loaded.battle.moves.get(
+            bestMoveId(attacker, defender, loaded.battle, { usePredation: true }),
+          );
+          const throwsSuper =
+            thrown !== undefined &&
+            thrown.power > 0 &&
+            typeMultiplier(thrown.type, defender.types, loaded.battle.typeChart, balance).band ===
+              "super";
+
+          // THE ASSERTION. The old rule scored every one of these 1, because every one of them
+          // knows a super-effective move. Coverage must follow the move that is actually thrown.
+          expect(
+            covered,
+            `${line.id} vs ${defender.formName}: knows a super-effective move, throws ` +
+              `${thrown?.id ?? "nothing"} (${throwsSuper ? "super" : "not super"})`,
+          ).toBe(throwsSuper ? 1 : 0);
+
+          if (throwsSuper) throwsIt += 1;
+          else knowsButNeverThrows += 1;
+        }
+      }
+    }
+
+    // Both arms must be exercised by shipped content, or the assertion above proves nothing: with
+    // no `knowsButNeverThrows` case the naive rule and the honest one are the same function.
+    expect(throwsIt).toBeGreaterThan(0);
+    expect(
+      knowsButNeverThrows,
+      "no shipped pairing knows a super-effective move it would not throw — the two coverage rules " +
+        "are indistinguishable on this content, so this test no longer binds the defect",
+    ).toBeGreaterThan(0);
+  });
+
+  it("clause 7: coverage agrees with the action `reasonablePolicy` takes in a real battle", () => {
+    // Not a second opinion about move scoring — the round trip. Put the creature on the field
+    // through `startBattle` and ask the shipped policy what it does; coverage must have said the
+    // same thing about the same pairing. This is what makes the draft key and the fight one model.
+    let checked = 0;
+    let superSeen = 0;
+    let neutralSeen = 0;
+    const policy = reasonablePolicy();
+
+    for (const gym of loaded.gyms) {
+      const level = playerLevelFor(gym, balance, "trained");
+      for (const slot of gymRoster(gym)) {
+        for (const line of candidateLines(gym.act, loaded)) {
+          const spec = { uid: "p0", lineId: line.id, age: "A" as const, level, traits: [] };
+          const enemy = {
+            uid: "e0",
+            lineId: slot.lineId,
+            age: slot.age,
+            level: slot.level,
+            traits: [],
+          };
+          const state = startBattle(
+            { seed: 7, kind: "gym", playerParty: [spec], enemyParty: [enemy] },
+            loaded.battle,
+          ).state;
+          const action = policy(state, loaded.battle);
+          expect(action.kind).toBe("move");
+          if (action.kind !== "move") continue;
+          const move = loaded.battle.moves.get(action.moveId);
+          const target = state.battlers[state.activeEnemyUid];
+          if (!move || !target) throw new Error("empty field");
+          const superEffective =
+            move.power > 0 &&
+            typeMultiplier(move.type, target.types, loaded.battle.typeChart, balance).band ===
+              "super";
+
+          expect(
+            coverageScore([line], ["A"], [[]], level, oneSlotGym(slot), loaded.battle),
+          ).toBe(superEffective ? 1 : 0);
+
+          checked += 1;
+          if (superEffective) superSeen += 1;
+          else neutralSeen += 1;
+        }
+      }
+    }
+    expect(checked).toBeGreaterThan(100);
+    expect(superSeen).toBeGreaterThan(0);
+    expect(neutralSeen).toBeGreaterThan(0);
+  });
+
+  it("clause 7: the key scores the creature that is FIELDED — its own age, not a stand-in", () => {
+    /*
+     * The discriminating half. Shipped content holds (attacker line, roster slot) pairings whose
+     * greedy pick flips with the attacker's AGE — see the tie finding in the next test — so the age
+     * `coverageScore` is handed decides the answer, and a stand-in would answer about a creature
+     * nobody fields.
+     */
+    let flips = 0;
+    for (const gym of loaded.gyms) {
+      const level = playerLevelFor(gym, balance, "trained");
+      for (const slot of gymRoster(gym)) {
+        for (const line of loaded.content.species) {
+          if (line.ancient) continue;
+          const byAge = new Set(
+            AGE_CLASSES.map((age) =>
+              coverageScore([line], [age], [[]], level, oneSlotGym(slot), loaded.battle),
+            ),
+          );
+          if (byAge.size > 1) flips += 1;
+        }
+      }
+    }
+    expect(flips).toBeGreaterThan(0);
+
+    /*
+     * The invariant half: what `draftParty` credits is a recomputation from the specs it hands back.
+     *
+     * MEASURED, and stated so nobody mistakes this green for more than it is: over 1200 shipped
+     * drafts (6 gyms × 200 seeds), scoring a stand-in Adult instead of the fielded creature changes
+     * the credited number in ZERO of them — coverage is a max over up to six members, so one
+     * member's flip is masked by another member covering the same slot. On this content the two
+     * agree; this half is what would notice if a future key stopped agreeing.
+     */
+    for (const gym of loaded.gyms) {
+      for (let seed = 0; seed < 8; seed++) {
+        const party = draftParty(gym, loaded, createRng(seed), 4, "trained");
+        const lines = party.specs.map((s) => {
+          const line = loaded.species.byId.get(s.lineId);
+          if (!line) throw new Error(`drafted an unknown line "${s.lineId}"`);
+          return line;
+        });
+        const recomputed = coverageScore(
+          lines,
+          party.specs.map((s) => s.age),
+          party.specs.map((s) => s.traits),
+          party.level,
+          gym,
+          loaded.battle,
+        );
+        expect(recomputed).toBe(party.coverage);
+      }
+    }
+  });
+
+  it("clause 7: the greedy pick CAN turn on the attacker's own stats — the finding that forces the above", () => {
+    /*
+     * Pinned because it is counter-intuitive and because it is the reason `coverageScore` takes
+     * ages and traits at all. `balance.types.superEffective` is 1.5, so a 40-power super-effective
+     * move ties EXACTLY with a 60-power neutral one. The scorer computes
+     * `((atk × power) / def) × mult × roll` rather than `power × mult`, and the two do not round to
+     * the same double — so on a tie the winner is decided by the attacker's Attack, i.e. by its age
+     * and traits, not by the "ties broken by pool order" rule the scorer's own docblock states.
+     *
+     * If this goes green-to-red, the scorer's tie-break became stable. That is an IMPROVEMENT, and
+     * the response is to delete this test deliberately (and then `coverageScore` may drop its ages
+     * and traits) — not to make the assertion looser.
+     */
+    let stable = 0;
+    let stateDependent = 0;
+    for (const gym of loaded.gyms) {
+      const level = playerLevelFor(gym, balance, "trained");
+      for (const slot of gymRoster(gym)) {
+        const defender = makeBattler(
+          { uid: "d", lineId: slot.lineId, age: slot.age, level: slot.level, traits: [] },
+          "enemy",
+          loaded.battle,
+          { isWild: false, enteredOnTurn: 0 },
+        );
+        for (const line of loaded.content.species) {
+          if (line.ancient) continue;
+          const picks = new Set(
+            AGE_CLASSES.map((age) =>
+              bestMoveId(
+                makeBattler({ uid: "a", lineId: line.id, age, level, traits: [] }, "player", loaded.battle, {
+                  isWild: false,
+                  enteredOnTurn: 0,
+                }),
+                defender,
+                loaded.battle,
+                { usePredation: true },
+              ),
+            ),
+          );
+          if (picks.size > 1) stateDependent += 1;
+          else stable += 1;
+        }
+      }
+    }
+    expect(stable).toBeGreaterThan(0);
+    expect(
+      stateDependent,
+      "no shipped pairing's greedy pick depends on the attacker's age — the scorer's tie-break is " +
+        "now stable, so `coverageScore` no longer needs ages and traits; remove them deliberately",
+    ).toBeGreaterThan(0);
+  });
+
+  it("clause 7: coverage is bounded by the roster and is what `draftParty` reports", () => {
+    for (const gym of loaded.gyms) {
+      const party = draftParty(gym, loaded, createRng(17), 4, "trained");
+      expect(party.rosterSize).toBe(gymRoster(gym).length);
+      expect(party.coverage).toBeGreaterThanOrEqual(0);
+      expect(party.coverage).toBeLessThanOrEqual(party.rosterSize);
+    }
+    // …and the honest key can never credit MORE than the naive one did: throwing a super-effective
+    // move requires knowing one. Somewhere on shipped content it credits strictly fewer, which is
+    // the whole reason the published win rates moved.
+    let strictlyFewer = 0;
+    for (const gym of loaded.gyms) {
+      const level = playerLevelFor(gym, balance, "trained");
+      for (const line of candidateLines(gym.act, loaded)) {
+        for (const slot of gymRoster(gym)) {
+          const defender = makeBattler(
+            { uid: "d", lineId: slot.lineId, age: slot.age, level: slot.level, traits: [] },
+            "enemy",
+            loaded.battle,
+            { isWild: false, enteredOnTurn: 0 },
+          );
+          const naive = movesKnownAt(line, level, balance).some((id) => {
+            const move = loaded.battle.moves.get(id);
+            return (
+              move !== undefined &&
+              move.power > 0 &&
+              typeMultiplier(move.type, defender.types, loaded.battle.typeChart, balance).band ===
+                "super"
+            );
+          })
+            ? 1
+            : 0;
+          const honest = coverageScore([line], ["A"], [[]], level, oneSlotGym(slot), loaded.battle);
+          expect(honest).toBeLessThanOrEqual(naive);
+          if (honest < naive) strictlyFewer += 1;
+        }
+      }
+    }
+    expect(strictlyFewer).toBeGreaterThan(0);
   });
 
   it("clause 8: the policy is pure — the same state always yields the same action, and it draws nothing", () => {
@@ -533,22 +885,30 @@ describe("full-run sim — build-doc §10.5(c)", () => {
     expect(collector.survey.catches).toBeGreaterThan(dex.survey.catches);
   });
 
-  it("no unintended extinction under normal play (the `dex` profile)", () => {
-    const summary = summariseProfile(loaded, "dex", 8);
-    const raidNodes = new Set(balance.yearEvents.raids.map((r) => r.nodeId));
-    const unintended = summary.extinctions.filter((e) => !raidNodes.has(e.nodeId));
+  it("every extinction under normal play stops happening when the raid is suppressed", () => {
+    /*
+     * This assertion used to read "no extinction outside the raid's own nodes", filtering on
+     * `balance.yearEvents.raids` — the raid script vouching for itself. What it asserts now is
+     * measured: the same profile over the same seeds, against a balance whose raid list is empty,
+     * and every (node, line) the shipped column reports has to be absent from it. The stronger
+     * claim — that the control reaches zero NOWHERE — is in "the raid-suppressed control" below.
+     */
+    const shipped = summariseProfile(loaded, { id: "dex", profile: "dex", raids: "shipped" }, 8);
+    const noRaid = summariseProfile(loaded, { id: "dex-no-raid", profile: "dex", raids: "suppressed" }, 8);
+    const survives = new Set(noRaid.extinctions.map((e) => `${e.nodeId}/${e.lineId}`));
+    const notTheRaids = shipped.extinctions.filter((e) => survives.has(`${e.nodeId}/${e.lineId}`));
     expect(
-      unintended,
-      `normal play drove ${unintended.map((e) => `${e.nodeId}/${e.lineId}`).join(", ")} to zero`,
+      notTheRaids.map((e) => `${e.nodeId}/${e.lineId}`),
+      "normal play drove these to zero with the raid taken out, so the raid is not what killed them",
     ).toEqual([]);
   });
 
   it("BINDS — the extinction detector reports a line that really is wiped out, and when", () => {
     // The heaviest profile the shipped rules allow. If nothing here ever reaches zero, the detector
     // could be broken and the test above would be vacuous. The season stamp is asserted too: it is
-    // what the report classifies a raid-attributable extinction by, and a detector that recorded the
-    // fact without the season would leave that classification silently reading "season 0".
-    const summary = summariseProfile(loaded, "collector", 8);
+    // what the report prints next to each cause, and a detector that recorded the fact without the
+    // season would leave that column silently reading "season 0".
+    const summary = summariseProfile(loaded, { id: "collector", profile: "collector", raids: "shipped" }, 8);
     expect(summary.extinctions.length).toBeGreaterThan(0);
     for (const e of summary.extinctions) {
       expect(e.start).toBeGreaterThan(0);
@@ -593,6 +953,228 @@ describe("full-run sim — build-doc §10.5(c)", () => {
       }
     }
     expect(checked, "no node exercised the succession — the test proves nothing").toBeGreaterThan(0);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * 6a. The raid-suppressed control — build-doc §10's "no UNINTENDED extinction"
+ * ════════════════════════════════════════════════════════════════════════════
+ * §10 asks for something neither shipped profile could answer. `baseline` means "no player in the
+ * region", not "nothing happens to the region": the authored Cullbrand strip-harvest is content on
+ * the act clock and fires in the baseline too, so the r4 extinctions the baseline reports are the
+ * raid's. A line that reaches zero with NO PLAYER AND NO RAID was caused by neither, and that is
+ * the only reading of "unintended" the spec supports.
+ *
+ * What these tests have to establish, in order, is that the control is real:
+ *   1. the control's balance genuinely carries no raids, and the shipped one still does;
+ *   2. suppressing for one run does not disarm the raid for another in the same process;
+ *   3. the control is the shipped world MINUS the raids and not some other world;
+ *   4. it agrees with an actually-edited balance file loaded through `--balance` (INV-3);
+ *   5. only then, what it measures — and that it is capable of measuring anything at all.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+const CONTROL: RunSpec = { id: "baseline-no-raid", profile: "baseline", raids: "suppressed" };
+const SHIPPED_BASELINE: RunSpec = { id: "baseline", profile: "baseline", raids: "shipped" };
+const TARGETS_IN_SCRIPT = balance.yearEvents.raids.reduce((n, r) => n + r.targets.length, 0);
+
+describe("the raid-suppressed control — build-doc §10", () => {
+  it("the control's balance carries no raids and the source balance is untouched", () => {
+    expect(balance.yearEvents.raids.length, "the shipped file has no raid to suppress").toBeGreaterThan(0);
+    const rawRaids = (c: unknown): string =>
+      JSON.stringify((c as { yearEvents: { raids: unknown } }).yearEvents.raids);
+    const validatedBefore = JSON.stringify(balance.yearEvents.raids);
+    const rawBefore = rawRaids(loaded.rawBalance);
+    const control = raidSuppressedContent(loaded);
+    expect(control.balance.yearEvents.raids).toEqual([]);
+    expect(rawRaids(control.rawBalance)).toBe("[]");
+    // A deep copy, not the imported module object: mutating that would disarm the raid process-wide
+    // — every other profile in this process reads the same `data/balance.json` import.
+    expect(control.rawBalance).not.toBe(loaded.rawBalance);
+    expect(JSON.stringify(balance.yearEvents.raids)).toBe(validatedBefore);
+    expect(rawRaids(loaded.rawBalance), "the shipped raid list was emptied in place").toBe(rawBefore);
+  });
+
+  it("BINDS — suppressing for one run does not disarm the raid for another in the same process", () => {
+    const suppressedFirst = runFullRun(loaded, seedFor(balance, 0), "baseline", "suppressed");
+    const shippedAfter = runFullRun(loaded, seedFor(balance, 0), "baseline", "shipped");
+    expect(suppressedFirst.raids).toEqual([]);
+    expect(shippedAfter.raids.length, "the second profile lost its raid to the first").toBe(TARGETS_IN_SCRIPT);
+
+    // And the other order, because a leak could go either way.
+    const shippedFirst = runFullRun(loaded, seedFor(balance, 1), "baseline", "shipped");
+    const suppressedAfter = runFullRun(loaded, seedFor(balance, 1), "baseline", "suppressed");
+    expect(shippedFirst.raids.length).toBe(TARGETS_IN_SCRIPT);
+    expect(suppressedAfter.raids).toEqual([]);
+    expect(balance.yearEvents.raids.length).toBeGreaterThan(0);
+  });
+
+  it("the control is the shipped world minus the raids, and differs in nothing else", () => {
+    // The control is built by re-loading a JSON copy of the balance file. If that round trip moved
+    // ANY number, "nothing went extinct" would be a claim about a different game. So: the identical
+    // round trip with the raid list left alone has to reproduce the shipped run byte for byte.
+    const identity = loadContentFromRaw(rawCopy(), "identity-round-trip");
+    expect(identity.balance.yearEvents.raids.length).toBe(balance.yearEvents.raids.length);
+    for (const profile of ["baseline", "dex", "collector"] as const) {
+      const a = runFullRun(loaded, seedFor(balance, 0), profile);
+      const b = runFullRun(identity, seedFor(balance, 0), profile);
+      expect(JSON.stringify(b.survey), `the round trip moved the ${profile} run`).toBe(
+        JSON.stringify(a.survey),
+      );
+      expect(JSON.stringify(b.raids)).toBe(JSON.stringify(a.raids));
+    }
+  });
+
+  it("suppressing in memory equals running a balance file that really has no raids (INV-3)", () => {
+    // An independent route to the same world: write the file out with `raids: []` and load it
+    // through the shipped `--balance` path. If the in-memory construction diverged from an honest
+    // edit of the file, this is where it would show.
+    const raw = rawCopy();
+    (raw["yearEvents"] as Record<string, unknown>)["raids"] = [];
+    const viaFile = loadContent(writeBalance(raw));
+    expect(viaFile.balance.yearEvents.raids).toEqual([]);
+    for (const profile of ["baseline", "dex", "collector"] as const) {
+      const onDisk = runFullRun(viaFile, seedFor(balance, 0), profile);
+      const inMemory = runFullRun(loaded, seedFor(balance, 0), profile, "suppressed");
+      expect(onDisk.raids).toEqual([]);
+      expect(JSON.stringify(inMemory.survey), `${profile}: in-memory suppression is not the file`).toBe(
+        JSON.stringify(onDisk.survey),
+      );
+    }
+  });
+
+  it("no unintended extinction — nothing reaches zero with no player and no raid (§10)", () => {
+    const control = summariseProfile(loaded, CONTROL, 16);
+    expect(control.raidEvents, "the control fired a raid, so it is not a control").toBe(0);
+    expect(control.meanCatches).toBe(0);
+    expect(
+      control.extinctions.map((e) => `${e.nodeId}/${e.lineId} in ${e.seeds}/${control.seeds} seeds`),
+      "these reached zero with neither a player nor the authored raid — an UNINTENDED extinction",
+    ).toEqual([]);
+  });
+
+  it("BINDS — the same instrument with the raid left in DOES reach zero", () => {
+    // Without this, the assertion above is satisfied by any control that cannot see an extinction.
+    // Same function, same seeds, same profile; the raid list is the only difference.
+    const shipped = summariseProfile(loaded, SHIPPED_BASELINE, 16);
+    expect(shipped.raidEvents).toBeGreaterThan(0);
+    expect(
+      shipped.extinctions.length,
+      "with the raid firing and no player, nothing reached zero — the detector is blind",
+    ).toBeGreaterThan(0);
+  });
+
+  it("BINDS — the suppressed instrument still reports an extinction under the heaviest catch load", () => {
+    // The other half of the same worry: `raids: "suppressed"` might be a code path that cannot
+    // report anything. It can — the collector drives lines to zero with no raid anywhere near them.
+    const heavy = summariseProfile(
+      loaded,
+      { id: "collector-no-raid", profile: "collector", raids: "suppressed" },
+      16,
+    );
+    expect(heavy.raidEvents).toBe(0);
+    expect(heavy.extinctions.length).toBeGreaterThan(0);
+    for (const e of heavy.extinctions) expect(e.firstSeason).toBeGreaterThan(0);
+  });
+
+  it("is deterministic, and independent of what else ran first", () => {
+    const first = summariseProfile(loaded, CONTROL, 4);
+    // Interleave a shipped run of a different profile — a shared-state leak would show up here.
+    runFullRun(loaded, seedFor(balance, 2), "collector", "shipped");
+    const second = summariseProfile(loaded, CONTROL, 4);
+    expect(JSON.stringify(second)).toBe(JSON.stringify(first));
+  });
+
+  it("the published matrix crosses every catch profile with every raid policy, once each", () => {
+    expect(PLAY_PROFILES.length).toBe(CATCH_PROFILES.length * RAID_POLICIES.length);
+    for (const profile of CATCH_PROFILES) {
+      for (const raids of RAID_POLICIES) {
+        expect(
+          PLAY_PROFILES.filter((s) => s.profile === profile && s.raids === raids).length,
+          `${profile} × ${raids} is not published exactly once`,
+        ).toBe(1);
+      }
+    }
+    expect(new Set(PLAY_PROFILES.map((s) => s.id)).size).toBe(PLAY_PROFILES.length);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * 6b. The report attributes an extinction by MEASUREMENT, not by the raid's node list
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("attributeExtinction — the substitution the control makes possible", () => {
+  const raid = balance.yearEvents.raids[0];
+  if (!raid) throw new Error("data/balance.json must carry a raid for these tests to mean anything");
+  const harvested = raid.targets[0];
+  if (!harvested) throw new Error("the shipped raid harvests nothing");
+
+  const summary = (spec: RunSpec, extinct: ReadonlyArray<readonly [string, string]>): ProfileSummary => ({
+    spec,
+    seeds: 4,
+    seasonSteps: 24,
+    raidEvents: spec.raids === "shipped" ? 2 : 0,
+    meanCatches: 0,
+    extinctions: extinct.map(([nodeId, lineId]) => ({
+      nodeId,
+      lineId,
+      formName: lineId,
+      start: 5,
+      seeds: 4,
+      firstSeason: 12,
+    })),
+    closest: [],
+    catchesByLine: [],
+  });
+
+  const shippedSpec: RunSpec = { id: "baseline", profile: "baseline", raids: "shipped" };
+  const pair = [raid.nodeId, harvested.lineId] as const;
+
+  it("credits the raid when, and only when, removing the raid removes the extinction", () => {
+    const profiles = [
+      summary(shippedSpec, [pair]),
+      summary(CONTROL, []),
+    ];
+    expect(attributeExtinction(loaded, profiles, shippedSpec, pair[0], pair[1])).toBe("raid-harvested");
+  });
+
+  it("BINDS — a harvested line at the raid's own node that STILL dies with the raid suppressed is not the raid's", () => {
+    // This is the exact case the old classifier got wrong by construction: it read the node and the
+    // target list and answered "raid target" without ever asking whether the raid mattered.
+    const profiles = [
+      summary(shippedSpec, [pair]),
+      summary(CONTROL, []),
+      summary({ id: "collector", profile: "collector", raids: "shipped" }, [pair]),
+      summary({ id: "collector-no-raid", profile: "collector", raids: "suppressed" }, [pair]),
+    ];
+    const collectorSpec = profiles[2]?.spec as RunSpec;
+    expect(attributeExtinction(loaded, profiles, collectorSpec, pair[0], pair[1])).toBe("player");
+  });
+
+  it("calls a line that reaches zero with no player and no raid UNINTENDED", () => {
+    const profiles = [summary(shippedSpec, [pair]), summary(CONTROL, [pair])];
+    expect(attributeExtinction(loaded, profiles, shippedSpec, pair[0], pair[1])).toBe("unintended");
+  });
+
+  it("separates the harvested line from the one that starves above it", () => {
+    const above = loaded.nodes
+      .find((n) => n.id === raid.nodeId)
+      ?.populations;
+    const notHarvested = Object.keys(above ?? {}).find(
+      (lineId) => !raid.targets.some((t) => t.lineId === lineId),
+    );
+    expect(notHarvested, `${raid.nodeId} has no line the raid leaves alone`).toBeDefined();
+    const profiles = [
+      summary(shippedSpec, [[raid.nodeId, notHarvested as string]]),
+      summary(CONTROL, []),
+    ];
+    expect(attributeExtinction(loaded, profiles, shippedSpec, raid.nodeId, notHarvested as string)).toBe(
+      "raid-emergent",
+    );
+  });
+
+  it("says so rather than guessing when no raid-suppressed control was run", () => {
+    const profiles = [summary(shippedSpec, [pair])];
+    expect(attributeExtinction(loaded, profiles, shippedSpec, pair[0], pair[1])).toBe("unclassified");
   });
 });
 
@@ -873,14 +1455,55 @@ describe("the generated report", () => {
     expect(markdown).not.toMatch(/\b\d+\s*(hours?|days?|weeks?)\s+of\s+(work|effort)\b/i);
   });
 
+  it("headlines a ceiling leader AT the level cap, and says coverage is what gets thrown (T-13)", () => {
+    // The two things the report used to get wrong, asserted on the rendered markdown because the
+    // markdown is what anyone tuning this game actually reads.
+    const cap = balance.xp.levelCap;
+    const ceiling = loaded.gyms.filter((g) => aceLevelFor(g) >= cap);
+    expect(ceiling.length).toBeGreaterThan(0);
+    const trained = measurements.gym?.find((r) => r.model === "trained");
+    for (const gym of ceiling) {
+      const row = trained?.gyms.find((g) => g.gymId === gym.id);
+      expect(row?.playerLevel).toBe(cap);
+      // The gym table's own row, verbatim: "<leader> | <type> | <cap> v <cap>". A headline that
+      // slid back to the rank-and-file level fails here.
+      expect(markdown).toContain(`| ${gym.name} | ${gym.type} | ${cap} v ${row?.topLevel ?? cap} |`);
+      expect(markdown).not.toContain(
+        `| ${gym.name} | ${gym.type} | ${Math.max(...gym.slots.map((s) => s.level))} v ${row?.topLevel ?? cap} |`,
+      );
+    }
+    expect(markdown).toContain("The ceiling clause.");
+    // The coverage column must say what it counts; the old header just said "coverage" while the
+    // number underneath meant "knows a move it would not use".
+    expect(markdown).toContain("coverage (thrown)");
+    // …and the model section must state the rule rather than leave the reader to assume the old one.
+    expect(markdown).toContain("what the team would actually\n   THROW");
+  });
+
   it("says plainly that nothing was applied to data/balance.json", () => {
     expect(markdown).toMatch(/Nothing below has been applied/);
+  });
+
+  it("publishes the raid-suppressed control and attributes causes by measurement", () => {
+    // The control has to be in the SHIPPED report, not only in this test file: build-doc §10's
+    // claim is a thing the report states, and it can only state it from a run that happened.
+    expect(markdown).toContain("`baseline-no-raid`");
+    expect(markdown).toContain("raid events fired");
+    expect(markdown).toContain("attributed — **by measurement**");
+    expect(markdown).toContain("never because the node appears");
   });
 
   it("every measurement it prints came from a run that actually happened", () => {
     expect(measurements.gym?.length).toBe(2);
     expect(measurements.chart?.totalBattles).toBeGreaterThan(0);
-    expect(measurements.profiles?.length).toBe(3);
+    // One summary per published run spec — the three catch profiles crossed with the two raid
+    // policies, so the raid-suppressed control is measured by `npm run harness`, not only by tests.
+    expect(measurements.profiles?.length).toBe(PLAY_PROFILES.length);
+    expect(measurements.profiles?.filter((p) => p.spec.raids === "suppressed").length).toBe(3);
+    for (const p of measurements.profiles ?? []) {
+      if (p.spec.raids === "suppressed") expect(p.raidEvents).toBe(0);
+      else expect(p.raidEvents).toBeGreaterThan(0);
+    }
     expect(measurements.overcatch?.length).toBe(4);
     expect(measurements.fixture?.fullBeat).toBe(true);
     expect(measurements.probes.length).toBeGreaterThan(0);

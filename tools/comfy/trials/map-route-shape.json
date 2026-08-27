@@ -1,0 +1,43 @@
+{
+  "name": "map-route-shape",
+  "question": "R8. Rounds 2 and 3 both failed on routes: naming the path's ENDPOINTS gives a dead-straight causeway (u4, u6) or a hedgerow field grid (v4, v5). These cells name the path's SHAPE instead — lazy S, named bends, 'wanders and never runs straight for long', 'meanders around the pools' — and w3-w6 also lead with the TERRAIN rather than the path so the path stops being the subject. Two routes (R2 marsh, R1 meadow) so the winner is not overfitted to one biome. A cell passes if the path is one continuous non-straight line touching two opposite edges, the terrain is the right biome, and there is no grid.",
+  "outDir": "assets/raw/_trials/map-route-shape",
+  "rows": [
+    {
+      "id": "w1-r2-lazy-s",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "prompt": "pixel art top-down route map, retro 90s handheld RPG style, Route 2, the Brackmarsh: open brackish marshland of dark shallow water, brown mud banks, small reed clumps, lily-choked pools and half-sunken dead trees, with one narrow plank boardwalk laid across it that curves like a long lazy S from the bottom of the picture up to the top; a leaning jetty and rotting mooring posts stand in the water beside it; no dry land anywhere else and no buildings, three-quarter overhead view, no characters, no buildings, crisp clean pixel edges, 2D game asset"
+    },
+    {
+      "id": "w2-r2-named-bends",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "prompt": "pixel art top-down route map, retro 90s handheld RPG style, Route 2, the Brackmarsh: open brackish marshland of dark shallow water, brown mud banks, small reed clumps, lily-choked pools and half-sunken dead trees, with one narrow plank boardwalk laid across it that starts at the bottom of the picture, swings wide to the left through the middle, then bends back to the right and continues to the top of the picture; a leaning jetty and rotting mooring posts stand in the water beside it; no dry land anywhere else and no buildings, three-quarter overhead view, no characters, no buildings, crisp clean pixel edges, 2D game asset"
+    },
+    {
+      "id": "w3-r2-wandering",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "prompt": "pixel art top-down route map, retro 90s handheld RPG style, Route 2, the Brackmarsh: a stretch of wild brackish marsh, all dark shallow water, brown mud banks, small reed clumps, lily-choked pools and half-sunken dead trees, crossed corner to corner by a single wandering plank boardwalk that never runs straight for long; a leaning jetty and rotting mooring posts stand in the water beside it; no dry land anywhere else, no buildings, no fences, no fields, three-quarter overhead view, no characters, no buildings, crisp clean pixel edges, 2D game asset"
+    },
+    {
+      "id": "w4-r2-water-first",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "prompt": "pixel art top-down route map, retro 90s handheld RPG style, Route 2, the Brackmarsh: mostly dark open water. Wide brackish marsh with scattered small reed clumps, brown mud banks, lily pads and a few half-sunken dead trees; one thin weathered plank boardwalk meanders across the whole picture from bottom to top, curving around the deeper pools; a leaning jetty and rotting mooring posts stand in the water; no dry land, no buildings, no fences, no fields, three-quarter overhead view, no characters, no buildings, crisp clean pixel edges, 2D game asset"
+    },
+    {
+      "id": "w5-r1-wandering",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "prompt": "pixel art top-down route map, retro 90s handheld RPG style, Route 1, the Meadow Reach: a stretch of wild open meadow, all long grass, wildflower drifts, bramble thickets and a few big scattered oaks, crossed corner to corner by a single wandering dirt track that never runs straight for long; a shallow stream cuts across it with a plank crossing, and a broken length of dry stone wall lies half-buried in the grass; no buildings, no fences, no fields, three-quarter overhead view, no characters, no buildings, crisp clean pixel edges, 2D game asset"
+    },
+    {
+      "id": "w6-r1-water-first",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "prompt": "pixel art top-down route map, retro 90s handheld RPG style, Route 1, the Meadow Reach: mostly deep grass. Wild meadow of long grass and wildflower drifts with bramble thickets, a few big scattered oaks and a shallow stream; one thin worn dirt track meanders across the whole picture from bottom to top, curving around the thickets, with a plank crossing where it meets the stream; no buildings, no fences, no fields, three-quarter overhead view, no characters, no buildings, crisp clean pixel edges, 2D game asset"
+    }
+  ]
+}

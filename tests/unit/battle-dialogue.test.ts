@@ -30,7 +30,7 @@ const balance = content.balance;
 const ctxAt = (act: number, flags: Record<string, FlagValue> = {}): DialogueContext => ({
   act,
   year: FIRST_YEAR,
-  season: seasonOf({ year: FIRST_YEAR, tick: balance.clock.startTick }, balance),
+  season: seasonOf({ year: FIRST_YEAR, tick: balance.clock.startTick, subTick: 0 }, balance),
   flags,
   populations: {},
   floraStock: {},

@@ -66,6 +66,57 @@ export interface FixtureReplay {
   recorded: Record<string, string>;
 }
 
+/**
+ * The released tier at one node: the top predator's most abundant prey that the script did NOT
+ * hammer; where the script hammered the only prey there is, it is that prey's own recovery.
+ *
+ * ⚠ ROLE-FILTERED, AND IT HAS TO BE. build-doc §10.2 names ONE tier — the mesopredator — and this
+ * selection used to be a bare `preyOf` over the collapsed predator's diet of ANY role, ranked by
+ * abundance. That is the same mis-measurement `full-run.ts` was carrying: at four of the six apex
+ * sites the apex also eats a Grazer, and the most abundant prey of a
+ * collapsed apex is usually that Grazer — so the fixture would name a herbivore as "the tier
+ * below", `releasedRose` would score its rebound, and `report.ts` would publish it as the demo
+ * beat. It never did, only because `fixtures/overcatch-script.json` pins `r4`, the one shipped
+ * node where the apex's sole prey pool IS its mesopredator (the fixture's `_why` says so). That
+ * is correctness held up by a prose comment in a JSON file; re-pointing `nodeId` was all it took
+ * to break it.
+ *
+ * ⚠ THE ROLE FILTER IS A NO-OP AT THE SHIPPED FIXTURE NODE, AND THAT IS THE POINT. At `r4` the
+ * only prey is the mesopredator and the script hammers it, so the candidate list is empty here as
+ * it was before the filter and the fall-through still names it. Every role at `r4` is the same in
+ * all three age classes, so no `balance.ecosim.webRoleAgeClass` retune moves it either — nothing a
+ * caller of `replayOvercatchFixture` can pass makes the filter bite, because that entry point
+ * reads its node from `script.nodeId` and takes no node argument. MEASURED over `data/nodes/*.json`:
+ * the filter changes the answer at EIGHT of the twelve shipped nodes — `hearthollow`, `r1`,
+ * `duskhollow` and `r5` (a non-mesopredator would be named where the correct answer is "no line"),
+ * and `brackwater`, `r2`, `bowerdeep` and `r3` (a Grazer would outrank the mesopredator on
+ * abundance). It is a no-op only at `r4` and `cindershelf`. THAT is why the selection is broken out
+ * of `replayOvercatchFixture` as its own exported function: hard-wired to `script.nodeId` it is
+ * unreachable at any node where it bites, and an unreachable guard is one nobody can bind.
+ * `tests/unit/harness-fixture.test.ts` drives it over every shipped node, including the eight.
+ *
+ * The role is read through `core/foodweb.ts`, the repo's one home for it (§8.3, G3); no role name
+ * is written in this file, which `tests/property/foodweb.test.ts` requires of everything in
+ * `tools/`.
+ */
+export function releasedTierOf(
+  loaded: LoadedContent,
+  template: EcoNode,
+  topLineId: string,
+  hammeredLineId: string,
+): string | null {
+  const balance = loaded.balance;
+  const openingWeb = deriveFoodWeb(template, loaded.species, balance);
+  const isMesoLine = (id: string): boolean => {
+    const line = loaded.species.byId.get(id);
+    return line !== undefined && isMesopredator(line, balance);
+  };
+  const preyCandidates = preyOf(openingWeb, topLineId)
+    .filter((id) => id !== hammeredLineId && isMesoLine(id))
+    .sort((a, b) => (template.populations[b]?.count ?? 0) - (template.populations[a]?.count ?? 0));
+  return preyCandidates[0] ?? (isMesoLine(hammeredLineId) ? hammeredLineId : null);
+}
+
 export function replayOvercatchFixture(loaded: LoadedContent): FixtureReplay {
   const balance = loaded.balance;
   const file = loaded.nodes.find((n) => n.id === script.nodeId);
@@ -75,7 +126,6 @@ export function replayOvercatchFixture(loaded: LoadedContent): FixtureReplay {
     );
   }
   const template = toEcoNode(file);
-  const openingWeb = deriveFoodWeb(template, loaded.species, balance);
   const topLineId = topOfWeb(template, loaded)[0];
   if (topLineId === undefined) {
     throw new Error(`tools/harness: node "${file.id}" has no top-of-web predator to collapse`);
@@ -110,38 +160,11 @@ export function replayOvercatchFixture(loaded: LoadedContent): FixtureReplay {
   }
 
   const hammeredLineId = [...hammered][0] ?? "";
-  /*
-   * The released tier is the top predator's most abundant prey that the script did NOT hammer;
-   * where the script hammered the only prey there is, it is that prey's own recovery.
-   *
-   * ⚠ ROLE-FILTERED, AND IT HAS TO BE. build-doc §10.2 names ONE tier — the mesopredator — and this
-   * selection used to be a bare `preyOf` over the collapsed predator's diet of ANY role, ranked by
-   * abundance. That is the same mis-measurement `full-run.ts` was carrying: at four of the six apex
-   * sites the apex also eats a Grazer, and the most abundant prey of a
-   * collapsed apex is usually that Grazer — so the fixture would name a herbivore as "the tier
-   * below", `releasedRose` would score its rebound, and `report.ts` would publish it as the demo
-   * beat. It never did, only because `fixtures/overcatch-script.json` pins `r4`, the one shipped
-   * node where the apex's sole prey pool IS its mesopredator (the fixture's `_why` says so). That
-   * is correctness held up by a prose comment in a JSON file; re-pointing `nodeId` was all it took
-   * to break it.
-   *
-   * At `r4` this changes nothing: the only prey is the mesopredator and the script hammers it, so
-   * the candidate list is empty here as before and the fall-through still names it. At any other
-   * node the fall-through is now `null` — no line — rather than the wrong line, which surfaces as a
-   * false `fullBeat` instead of a fabricated one.
-   *
-   * The role is read through `core/foodweb.ts`, the repo's one home for it (§8.3, G3); no role name
-   * is written in this file, which `tests/property/foodweb.test.ts` requires of everything in
-   * `tools/`.
-   */
-  const isMesoLine = (id: string): boolean => {
-    const line = loaded.species.byId.get(id);
-    return line !== undefined && isMesopredator(line, balance);
-  };
-  const preyCandidates = preyOf(openingWeb, topLineId)
-    .filter((id) => id !== hammeredLineId && isMesoLine(id))
-    .sort((a, b) => (template.populations[b]?.count ?? 0) - (template.populations[a]?.count ?? 0));
-  const releasedLineId = preyCandidates[0] ?? (isMesoLine(hammeredLineId) ? hammeredLineId : null);
+  // The released tier, role-filtered — see `releasedTierOf` above for why the filter is there and
+  // why it is a no-op at this node. At `r4` the fall-through names the hammered mesopredator; at
+  // any other node the fall-through is `null` — no line — rather than the wrong line, which
+  // surfaces as a false `fullBeat` instead of a fabricated one.
+  const releasedLineId = releasedTierOf(loaded, template, topLineId, hammeredLineId);
   const releasedTrace = releasedLineId
     ? perSeason.map((n) => n.populations[releasedLineId]?.count ?? 0)
     : [];

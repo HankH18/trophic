@@ -1,14 +1,14 @@
 {
-  "_comment": "FROZEN at gate B0 (build-doc §8.4, §15). 32 colours, weighted k-means over the approved trial set. Ids c00-c31 are positional and stable; the freeze was a VALUE SWAP, not a schema change. Regenerate/verify with `npx tsx tools/palette/fit.mjs` (deterministic, k-means++ seeded at 42). Method and per-image error live in _method / _validation below and in assets/approved-trials/_palette-freeze/_fit-report.json.",
+  "_comment": "RE-FROZEN at T-15 (build-doc §8.4, §15). Hank ruled \"class-equal\" — the fit that repairs the cool/water region while protecting the player character's own identity bands. 32 colours, weighted k-means over the broadened 19-trial source set. Ids c00-c31 are positional and stable; this was a VALUE SWAP, not a schema change — the id list, the ordering and colorCount are byte-identical to the B0 freeze and only the hex values moved. Regenerate/verify with `npx tsx tools/palette/fit.mjs --sources=tools/palette/candidate-sources.json --out=<path> --outdir=<dir> --with-class-equal --pick=srgb/class-equal --reason=\"…\"` (deterministic, k-means++ seeded at 42; reproduced byte-identically before the swap). Method and per-image error live in _method / _validation below and in assets/approved-trials/_palette-candidate/classequal/_fit-report.json.",
   "_method": {
     "algorithm": "weighted k-means, k=32, k-means++ init seeded at 42 via core/rng.ts (no Math.random, G11)",
     "fitSpace": "sRGB",
-    "weighting": "equal",
-    "weightingRationale": "Each source image contributes equal total weight (1/N) regardless of pixel count, because the town map holds ~353k distinct colours against ~49-60k for the sprites and naive pixel-pooling lets it buy the palette and starve the sprite classes of hue.",
+    "weighting": "class-equal",
+    "weightingRationale": "Each ASSET CLASS contributes equal total weight (1/5), split evenly among that class's images (overworld-character×1, creature-battle×12, trainer-battle×1, map-town×4, map-route×1). This is what \"equal\" was chosen to achieve at gate B0 — \"every asset class gets an equal vote\" — restated for a source set where per-image and per-class are no longer the same thing.",
     "backgroundExcluded": "The plain white backdrop (§9.2 prompt skeleton) is flood-filled from the border and excluded from the cluster input, along with a 2px dilation that drops the anti-aliased rim. It is not a content colour and a slot spent on it is stolen from the artwork.",
     "quantizerMetric": "Scoring assigns each source colour the way tools/postprocess/steps.ts::quantize does — nearest palette entry by squared euclidean distance in sRGB — so the reported error is the error the pipeline will actually produce, not the error of an idealised quantizer.",
     "errorMetric": "CIEDE2000",
-    "selectionRule": "Six candidates (2 fit spaces x 3 weightings). Rule stated before the numbers were seen: minimise the MAXIMUM per-image mean ΔE2000 — \"serves every asset class\" is a claim about the worst class, not the mean. Ties within 0.05 break on the overall mean. OVERRIDDEN: the rule selected srgb/pooled; srgb/equal was frozen instead. Reason: The rule's instrument (per-image MEAN dE) cannot see a 1.29%-of-pixels feature. tools/palette/validate.mjs measures the L6 identity bands directly, and the rule's winner srgb/pooled degrades them badly: the player's star badge scores mean dE 8.33 with its core yellow #f5d300 mapping to ORANGE #eb991c at dE 19.9; skin 7.39; dark outline 6.31. srgb/equal scores star badge 2.93 (single swatch #f9db10, a true yellow), skin 4.02, outline 3.78, leather 3.02 - better on 4 of the 5 player identity bands, and only 0.36 worse on shirt green (2.49 vs 2.13, both invisible). Cost elsewhere is 0.12 on the worst-image mean (map 4.64 vs 4.52) and one fewer light neutral, which shifts the trainer's pale apron warm (worst-significant colour #e2e2e3 at dE 10.9). Gate B0 is about the CHARACTER surviving quantization, so the band measurement decides.",
+    "selectionRule": "Six candidates (2 fit spaces x 3 weightings). Rule stated before the numbers were seen: minimise the MAXIMUM per-image mean ΔE2000 — \"serves every asset class\" is a claim about the worst class, not the mean. Ties within 0.05 break on the overall mean. OVERRIDDEN: the rule selected lab/equal; srgb/class-equal was frozen instead. Reason: Restores the invariant 'equal' was chosen for at B0 — every asset class gets an equal vote — which per-image weighting no longer delivers over a source set with 12 creature images and 1 player.",
     "excluded": [
       "assets/approved-trials/superseded/** (entirely)",
       "assets/approved-trials/player-style-reference.png (style reference carrying an L6-forbidden cape; not an approved asset)"
@@ -16,173 +16,271 @@
   },
   "_validation": {
     "player": {
-      "meanDeltaE2000": 3.304,
-      "p95": 7.732,
-      "p99": 10.572,
-      "max": 32.314,
-      "maxOverColoursHolding0p1pct": 5.257
+      "meanDeltaE2000": 3.508,
+      "p95": 8.238,
+      "p99": 13.715,
+      "max": 33.984,
+      "maxOverColoursHolding0p1pct": 5.09
     },
     "fox": {
-      "meanDeltaE2000": 2.27,
-      "p95": 6.572,
-      "p99": 11.097,
-      "max": 31.575,
-      "maxOverColoursHolding0p1pct": 5.031
+      "meanDeltaE2000": 5.841,
+      "p95": 14.567,
+      "p99": 24.673,
+      "max": 33.895,
+      "maxOverColoursHolding0p1pct": 11.417
     },
     "croc": {
-      "meanDeltaE2000": 4.46,
-      "p95": 11.225,
-      "p99": 15.029,
-      "max": 31.698,
-      "maxOverColoursHolding0p1pct": 1.302
+      "meanDeltaE2000": 8.273,
+      "p95": 23.147,
+      "p99": 27.562,
+      "max": 34.049,
+      "maxOverColoursHolding0p1pct": 8.56
     },
     "trainer": {
-      "meanDeltaE2000": 4.158,
-      "p95": 11.131,
-      "p99": 17.751,
-      "max": 33.939,
-      "maxOverColoursHolding0p1pct": 10.904
+      "meanDeltaE2000": 4.301,
+      "p95": 10.279,
+      "p99": 15.017,
+      "max": 32.567,
+      "maxOverColoursHolding0p1pct": 6.757
     },
     "map": {
-      "meanDeltaE2000": 4.641,
-      "p95": 13.999,
-      "p99": 24.274,
-      "max": 41.445,
-      "maxOverColoursHolding0p1pct": 0.528
+      "meanDeltaE2000": 6.063,
+      "p95": 17.164,
+      "p99": 23.719,
+      "max": 35.861,
+      "maxOverColoursHolding0p1pct": 2.698
+    },
+    "brackwater": {
+      "meanDeltaE2000": 4.66,
+      "p95": 15.16,
+      "p99": 21.673,
+      "max": 36.422,
+      "maxOverColoursHolding0p1pct": 3.509
+    },
+    "r2-marsh": {
+      "meanDeltaE2000": 3.377,
+      "p95": 10.25,
+      "p99": 20.53,
+      "max": 45.732,
+      "maxOverColoursHolding0p1pct": 1.797
+    },
+    "duskhollow": {
+      "meanDeltaE2000": 5.953,
+      "p95": 15.939,
+      "p99": 24.951,
+      "max": 47.483,
+      "maxOverColoursHolding0p1pct": 6.743
+    },
+    "cindershelf": {
+      "meanDeltaE2000": 4.845,
+      "p95": 14.333,
+      "p99": 22.468,
+      "max": 45.472,
+      "maxOverColoursHolding0p1pct": 2.076
+    },
+    "fenmaw": {
+      "meanDeltaE2000": 7.784,
+      "p95": 16.485,
+      "p99": 23.623,
+      "max": 34.183,
+      "maxOverColoursHolding0p1pct": 15.812
+    },
+    "puddlisk": {
+      "meanDeltaE2000": 6.595,
+      "p95": 15.708,
+      "p99": 20.908,
+      "max": 30.613,
+      "maxOverColoursHolding0p1pct": 11.583
+    },
+    "bogling": {
+      "meanDeltaE2000": 3.435,
+      "p95": 8.367,
+      "p99": 13.682,
+      "max": 30.046,
+      "maxOverColoursHolding0p1pct": 8.34
+    },
+    "mirefin": {
+      "meanDeltaE2000": 4.245,
+      "p95": 11.063,
+      "p99": 12.815,
+      "max": 31.332,
+      "maxOverColoursHolding0p1pct": 12.138
+    },
+    "undermere": {
+      "meanDeltaE2000": 7.248,
+      "p95": 16.279,
+      "p99": 20.986,
+      "max": 30.617,
+      "maxOverColoursHolding0p1pct": 15.979
+    },
+    "duskstalk": {
+      "meanDeltaE2000": 5.734,
+      "p95": 8.348,
+      "p99": 9.596,
+      "max": 29.982,
+      "maxOverColoursHolding0p1pct": 8.348
+    },
+    "wispurr": {
+      "meanDeltaE2000": 4.469,
+      "p95": 13.802,
+      "p99": 19.758,
+      "max": 28.35,
+      "maxOverColoursHolding0p1pct": 19.429
+    },
+    "gloomoth": {
+      "meanDeltaE2000": 4.417,
+      "p95": 9.645,
+      "p99": 11.438,
+      "max": 25.722,
+      "maxOverColoursHolding0p1pct": 10.49
+    },
+    "sporantle": {
+      "meanDeltaE2000": 6.264,
+      "p95": 18.382,
+      "p99": 19.246,
+      "max": 32.736,
+      "maxOverColoursHolding0p1pct": 18.601
+    },
+    "webvern": {
+      "meanDeltaE2000": 7.307,
+      "p95": 13.539,
+      "p99": 15.272,
+      "max": 23.606,
+      "maxOverColoursHolding0p1pct": 11.201
     }
   },
   "frozen": true,
-  "frozenAt": "2026-08-25",
-  "source": "k-means over the 5 approved trials (player, fox, croc, trainer, map), sRGB / equal weighting, seed 42 — gate B0",
+  "frozenAt": "2026-08-26",
+  "source": "k-means over 19 trials (player, fox, croc, trainer, map, brackwater, r2-marsh, duskhollow, cindershelf, fenmaw, puddlisk, bogling, mirefin, undermere, duskstalk, wispurr, gloomoth, sporantle, webvern), sRGB / class-equal weighting, seed 42 — re-frozen at T-15, superseding the 5-trial B0 freeze of 2026-08-25",
   "colorCount": 32,
   "colors": [
     {
       "id": "c00",
-      "hex": "#030202"
+      "hex": "#040308"
     },
     {
       "id": "c01",
-      "hex": "#a4a3ad"
+      "hex": "#8898a5"
     },
     {
       "id": "c02",
-      "hex": "#fdfdfb"
+      "hex": "#d2e0e2"
     },
     {
       "id": "c03",
-      "hex": "#2a1212"
+      "hex": "#faf7eb"
     },
     {
       "id": "c04",
-      "hex": "#53210c"
+      "hex": "#321410"
     },
     {
       "id": "c05",
-      "hex": "#6e3620"
+      "hex": "#642c16"
     },
     {
       "id": "c06",
-      "hex": "#a20d07"
+      "hex": "#74564e"
     },
     {
       "id": "c07",
-      "hex": "#765b4e"
+      "hex": "#8c5230"
     },
     {
       "id": "c08",
-      "hex": "#8f5230"
+      "hex": "#c72a1b"
     },
     {
       "id": "c09",
-      "hex": "#e1541b"
+      "hex": "#aa7241"
     },
     {
       "id": "c10",
-      "hex": "#ec9a70"
+      "hex": "#ca9164"
     },
     {
       "id": "c11",
-      "hex": "#b07037"
+      "hex": "#f3a262"
     },
     {
       "id": "c12",
-      "hex": "#ab8d62"
+      "hex": "#c8bca5"
     },
     {
       "id": "c13",
-      "hex": "#f39311"
+      "hex": "#efc57a"
     },
     {
       "id": "c14",
-      "hex": "#f49f4d"
+      "hex": "#f7c398"
     },
     {
       "id": "c15",
-      "hex": "#f0c05f"
+      "hex": "#f9dab4"
     },
     {
       "id": "c16",
-      "hex": "#eec092"
+      "hex": "#f8d80f"
     },
     {
       "id": "c17",
-      "hex": "#f9daae"
+      "hex": "#054114"
     },
     {
       "id": "c18",
-      "hex": "#f7ebd3"
+      "hex": "#37630f"
     },
     {
       "id": "c19",
-      "hex": "#90b633"
+      "hex": "#2d6f38"
     },
     {
       "id": "c20",
-      "hex": "#a9c93f"
+      "hex": "#6a9827"
     },
     {
       "id": "c21",
-      "hex": "#f9db10"
+      "hex": "#49ae53"
     },
     {
       "id": "c22",
-      "hex": "#faec67"
+      "hex": "#89b935"
     },
     {
       "id": "c23",
-      "hex": "#033309"
+      "hex": "#68cb6c"
     },
     {
       "id": "c24",
-      "hex": "#2a7a34"
+      "hex": "#9ecd42"
     },
     {
       "id": "c25",
-      "hex": "#688b2d"
+      "hex": "#399985"
     },
     {
       "id": "c26",
-      "hex": "#4bac53"
+      "hex": "#4cdab1"
     },
     {
       "id": "c27",
-      "hex": "#68c361"
+      "hex": "#73e3e7"
     },
     {
       "id": "c28",
-      "hex": "#083f22"
+      "hex": "#2178bb"
     },
     {
       "id": "c29",
-      "hex": "#1e4d35"
+      "hex": "#3da2d7"
     },
     {
       "id": "c30",
-      "hex": "#2e6040"
+      "hex": "#272940"
     },
     {
       "id": "c31",
-      "hex": "#2865cc"
+      "hex": "#303271"
     }
   ]
 }

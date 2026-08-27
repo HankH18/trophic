@@ -496,6 +496,18 @@ function fakeScene(registered: string[]): {
   started: Started[];
   launched: Started[];
   overworld: unknown;
+  /**
+   * Every scene-plugin call the overworld received, in order — `launch:Key`, `pause`, `stop:Key`,
+   * `resume`.
+   *
+   * ⚠ ADDED BECAUSE THE RIG COULD NOT SEE THE DEFECT IT WAS SITTING ON. `launched` records WHAT was
+   * opened and says nothing about the hand-off around it, so this rig was green while the epilogue
+   * survey was launched over a RUNNING overworld — the only full-screen hand-off in the repo that
+   * did not pause its parent — and while it was launched with no `onClose` at all, i.e. a screen the
+   * player could not leave at the end of the run. A list of calls in order is what makes
+   * "`launch` → `pause`, and `stop` → `resume` on the way back" assertable at all.
+   */
+  sceneCalls: string[];
   fireCreate: () => void;
   pressEscape: () => void;
 } {
@@ -506,6 +518,7 @@ function fakeScene(registered: string[]): {
   const createHandlers: Array<() => void> = [];
   const escHandlers: Array<() => void> = [];
   const launched: Started[] = [];
+  const sceneCalls: string[] = [];
   const overworld = {
     events: {
       on(event: string, fn: () => void): void {
@@ -523,10 +536,26 @@ function fakeScene(registered: string[]): {
       manager: { keys },
       start(key: string, data?: unknown): void {
         started.push({ key, data });
+        sceneCalls.push(`start:${key}`);
       },
       // The epilogue survey is LAUNCHED over the overworld, not started in place of it.
       launch(key: string, data?: unknown): void {
         launched.push({ key, data });
+        sceneCalls.push(`launch:${key}`);
+      },
+      /*
+       * The other three quarters of the hand-off protocol. They are RECORDED rather than stubbed
+       * away to nothing, because "the overworld is not still live underneath the ending" is a claim
+       * about this list and about nothing else the rig can see.
+       */
+      pause(): void {
+        sceneCalls.push("pause");
+      },
+      resume(): void {
+        sceneCalls.push("resume");
+      },
+      stop(key?: string): void {
+        sceneCalls.push(`stop:${key ?? "self"}`);
       },
     },
   };
@@ -548,6 +577,7 @@ function fakeScene(registered: string[]): {
     started,
     launched,
     overworld,
+    sceneCalls,
     fireCreate: () => createHandlers.forEach((fn) => fn()),
     pressEscape: () => escHandlers.forEach((fn) => fn()),
   };
@@ -652,6 +682,72 @@ describe("enterGameplay — the seam that decides whether the game is reachable"
     expect(moved, "the epilogue reported the live region rather than a projected one").toBe(true);
   });
 
+  /**
+   * …AND THE PLAYER CAN GET OFF IT. The half the test above does not reach.
+   *
+   * Everything asserted up there was true of an ending that could not be dismissed: the hook was
+   * supplied, the survey was launched, the numbers were a projection — and the `SurveySceneData` it
+   * was launched with carried NO `onClose`, over an overworld that was never paused. `SurveyScene`'s
+   * `close()` is `onClose` and nothing else, so ESC on the last screen of a finished run did
+   * nothing, while the overworld underneath kept its own keys (a paused scene answers
+   * `Phaser.Input.Keyboard.KeyboardPlugin.isActive()` false; a running one does not — so the same
+   * ESC also reached `bindSessionMenuKey`, which `scene.start(Menu)`s the overworld out from under
+   * the survey). Build-doc §16 lists "Vellsire choice + epilogue survey" among the never-cut.
+   *
+   * `tests/unit/survey-scene.test.ts` drives the real `SurveyScene` over the data this hook builds
+   * and presses the real ESC binding. What only THIS file can ask is whether the composition root
+   * follows the protocol — and that is a claim about the order of calls on the parent.
+   */
+  it("the epilogue is a hand-off, not a takeover: launch → pause, and closing it stops and resumes", () => {
+    bootWith(new FakeLocalStorage());
+    startNewGame({ slot: 0, seed: 4242 });
+    const rig = fakeScene([SCENE_KEYS.menu, SCENE_KEYS.overworld, SCENE_KEYS.survey]);
+    enterGameplay(rig.scene as RouterScene);
+    const data = rig.started[0]?.data as {
+      hooks: { onRunComplete?: (s: SaveEnvelope, o: unknown) => void };
+    };
+    data.hooks.onRunComplete?.(registry.save(), rig.overworld);
+
+    // The overworld is not live under the ending — the protocol every other full-screen hand-off in
+    // `game/scenes/OverworldScene.ts` follows (`handOffToBattle`, `playEntry`, `beginYearTurn`).
+    expect(rig.sceneCalls, "the epilogue survey was launched over a RUNNING overworld").toEqual([
+      `launch:${SCENE_KEYS.survey}`,
+      "pause",
+    ]);
+
+    const survey = rig.launched[0]?.data as { onClose?: () => void };
+    expect(typeof survey.onClose, "the epilogue survey is launched with no way to close it").toBe(
+      "function",
+    );
+
+    survey.onClose?.();
+    expect(rig.sceneCalls.slice(-2), "closing the ending did not give the region back").toEqual([
+      `stop:${SCENE_KEYS.survey}`,
+      "resume",
+    ]);
+  });
+
+  it("the ending refuses to pause the overworld behind a survey that is not registered", () => {
+    /*
+     * `ScenePlugin.launch` on an unregistered key is a `console.warn` and a silent no-op; `pause()`
+     * is not. Doing the second after the first fails would leave the player in a frozen overworld
+     * with nothing drawn over it and no key that does anything — a hard lock, strictly worse than
+     * the dead ESC being repaired. So the guard is asserted, not assumed.
+     */
+    bootWith(new FakeLocalStorage());
+    startNewGame({ slot: 0, seed: 4242 });
+    const rig = fakeScene([SCENE_KEYS.menu, SCENE_KEYS.overworld]);
+    expect(sceneRegistered(rig.overworld as RouterScene, SCENE_KEYS.survey)).toBe(false);
+    enterGameplay(rig.scene as RouterScene);
+    const data = rig.started[0]?.data as {
+      hooks: { onRunComplete?: (s: SaveEnvelope, o: unknown) => void };
+    };
+    data.hooks.onRunComplete?.(registry.save(), rig.overworld);
+
+    expect(rig.launched).toEqual([]);
+    expect(rig.sceneCalls, "the overworld was paused with nothing over it").toEqual([]);
+  });
+
   it("the epilogue projection is deterministic — same save, same numbers (L10)", () => {
     bootWith(new FakeLocalStorage());
     startNewGame({ slot: 0, seed: 77 });
@@ -734,7 +830,7 @@ describe("registry — one copy of every fact", () => {
     expect(node && registry.nodeById(node.id)).toBeUndefined();
   });
 
-  it("the clock IS the save's {year, tick} — derived, never stored twice (defect I4's shape)", () => {
+  it("the clock IS the save's {year, tick, subTick} — derived, never stored twice (defect I4's shape)", () => {
     registry.setContent(content);
     const first = content.nodes[0];
     expect(first).toBeDefined();
@@ -745,9 +841,25 @@ describe("registry — one copy of every fact", () => {
     registry.setStorage(new MemoryStorage());
     registry.startSession({ slot: 0, save, streams: {} });
 
-    expect(registry.clock()).toEqual({ year: save.year, tick: save.tick });
-    registry.setSave({ ...save, year: save.year + 2, tick: 9 });
-    expect(registry.clock()).toEqual({ year: save.year + 2, tick: 9 });
+    // EVERY field of ClockState, not just the two it had when I4 was found. `subTick` joined the
+    // clock when a battle started costing a fraction of a tick, and it is the field a second copy
+    // would desync on FIRST — it moves on every fight, where `tick` moves once per two of them.
+    expect(registry.clock()).toEqual({
+      year: save.year,
+      tick: save.tick,
+      subTick: save.subTick ?? 0,
+    });
+
+    /*
+     * Moving the save must move all three. The sub-tick is deliberately set OFF its default: a
+     * registry that answered `subTick: 0` from a copy of its own would pass an assertion pinned to
+     * the fresh value and fail only in play, which is the exact failure mode I4 was.
+     */
+    const offBeat = balance.clock.subTicksPerTick - 1;
+    expect(offBeat, "subTicksPerTick must exceed 1 for this assertion to bind").toBeGreaterThan(0);
+    const moved = { ...save, year: save.year + 2, tick: 9, subTick: offBeat };
+    registry.setSave(moved);
+    expect(registry.clock()).toEqual({ year: moved.year, tick: moved.tick, subTick: offBeat });
   });
 
   it("setSave keeps the slot and the streams the session was opened with", () => {

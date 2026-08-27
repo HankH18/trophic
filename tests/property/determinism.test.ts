@@ -33,7 +33,11 @@ const ctx = defaultContext();
 const balance = content.balance;
 const seasons = balance.clock.seasonOrder;
 
-/** The whole region, six years, one season at a time — serialised exactly as the save would hold it. */
+/**
+ * The whole region, `balance.clock.yearsTotal` years, one season at a time — serialised exactly as
+ * the save would hold it. The span is read off balance rather than written as six, because six is a
+ * tunable (build-doc §16 G11) and the property is not about that number.
+ */
 function trajectory(seed: number, years = balance.clock.yearsTotal): string {
   let nodes = content.nodes.map((file) => toEcoNode(file));
   const rng = subsystemRng(seed, "sim");
@@ -185,7 +189,9 @@ describe("determinism — a run resumes exactly where it was saved (build-doc §
     const node = toEcoNode(file);
     const before = JSON.stringify(node);
     const rng = createRng(3);
-    for (let s = 0; s < 4; s++) step(node, seasons[s % seasons.length] as Season, rng, ctx);
+    // One full cycle of the year's seasons — read off `balance.clock.seasonOrder`, not the 4 that
+    // order happens to hold today, so a retune of the calendar keeps stepping every season exactly once.
+    for (let s = 0; s < seasons.length; s++) step(node, seasons[s] as Season, rng, ctx);
     expect(JSON.stringify(node)).toBe(before);
   });
 

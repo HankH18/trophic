@@ -180,48 +180,25 @@
     {
       "kind": "move",
       "moveId": "overgrow"
-    },
-    {
-      "kind": "move",
-      "moveId": "overgrow"
-    },
-    {
-      "kind": "switch",
-      "uid": "p-loam"
-    },
-    {
-      "kind": "move",
-      "moveId": "overgrow"
-    },
-    {
-      "kind": "move",
-      "moveId": "overgrow"
-    },
-    {
-      "kind": "switch",
-      "uid": "p-ember"
-    },
-    {
-      "kind": "move",
-      "moveId": "pyre"
     }
   ],
   "expect": {
     "outcome": "win",
-    "turns": 12,
-    "events": 65,
-    "eventDigest": "51887e64",
+    "turns": 8,
+    "events": 47,
+    "eventDigest": "e397616b",
     "finalHp": {
       "p-skir": 13,
       "p-nib": 0,
       "p-brambl": 0,
-      "p-polly": 0,
-      "p-loam": 0,
-      "p-ember": 59,
+      "p-polly": 98,
+      "p-loam": 111,
+      "p-ember": 69,
       "maribel-1": 0,
       "maribel-2": 0,
       "maribel-3": 0
-    }
+    },
+    "_reRecordedForT10T11": "RE-RECORDED for T-10 + T-11. balance.age.multiplier was halved (J 0.75 -> 0.875, E 1.15 -> 1.075) and the Producer role template re-spent (atk 40 -> 60, ins 60 -> 40), so this party walks through Maribel faster than it used to: turns 12 -> 8, events 65 -> 47, eventDigest 51887e64 -> e397616b, and the last six commands had nothing left to hit. Those six are dropped on the same rule the 2026-08-25 re-recording used -- a fixture that records a refusal is not a recording of play -- so the action log is the SAME walk-through, ten commands instead of sixteen. The outcome is still `win` and the enemy party is still gyms.json's, which the test re-reads. p-polly and p-loam now end above zero because the fight ends before they are worn down, and p-loam is never sent out at all. Re-recorded, not loosened: every expectation below came out of replaying this file through core/battle.ts, and the digest is still exact."
   },
   "_recording": "RE-RECORDED 2026-08-25 against the amended roster. The action log is the SAME party walk-through as before, minus the two Maul commands that the shorter fight left with nothing to hit (they would have been refused with `actionRejected`, and a fixture that records a refusal is not a recording of play). Every expectation below — turns, event count, digest, final HP — was produced by replaying this file through core/battle.ts, not edited by hand."
 }

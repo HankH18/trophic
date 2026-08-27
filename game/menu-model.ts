@@ -35,17 +35,37 @@ import { swatchHex } from "./ui/Palette";
  * They live HERE rather than in the scene for the reason this whole file exists: a scene cannot be
  * imported by a node test, so a palette rule inside one is a palette rule nothing can check.
  *
+ * RE-PICKED AT T-15, when `data/palette.json` was re-frozen to the class-equal fit. That swap moved
+ * all 32 hex VALUES while leaving the ids positional and byte-identical in order, so an id is a
+ * SLOT, not a colour: `c18` went from a cream (#f7ebd3, 17.5 : 1 on `c00`) to a mid-dark green
+ * (#37630f, 2.89 : 1) and the primary text of every C1 screen became unreadable without one
+ * character of this file changing. The ids below therefore moved; the ROLES and their measured
+ * levels did not.
+ *
  * Chosen by measured contrast against the background swatch rather than by eye — a menu whose text
  * the player cannot read is not palette compliance, it is a different defect. Against `c00`
- * (#030202) these are 17.5 : 1 (text), 6.6 : 1 (dim), 12.3 : 1 (accent), 5.4 : 1 (danger) and
- * 11.0 : 1 (ok). `game/ui/Palette.ts`'s `UI_SWATCH` is deliberately NOT reused — but NOT because its
- * ink differs. Where the two tables share a role name they name the SAME swatch: `text` is `c18` in
- * both, `accent` is `c15` in both. They are separate because they are tuned against different
- * GROUND. `UI_SWATCH` paints the battle HUD, whose plate is `panel: c05` (#6e3620) and whose
- * selection bar is `cursor: c02`, so its `cursorInk` (c03), `cursorInkMuted` (c07) and `cursorInkDim`
- * (c08) are DARK ink meant to be read ON a light bar: against the `c00` void THIS table paints on
- * they are 1.2 : 1, 3.3 : 1 and 3.4 : 1 — unreadable here. `UI_SWATCH` also carries no `bg`, `dim`,
- * `danger` or `ok` role at all, which is four of the six roles below.
+ * (#040308), with the pre-swap number in brackets: 19.15 : 1 (`text`, was 17.5), 6.93 : 1 (`dim`,
+ * was 6.6), 14.51 : 1 (`accent`, was 12.3), 5.08 : 1 (`danger`, was 5.4) and 11.03 : 1 (`ok`, was
+ * 11.0).
+ *
+ * `danger` KEEPS SLOT `c09` and loses its red. The pre-swap `c09` was #e1541b; the class-equal fit
+ * put #aa7241 there. The fit's only true red is `c08` (#c72a1b), which reads 3.70 : 1 on `c00` —
+ * under the 4.5 : 1 this table's own test demands of every one of these five roles, because these
+ * are footer SENTENCES ("This slot could not be opened."), not graphical marks. So the choice was a
+ * legible warm mid or an illegible red, and `c09` also keeps `danger` DIMMER than `ok` (5.08 vs
+ * 11.03, as 5.4 vs 11.0 before), which is the second cue the `removed.ok ? UI.ok : UI.danger` pair
+ * separates on when hue alone fails a colour-blind player. It is the same swatch
+ * `game/survey-view.ts` re-picked for `inkCollapsed`/`lineCollapsed`, so the two screens agree on
+ * what failure looks like.
+ *
+ * `game/ui/Palette.ts`'s `UI_SWATCH` is deliberately NOT reused — but NOT because its ink differs.
+ * Where the two tables share a role name they name the SAME swatch: `text` is `c03` in both,
+ * `accent` is `c16` in both. They are separate because they are tuned against different GROUND.
+ * `UI_SWATCH` paints the battle HUD, whose plate is `panel: c06` (#74564e) and whose selection bar
+ * is `cursor: c03`, so its `cursorInk` (c04), `cursorInkMuted` (c07) and `cursorInkDim` (c19) are
+ * DARK ink meant to be read ON a light bar: against the `c00` void THIS table paints on they are
+ * 1.2 : 1, 3.3 : 1 and 3.4 : 1 — unreadable here. `UI_SWATCH` also carries no `bg`, `dim`, `danger`
+ * or `ok` role at all, which is four of the six roles below.
  *
  * `tests/unit/game-menu-model.test.ts` READS both tables out of `game/ui/Palette.ts` and pins every
  * clause of that paragraph, rather than restating a swatch id. It has to: the sentence this replaces
@@ -54,11 +74,11 @@ import { swatchHex } from "./ui/Palette";
  */
 export const UI_SWATCH_ID = {
   bg: "c00",
-  text: "c18",
-  dim: "c12",
-  accent: "c15",
+  text: "c03",
+  dim: "c01",
+  accent: "c16",
   danger: "c09",
-  ok: "c20",
+  ok: "c24",
 } as const;
 
 /** The same roles as `"#rrggbb"`, resolved through `data/palette.json`. */

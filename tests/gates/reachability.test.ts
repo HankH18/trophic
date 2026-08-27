@@ -387,6 +387,7 @@ function observedWriters(): Map<string, string> {
     const clock: ClockState = {
       year: start.year + Math.floor(t / balance.clock.ticksPerYear),
       tick: t % balance.clock.ticksPerYear,
+      subTick: 0,
     };
     const stamped: SaveEnvelope = { ...save, year: clock.year, tick: clock.tick };
     const after = syncEventFlags(stamped, clock, deps, balance);
@@ -448,6 +449,39 @@ function observedWriters(): Map<string, string> {
     const before = freshSave();
     const resolved = resolveVellsireCatch({ save: before, content, state: { outcome: null }, caught });
     note(before, resolved.save, `game/finale.ts resolveVellsireCatch (${label})`);
+  }
+
+  /*
+   * 5. THE LAPSE — a quest whose window shut with the objective unmet, DRIVEN.
+   *
+   * `game/quests.ts` `settleCycles` writes `quest.<id>.lapsed`, and no source of this census could
+   * see it. LITERAL cannot: the key is built by a template (`` `quest.${id}${LAPSED_SUFFIX}` ``)
+   * and `literalWriters` skips every template body on purpose. OBSERVED could not either: the two
+   * `syncQuestFlags` runs above drive a FRESH save and a RETIRED one, and neither has a quest
+   * standing open into a second year, which is the only state that can lapse. So the one entry
+   * gated on a lapse read as gated on a flag nothing writes, while `tests/unit/quests.test.ts` was
+   * simultaneously asserting the write against a real year turn.
+   *
+   * ⚠ IT IS DRIVEN RATHER THAN DECLARED, AND THAT IS THE WHOLE GATE. An expander over
+   * `questDefinitions()` would hand every quest a lapsed flag whether or not anything writes one —
+   * the permissive direction this file exists to refuse, and the exact shape of the defect it was
+   * built after (a green suite certifying entries the player could not reach). Instead every quest
+   * with an objective row and an acceptance is put through the two steps the game puts it through:
+   * accept it, then turn the year on it without meeting it. Whatever lands is noted; a quest whose
+   * objective does NOT shut at a year turn produces nothing here and is still reported as having no
+   * writer. No quest id, no flag suffix and no copy of the lapse predicate appears below.
+   */
+  for (const def of questDefinitions(DIALOGUE)) {
+    if (def.acceptFlag === null || QUEST_OBJECTIVES[def.id] === undefined) continue;
+    // Taken on, and stamped with the year it was taken in by the real writer rather than by hand.
+    const accepted = syncQuestFlags({ ...freshSave(), questFlags: { [def.acceptFlag]: true } }, content);
+    // …and now a year turns on it, with the objective still unmet on a save that has done nothing.
+    const later: SaveEnvelope = { ...accepted, year: accepted.year + 1 };
+    note(
+      later,
+      syncQuestFlags(later, content),
+      `game/quests.ts settleCycles (${def.id} accepted, then a year turned on it)`,
+    );
   }
 
   return out;
@@ -753,7 +787,7 @@ function kindsProvenByPropSelector(): Set<DialogueKind> {
   const ctx = (act: number): DialogueContext => ({
     act,
     year: FIRST_YEAR,
-    season: seasonOf({ year: FIRST_YEAR, tick: balance.clock.startTick }, balance),
+    season: seasonOf({ year: FIRST_YEAR, tick: balance.clock.startTick, subTick: 0 }, balance),
     flags: {},
     populations: {},
     floraStock: {},

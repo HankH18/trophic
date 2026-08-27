@@ -566,6 +566,12 @@ export type GameAction =
   | { t: "travel"; to: string }
   | { t: "foray"; nodeId: string }
   | { t: "inn"; townId: string }
+  /**
+   * A battle STARTING — the clock cost, not the fight. `battleAction` below is a move inside one
+   * and is free; this is the single `clock.battleTicks` charge levied at launch. It carries the
+   * launch site so a replay can tell a wild encounter from a gym, a rival or the finale.
+   */
+  | { t: "battle"; kind: "wild" | "gym" | "rival" | "ancient"; nodeId: string }
   | { t: "battleAction"; action: BattleAction }
   | { t: "catch"; nodeId: string; lineId: string; uid: string }
   | { t: "release"; nodeId: string; lineId: string; uid: string }
@@ -579,6 +585,13 @@ export interface ActionLogEntry {
   seq: number;
   year: number;
   tick: number;
+  /**
+   * The sub-tick the action was taken at. Optional so a log written before battles cost time still
+   * satisfies the type and replays as `0`; `appendAction` always writes it. Without it a replay of
+   * a log containing an odd number of half-tick battles lands a sub-tick short of the original,
+   * which L10 forbids — identical (seed, actionLog) must give a byte-identical save.
+   */
+  subTick?: number;
   action: GameAction;
 }
 
@@ -594,6 +607,18 @@ export interface SaveFile {
   seed: number;
   year: number;
   tick: number;
+  /**
+   * The fraction of a tick owed but not yet whole — see `ClockState.subTick`. Optional on the type
+   * so a save written before battles cost time still satisfies it and reads as `0`; `core/save.ts`
+   * always writes it.
+   */
+  subTick?: number;
+  /**
+   * Steps walked since the last foray tick was charged, persisted so quitting mid-excursion does
+   * not refund the walk. It used to be scene state only, which made a save-and-reload a free reset
+   * of the odometer; that is the same hole as the node-change reset removed alongside it.
+   */
+  forayStepsSinceTick?: number;
   currentNode: string;
   party: OwnedCreature[];
   box: OwnedCreature[];
@@ -819,9 +844,27 @@ export interface Balance {
   clock: {
     ticksPerSeason: number;
     ticksPerYear: number;
+    /**
+     * TIME RESOLUTION — how finely an action cost may be expressed, and the reason the clock can
+     * charge half a tick without a float ever entering `ClockState`.
+     *
+     * Every cost below is written in TICKS, as a human reads them ("a battle costs half a tick"),
+     * and is converted once, at the edge, into an integer count of sub-ticks:
+     * `Math.round(cost * subTicksPerTick)`. All clock arithmetic downstream of that conversion is
+     * integer, so a replay is byte-identical and no accumulated float drift is possible — which is
+     * the whole reason this key exists rather than a `tick: number` that happens to hold 0.5.
+     *
+     * It is the ONLY thing to change to make finer costs expressible: raise it to 4 and quarter
+     * ticks become legal, to 10 and tenths do. `core/schemas.ts` refuses any cost that is not an
+     * exact multiple of `1 / subTicksPerTick`, so an unrepresentable cost is a boot failure and
+     * never a silent rounding.
+     */
+    subTicksPerTick: number;
     travelTicks: number;
     forayTicks: number;
     innTicks: number;
+    /** Charged once per battle, at launch — see `OverworldScene.launchBattle`. */
+    battleTicks: number;
     seasonOrder: Season[];
     startYear: number;
     startTick: number;
@@ -835,7 +878,26 @@ export interface Balance {
      * which is what makes the year-1 over-catch beat reachable (build-doc §1 / §15 I2).
      */
     stepsPerForay: number;
+    /**
+     * Chance of meeting something on ONE step **taken on an encounter tile**. It is not the chance
+     * per walked step: see `encounterTileFraction`, which is the other half of the product.
+     */
     encounterChancePerStep: number;
+    /**
+     * GRASS GATING — the fraction of a node's walkable cells that are encounter tiles.
+     *
+     * Encounters do not roll on every walked step; they roll on the tall-grass share of the map.
+     * The effective per-step rate is `encounterTileFraction * encounterChancePerStep`, so this key
+     * is the lever on how dense the region is without touching what an encounter tile itself is
+     * worth.
+     *
+     * It is a NUMBER rather than a mask because no maps exist yet — `assets/final/` holds one empty
+     * file and 287 of 288 manifest rows are unstarted. When painted maps land, each node gains an
+     * encounter mask beside its `collisionMask` and the sampled share replaces this value per node;
+     * this stays as the fallback for any node that declares none, which is why it is a fraction of
+     * walkable cells and not a step count. Nothing about the roll order changes when that happens.
+     */
+    encounterTileFraction: number;
     outOfSeasonWeight: number;
     scavengerRecentDeathsDivisor: number;
     /**

@@ -51,6 +51,7 @@ import type {
   GymLeader,
   NodeFile,
   RivalEncounter,
+  SaveFile,
   Season,
 } from "../../core/types";
 import {
@@ -75,6 +76,7 @@ import {
 import {
   applyWildBattleOutcome,
   buildWildBattle,
+  isStanding,
   liveNodeOf,
   wildBattleProblem,
 } from "../wild-battle";
@@ -160,6 +162,7 @@ import {
   driveYearTurn,
   finishYearTurn,
   yearTurnTrigger,
+  type YearCarry,
   type YearTurnDrive,
   type YearTurnSceneData,
 } from "./YearTurnScene";
@@ -306,7 +309,11 @@ export class OverworldScene extends Phaser.Scene {
   private overlayVisible = false;
   private hud!: Phaser.GameObjects.Text;
   private banner!: Phaser.GameObjects.Text;
-  /** The L8 16-pip meter (game/ui/SeasonMeter.ts) — the one readout of the clock on this screen. */
+  /**
+   * L8's meter (game/ui/SeasonMeter.ts) — the one readout of the clock on this screen. It carries one
+   * pip per `clock.ticksPerYear`, which is why this line no longer says how many: it said "16-pip"
+   * and the year is 52 ticks long now.
+   */
   private meterHud!: SeasonMeterHud;
   /** True while the year-turn sequence has the screen; this scene is paused and spends no ticks. */
   private yearTurnRunning = false;
@@ -409,6 +416,16 @@ export class OverworldScene extends Phaser.Scene {
 
     this.node = this.nodeFile(this.save.currentNode);
     this.movementCfg = movementConfig(this.balance, this.msPerTile);
+    /*
+     * THE FORAY ODOMETER IS THE SAVE'S, and it is read back here.
+     *
+     * It used to be scene state and nothing else, so quitting mid-excursion refunded the walk: 47 of
+     * the 48 steps a foray tick is charged for could be banked, saved, reloaded and banked again,
+     * for ever, at no cost on the meter. `SaveFile.forayStepsSinceTick` is where it lives now.
+     * `?? 0` because the field is optional: a save written before it existed opens on a fresh
+     * excursion rather than failing to load (INV-2).
+     */
+    this.stepsSinceTick = this.save.forayStepsSinceTick ?? 0;
 
     /*
      * A Phaser scene INSTANCE outlives a restart — `scene.start` shuts the scene down and re-runs
@@ -455,8 +472,8 @@ export class OverworldScene extends Phaser.Scene {
 
     // L8's season meter is HUD, not a menu: it is on screen while the overworld is. The widget is
     // game/ui/SeasonMeter.ts's — this scene used to print `year N · tick t/16 · season` as plain
-    // text instead, which is a second readout of the same clock and left the 16-pip meter L8 names
-    // mounted nowhere in the game.
+    // text instead (a 16-tick year, back then), which is a second readout of the same clock and left
+    // the meter L8 names mounted nowhere in the game.
     this.meterHud = new SeasonMeterHud(phaserMeterSurface(this, METER_STYLE), METER_STYLE);
 
     /*
@@ -613,8 +630,23 @@ export class OverworldScene extends Phaser.Scene {
       // step in flight, which is right — the tween belongs to a frame loop that has been torn down.
       this.movement = placeAt(standing, standing.tile, standing.facing);
     } else {
+      /*
+       * THE PLAYER IS RESPAWNED; THE FORAY ODOMETER IS NOT RESET, and it used to be.
+       *
+       * `this.stepsSinceTick = 0` stood here and fired whenever the node changed — i.e. on every
+       * travel. Walking 47 of the 48 steps a foray tick is charged for and then travelling gave the
+       * walk back for free, so a player who hopped nodes could forage a region indefinitely and
+       * never pay a foray tick; travel was a way of buying time rather than spending it. Hank:
+       * *"I see no reason why stepsSinceTick should reset after a fast travel."* There is none —
+       * the counter measures WALKING, not a place, and the tick it charges is one price for one
+       * excursion however many rooms that excursion crossed. Removing it makes travel dearer, not
+       * cheaper: the progress is kept, so the next foray tick arrives sooner.
+       *
+       * Nothing else needed it. `buildNodeView` has two callers — {@link create} and
+       * {@link travelTo} — and on a fresh scene the counter is already whatever the save carries
+       * (see {@link init}), which is 0 for a new game and the banked walk for a reload.
+       */
       this.movement = standing !== undefined ? placeAt(standing, spawn.tile) : createMovement(spawn.tile);
-      this.stepsSinceTick = 0;
     }
     this.viewNodeId = this.node.id;
 
@@ -774,16 +806,153 @@ export class OverworldScene extends Phaser.Scene {
      * nothing about WHICH animal was met depends on this ordering.
      */
     this.stepsSinceTick += 1;
-    if (this.stepsSinceTick >= stepsPerForay(this.balance)) {
-      this.stepsSinceTick = 0;
-      this.spendTicks("foray", { t: "foray", nodeId: this.node.id });
-    }
+    /*
+     * ⚠ THE ODOMETER IS ZEROED IF AND ONLY IF THE TICK IS REALLY CHARGED — the foray side of the
+     * identity {@link handOffToBattle} states for the battle side ("a fight launches if and only if
+     * its tick was charged"). {@link spendTicks} RETURNS WITHOUT CHARGING while `yearTurnRunning`,
+     * and it does so silently, which is safe only for a caller that has already decided there is
+     * nothing to do. This caller had not: it zeroed the odometer on the line above and wrote the
+     * zero into the save on the line below, so the charge vanished and every step of the excursion
+     * that earned it vanished with it — a foray the player walked and was not billed for, and no
+     * `onSaveChanged` for the reset either, because the notification sits in the other branch.
+     *
+     * ⚠ IT IS REACHABLE, and the route is a same-FRAME one rather than a same-key one. "The scene is
+     * paused, so this cannot run" is true of LATER frames and false of this one, for a reason worth
+     * writing down: `ScenePlugin.pause` does not pause anything — it is
+     * `this.manager.queueOp('pause', …)` (node_modules/phaser/src/scene/ScenePlugin.js), and the
+     * queue is drained by `SceneManager.update`'s `processQueue()` at the top of the NEXT frame. So
+     * the pause {@link beginYearTurn} asks for is still pending while the rest of this `update()`
+     * runs, and {@link update} handles the inn and gym keys BEFORE it drains the movement events.
+     * The sequence: walk with the odometer one step short of `encounter.stepsPerForay`, press the
+     * inn key on the frame a tile step lands, and let that inn fill the meter — `restAtInn` →
+     * `spendTicks("inn")` → `beginYearTurn` raises the flag, and then the same `update()` walks the
+     * completed step into here. `game/movement.ts` `update` resolves up to `MAX_STEPS_PER_UPDATE`
+     * steps from one long frame, which is a second route to the same line. Every OTHER consumer of
+     * a handed-over screen is already refused — `restAtInn`, `challengeGym`, `interact`,
+     * `releaseHere` and `travelTo` all open on `isHandedOver()`, and `handOffToBattle` carries the
+     * battle half of this exact hazard — so this was the one way in.
+     *
+     * NOT ZEROING BANKS THE STEP rather than dropping it: `stepsSinceTick` stays at or above
+     * `stepsPerForay`, so the next step the player takes on the other side of the turn charges the
+     * foray that was owed. The debt is in the scene AND in the save, which is what the write below
+     * is for.
+     */
+    const chargingForay = this.stepsSinceTick >= stepsPerForay(this.balance) && !this.yearTurnRunning;
+    if (chargingForay) this.stepsSinceTick = 0;
+    /*
+     * …AND THE ODOMETER IS WRITTEN INTO THE SAVE ON EVERY STEP, not only when it rolls over. It is
+     * save state (`SaveFile.forayStepsSinceTick`), and whoever persists the save persists whatever
+     * `this.save` says at that moment — so a step that did not update it is a step the player gets
+     * back for free by reloading. `spendTicks` reports the save change itself, so the notification
+     * below is the OTHER 47 steps' and the two never double up.
+     */
+    this.save = { ...this.save, forayStepsSinceTick: this.stepsSinceTick };
+    if (chargingForay) this.spendTicks("foray", { t: "foray", nodeId: this.node.id });
+    else this.hooks.onSaveChanged?.(this.save, this);
 
     if (encounter) {
       // The hook is an override; without one the scene fights it (see OverworldHooks.onEncounter).
       if (this.hooks.onEncounter) this.hooks.onEncounter(encounter, this);
       else this.beginWildBattle(encounter);
     }
+  }
+
+  /* ── the hand-off to a fight (build-doc §3 L8's fourth price) ─────────────── */
+
+  /**
+   * Hand the screen to ONE fight — the only place `clock.battleTicks` is charged and the only place
+   * `SCENE_KEYS.battle` is launched.
+   *
+   * All four fights come through here — the wild encounter, the gym, the rival and the finale's
+   * snare — because before it there were four near-identical bodies (`battleRunning = true` →
+   * `scene.launch` → `scene.pause`) and no shared step between them. The charge is one line that a
+   * fifth call site cannot forget to write.
+   *
+   * THE PRICE IS LEVIED ONCE, AT LAUNCH, and never per turn taken inside the fight (a move is
+   * `{t:"battleAction"}` and costs nothing). So a fight that is FLED is charged and a fight that is
+   * LOST is charged — both of them happened — while a fight refused before it starts (an empty
+   * party, a badge already won, an act not yet reached, a rival already fought, an unregistered
+   * battle scene) is not charged at all, because nothing happened.
+   *
+   * ⚠ A FIGHT LAUNCHES IF AND ONLY IF ITS TICK WAS CHARGED. The two refusals below are what make
+   * that an identity rather than a hope, and each of them is a way the price silently went missing:
+   *
+   *   • {@link spendTicks} RETURNS WITHOUT CHARGING while `yearTurnRunning`, and a wild battle is
+   *     launched from {@link onStepCompleted} five lines after that same function spent a foray
+   *     tick — so a foray tick that ended the year would have made the encounter's half-tick free,
+   *     once a year, for ever, with nothing to go red. The fight is refused HERE, above the charge:
+   *     the year turn has the screen, no fight starts, and there is nothing to charge for.
+   *     `beginWildBattle` refused on this condition already; `launchGymBattle` never did.
+   *   • THE CHARGE ITSELF CAN FILL THE METER — `ticksPerYear - battleTicks` is a real clock
+   *     position — and `spendTicks` then hands the screen to the year turn. Launching on top of
+   *     that would put two scenes on screen for one keypress and pause the overworld twice. So the
+   *     fight is refused, out loud, and the charge STANDS: the year really did turn, and the
+   *     challenge can be made again on the other side of it. The fight is deliberately NOT held
+   *     across the turn — `data` names the party as it stood BEFORE it, and build-doc §7.5 retires
+   *     creatures out of that party, so a held fight would field a battler the save no longer has.
+   *
+   * Returns whether the fight was launched. Every refusal is SAID, on the same terms every other
+   * refusal in this scene is said.
+   */
+  private handOffToBattle(data: BattleSceneData, action: GameAction, what: string): boolean {
+    if (this.battleRunning || this.yearTurnRunning) {
+      this.flashBanner(`${what} — the screen is already handed over`);
+      return false;
+    }
+    /*
+     * NOTHING STANDING IS REFUSED HERE, NOT DISCOVERED INSIDE THE REDUCER.
+     *
+     * ⚠ THIS IS NO LONGER THE PLAYER SIDE'S ONLY GUARD, and the note that said so is gone: all four
+     * `*BattleProblem` launchers now count STANDING creatures rather than party MEMBERS, so a party
+     * made only of fainted creatures is refused before it ever reaches here. What is left is what
+     * only this line can do:
+     *
+     *   • THE ENEMY SIDE. `core/battle.ts` `startBattle` refuses an unfieldable party on EITHER
+     *     side, and no `*BattleProblem` can see the opponent — it is built by `build*Battle`, out of
+     *     content and the live node, after every one of those checks has already run.
+     *   • THE ACTUAL `BattleInput`. This is asked of `data.input`, the specs the reducer is really
+     *     handed, and not of the save they were derived from. It is therefore the LAST point before
+     *     the reducer, and the only one where the question and the answer cannot have drifted apart.
+     *
+     * `core/battle.ts` `startBattle` throws "every battler in the player party is already fainted —
+     * there is nothing to field." A throw is a crash where a refusal belongs; below the charge it
+     * would be a crash with the tick spent and the overworld already paused.
+     */
+    const unfieldable = this.unfieldableProblem(data.input);
+    if (unfieldable) {
+      this.flashBanner(`${what} — ${unfieldable}`);
+      return false;
+    }
+
+    this.spendTicks("battle", action);
+    if (this.yearTurnRunning) {
+      this.flashBanner(`${what} — the year turned first`);
+      return false;
+    }
+
+    this.battleRunning = true;
+    this.scene.launch(SCENE_KEYS.battle, data);
+    this.scene.pause();
+    return true;
+  }
+
+  /**
+   * Why `core/battle.ts` could not field this fight, or null — the reducer's own `standing` test,
+   * asked one step earlier so the answer is a sentence on the banner and not an exception.
+   *
+   * A party may CARRY fainted members; it may not be made only of them.
+   *
+   * THE PREDICATE IS `game/wild-battle.ts` `isStanding`, IMPORTED, on BOTH sides. It used to be
+   * re-spelled here as `curHp === undefined || curHp > 0` — the reducer's condition written out a
+   * second time, in a second file, where it can drift from the one `startBattle` actually applies.
+   * A drift between two spellings of a precondition is only found by the throw the precondition
+   * exists to prevent, so there is one spelling and everything asks it.
+   */
+  private unfieldableProblem(input: BattleSceneData["input"]): string | null {
+    const anyStanding = (party: BattleSceneData["input"]["playerParty"]): boolean => party.some(isStanding);
+    if (!anyStanding(input.playerParty)) return "nothing in the party is standing";
+    if (!anyStanding(input.enemyParty)) return "nothing is standing on the other side";
+    return null;
   }
 
   /* ── the wild battle (build-doc §1 beat 1's only route) ───────────────────── */
@@ -839,9 +1008,7 @@ export class OverworldScene extends Phaser.Scene {
       },
     };
 
-    this.battleRunning = true;
-    this.scene.launch(SCENE_KEYS.battle, data);
-    this.scene.pause();
+    this.handOffToBattle(data, { t: "battle", kind: "wild", nodeId: encounter.nodeId }, `${encounter.lineId} met`);
   }
 
   /** `OwnedCreature.projectedRetirementYear` per uid — core/lifecycle.ts's number, not a new one. */
@@ -1210,7 +1377,8 @@ export class OverworldScene extends Phaser.Scene {
   /* ── the clock ────────────────────────────────────────────────────────── */
 
   clock(): ClockState {
-    return { year: this.save.year, tick: this.save.tick };
+    // `subTick` defaults to 0 so a save written before the fraction existed reads as a whole tick.
+    return { year: this.save.year, tick: this.save.tick, subTick: this.save.subTick ?? 0 };
   }
 
   currentSeason(): Season {
@@ -1399,9 +1567,7 @@ export class OverworldScene extends Phaser.Scene {
       },
     };
 
-    this.battleRunning = true;
-    this.scene.launch(SCENE_KEYS.battle, data);
-    this.scene.pause();
+    this.handOffToBattle(data, { t: "battle", kind: "gym", nodeId: gym.town }, gym.id);
   }
 
   /* ── the rival (content-bible §8) ──────────────────────────────────────── */
@@ -1487,9 +1653,7 @@ export class OverworldScene extends Phaser.Scene {
       },
     };
 
-    this.battleRunning = true;
-    this.scene.launch(SCENE_KEYS.battle, data);
-    this.scene.pause();
+    this.handOffToBattle(data, { t: "battle", kind: "rival", nodeId: rival.node }, rival.id);
   }
 
   /* ── the finale (content-bible §8 / build-doc §16's never-cut Vellsire beat) ── */
@@ -1568,9 +1732,7 @@ export class OverworldScene extends Phaser.Scene {
       },
     };
 
-    this.battleRunning = true;
-    this.scene.launch(SCENE_KEYS.battle, data);
-    this.scene.pause();
+    this.handOffToBattle(data, { t: "battle", kind: "ancient", nodeId: build.nodeId }, "the ring");
   }
 
   /** Adopt the resolution and let the corpus answer it — one of the two epilogues is now eligible. */
@@ -1764,8 +1926,13 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * Spend one action's ticks (travel 1 / foray 1 / inn 2) through core/clock.ts, log the action, and
-   * deal with whatever boundary it crossed.
+   * Spend one action's ticks (travel 1 / foray 1 / inn 2 / battle 0.5) through core/clock.ts, log
+   * the action, and deal with whatever boundary it crossed.
+   *
+   * ⚠ IT REFUSES WHILE THE YEAR TURN HAS THE SCREEN, and that refusal is silent — which is safe
+   * only because every caller has already decided there is nothing to do. {@link handOffToBattle}
+   * is the one that had to be taught it: a charge levied here while `yearTurnRunning` would simply
+   * vanish, and the fight it belonged to would go ahead free.
    */
   private spendTicks(kind: ClockActionKind, action: GameAction): void {
     if (this.yearTurnRunning) return;
@@ -1781,7 +1948,15 @@ export class OverworldScene extends Phaser.Scene {
     // returns year N+1). Advancing first and reverting later would run the turn a year late.
     const tickBefore = this.save.tick;
     const advanced = advanceAction(this.clock(), kind, this.balance);
-    this.save = { ...this.save, year: advanced.clock.year, tick: advanced.clock.tick };
+    // ALL THREE NUMBERS, not two. `subTick` is where a battle's half tick lives until a second one
+    // completes it (core/clock.ts `ClockState`); dropping it here would round every fractional
+    // charge to nothing and make battles free in pairs.
+    this.save = {
+      ...this.save,
+      year: advanced.clock.year,
+      tick: advanced.clock.tick,
+      subTick: advanced.clock.subTick,
+    };
     this.handleClockEvents(advanced.events, tickBefore);
     // Windows are a projection of the clock, so they are republished after EVERY tick spend and not
     // only on the cue the clock happens to emit — see {@link syncEvents} for the 8-tick festival.
@@ -1795,10 +1970,15 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
-   * ⚠ THE SEAM MOST LIKELY TO BE RE-BROKEN. `seasonBoundary` fires at ticks 4, 8 and 12 only; the
+   * ⚠ THE SEAM MOST LIKELY TO BE RE-BROKEN. `seasonBoundary` fires on the first
+   * `seasonOrder.length - 1` multiples of `clock.ticksPerSeason` and NOT on the last one — the
    * year's FOURTH season step belongs to `runYearTurn` (build-doc §7.5 step 5). Running the sim on
    * both cues ran five seasons a year and inflated every six-year trajectory by 25%. So: this
    * scene steps the sim on `seasonBoundary` and never on `yearEnd`.
+   *
+   * The cadence is named off the balance keys and not off the numbers they hold today: they have
+   * already moved once (a 16-tick year became `ticksPerYear` 52 / `ticksPerSeason` 13) and are
+   * expected to move again after playtesting, so a comment quoting the ticks goes stale in silence.
    *
    * If `hooks.onClockEvents` returns true the owner (C5/C6) handled everything and none of the below
    * runs — which is how the two lanes avoid becoming the same defect again.
@@ -1818,14 +1998,16 @@ export class OverworldScene extends Phaser.Scene {
     this.mapView.setSeason(this.currentSeason());
 
     /*
-     * build-doc §4 step 5 as amended — "At tick 16 the year turn runs", and at nothing else.
+     * build-doc §4 step 5 as amended — the year turn runs when the meter fills at
+     * `clock.ticksPerYear`, and at nothing else. (The quote used to name tick 16; the meter's length
+     * is a balance key and this line must not re-spell whatever number it holds.)
      * ONE trigger per action: `yearTurnTrigger` collapses the clock's `yearEnd` events, which is what
      * stopped a shell watching for §4's two triggers from firing two turns for one action. The turn
      * itself is core/lifecycle.ts's and its UX is game/scenes/YearTurnScene.ts's; this scene only
      * decides WHEN — and it never decides that the calendar has run out, because it cannot.
      */
     const trigger = yearTurnTrigger({ clock: this.clock(), events });
-    if (trigger) this.beginYearTurn(trigger.endedYear, trigger.reason, tickBefore, trigger.carryTick);
+    if (trigger) this.beginYearTurn(trigger.endedYear, trigger.reason, tickBefore, trigger.carry);
   }
 
   /**
@@ -1883,9 +2065,26 @@ export class OverworldScene extends Phaser.Scene {
     endedYear: number,
     reason: YearEndReason,
     tickBefore: number,
-    carryTick: number,
+    /*
+     * THE WHOLE CARRY, BOTH NUMBERS. This used to be a bare `carryTick` and the fraction reached
+     * `finishYearTurn` only because `driveYearTurn` falls back to `save.subTick` off the save handed
+     * over — which is right for THIS caller (it hands over a save already standing on the
+     * post-action clock) and wrong for one that hands over the save as it stood before the action.
+     * Correct by accident is one refactor away from wrong: `yearTurnTrigger` reports both halves off
+     * the one clock, so both halves travel.
+     */
+    carry: YearCarry,
   ): void {
     if (this.yearTurnRunning) return;
+
+    /*
+     * THE VERSION BOTH BRANCHES DESCEND FROM. The turn is a FORK of the save: it runs on
+     * `atEndedYear` below and commits frames later, while `this.save` goes on moving in the
+     * meantime — see {@link rebaseOntoYearTurn}, which is where the two are put back together and
+     * where the reason this is kept is written out. Held before `atEndedYear` is built, because
+     * `atEndedYear` is already a rewrite (of `year`/`tick`) and is therefore not the fork point.
+     */
+    const forkedFrom = this.save;
 
     // The save the turn runs on is the one that is still standing in the ending year: `spendTicks`
     // has already moved `save.year`/`save.tick` to where the clock now is.
@@ -1923,7 +2122,7 @@ export class OverworldScene extends Phaser.Scene {
         lifecycleRng: () => heirStream.nextFloat(),
         endedYear,
         reason,
-        carryTick,
+        carry,
         // The same context the three clock-boundary steps above use, so the year's four season steps
         // are all taken against one context rather than three against this one and a fourth against
         // core's memoised `defaultContext()`.
@@ -1936,7 +2135,14 @@ export class OverworldScene extends Phaser.Scene {
 
     const finish = (save: SaveEnvelope): void => {
       this.yearTurnRunning = false;
-      this.save = save;
+      /*
+       * ⚠ NOT `this.save = save`. The turn commits a descendant of a save that was snapshotted
+       * before it started, so a plain assignment throws away every write the live branch made while
+       * the sequence held the screen — the odometer that was measured, and `syncEvents` /
+       * `syncQuests` / `recordLineMet` / a fight still answering from its own scene besides.
+       * {@link rebaseOntoYearTurn} carries the whole reason and the conflict rule.
+       */
+      this.save = rebaseOntoYearTurn(forkedFrom, this.save, save);
       this.node = this.nodeFile(this.save.currentNode);
       this.mapView.setYear(this.node, this.save.year);
       this.mapView.setSeason(this.currentSeason());
@@ -1971,7 +2177,11 @@ export class OverworldScene extends Phaser.Scene {
      */
     if (!sceneRegistered(this, SCENE_KEYS.yearTurn)) {
       while (!drive.flow.done()) drive.flow.chooseHeir();
-      finish(finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carryTick));
+      // `drive.carry` — the whole position, the same seam `game/scenes/YearTurnScene.ts` `finish()`
+      // commits the WATCHED turn through. This line was migrated first and that one was left on the
+      // deprecated `carryTick` for a while, which is how one year turn came to have two commits that
+      // read different halves of the same carry. There is no ticks-only spelling left to pick.
+      finish(finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carry));
       this.flashBanner(`year ${endedYear} ran headlessly — "${SCENE_KEYS.yearTurn}" is not registered`);
       return;
     }
@@ -2139,9 +2349,11 @@ export class OverworldScene extends Phaser.Scene {
         : next.seasonsCrossed.length > 0
           ? `ends ${next.seasonsCrossed.join(", ")}`
           : `${String(next.after.ticksLeftInSeason)} to the next season`;
+      // FOUR prices, because L8 now has four. A fight costs `clock.battleTicks` at launch and the
+      // HUD said so nowhere, which is how a price becomes invisible to the person paying it.
       lines.push(
         `ticks travel ${String(costs.travel)} · foray ${String(costs.foray)} · inn ${String(costs.inn)}` +
-          ` · next foray ${crossing}`,
+          ` · battle ${String(costs.battle)} · next foray ${crossing}`,
       );
     }
     // Two clocks on the HUD, side by side and never mixed: the act above, the year in the meter.
@@ -2273,6 +2485,97 @@ const CHAIN_COMPLETE_SUFFIX = ".complete";
 /** An error's sentence, for a banner. */
 function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * Put the year turn's commit back on top of a save that has moved underneath it.
+ *
+ * ⚠ THE YEAR TURN FORKS THE SAVE, AND THE FORK USED TO WIN OUTRIGHT. `beginYearTurn` snapshots
+ * `atEndedYear` from `this.save` while it is still inside the `spendTicks` that ended the year, and
+ * `finish(save)` — frames later, once the sequence has been watched — assigned that snapshot's
+ * descendant straight over `this.save`. Every write the LIVE branch made in between was therefore
+ * discarded, silently, whatever it was. `this.save = save` is a rebase, not an assignment.
+ *
+ * ⚠ THE WINDOW IS REACHABLE, and not only across the frames the sequence holds. `ScenePlugin.pause`
+ * pauses nothing on the spot — it is `this.manager.queueOp('pause', …)`, drained at the top of the
+ * NEXT frame — so the rest of the current `update()` runs after the turn has begun. Measured
+ * instance: [R] pressed on the frame a tile step lands ends the year and then walks the step into
+ * `onStepCompleted`, whose `forayStepsSinceTick` write landed in the window; the scene read 48 and
+ * the save read 47, so a player who quit before their next step lost the banked walk. That is one
+ * writer of several. `spendTicks` finishes with `syncEvents` + `syncQuests` AFTER `handleClockEvents`
+ * has begun the turn, so two writes land in this window on EVERY watched year turn; `recordLineMet`
+ * lands there on a step that met a line; and a fight or a dialogue that was already on screen when
+ * the turn began answers into it from its own scene. Naming the odometer here would have fixed the
+ * instance and left the class.
+ *
+ * A THREE-WAY MERGE ON TOP-LEVEL KEYS, which is what makes it general: `forkedFrom` is the version
+ * both branches descend from, so a key the live branch moved and the turn did not is the live
+ * branch's, and everything else is the turn's. Reference equality is the whole test and it is exact
+ * here because every writer in this scene replaces `this.save` with a fresh object rather than
+ * mutating one — a key nobody touched still holds the very object `forkedFrom` holds.
+ *
+ * ⚠ WHERE BOTH BRANCHES MOVED A KEY, THE TURN WINS, deliberately. The turn owns `nodeStates` (§7.8:
+ * that IS the sim), `party`/`box` (§7.5's aging and retirement) and the clock, and letting a stale
+ * live value beat the turn's own commit would lose the cascade and the fourth season step — a worse
+ * defect than the one this exists to fix. It also settles `actionLog`, which is the one key L10
+ * turns on: `appendYearTurn` always appends the turn's entries, so the turn's log is always the one
+ * that survives and `core/save.ts` `replay` still sees a gapless sequence it can reproduce.
+ *
+ * ⚠ `questFlags` IS MERGED A KEY AT A TIME, and that is not a special case for a field — it is what
+ * the field IS. core/lifecycle.ts calls it "the save's own extensible bag (build-doc §7.8)": its
+ * keys are independent facts, not one fact, and it is where almost everything that writes in this
+ * window writes — `syncEvents`, `syncQuests`, `recordLineMet`'s sign cards, the act flags, the badge
+ * flags, every `story.*` a dialogue sets. The turn stakes a claim on exactly ONE of those keys
+ * (`core/lifecycle.ts` `YEAR_TURN_FLAG`), so resolving the bag as a single unit would hand the turn
+ * every fact in it and lose the lot. Resolved per key, the turn keeps its own flag and nothing else
+ * moves. Merged {@link rebaseYearTurnFlags}.
+ */
+function rebaseOntoYearTurn(
+  forkedFrom: SaveEnvelope,
+  live: SaveEnvelope,
+  committed: SaveEnvelope,
+): SaveEnvelope {
+  // The common case and the headless one: nothing wrote while the turn ran, so there is no merge to
+  // do and the committed save is handed back as the very object the turn built.
+  if (live === forkedFrom) return committed;
+  let merged: SaveEnvelope = committed;
+  for (const key of Object.keys(live) as Array<keyof SaveEnvelope>) {
+    // The bag is resolved below, per fact rather than per field.
+    if (key === "questFlags") continue;
+    const liveMoved = live[key] !== forkedFrom[key];
+    const turnMoved = committed[key] !== forkedFrom[key];
+    if (liveMoved && !turnMoved) merged = { ...merged, [key]: live[key] };
+  }
+  const questFlags = rebaseYearTurnFlags(forkedFrom.questFlags, live.questFlags, committed.questFlags);
+  return questFlags === merged.questFlags ? merged : { ...merged, questFlags };
+}
+
+/**
+ * The same three-way merge, one flag at a time — see {@link rebaseOntoYearTurn} for why the bag is
+ * resolved per key and not as a unit.
+ *
+ * A flag the live branch DELETED is not carried across: only keys present in `live` are considered,
+ * so a deletion loses to whatever the turn holds. That is deliberate and it is also harmless here,
+ * because the only deleter is `core/regional-events.ts` `syncEventFlags` (it rebuilds the bag
+ * without its own published window booleans) and `beginYearTurn`'s `finish` re-runs `syncEvents` on
+ * the MERGED save immediately after this returns, which drops them again. Carrying deletions across
+ * generally would let a stale live branch delete a flag the turn had just written.
+ */
+function rebaseYearTurnFlags(
+  forkedFrom: SaveFile["questFlags"],
+  live: SaveFile["questFlags"],
+  committed: SaveFile["questFlags"],
+): SaveFile["questFlags"] {
+  if (live === forkedFrom) return committed;
+  let merged = committed;
+  for (const [flag, value] of Object.entries(live)) {
+    const liveMoved = value !== forkedFrom[flag];
+    const turnMoved = committed[flag] !== forkedFrom[flag];
+    if (!liveMoved || turnMoved) continue;
+    if (merged === committed) merged = { ...committed };
+    merged[flag] = value;
+  }
+  return merged;
 }
 
 const HUD_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {

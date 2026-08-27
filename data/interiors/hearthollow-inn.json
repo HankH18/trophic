@@ -1,0 +1,58 @@
+{
+  "_shape": "core/interiors.ts InteriorBlueprint. An interior is NOT a node: it has no populations, no mapAsset and no adjacency. It is a floor plan keyed to a parent town. Colour, style, materials and decoration are deliberately absent — this is the footprint the art lane paints to.",
+  "id": "hearthollow-inn",
+  "parentNode": "hearthollow",
+  "name": "Hearthollow Inn",
+
+  "_room": "13 cells wide by 8 cells tall, walls included: 11 by 6 of open floor. One plan cell is one movement tile. Long and shallow, which is the shape the exterior description asks for — 'a long low inn with a byre'. The doorway is cut into the SOUTH wall, sixth cell from the west; the player walks in heading north.",
+
+  "plan": "#############\n#...........#\n#@..........#\n#S..........#\n#...........#\n#...........#\n#...........#\n######D######",
+
+  "_legend": {
+    "#": "SOLID. The player cannot walk through it. Here every solid cell is a wall: the outside walls of the common room, and the east wall which is the partition to the byre. The fire is in the WEST wall, at the end where Aldis stands.",
+    ".": "Open floor of the common room. Nothing stands on it.",
+    "D": "The doorway out to the green. This is the threshold cell; stepping onto it takes the player back to the town.",
+    "@": "A named person stands here. Aldis, the innkeeper. Walkable to the collision parser, occupied in fact.",
+    "S": "The tile the player stands on to take a room for the night. Aldis is the cell directly north of it."
+  },
+
+  "door": {
+    "_note": "PROVISIONAL — see _canonSilent. Map-native pixels in the 1024-square painted town, the same space data/nodes/hearthollow.json props use. Placed west of the green and north of the middle, well clear of the empty centre tile and of the survey board at 512,648.",
+    "x": 296,
+    "y": 392,
+    "facing": "south"
+  },
+
+  "arrival": { "col": 6, "row": 6 },
+
+  "anchors": [
+    {
+      "id": "aldis",
+      "kind": "speaker",
+      "target": "innkeeper-hearthollow",
+      "col": 1,
+      "row": 2,
+      "_purpose": "Aldis stands at the west end of the common room, by the fire. Her own line puts the fire and the kettle at her end: 'Boots are by the fire, they were wringing wet, and the kettle's on.' She is the innkeeper; talking to her is how the player rests."
+    },
+    {
+      "id": "rest",
+      "kind": "service",
+      "target": "innkeeper-hearthollow.rest",
+      "col": 1,
+      "row": 3,
+      "faces": "north",
+      "_purpose": "The tile the player stands on to trigger the rest service. It faces north, directly at Aldis. There is no counter in an inn common room — the service is transacted with the person, not across furniture."
+    }
+  ],
+
+  "_featureSource": "INN — tools/comfy/manifest.json _nodes.hearthollow.feature lists 'a long low inn with a byre' among the town's five buildings, sourced there to innkeeper-hearthollow.rest. || THE BYRE, and the shut door between it and this room — innkeeper-hearthollow.rest (when {}, i.e. unconditional base state), verbatim: 'Your animals are in the byre with the door shut and that was done an hour since.' The byre is therefore CITED as adjacent, and the door between is CITED as shut. It is drawn as the solid east partition; see _canonSilent on whether the player may pass it. || THE FIRE, and floor beside it — innkeeper-hearthollow.rest (when {}), verbatim: 'Boots are by the fire, they were wringing wet, and the kettle's on. Don't start thanking me for either.' Boots stand on the floor at the fire, so the fire is at floor level in a wall with room to stand in front of it, and it is where Aldis is. Drawn in the WEST wall because that is the end away from the byre. || ROOMS AND SUPPER — innkeeper-hearthollow.rest (when {}), verbatim: 'A night here is half a season gone, so sleep out and keep the days if you're wanted before the turn. Room only, or supper as well?' Rooms and supper are both sold from this one room. || ALDIS — data/dialogue.json speaker innkeeper-hearthollow, name 'Aldis', portrait npc-innkeeper, home 'hearthollow'. || SHAPE 'long and low' is the manifest's exterior word, carried inward as a wide shallow rectangle. Nothing else about the shape is sourced.",
+
+  "_canonSilent": [
+    "Whether the player may enter the byre. Aldis says the byre door is SHUT, which is the only thing the canon establishes about it. The east partition is drawn solid and the byre is not part of this floor plan. Whether it becomes a second room is the owner's call, not a gap to fill by guessing.",
+    "Where this building stands in the painted town. The manifest places Hearthollow's five buildings 'well apart around one open grazing green' but gives no compass direction or coordinate for the inn. The door x/y above is a provisional placement that respects the two things the manifest does pin — the exact centre stays empty, and the survey board is at 512,648 — and must be re-pinned against the painted map before it is trusted.",
+    "Whether the guest rooms are on this floor, above it, or behind it. Aldis sells 'room only, or supper as well' and nothing says where the rooms are.",
+    "How many beds, tables, chairs or benches the common room holds, and where they stand. The canon establishes a fire with floor space in front of it and supper being served; it does not furnish the room.",
+    "Whether there is a back room, a kitchen, or a stair. Nothing in the canon mentions any of the three.",
+    "Window placement, and what any interior surface is made of. That is the art lane's to decide — this is a footprint."
+  ]
+}

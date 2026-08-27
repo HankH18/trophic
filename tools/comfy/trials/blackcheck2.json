@@ -1,0 +1,19 @@
+{
+  "name": "blackcheck2",
+  "question": "Distinguish 'the service is broken for new work' from 'these particular prompts are bad'. d = the known-good t4 prompt with ONE word changed (oaks -> elms). e = the known-good t4 prompt verbatim at a DIFFERENT seed. Either coming back black means new work is broken, not the prompt.",
+  "outDir": "assets/raw/_trials/blackcheck2",
+  "rows": [
+    {
+      "id": "d-one-word-changed",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, grid layout, city blocks, rows of identical houses, dense town, crowded, many small buildings, suburb, roundabout, symmetrical layout, aerial photograph, isometric, modern city",
+      "prompt": "pixel art top-down town map, retro 90s handheld RPG style, Hearthollow, a tiny meadow hamlet of only five buildings standing in a shallow grassy hollow: a large timber field station with a fenced specimen yard and drying racks, a stone-walled gym hall with a mossy slate roof, a low inn with a red brick chimney, a small supply shop with a green awning, and one thatched farm cottage beside a bare brown fallow field; a single winding dirt lane joins them and runs off the top edge of the picture into open country, with hedgerows, wildflower meadow and a few scattered elms filling the rest of the ground, three-quarter overhead view, no characters, only a few large buildings, every building has one clearly visible door, crisp clean pixel edges, 2D game asset"
+    },
+    {
+      "id": "e-new-seed",
+      "seed": 43,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, grid layout, city blocks, rows of identical houses, dense town, crowded, many small buildings, suburb, roundabout, symmetrical layout, aerial photograph, isometric, modern city",
+      "prompt": "pixel art top-down town map, retro 90s handheld RPG style, Hearthollow, a tiny meadow hamlet of only five buildings standing in a shallow grassy hollow: a large timber field station with a fenced specimen yard and drying racks, a stone-walled gym hall with a mossy slate roof, a low inn with a red brick chimney, a small supply shop with a green awning, and one thatched farm cottage beside a bare brown fallow field; a single winding dirt lane joins them and runs off the top edge of the picture into open country, with hedgerows, wildflower meadow and a few scattered oaks filling the rest of the ground, three-quarter overhead view, no characters, only a few large buildings, every building has one clearly visible door, crisp clean pixel edges, 2D game asset"
+    }
+  ]
+}

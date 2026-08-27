@@ -202,9 +202,52 @@ export function isMesopredator(line: SpeciesLine, balance: Balance): boolean {
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
+ * The chance that ONE walked step meets something — grass gating, and the ONLY definition of it.
+ *
+ * Encounters roll on tall grass, not on every cell of a map, so a step must first BE on an
+ * encounter tile (`encounter.encounterTileFraction`) and then roll (`encounter.encounterChancePerStep`).
+ *
+ * It lives in core/ rather than in game/ because BOTH the game and the balance harness need it and
+ * they must not each own a copy. `tools/harness/full-run.ts` rolled the raw `encounterChancePerStep`
+ * while the overworld rolled the gated product, which would have made every published encounter,
+ * catch and extinction figure describe a region four times denser than the one the player walks —
+ * an instrument measuring a different game. One function, both callers.
+ *
+ * Collapsing the two factors into ONE draw is deliberate and load-bearing: L10 requires that a
+ * replay of the same seed meets the same creatures, and the draw ORDER is the contract. A second
+ * draw for the tile would renumber every draw after it and desynchronise every existing fixture.
+ *
+ * When painted maps land the fraction becomes a sampled property of a node's encounter mask and
+ * this takes the node; the product and the single draw stay exactly as they are.
+ */
+export function stepEncounterChance(balance: Balance): number {
+  return balance.encounter.encounterTileFraction * balance.encounter.encounterChancePerStep;
+}
+
+/**
  * Which roles a role eats, per bible §5. Data, not branching: a role missing from this map eats
  * nothing live (Producer photosynthesises, Scavenger "eats nothing live", AncientApex "eats
  * nothing — presence effects instead"). No species id appears anywhere in this file (G6).
+ *
+ * ⚠ THIS TABLE IS WHY MESOPREDATOR RELEASE CANNOT BE GUARANTEED, and the reason lives here rather
+ * than only in the spec because this is the line that causes it.
+ *
+ * `Apex: ["Mesopredator", …]` means every apex's diet contains its own mesopredator. At most nodes
+ * — and at r4, the shipped cascade node, exclusively — the mesopredator IS the apex's limiting prey
+ * pool. So the animal you must crash to starve the apex is the same animal that a textbook
+ * mesopredator release would set free. Crash it hard enough to kill the apex and it is itself too
+ * far down to rebound inside the window; leave it high enough to rebound and the apex does not
+ * starve. The two halves of the classic story are in direct competition through this one edge.
+ *
+ * Measured: release accompanies the apex collapse in 12.5% of real-play runs and 0–13% across a
+ * 128-seed sweep. build-doc §10.2 was amended to assert the apex collapse and merely REPORT the
+ * release, because Hank ruled the sim stays as it is — *"letting the biomes gain a mind of their own
+ * and not forcing any particular outcomes"*. Both outcomes are correct outputs of the same web.
+ *
+ * Do not "fix" this by giving apexes a second prey pool, by tuning `balance.json`, by filtering the
+ * report, or by selecting seeds where release happens. The first two change a diet and break G2;
+ * the last two script the beat and break G6. If the release rate is ever to rise, it is a content
+ * ruling from Hank about diets, not a correction anyone makes here.
  */
 const ROLE_DIET: Readonly<Record<Role, readonly Role[]>> = {
   Producer: [],

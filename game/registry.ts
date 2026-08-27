@@ -228,7 +228,7 @@ class GameRegistry {
   /** build-doc §7.8 — the clock IS the save's `{year, tick}`. Derived, never stored twice. */
   clock(): ClockState {
     const save = this.save();
-    return { year: save.year, tick: save.tick };
+    return { year: save.year, tick: save.tick, subTick: save.subTick ?? 0 };
   }
 
   /**

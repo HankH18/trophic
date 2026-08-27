@@ -16,8 +16,8 @@
  *    after ONE year turn. {@link replayRegionHooks} steps the region once per season and serves each
  *    node from that step, which reproduces the live numbers exactly.
  *
- * 2. THE CLOCK. `replay` does not model it at all: travel, foray and inn move no tick on the replay
- *    path, and the `yearTurn` case takes `runYearTurn`'s reset (`balance.clock.startTick`). The live
+ * 2. THE CLOCK. `replay` does not model it at all: travel, foray, inn and battle move no tick on the
+ *    replay path, and the `yearTurn` case takes `runYearTurn`'s reset (`balance.clock.startTick`). The live
  *    shell puts back the tick the clock carried into the new year (game/scenes/YearTurnScene.ts
  *    `finishYearTurn`), so an inn taken on the last tick of a year left the live save on tick 1 and
  *    its own replay on tick 0. The information was never missing — every `ActionLogEntry` carries the
@@ -149,10 +149,35 @@ export function replayRegionHooks(deps: ReplayRegionDeps): ReplayRegionHooks {
  * 2. The clock — read back out of the log
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/** The action kinds that cost ticks (build-doc §3 L8: travel 1 / foray 1 / inn 2). */
+/**
+ * The `GameAction` tags that are also `ClockActionKind`s — build-doc §3 L8's four costing actions
+ * (travel 1 / foray 1 / inn 2 / battle 0.5). The COSTS are never named here; they are
+ * `balance.clock`'s and are read by `advanceAction` (G11).
+ *
+ * ⚠ A `Record<ClockActionKind, …>` AND NOT AN `||` CHAIN, and that is the whole repair. `battle`
+ * joined `ClockActionKind`, `GameAction` and `balance.clock` and this function — then a chain of
+ * three `===` comparisons — stayed green, so every logged fight was priced at ZERO on the replay
+ * path. Measured on a tape of 51 forays and three battles: live `year 2 tick 0 subTick 1`,
+ * rebuilt-from-the-log `year 1 tick 51 subTick 0`, and `withClockFromLog` then threw "the log does
+ * not belong to this save" about a log that did. A wrong YEAR, not a wrong tick, on the tape L10
+ * and build-doc §8.1 promise replays byte-identically. `core/clock.ts` says adding a member to
+ * `ClockActionKind` is "deliberately noisy" — this Record is what makes that true HERE too: a new
+ * member turns this file red until it is listed, which the `||` chain could never do.
+ */
+const TICK_COSTING: Record<ClockActionKind, true> = {
+  travel: true,
+  foray: true,
+  inn: true,
+  battle: true,
+};
+
+/** The same keys at runtime, so the list above is the only place the four are written down. */
+const TICK_COSTING_TAGS: ReadonlySet<string> = new Set(Object.keys(TICK_COSTING));
+
+/** The clock kind a logged action is charged as, or null for the ones that cost no time. */
 function tickCostKind(action: ActionLogEntry["action"]): ClockActionKind | null {
-  if (action.t === "travel" || action.t === "foray" || action.t === "inn") return action.t;
-  return null;
+  // The cast is guarded by the set, whose members ARE `ClockActionKind` by `TICK_COSTING`'s type.
+  return TICK_COSTING_TAGS.has(action.t) ? (action.t as ClockActionKind) : null;
 }
 
 /**
@@ -176,11 +201,11 @@ export function clockFromLog(
   for (const entry of log) {
     const kind = tickCostKind(entry.action);
     if (kind !== null) {
-      clock = advanceAction({ year: entry.year, tick: entry.tick }, kind, balance).clock;
+      clock = advanceAction({ year: entry.year, tick: entry.tick, subTick: entry.subTick ?? 0 }, kind, balance).clock;
       continue;
     }
     if (entry.action.t === "yearTurn" && clock.year < entry.action.year) {
-      clock = { year: entry.action.year, tick: balance.clock.startTick };
+      clock = { year: entry.action.year, tick: balance.clock.startTick, subTick: 0 };
     }
   }
   return clock;
@@ -206,5 +231,8 @@ export function withClockFromLog(
         `in year ${String(replayed.year)} — the log does not belong to this save`,
     );
   }
-  return { ...replayed, year: clock.year, tick: clock.tick };
+  // `subTick` carried too: dropping it silently refunded the fraction of a tick a half-cost action
+  // had already spent, so a run containing an odd number of battles came back from a reload with
+  // time it had used. The whole clock position is restored, not two thirds of it.
+  return { ...replayed, year: clock.year, tick: clock.tick, subTick: clock.subTick };
 }

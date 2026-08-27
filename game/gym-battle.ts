@@ -48,7 +48,7 @@ import type {
   GymLeader,
   GymTeamSlot,
 } from "../core/types";
-import { partySpecs } from "./wild-battle";
+import { partyProblem, partySpecs } from "./wild-battle";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Which leader is standing where
@@ -77,7 +77,10 @@ export function gymBattleProblem(
   gym: GymLeader,
   content: Content,
 ): string | null {
-  if (partySpecs(save).length === 0) return "no creature in the party — nothing can be sent out";
+  // The party clause is `game/wild-battle.ts`'s, not a second reading of it: it refuses an EMPTY
+  // party and an all-fainted one, and the second used to fall through to `startBattle`'s throw.
+  const party = partyProblem(save);
+  if (party !== null) return party;
   if (hasBadge(save, gym.id, content.balance)) return `badge ${gym.id} already won`;
   const act = actOf(save, content.gyms, content.balance);
   if (act < gym.act) return `${gym.id} is act ${String(gym.act)} · act ${String(act)}`;
@@ -157,6 +160,12 @@ export function buildGymBattle(opts: {
  * `"win"` and nothing else. A `"fled"` is not a badge, and `"caught"`/`"escaped"` cannot happen in
  * a gym (the reducer refuses a snare there) — enumerated rather than written as `!== "loss"` so a
  * new outcome member is a decision instead of a free badge.
+ *
+ * ⚠ THIS IS THE BADGE, NOT THE COST. What the fight did to the party's HP, levels and bag is
+ * `game/wild-battle.ts` `applyBattleResult(save, state)` — the ONE writer all four launchers share,
+ * on the same terms they share `partyProblem`. A gym fight is where a party is most likely to be
+ * wiped, so a finish handler that awards the badge and does not take the cost is the half-wiring
+ * this file's sibling clause exists to prevent.
  */
 export function gymBattleWon(state: Pick<BattleState, "outcome">): boolean {
   return state.outcome === "win";

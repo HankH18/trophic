@@ -97,10 +97,22 @@ declare global {
 /**
  * The real-art census, taken at BUILD time rather than guessed at runtime.
  *
- * Today `assets/final/` holds nothing (Lane B has produced only the B0 player sweep and the five
- * style trials, neither of which is a shipped asset), so this is `{}` and every `hasRealAsset()`
- * answer is `false` — which is the honest answer. When Lane B lands an asset the glob picks it up
- * with no code change, which is the point: nothing here has to be kept in sync by hand.
+ * `import.meta.glob` is a compile-time directory scan, so the contents of this map are exactly the
+ * PNGs sitting under `assets/final/` when the bundle was built — no more, no fewer, and nothing kept
+ * in sync by hand. That is the entire design: when a lane lands an asset the glob picks it up with no
+ * code change here, and `hasRealAsset()` starts answering `true` for it on the next build.
+ *
+ * Do NOT write down in this file how much art exists. That count changes every time the art lane
+ * ships, so any comment stating it is wrong by the following morning; `realAssetIds()` is the live
+ * answer at runtime and `assets/final/` itself is the answer on disk.
+ *
+ * The consequence that catches people, and the reason this paragraph is here: anything that needs a
+ * path which is NOT real — a caller, and above all a test — cannot take one from `data/nodes/*.json`.
+ * Every `mapAsset` and `collisionMask` in there names a file the pipeline is going to produce, so
+ * each of them is unbuilt only until the day it is built. "Unbuilt" has to be established by
+ * CONSTRUCTION — a name no manifest row and no pipeline can emit — never by reaching for whatever
+ * happens not to have shipped yet. tests/unit/game-placeholder.test.ts learned this the hard way and
+ * now uses an `__unbuilt-probe__` path; leave it synthetic.
  *
  * `query: "?url"` asks Vite for the emitted URL rather than the file contents, so the strings below
  * are correct in `vite dev` AND in a hashed production build.
@@ -666,9 +678,11 @@ export function placeholderTexture(
  *
  * The census RECORDS ALWAYS and WARNS ONLY ON REQUEST. Recording is silent, deduplicated by key,
  * and readable by a test — so the fallback becomes assertable without any test having to stub the
- * console. `game/boot.ts` turns warnings on for the running game;
- * `tests/unit/game-placeholder.test.ts:446` calls `textureFor` twice with a deliberately-absent key
- * and stays quiet, which is the caveat BF-7 names.
+ * console. `game/boot.ts` turns warnings on for the running game; the test named "records a missing
+ * key, deduplicates it, and stays silent while doing so" (tests/unit/game-placeholder.test.ts) calls
+ * `textureFor` twice with a deliberately-absent key and stays quiet, which is the caveat BF-7 names.
+ * Named, not numbered: this pointed at `:446` and drifted 90 lines off target, which is what a line
+ * number in a comment always eventually does.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 const standInKeys = new Set<string>();

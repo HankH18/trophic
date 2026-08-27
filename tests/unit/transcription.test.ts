@@ -494,7 +494,12 @@ describe("species roster — bible §4", () => {
     // The rule species.json publishes is: role template (by ADULT role, with a separate template
     // for the one large Grazer) then a zero-sum ±5 tilt on the ADULT primary type.
     const TEMPLATE: Record<string, [number, number, number, number, number]> = {
-      Producer: [85, 40, 80, 35, 60],
+      // RE-SPENT under T-11 (Hank: "re-spend the Producer template only"): a zero-sum single-axis
+      // transfer of 20 points from Instinct to Attack, 85/40/80/35/60 → 85/60/80/35/40. The total
+      // is still exactly 300 and the test below still pins it. The arithmetic behind the choice —
+      // including why 10 of 24 lines sit outside the round-robin band no matter how the points are
+      // spent — is recorded in data/species.json `_bandArithmetic`, beside the templates.
+      Producer: [85, 60, 80, 35, 40],
       Grazer: [80, 55, 70, 45, 50],
       "Grazer(large)": [90, 65, 80, 35, 30],
       Mesopredator: [60, 70, 50, 80, 40],
@@ -1261,8 +1266,66 @@ describe("ecology — the shipped numbers must be able to produce the cascade", 
     // thins: the player's catch rate scales with the target's share of the node. Against regrowth,
     // that made the demo beat arithmetically impossible when node totals were authored large.
     const oc = balance.harness.overcatch;
-    const maxEncountersPerYear =
-      (balance.clock.ticksPerYear / balance.clock.forayTicks) * balance.encounter.stepsPerForay * balance.encounter.encounterChancePerStep;
+    /*
+     * ⚠ THE INSTRUMENT WAS WRONG AND THIS IS THE REPAIR. This budget used to read
+     *
+     *     (ticksPerYear / forayTicks) × stepsPerForay × encounterChancePerStep
+     *
+     * and it OVER-REPORTED, in two independent ways, both of which arrived with the 52-tick retune:
+     *
+     *   (a) an encounter rolls on TALL GRASS, not on every walked cell. `game/encounters.ts`
+     *       `effectiveEncounterChance` is `encounterTileFraction × encounterChancePerStep`, and the
+     *       old form used the un-gated chance — a 4× over-count at the shipped fraction of 0.25;
+     *   (b) a battle costs `clock.battleTicks`. Battles are charged against the SAME meter forays
+     *       are, so "every tick of the year is a foray" was never true once fighting cost anything:
+     *       an excursion that meets `e` creatures spends `forayTicks + e × battleTicks`, not
+     *       `forayTicks`.
+     *
+     * The honest form, which conserves the year exactly (25 forays × 1 tick + 54 battles × 0.5 tick
+     * = 52 ticks, the whole meter and not one tick more):
+     *
+     *     e      = stepsPerForay × encounterTileFraction × encounterChancePerStep   per foray
+     *     cost   = forayTicks + e × battleTicks                                     ticks per foray
+     *     forays = ticksPerYear / cost
+     *     encounters = e × forays
+     *
+     * Against the shipped balance that is 54.0 encounters a year. The old formula read 138.24 under
+     * the 16-tick meter and would read 449.28 under the 52-tick one — eight times the truth, and it
+     * is the number this gate divides the demo beat's feasibility by, so the error was load-bearing
+     * rather than cosmetic.
+     *
+     * This is a MAXIMUM and is deliberately generous: it assumes a player who spends every tick of
+     * the year foraying and fighting, and never travels, never sleeps at an inn and never flees. A
+     * beat that is infeasible against this number is infeasible in principle.
+     *
+     * It WAS also conservative in the other direction — a known gap, now CLOSED, and the note is
+     * kept because the gap is what the shape of this formula was chosen against. `ClockActionKind`
+     * has a `battle` member and `data/balance.json` prices it; what was missing was any caller, so
+     * as wired battles were free and the real budget was 112.32 rather than 54.0. Both ends spend it
+     * now: `game/scenes/OverworldScene.ts` calls `this.spendTicks("battle", action)` on every launch
+     * that clears the guards, and `game/year-replay.ts` lists `battle` in `TICK_COSTING`, so a
+     * replayed log is charged identically. Charging the honest cost here always held the beat to the
+     * stricter of the two readings, which is exactly why wiring the charge up did not move this gate.
+     */
+    const encountersPerForay =
+      balance.encounter.stepsPerForay *
+      balance.encounter.encounterTileFraction *
+      balance.encounter.encounterChancePerStep;
+    const ticksPerForayExcursion = balance.clock.forayTicks + encountersPerForay * balance.clock.battleTicks;
+    const foraysPerYear = balance.clock.ticksPerYear / ticksPerForayExcursion;
+    const maxEncountersPerYear = encountersPerForay * foraysPerYear;
+
+    // The budget must ACCOUNT FOR THE WHOLE YEAR AND NO MORE — the identity that would have caught
+    // both halves of the old formula's error, since neither the tile gating nor the battle charge
+    // can be dropped from it without the ticks stopping adding up.
+    expect(
+      foraysPerYear * balance.clock.forayTicks + maxEncountersPerYear * balance.clock.battleTicks,
+    ).toBeCloseTo(balance.clock.ticksPerYear, 9);
+    // …and it must be strictly below the un-gated count, or the grass gating is not being applied.
+    expect(maxEncountersPerYear).toBeLessThan(
+      balance.clock.ticksPerYear * balance.encounter.stepsPerForay * balance.encounter.encounterChancePerStep,
+    );
+
     const referenceCatchP = Math.min(
       balance.catch.clampMax,
       Math.max(
@@ -1396,11 +1459,19 @@ describe("balance.json is the single home of every gameplay constant (G11 / INV-
     // so SOMETHING has to say which age's role drives the web.
     expect(balance.ecosim.webRoleAgeClass).toBe("A");
     expect(AGE_CLASSES).toContain(balance.ecosim.webRoleAgeClass);
-    // A foray costs one tick (L8) but "rolls encounters" (build-doc §4) — the pair below is what
+    // A foray costs one tick (L8) but "rolls encounters" (build-doc §4) — the trio below is what
     // makes that plural, and what the over-catch feasibility gate above is measured against.
     expect(balance.encounter.stepsPerForay).toBeGreaterThan(1);
     expect(balance.encounter.encounterChancePerStep).toBeGreaterThan(0);
     expect(balance.encounter.encounterChancePerStep).toBeLessThanOrEqual(1);
+    // Grass gating is the THIRD term and it was missing from this list while the over-catch gate
+    // was over-reporting by 4×: a step has to be on an encounter tile before it may roll at all.
+    // Unpinned, a retune could set it to 0 — no encounters anywhere — and nothing here would notice.
+    expect(balance.encounter.encounterTileFraction).toBeGreaterThan(0);
+    expect(balance.encounter.encounterTileFraction).toBeLessThanOrEqual(1);
+    // The half-tick battle charge is the fourth, and it is what makes the budget a budget rather
+    // than a multiplication: fighting spends the same meter foraying does.
+    expect(balance.clock.battleTicks).toBeGreaterThan(0);
     // The Ancient gate is a tag, not a hard-coded id list (bible §4 sign-card chains).
     expect(balance.encounter.signChainGatedHabitatTag).toBe("hidden");
     // The reference player the over-catch gate assumes is stated, not assumed.

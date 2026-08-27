@@ -1,9 +1,9 @@
 {
-  "_source": "build-doc \u00a77.4 catch + Hard Req 2 \u2014 a caught individual is what leaves the node population; battle.ts reports it via caughtIndividual() and the CALLER decrements data/nodes/r1.json.",
+  "_source": "build-doc §7.4 catch + Hard Req 2 — a caught individual is what leaves the node population; battle.ts reports it via caughtIndividual() and the CALLER decrements data/nodes/r1.json.",
   "_replay": "Same as gym-01-maribel.",
-  "_foodWeb": "Derived \u2014 see gym-01-maribel. The Producer role bait matches because the derived diet of nibbin-line contains loamunder-line, a Producer (build-doc \u00a77.2 bait lookup).",
+  "_foodWeb": "Derived — see gym-01-maribel. The Producer role bait matches because the derived diet of nibbin-line contains loamunder-line, a Producer (build-doc §7.2 bait lookup).",
   "id": "wild-catch-r1-nibbin",
-  "description": "Route 1 wild Nibbin: Lure first, then weighted snares over Producer bait until one sticks. Under the \u00a77.4 damage formula a hit removes most of a juvenile's HP, so the honest catch play is to lure rather than to soften.",
+  "description": "Route 1 wild Nibbin: Lure first, then weighted snares over Producer bait until one sticks. Under the §7.4 damage formula a hit removes most of a juvenile's HP, so the honest catch play is to lure rather than to soften.",
   "seed": 4242,
   "rngScript": [
     0.4173,
@@ -100,9 +100,10 @@
     "outcome": "caught",
     "turns": 2,
     "events": 10,
-    "eventDigest": "623bded0",
+    "eventDigest": "10c4bf32",
     "caughtUid": "w-nibbin",
     "_reRecordedForD-A5-1": "eventDigest 44c4c897 -> 623bded0. build-doc §7.4's catch formula was amended to give the bait term an Instinct factor read off the CATCHING creature. The battle is UNCHANGED in every other respect: outcome caught, turns 2, events 10, shakes 3, caughtUid w-nibbin, and every HP identical. The single differing field in the whole log is `chance` on the one `snareThrown` event — 0.84375 -> 0.8040812 — because Ember is a Cindril (60/70/45/85/40) whose Instinct share at A18 is 63/469 = 0.1343284, giving 1 + 3 × (0.1343284 - 0.15) = 0.9529851. Re-recorded, not loosened: the digest is still exact.",
-    "_reRecordedAtIntegration": "events 9 -> 10 and eventDigest d90d55fd -> 44c4c897. The battle is UNCHANGED: outcome, turns, caughtUid and every HP are identical. The extra entry is a `lureChanged` event, added to the BattleEvent union at integration to clear a blocker lane A3 reported and could not fix (core/types.ts was another lane's file). bible \u00a73's Lure changes catch odds for the rest of the battle and nothing in the log said so, which build-doc \u00a74 needs \u2014 'the Phaser scene is a renderer of its event log'. Re-recorded, not loosened: the digest is still exact."
+    "_reRecordedAtIntegration": "events 9 -> 10 and eventDigest d90d55fd -> 44c4c897. The battle is UNCHANGED: outcome, turns, caughtUid and every HP are identical. The extra entry is a `lureChanged` event, added to the BattleEvent union at integration to clear a blocker lane A3 reported and could not fix (core/types.ts was another lane's file). bible §3's Lure changes catch odds for the rest of the battle and nothing in the log said so, which build-doc §4 needs — 'the Phaser scene is a renderer of its event log'. Re-recorded, not loosened: the digest is still exact.",
+    "_reRecordedForT10T11": "RE-RECORDED for T-10. eventDigest 623bded0 -> 10c4bf32. The battle is UNCHANGED in every structural respect: outcome caught, turns 2, events 10, caughtUid w-nibbin. The wild Nibbin is a JUVENILE, and balance.age.multiplier.J was halved from 0.75 to 0.875 (T-10), so its effective stats -- and therefore the damage numbers and the snare `chance` computed against them -- moved. Ember is an Adult (x1.0) and did not move. Re-recorded, not loosened: the digest is still exact."
   }
 }

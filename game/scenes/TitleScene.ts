@@ -43,8 +43,31 @@ export class TitleScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
 
+    // T-19's defect class, AND THE ONE INSTANCE THAT CANNOT BE FIXED FROM THE SCREEN SIDE.
+    //
+    // `game/mapview.ts`'s `"sprites/player"` and `game/survey-view.ts`'s `dex/<name>` were both
+    // fixed by moving the SCREEN to the manifest's shape, because a row already existed to move to.
+    // Here no row exists in any class: `tools/comfy/manifest.json` carries zero rows matching
+    // title / banner / logo / splash, its authored `_ui` block declares six FRAMES and nothing else,
+    // and there is no `ui/` directory in the manifest at all (the ui-frame class writes into
+    // `assets/final/ui-frame/`). So this key names nothing, and no spelling of it would.
+    //
+    // It is NOT fixed by renaming the key, and it is NOT fixed here. Emitting a row means adding a
+    // `_ui` entry with a new subject string, and `_ui` is authored content transcribed from
+    // docs/content-bible.md with a per-entry `source` — the bible names no title banner, so writing
+    // one would be inventing content to make the generator happy, which is exactly what G2 forbids.
+    // A wordmark is also not a nine-slice frame: `ui-frame`'s skeleton says "empty interior,
+    // nine-slice border, no text" and its post-process is `trim: true, fit: false`, so a correct row
+    // would need a NEW CLASS as well as new copy. Both are Hank's calls, not this file's.
+    //
+    // Until then the behaviour below is the right behaviour: the shared helper draws a labelled,
+    // unmistakably unfinished stand-in that prints the key it is standing in for.
+    // `tests/gates/dex-path-contract.test.ts` names it as the one screen its SCREENS table
+    // deliberately does not bind, because there is no manifest row to bind it to. This comment is
+    // the record; it still needs an entry in docs/STATUS.md and a ticket, which the lane that owns
+    // docs/ must add — the finding was handed off rather than filed here.
     placeholderImage(this, width / 2, 46, "ui/title-banner", BANNER_W, BANNER_H, {
-      note: "unbuilt",
+      note: "unbuilt — no manifest row exists (see comment)",
     });
 
     const byline = uiText(this, MARGIN_PX, 0, "TROPHIC · FALLOWMERE", UI.dim);

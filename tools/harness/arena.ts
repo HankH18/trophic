@@ -42,13 +42,31 @@ export type ActionPolicy = (state: BattleState, ctx: BattleContext) => BattleAct
 /* ────────────────────────────────────────────────────────────────────────────
  * Move scoring
  *
- * This mirrors core/battle.ts's own `expectedDamage` (its enemy policy) rather than inventing a
- * second damage model: attack and defence with their in-battle modifiers, the move's power plus any
- * role bonus, the type multiplier, the mid-point of the damage roll, and — optionally — the §7.4
- * predation bonus. `expectedDamage` is not exported, so the arithmetic is restated here; every
- * factor is read from the same `Balance` and the same `typeMultiplier` the reducer uses, and
+ * Two questions live here, and keeping them apart is what keeps the harness and the game telling
+ * the same story:
+ *
+ *   `moveRank`         — WHICH move a greedy attacker throws. core/battle.ts's own ranking key,
+ *                        factor for factor.
+ *   `expectedDamageOf` — HOW MUCH that move is expected to do. The full §7.4 product, because its
+ *                        only caller compares it against a heal in hit points, not against another
+ *                        move.
+ *
+ * The ranking key is deliberately NOT the full product, and this is the one place where restating
+ * the arithmetic could go wrong quietly. Attack, defence, the predation bonus and the mid-roll are
+ * the SAME positive number for every move one attacker knows against one defender — predation
+ * reads (attacker line, defender line, node) and no move at all — so they are a common factor and
+ * in exact arithmetic cannot reorder the pool. In floating point they could, and did:
+ * `((atk × power) / def) × mult × roll` and `power × mult` are not the same double, so moves the
+ * build doc calls tied were separated by rounding noise, and the "ties break by pool order" rule
+ * `bestMoveId` promises below was not the rule actually being applied.
+ * `balance.types.superEffective` is 1.5, so a 40-power super-effective move and a 60-power neutral
+ * one are exactly tied on paper — and shipped content sits on that tie. Ranking on `power × mult`
+ * alone makes 40 × 1.5 and 60 × 1.0 the same double, so pool order really does break them.
+ *
+ * `core/battle.ts`'s `moveRank` is not exported, so the arithmetic is restated here; every factor
+ * is read from the same `Balance` and the same `typeMultiplier` the reducer uses, and
  * `tests/unit/harness.test.ts` pins the two together by asserting the harness's own scoring picks
- * the same move as `chooseEnemyAction` when predation is switched on.
+ * the same move as `chooseEnemyAction` over EVERY shipped pairing rather than a sample.
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /** Attack/defence with their in-battle modifiers, as core/battle.ts's `statWithMods` reads them. */
@@ -76,6 +94,12 @@ export interface ScoringOptions {
   nodeId?: string | undefined;
 }
 
+/**
+ * How much `move` is expected to take off `defender` this turn: the full §7.4 product at the
+ * mid-roll, no crit. A MAGNITUDE, not a ranking key — `tools/harness/player.ts`'s `expectedIncoming`
+ * weighs it against a salve's heal in hit points, which is a comparison the common factors above
+ * genuinely belong in. Choosing between two moves uses {@link moveRank}.
+ */
 export function expectedDamageOf(
   attacker: Battler,
   defender: Battler,
@@ -98,26 +122,48 @@ export function expectedDamageOf(
 }
 
 /**
- * The highest-expected-damage move this attacker knows, ties broken by pool order — the same rule
+ * The ranking key: the only part of §7.4's expected damage that differs between the moves in one
+ * pool. Identical to `core/battle.ts`'s `moveRank` — see the section header for why the rest of the
+ * formula is deliberately absent.
+ */
+export function moveRank(move: MoveDef, defender: Battler, ctx: BattleContext): number {
+  if (move.power <= 0) return 0;
+  const { mult } = typeMultiplier(move.type, defender.types, ctx.typeChart, ctx.balance);
+  return powerAgainst(move, defender.role) * mult;
+}
+
+/**
+ * The highest-ranked move this attacker knows, ties broken by pool order — the same rule
  * core/battle.ts's `chooseEnemyAction` uses, so a mirror match is decided by the numbers rather
- * than by two different AIs.
+ * than by two different AIs. Seeded with the first move rather than with a sentinel, so "ties to the
+ * earliest move in the pool" is a property of the loop itself: a strict `>` never displaces an equal
+ * earlier entry.
+ *
+ * `_opts` is read by nothing here, and that is the finding rather than an oversight. Both of its
+ * fields exist only to switch the §7.4 predation bonus on, and predation multiplies every move in
+ * the pool by the same number, so it cannot move an argmax — `tests/unit/harness.test.ts` pinned
+ * that as a measured fact before it was a structural one. The parameter stays because callers hand
+ * the same options object to `expectedDamageOf`, where it is not inert.
  */
 export function bestMoveId(
   attacker: Battler,
   defender: Battler,
   ctx: BattleContext,
-  opts: ScoringOptions,
+  _opts: ScoringOptions,
 ): string {
   const first = attacker.moves[0];
   if (first === undefined) throw new Error(`tools/harness: "${attacker.uid}" knows no moves`);
-  let bestId = first;
-  let bestScore = -1;
-  for (const moveId of attacker.moves) {
+  const lookup = (moveId: string): MoveDef => {
     const move = ctx.moves.get(moveId);
     if (!move) throw new Error(`tools/harness: unknown move "${moveId}" (data/moves.json)`);
-    const score = expectedDamageOf(attacker, defender, move, ctx, opts);
-    if (score > bestScore) {
-      bestScore = score;
+    return move;
+  };
+  let bestId = first;
+  let bestRank = moveRank(lookup(first), defender, ctx);
+  for (const moveId of attacker.moves) {
+    const rank = moveRank(lookup(moveId), defender, ctx);
+    if (rank > bestRank) {
+      bestRank = rank;
       bestId = moveId;
     }
   }

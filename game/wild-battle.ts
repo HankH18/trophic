@@ -45,6 +45,7 @@ import {
   caughtIndividual,
   makeBattleContext,
   predationOracleFromWebs,
+  xpOf,
   type BattleContext,
   type CaughtIndividual,
 } from "../core/battle";
@@ -52,7 +53,13 @@ import { applyCatch, fromNodeState, toNodeState } from "../core/ecosim";
 import { deriveFoodWeb, indexSpecies, toEcoNode, type EcoNode } from "../core/foodweb";
 import { newOwnedCreature } from "../core/lifecycle";
 import type { Rng } from "../core/rng";
-import { appendAction, type SaveEnvelope } from "../core/save";
+import {
+  appendAction,
+  applyBattleAftermath,
+  battleAftermathAction,
+  type BattleAftermath,
+  type SaveEnvelope,
+} from "../core/save";
 import type {
   AgeClass,
   Balance,
@@ -141,9 +148,64 @@ export function wildUid(encounter: Encounter, seq = 0): string {
   return `wild-${encounter.nodeId}-${encounter.lineId}-${String(seq)}`;
 }
 
-/** The player's fightable party, in order. Fainted-at-0-HP members are the reducer's problem, not ours. */
+/**
+ * The player's fightable party, in order — every unboxed member, fainted ones INCLUDED.
+ *
+ * The fainted are deliberately still here: `core/battle.ts` `startBattle` fields the first STANDING
+ * member and keeps the rest of the party available to switch in, so filtering them out here would
+ * quietly shorten every fight. "Can this party field anyone at all" is a different question and has
+ * its own function — {@link standingSpecs} — precisely so that neither answer has to be inferred
+ * from the other.
+ */
 export function partySpecs(save: SaveEnvelope): BattlerSpec[] {
   return save.party.filter((c) => c.boxed !== true).map(battlerSpecOf);
+}
+
+/**
+ * Is this battler standing? `core/battle.ts` `startBattle`'s own condition, in ONE place.
+ *
+ * `curHp === undefined` means "full" — `BattlerSpec.curHp` is an optional carry-in, absent on a
+ * creature that has never been hurt — which is why the test is not `> 0` alone. Exported so the
+ * overworld's last-ditch check before the hand-off asks the same question rather than re-spelling
+ * it; two spellings of a reducer precondition drift, and the drift is only found by the throw.
+ */
+export function isStanding(spec: Pick<BattlerSpec, "curHp">): boolean {
+  return spec.curHp === undefined || spec.curHp > 0;
+}
+
+/** The party members that can actually be sent out — {@link partySpecs} minus the fainted. */
+export function standingSpecs(save: SaveEnvelope): BattlerSpec[] {
+  return partySpecs(save).filter(isStanding);
+}
+
+/**
+ * Why NO fight of any kind can start from this save, or null — the one clause all four launchers
+ * share (wild, gym, rival, finale).
+ *
+ * ⚠ THE SECOND CLAUSE IS THE POINT, and it is the one that was missing. All four launchers asked
+ * `partySpecs(save).length === 0`, which counts party MEMBERS: a party made only of fainted
+ * creatures passed every one of them, and `core/battle.ts` `startBattle` then THREW — "every
+ * battler in the player party is already fainted — there is nothing to field." A refusal that is
+ * SAID belongs here; an exception out of the reducer is a crash where a sentence was owed, and by
+ * the time the overworld reaches it the battle's `clock.battleTicks` has already been spent.
+ *
+ * One function rather than four copies of the same two strings, because four copies is how the
+ * first clause came to be right in four places and the second missing from all four.
+ *
+ * THE SECOND SENTENCE IS THE ONE THE GAME ALREADY SAYS. `game/scenes/OverworldScene.ts`
+ * `unfieldableProblem` — the last-ditch check in front of the reducer — has always worded this
+ * exact condition "nothing in the party is standing", so that is the wording here rather than a
+ * second spelling of one refusal. Its `— nothing can be sent out` tail is the sibling clause's, so
+ * the two refusals read as the pair they are.
+ */
+export function partyProblem(save: SaveEnvelope): string | null {
+  if (partySpecs(save).length === 0) {
+    return "no creature in the party — nothing can be sent out";
+  }
+  if (standingSpecs(save).length === 0) {
+    return "nothing in the party is standing — nothing can be sent out";
+  }
+  return null;
 }
 
 /**
@@ -154,10 +216,7 @@ export function partySpecs(save: SaveEnvelope): BattlerSpec[] {
  * prints this string.
  */
 export function wildBattleProblem(save: SaveEnvelope): string | null {
-  if (partySpecs(save).length === 0) {
-    return "no creature in the party — nothing can be sent out";
-  }
-  return null;
+  return partyProblem(save);
 }
 
 export interface WildBattleBuild {
@@ -342,6 +401,79 @@ export function applyWildBattleOutcome(opts: {
   const caught = opts.caught === undefined ? caughtIndividual(opts.state, opts.ctx) : opts.caught;
   if (!caught) return null;
   return applyCatchToSave(opts.save, caught, opts.content);
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Battle outcome → the PARTY (build-doc §7.4 → §7.8)
+ *
+ * ⚠ THE ONE PLACE A FIGHT'S COST IS TAKEN OFF THE SAVE, and it is deliberately shared by all four
+ * launchers — wild, gym, rival and finale — for the reason `partyProblem` above is shared: four
+ * copies of one clause is how the first half came to be right in four places and the second half
+ * missing from all four.
+ *
+ * WHAT WAS TRUE BEFORE THIS EXISTED: `save.party[].curHp` had ZERO writers outside
+ * `core/lifecycle.ts` (creation, and the year turn's proportional rescale). Damage evaporated
+ * between fights, so losing a battle cost nothing and an inn's rest would have healed nothing that
+ * needed healing. No file in `game/` ever assigned `OwnedCreature.level` or `.xp` either, so a
+ * creature carried six in-game years was exactly as strong on the last day as the first. And the
+ * bag was copied into `BattleInput.bag` and never copied back, so consumables were infinite.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * What the fight left behind, read off the reducer's FINAL STATE rather than replayed out of its
+ * event log. That choice is the load-bearing one in this file, so here is why:
+ *
+ *   • **The events cannot reconstruct it.** `core/types.ts`'s `BattleEvent` union is thin on
+ *     purpose — `damage` names the victim but not the attacker, `levelUp` carries the new level but
+ *     neither `maxHp` nor `curHp`, and `itemUsed` says nothing about what the stack went down to.
+ *     Rebuilding HP from `damage` + `heal` + `statusTick` + the level-up HP bump would mean a second
+ *     implementation of §7.4's arithmetic living in `game/`, which is the exact thing L11 and this
+ *     module's own header forbid.
+ *   • **The final state already IS the answer**, and it is just as deterministic: `BattleState` is a
+ *     pure function of (input, actions, rng), so reading it adds no new source of divergence. The
+ *     module already reads the same state for the same reason — `caughtIndividual(state, ctx)` is
+ *     core's own report, not a reconstruction from `snareThrown`/`caught` events.
+ *   • **The scene stays a replayer of `events[]`.** Nothing here runs on screen; the scene narrates
+ *     the log and the launcher takes the consequence, which keeps the two jobs apart.
+ *
+ * Only the PLAYER side is read, and it is read through `state.playerOrder` rather than by filtering
+ * `battlers` on `side` — a caught wild creature's uid is in `battlers` too, and it must not be
+ * mistaken for a party member whose HP is owed a write.
+ */
+export function battleAftermath(
+  state: Pick<BattleState, "battlers" | "playerOrder" | "bag">,
+): BattleAftermath {
+  const party: BattleAftermath["party"] = [];
+  for (const uid of state.playerOrder) {
+    const battler = state.battlers[uid];
+    if (!battler) continue;
+    party.push({ uid, curHp: battler.curHp, level: battler.level, xp: xpOf(battler) });
+  }
+  return { party, items: { ...state.bag } };
+}
+
+/**
+ * Apply a finished fight to the save: the tape entry, then the write. The ONE call all four
+ * launchers' finish handlers make.
+ *
+ * ORDER AND OWNERSHIP, stated because this is a seam a replay depends on:
+ *   1. `appendAction(battleAftermathAction(...))` — the tape. `core/save.ts` `replay` reads that
+ *      entry and applies it through the very same `applyBattleAftermath`, so a replay of the log
+ *      reproduces this save (L10 / build-doc §8.1). Logging is NOT optional: neither the encounter
+ *      roll nor a single in-battle action reaches the tape, so a fight's cost cannot be re-derived
+ *      from anything else on it.
+ *   2. `applyBattleAftermath` — core/save.ts's own writer, the same one replay reaches.
+ *
+ * Safe to call BEFORE or AFTER `applyWildBattleOutcome`/`resolveVellsireCatch` on the same fight:
+ * the aftermath names only battlers that were fielded, and a creature caught in that fight is not
+ * one of them. Call it first, so the tape reads as the fight and then its prize.
+ */
+export function applyBattleResult(
+  save: SaveEnvelope,
+  state: Pick<BattleState, "battlers" | "playerOrder" | "bag">,
+): SaveEnvelope {
+  const aftermath = battleAftermath(state);
+  return applyBattleAftermath(appendAction(save, battleAftermathAction(aftermath)), aftermath);
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

@@ -1,0 +1,25 @@
+{
+  "name": "blackcheck",
+  "question": "All six cells of map-isometric came back pure black (mean RGB 0/0/0, 5.6KB PNGs) while the job reported execution_success. Cell A re-runs the EXACT prompt+seed of t4-skelA-mapneg, which produced a good image earlier in this session, to separate a service fault from a prompt fault. Cell B re-runs one isometric prompt. Cell C is a short generic prompt as a floor.",
+  "outDir": "assets/raw/_trials/blackcheck",
+  "rows": [
+    {
+      "id": "a-known-good-t4",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, grid layout, city blocks, rows of identical houses, dense town, crowded, many small buildings, suburb, roundabout, symmetrical layout, aerial photograph, isometric, modern city",
+      "prompt": "pixel art top-down town map, retro 90s handheld RPG style, Hearthollow, a tiny meadow hamlet of only five buildings standing in a shallow grassy hollow: a large timber field station with a fenced specimen yard and drying racks, a stone-walled gym hall with a mossy slate roof, a low inn with a red brick chimney, a small supply shop with a green awning, and one thatched farm cottage beside a bare brown fallow field; a single winding dirt lane joins them and runs off the top edge of the picture into open country, with hedgerows, wildflower meadow and a few scattered oaks filling the rest of the ground, three-quarter overhead view, no characters, only a few large buildings, every building has one clearly visible door, crisp clean pixel edges, 2D game asset"
+    },
+    {
+      "id": "b-iso-retry",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "prompt": "pixel art isometric town map, retro 90s handheld RPG style, Hearthollow, a farming hamlet of five buildings spaced apart around one open grazing green: Warden Maren's timber field station with a fenced specimen pen and drying racks, a stone-walled gym hall with a mossy slate roof and its shed and paddock at the foot of the green, a low inn with a byre, a bait shop under a green awning, and a thatched cottage beside a bare brown fallow field; empty cropped turf at the middle of the picture where a worn dirt lane forks, a tall notice board on a post just below it; hedgerow, wildflower meadow and scattered oaks elsewhere; the lane climbs out through a timber field gate in the hedge at the top and goes on to the Meadow Reach, Meadow biome, chunky three-quarter isometric view, no characters, every building has one clearly visible door, crisp clean pixel edges, 2D game asset"
+    },
+    {
+      "id": "c-short",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, grid layout, city blocks, rows of identical houses, dense town, crowded, many small buildings, suburb, roundabout, symmetrical layout, aerial photograph, isometric, modern city",
+      "prompt": "pixel art top-down town map, retro 90s handheld RPG style, a small village of four cottages on a dirt lane in a green meadow, three-quarter overhead view, no characters, 2D game asset"
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 {
   "_source": "docs/content-bible.md §4 (roster table + metamorphic-line prose). Transcribed, never invented (G2).",
-  "_statRule": "bible §4 gives no per-species numbers, so baseStats are assigned by rule, not by taste. STEP 1 role template (by the line’s ADULT role; age multipliers and the metamorphic ×1.15 carry the juvenile/elder difference): Producer 85/40/80/35/60 · Grazer 80/55/70/45/50 · Grazer(large) 90/65/80/35/30 · Mesopredator 60/70/50/80/40 · Apex 75/90/65/40/30 · Scavenger 55/60/45/75/65 · AncientApex 95/95/85/70/55 (hp/atk/def/spd/ins). STEP 2 zero-sum ±5 tilt on the ADULT primary type: Beast +atk/-ins · Fire +spd/-def · Water +hp/-spd · Plant +def/-atk · Earth +def/-spd · Wind +spd/-hp · Poison +ins/-def · Dark +ins/-hp. Consequences: every stat lands inside bible §2’s 30–100 band; every aging line totals exactly 300 and every Ancient exactly 400, so no line is strictly dominant — only differently shaped. Beast’s +10% (bible §1) is applied at runtime from balance.json, NOT baked in here.",
+  "_statRule": "bible §4 gives no per-species numbers, so baseStats are assigned by rule, not by taste. STEP 1 role template (by the line’s ADULT role; age multipliers and the metamorphic ×1.15 carry the juvenile/elder difference): Producer 85/60/80/35/40 · Grazer 80/55/70/45/50 · Grazer(large) 90/65/80/35/30 · Mesopredator 60/70/50/80/40 · Apex 75/90/65/40/30 · Scavenger 55/60/45/75/65 · AncientApex 95/95/85/70/55 (hp/atk/def/spd/ins). STEP 2 zero-sum ±5 tilt on the ADULT primary type: Beast +atk/-ins · Fire +spd/-def · Water +hp/-spd · Plant +def/-atk · Earth +def/-spd · Wind +spd/-hp · Poison +ins/-def · Dark +ins/-hp. Consequences: every stat lands inside bible §2’s 30–100 band; every aging line totals exactly 300 and every Ancient exactly 400, so no line is strictly dominant — only differently shaped. Beast’s +10% (bible §1) is applied at runtime from balance.json, NOT baked in here.",
+  "_bandArithmetic": "WHY 10 OF 24 LINES SIT OUTSIDE THE 35-65% ROUND-ROBIN BAND, AND WHY THAT NUMBER IS NOT A DEFECT. Recorded here, beside the templates, so nobody chases it a second time (T-11: Hank ruled 'log the arithmetic, re-spend the Producer template only, and leave Carricrow alone'). THE ARITHMETIC. build-doc SS10.5(b) scores each line's PEER win rate over battles against the other 23 non-Ancient lines and nothing else. It is a closed tournament: every decided battle awards exactly one win to one of the 24, so the wins sum to the battles/2 and the MEAN peer win rate is pinned at 50% by construction. It cannot be tuned. balance.harness.roundRobinMin/Max then flags anything more than 15 points off that pinned mean, so the flag count is a measure of the roster's SPREAD, not of its health -- and with a fixed budget (every aging line spends exactly 300, measured correlation of base-stat total with peer win rate r = 0.000) spread is exactly what distinguishes one role from another. Driving the count to zero means making all 24 lines the same animal. MEASURED, at 64 seeds per ordered pair: shipped roster 10 of 24 outside the band; a sweep of 18 candidate Producer templates never brought it below 8. (The T-11 ruling records, from its own measurement rather than this one, that re-spending the Scavenger template as well leaves it at 10 anyway.) Expect roughly 8-10 and stop. THE PRODUCER RE-SPEND (Hank's ruling, applied above): 85/40/80/35/60 -> 85/60/80/35/40. A single-axis, zero-sum transfer of 20 points from Instinct to Attack; hp, def and spd do not move and the total is still exactly 300. The two donors and the recipient were chosen by measurement, not taste -- per-stat Pearson correlation with peer win rate over the 24 lines was atk r=+0.34 (the only clearly positive stat) and ins r=-0.58 (the clearly worst; Instinct buys only damage.critChancePerInstinct = 0.0008 of crit per point). It moved Loamunder 26.7% -> 50.7% and Sporantle 12.9% -> 37.9%, both into band, and nothing else out. It also lifts Producer Attack only to the Scavenger's 60 -- still under Grazer(large) 65, Mesopredator 70 and Apex 90 -- and drops Producer Instinct to the Mesopredator's 40, so the role stays the roster's most durable and slowest, and stops rivalling the Scavenger for Instinct. THE COST, measured and NOT hidden: Loamunder is 47.8% of Route 1's encounter weight (32 of 67 head in data/nodes/r1.json), so this is the one re-spend that reaches the vertical slice. A level-5 ADULT starter's loss rate against a wild Loamunder went 6.5% -> 38.0% and a JUVENILE's 65.1% -> 86.0%; every other Route 1 opponent is unchanged to the battle. Loamunder is still not the route's hardest fight -- shipped Nibbin is 46.9% against the same adult -- but it has stopped being a free one. Nothing smaller clears the band: every swept template that put Sporantle over 35% cost Route 1 between 11 and 15 points. CARRICROW IS DELIBERATELY NOT FIXED, and its 7.9% is not a bug to close. It is the only high-Instinct line, catch success scales with Instinct, and the bible frames it as a non-fighter on purpose. Its rate falls slightly (7.9% -> 5.0%) purely because two of its 23 opponents got stronger; that is the closed tournament doing its arithmetic, not a regression in Carricrow.",
   "_movePoolRule": "bible §3: 2 type + 1 role + 1 utility. The unlock LEVELS are not repeated here — they live once, in balance.moves.slotUnlockLevels, keyed by these slot names (G11). type1 = LIGHT move of the adult primary type; type2 = HEAVY move of the adult secondary type (primary again when mono-type); role = the role move of the adult role (AncientApex fields the Apex move Terrify — bible §3 defines five role moves for six roles); utility = by role (Producer harden · Grazer burrow-roost · Mesopredator quicken · Apex snarl · Scavenger screech · AncientApex focus), overridden to lure on the three starters — the player’s own creature is the one that raises catch odds, and this puts all 7 utility moves in use. NOTE: every move named in this rule is a move ID, not a display name — the D-Q1 and D-Q2 IP renames moved NAMES only, so `harden`/`screech`/`snarl` now render as Bristle/Shriek/Daunt and `burrow-roost` as Burrow (see data/moves.json `_renamed`).",
   "_counts": {
     "lines": 27,
@@ -366,10 +367,10 @@
       ],
       "baseStats": {
         "hp": 85,
-        "atk": 40,
+        "atk": 60,
         "def": 85,
         "spd": 30,
-        "ins": 60
+        "ins": 40
       },
       "metamorphic": false,
       "ancient": false,
@@ -560,10 +561,10 @@
       ],
       "baseStats": {
         "hp": 85,
-        "atk": 40,
+        "atk": 60,
         "def": 75,
         "spd": 35,
-        "ins": 65
+        "ins": 45
       },
       "metamorphic": false,
       "ancient": false,

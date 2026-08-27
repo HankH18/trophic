@@ -2302,8 +2302,45 @@ describe("the battle UI's palette roles form a legibility ladder on the FROZEN p
   it("BINDS — the contrast maths agrees with WCAG's own anchors", () => {
     expect(contrastRatio("#000000", "#ffffff")).toBeCloseTo(21, 5);
     expect(contrastRatio("#ffffff", "#ffffff")).toBeCloseTo(1, 5);
-    // The number the audit measured on the shipped file, recomputed here: c04 on c01.
-    expect(contrastRatio(swatchHex("c04"), swatchHex("c01"))).toBeCloseTo(5.29, 1);
+    /*
+     * WAS: `contrastRatio(swatchHex("c04"), swatchHex("c01"))` ≈ 5.29 — a HEX FOSSIL, and the only
+     * assertion in a test named for WCAG's anchors that was not one. Three things were wrong with it:
+     *
+     *   1. It is not a WCAG anchor. 5.29 is not a threshold, a boundary or a published figure; it is
+     *      whatever number an audit happened to measure on the palette freeze that shipped that day.
+     *   2. It is not a pair the game paints, so it carries no legibility information. `c04` is only
+     *      ever a FOREGROUND — `UI_SWATCH.cursorInk`, the focused row's label, drawn on the cursor
+     *      bar `c03`. `c01` is only ever a foreground too — `menu-model.ts` `dim`, `survey-view.ts`
+     *      `inkDim`, both drawn on `c00`. Every background role in the build is c00, c03 or c06.
+     *      Nothing anywhere draws c04 ON c01, so the ratio between them describes no pixel.
+     *   3. It pinned the helper to a FREEZE rather than to the standard, so it broke for a reason
+     *      that has nothing to do with contrast maths: `data/palette.json` was re-frozen to the
+     *      class-equal fit, c01 #a4a3ad → #8898a5 and c04 #53210c → #321410, and 5.29 became 5.696.
+     *      Bumping the literal to 5.696 would only re-arm the same trap for the next re-freeze.
+     *
+     * The replacements are WCAG's own published boundary greys on white — the lightest grey that
+     * still clears each threshold. They are properties of the STANDARD, so no palette freeze can
+     * move them, and they are checked as boundaries rather than as proximities: one step lighter
+     * must fall BELOW the threshold, which brackets the helper on both sides of 4.5 and of 7.0.
+     */
+    expect(contrastRatio("#767676", "#ffffff")).toBeCloseTo(4.5, 1); // 4.542 — WCAG AA small text
+    expect(contrastRatio("#595959", "#ffffff")).toBeCloseTo(7.0, 1); // 7.005 — WCAG AAA small text
+    expect(contrastRatio("#767676", "#ffffff")).toBeGreaterThanOrEqual(AA_TEXT);
+    expect(contrastRatio("#777777", "#ffffff")).toBeLessThan(AA_TEXT); // one step lighter fails AA
+    expect(contrastRatio("#595959", "#ffffff")).toBeGreaterThanOrEqual(7);
+    expect(contrastRatio("#5a5a5a", "#ffffff")).toBeLessThan(7); // one step lighter fails AAA
+    // WCAG's ratio is (Lmax + 0.05) / (Lmin + 0.05): it does not know which colour is the ink.
+    expect(contrastRatio("#ffffff", "#767676")).toBeCloseTo(contrastRatio("#767676", "#ffffff"), 12);
+    /*
+     * The greys above are achromatic, so they cannot see a wrong set of luminance coefficients — swap
+     * WCAG's 0.2126/0.7152/0.0722 for Rec.601's 0.299/0.587/0.114 and every grey anchor still passes.
+     * A full-strength primary on black reads that coefficient off DIRECTLY: `channel(255)` is 1 by
+     * definition, so the ratio is exactly `(coefficient + 0.05) / 0.05`. Three closed-form numbers,
+     * no measurement and no palette, and with the 21 : 1 anchor above they pin all three weights.
+     */
+    expect(contrastRatio("#ff0000", "#000000")).toBeCloseTo((0.2126 + 0.05) / 0.05, 10); // 5.252
+    expect(contrastRatio("#00ff00", "#000000")).toBeCloseTo((0.7152 + 0.05) / 0.05, 10); // 15.304
+    expect(contrastRatio("#0000ff", "#000000")).toBeCloseTo((0.0722 + 0.05) / 0.05, 10); // 2.444
   });
 
   it("text on the plate descends: primary > muted > refused, and the top two clear AA", () => {
@@ -2392,16 +2429,41 @@ describe("the battle UI's palette roles form a legibility ladder on the FROZEN p
   });
 
   it("BINDS — the ladder check fails against the role table this lane shipped", () => {
-    // The pre-fix assignment, verbatim: panel c01, disabled c04, muted c05, text c07. Feeding the
-    // same comparison the old swatches must go the other way, or the check above proves nothing.
-    const was = { panel: "c01", disabled: "c04", muted: "c05", text: "c07" };
-    const plate = swatchHex(was.panel);
-    const enabled = contrastRatio(swatchHex(was.text), plate);
-    const disabled = contrastRatio(swatchHex(was.disabled), plate);
-    const muted = contrastRatio(swatchHex(was.muted), plate);
+    /*
+     * This is the NEGATIVE CONTROL for the ladder tests above: feed the same comparison the known-bad
+     * table and it must go the other way, or the green above is evidence of nothing.
+     *
+     * WAS: the four swatches were resolved LIVE — `swatchHex("c01")`, `swatchHex("c04")` and so on —
+     * while the comment claimed they were "the pre-fix assignment, verbatim" and the ratios were "the
+     * inversion, measured". After `data/palette.json` was re-frozen those hexes are NOT the ones the
+     * audit measured, so the test was reading TODAY's palette through YESTERDAY's role table: a
+     * combination that has never existed and about which nothing is known. It still passed, but only
+     * because the re-freeze happened to keep c04 darker than c07 relative to c01 — a coincidence, not
+     * a property. Nothing constrains the next freeze to preserve it, and if it stopped the red would
+     * have announced a defect that was fixed long ago. Same fossil as the WCAG anchor above, opposite
+     * polarity: that one froze a live number, this one read a frozen claim off live values.
+     *
+     * NOW: the hexes are literals, taken verbatim from the freeze the audit ran on — the 5-trial B0
+     * freeze of 2026-08-25 that `data/palette.json`'s own `source` field records as superseded;
+     * `git log -S "#a4a3ad" -- data/palette.json` finds it. A record of a past defect must not track
+     * the present palette — the whole point is that it is fixed. That also lets the three ratios the
+     * audit reported be asserted EXACTLY rather than as bare inequalities.
+     */
+    const WAS_B0_FREEZE = { panel: "#a4a3ad", disabled: "#53210c", muted: "#6e3620", text: "#765b4e" };
+    const plate = WAS_B0_FREEZE.panel;
+    const enabled = contrastRatio(WAS_B0_FREEZE.text, plate);
+    const disabled = contrastRatio(WAS_B0_FREEZE.disabled, plate);
+    const muted = contrastRatio(WAS_B0_FREEZE.muted, plate);
     expect(disabled).toBeGreaterThan(enabled); // the inversion, measured
     expect(muted).toBeGreaterThan(enabled); // "muted" out-shouted primary
     expect(enabled).toBeLessThan(AA_TEXT); // and primary was below AA at 8px
+    // The audit's own three numbers, now reproducible because the inputs can no longer move.
+    expect(disabled).toBeCloseTo(5.29, 2);
+    expect(muted).toBeCloseTo(3.81, 2);
+    expect(enabled).toBeCloseTo(2.49, 2);
+    // The one live thing the old form bound incidentally (`swatchHex` throws on an unknown id): the
+    // ids the historical table named are still the palette's, so this record still describes it.
+    for (const id of ["c01", "c04", "c05", "c07"]) expect(swatchHex(id)).toMatch(/^#[0-9a-f]{6}$/i);
   });
 });
 
@@ -2609,6 +2671,7 @@ describe("BattleScene, executed: it renders the log and holds no rule", () => {
     const ctx = contextFor(GYM);
     const { scene, fake } = openScene(GYM.input, ctx, cyclic(GYM.rngScript));
     const at = stepper(scene, fake);
+    const compared: Record<string, number> = { player: 0, enemy: 0 };
     const check = (): void => {
       const step = at.step();
       if (step === undefined) throw new Error(`no step at index ${String(at.index())}`);
@@ -2622,6 +2685,7 @@ describe("BattleScene, executed: it renders the log and holds no rule", () => {
         expect(readoutOf(panel), `${step.kind} @${String(at.index())} ${side}`).toBe(
           `${String(hp)}/${String(carried.maxHp)}`,
         );
+        compared[side] = (compared[side] ?? 0) + 1;
       }
     };
     check();
@@ -2634,7 +2698,21 @@ describe("BattleScene, executed: it renders the log and holds no rule", () => {
     }
     while (at.next()) check();
     expect(at.index()).toBe(GYM.expect.events - 1);
-    expect(at.index()).toBeGreaterThan(50);
+    // RE-ANCHORED on the pattern set at the caption count above (~:1401), for the same reason it was
+    // set there. The real claim is the IDENTITY on the line above — the walk visited every event the
+    // fixture declares, which no fixture length can satisfy accidentally. What sat beside it was
+    // `> 50`, a magnitude pinned to the gym recording's THEN length of 65 events; T-10 + T-11 made
+    // this party win faster and the fixture was re-recorded at 47, so the floor had gone back to
+    // measuring another lane's recording rather than this scene. A floor is still wanted, because
+    // the identity CAN be satisfied vacuously: `check()` skips a side whose step carries no
+    // snapshot, so a compiler that carried none for either side would walk every step the fixture
+    // declares having compared nothing — a hole `> 50` could not see either, at any length. So the
+    // floor is re-anchored to what "substantial" MEANS here — both sides
+    // were actually read, and the fight ran to the reducer's own outcome — none of which moves when
+    // a fixture is re-recorded at a different length.
+    expect(compared.player, "no player-side readout was ever compared").toBeGreaterThan(0);
+    expect(compared.enemy, "no enemy-side readout was ever compared").toBeGreaterThan(0);
+    expect(scene.battleState().outcome, "the walk stopped before the fight ended").toBe(GYM.expect.outcome);
   });
 
   it("two combatants means two sprites — a rebuild takes the old sprite with it", () => {

@@ -234,38 +234,58 @@ export function textLeftOf(box: { x: number; width: number }): number {
  * can check. `tests/unit/survey-view.test.ts` asserts every id below is a real swatch, that each
  * resolves to that swatch's hex, and that the replaced hexes are not swatches.
  *
- * Roles follow the house table in `game/menu-model.ts` (`UI_SWATCH_ID`: bg `c00`, text `c18`, dim
- * `c12`, accent `c15`, danger `c09`) so these screens and the menu are one palette rather than two.
+ * RE-PICKED AT T-15, when `data/palette.json` was re-frozen to the class-equal fit. That swap moved
+ * all 32 hex values while keeping the ids positional, so an id is a SLOT, not a colour: `c18` went
+ * from a cream (#f7ebd3, 17.5 : 1 on the backdrop) to a mid-dark green (#37630f, 2.89 : 1) and the
+ * primary text of all three screens became unreadable. The ids below therefore changed; the ROLES
+ * and their measured levels did not. This is the standing hazard of a positional palette — a
+ * re-freeze silently re-points every table like this one, and only the contrast test catches it.
  *
  * Chosen by MEASURED CONTRAST against `backdrop`, not by eye — a screen that is palette compliant
- * and unreadable is a different defect, not a fix. Against `c00` (#030202): 17.5 : 1 (`ink`),
- * 6.6 : 1 (`inkDim`), 12.3 : 1 (`inkFlag`), 5.4 : 1 (`inkCollapsed`), 11.0 : 1 (`vertexLive`).
- * The graphical marks — the two web lines and the vertex dots — carry no text, so WCAG 1.4.11's
- * 3 : 1 is the bar they are held to and all of them clear it.
+ * and unreadable is a different defect, not a fix. Against `c00` (#040308), with the pre-swap
+ * number in brackets so the ladder is visibly preserved: 19.15 : 1 (`ink`, was 17.5), 6.93 : 1
+ * (`inkDim`, was 6.6), 12.66 : 1 (`inkFlag`, was 12.3), 5.08 : 1 (`inkCollapsed`, was 5.4),
+ * 11.03 : 1 (`vertexLive`, was 11.0). The graphical marks — the two web lines and the vertex dots —
+ * carry no text, so WCAG 1.4.11's 3 : 1 is the bar they are held to and all of them clear it.
  *
- * `vertexLive` is `c20` and NOT the swatch nearest the hex it replaced. `#4f6d4a` quantizes to
- * `c25` (#688b2d), and `c25` reads 1.03 : 1 against `vertexZero` — a living vertex and an emptied
- * one would have been the same brightness, on the one screen whose job is telling them apart. That
- * is the cascade beat rendered as an indistinguishable dot. `c20` is the house `ok` role and sits
- * 2.03 : 1 off `vertexZero`. The test in `tests/unit/survey-view.test.ts` is what found it.
+ * `vertexLive` is `c24` (#9ecd42) and NOT the swatch nearest the hex it replaced. The original note
+ * here recorded why: the nearest swatch to `#4f6d4a` read 1.03 : 1 against `vertexZero`, and a
+ * living vertex indistinguishable from an emptied one is the cascade beat rendered as one dot. The
+ * separation is held to a measured 2.17 : 1, not merely to inequality.
+ *
+ * ALIGNED TO THE HOUSE TABLE AGAIN, WITH ONE ROLE OUTSTANDING. The T-15 re-freeze broke every
+ * table that named a swatch, and each has since been re-picked against the frozen file:
+ * `game/menu-model.ts`'s `UI_SWATCH_ID` (the house table), `RETIREMENT_SWATCH_ID` and
+ * `SEASON_METER_SWATCH_ID`. Measured against the shipped `data/palette.json`, five of the six roles
+ * this table shares with the house one now name the SAME swatch, so the screens and the menu are one
+ * palette: `backdrop` = `bg` (`c00`), `ink` = `text` (`c03`), `inkDim` = `dim` (`c01`),
+ * `inkCollapsed` = `danger` (`c09`), `vertexLive` = `ok` (`c24`). The diagram's marks follow from
+ * those — `lineLive` reuses `ink`'s swatch, `lineCollapsed` and `vertexZero` reuse `inkCollapsed`'s.
+ *
+ * THE ONE DIVERGENCE IS `inkFlag`: `c13` (#efc57a, 12.66 : 1) where the house `accent` is `c16`
+ * (#f8d80f, 14.51 : 1). It is not a contrast question — both clear the bar, and the ladder above
+ * holds either way — so it is a ROLE question left open, and the swatch is recorded here rather than
+ * quietly changed. `game/ui/Palette.ts`'s `UI_SWATCH` is not an alignment target and never was: it
+ * paints the battle HUD against a `c06` plate rather than the `c00` void these screens use, which is
+ * the reason `game/menu-model.ts` keeps the two tables apart.
  */
 export const SCREEN_SWATCH_ID = {
   /** The letterbox behind all three screens. */
   backdrop: "c00",
   /** Primary text: the heading, the rows, every integer. */
-  ink: "c18",
+  ink: "c03",
   /** Chrome and secondary text: the column header, the footer, a dormant vertex's count. */
-  inkDim: "c12",
+  inkDim: "c01",
   /** The dex/summary flag column — "dormant", "not in the wild encounter pool". */
-  inkFlag: "c15",
+  inkFlag: "c13",
   /** The web diagram's `collapsed (…)` label. */
   inkCollapsed: "c09",
   /** A living diet edge. */
-  lineLive: "c18",
+  lineLive: "c03",
   /** A collapsed diet edge, drawn broken. */
   lineCollapsed: "c09",
   /** A vertex with individuals in it. Must be tellable from `vertexZero` — see the note above. */
-  vertexLive: "c20",
+  vertexLive: "c24",
   /** A vertex at zero. */
   vertexZero: "c09",
 } as const;
@@ -779,13 +799,43 @@ export function renderSurveyPage(page: SurveyPage): string[] {
  * ════════════════════════════════════════════════════════════════════════════ */
 
 /**
+ * `tools/comfy/manifest.json` → `classes["dex-painted"].finalDir`, minus the `assets/final/` prefix
+ * that `assetId()` strips. NOT `"dex"` — see the defect note on `dexArtId`.
+ */
+const DEX_PLATE_DIR = "dex-painted";
+
+/**
+ * `tools/comfy/comfy-batch.ts::deriveRows` builds every painted-dex row id as `dex-` + the
+ * lowercased dex identity, and the file as `${finalDir}/${id}.png`. Both halves are needed.
+ */
+const DEX_ROW_ID_PREFIX = "dex-";
+
+/**
  * The asset id a dex identity wants. Art for the painted dex class does not exist yet (build-doc
  * §9.4 / §15 B2), so this is a KEY, not a promise: `DexScene` asks the texture cache for it and
  * draws a labelled placeholder carrying this exact string when the answer is no. A placeholder that
  * says which asset is missing is a work item; one that looks like art is a lie.
+ *
+ * T-19 — THE DEFECT THIS REPLACES. This returned `dex/<name>`. The pipeline can only ever produce
+ * `assets/final/dex-painted/dex-<name>.png`, which `game/placeholder.ts::assetId` reduces to
+ * `dex-painted/dex-<name>`. Measured intersection of the keys this function produced with the 35
+ * committed `dex-painted` manifest rows: ZERO. Every plate would have gone on drawing a placeholder
+ * forever once the art landed, and nothing would have said so — `textureFor` falls back silently,
+ * and `assetId` is a pure string strip that accepts a wrong key without complaint.
+ *
+ * This is the SECOND instance of exactly this bug. `game/ui/BattleHud.ts` invented
+ * `battle/<lineId>/<age>/<facing>` against a manifest that already said
+ * `creature-battle/battle-<stem>-<age>-<facing>`, also at intersection zero. The resolution there
+ * was to move the SCREEN to the manifest's shape, because the manifest's path is derived from
+ * `data/species.json` and gate-locked, while a hand-written literal here answers to nothing. Same
+ * call here, for the same reason.
+ *
+ * `tests/gates/dex-path-contract.test.ts` now binds this: it derives the expected key set from the
+ * committed manifest rows and asserts SET IDENTITY against what this function produces, so the two
+ * sides cannot drift apart again in silence.
  */
 export function dexArtId(dexId: string): string {
-  return `dex/${dexId.toLowerCase()}`;
+  return `${DEX_PLATE_DIR}/${DEX_ROW_ID_PREFIX}${dexId.toLowerCase()}`;
 }
 
 export interface DexEntry {

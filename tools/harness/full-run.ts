@@ -28,8 +28,14 @@
  *   · COLLECTOR — catches everything it can until the party and the box are full
  *                 (`balance.party.maxPartySize + maxBoxSize` = 66 individuals). The heaviest catch
  *                 load the shipped rules permit without releasing anything.
- * A BASELINE with no player at all runs alongside. It is the control: a line that dies out in the
- * baseline was never the player's doing, and calling that an over-catch would be a lie.
+ * A BASELINE with no player at all runs alongside. It is a control for the PLAYER: a line that dies
+ * out in the baseline was never the player's doing, and calling that an over-catch would be a lie.
+ *
+ * It is not a control for the ECOLOGY, and the difference cost this file a false claim. The shipped
+ * Cullbrand raid is content on the act clock, so it fires in the baseline too — the r4 extinctions
+ * the baseline reports are the raid's, not the §7.3 rules'. Build-doc §10's obligation is about
+ * *unintended* extinction, which needs a run with no player AND no raid. That is the second axis,
+ * `RAID_POLICIES`, and every profile is measured with and without.
  *
  * Where the player goes: the act's nodes (tools/harness/player.ts clause 1), one foray per tick,
  * cycling. `balance.encounter.stepsPerForay` rolls per foray at `encounterChancePerStep` each.
@@ -59,6 +65,7 @@ import {
   preyOf,
   primaryPrey,
   rollEncounter,
+  stepEncounterChance,
   toEcoNode,
   type EcoNode,
 } from "../../core/foodweb";
@@ -69,7 +76,7 @@ import { createRng, subsystemRng, type Rng } from "../../core/rng";
 import { newSave } from "../../core/save";
 import { AGE_CLASSES } from "../../core/types";
 import type { AgeClass, NodeFile, NodeState, SaveFile, Season } from "../../core/types";
-import { seedFor, subsystemTags, type LoadedContent } from "./content";
+import { loadContentFromRaw, seedFor, subsystemTags, type LoadedContent } from "./content";
 import { actNodeIds } from "./player";
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -175,10 +182,25 @@ function baitTagFor(node: EcoNode, lineId: string, loaded: LoadedContent): strin
   return diet.length > 0 ? diet[0] : undefined;
 }
 
-/** The wild level of an encounter in `year` (build-doc §7.2 derivations, all tunables). */
-function wildLevel(year: number, loaded: LoadedContent, rng: Rng): number {
+/**
+ * The wild level of an encounter in `act` (build-doc §7.2 derivations, all tunables).
+ *
+ * ⚠ INDEXED BY ACT, NEVER BY THE CALENDAR. This function used to take `year` and be handed
+ * `clock.year` from the run loop, while `act` sat on the adjacent line — the calendar reaching into
+ * a value the act ladder owns, which is exactly the coupling L8's amendment exists to prevent. It
+ * never produced a wrong number only because the harness sets `act = acts.first + 1 + y` and
+ * `year = startYear + y`, so the two were equal by accident of the pacing model. Every published
+ * catch probability descends from this level (level → maxHp → curHp → catchChance), so the accident
+ * was load-bearing: the moment anyone measured a slower player, the numbers would have silently
+ * become a function of the calendar.
+ *
+ * `balance.encounter.levelByYear` keeps its key NAME for now — renaming it touches core/types.ts,
+ * core/schemas.ts, data/balance.json, game/encounters.ts and six test files, and is tracked
+ * separately. Both of its readers already index by act; the name is the last thing that lies.
+ */
+function wildLevel(act: number, loaded: LoadedContent, rng: Rng): number {
   const cfg = loaded.balance.encounter;
-  const base = cfg.levelByYear[year - 1] ?? cfg.levelByYear[cfg.levelByYear.length - 1] ?? cfg.minLevel;
+  const base = cfg.levelByYear[act - 1] ?? cfg.levelByYear[cfg.levelByYear.length - 1] ?? cfg.minLevel;
   const jitter = rng.int(-cfg.levelJitter, cfg.levelJitter + 1);
   return Math.max(cfg.minLevel, base + jitter);
 }
@@ -194,7 +216,7 @@ function rollWildAge(loaded: LoadedContent, rng: Rng): AgeClass {
 export function encounterCatchChance(
   node: EcoNode,
   lineId: string,
-  year: number,
+  act: number,
   loaded: LoadedContent,
   rng: Rng,
 ): number {
@@ -204,7 +226,7 @@ export function encounterCatchChance(
   if (!line) return 0;
   const age = line.ancient ? "E" : rollWildAge(loaded, rng);
   const battler = makeBattler(
-    { uid: "wild", lineId, age, level: wildLevel(year, loaded, rng), traits: [] },
+    { uid: "wild", lineId, age, level: wildLevel(act, loaded, rng), traits: [] },
     "enemy",
     loaded.battle,
     { isWild: true, enteredOnTurn: 1 },
@@ -217,15 +239,122 @@ export function encounterCatchChance(
  * The six-year run
  * ════════════════════════════════════════════════════════════════════════════ */
 
-export const PLAY_PROFILES = ["baseline", "dex", "collector"] as const;
-export type PlayProfile = (typeof PLAY_PROFILES)[number];
+/**
+ * WHAT THE PLAYER DOES. One axis of a run, and only one — see `RAID_POLICIES` for the other.
+ *
+ * `baseline` is "no player in the region", which is NOT the same thing as "nothing happens to the
+ * region": the shipped Cullbrand raid is content and fires on act entry whether or not anybody is
+ * there to see it. Two canonical documents once described the §10 control as "a run with the raid
+ * suppressed" — this list was what they were pointing at, and it never suppressed anything.
+ */
+export const CATCH_PROFILES = ["baseline", "dex", "collector"] as const;
+export type PlayProfile = (typeof CATCH_PROFILES)[number];
+
+/**
+ * WHETHER THE AUTHORED RAID FIRES. The other axis, and it is genuinely independent of the first:
+ * the Cullbrand strip-harvest is data on the act clock, so it lands identically under a player who
+ * catches nothing and a player who fills the box.
+ *
+ * `suppressed` is what build-doc §10's obligation actually needs. Its claim is that no
+ * **unintended** extinction happens under normal play, and neither shipped axis alone can say that:
+ * a line that reaches zero under `baseline` may have been killed by the raid (which is intended
+ * content, bible §6), and a line that reaches zero under `dex` may have been killed by the same
+ * raid rather than by the player. Only a run with **no player and no raid** isolates what the §7.3
+ * rules do on their own, and anything that still reaches zero there was caused by neither.
+ */
+export const RAID_POLICIES = ["shipped", "suppressed"] as const;
+export type RaidPolicy = (typeof RAID_POLICIES)[number];
+
+/** One published run: a catch profile crossed with a raid policy. */
+export interface RunSpec {
+  /** The name the report prints. */
+  readonly id: string;
+  readonly profile: PlayProfile;
+  readonly raids: RaidPolicy;
+}
+
+/*
+ * THE PUBLISHED RUN MATRIX — the full product, and deliberately not an enum of named cells.
+ *
+ * Raid policy and catch profile were kept as two axes rather than folded into a fourth "control"
+ * profile because they answer different questions and are read separately: `ruleFor` below owns
+ * one and `raidSuppressedContent` owns the other, and neither has a case for the other's values.
+ * A single enum would have to spell out every cell by hand, and the cell that matters most —
+ * `dex` with the raid suppressed, which is §10's sentence almost word for word — is the one an
+ * enum of "baseline / dex / collector / control" would have left out.
+ *
+ * All six rows are published because the suppressed column has to be able to report an extinction
+ * or its silence proves nothing: `collector` with the raid suppressed does reach zero at two nodes,
+ * which is what keeps "the control found nothing" from being a claim about a blind instrument.
+ *
+ * The name stays `PLAY_PROFILES` because `tools/harness/measure.ts` imports it by that name and
+ * belongs to another lane; it now holds run specs rather than profile names.
+ */
+export const PLAY_PROFILES: readonly RunSpec[] = [
+  { id: "baseline", profile: "baseline", raids: "shipped" },
+  { id: "dex", profile: "dex", raids: "shipped" },
+  { id: "collector", profile: "collector", raids: "shipped" },
+  { id: "baseline-no-raid", profile: "baseline", raids: "suppressed" },
+  { id: "dex-no-raid", profile: "dex", raids: "suppressed" },
+  { id: "collector-no-raid", profile: "collector", raids: "suppressed" },
+];
 
 export interface FullRunResult {
   profile: PlayProfile;
+  /** Which balance file this run read: the one handed in, or the same file with its raids emptied. */
+  raidPolicy: RaidPolicy;
   seed: number;
   survey: RunSurvey;
-  /** Cullbrand raid events the year turns fired (data, from `balance.yearEvents.raids`). */
+  /** Cullbrand raid events the act entries fired (data, from `balance.yearEvents.raids`). */
   raids: Array<{ eventId: string; nodeId: string; lineId: string; removed: number; remaining: number }>;
+}
+
+/**
+ * The same content, loaded from a COPY of its balance file whose `yearEvents.raids` is empty.
+ *
+ * ⚠ THE COPY IS THE WHOLE POINT, TWICE OVER.
+ *
+ *   · G11 / build-doc §6 INV-3 — `data/balance.json` is not edited and no raid is named here. The
+ *     suppression is `raids = []`, the absence of the list, which `core/lifecycle.ts` `yearEventsOf`
+ *     already documents as "how a year with no raid is expressed". A hard-coded list of which raids
+ *     to skip would be a second source of truth for the raid script.
+ *   · `loaded.rawBalance` is the IMPORTED `data/balance.json` module object when the shipped file is
+ *     in use, shared by every module in the process. Emptying its raid list in place would silently
+ *     disarm the raid for every other profile in the same run — the shipped rows would then report
+ *     the control's numbers and agree with it perfectly. It is deep-copied before anything is
+ *     written, and `tests/unit/harness.test.ts` runs a suppressed profile and a shipped one in one
+ *     process to prove the shipped one still fires.
+ *
+ * Everything else goes through the same `loadContentFromRaw` the `--balance` override uses, so the
+ * control is the shipped region re-derived from the shipped numbers, differing in the raid list and
+ * in nothing else. A test asserts that: the identical round-trip with the raids left ALONE
+ * reproduces the shipped run byte for byte.
+ */
+const SUPPRESSED_BY_SOURCE = new WeakMap<LoadedContent, LoadedContent>();
+
+export function raidSuppressedContent(loaded: LoadedContent): LoadedContent {
+  const cached = SUPPRESSED_BY_SOURCE.get(loaded);
+  if (cached) return cached;
+  const raw = JSON.parse(JSON.stringify(loaded.rawBalance)) as { yearEvents?: { raids?: unknown } };
+  const group = raw.yearEvents;
+  if (!group || !Array.isArray(group.raids)) {
+    throw new Error(
+      "tools/harness: the raid-suppressed control empties `yearEvents.raids` in a copy of the " +
+        "balance file it was handed, and this file has no such list to empty. An absent group is " +
+        "not an empty one (core/lifecycle.ts `yearEventsOf`, INV-3) — fix the balance file rather " +
+        "than letting the control silently measure the same world as the shipped run.",
+    );
+  }
+  group.raids = [];
+  // The path is carried through unchanged: the control's balance IS that file, minus its raids.
+  const built = loadContentFromRaw(raw, loaded.balancePath);
+  SUPPRESSED_BY_SOURCE.set(loaded, built);
+  return built;
+}
+
+/** The content a run of `policy` reads. `shipped` is the caller's own object, untouched. */
+export function contentFor(loaded: LoadedContent, policy: RaidPolicy): LoadedContent {
+  return policy === "suppressed" ? raidSuppressedContent(loaded) : loaded;
 }
 
 interface ProfileRule {
@@ -245,7 +374,16 @@ function ruleFor(profile: PlayProfile, loaded: LoadedContent): ProfileRule {
   }
 }
 
-export function runFullRun(loaded: LoadedContent, seed: number, profile: PlayProfile): FullRunResult {
+export function runFullRun(
+  source: LoadedContent,
+  seed: number,
+  profile: PlayProfile,
+  raidPolicy: RaidPolicy = "shipped",
+): FullRunResult {
+  // Resolved ONCE, here, and everything below reads `loaded`. The raid list the act entries fire
+  // out of is `loaded.balance.yearEvents.raids` (core/lifecycle.ts `raidsForAct`), so a control run
+  // is a run whose balance carries none — not a run with a branch around the raid.
+  const loaded = contentFor(source, raidPolicy);
   const balance = loaded.balance;
   const tags = subsystemTags(balance);
   const simRng = subsystemRng(seed, tags.sim);
@@ -264,18 +402,28 @@ export function runFullRun(loaded: LoadedContent, seed: number, profile: PlayPro
   let caughtTotal = 0;
   const raids: FullRunResult["raids"] = [];
 
-  const forayAt = (nodeId: string, season: Season, year: number): void => {
+  /**
+   * One foray excursion. Returns the number of ENCOUNTERS met, because each one is a battle and a
+   * battle costs `clock.battleTicks` — the caller has to pay for them or the harness models a
+   * player with unlimited fights per year, which is not the player who exists.
+   */
+  const forayAt = (nodeId: string, season: Season, act: number): number => {
     const file = fileById.get(nodeId);
     const state = save.nodeStates[nodeId];
-    if (!file || !state) return;
+    if (!file || !state) return 0;
     let node = fromNodeState(file, state);
     const cfg = balance.encounter;
+    let met = 0;
     for (let s = 0; s < cfg.stepsPerForay; s++) {
-      if (!encRng.chance(cfg.encounterChancePerStep)) continue;
+      // Grass gating, from core/foodweb.ts — the SAME function the overworld rolls. This used to be
+      // the raw `cfg.encounterChancePerStep`, which made the harness walk a region four times denser
+      // than the player's and therefore measure a different game.
+      if (!encRng.chance(stepEncounterChance(balance))) continue;
+      met += 1;
       const lineId = rollEncounter(encounterWeights(node, loaded.species, balance, { season }), encRng);
       if (lineId === null) break; // nothing left alive here — §7.2, not a fallback table (G3)
       if (!rule.wants(lineId, caughtTotal, seenLines)) continue;
-      const p = encounterCatchChance(node, lineId, year, loaded, encRng);
+      const p = encounterCatchChance(node, lineId, act, loaded, encRng);
       if (!encRng.chance(p)) continue;
       node = applyCatch(node, lineId, balance);
       seenLines.add(lineId);
@@ -283,6 +431,7 @@ export function runFullRun(loaded: LoadedContent, seed: number, profile: PlayPro
       caughtTotal += 1;
     }
     save = { ...save, nodeStates: { ...save.nodeStates, [nodeId]: toNodeState(node) } };
+    return met;
   };
 
   const regionStep = (season: Season): void => {
@@ -338,25 +487,54 @@ export function runFullRun(loaded: LoadedContent, seed: number, profile: PlayPro
 
   let clock = createClock(balance);
   for (let y = 0; y < balance.clock.yearsTotal; y++) {
-    const year = clock.year;
+    // No `const year = clock.year` here: the calendar/act leak this file's §"INDEXED BY ACT" note
+    // describes was closed by threading `act`, and the binding it left behind read nothing.
     const act = balance.acts.first + 1 + y;
     enterAct(act);
     const nodeIds = actNodeIds(act, loaded);
     let forayIndex = 0;
     let yearEnded = false;
-    while (!yearEnded) {
-      const season = seasonOf(clock, balance);
-      const nodeId = nodeIds[forayIndex % Math.max(1, nodeIds.length)];
-      forayIndex += 1;
-      if (nodeId !== undefined) forayAt(nodeId, season, year);
-      survey.observe(save.nodeStates);
-
-      const advanced = advanceAction(clock, "foray", balance);
+    let atNode: string | undefined = undefined;
+    /*
+     * THE HARNESS PAYS THE SAME CLOCK THE PLAYER DOES, and it did not used to.
+     *
+     * Two costs were missing, and both made the modelled player able to do far more in a year than
+     * a real one:
+     *   · TRAVEL. This loop rotates to a different node on EVERY foray (`forayIndex % nodeIds`),
+     *     and paid nothing for it. Walking between nodes costs `clock.travelTicks` in the game.
+     *   · BATTLES. Every encounter met is a fight, and a fight costs `clock.battleTicks`. Without
+     *     this the harness spends a whole year on forays while the player spends most of it
+     *     fighting what the forays turn up.
+     * The consequence of leaving them out was not academic: with a 13-tick season the collector
+     * profile could take 13 uninterrupted forays at one node before the first sim step ran, and
+     * drive a line to zero inside season 0 — an extinction produced by the instrument, not the game.
+     *
+     * Costs are spent through `advanceAction`, the same entry the overworld uses, so season
+     * boundaries and the year end are detected identically rather than being re-derived here.
+     */
+    const spend = (kind: "travel" | "foray" | "battle"): void => {
+      const advanced = advanceAction(clock, kind, balance);
       clock = advanced.clock;
       for (const event of advanced.events) {
         if (event.t === "seasonBoundary") regionStep(event.seasonEnded);
         else if (event.t === "yearEnd") yearEnded = true;
       }
+    };
+    while (!yearEnded) {
+      const season = seasonOf(clock, balance);
+      const nodeId = nodeIds[forayIndex % Math.max(1, nodeIds.length)];
+      forayIndex += 1;
+      if (nodeId !== undefined && atNode !== undefined && nodeId !== atNode) spend("travel");
+      if (yearEnded) break;
+      let met = 0;
+      if (nodeId !== undefined) {
+        met = forayAt(nodeId, season, act);
+        atNode = nodeId;
+      }
+      survey.observe(save.nodeStates);
+
+      spend("foray");
+      for (let b = 0; b < met && !yearEnded; b += 1) spend("battle");
     }
 
     // build-doc §7.5 step 5 — the year's FOURTH season step, plus the scripted year events. Run the
@@ -378,14 +556,22 @@ export function runFullRun(loaded: LoadedContent, seed: number, profile: PlayPro
     // The raids are no longer the year turn's — they fire on ACT ENTRY, at the top of the loop.
   }
 
-  return { profile, seed, survey: survey.finish(caughtTotal, caughtByLine), raids };
+  return { profile, raidPolicy, seed, survey: survey.finish(caughtTotal, caughtByLine), raids };
 }
 
 export interface ProfileSummary {
-  profile: PlayProfile;
+  spec: RunSpec;
   seeds: number;
   seasonSteps: number;
   meanCatches: number;
+  /**
+   * Cullbrand raid events these runs actually fired, summed over the seeds.
+   *
+   * This is the control's own receipt, and it is MEASURED rather than assumed: a suppressed row
+   * reporting anything but 0 means the copy did not take and every conclusion drawn from it is
+   * void. The report prints it in the profile table for exactly that reason.
+   */
+  raidEvents: number;
   /** Every (node, line) that reached zero having started above it, in ANY seed, with its seed count. */
   extinctions: Array<{
     nodeId: string;
@@ -404,7 +590,7 @@ const CLOSEST_LISTED = 8;
 
 export function summariseProfile(
   loaded: LoadedContent,
-  profile: PlayProfile,
+  spec: RunSpec,
   seeds: number,
 ): ProfileSummary {
   const extinct = new Map<string, { nodeId: string; lineId: string; formName: string; start: number; seeds: number; firstSeason: number }>();
@@ -412,9 +598,14 @@ export function summariseProfile(
   const catches = new Map<string, { lineId: string; formName: string; caught: number }>();
   let totalCatches = 0;
   let seasonSteps = 0;
+  let raidEvents = 0;
 
   for (let i = 0; i < seeds; i++) {
-    const run = runFullRun(loaded, seedFor(loaded.balance, i), profile);
+    // The seed set is drawn from the CALLER's balance, not the run's, so the shipped row and the
+    // suppressed row of one profile are measured over the identical seeds and the only difference
+    // between the two columns is the raid.
+    const run = runFullRun(loaded, seedFor(loaded.balance, i), spec.profile, spec.raids);
+    raidEvents += run.raids.length;
     totalCatches += run.survey.catches;
     seasonSteps = run.survey.seasonSteps;
     for (const entry of run.survey.catchesByLine) {
@@ -454,9 +645,10 @@ export function summariseProfile(
   }
 
   return {
-    profile,
+    spec,
     seeds,
     seasonSteps,
+    raidEvents,
     meanCatches: seeds === 0 ? 0 : totalCatches / seeds,
     extinctions: [...extinct.values()].sort((a, b) => b.seeds - a.seeds || a.nodeId.localeCompare(b.nodeId)),
     closest: [...minima.values()]

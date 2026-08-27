@@ -1,0 +1,43 @@
+{
+  "name": "map-town-style-hearthollow",
+  "question": "Hank's critique of the shipped map drafts: too many buildings (a town needs a handful, nearly all enterable), and three different biomes came out as the same circular/rectangular grid. Which of (subject enumeration | skeleton rewrite | map-class negative | explicit scale cue) actually moves the layout? Held constant: graph, seed 42, node = Hearthollow. A cell passes if it shows FIVE distinguishable buildings, no street grid, meadow ground, and a lane meeting the top edge of the frame.",
+  "outDir": "assets/raw/_trials/map-town-style",
+  "rows": [
+    {
+      "id": "t1-control",
+      "prompt": "pixel art top-down town map, retro 90s handheld RPG style, Hearthollow, Warden Maren's field station at the heart of the meadow, Meadow biome, three-quarter overhead view, entire town visible, no characters, wide walkable paths, spacious layout, clear building entrances, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "seed": 42
+    },
+    {
+      "id": "t2-subject-only",
+      "prompt": "pixel art top-down town map, retro 90s handheld RPG style, Hearthollow, a tiny meadow hamlet of only five buildings standing in a shallow grassy hollow: a large timber field station with a fenced specimen yard and drying racks, a stone-walled gym hall with a mossy slate roof, a low inn with a red brick chimney, a small supply shop with a green awning, and one thatched farm cottage beside a bare brown fallow field; a single winding dirt lane joins them and runs off the top edge of the picture into open country, with hedgerows, wildflower meadow and a few scattered oaks filling the rest of the ground, three-quarter overhead view, entire town visible, no characters, wide walkable paths, spacious layout, clear building entrances, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "seed": 42
+    },
+    {
+      "id": "t3-skelA-frozneg",
+      "prompt": "pixel art top-down town map, retro 90s handheld RPG style, Hearthollow, a tiny meadow hamlet of only five buildings standing in a shallow grassy hollow: a large timber field station with a fenced specimen yard and drying racks, a stone-walled gym hall with a mossy slate roof, a low inn with a red brick chimney, a small supply shop with a green awning, and one thatched farm cottage beside a bare brown fallow field; a single winding dirt lane joins them and runs off the top edge of the picture into open country, with hedgerows, wildflower meadow and a few scattered oaks filling the rest of the ground, three-quarter overhead view, no characters, only a few large buildings, every building has one clearly visible door, crisp clean pixel edges, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "seed": 42
+    },
+    {
+      "id": "t4-skelA-mapneg",
+      "prompt": "pixel art top-down town map, retro 90s handheld RPG style, Hearthollow, a tiny meadow hamlet of only five buildings standing in a shallow grassy hollow: a large timber field station with a fenced specimen yard and drying racks, a stone-walled gym hall with a mossy slate roof, a low inn with a red brick chimney, a small supply shop with a green awning, and one thatched farm cottage beside a bare brown fallow field; a single winding dirt lane joins them and runs off the top edge of the picture into open country, with hedgerows, wildflower meadow and a few scattered oaks filling the rest of the ground, three-quarter overhead view, no characters, only a few large buildings, every building has one clearly visible door, crisp clean pixel edges, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, grid layout, city blocks, rows of identical houses, dense town, crowded, many small buildings, suburb, roundabout, symmetrical layout, aerial photograph, isometric, modern city",
+      "seed": 42
+    },
+    {
+      "id": "t5-skelA-scale",
+      "prompt": "pixel art top-down town map, retro 90s handheld RPG style, Hearthollow, a tiny meadow hamlet of only five buildings standing in a shallow grassy hollow: a large timber field station with a fenced specimen yard and drying racks, a stone-walled gym hall with a mossy slate roof, a low inn with a red brick chimney, a small supply shop with a green awning, and one thatched farm cottage beside a bare brown fallow field; a single winding dirt lane joins them and runs off the top edge of the picture into open country, with hedgerows, wildflower meadow and a few scattered oaks filling the rest of the ground; each building is large, roughly one sixth of the picture wide, and there is far more open meadow than building, three-quarter overhead view, no characters, only a few large buildings, every building has one clearly visible door, crisp clean pixel edges, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, grid layout, city blocks, rows of identical houses, dense town, crowded, many small buildings, suburb, roundabout, symmetrical layout, aerial photograph, isometric, modern city",
+      "seed": 42
+    },
+    {
+      "id": "t6-skelB-scale",
+      "prompt": "pixel art overhead map of a small settlement, retro 90s handheld RPG style, Hearthollow, a tiny meadow hamlet of only five buildings standing in a shallow grassy hollow: a large timber field station with a fenced specimen yard and drying racks, a stone-walled gym hall with a mossy slate roof, a low inn with a red brick chimney, a small supply shop with a green awning, and one thatched farm cottage beside a bare brown fallow field; a single winding dirt lane joins them and runs off the top edge of the picture into open country, with hedgerows, wildflower meadow and a few scattered oaks filling the rest of the ground; each building is large, roughly one sixth of the picture wide, and there is far more open meadow than building, three-quarter overhead view, no characters, hand-placed organic layout, only a few large buildings each with a clearly visible door, crisp clean pixel edges, 2D game asset",
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, grid layout, city blocks, rows of identical houses, dense town, crowded, many small buildings, suburb, roundabout, symmetrical layout, aerial photograph, isometric, modern city",
+      "seed": 42
+    }
+  ]
+}

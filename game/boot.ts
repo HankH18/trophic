@@ -518,6 +518,22 @@ function overworldData(): OverworldSceneData {
       onRunComplete: (save: SaveEnvelope, overworld: OverworldScene) => {
         registry.setSave(save);
         const content = registry.content();
+        /*
+         * ASK BEFORE LAUNCHING — and this guard is not boilerplate, it is what stops the repair
+         * below from being worse than the defect. `ScenePlugin.launch` on an unregistered key is a
+         * `console.warn` and a silent no-op; the `pause()` two lines further down is not. Together
+         * they would freeze the player in an overworld with NOTHING drawn over it and no key that
+         * does anything, which is a hard lock rather than a dead ESC. The ending is reported missing
+         * instead. (`game/scenes/OverworldScene.ts` `beginYearTurn` and
+         * `game/scenes/YearTurnScene.ts`'s retirement hand-off ask the same question first.)
+         */
+        if (!sceneRegistered(overworld, SCENE_KEYS.survey)) {
+          console.warn(
+            `[boot] the run finished and "${SCENE_KEYS.survey}" is not registered in game/main.ts — ` +
+              "there is no epilogue survey to show",
+          );
+          return;
+        }
         const states = projectEpilogueRegion({
           content,
           save,
@@ -528,11 +544,55 @@ function overworldData(): OverworldSceneData {
           content,
           states,
           year: save.year,
-          season: seasonOf({ year: save.year, tick: save.tick }, content.balance),
+          season: seasonOf({ year: save.year, tick: save.tick, subTick: save.subTick ?? 0 }, content.balance),
           startNodeId: save.currentNode,
           title: EPILOGUE_SURVEY_TITLE,
+          /*
+           * ⚠ THIS WAS ABSENT, AND ITS ABSENCE WAS THE END OF THE RUN.
+           *
+           * `SurveySceneData.onClose` used to be optional and this object did not carry one, so
+           * `SurveyScene.close()` — the whole of which is the closer — did nothing. The player
+           * reached the ending, got a full-screen survey whose own footer advertises ESC, and could
+           * not leave it. Build-doc §16 lists "Vellsire choice + epilogue survey" as never-cut.
+           *
+           * WHERE "CLOSED" GOES, AND WHY IT IS THE OVERWORLD RATHER THAN THE TITLE. The run being
+           * complete does not end the world: `maybeCompleteRun` is latched in the SAVE, the clock
+           * keeps running, and the region is still there to walk, catch in and survey. Routing to
+           * the title would mean `returnToTitle` → `registry.endSession()`, i.e. reading the ending
+           * would silently discard a run the player had not saved — an ending that deletes your game
+           * is a worse failure than one you cannot dismiss. Back to the region cannot strand anyone:
+           * ESC there opens the in-run menu, which is where SAVE and BACK TO TITLE live, so the
+           * player chooses when the run is over. If a credits screen is ever built (bible §12 lists
+           * "Ending / credits" as one row), THIS is the line it replaces.
+           */
+          onClose: () => {
+            overworld.scene.stop(SCENE_KEYS.survey);
+            overworld.scene.resume();
+          },
         };
+        /*
+         * `launch` then `pause` — the ONE hand-off protocol this codebase has, and the epilogue was
+         * the only full-screen hand-off that did not follow it (`handOffToBattle`, `playEntry` and
+         * `beginYearTurn` in `game/scenes/OverworldScene.ts` are the other three; each is
+         * `launch(key, data)` → `pause()`, and each comes back `stop(key)` → `resume()`).
+         *
+         * THE PAUSE IS NOT COSMETIC. `Phaser.Input.Keyboard.KeyboardPlugin.isActive()` is
+         * `enabled && scene.sys.canInput()`, and a paused scene answers `canInput()` false — so
+         * without it the overworld keeps its own keys while the survey is up, and the two that
+         * collide are the two that matter: the arrows walk the player around underneath the ending,
+         * and ESC reaches `bindSessionMenuKey`'s handler, which calls `scene.start(Menu)` and
+         * SHUTS THE OVERWORLD DOWN out from under the survey that was trying to close onto it.
+         *
+         * There is no latch on the overworld to match `battleRunning`/`yearTurnRunning`/
+         * `dialogueRunning`, and none is needed HERE: the two callers of `maybeCompleteRun` both
+         * reach it with the screen already back in the overworld's hands (`finishDialogue` after
+         * `scene.stop(Dialogue)` and `dialogueRunning = false`; the year turn's `finish` after its
+         * `onDone` resumed), and at `sanctum` no autoplay cutscene survives `story.epilogue.shown`,
+         * so nothing stacks a box on top of this. A latch would have to live in `OverworldScene`,
+         * which is not this module's file to write.
+         */
         overworld.scene.launch(SCENE_KEYS.survey, data);
+        overworld.scene.pause();
       },
     },
   };

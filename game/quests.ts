@@ -393,7 +393,7 @@ export function questWorld(
   for (const node of content.nodes) linesMet[node.id] = linesMetAt(save, node.id);
   return {
     year: save.year,
-    season: seasonOf({ year: save.year, tick: save.tick }, content.balance),
+    season: seasonOf({ year: save.year, tick: save.tick, subTick: save.subTick ?? 0 }, content.balance),
     flags: save.questFlags,
     actions: save.actionLog,
     actionsSinceAccepted: acceptedAt === null ? save.actionLog : save.actionLog.slice(acceptedAt),

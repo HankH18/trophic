@@ -26,11 +26,16 @@
  *
  * 4. WHAT LEVEL.  Two models are run and both are reported, because the truth is bracketed by them
  *    and picking one silently would be the black box this file exists to avoid:
- *      · TRAINED   — the leader's rank-and-file level (`max` over `gym.slots`). A player who arrived
- *                    at parity with the gym's team and two levels under its signature.
+ *      · TRAINED   — the leader's rank-and-file level (`max` over `gym.slots`): a player who arrived
+ *                    at parity with the gym's team and under its signature — EXCEPT where the ace
+ *                    already stands on `balance.xp.levelCap`, in which case TRAINED is the cap.
+ *                    Nothing exists above that ceiling for either side, so "under the ace" is not a
+ *                    place a finished ramp leaves the player; the fight is cap against cap. See the
+ *                    ceiling clause on `playerLevelFor`.
  *      · UNTRAINED — `balance.encounter.levelByYear[Y-1]`, the level the region's own wild
  *                    population sits at in that act. A player who caught what they met and never
- *                    ground a level. On shipped data this is exactly four levels below TRAINED.
+ *                    ground a level. Both numbers are printed per gym in the report; neither is
+ *                    restated as a fixed gap here, because the gap is a property of shipped data.
  *
  * 5. WHAT AGE.  Each member's age class is drawn from `balance.encounter.ageWeights` — the shipped
  *    wild age distribution (J 0.5 / A 0.4 / E 0.1). The team came out of the grass, so it is aged
@@ -42,18 +47,22 @@
  *    common — which includes the FIVE negative common traits. A wild-caught team carries its duds.
  *
  * 7. WHICH TEAM THEY FIELD.  `--party-drafts` candidate teams are drawn from the pool and the best
- *    one is kept: FIRST by how many of the leader's creatures it can hit super-effectively with a
- *    move it actually knows at this level, THEN by the team's total effective stats (`effectiveStats`
- *    from core/battle.ts, so age multipliers, the metamorphic jump, the Beast bonus and the rolled
- *    traits all count). That is a player who thought about the matchup for a minute and fielded the
+ *    one is kept: FIRST by how many of the leader's creatures the team would ACTUALLY hit
+ *    super-effectively — the move clause 8's greedy policy returns against that creature, not merely
+ *    a super-effective move sitting unused in the kit — THEN by the team's total effective stats
+ *    (`effectiveStats` from core/battle.ts, so age multipliers, the metamorphic jump, the Beast
+ *    bonus and the rolled traits all count). That is a player who thought about the matchup for a
+ *    minute and fielded the
  *    best animals they had — not a player who solved it. Ties keep the first draft, so the choice is
  *    a deterministic function of the seed.
  *
  * 8. HOW THEY PLAY.  The "reasonable rather than perfect" clause. It is deliberately NOT a
  *    move-choice handicap:
- *      · Move choice is the SAME greedy argmax-on-expected-damage the gym leader uses
- *        (core/battle.ts `chooseEnemyAction`). Identical on purpose — a win rate then measures the
- *        two TEAMS, not a gap between two AIs.
+ *      · Move choice is the SAME greedy argmax the gym leader uses (core/battle.ts
+ *        `chooseEnemyAction`), ranking on the same key — `power × typeMultiplier`, ties to the
+ *        earliest move in the pool. Identical on purpose — a win rate then measures the two TEAMS,
+ *        not a gap between two AIs, and `tests/unit/harness.test.ts` walks every shipped pairing to
+ *        keep it that way rather than sampling a few.
  *        (An earlier version of this model handicapped the player by scoring moves without the §7.4
  *        predation bonus, on the theory that bible §1's "second, learnable type chart" is something
  *        a mid-run player has not learned. That handicap is INERT and the harness proved it: the
@@ -89,7 +98,7 @@
  *        mirror-match measurement in the report)
  */
 
-import { effectiveStats, movesKnownAt, typeMultiplier } from "../../core/battle";
+import { effectiveStats, makeBattler, typeMultiplier } from "../../core/battle";
 import type { BattleContext } from "../../core/battle";
 import type { Rng } from "../../core/rng";
 import { AGE_CLASSES, STAT_KEYS } from "../../core/types";
@@ -97,6 +106,7 @@ import type {
   AgeClass,
   Balance,
   BattleAction,
+  Battler,
   BattlerSpec,
   GymLeader,
   GymTeamSlot,
@@ -175,10 +185,36 @@ export function partySizeFor(gym: GymLeader, balance: Balance): number {
   return Math.min(gymRoster(gym).length, balance.party.maxPartySize);
 }
 
+/** The highest level anywhere on the leader's team — the signature, on shipped rosters. */
+export function aceLevelFor(gym: GymLeader): number {
+  return gymRoster(gym).reduce((best, slot) => Math.max(best, slot.level), 1);
+}
+
 /** Clause 4. */
 export function playerLevelFor(gym: GymLeader, balance: Balance, model: LevelModel): number {
   if (model === "trained") {
-    return gym.slots.reduce((best, slot) => Math.max(best, slot.level), 1);
+    const rankAndFile = gym.slots.reduce((best, slot) => Math.max(best, slot.level), 1);
+    /*
+     * THE CEILING CLAUSE.
+     *
+     * TRAINED means "arrived at parity with the leader's rank and file, two under the ace". That
+     * sentence describes a player with headroom above them — it is a statement about where a player
+     * CHOSE to stop on a ladder that continues upward.
+     *
+     * `balance.xp.levelCap` is a hard ceiling for BOTH sides: `makeBattler` clamps to it, so no
+     * creature in this game exists above it. When a leader's ace stands exactly on that ceiling
+     * there is no ladder left above the player to stop short of, and the fight the shipped game
+     * produces is cap against cap. Reporting that gym two levels under the ceiling headlines a
+     * matchup measured at a level the finished ramp does not leave the player at — which is
+     * precisely what made the last gym read as a balance defect when the level-sensitivity sweep
+     * (tools/harness/gym-sim.ts `runLevelSweep`) was already measuring the real fight one column
+     * over, and measuring it inside its band.
+     *
+     * Written as a property of the CAP, not of a leader: it reads `balance.xp.levelCap` and the
+     * roster's own top level, so it fires for whichever leader the ramp happens to end on and stops
+     * firing the moment the cap is retuned above them (build-doc §6 INV-3). No gym is named here.
+     */
+    return aceLevelFor(gym) >= balance.xp.levelCap ? balance.xp.levelCap : rankAndFile;
   }
   /*
    * `balance.encounter.levelByYear` is indexed by the leader's ACT here, and always was — the array
@@ -213,30 +249,100 @@ function rollTraits(age: AgeClass, balance: Balance, rng: Rng): Trait[] {
 }
 
 /**
- * Clause 7's first key — how many of the leader's creatures this draft can hit super-effectively
- * with a move it actually knows at this level.
+ * The scoring options coverage is measured under. They are the policy's own
+ * (`reasonablePolicy` → `bestMoveId(..., { usePredation: true, nodeId })`), and a gym battle is
+ * fought with no node id, so this is that call verbatim. Named once rather than written twice, so
+ * the draft key and the move the player actually throws cannot drift apart.
+ */
+const COVERAGE_SCORING = { usePredation: true, nodeId: undefined } as const;
+
+/** A drafted or rostered creature as the reducer builds it — the only thing `bestMoveId` reads. */
+function battlerFor(
+  spec: BattlerSpec,
+  side: "player" | "enemy",
+  ctx: BattleContext,
+): Battler | null {
+  if (!ctx.species.get(spec.lineId)) return null;
+  return makeBattler(spec, side, ctx, { isWild: false, enteredOnTurn: 0 });
+}
+
+/**
+ * Clause 7's first key — how many of the leader's creatures this draft would actually HIT
+ * super-effectively.
+ *
+ * The distinction is the whole point, and getting it wrong moved every published win rate. An
+ * earlier version asked whether any draft member *knew* a super-effective move at this level. That
+ * is not what happens in the fight: clause 8's player is a greedy argmax on `power × mult`, and
+ * `balance.types.superEffective` is 1.5 while shipped move powers range widely — so a 40-power
+ * super-effective hit (60 effective) loses the argmax to a 70-power neutral one, and the type
+ * advantage the draft was CHOSEN for is never thrown. Coverage was scoring a move the player would
+ * not use, and it was the FIRST key, so it decided which team got fielded.
+ *
+ * So the question asked here is the policy's own question: build the creatures, ask
+ * `bestMoveId` — the same function `reasonablePolicy` calls, under the same
+ * {@link COVERAGE_SCORING} options — and count the slot only if the move it hands back lands in the
+ * "super" band. Consistency is by construction, not by a parallel re-implementation: a change to
+ * the scorer changes coverage in the same edit.
+ *
+ * The ages and traits are the ones this draft actually rolled. They no longer change the answer,
+ * and why they once did is worth keeping, because it is the exact shape of the bug this key had:
+ *
+ *   `bestMoveId` used to rank on the full `((atk × power) / def) × mult × roll`. Attack, defence,
+ *   predation and the roll are the same number for every move in one pool, so the obvious argument
+ *   said they could not reorder it — and in exact arithmetic they cannot. In floating point they
+ *   did. `balance.types.superEffective` is 1.5, so a 40-power super-effective move and a 60-power
+ *   neutral one are EXACTLY tied on paper (40 × 1.5 = 60 × 1.0), the two orderings of that product
+ *   do not round to the same double, and the winner of the tie was decided by the attacker's Attack
+ *   — i.e. by its age and traits. Wispurr against Carricrow at L32 threw `shade` (super) as a
+ *   Juvenile and an Adult and `ambush` (neutral, typeless) as an Elder, on nothing but rounding.
+ *
+ * T-27 dropped the common factor from the ranking key on BOTH sides, so the key is now a function
+ * of the move and the DEFENDER alone: measured over every shipped (form, level) pairing, a stand-in
+ * Adult now scores identically to the fielded creature. The ages and traits are still passed. They
+ * cost nothing, they keep this key building the creature the fight actually fields rather than a
+ * representative of it, and the next scorer that reads the attacker again — a crit model, an
+ * accuracy model, a Soak-aware key — would otherwise drift out of step with the battle silently,
+ * which is how this key went wrong the first time.
  */
 export function coverageScore(
   draft: readonly SpeciesLine[],
+  ages: readonly AgeClass[],
+  traits: readonly Trait[][],
   level: number,
   gym: GymLeader,
   ctx: BattleContext,
 ): number {
-  const balance = ctx.balance;
+  const attackers = draft
+    .map((line, i) =>
+      battlerFor(
+        { uid: `c${i}`, lineId: line.id, age: ages[i] ?? "A", level, traits: traits[i] ?? [] },
+        "player",
+        ctx,
+      ),
+    )
+    .filter((b): b is Battler => b !== null);
+
   let covered = 0;
-  for (const slot of gymRoster(gym)) {
-    const defenderLine = ctx.species.get(slot.lineId);
-    if (!defenderLine) continue;
-    const defenderTypes = defenderLine.types[slot.age];
-    const hit = draft.some((line) =>
-      movesKnownAt(line, level, balance).some((moveId) => {
-        const move = ctx.moves.get(moveId);
-        if (!move || move.power <= 0) return false;
-        return typeMultiplier(move.type, defenderTypes, ctx.typeChart, balance).band === "super";
-      }),
+  gymRoster(gym).forEach((slot, i) => {
+    const defender = battlerFor(
+      {
+        uid: `g${i}`,
+        lineId: slot.lineId,
+        age: slot.age,
+        level: slot.level,
+        traits: (slot.traits ?? []).map((t) => ({ ...t })),
+      },
+      "enemy",
+      ctx,
     );
+    if (!defender) return;
+    const hit = attackers.some((attacker) => {
+      const move = ctx.moves.get(bestMoveId(attacker, defender, ctx, COVERAGE_SCORING));
+      if (!move || move.power <= 0) return false;
+      return typeMultiplier(move.type, defender.types, ctx.typeChart, ctx.balance).band === "super";
+    });
     if (hit) covered += 1;
-  }
+  });
   return covered;
 }
 
@@ -341,7 +447,7 @@ export function draftParty(
     const lines = draftLines(pool, starters, size, rng);
     const ages = lines.map(() => forcedAge ?? rollAge(balance, rng));
     const traits = ages.map((age) => rollTraits(age, balance, rng));
-    const coverage = coverageScore(lines, level, gym, loaded.battle);
+    const coverage = coverageScore(lines, ages, traits, level, gym, loaded.battle);
     const strength = draftStrength(lines, ages, traits, level, balance);
     // Clause 7: coverage first, raw quality second, first draft wins a tie.
     const better = coverage > bestCoverage || (coverage === bestCoverage && strength > bestStrength);

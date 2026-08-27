@@ -76,6 +76,7 @@ import { buildImg2ImgGraph, uploadInitImage } from './img2img.ts';
 import { nextDenoise, overlayDiff } from '../overlay-diff/diff.ts';
 import { collisionGrid, denoiseLadder, overlayDiffConfig } from '../overlay-diff/config.ts';
 import { readRaster } from '../postprocess/raster.ts';
+import { degenerateReason, statsOf } from './output-check.ts';
 import { hashSeed } from '../../core/rng.ts';
 import { validateContent } from '../../core/schemas.ts';
 import { AGE_CLASSES, PROP_KINDS } from '../../core/types.ts';
@@ -823,7 +824,11 @@ export function deriveRows(m: ManifestFile, content: Content): RowSpec[] {
     rows.push(
       finish(m, {
         id: `map-${node.id}`,
-        class: meta.kind === 'town' ? 'map-town' : 'map-route',
+        // kind -> class. `site` exists because the Sanctum is neither: bible §6 row 6 gives it
+        // "no shops, one long approach" and it holds no buildings, so composing it into map-town's
+        // mandatory "every building has one clearly visible door" was asking for buildings that the
+        // content says are not there.
+        class: meta.kind === 'town' ? 'map-town' : meta.kind === 'site' ? 'map-site' : 'map-route',
         subject: `${node.name}, ${meta.feature}, ${node.biome} biome`,
         view: 'overhead',
         origin: `data/nodes/${node.id}.json#mapAsset`,
@@ -1507,6 +1512,17 @@ export async function runBatch(
         }
       }
       if (!written) return;
+
+      // ── did the generator actually produce a picture? See tools/comfy/output-check.ts.
+      // Everything above this line checks the TRANSPORT — a file arrived, it hashed, the graph
+      // matched — and all of it passed for ten consecutive pure-black images that the cloud
+      // reported as successful and billed. A row must not reach `record()` with a blank frame and
+      // a sha256, because from then on the manifest carries it as generated art.
+      const degenerate = degenerateReason(await statsOf(written));
+      if (degenerate) {
+        fail(row, degenerate);
+        return;
+      }
 
       // ── §8.2 / G4: the layout gate. A candidate that fails it is NOT a completed row.
       let verdict: LayoutVerdict | null = null;

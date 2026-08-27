@@ -486,11 +486,25 @@ describe("textureFor / the real-art census", () => {
 
   it("an unbuilt asset is never queued, so the console is not filled with 404s", () => {
     const { scene, loaded } = fakeScene();
-    const missing = content.nodes[0]?.mapAsset ?? "assets/final/maps/unknown.png";
+    // SYNTHETIC ON PURPOSE — do NOT point this back at real content. Every `mapAsset` and
+    // `collisionMask` in data/nodes/*.json names a file the art lane is going to produce, so each of
+    // them is "unbuilt" only until the day it is built. This anchored on `content.nodes[0].mapAsset`
+    // and went red the night `assets/final/maps/hearthollow.png` landed — correctly, because by then
+    // it had long since stopped testing its own title and was asserting "hearthollow art has not
+    // shipped yet", which is a fact about the calendar and not a contract. A name no manifest row and
+    // no pipeline can emit is unbuilt by construction, and stays that way.
+    const missing = "assets/final/maps/__unbuilt-probe__.png";
+    // The premise, asserted rather than assumed: if this path ever becomes real, THIS line fails and
+    // names the reason, instead of the behaviour assertions below going red and implicating the code.
+    expect(realAssetIds()).not.toContain(assetId(missing));
+
     expect(hasRealAsset(missing)).toBe(false);
     expect(realAssetUrl(missing)).toBeNull();
     queueRealAssets(scene as unknown as Parameters<typeof queueRealAssets>[0]);
     expect(loaded.map((l) => l.key)).not.toContain(assetId(missing));
+    // Stronger than the line above and derived rather than written down: what the loader was handed
+    // is EXACTLY the census, so no path outside it can be requested by any route through this module.
+    expect(loaded.map((l) => l.key).sort()).toEqual(realAssetIds());
   });
 
   it("a registered asset is queued under its id, once", () => {

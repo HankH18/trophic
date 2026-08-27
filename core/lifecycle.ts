@@ -1,9 +1,21 @@
 /**
  * core/lifecycle.ts — aging, the year turn, retirement and heirs.
  *
- * build-doc §7.5 "Party, Aging, Retirement", locked decision L9 (J3/A2/E1 lifespans, ×0.75/1.0/1.15,
- * hybrid metamorphic model, heir-or-boon retirement) and Hard Requirement 4 ("Everything ages at
- * year turns, including boxed creatures. Sole exception: caught Ancients.").
+ * build-doc §7.5 "Party, Aging, Retirement", locked decision L9 (J3/A2/E1 lifespans, the J/A/E age
+ * multiplier `balance.age.multiplier`, hybrid metamorphic model, heir-or-boon retirement) and Hard
+ * Requirement 4 ("Everything ages at year turns, including boxed creatures. Sole exception: caught
+ * Ancients.").
+ *
+ * The age curve is READ, never restated: `balance.age.multiplier` is the rule and its numbers are a
+ * retune away — Hank expects to move them again after playtesting. Shipped today, and shipped only:
+ * J 0.875 · A 1.0 · E 1.075, halved toward neutral under T-10 ("reduce the age buff/nerf to have
+ * half the effect it currently does"), taken as half the DEVIATION FROM NEUTRAL — A *is* the
+ * neutral, so A did not move and its 1.0 is the reference the other two are measured from, not a
+ * value that survived by oversight. Two neighbours were deliberately NOT halved and are not an
+ * unfinished half of that change: `age.metamorphicJump` (1.15) is build-doc §7.4's separate
+ * once-only term carried by metamorphic lines, and `retirement.heirLevelFactor` (0.5) is §7.5
+ * step 3's — the ruling named only the age buff/nerf. The arithmetic, and what the halving bought
+ * when it was measured, are logged in `data/balance.json` `age._multiplier` beside the values.
  *
  * Pure TypeScript, ZERO engine imports (L11) and zero gameplay literals (G11/INV-4): every number
  * used here is read from `Balance` (data/balance.json). This file contains no ambient randomness;
@@ -334,7 +346,11 @@ export function projectedRetirementYearOf(
  * Stat contributions the aging system owns (composed by core/battle.ts, build-doc §7.4)
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/** bible §2 — Juvenile ×0.75 · Adult ×1.0 · Elder ×1.15. */
+/**
+ * bible §2 / L9 — the J/A/E age multiplier: a Juvenile penalty, a neutral Adult, an Elder bonus.
+ * The three numbers are `balance.age.multiplier` and are a retune away (file header), so they are
+ * READ here and never restated.
+ */
 export function ageMultiplier(age: AgeClass, balance: Balance): number {
   return balance.age.multiplier[age];
 }
@@ -624,11 +640,12 @@ export function ageOneYear(
   if (jumps) aged.metamorphosed = true;
 
   /*
-   * The age multiplier grows (J 0.75 → A 1.0 → E 1.15) and the metamorphic latch multiplies on top,
-   * so max HP grows at every transition. `curHp` is an absolute number: carried through unchanged it
-   * would silently reduce the creature's HP FRACTION every year (a full Juvenile waking up at ~75%
-   * as an Adult). Every term of build-doc §7.4's effective stat except the age form is unchanged by
-   * aging, and the trait/boon modifiers are proportional to the raw stat, so effective HP scales
+   * The age multiplier grows (J → A → E: 0.875 → 1.0 → 1.075 today, read from
+   * `balance.age.multiplier`) and the metamorphic latch multiplies on top, so max HP grows at every
+   * transition. `curHp` is an absolute number: carried through unchanged it would silently reduce
+   * the creature's HP FRACTION every year (a full Juvenile waking up at ~88% as an Adult). Every
+   * term of build-doc §7.4's effective stat except the age form is unchanged by aging, and the
+   * trait/boon modifiers are proportional to the raw stat, so effective HP scales
    * exactly with the age form — the ratio below preserves the fraction without lifecycle needing to
    * know the creature's max HP. A fainted creature (0) stays fainted.
    */
@@ -796,8 +813,10 @@ export function canRunYearTurn(save: SaveFile): boolean {
 /**
  * Run one year turn. Pure: `save` is not mutated.
  *
- * The turn ENDS year N and BEGINS year N+1 (build-doc §4 as amended: "At tick 16 — and at nothing
- * else — the year turn runs"), so the resulting save carries `year = N+1` and the tick meter resets.
+ * The turn ENDS year N and BEGINS year N+1 (build-doc §4 as amended: "when the meter fills — and at
+ * nothing else — the year turn runs"), so the resulting save carries `year = N+1` and the meter
+ * resets. The quote used to name a tick; the meter is `balance.clock.ticksPerYear` long and that
+ * number has already been retuned once.
  *
  * There is no last year. `save.year` may be 11 or 40 and this runs identically.
  */
@@ -893,10 +912,25 @@ export function runYearTurn(save: SaveFile, deps: YearTurnDeps): YearTurnResult 
     events.push({ t: "mapVariant", nodeId: node.id, year: newYear, mapAsset });
   }
 
+  /*
+   * THE METER RESET IS A POSITION, AND A POSITION HAS TWO NUMBERS.
+   *
+   * `tick` is reset because this function has no clock of its own; the caller does, and
+   * `game/scenes/YearTurnScene.ts` `finishYearTurn` writes the carry back over both fields. The
+   * fraction is written EXPLICITLY here rather than riding in on the `...save` spread — it used to,
+   * and that was the whole of the seam's memory of it: with the carry travelling as a bare tick
+   * count, whatever fraction happened to be on the incoming save was what the new year began on.
+   * That is right for a caller that hands over a save already standing on the post-action clock and
+   * wrong for one that hands over the save as it stood before the action, and nothing in the type
+   * said which was meant. Spelling it `save.subTick ?? 0` changes no value (an absent fraction is
+   * zero — `SaveFile.subTick` is optional so a save written before battles cost time has none) and
+   * makes the reset one line a reader can check against the carry that follows it.
+   */
   const next: SaveFile = {
     ...save,
     year: newYear,
     tick: balance.clock.startTick,
+    subTick: save.subTick ?? 0,
     party: survivors.party,
     box: survivors.box,
     nodeStates,
@@ -1017,7 +1051,7 @@ export function enterPendingActs(save: SaveFile, deps: ActEntryDeps): ActEntryRe
         });
       }
       // The raid is visible for the whole season it fired in, not for one tick.
-      next = openRaidWindow(next, raid.id, { year: next.year, tick: next.tick }, balance);
+      next = openRaidWindow(next, raid.id, { year: next.year, tick: next.tick, subTick: next.subTick ?? 0 }, balance);
     }
     next = markActEntered(next, act);
   }
@@ -1401,12 +1435,32 @@ export function yearTurnActions(
   const year = result.save.year;
   const last = result.save.actionLog[result.save.actionLog.length - 1];
   let seq = seqStart ?? (last ? last.seq + 1 : 0);
+  /*
+   * `subTick` is written on every entry, and the two values differ on purpose.
+   *
+   * The year-turn entry carries 0 because the fraction IS zero at the instant a year ends:
+   * `core/clock.ts` `advance` emits `yearEnd` when the sub-tick count reaches the full meter
+   * exactly, and only then subtracts it — so any carry from a half-tick action that straddled the
+   * boundary belongs to the NEW year, not to this entry. The retirement entries follow the turn and
+   * so read the save's post-turn fraction.
+   *
+   * Omitting the field entirely is what made this a bug rather than a detail: `appendAction` always
+   * writes it and `replay` carries it through, so a live save built through the year turn and its
+   * own replay serialised differently by exactly this key — and §8.1 / L10 require them to be
+   * byte-identical.
+   */
   const entries: ActionLogEntry[] = [
-    { seq, year: year - 1, tick: tickBefore, action: { t: "yearTurn", year } },
+    { seq, year: year - 1, tick: tickBefore, subTick: 0, action: { t: "yearTurn", year } },
   ];
   for (const choice of result.choices) {
     seq += 1;
-    entries.push({ seq, year, tick: result.save.tick, action: { t: "retirement", choice } });
+    entries.push({
+      seq,
+      year,
+      tick: result.save.tick,
+      subTick: result.save.subTick ?? 0,
+      action: { t: "retirement", choice },
+    });
   }
   return entries;
 }

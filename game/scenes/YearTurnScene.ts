@@ -1,9 +1,11 @@
 /**
  * game/scenes/YearTurnScene.ts — the year turn as a played sequence (build-doc §15 C6).
  *
- * build-doc §4, runtime narrative step 5 AS AMENDED: "At tick 16 — and at nothing else — the
- * **year turn** runs: festival, aging of every owned+boxed creature, retirement flow for expiring
- * creatures, map variant swap, town aging arcs." build-doc §7.5 numbers the same steps.
+ * build-doc §4, runtime narrative step 5 AS AMENDED: "when the YEAR meter fills — and at nothing
+ * else — the **year turn** runs: festival, aging of every owned+boxed creature, retirement flow for
+ * expiring creatures, map variant swap, town aging arcs." build-doc §7.5 numbers the same steps.
+ * (The amended line used to name a tick. The meter is `balance.clock.ticksPerYear` long, that number
+ * has already moved once, and naming it here is how a stale one gets quoted as the rule.)
  *
  * TWO THINGS THAT USED TO BE HERE ARE NOT. A gym victory no longer ends a year, so the turn has ONE
  * trigger; and the **event scripts (Cullbrand raids)** have moved off the calendar to ACT ENTRY —
@@ -155,6 +157,37 @@ export class YearTurnError extends Error {
   }
 }
 
+/**
+ * The clock position an action carried past the year boundary — BOTH halves of it.
+ *
+ * ⚠ THIS EXISTS BECAUSE THE CARRY USED TO BE ONE NUMBER. The seam was a bare `carryTick`, so the
+ * fraction never entered it: `runYearTurn` resets the meter to `balance.clock.startTick` and
+ * {@link finishYearTurn} put back only the whole ticks, leaving the committed save standing on
+ * whichever fraction the save it ran on happened to hold. Every whole-tick cost hides that — a whole
+ * tick and a whole year are both whole numbers of sub-ticks, so the fraction is invariant across
+ * the boundary — and a fractional cost cannot: crossing the year on an odd number of sub-ticks
+ * flips it. Measured, before the fix, with `battleTicks` at half a tick: a battle taken half a tick
+ * short of the full meter committed `{year: 2, tick: 0, subTick: 1}` where the clock said
+ * `{year: 2, tick: 0, subTick: 0}` — half a tick charged twice.
+ *
+ * It is `{tick, subTick}` and not a `ClockState` because a carry has no year of its own: the year is
+ * the turn's to decide, and handing this a `year` field would give the caller a second place to
+ * disagree with `runYearTurn` about which year the save came out in.
+ *
+ * ⚠ AND IT IS NOW THE ONLY SPELLING OF A CARRY IN THIS MODULE. The bare `carryTick` survived
+ * alongside it for a while as a deprecated half — on `YearTurnDriveDeps`, on `YearTurnDrive`, on
+ * `YearTurnTrigger` and as `finishYearTurn`'s `number` overload — and while it survived, the year
+ * turn had two commits that read different halves: the scene's own `finish()` took the count and
+ * the overworld's headless fallback took the position. Deprecating it was not enough; deleting it
+ * is what makes "both halves travel" structural. Do not reintroduce a ticks-only form.
+ */
+export interface YearCarry {
+  /** Whole ticks into the new year — `advanceAction(...).clock.tick`. */
+  tick: number;
+  /** The fraction owed but not yet whole — `advanceAction(...).clock.subTick`. */
+  subTick: number;
+}
+
 export interface YearTurnDriveDeps {
   content: Content;
   /** The seeded "sim" stream (build-doc §8.1) — drives step 5's season step. */
@@ -182,22 +215,26 @@ export interface YearTurnDriveDeps {
    * Why the year ended — `yearTurnTrigger(...).reason`.
    *
    * Omitted ⇒ `"meter"`, which is also the only member `YearEndReason` still has: build-doc §4 gave
-   * the turn two triggers and the amended L8 leaves ONE ("At tick 16 — and at nothing else — the
-   * year turn runs"). It is CARRIED, never branched on — it reaches the banner and the beats
+   * the turn two triggers and the amended L8 leaves ONE ("when the meter fills — and at nothing
+   * else — the year turn runs"). It is CARRIED, never branched on — it reaches the banner and the beats
    * and nothing reads it to decide anything. The guard it used to be read for is gone with the
    * trigger it guarded; see the note in `driveYearTurn` about the third guard.
    */
   reason?: YearEndReason;
   /**
-   * The tick the clock carried INTO the new year (`advanceAction(...).clock.tick`).
+   * The WHOLE clock position the action carried into the new year — `advanceAction(...).clock`.
    *
    * core/clock.ts: "Ticks beyond the boundary carry into the new year rather than being dropped, so
    * no player action is silently free." `runYearTurn` resets the meter to `balance.clock.startTick`
    * because it has no clock of its own — the caller does, and {@link finishYearTurn} puts the carry
-   * back. Omitted ⇒ `balance.clock.startTick`, which is right for a headless driver that never
-   * straddled a boundary.
+   * back.
+   *
+   * ⚠ THERE IS NO TICKS-ONLY SPELLING OF THIS ANY MORE. A `carryTick?: number` sat beside it and
+   * dropped the fraction; both halves travel or neither does. Omitted ⇒ `balance.clock.startTick`
+   * with the save's own fraction, which is right for a headless driver that never straddled a
+   * boundary — see {@link resolveCarry}.
    */
-  carryTick?: number;
+  carry?: YearCarry;
   /**
    * The region's sim context (core/ecosim.ts). Omitted ⇒ `defaultContext()`, which is memoised and
    * derives from the SHIPPED node files — so a caller holding a live context (the overworld does,
@@ -217,8 +254,17 @@ export interface YearTurnDrive {
   mapVariantSwaps: MapVariantSwap[];
   /** The tick the turn started on — `appendYearTurn` needs it for the action log. */
   tickBefore: number;
-  /** The tick the clock carried into the new year — restored by {@link finishYearTurn}. */
-  carryTick: number;
+  /**
+   * The WHOLE clock position the action carried into the new year — restored by
+   * {@link finishYearTurn}, which is the only thing that should read it.
+   *
+   * ⚠ THIS IS THE ONLY SPELLING, and it is the only spelling BECAUSE a second one is what let the
+   * two commits in this codebase disagree. A `carryTick: number` sat here — `carry.tick` with the
+   * fraction sawn off — and the scene's own `finish()` read it while
+   * `game/scenes/OverworldScene.ts`'s headless fallback read `carry`. There is nothing left to pick
+   * the wrong half of.
+   */
+  carry: YearCarry;
   /** The season core/lifecycle.ts stepped (build-doc §7.5 step 5). */
   seasonStepped: Season;
   /** The balance the turn ran against — the scene reads its layout from it (G11). */
@@ -238,8 +284,11 @@ export interface YearTurnTrigger {
   /** The year that ended — hand this to {@link YearTurnDriveDeps.endedYear}. */
   endedYear: number;
   reason: YearEndReason;
-  /** Ticks the action carried past the boundary (`advance`'s resulting tick). */
-  carryTick: number;
+  /**
+   * The whole position the action carried past the boundary (`advance`'s resulting clock, less its
+   * year) — hand this to {@link YearTurnDriveDeps.carry}.
+   */
+  carry: YearCarry;
 }
 
 /** One warning per distinct set of unreachable raid years, so a per-turn caller cannot spam. */
@@ -271,7 +320,10 @@ export function yearTurnTrigger(advanced: ClockAdvance): YearTurnTrigger | null 
     (e: ClockEvent): e is Extract<ClockEvent, { t: "yearEnd" }> => e.t === "yearEnd",
   );
   if (!end) return null;
-  return { endedYear: end.year, reason: end.reason, carryTick: advanced.clock.tick };
+  // BOTH halves, off the one clock `advance` produced. A `carryTick: carry.tick` used to ride along
+  // beside this, and a projection of the carry is a second thing a caller can pick up by mistake.
+  const carry: YearCarry = { tick: advanced.clock.tick, subTick: advanced.clock.subTick };
+  return { endedYear: end.year, reason: end.reason, carry };
 }
 
 /**
@@ -385,6 +437,9 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
   };
 
   const tickBefore = save.tick;
+  // Resolved BEFORE the turn runs, off the save the caller handed over — `turn.save` has already had
+  // its meter reset by then and cannot answer what the action carried.
+  const carry = resolveCarry(save, deps, balance);
   const turn = runYearTurn(save, {
     species: content.species,
     balance,
@@ -422,10 +477,32 @@ export function driveYearTurn(save: SaveEnvelope, deps: YearTurnDriveDeps): Year
     flow,
     mapVariantSwaps: turn.mapVariantSwaps,
     tickBefore,
-    carryTick: deps.carryTick ?? balance.clock.startTick,
+    carry,
     seasonStepped: lastSeason,
     balance,
   };
+}
+
+/**
+ * The carry the turn will hand back: the caller's whole position, or the standing start.
+ *
+ * `deps.carry` is the whole answer and nothing here has to guess. It USED TO BE ABLE TO GUESS, and
+ * that is the thing this function no longer does: beside `carry` there was a lossy `carryTick`, and
+ * when a caller spelled that one the fraction had to come from somewhere — `save.subTick`, which is
+ * right only for a caller shaped like `game/scenes/OverworldScene.ts` `beginYearTurn` (it hands over
+ * a save it has ALREADY moved to the post-action clock and only retags its year and tick) and wrong
+ * for one that hands over the save as it stood BEFORE the action, where it is the pre-action half of
+ * a fractional cost. That guess was correct by accident for the shipped shell and by nothing at all
+ * for anyone else, so the lossy spelling is gone rather than better documented.
+ *
+ * With no carry given there is no clock in play at all: a headless turn starts the new year on
+ * `startTick` with nothing owed, which is what `save.subTick` is for a save that never straddled —
+ * it is also exactly what `core/lifecycle.ts` `runYearTurn`'s meter reset already wrote, so this
+ * branch changes no value and only makes the position explicit.
+ */
+function resolveCarry(save: SaveEnvelope, deps: YearTurnDriveDeps, balance: Balance): YearCarry {
+  if (deps.carry) return { tick: deps.carry.tick, subTick: deps.carry.subTick };
+  return { tick: balance.clock.startTick, subTick: save.subTick ?? 0 };
 }
 
 /**
@@ -662,14 +739,24 @@ export function beatsAfterRetirement(result: AdvanceYearResult): YearTurnBeat[] 
  * before the fix: an inn taken on tick 15 of a 16-tick year left the committed save on Y2 tick 0
  * while `previewAction` — this lane's own HUD preview, built by running the REAL transition —
  * promised Y2 tick 1. One seam, two halves, both in C56; they agree now.
+ *
+ * THE CARRY IS A POSITION, NOT A COUNT — and a `number` OVERLOAD USED TO SAY OTHERWISE. It took
+ * `number | YearCarry`; the number arm wrote `tick` and left whatever fraction `runYearTurn` carried
+ * through, which was measurably wrong the moment a cost became fractional: a battle (half a tick)
+ * taken half a tick short of the full meter committed `subTick: 1` against a clock that said
+ * `subTick: 0`. It was kept while call sites still spelled it, and while it was kept the two commits
+ * in this codebase disagreed — `game/scenes/OverworldScene.ts` `beginYearTurn`'s headless fallback
+ * passed the whole position and the scene's own `finish()`, the commit the player watches, passed
+ * the count. Both pass `drive.carry` now and there is no second arm to fall into.
  */
 export function finishYearTurn(
   result: AdvanceYearResult,
   tickBefore: number,
-  carryTick?: number,
+  carry?: YearCarry,
 ): SaveEnvelope {
   const save = appendYearTurn(result, tickBefore);
-  return carryTick === undefined ? save : { ...save, tick: carryTick };
+  if (carry === undefined) return save;
+  return { ...save, tick: carry.tick, subTick: carry.subTick };
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -994,16 +1081,30 @@ export function createYearTurnScene(
       this.finish();
     }
 
+    /**
+     * The commit the PLAYER watches — and it goes through the same seam the headless one does.
+     *
+     * ⚠ `carry`, BOTH NUMBERS. This destructured `carryTick` and handed {@link finishYearTurn} the
+     * bare tick count, so the two commits in this codebase disagreed: `game/scenes/OverworldScene.ts`
+     * `beginYearTurn` had already moved its unregistered-scene fallback to the whole position and
+     * this, the live one, was still on the lossy half. It survived only because the shipped shell
+     * hands the turn a save already standing on the post-action clock, so the fraction
+     * `core/lifecycle.ts` `runYearTurn` leaks through the meter reset happened to be the carry's —
+     * and `resolveCarry`'s note says what that is worth. Measured against a caller that hands over
+     * the save as it stood BEFORE the action (the shape `YearTurnDriveDeps.endedYear` documents),
+     * with a battle taken half a tick short of the full meter: committed `{tick: 0, subTick: 1}`
+     * against a clock that said `{tick: 0, subTick: 0}` — the half tick charged twice.
+     */
     private finish(): void {
       if (this.finished || this.awaitingFlow) return;
-      const { flow, tickBefore, carryTick } = this.drive;
+      const { flow, tickBefore, carry } = this.drive;
       if (!flow.done()) {
         this.enterRetirement();
         return;
       }
       this.finished = true;
       const result = this.result ?? flow.result();
-      this.onDone(finishYearTurn(result, tickBefore, carryTick), result);
+      this.onDone(finishYearTurn(result, tickBefore, carry), result);
       this.scene.stop();
     }
 

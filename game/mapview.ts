@@ -17,12 +17,15 @@
  * that passed overlay-diff (G4). `core/lifecycle.ts` `mapAssetForYear` makes that choice; this file
  * renders its answer.
  *
- * **Placeholders must look like placeholders, and there is exactly one of them.** Real generated art
- * exists only for the B0 player sweep and five style trials; `assets/final/` is empty, so every map
- * in the game today draws through `game/placeholder.ts` — the ONE shared helper, whose flat colour +
- * hatch + printed asset id is the same everywhere in the game. No unrelated trial image is ever
- * stretched to stand in for a map: `textureFor` returns real art at its own key or a placeholder,
- * and only the placeholder is drawn to a requested size.
+ * **Placeholders must look like placeholders, and there is exactly one of them.** Whether a node
+ * draws its painting or a stand-in is decided PER ASSET, not once for the project: `textureFor`
+ * returns the real texture when `assets/final/` holds that node's map and the labelled stand-in when
+ * it does not. The two states coexist, and the mix shifts every time the art lane ships — so never
+ * record here which nodes are which, or how many are painted. `game/placeholder.ts`'s build-time
+ * census is the only answer that stays current. The stand-in is always the ONE shared helper, whose
+ * flat colour + hatch + printed asset id is the same everywhere in the game. No unrelated trial image
+ * is ever stretched to stand in for a map: `textureFor` returns real art at its own key or a
+ * placeholder, and only the placeholder is drawn to a requested size.
  *
  * WHY THIS FILE OWNS SO LITTLE OF THAT. The placeholder helper and the season-tint reading are two
  * other lanes' modules. This file used to carry a private copy of each — which is how a game ends up
@@ -73,10 +76,17 @@ export interface NodeArtKeys {
 
 /**
  * Which textures this node needs at this year. `mapAssetForYear` (core/lifecycle.ts) picks the year
- * variant, falling back to the nearest listed one and finally to the base — and today every node
- * ships `yearVariants: {}`, so it always returns the base map. That is correct, not a bug: a variant
- * only enters the node JSON once it has passed overlay-diff (build-doc §8.2 / G4), and
- * `tools/overlay-diff/` is empty.
+ * variant, falling back to the nearest listed one and finally to the base.
+ *
+ * A node whose `yearVariants` is empty therefore renders its base map at every year, and that is
+ * correct rather than a bug: build-doc §8.2 / G4 makes the node JSON the single gate — a variant
+ * enters it once, and only once, it has passed the layout freeze in `tools/overlay-diff/`
+ * (`overlayDiff` in diff.ts, driven by run.ts). An empty `yearVariants` means the freeze has not
+ * passed for that node, never that the check is missing. This file renders exactly what the JSON
+ * lists and never second-guesses it.
+ *
+ * How many nodes currently list a variant is a property of data/nodes/*.json and is not restated
+ * here — a count in this comment would be a claim that expires the first time a variant passes.
  */
 export function nodeArtKeys(node: NodeFile, year: number, balance: Balance): NodeArtKeys {
   const mapPath = mapAssetForYear(node, year, balance);
@@ -306,13 +316,82 @@ export function drawCollisionOverlay(
   }
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * The player's own texture keys
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The three views the pipeline paints the player in, and the three step phases of each.
+ *
+ * These are the SHAPE of the manifest's `player` class, not a second list of content: the nine rows
+ * (`player-front`, `player-back`, `player-side`, and each of those `-step-left` / `-step-right`) are
+ * derived in `tools/comfy/comfy-batch.ts` from `manifest._player` and are gate-locked, so this file
+ * spells out the key grammar and `tests/gates/dex-path-contract.test.ts` asserts SET IDENTITY
+ * between what {@link playerArtIds} produces and what the manifest carries. Either side moving turns
+ * that gate red, which is the whole point — the literal this replaces answered to nothing.
+ */
+export const PLAYER_VIEWS = ["front", "back", "side"] as const;
+export const PLAYER_STEPS = ["stand", "step-left", "step-right"] as const;
+
+export type PlayerView = (typeof PLAYER_VIEWS)[number];
+export type PlayerStep = (typeof PLAYER_STEPS)[number];
+
+/** The manifest's `player` class writes into `assets/final/player/`, so every key sits under this. */
+const PLAYER_ART_DIR = "player";
+/** Every row id in that class is `player-…`; `assetId` strips the directory, never the prefix. */
+const PLAYER_ROW_ID_PREFIX = "player-";
+
+/**
+ * The texture key for one player view and step.
+ *
+ * T-19, THIRD INSTANCE. This module asked for `"sprites/player"`. The pipeline can only ever produce
+ * `assets/final/player/player-<view>[-<step>].png`, which `game/placeholder.ts::assetId` reduces to
+ * `player/player-<view>[-<step>]`, and NO `sprites/` directory exists in the manifest in any class.
+ * Measured intersection of the key this file asked for with the 9 committed `player` rows: ZERO. The
+ * player would have gone on drawing a stand-in forever once the art landed, and nothing would have
+ * said so — `textureFor` falls back silently and `assetId` is a pure string strip that accepts a
+ * wrong key without complaint.
+ *
+ * Same defect and same resolution as `game/survey-view.ts::dexArtId` (dex plates) and
+ * `game/ui/BattleHud.ts` (battle sprites): move the SCREEN to the manifest's shape, because the
+ * manifest's path is derived from data and gate-locked while a hand-written literal here is not.
+ */
+export function playerArtId(view: PlayerView, step: PlayerStep = "stand"): string {
+  const suffix = step === "stand" ? "" : `-${step}`;
+  return `${PLAYER_ART_DIR}/${PLAYER_ROW_ID_PREFIX}${view}${suffix}`;
+}
+
+/** Every key this module can ask the loader for — the nine the manifest can produce, and no more. */
+export function playerArtIds(): string[] {
+  return PLAYER_VIEWS.flatMap((view) => PLAYER_STEPS.map((step) => playerArtId(view, step)));
+}
+
 /**
  * A 32×48 stand-in for the player (build-doc §7.6's logical sprite size), through the same shared
- * helper. The B0 sweep produced real player art (`assets/raw/b0/`), but it is not post-processed
- * into `assets/final/` yet, so this draws the honest labelled rectangle until it is.
+ * helper. `textureFor` decides which it is: the moment post-processing writes
+ * `assets/final/player/player-<view>[-<step>].png`, this returns that real texture instead, with no
+ * change here; until then it draws the honest labelled rectangle. Which of the nine keys are real at
+ * any given moment is `game/placeholder.ts`'s census to answer and is deliberately not restated in
+ * this comment. Note that raw output — `assets/raw/player/`, including the views `player-views.ts
+ * derive` builds — is UPSTREAM of that census and never satisfies it on its own; only a file under
+ * `assets/final/` counts as real.
+ *
+ * `view`/`step` default to the standing front because that is what `game/scenes/OverworldScene.ts`
+ * asks for today — it draws one static image and has no walk cycle. The other eight keys are
+ * reachable through this function rather than merely declared, so when build-doc §9.6's walk cycle
+ * lands the caller changes and the key grammar does not.
  */
-export function playerPlaceholderKey(scene: Phaser.Scene, balance: Balance): string {
-  return textureFor(scene, "sprites/player", balance.map.playerSpriteW, balance.map.playerSpriteH, {
-    note: "B0 sweep not post-processed",
-  });
+export function playerPlaceholderKey(
+  scene: Phaser.Scene,
+  balance: Balance,
+  view: PlayerView = "front",
+  step: PlayerStep = "stand",
+): string {
+  return textureFor(
+    scene,
+    playerArtId(view, step),
+    balance.map.playerSpriteW,
+    balance.map.playerSpriteH,
+    { note: "not post-processed into assets/final/" },
+  );
 }

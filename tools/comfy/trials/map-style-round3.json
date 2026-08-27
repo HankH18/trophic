@@ -1,0 +1,43 @@
+{
+  "name": "map-style-round3",
+  "question": "Two questions at once. DISTINCTNESS (Hank's second critique — two of three shipped drafts looked the same): run the round-1 winning town recipe on three different biomes and see whether Brackwater, Cindershelf and Bowerdeep come out as three different places. SCALE (round 2's route failure): routes came out as a dead-straight causeway at close-up scale, so v5/v6 add 'winding' and an explicit far-above framing. Round 2 also established two anti-patterns now avoided: naming what the OTHER edges are ('unbroken hedgerow every other edge') produces a rectangular boundary and a path grid, and 'the ONLY road leaving the picture' does not reduce the number of roads that leave it.",
+  "outDir": "assets/raw/_trials/map-style-round3",
+  "rows": [
+    {
+      "id": "v1-brackwater",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "prompt": "pixel art top-down town map, retro 90s handheld RPG style, Brackwater, a small stilt town of six buildings raised on wooden piles over dark marsh water and joined by narrow plank boardwalks instead of streets: a long fishery shed with drying nets and fish crates on its deck, a ferry landing with a moored flat-bottomed ferry and mooring posts, a gym hall of tarred black timber, a lamplit inn, a small supply shop with barrels stacked outside, and one stilt cottage; the boardwalk runs off the bottom edge of the picture toward open meadow and off the top edge toward deeper marsh; reed beds, lily pads and open brown water fill the rest of the ground and there is almost no dry land, three-quarter overhead view, no characters, only a few large buildings, every building has one clearly visible door, crisp clean pixel edges, 2D game asset"
+    },
+    {
+      "id": "v2-cindershelf",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "prompt": "pixel art top-down town map, retro 90s handheld RPG style, Cindershelf, a small mining settlement of five buildings standing on black volcanic ash and cracked basalt terraces with no grass anywhere: a stone relic forge with a tall smoking chimney and a glowing orange forge mouth, a timbered mine head over a dark adit cut into the rock face with ore carts and rails, a squat gym hall of dark basalt blocks, a low inn with shuttered windows, and a supply shop under a soot-stained awning; steam vents and glowing orange fissures crack the bare ground between them; a switchback ash road climbs through the settlement, entering the picture at the bottom edge and leaving at the top edge, three-quarter overhead view, no characters, only a few large buildings, every building has one clearly visible door, crisp clean pixel edges, 2D game asset"
+    },
+    {
+      "id": "v3-bowerdeep",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "prompt": "pixel art top-down town map, retro 90s handheld RPG style, Bowerdeep, a small forest town of five buildings built high in the branches of enormous trees and joined by rope bridges and plank walkways above the forest floor: a lantern-strung night market platform of covered stalls, a silk house hung with pale spun-silk skeins, a gym hall of dark carved wood among the boughs, an inn glowing with paper lanterns, and a small supply shop on a branch platform; the walkway leaves the picture at the bottom edge and again at the top edge; dense green canopy, hanging vines and shafts of light fill the rest of the ground, three-quarter overhead view, no characters, only a few large buildings, every building has one clearly visible door, crisp clean pixel edges, 2D game asset"
+    },
+    {
+      "id": "v4-r1",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "prompt": "pixel art top-down route map, retro 90s handheld RPG style, Route 1, the Meadow Reach: a broad open meadow of grass and hedgerows seen from high above, crossed by one winding dirt track that enters the picture at the bottom edge and leaves at the top edge; patches of long grass, hedgerow lines, a low stone wall, a few scattered oaks, and a small stream with a plank crossing; no buildings and no people, three-quarter overhead view, no characters, no buildings, crisp clean pixel edges, 2D game asset"
+    },
+    {
+      "id": "v5-r2-winding",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "prompt": "pixel art top-down route map, retro 90s handheld RPG style, Route 2, the Brackmarsh: a wide brackish marsh seen from high above, crossed by one narrow winding plank causeway that enters the picture at the bottom edge and leaves at the top edge, bending several times as it goes; small reed clumps, dark shallow water, brown mud banks, half-sunken dead trees, lily-choked pools, a leaning jetty and rotting mooring posts; no buildings and no people, three-quarter overhead view, no characters, no buildings, crisp clean pixel edges, 2D game asset"
+    },
+    {
+      "id": "v6-r2-winding-far",
+      "seed": 42,
+      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
+      "prompt": "pixel art top-down route map, retro 90s handheld RPG style, Route 2, the Brackmarsh: a wide brackish marsh seen from very high above so the whole marsh fits in the frame at once and every reed clump and tree is small, crossed by one narrow winding plank causeway that enters the picture at the bottom edge and leaves at the top edge, bending several times as it goes; small reed clumps, dark shallow water, brown mud banks, half-sunken dead trees, lily-choked pools, a leaning jetty and rotting mooring posts; no buildings and no people, three-quarter overhead view, no characters, no buildings, crisp clean pixel edges, 2D game asset"
+    }
+  ]
+}

@@ -14,8 +14,15 @@
 
 import type { LoadedContent } from "./content";
 import type { HarnessMeasurements } from "./measure";
-import type { OvercatchNodeSummary } from "./full-run";
+import type {
+  OvercatchNodeSummary,
+  PlayProfile,
+  ProfileSummary,
+  RaidPolicy,
+  RunSpec,
+} from "./full-run";
 import type { GymOutcome } from "./gym-sim";
+import { aceLevelFor, playerLevelFor } from "./player";
 
 /* ── small markdown helpers ─────────────────────────────────────────────── */
 
@@ -32,6 +39,34 @@ function table(headers: readonly string[], rows: ReadonlyArray<readonly string[]
 
 function section(title: string, body: string): string {
   return `${title}\n\n${body}\n`;
+}
+
+/**
+ * The gap between the two level models, per gym, COMPUTED. It used to be stated as a fixed number
+ * in the prose and the stated number was wrong — the report's own §2.6 was printing a different one
+ * two screens further down. A restated constant is a second source of truth; this is the first.
+ */
+function levelGapNote(loaded: LoadedContent): string {
+  const gaps = [...loaded.gyms]
+    .sort((a, b) => a.act - b.act)
+    .map(
+      (g) =>
+        playerLevelFor(g, loaded.balance, "trained") - playerLevelFor(g, loaded.balance, "untrained"),
+    );
+  const distinct = [...new Set(gaps)];
+  // No markdown emphasis here: the callers wrap it, and a bold span nested inside a bold span
+  // renders as literal asterisks.
+  return distinct.length === 1 ? `${distinct[0]} levels` : `${gaps.join("/")} levels`;
+}
+
+/** Which leaders the clause-4 ceiling clause fires for on THIS balance file. Never named by hand. */
+function ceilingLeadersNote(loaded: LoadedContent): string {
+  const cap = loaded.balance.xp.levelCap;
+  const hit = [...loaded.gyms].sort((a, b) => a.act - b.act).filter((g) => aceLevelFor(g) >= cap);
+  if (hit.length === 0) return "On this balance file no leader's ace reaches the cap, so it changes nothing.";
+  return `On this balance file that is ${hit
+    .map((g) => `**${g.name}** (act ${g.act}, ace L${aceLevelFor(g)})`)
+    .join(", ")} — fought at L${cap}, not at the rank and file's level.`;
 }
 
 /* ── the report ─────────────────────────────────────────────────────────── */
@@ -112,11 +147,15 @@ number — every clause reads from \`data/balance.json\`, \`data/gyms.json\`, \`
 3. **Team size.** The leader's roster size, capped at \`balance.party.maxPartySize\` (${b.party.maxPartySize}) —
    so 4/4/5/6/6/6. One slot is always a starter (bible §8: Maren hands you one).
 4. **Level.** Two models, both reported: **TRAINED** = the leader's rank-and-file level
-   (\`max\` over \`gym.slots\`), i.e. parity with the team and two under the signature; **UNTRAINED** =
+   (\`max\` over \`gym.slots\`), i.e. parity with the team and under the signature; **UNTRAINED** =
    \`balance.encounter.levelByYear[A-1]\` (${b.encounter.levelByYear.join("/")}), the level the region's own
-   wild population sits at. On shipped data UNTRAINED is exactly four levels below TRAINED. (The key
+   wild population sits at. Per gym, TRAINED sits **${levelGapNote(loaded)}** above UNTRAINED. (The key
    keeps its shipped name; it is indexed by the leader's ACT here and always was — the array was
    tuned against the gym ramp, which is an act ladder.)
+   **The ceiling clause.** \`balance.xp.levelCap\` (${b.xp.levelCap}) is a hard ceiling for both sides —
+   \`makeBattler\` clamps to it — so a leader whose ace already stands on it is fought AT the cap:
+   there is no rung above the player to have stopped short of, and "under the ace" describes a
+   player who cannot exist. ${ceilingLeadersNote(loaded)}
 5. **Age.** Drawn from \`balance.encounter.ageWeights\` (J ${b.encounter.ageWeights.J} / A ${b.encounter.ageWeights.A} /
    E ${b.encounter.ageWeights.E}) — the shipped wild distribution. The team came out of the grass, so it is
    aged like the grass. **This IS now a modelling assumption and it is stated as one:** the
@@ -130,7 +169,11 @@ number — every clause reads from \`data/balance.json\`, \`data/gyms.json\`, \`
    everyone else rolls common — including the five *negative* common traits.
 7. **Which team they field.** ${m.params.partyDrafts} candidate teams are drafted; the best is kept, first by
    super-effective coverage of the leader's roster, then by total \`effectiveStats\`. A player who
-   thought about it for a minute — not one who solved it.
+   thought about it for a minute — not one who solved it. **Coverage is what the team would actually
+   THROW**, not what it knows: the key calls the same \`bestMoveId\` clause 8 calls and counts the slot
+   only if the move that comes back is super-effective. \`balance.types.superEffective\` is
+   ${b.types.superEffective}, so a low-power super-effective move loses the greedy argmax to a bigger
+   neutral one and is never used; counting it was counting a plan the player does not follow.
 8. **How they play.** Move choice is the **same greedy argmax** \`core/battle.ts\` gives the leader, so a
    win rate measures the two teams and not a gap between two AIs. They never set up (every utility
    and the two 0-power role moves score 0), never switch for advantage (only the forced post-faint
@@ -166,7 +209,9 @@ function renderGymSim(loaded: LoadedContent, m: HarnessMeasurements): string {
   const gym = m.gym;
   if (!gym) return "";
   // "act", not "yr": the column is data/gyms.json's `act`, and the two axes are separate.
-  const headers = ["act", "leader", "type", "lvl (player v top)", "party", "win rate", "target", "verdict", "turns", "coverage"];
+  // "coverage (thrown)": the count is slots the drafted team would actually hit super-effectively
+  // with the move the greedy policy returns — not slots it merely knows a super-effective move for.
+  const headers = ["act", "leader", "type", "lvl (player v top)", "party", "win rate", "target", "verdict", "turns", "coverage (thrown)"];
   const blocks: string[] = [];
 
   for (const run of gym) {
@@ -192,7 +237,16 @@ function renderGymSim(loaded: LoadedContent, m: HarnessMeasurements): string {
                   `- **${g.gymName}** (act ${g.act}, ${g.type}) measured **${pct(g.winRate)}** against a target of ` +
                   `${pct(g.band[0], 0)}–${pct(g.band[1], 0)} — **${pp(g.bandMiss)}**. ` +
                   (g.bandMiss < 0
-                    ? `The player's drafted team covered ${n1(g.meanCoverage)} of the leader's ${g.rosterSize} creatures super-effectively, so this is not a coverage failure.`
+                    ? `The drafted team actually throws a super-effective move at ${n1(g.meanCoverage)} of ` +
+                      `the leader's ${g.rosterSize} creatures` +
+                      // Branch on the PRINTED figure, not the raw mean: a mean of 3.998 prints as
+                      // "4.0" and a prose clause reading the raw value then calls "4.0 of 4" short
+                      // of the roster in the same sentence. The table and the prose must not be able
+                      // to contradict each other on the same number.
+                      (n1(g.meanCoverage) === n1(g.rosterSize)
+                        ? ", so this is not a coverage failure."
+                        : " — short of the whole roster, so part of this gap IS coverage: the act's pool " +
+                          "cannot answer every slot with a move the greedy policy would pick.")
                     : "Too easy."),
               )
               .join("\n") + "\n");
@@ -438,57 +492,127 @@ function overcatchTable(nodes: readonly OvercatchNodeSummary[]): string {
   );
 }
 
+/**
+ * What a (node, line) reaching zero was CAUSED by.
+ *
+ * ════════════════════════════════════════════════════════════════════════════
+ * THIS IS A MEASUREMENT NOW, AND IT USED TO BE AN ASSUMPTION
+ * ════════════════════════════════════════════════════════════════════════════
+ * The previous version of this function answered "was it the raid?" by asking whether the node
+ * appeared in `balance.yearEvents.raids` — i.e. it read the raid script's own node list and called
+ * everything on it the raid's doing. That is a conclusion asserted rather than observed, which is
+ * the shape guardrail G6 exists to forbid; it also carried a silent pacing assumption (that a raid
+ * on act N lands at season N × seasonsPerYear, which on the shipped file is a year late — the act-4
+ * harvest lands at season 12, and both harvested lines reach zero at seasons 14–15, BEFORE the
+ * threshold the old classifier tested).
+ *
+ * What decides it now is the raid-suppressed control (`RAID_POLICIES` in tools/harness/full-run.ts):
+ * the same catch profile, over the same seed set, run against a balance file whose raid list is
+ * empty. Then, for a (node, line) that reached zero in a run where the raid DID fire:
+ *
+ *   · it also reaches zero with no player and no raid   → **unintended**: caused by neither, and
+ *                                                          the number build-doc §10 asks for.
+ *   · it also reaches zero with this profile and no raid → **player**: the raid is not needed for it.
+ *   · it stops happening once the raid is suppressed     → **raid**: measured, not attributed.
+ *
+ * Only the last line's sub-label still reads the script — whether the line was one the harvest
+ * actually took, or one that starved above it. That is a description of what the raid DID, not an
+ * inference about what killed the animal, and the emergent case is exactly G6's claim: nothing in
+ * `core/ecosim.ts` knows a raid happened.
+ */
+export type ExtinctionCause = "unintended" | "raid-harvested" | "raid-emergent" | "player" | "unclassified";
+
+export function attributeExtinction(
+  loaded: LoadedContent,
+  profiles: readonly ProfileSummary[],
+  spec: RunSpec,
+  nodeId: string,
+  lineId: string,
+): ExtinctionCause {
+  const rowFor = (profile: PlayProfile, raids: RaidPolicy): ProfileSummary | undefined =>
+    profiles.find((p) => p.spec.profile === profile && p.spec.raids === raids);
+  const reachesZeroIn = (p: ProfileSummary | undefined): boolean =>
+    p !== undefined && p.extinctions.some((e) => e.nodeId === nodeId && e.lineId === lineId);
+
+  const control = rowFor("baseline", "suppressed");
+  const sameProfileNoRaid = rowFor(spec.profile, "suppressed");
+
+  if (reachesZeroIn(control)) return "unintended";
+  // No control was run, so nothing here can be attributed. Saying so is the honest output; falling
+  // back to the raid's node list is what this function was rewritten to stop doing.
+  if (control === undefined) return "unclassified";
+  if (spec.raids === "suppressed") return "player";
+  if (sameProfileNoRaid === undefined) return "unclassified";
+  if (reachesZeroIn(sameProfileNoRaid)) return "player";
+  const harvested = loaded.balance.yearEvents.raids.some(
+    (r) => r.nodeId === nodeId && r.targets.some((t) => t.lineId === lineId),
+  );
+  return harvested ? "raid-harvested" : "raid-emergent";
+}
+
+const CAUSE_LABEL: Record<ExtinctionCause, string> = {
+  unintended: "**UNINTENDED** — zero with no player and no raid",
+  "raid-harvested": "**raid** — a harvested line (content, bible §6)",
+  "raid-emergent": "**raid, emergent** — not harvested; it starves above the harvest (G6)",
+  player: "**player-driven** — it reaches zero with the raid suppressed too",
+  unclassified: "unclassified — no raid-suppressed control in this run",
+};
+
 function renderFullRun(loaded: LoadedContent, m: HarnessMeasurements): string {
   const b = loaded.balance;
   const profiles = m.profiles ?? [];
-  const raidNodes = new Set(b.yearEvents.raids.map((r) => `${r.nodeId}`));
-  const raidLines = new Set(b.yearEvents.raids.flatMap((r) => r.targets.map((t) => `${r.nodeId}|${t.lineId}`)));
 
-  /*
-   * Classify each extinction, because "extinct" alone cannot tell a designer anything. build-doc
-   * §7.5 step 5 fires the Cullbrand raids out of `balance.yearEvents.raids`; bible §6 makes act 4's
-   * "arrival mid-collapse" a deliberate beat. So a line the raid harvests is INTENDED, and a line
-   * at the raid's own node that dies afterwards WITHOUT being harvested is the §7.3 rules doing
-   * exactly what G6 says they must — the emergent half of a scripted event.
-   */
   const seasonsPerYear = b.clock.seasonOrder.length;
-  const classify = (nodeId: string, lineId: string, firstSeason: number): string => {
-    if (raidLines.has(`${nodeId}|${lineId}`)) return "**raid target** (content, bible §6)";
-    const raid = b.yearEvents.raids.find((r) => r.nodeId === nodeId);
-    // The raid fires on ENTRY TO ITS ACT, not in a given calendar year. The full-run profile advances one act per
-    // simulated year, so the act index is still the season offset the raid lands at in THIS harness
-    // — a pacing assumption of the harness, not a rule of the game (see `runProfile`).
-    if (raid && firstSeason >= raid.act * seasonsPerYear) return "**emergent** — raid node, not harvested";
-    return "player-driven";
-  };
+  const causeOf = (p: ProfileSummary, e: { nodeId: string; lineId: string }): ExtinctionCause =>
+    attributeExtinction(loaded, profiles, p.spec, e.nodeId, e.lineId);
+
   const extinctionRows = profiles.flatMap((p) =>
     p.extinctions.map((e) => [
-      `**${p.profile}**`,
+      `\`${p.spec.id}\``,
       `\`${e.nodeId}\``,
       e.formName,
       `${e.start}`,
       `${e.seeds}/${p.seeds}`,
       `${e.firstSeason} (yr ${Math.max(1, Math.ceil(e.firstSeason / seasonsPerYear))})`,
-      classify(e.nodeId, e.lineId, e.firstSeason),
+      CAUSE_LABEL[causeOf(p, e)],
     ]),
   );
 
+  const tally = (p: ProfileSummary): string => {
+    if (p.extinctions.length === 0) return "—";
+    const counts = new Map<ExtinctionCause, number>();
+    for (const e of p.extinctions) {
+      const cause = causeOf(p, e);
+      counts.set(cause, (counts.get(cause) ?? 0) + 1);
+    }
+    const order: ExtinctionCause[] = ["unintended", "raid-harvested", "raid-emergent", "player", "unclassified"];
+    return order
+      .filter((c) => counts.has(c))
+      .map((c) => `${counts.get(c)} ${c}`)
+      .join(", ");
+  };
+
   const profileRows = profiles.map((p) => [
-    `**${p.profile}**`,
+    `\`${p.spec.id}\``,
+    p.spec.raids === "shipped" ? "fires" : "**suppressed**",
+    `${p.raidEvents}`,
     `${p.seeds}`,
     n1(p.meanCatches),
     `${p.seasonSteps}`,
     p.extinctions.length === 0 ? "**none**" : `${p.extinctions.length}`,
-    p.extinctions.length === 0
-      ? "—"
-      : p.extinctions.filter((e) => classify(e.nodeId, e.lineId, e.firstSeason) === "player-driven").length === 0
-        ? "all raid-attributable"
-        : `${p.extinctions.filter((e) => classify(e.nodeId, e.lineId, e.firstSeason) === "player-driven").length} player-driven`,
+    tally(p),
   ]);
 
-  const baseline = profiles.find((p) => p.profile === "baseline");
-  const dex = profiles.find((p) => p.profile === "dex");
-  const collector = profiles.find((p) => p.profile === "collector");
+  const rowFor = (profile: PlayProfile, raids: RaidPolicy): ProfileSummary | undefined =>
+    profiles.find((p) => p.spec.profile === profile && p.spec.raids === raids);
+  const baseline = rowFor("baseline", "shipped");
+  const dex = rowFor("dex", "shipped");
+  const control = rowFor("baseline", "suppressed");
+  const dexNoRaid = rowFor("dex", "suppressed");
+  const collectorNoRaid = rowFor("collector", "suppressed");
+
+  const unintendedIn = (p: ProfileSummary | undefined): ProfileSummary["extinctions"] =>
+    (p?.extinctions ?? []).filter((e) => causeOf(p as ProfileSummary, e) === "unintended");
 
   const closest = (dex ?? baseline)?.closest ?? [];
 
@@ -547,29 +671,53 @@ ${pct(b.harness.overcatch.referenceHpFrac, 0)} HP). Season boundaries come from 
 \`core/lifecycle.ts\`, so the shipped Cullbrand raid fires through the real code path and the
 24-season-steps-per-game invariant holds (18 clock boundaries + 6 year turns).
 
-Three profiles, all bounded by shipped constants rather than by an invented rate:
+**Two axes, crossed.** What the player does, and whether the authored raid fires:
 
-- **baseline** — no player at all. The control: a line that dies here was never anybody's fault.
+- **baseline** — no player at all. A control for the PLAYER: a line that dies here is nobody's catch.
 - **dex** — catches one of every line it meets, then leaves that line alone. At most ${loaded.content.species.length} catches
   over six years. This is *normal play*.
 - **collector** — catches everything it can until party and box are full
   (\`party.maxPartySize + maxBoxSize\` = ${b.party.maxPartySize + b.party.maxBoxSize}). The heaviest load the rules permit without releasing.
+- **\`-no-raid\`** — the same profile against a copy of this balance file whose \`yearEvents.raids\` is
+  empty. \`data/balance.json\` is not edited and no raid is named in code (G11); the list is emptied
+  in memory, in a deep copy, and the "raid events fired" column is the receipt.
 
-${table(["profile", "seeds", "mean catches", "season steps", "(node, line) pairs that reached zero", "of which"], profileRows)}
+The one with no player AND no raid (\`baseline-no-raid\`) is the control build-doc §10 actually needs.
+Its extinctions — if it has any — were caused by neither the player nor the content, which is what
+*unintended* means. The others exist so that number is not read out of a blind instrument: a
+suppressed row that can still report an extinction is a suppressed row whose silence means something.
 
-Every one of them, classified:
+${table(["run", "raid", "raid events fired", "seeds", "mean catches", "season steps", "(node, line) pairs that reached zero", "of which"], profileRows)}
 
-${extinctionRows.length === 0 ? "_No population reached zero in any profile._" : table(["profile", "node", "line", "opened at", "seeds", "first zero at season", "cause"], extinctionRows)}
+Every one of them, attributed — **by measurement**. The raid is credited with a death when removing
+the raid removes the death, over the same profile and the same seeds; never because the node appears
+in \`balance.yearEvents.raids\`:
+
+${extinctionRows.length === 0 ? "_No population reached zero in any profile._" : table(["run", "node", "line", "opened at", "seeds", "first zero at season", "cause (measured)"], extinctionRows)}
 
 ${
-  dex && dex.extinctions.filter((e) => !raidNodes.has(e.nodeId)).length === 0
-    ? `**No unintended extinction under normal play.** The \`dex\` profile caught ${n1(dex.meanCatches)} individuals per six-year run across ${dex.seeds} seeds and drove nothing to zero outside the raid node.`
-    : `**Extinctions occurred under normal play** — see the table. Ones at \`${[...raidNodes].join(", ")}\` are attributable to the shipped Cullbrand raid (\`balance.yearEvents.raids\`, bible §6 "arrival mid-collapse"), which is content, not over-catching.`
+  control === undefined
+    ? "**No raid-suppressed control was run**, so nothing above is attributed and build-doc §10's claim is not tested by this report."
+    : control.extinctions.length === 0
+      ? `**No unintended extinction.** With no player in the region and \`yearEvents.raids\` empty, **nothing reached zero at any node** across ${control.seeds} six-year runs (${control.seasonSteps} season steps each, ${control.raidEvents} raid events fired). That is the §10 claim, measured rather than assumed.`
+      : `**Unintended extinctions occurred.** With no player in the region and \`yearEvents.raids\` empty, ${control.extinctions.map((e) => `\`${e.nodeId}\`/${e.formName} (${e.seeds}/${control.seeds} seeds)`).join(", ")} still reached zero. Neither the player nor the authored raid put them there, so the §7.3 rules did — this is a finding about the ecology, not a tuning target.`
 }
 ${
-  baseline && baseline.extinctions.length > 0
-    ? `\n**The baseline is not empty, and that is the point.** With *no player in the region at all*, ${baseline.extinctions.map((e) => `\`${e.nodeId}\`/${e.formName} (${e.seeds}/${baseline.seeds} seeds)`).join(", ")} still reach zero — because the shipped Cullbrand raid fires anyway (\`balance.yearEvents.raids\`, act ${b.yearEvents.raids[0]?.act ?? "?"} at \`${b.yearEvents.raids[0]?.nodeId ?? "?"}\`, taking ${pct(b.yearEvents.harvestFractionOfStanding, 0)} of the standing stock of each harvested line, or the authored ${b.yearEvents.raids[0]?.targets.map((t) => t.remove).join(" + ") ?? "?"} individuals, whichever is larger). **The raid script harvests only Grazers; the line above them starves on its own.** That is guardrail G6 working: the raid decrements what it harvests and the §7.3 rules produce the collapse above it, with nothing in \`core/ecosim.ts\` knowing a raid happened.`
-    : `\n**The baseline is clean**: with no player in the region at all, nothing reached zero in ${baseline?.seeds ?? 0} six-year runs.`
+  dexNoRaid === undefined
+    ? ""
+    : unintendedIn(dexNoRaid).length === 0 && dexNoRaid.extinctions.length === 0
+      ? `\n**Normal play adds nothing to it.** \`dex-no-raid\` catches ${n1(dexNoRaid.meanCatches)} individuals per six-year run over ${dexNoRaid.seeds} seeds and drives nothing to zero either. Every extinction the shipped \`dex\` column reports therefore stops happening when the raid is taken out, and is the raid's.`
+      : `\n**Normal play with the raid suppressed still reaches zero** at ${dexNoRaid.extinctions.map((e) => `\`${e.nodeId}\`/${e.formName} (${e.seeds}/${dexNoRaid.seeds} seeds)`).join(", ")} — the player is the only difference left between that row and the control, so those are the player's.`
+}
+${
+  collectorNoRaid === undefined || collectorNoRaid.extinctions.length === 0
+    ? "\n_The suppressed column reported no extinction in any profile, so this report cannot show that it is able to._"
+    : `\n**The control is not blind.** The same suppressed instrument, run at the heaviest catch load the rules permit (\`collector-no-raid\`), does report ${collectorNoRaid.extinctions.map((e) => `\`${e.nodeId}\`/${e.formName} (${e.seeds}/${collectorNoRaid.seeds} seeds)`).join(", ")}. A detector that cannot go off is not evidence when it stays quiet; this one goes off.`
+}
+${
+  baseline === undefined || baseline.extinctions.length === 0
+    ? ""
+    : `\n**And the shipped baseline is not empty** — ${baseline.extinctions.map((e) => `\`${e.nodeId}\`/${e.formName} (${e.seeds}/${baseline.seeds} seeds)`).join(", ")} reach zero with no player in the region at all, because the raid fires anyway (\`balance.yearEvents.raids\`, act ${b.yearEvents.raids[0]?.act ?? "?"} at \`${b.yearEvents.raids[0]?.nodeId ?? "?"}\`, taking ${pct(b.yearEvents.harvestFractionOfStanding, 0)} of the standing stock of each harvested line, or the authored ${b.yearEvents.raids[0]?.targets.map((t) => t.remove).join(" + ") ?? "?"} individuals, whichever is larger). The rows marked *raid, emergent* above are lines the script never touches: they starve once the harvest lands, which is G6 working — \`core/ecosim.ts\` does not know a raid happened.`
 }
 
 Closest calls that did *not* reach zero (worst surviving minimum as a fraction of the opening count):
@@ -653,9 +801,26 @@ function renderFindings(loaded: LoadedContent, m: HarnessMeasurements): string {
 
   if (trained) {
     const misses = trained.gyms.filter((g) => !g.inBand);
+    /*
+     * BOTH conventions, in the headline finding. The matched-party number alone is the one §2 warns
+     * describes "a fight nobody has" for every leader who fields fewer than six — quoting it here
+     * on its own is how a caveat two screens up gets dropped by everyone who reads the findings.
+     */
+    const atFull = m.partySizeControl
+      ? trained.gyms.map((g) => {
+          const rate = m.partySizeControl?.find((c) => c.gymId === g.gymId)?.winRate ?? g.winRate;
+          return { g, rate, inBand: rate >= g.band[0] && rate <= g.band[1] };
+        })
+      : [];
+    const fullMisses = atFull.filter((x) => !x.inBand);
     measured.push(
       `**${trained.gyms.length - misses.length} of ${trained.gyms.length} gyms ${trained.gyms.length - misses.length === 1 ? "is" : "are"} inside the §10.5 band** under the TRAINED model ` +
-        `(${trained.seeds} seeds each). Misses: ${misses.map((g) => `${g.gymName} ${pct(g.winRate)} (${pp(g.bandMiss)})`).join(", ") || "none"}.`,
+        `(${trained.seeds} seeds each). Misses: ${misses.map((g) => `${g.gymName} ${pct(g.winRate)} (${pp(g.bandMiss)})`).join(", ") || "none"}.` +
+        (atFull.length === 0
+          ? ""
+          : ` **At the party size the game actually allows, ${atFull.length - fullMisses.length} of ${atFull.length}.** ` +
+            `Misses there: ${fullMisses.map((x) => `${x.g.gymName} ${pct(x.rate)}`).join(", ") || "none"}. ` +
+            `The second number is the shipped fight; the first fields a party matched to the leader's roster.`),
     );
     const first = trained.gyms[0];
     const hardest = [...trained.gyms].sort((a, b) => a.winRate - b.winRate)[0];
@@ -672,7 +837,10 @@ function renderFindings(loaded: LoadedContent, m: HarnessMeasurements): string {
       untrained.gyms.reduce((s, g) => s + g.winRate, 0) / Math.max(1, untrained.gyms.length) -
       trained.gyms.reduce((s, g) => s + g.winRate, 0) / Math.max(1, trained.gyms.length);
     measured.push(
-      `**Four levels are worth ${pp(-drop)} of win rate on average** across the six gyms (TRAINED minus UNTRAINED).`,
+      // The gap is per-gym data, not a constant: it was written here as "four levels" while the
+      // report's own §2.6 printed a different number from the same two models.
+      `**The gap between the two level models (${levelGapNote(loaded)}, per gym) is worth ${pp(-drop)} of win rate ` +
+        `on average** across the ${trained.gyms.length} gyms (TRAINED minus UNTRAINED).`,
     );
   }
   if (m.mirror) {
@@ -768,6 +936,34 @@ function renderFindings(loaded: LoadedContent, m: HarnessMeasurements): string {
         `\`balance.types.*\` multiplier applies to both sides of every matchup, so moving one rescales how fast a decided ` +
         `matchup resolves without changing who wins it. That rules the whole \`types\` group out as a fix for §3's tails, ` +
         `whatever it does to the feel of a fight.`,
+    );
+  }
+
+  /*
+   * §10's own sentence, as a number. This finding is reported from the RAID-SUPPRESSED control and
+   * from nowhere else: the shipped baseline cannot answer it, because the authored Cullbrand raid
+   * fires in the baseline too and its extinctions are content.
+   */
+  const runs = m.profiles ?? [];
+  const controlRun = runs.find((p) => p.spec.profile === "baseline" && p.spec.raids === "suppressed");
+  const dexControl = runs.find((p) => p.spec.profile === "dex" && p.spec.raids === "suppressed");
+  const playNote = dexControl
+    ? ` Normal play added to it (\`dex-no-raid\`, ${n1(dexControl.meanCatches)} catches a run) ${dexControl.extinctions.length === 0 ? "changes nothing — still nothing at zero" : `drives ${dexControl.extinctions.length} pair(s) to zero, and those are the player's`}.`
+    : "";
+  if (controlRun) {
+    measured.push(
+      controlRun.extinctions.length === 0
+        ? `**No unintended extinction: nothing reaches zero with no player and no raid.** ${controlRun.seeds} six-year runs ` +
+            `against a copy of this balance file whose \`yearEvents.raids\` is empty (${controlRun.raidEvents} raid events fired), and not one ` +
+            `(node, line) pair in the region reached zero. Build-doc §10's obligation is measured by this row and by no other — ` +
+            `the shipped \`baseline\` still carries the raid, so its extinctions are content.${playNote}`
+        : `**Unintended extinctions exist.** With no player and no raid, ${controlRun.extinctions.map((e) => `\`${e.nodeId}\`/${e.formName} (${e.seeds}/${controlRun.seeds} seeds)`).join(", ")} ` +
+            `still reached zero over ${controlRun.seeds} six-year runs. Neither the player nor \`yearEvents.raids\` put them there.${playNote}`,
+    );
+  } else {
+    inferred.push(
+      "**Build-doc §10's no-unintended-extinction claim is untested in this run** — no raid-suppressed control " +
+        "profile was measured, and the shipped baseline cannot stand in for one.",
     );
   }
 

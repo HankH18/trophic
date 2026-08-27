@@ -36,9 +36,13 @@
  *     that tick.
  *
  * WHAT THIS MODULE DELIBERATELY DOES NOT DO. bible §9's Bloom Year sentence ends "gets bonus
- * spawns", and nothing here weights an encounter. That half is unruled; building it would be a
- * second opinion about encounter weight, which is exactly what G3 forbids — `core/foodweb.ts` is
- * the only thing that may compute one. The window ships; the multiplier does not.
+ * spawns", and nothing here weights an encounter. That half is RULED CLOSED — never built, never
+ * owed — not merely unbuilt: building it would be a second opinion about encounter weight, which is
+ * exactly what G3 forbids, since `core/foodweb.ts` is the only thing that may compute one. The
+ * bible was amended to match rather than the code being made to chase it. A second reason it could
+ * never have worked as written: flora stock can structurally never FALL, because regrowth exceeds
+ * the maximum possible seasonal consumption — so the window latches once per location in years 1-2
+ * and can never recur. The window ships; the multiplier does not, and nobody should add one.
  *
  * Pure TypeScript, zero engine imports (L11), zero gameplay literals (G11).
  */

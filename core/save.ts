@@ -409,6 +409,8 @@ export function newSave(opts: NewSaveOpts, balance: Balance): SaveEnvelope {
     seed: opts.seed,
     year: balance.clock.startYear,
     tick: balance.clock.startTick,
+    subTick: 0,
+    forayStepsSinceTick: 0,
     currentNode: opts.currentNode,
     party: opts.party ? opts.party.map((c) => ({ ...c })) : [],
     box: opts.box ? opts.box.map((c) => ({ ...c })) : [],
@@ -434,6 +436,7 @@ export function appendAction(save: SaveEnvelope, action: GameAction): SaveEnvelo
     seq: nextSeq(save),
     year: save.year,
     tick: save.tick,
+    subTick: save.subTick ?? 0,
     action,
   };
   return { ...save, actionLog: [...save.actionLog, entry] };
@@ -473,6 +476,148 @@ export function appendYearTurn(
 ): SaveEnvelope {
   const save = result.save as SaveEnvelope;
   return appendEntries(save, yearTurnActions(result, tickBefore));
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The battle aftermath — what a finished fight leaves on the save (§7.4 → §7.8)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * One party member as a finished battle left it. ABSOLUTE values, never deltas.
+ *
+ * Absolute because the tape has to be replayable out of order-independence trouble: a delta applied
+ * twice is wrong twice, while `curHp = 7` applied twice is still 7. `core/save.ts` `replay` and the
+ * live path apply the SAME record through the SAME function ({@link applyBattleAftermath}), so
+ * there is no second answer to "what did that fight cost".
+ */
+export interface BattleAftermathMember {
+  uid: string;
+  /** `core/types.ts` `Battler.curHp` at the last event of the fight. 0 = fainted. */
+  curHp: number;
+  /** `Battler.level` — the reducer's, after any in-battle level-up. */
+  level: number;
+  /** XP banked toward the next level (`core/battle.ts` `xpOf`). See the CARRY-IN note below. */
+  xp: number;
+}
+
+/**
+ * Everything one battle changed about the save's party and bag.
+ *
+ * ⚠ XP CARRY-IN IS NOT WIRED YET, AND THIS RECORD IS THE HALF THAT IS. `core/battle.ts`
+ * `makeBattler` starts every battler at `xp: 0` because `core/types.ts` `BattlerSpec` has no `xp`
+ * field to carry one in — so a creature's banked XP is written OUT here and never read back IN, and
+ * levelling only happens when ONE fight covers a whole `xpToNext(level)`. Measured on shipped
+ * balance: `xpGain` against a level-5 enemy is 32 and `xpToNext(5)` is ~143, so no single-enemy wild
+ * fight can ever level anything; a six-slot gym roster can. The completing change is one optional
+ * field on `BattlerSpec` plus `xp: spec.xp ?? 0` in `makeBattler`; nothing here moves when it lands.
+ */
+export interface BattleAftermath {
+  party: BattleAftermathMember[];
+  /** The bag as the reducer left it — `BattleState.bag`, which items were spent out of. */
+  items: Record<string, number>;
+}
+
+/**
+ * The `t` discriminant the aftermath rides on the tape under.
+ *
+ * ⚠ NOT YET A MEMBER OF `core/types.ts` `GameAction`, WHICH IS ANOTHER LANE'S FILE. Two things make
+ * that survivable rather than a lie:
+ *   • `core/schemas.ts` `zSaveFileFor` validates `actionLog[].action` as
+ *     `z.looseObject({ t: z.string().min(1) })` — "permissive BY DESIGN … pinning the GameAction
+ *     union here would make every lane that adds an action edit this file". So a save carrying this
+ *     entry loads, round-trips and replays with no schema change at all.
+ *   • {@link readBattleAftermath} re-checks the SHAPE at replay time rather than trusting the
+ *     discriminant, so a hand-edited tape cannot smuggle a half-record past it.
+ * The one line that removes the cast in {@link battleAftermathAction} is, in `core/types.ts`:
+ *     | { t: "battleAftermath"; aftermath: BattleAftermath }
+ */
+export const BATTLE_AFTERMATH_ACTION = "battleAftermath";
+
+/** The tape entry for one finished fight. */
+export function battleAftermathAction(aftermath: BattleAftermath): GameAction {
+  const action = {
+    t: BATTLE_AFTERMATH_ACTION,
+    aftermath: {
+      party: aftermath.party.map((m) => ({ ...m })),
+      items: { ...aftermath.items },
+    },
+  };
+  // The ONE cast, and it is the `GameAction` union member that does not exist yet — see
+  // BATTLE_AFTERMATH_ACTION. Everything downstream re-validates the shape.
+  return action as unknown as GameAction;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+/**
+ * The aftermath carried by a tape entry, or null when the entry is not one.
+ *
+ * Takes `unknown` on purpose: the tape reaches `replay` through a permissive schema, so this is the
+ * only place the record's shape is actually checked. A malformed one is null — it then falls
+ * through `replay`'s `default` arm and changes nothing, which is the same thing an unknown action
+ * has always done — rather than throwing on load and making a corrupt tape unreadable.
+ */
+export function readBattleAftermath(action: unknown): BattleAftermath | null {
+  if (action === null || typeof action !== "object") return null;
+  const raw = action as { t?: unknown; aftermath?: unknown };
+  if (raw.t !== BATTLE_AFTERMATH_ACTION) return null;
+  const body = raw.aftermath;
+  if (body === null || typeof body !== "object") return null;
+  const { party, items } = body as { party?: unknown; items?: unknown };
+  if (!Array.isArray(party)) return null;
+  const members: BattleAftermathMember[] = [];
+  for (const entry of party) {
+    if (entry === null || typeof entry !== "object") return null;
+    const m = entry as { uid?: unknown; curHp?: unknown; level?: unknown; xp?: unknown };
+    if (typeof m.uid !== "string" || m.uid.length === 0) return null;
+    if (!isFiniteNumber(m.curHp) || !isFiniteNumber(m.level) || !isFiniteNumber(m.xp)) return null;
+    members.push({ uid: m.uid, curHp: m.curHp, level: m.level, xp: m.xp });
+  }
+  if (items === null || typeof items !== "object" || Array.isArray(items)) return null;
+  const bag: Record<string, number> = {};
+  for (const key of Object.keys(items as Record<string, unknown>)) {
+    const qty = (items as Record<string, unknown>)[key];
+    if (!isFiniteNumber(qty)) return null;
+    bag[key] = qty;
+  }
+  return { party: members, items: bag };
+}
+
+/**
+ * Apply one fight's aftermath to a save. Pure, idempotent, and the ONLY writer of `curHp` outside
+ * `core/lifecycle.ts` — the live path and `replay` both come through here, so a replayed run cannot
+ * disagree with the run it is replaying about how hurt the party is (L10 / build-doc §8.1).
+ *
+ * `items` is REPLACED, not merged: `BattleState.bag` was seeded from the whole of `save.items` and
+ * is the bag as the fight left it, so a merge would resurrect a stack the player just spent.
+ *
+ * A member the save does not have is a loud `SaveCorruptError`, on exactly the terms
+ * {@link adjustPopulation} refuses a catch at a node the save has no state for: the tape does not
+ * belong to this save, and silently skipping it replays a party that is quietly healthier than the
+ * one that fought.
+ */
+export function applyBattleAftermath(
+  save: SaveEnvelope,
+  aftermath: BattleAftermath,
+): SaveEnvelope {
+  const byUid = new Map(aftermath.party.map((m) => [m.uid, m]));
+  const seen = new Set<string>();
+  const party = save.party.map((creature) => {
+    const member = byUid.get(creature.uid);
+    if (!member) return creature;
+    seen.add(creature.uid);
+    return { ...creature, curHp: member.curHp, level: member.level, xp: member.xp };
+  });
+  for (const member of aftermath.party) {
+    if (seen.has(member.uid)) continue;
+    throw new SaveCorruptError(
+      `a battle aftermath names party member "${member.uid}", which this save does not have — ` +
+        `the log does not belong to this save`,
+    );
+  }
+  return { ...save, party, items: { ...aftermath.items } };
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -563,6 +708,9 @@ function adjustPopulation(
  *   gymVictory — core/acts.ts `awardBadge` + core/lifecycle.ts `enterPendingActs`. The badge is the
  *                act model's only numeric input and act entry applies the Cullbrand raid,
  *                so a tape without this case replays a run with no badges and an unharvested r4.
+ *   battleAftermath — `applyBattleAftermath`: the curHp / level / xp a fight left on the party, and
+ *                the bag it left behind. Dispatched from the `default` arm because the action is not
+ *                a `GameAction` member yet; see BATTLE_AFTERMATH_ACTION.
  *   catch/release — ONLY the node-population delta build-doc §7.3 attributes to the action itself
  *                   ("Player catch/release directly increments/decrements count at action time").
  *                   The party/box side needs the individual's age, level and traits, which the
@@ -691,12 +839,60 @@ export function replay(
         if (deps.applyOther) save = deps.applyOther(save, entry);
         break;
       }
+      case "battle": {
+        /*
+         * NAMED, NOT LEFT TO `default`, AND THE STATE SIDE REALLY IS EMPTY. A `battle` entry is the
+         * half-tick CHARGE levied at launch (`core/types.ts` `GameAction`), not the fight: every
+         * consequence of the fight reaches the tape as its own entry — the population write as a
+         * `catch`/`release`, the badge as a `gymVictory`, and what the fight cost the party and the
+         * bag as the `battleAftermath` the `default` arm applies — so there is nothing here for
+         * replay to re-apply, and `applyOther` is called exactly as `default` would have called it.
+         *
+         * ⚠ AND YET IT MUST NOT BE SILENT, because the CLOCK is a different question and this
+         * module deliberately does not answer it. `replay` models no clock at all — travel, foray
+         * and inn move no tick here either — so the tick a battle cost is rebuilt from the tape by
+         * `game/year-replay.ts` `clockFromLog`, which is where the price is read out of
+         * `balance.clock.battleTicks`. That function priced a battle at zero when this arm was
+         * added, and a run with an odd number of battles rebuilt into the WRONG YEAR (measured:
+         * live year 2 tick 0 subTick 1, from the log year 1 tick 51 subTick 0) — an L10 / §8.1
+         * determinism failure. This case exists so the next reader of the tape finds the pointer
+         * instead of a fall-through that looks like the whole answer.
+         */
+        if (deps.applyOther) save = deps.applyOther(save, entry);
+        break;
+      }
       default: {
+        /*
+         * THE FIGHT'S CONSEQUENCES ON THE PARTY AND THE BAG. It arrives here rather than as a named
+         * `case` for one reason and it is written down so nobody "tidies" it: `battleAftermath` is
+         * not a member of `core/types.ts` `GameAction` yet (see BATTLE_AFTERMATH_ACTION), so a
+         * `case` label for it would not compile. `readBattleAftermath` checks the shape instead —
+         * which is what a permissively-validated tape needs anyway — and an entry that is not one
+         * falls through unchanged, exactly as every unknown action always has.
+         *
+         * ⚠ WITHOUT THIS ARM, L10 IS FALSE THE MOMENT HP PERSISTS. The sibling `case "battle"`
+         * deliberately re-applies nothing (it is the half-tick charge, not the fight), and that was
+         * correct only while a fight left no mark on the save. It now leaves three — curHp, level
+         * and xp on the party, and the bag — and none of them can be re-derived from the tape,
+         * because neither the encounter roll nor the player's in-battle actions are logged at all.
+         */
+        const aftermath = readBattleAftermath(action);
+        if (aftermath) save = applyBattleAftermath(save, aftermath);
         if (deps.applyOther) save = deps.applyOther(save, entry);
         break;
       }
     }
-    applied.push({ seq: applied.length, year: entry.year, tick: entry.tick, action: entry.action });
+    // `subTick` is carried, not recomputed. `appendAction` always writes it, so dropping it here
+    // made `replay(save.actionLog)` produce a log that differed from the one it was replaying —
+    // L10 / §8.1 require identical (seed, actionLog) to yield a byte-identical save, and a run
+    // containing an odd number of half-tick battles failed that by exactly one sub-tick.
+    applied.push({
+      seq: applied.length,
+      year: entry.year,
+      tick: entry.tick,
+      subTick: entry.subTick ?? 0,
+      action: entry.action,
+    });
   }
 
   return { ...save, actionLog: applied };

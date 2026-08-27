@@ -35,7 +35,9 @@ import {
   advance,
   advanceAction,
   createClock,
+  seasonAt,
   seasonsOfYear,
+  ticksForAction,
   type ClockEvent,
 } from "../../core/clock";
 import { actOf, awardBadge } from "../../core/acts";
@@ -392,9 +394,14 @@ describe("SEAM — Hard Req 2: a real battle catch moves a real number in the su
 /* ════════════════════════════════════════════════════════════════════════════
  * SEAM 3 — who runs the year's fourth season step.
  *
- * build-doc §4 step 5 says the sim runs "at each season boundary (every 4 ticks)"; §7.5 step 5 says
- * the YEAR TURN runs "their 4th season step". Two modules, one season. §7.5 is the inlined
- * assignment and wins ("where this doc inlines a formula or schema, the inlined version wins").
+ * build-doc §4 step 5 says the sim runs "at each season boundary — every `ticksPerSeason` ticks";
+ * §7.5 step 5 says the YEAR TURN runs "their 4th season step". Two modules, one season. §7.5 is the
+ * inlined assignment and wins ("where this doc inlines a formula or schema, the inlined version
+ * wins").
+ *
+ * Nothing below may name a tick count of its own. Every count here is read from `balance.clock`,
+ * because this seam was already re-cut once (a 16-tick year became 52) and a literal that survived
+ * that would have gone on passing while measuring a different year.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 describe("SEAM — the fourth season runs exactly once (build-doc §7.5 step 5)", () => {
@@ -409,11 +416,26 @@ describe("SEAM — the fourth season runs exactly once (build-doc §7.5 step 5)"
      */
     let clock = createClock(balance);
     const events: ClockEvent[] = [];
-    for (let i = 0; i < balance.clock.ticksPerYear; i++) {
+    /*
+     * ONE YEAR, spent in the unit the player actually spends: forays. Derived, because
+     * "ticksPerYear iterations of a foray" is only one year while a foray costs exactly one tick —
+     * and the year has already been re-cut once (16 → 52 ticks). If a foray is ever retuned this
+     * loop still covers exactly one year instead of silently covering two or half of one.
+     */
+    const forayCost = ticksForAction("foray", balance);
+    const foraysPerYear = balance.clock.ticksPerYear / forayCost;
+    expect(
+      Number.isInteger(foraysPerYear),
+      `a foray costs ${String(forayCost)} ticks, which does not divide the ${String(balance.clock.ticksPerYear)}-tick year`,
+    ).toBe(true);
+    for (let i = 0; i < foraysPerYear; i++) {
       const r = advanceAction(clock, "foray", balance);
       clock = r.clock;
       events.push(...r.events);
     }
+    // Non-vacuity: the loop really did spend the whole meter and land on the new year.
+    expect(clock.year).toBe(balance.clock.startYear + 1);
+    expect(clock.tick).toBe(0);
     const boundaries = events.filter((e) => e.t === "seasonBoundary");
     const yearEnds = events.filter((e) => e.t === "yearEnd");
     expect(yearEnds).toHaveLength(1);
@@ -450,11 +472,26 @@ describe("SEAM — the fourth season runs exactly once (build-doc §7.5 step 5)"
      * ("a year ended early by a gym win still advances the ecology exactly once") and is inverted
      * on Hank's authorisation.
      *
-     * Asserted through the SEAM rather than by the absence of an export: for every tick of a year,
-     * awarding the badge that a gym win writes moves neither half of the clock and produces no
-     * ecology step at all — and the act it advances is a different axis entirely.
+     * Asserted through the SEAM rather than by the absence of an export: at a tick in every season
+     * of a year, awarding the badge that a gym win writes moves neither half of the clock and
+     * produces no ecology step at all — and the act it advances is a different axis entirely.
+     *
+     * ⚠ THE SAMPLE POINTS ARE DERIVED AND THE COVERAGE IS ASSERTED. They were the literals
+     * `[0, 3, 7, 11, 15]` — tick 0 plus the last tick of each season, chosen when a season was 4
+     * ticks. Against the shipped 13-tick season four of those five fall in SPRING and the fifth in
+     * SUMMER (measured: 2 distinct seasons of 4), so a sweep that reads as "every season" would
+     * have covered half of one, silently, with the test still green. That is the whole failure mode
+     * this file exists to catch, occurring in this file.
      */
-    for (const tick of [0, 3, 7, 11, 15]) {
+    const ticksPerSeason = balance.clock.ticksPerSeason;
+    // Tick 0, then the LAST tick of each season — [0, 12, 25, 38, 51] as shipped.
+    const sampleTicks = [0, ...seasons.map((_, i) => (i + 1) * ticksPerSeason - 1)];
+    expect(
+      new Set(sampleTicks.map((t) => seasonAt(t, balance))).size,
+      `the sweep ${JSON.stringify(sampleTicks)} no longer covers every season`,
+    ).toBe(seasons.length);
+    expect(Math.max(...sampleTicks)).toBe(balance.clock.ticksPerYear - 1);
+    for (const tick of sampleTicks) {
       const before = { ...newSave({ seed: 7, currentNode: "hearthollow", nodes: content.nodes }, balance), year: 2, tick };
       const after = awardBadge(before, "maribel", balance);
       expect({ year: after.year, tick: after.tick }).toEqual({ year: 2, tick });
@@ -482,9 +519,9 @@ describe("SEAM — the fourth season runs exactly once (build-doc §7.5 step 5)"
     expect(boundaries + yearTurns).toBe(24);
   });
 
-  it("and the doubled count really would change the trajectory (the defect was not cosmetic)", () => {
-    // Drive the shipped region for one year under both accountings and compare the survey. If a
-    // fifth step were free, the fix would not matter; it is not.
+  it("and the extra season step really would change the trajectory (the defect was not cosmetic)", () => {
+    // Drive the shipped region for one year under both accountings and compare the survey. If the
+    // one extra step were free, the fix would not matter; it is not.
     const run = (stepsPerYear: number) => {
       let states: Record<string, NodeState> = {};
       for (const f of content.nodes) {
@@ -500,7 +537,8 @@ describe("SEAM — the fourth season runs exactly once (build-doc §7.5 step 5)"
         .map(([id, st]) => `${id}:${Object.values(st.populations).map((p) => p.count).join(",")}`)
         .join("|");
     };
-    expect(run(4)).not.toBe(run(5));
+    // Derived: the honest count is one step per season, and the defect was exactly one more.
+    expect(run(seasons.length)).not.toBe(run(seasons.length + 1));
   });
 });
 

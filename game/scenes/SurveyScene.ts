@@ -82,7 +82,27 @@ export interface SurveySceneData {
   /** Heading override — the epilogue names itself (Hard Req 7). */
   title?: string;
   mode?: SurveyMode;
-  onClose?: () => void;
+  /**
+   * Where ESC goes. REQUIRED, and it was optional.
+   *
+   * ⚠ THE EPILOGUE SHIPPED WITHOUT ONE AND COULD NOT BE DISMISSED. `game/boot.ts`'s `onRunComplete`
+   * built this object with no `onClose` and launched it over a running overworld, so the last screen
+   * of a finished run was a full-screen survey whose only advertised key did nothing — while the
+   * overworld underneath was still live and still taking input. Build-doc §16 names "Vellsire choice
+   * + epilogue survey" as never-cut; a screen with no way off it is not a shipped ending.
+   *
+   * Optional was how that happened: nothing in the type system asked the ending where ESC went, so
+   * nobody answered. The four hand-off scenes in this repo (`BattleSceneData.onFinished`,
+   * `DialogueSceneData.onDone`, `YearTurnSceneData.onDone`, `RetirementSceneData.onDone`) all make
+   * their way back REQUIRED, and none of them has ever been launched without one. This is that
+   * convention applied to the screen that needed it. `close()` keeps a last resort anyway, because
+   * Phaser starts scenes with `unknown` data and a required field is erased at run time.
+   *
+   * NOTE FOR WHOEVER TOUCHES `DexScene`/`SummaryScene`: both still carry `onClose?`. They are only
+   * reachable from `game/scenes/MenuScene.ts`, which supplies one, so neither is broken today — but
+   * they are the same shape this comment is about.
+   */
+  onClose: () => void;
 }
 
 /*
@@ -190,8 +210,27 @@ export class SurveyScene extends Phaser.Scene {
     this.redraw();
   }
 
+  /**
+   * Leave the survey — and LEAVE IT even when nobody said where to go.
+   *
+   * This used to be `this.args.onClose?.()` and nothing else, which is a no-op for any caller that
+   * did not supply a closer, and the ending was such a caller (see {@link SurveySceneData.onClose}).
+   * The closer is required now, so the typed hole is shut; this branch covers the untyped one, since
+   * `ScenePlugin.start`/`launch` take `unknown` data and the interface is gone at run time.
+   *
+   * Stopping THIS scene is the right last resort rather than routing somewhere: the survey is
+   * always drawn over whatever launched it, so taking it down uncovers a screen that already
+   * exists, and it cannot strand the player anywhere new. It is said out loud because a hand-off
+   * that arrived without its way back is a wiring defect, not a mode.
+   */
   close(): void {
-    this.args.onClose?.();
+    const onClose: unknown = this.args.onClose;
+    if (typeof onClose !== "function") {
+      console.warn(`[survey] closed with no onClose — taking "${SURVEY_SCENE_KEY}" down instead`);
+      this.scene.stop();
+      return;
+    }
+    (onClose as () => void)();
   }
 
   /** The page as it would render right now — the same object the text is drawn from. */

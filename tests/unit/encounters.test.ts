@@ -21,8 +21,10 @@ import { AGE_CLASSES, type AgeClass, type Balance, type NodeFile, type Season } 
 import {
   absenceCauseOf,
   absentLines,
+  effectiveEncounterChance,
   encounterChancePerStep,
   encounterTable,
+  encounterTileFraction,
   nodeIsEmpty,
   rollAge,
   rollEncounterAt,
@@ -411,14 +413,35 @@ describe("the individual met — balance.encounter", () => {
  * The foray — build-doc §4
  * ════════════════════════════════════════════════════════════════════════════ */
 
-describe("a foray is stepsPerForay rolls at encounterChancePerStep", () => {
-  it("reads both rates from balance.json (G11)", () => {
+describe("a foray is stepsPerForay rolls at the EFFECTIVE encounter rate", () => {
+  it("reads every rate from balance.json (G11)", () => {
     expect(stepsPerForay(balance)).toBe(balance.encounter.stepsPerForay);
     expect(encounterChancePerStep(balance)).toBe(balance.encounter.encounterChancePerStep);
+    // Grass gating: a walked step first has to BE on an encounter tile, then has to roll.
+    expect(encounterTileFraction(balance)).toBe(balance.encounter.encounterTileFraction);
+    expect(effectiveEncounterChance(balance)).toBe(
+      balance.encounter.encounterTileFraction * balance.encounter.encounterChancePerStep,
+    );
+    // …and the gate really does cut the rate, so the measurement below is not measuring nothing.
+    expect(effectiveEncounterChance(balance)).toBeLessThan(encounterChancePerStep(balance));
   });
 
-  it("the observed per-step rate matches the tunable", () => {
+  it("the observed per-step rate matches encounterTileFraction × encounterChancePerStep", () => {
+    /*
+     * ⚠ WHAT IS MEASURED IS THE EFFECTIVE RATE, NOT `encounterChancePerStep`. `rollForayStep` gates
+     * on `effectiveEncounterChance` — the tile fraction and the per-step chance collapsed into ONE
+     * draw (a second draw for the tile would renumber every draw after it and break L10 replay).
+     * This test asserted the bare tunable until grass gating landed, and at the shipped values that
+     * is 0.18 against a true 0.045 — the test name said "the tunable" and meant the wrong one.
+     *
+     * The tolerance is DERIVED from the binomial standard error of this exact sample rather than
+     * left as the flat 0.02 it was, because a flat bound gets looser every time the mean is retuned
+     * down: 0.02 was 11% of the old 0.18 mean and would be 44% of the new 0.045 one. Four standard
+     * errors is ≈0.0059 at the shipped rate — TIGHTER than 0.02 in absolute terms as well as
+     * relative — and it stays tight if the rate is retuned in either direction.
+     */
     const ctx = ctxFor("r1");
+    const expected = effectiveEncounterChance(balance);
     let met = 0;
     let steps = 0;
     for (let seed = 1; seed <= 200; seed += 1) {
@@ -428,7 +451,12 @@ describe("a foray is stepsPerForay rolls at encounterChancePerStep", () => {
         if (rollForayStep(ctx, rng)) met += 1;
       }
     }
-    expect(Math.abs(met / steps - balance.encounter.encounterChancePerStep)).toBeLessThan(0.02);
+    const tolerance = 4 * Math.sqrt((expected * (1 - expected)) / steps);
+    expect(tolerance, "the derived tolerance is looser than the flat 0.02 it replaced").toBeLessThan(0.02);
+    expect(Math.abs(met / steps - expected)).toBeLessThan(tolerance);
+    // And the gate is the EFFECTIVE rate, not the bare tunable: that difference is far outside the
+    // band above, so this test can actually tell the two apart.
+    expect(Math.abs(met / steps - encounterChancePerStep(balance))).toBeGreaterThan(tolerance);
   });
 
   it("a whole foray is the same stream as the same number of single steps", () => {

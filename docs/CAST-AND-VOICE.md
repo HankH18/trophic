@@ -8,7 +8,7 @@ Two build-doc §16 guardrails govern every line in the corpus, quoted because th
 
 > **G7** Do not write moralizing copy about catching anywhere. No line may tell the player they did wrong, imply guilt, or deliver a lesson. Populations are reported the way a working field biologist reports them — plainly, as counts, with no reverence for the notebook they are written in.
 
-The corpus is `data/dialogue.json` — 212 entries, 500 lines, 63 speakers (the 62 cast below plus `narration`).
+The corpus is `data/dialogue.json` — 214 entries, 509 lines, 63 speakers (the 62 cast below plus `narration`).
 
 ---
 
@@ -249,7 +249,7 @@ One rule governs this section: **a bar every line must clear is a bar every line
 
 This is the one place in the corpus where **being understood outranks being in character.**
 
-**Which beats it binds — 29 of 212.** `maren.opening`, the three starter beats, `maren.tutorial.snare`, `maren.tutorial.survey`, `maren.tutorial.release`, `maren.retirement`, the ten `*.quest.*.offer` beats, the five `*.rest` and five `*.shop` service beats, and `sel.service.ferry`. **A beat is bound by this rule if the player has no other source for the thing it says.**
+**Which beats it binds — 29 of 214.** `maren.opening`, the three starter beats, `maren.tutorial.snare`, `maren.tutorial.survey`, `maren.tutorial.release`, `maren.retirement`, the ten `*.quest.*.offer` beats, the five `*.rest` and five `*.shop` service beats, and `sel.service.ferry`. **A beat is bound by this rule if the player has no other source for the thing it says.**
 
 **The test is a rig, not an opinion.**
 
@@ -273,7 +273,8 @@ A mismatch is a defect in the beat. **The reader is never wrong.** If a reader c
 
 **Test gates any corpus edit must respect** (`tests/unit/dialogue.test.ts`):
 
-- **Line budget.** `LINE_COUNT` 400–560, currently 500, and `raw._counts.lines` is asserted against the file — update it in the same commit as any count change. Ambient: min 3, **median exactly 3**, ceiling 9. Generic ceiling 6. Named: min 6, median 8–16, ceiling 18 except at most five declared over-budget speakers, each of which must carry a sign-chain or a six-act arc. Prop ceiling 30.
+- **Line budget.** `LINE_COUNT` 400–560, currently 509, and `raw._counts.lines` is asserted against the file — update it in the same commit as any count change. Ambient: min 3, **median exactly 3**. Generic: min 3. Named: min 6, median 8–16.
+- **There is no per-speaker ceiling, and one must not be reintroduced.** Hank: *"remove the ceiling. I don't care about how much dialogue a character has."* The floors and the medians stay, because they describe a DISTRIBUTION — a corpus where every speaker says the same amount reads as a form letter, and one where a named speaker says almost nothing reads as a stub. A cap is a different claim, it was the author's and not his, and it is gone. Only the corpus-level `LINE_COUNT` band bounds total volume.
 - **Name allow-lists.** `BIBLE_NAMES` (cap 8), `COINED_NPC_NAMES` (cap 8), `CAST_NAMES` (cap 48). The assertion is **one-way**: every token in every `speakers[].name` must resolve into the union. **Never source a list from `raw.speakers`** — the list gates the prose; the prose never gates the list, or the file certifies its own inventions.
 - **Content-truth maps.** `DIET_CLAIMS`, `FLORA_CLAIMS`, `DIET_LINE_REVIEW` (which *counts* predation-verb lines per entry), `COUNT_CLAIM_REVIEW`, `CALENDAR_YEAR_CLAIMS` and `ACT_GATED_YEAR_CLAIMS` are hand-maintained registers keyed by entry id, asserted as exact set equality. Re-audit every rewritten entry against all six and update them in the same commit. `COUNT_CLAIM_REVIEW`'s regex fires on ordinary English, not just on claims — *"three left"*, *"one of them"*, *"down to four"* all turn an entry into a count entry that must be classified `live` or `world`. Run it over new lines before handing them over.
 - **The G7 scan fires on tokens, not sentiment**, and its header states they are banned **even inside a negating sentence**: blame / blamed / blaming / to blame, `hold ~ against`, your fault, deserve, lesson, teach you, moral, conscience, guilt, shame, sin, cruel, greed, selfish, evil, repent, "should not have caught", "know when to", "no right to". Any voice tic phrased as "blames X" must be re-expressed. Its `KNOWN_GOOD` negative controls must be lines that actually survive in the shipped corpus, or the controls stop testing anything while still passing.

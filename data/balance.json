@@ -11,10 +11,23 @@
   },
   "age": {
     "_source": "bible §2 age multiplier; bible §4 lifespan on catch; build-doc §3 L9 / §7.4 metamorphic jump.",
-    "multiplier": { "J": 0.75, "A": 1.0, "E": 1.15 },
+    "_multiplier": "HALVED from J 0.75 / A 1.0 / E 1.15 on Hank's ruling (T-10): 'reduce the age buff/nerf to have half the effect it currently does'. Half the DEVIATION FROM NEUTRAL, not half the value \u2014 A is neutral so it does not move; J = 1.0 - (1.0-0.75)/2 = 0.875; E = 1.0 + (1.15-1.0)/2 = 1.075. metamorphicJump is deliberately NOT halved: build-doc \u00a77.4 makes it a separate once-only term carried by metamorphic lines, not the J/A/E multiplier, and the ruling named only the age buff/nerf. retirement.heirLevelFactor stays 0.5 for the same reason \u2014 he was explicit. WHAT IT BOUGHT, measured on the shipped content with the two complaints the ruling names, at 64 seeds per cell (instrument: both sides on core/battle.ts's own argmax, no traits, opponents weighted by the shipped Route 1 populations and the real act-1 level band): a level-5 JUVENILE starter's Route 1 loss rate fell 77.6% -> 66.2% while the ADULT's rose 11.7% -> 13.3%, closing the J/A gap 65.9 pp -> 53.0 pp; and the heir's power drop at retirement fell 2.12x -> 1.70x, its age term 1.76x -> 1.41x (metamorphic) and 1.53x -> 1.23x (non-metamorphic, which is the log-halving read literally: 48.2% of the old term). The heir's win rate against the act-4 wild ladder rose from 0.3-4.2% to 10.2-17.3%, which is the never-cut Legacy beat. THE ROUTE 1 FIGURES ABOVE ARE THE AGE CHANGE ALONE. The T-11 Producer re-spend landed after them and moved Route 1 again in the other direction \u2014 see data/species.json _bandArithmetic, which carries those numbers.",
+    "multiplier": {
+      "J": 0.875,
+      "A": 1.0,
+      "E": 1.075
+    },
     "metamorphicJump": 1.15,
-    "lifespanYears": { "J": 3, "A": 2, "E": 1 },
-    "yearsInClass": { "J": 1, "A": 1, "E": 1 }
+    "lifespanYears": {
+      "J": 3,
+      "A": 2,
+      "E": 1
+    },
+    "yearsInClass": {
+      "J": 1,
+      "A": 1,
+      "E": 1
+    }
   },
   "stats": {
     "_source": "bible §2 — effective stat = Base × AgeMult × (1 + 0.02 × Level) + trait modifiers; traits are flat ±10%.",
@@ -31,21 +44,111 @@
     "maxSlots": 2,
     "elderRareChance": 0.25,
     "pool": [
-      { "id": "thick-pelt", "name": "Thick Pelt", "stat": "def", "direction": "up", "rarity": "common" },
-      { "id": "keen-eye", "name": "Bright Eye", "stat": "ins", "direction": "up", "rarity": "common" },
-      { "id": "fleet-step", "name": "Fleet Step", "stat": "spd", "direction": "up", "rarity": "common" },
-      { "id": "strong-jaw", "name": "Broad Jaw", "stat": "atk", "direction": "up", "rarity": "common" },
-      { "id": "deep-lungs", "name": "Deep Lungs", "stat": "hp", "direction": "up", "rarity": "common" },
-      { "id": "brittle-hide", "name": "Brittle Hide", "stat": "def", "direction": "down", "rarity": "common" },
-      { "id": "dulled-sense", "name": "Dulled Sense", "stat": "ins", "direction": "down", "rarity": "common" },
-      { "id": "heavy-footed", "name": "Heavy-Footed", "stat": "spd", "direction": "down", "rarity": "common" },
-      { "id": "soft-bite", "name": "Soft Bite", "stat": "atk", "direction": "down", "rarity": "common" },
-      { "id": "frail-frame", "name": "Frail Frame", "stat": "hp", "direction": "down", "rarity": "common" },
-      { "id": "stoneblood", "name": "Stoneblood", "stat": "def", "direction": "up", "rarity": "rare" },
-      { "id": "silk-spun", "name": "Silk-Spun", "stat": "spd", "direction": "up", "rarity": "rare" },
-      { "id": "ember-heart", "name": "Ember-Heart", "stat": "atk", "direction": "up", "rarity": "rare" },
-      { "id": "long-memory", "name": "Long Memory", "stat": "ins", "direction": "up", "rarity": "rare" },
-      { "id": "old-growth", "name": "Old Growth", "stat": "hp", "direction": "up", "rarity": "rare" }
+      {
+        "id": "thick-pelt",
+        "name": "Thick Pelt",
+        "stat": "def",
+        "direction": "up",
+        "rarity": "common"
+      },
+      {
+        "id": "keen-eye",
+        "name": "Bright Eye",
+        "stat": "ins",
+        "direction": "up",
+        "rarity": "common"
+      },
+      {
+        "id": "fleet-step",
+        "name": "Fleet Step",
+        "stat": "spd",
+        "direction": "up",
+        "rarity": "common"
+      },
+      {
+        "id": "strong-jaw",
+        "name": "Broad Jaw",
+        "stat": "atk",
+        "direction": "up",
+        "rarity": "common"
+      },
+      {
+        "id": "deep-lungs",
+        "name": "Deep Lungs",
+        "stat": "hp",
+        "direction": "up",
+        "rarity": "common"
+      },
+      {
+        "id": "brittle-hide",
+        "name": "Brittle Hide",
+        "stat": "def",
+        "direction": "down",
+        "rarity": "common"
+      },
+      {
+        "id": "dulled-sense",
+        "name": "Dulled Sense",
+        "stat": "ins",
+        "direction": "down",
+        "rarity": "common"
+      },
+      {
+        "id": "heavy-footed",
+        "name": "Heavy-Footed",
+        "stat": "spd",
+        "direction": "down",
+        "rarity": "common"
+      },
+      {
+        "id": "soft-bite",
+        "name": "Soft Bite",
+        "stat": "atk",
+        "direction": "down",
+        "rarity": "common"
+      },
+      {
+        "id": "frail-frame",
+        "name": "Frail Frame",
+        "stat": "hp",
+        "direction": "down",
+        "rarity": "common"
+      },
+      {
+        "id": "stoneblood",
+        "name": "Stoneblood",
+        "stat": "def",
+        "direction": "up",
+        "rarity": "rare"
+      },
+      {
+        "id": "silk-spun",
+        "name": "Silk-Spun",
+        "stat": "spd",
+        "direction": "up",
+        "rarity": "rare"
+      },
+      {
+        "id": "ember-heart",
+        "name": "Ember-Heart",
+        "stat": "atk",
+        "direction": "up",
+        "rarity": "rare"
+      },
+      {
+        "id": "long-memory",
+        "name": "Long Memory",
+        "stat": "ins",
+        "direction": "up",
+        "rarity": "rare"
+      },
+      {
+        "id": "old-growth",
+        "name": "Old Growth",
+        "stat": "hp",
+        "direction": "up",
+        "rarity": "rare"
+      }
     ]
   },
   "damage": {
@@ -69,7 +172,12 @@
   },
   "moves": {
     "_source": "bible §3 — 'Each creature has exactly 4 move slots: 2 type moves + 1 role move + 1 utility, unlocked at levels 1/5/10/15'; build-doc §7.1 repeats the 1/5/10/15 in movePool slot order. Keyed by the movePool slot names so core/battle.ts can answer 'which moves does a level-7 creature know' from data alone (G11 / INV-4).",
-    "slotUnlockLevels": { "type1": 1, "type2": 5, "role": 10, "utility": 15 }
+    "slotUnlockLevels": {
+      "type1": 1,
+      "type2": 5,
+      "role": 10,
+      "utility": 15
+    }
   },
   "moveEffects": {
     "_source": "Magnitudes bible §3 names without numbering ('+Defense', '+evasion'). Moves reference these by magnitudeKey so no magnitude is a literal in code or duplicated in moves.json.",
@@ -89,10 +197,22 @@
   "catch": {
     "_source": "build-doc §7.4 catch formula (build-doc addition, tunable), as amended under Hank's authorisation to give the bait term an Instinct factor: p = baseCatch(age) × snareTier × (baitMult × instinctBait) × (2 − hpFrac)/2 × lureMult, clamped.",
     "_instinctBait": "bible §2 gives Instinct three jobs — 'crit chance, bait success, sign-reading quality' — and until this amendment core/battle.ts read it for crit alone, which made Instinct the strongest and NEGATIVE predictor of round-robin win rate (r = -0.582). The bait term now scales with the CATCHING creature's Instinct: instinctBait = 1 + instinctBaitSlope × (insShare − instinctBaitPivot), where insShare = ins / (hp+atk+def+spd+ins) over that creature's EFFECTIVE stats. The SHARE, not the raw stat, is what a point of Instinct actually costs: every non-Ancient line spends exactly 300 base points (data/species.json _statRule), and because the age, level, metamorphic and Beast multipliers are common to all five stats they cancel out of the ratio — so the term reads ALLOCATION and cannot become a level-scaled global catch buff. In-battle stat mods are deliberately NOT read (raising your own Defense with Bristle — move id `harden` — would otherwise lower your catch odds). instinctBaitPivot is the roster's MEDIAN Instinct allocation, 45/300 = 0.15, so a median-Instinct catcher is unchanged from the pre-amendment formula; measured over the 24 non-Ancient lines the term spans ×0.846 (base ins 30) to ×1.257 (base ins 70) with a roster mean of ×1.010. Positive over the whole mathematically possible share range [0,1] — 1 + 3×(0−0.15) = 0.55 — so the term never flips the sign of a probability; the .02–.95 clamp still binds at both ends.",
-    "baseCatch": { "J": 0.5, "A": 0.3, "E": 0.15 },
+    "baseCatch": {
+      "J": 0.5,
+      "A": 0.3,
+      "E": 0.15
+    },
     "baseCatchAncient": 0.05,
-    "snareTier": { "base": 1.0, "weighted": 1.5, "master": 2.2 },
-    "baitMult": { "none": 1.0, "role": 1.5, "species": 2.0 },
+    "snareTier": {
+      "base": 1.0,
+      "weighted": 1.5,
+      "master": 2.2
+    },
+    "baitMult": {
+      "none": 1.0,
+      "role": 1.5,
+      "species": 2.0
+    },
     "instinctBaitPivot": 0.15,
     "instinctBaitSlope": 3.0,
     "lureMult": 1.5,
@@ -114,7 +234,11 @@
     "_source": "build-doc §7.4 (build-doc addition, tunable): xpGain = 12 + 4×enemyLevel × ageBonus(E:1.3); xpToNext(l) = 15 × l^1.4; cap 40.",
     "base": 12,
     "perEnemyLevel": 4,
-    "ageBonus": { "J": 1.0, "A": 1.0, "E": 1.3 },
+    "ageBonus": {
+      "J": 1.0,
+      "A": 1.0,
+      "E": 1.3
+    },
     "toNextCoefficient": 15,
     "toNextExponent": 1.4,
     "levelCap": 40,
@@ -160,9 +284,20 @@
     "starveSuppressesBirths": true,
     "_presenceEffects": "bible §4 states what each Ancient's presence does — Vellsire 'buffs all breeding rates in adjacent nodes (keystone)', Kilnback 'keeps the steppe vents warm (Fire spawns active)', Undermere 'steadies the marsh water table (Water breeding)'. The MAGNITUDES are keystoneBreedMult / ventWarmthBreedMult / waterTableBreedFloor above, but nothing said which type an effect acts on or whether it multiplies or floors — so both had to be decided in core/ecosim.ts, where `if (effect === \"waterTable\")` was a bare code literal (G11) that, because data/species.json carries exactly ONE line per effect name, was in practice `if (this is Undermere)` (G6). Both halves now live here: `mode` selects the SHAPE of the effect from a structural vocabulary (PRESENCE_MODES) that any number of Ancients could share, `type` names what it acts on, and `magnitudeKey` points at the number above rather than repeating it (one number, one home). Adding a fourth Ancient with an existing shape is a data edit (INV-1), not a code edit.",
     "presenceEffects": {
-      "keystoneBreed": { "mode": "breedMult", "magnitudeKey": "keystoneBreedMult" },
-      "ventWarmth": { "mode": "typeBreedMult", "type": "Fire", "magnitudeKey": "ventWarmthBreedMult" },
-      "waterTable": { "mode": "typeBreedFloor", "type": "Water", "magnitudeKey": "waterTableBreedFloor" }
+      "keystoneBreed": {
+        "mode": "breedMult",
+        "magnitudeKey": "keystoneBreedMult"
+      },
+      "ventWarmth": {
+        "mode": "typeBreedMult",
+        "type": "Fire",
+        "magnitudeKey": "ventWarmthBreedMult"
+      },
+      "waterTable": {
+        "mode": "typeBreedFloor",
+        "type": "Water",
+        "magnitudeKey": "waterTableBreedFloor"
+      }
     }
   },
   "cascade": {
@@ -176,14 +311,21 @@
     "releaseCoverageMinFraction": 0.25
   },
   "clock": {
-    "_source": "build-doc §3 L8, as amended under Hank's authorisation — 16-tick season meter; travel 1 / foray 1 / inn 2; year = FULL METER; 4 ticks per season. A gym victory no longer ends a year.",
+    "_source": "build-doc §3 L8, as amended under Hank's authorisation — 52-tick YEAR meter (one tick reads as a week), 13 ticks per season, four seasons. travel 1 / foray 1 / inn 2 / battle 0.5. A gym victory no longer ends a year. NOTE the meter is the YEAR's, not the season's: docs once said '16-tick season meter' and that phrase put a wrong number into a work ticket. RETUNING: these are expected to move again after playtesting. ticksPerYear must stay ticksPerSeason x seasonOrder.length and every cost must be an exact multiple of 1/subTicksPerTick — core/schemas.ts refuses to boot otherwise, so a bad retune fails loudly at startup instead of silently dropping time.",
     "_yearsTotal": "NOT A CAP. The calendar is unbounded — year may be 9 or 40 and nothing stops it. yearsTotal is the EXPECTED year count under normal pacing: six acts at roughly a year each, which is what the HUD quotes, what the balance harness drives by default, and what the six-year property trajectories measure. Story progression is the ACT model's (see `acts`), and no code may read this key to decide whether the run is over.",
-    "ticksPerSeason": 4,
-    "ticksPerYear": 16,
+    "ticksPerSeason": 13,
+    "ticksPerYear": 52,
+    "subTicksPerTick": 2,
     "travelTicks": 1,
     "forayTicks": 1,
     "innTicks": 2,
-    "seasonOrder": ["spring", "summer", "autumn", "winter"],
+    "battleTicks": 0.5,
+    "seasonOrder": [
+      "spring",
+      "summer",
+      "autumn",
+      "winter"
+    ],
     "startYear": 1,
     "startTick": 0,
     "yearsTotal": 6
@@ -198,18 +340,75 @@
     "badgeFlagSuffix": ".beaten",
     "runCompleteFlag": "story.greaves.beaten",
     "gates": [
-      { "act": 0, "badges": 0, "flags": [], "nodes": ["hearthollow"] },
-      { "act": 1, "badges": 0, "flags": ["story.opening.done"], "nodes": ["hearthollow", "r1"] },
-      { "act": 2, "badges": 1, "flags": [], "nodes": ["brackwater", "r2"] },
-      { "act": 3, "badges": 2, "flags": [], "nodes": ["bowerdeep", "r3"] },
-      { "act": 4, "badges": 3, "flags": [], "nodes": ["cindershelf", "r4"] },
-      { "act": 5, "badges": 4, "flags": [], "nodes": ["duskhollow", "r5"] },
-      { "act": 6, "badges": 5, "flags": [], "nodes": ["sanctum-approach", "sanctum"] }
+      {
+        "act": 0,
+        "badges": 0,
+        "flags": [],
+        "nodes": [
+          "hearthollow"
+        ]
+      },
+      {
+        "act": 1,
+        "badges": 0,
+        "flags": [
+          "story.opening.done"
+        ],
+        "nodes": [
+          "hearthollow",
+          "r1"
+        ]
+      },
+      {
+        "act": 2,
+        "badges": 1,
+        "flags": [],
+        "nodes": [
+          "brackwater",
+          "r2"
+        ]
+      },
+      {
+        "act": 3,
+        "badges": 2,
+        "flags": [],
+        "nodes": [
+          "bowerdeep",
+          "r3"
+        ]
+      },
+      {
+        "act": 4,
+        "badges": 3,
+        "flags": [],
+        "nodes": [
+          "cindershelf",
+          "r4"
+        ]
+      },
+      {
+        "act": 5,
+        "badges": 4,
+        "flags": [],
+        "nodes": [
+          "duskhollow",
+          "r5"
+        ]
+      },
+      {
+        "act": 6,
+        "badges": 5,
+        "flags": [],
+        "nodes": [
+          "sanctum-approach",
+          "sanctum"
+        ]
+      }
     ]
   },
   "regionalEvents": {
     "_source": "bible §9's four regional events, as SEASON-LONG WINDOWS. Hank, 2026-08-25: 'events like that last for a whole season and not just for one in-game day.' A window opens on a season boundary, stays open for clock.ticksPerSeason ticks and closes at the next boundary — core/regional-events.ts. The Annual Festival is the year's final season (bible §9 amended: it no longer CLOSES the year, it spans the season the meter fills in); the Great Migration is a migrant's seasonalWindow (data/species.json, already a season by construction); a Cullbrand raid's window is the season its ACT was entered in; a Bloom Year is a node whose flora clears the fraction below at a season boundary.",
-    "_bloomFraction": "bible §9 'a route whose producers thrive gets bonus spawns' names no number. Expressed as a FRACTION of ecosim.floraMax rather than an absolute so it cannot become a second copy of that ceiling (this file's _singleSource rule). The BONUS-SPAWN half of §9's sentence is deliberately NOT implemented here: it is unruled, so this ships the window and nothing weights an encounter by it (G2/G3).",
+    "_bloomFraction": "bible §9 'a route whose producers thrive gets bonus spawns' names no number. Expressed as a FRACTION of ecosim.floraMax rather than an absolute so it cannot become a second copy of that ceiling (this file's _singleSource rule). The BONUS-SPAWN half of §9's sentence is RULED CLOSED, not unruled (T-7): it is never built and never owed, because weighting an encounter here would be a second spawn table and G3 gives that job to core/foodweb.ts alone. The bible was amended to match. The window ships; the multiplier does not, and nobody should add one.",
     "_flagNames": "A window publishes itself as the quest flag `<windowFlagPrefix><windowId><windowFlagSuffix>`. The names are chosen so the festival's flag is `event.festival.open` — the flag data/dialogue.json ALREADY reads and which, until now, nothing wrote. The other three publish the same shape: `event.migration.<lineId>.open`, `event.bloom.<nodeId>.open`, `event.raid.<raidId>.open`.",
     "bloomFloraFraction": 0.88,
     "windowFlagPrefix": "event.",
@@ -217,18 +416,30 @@
   },
   "encounter": {
     "_source": "build-doc §7.2 derivations — weight = live population count, migrants filtered by season, Scavenger weight × (1 + recentDeaths/scavengerRecentDeathsDivisor). Rates are build-doc-addition tunables.",
-    "_throughput": "build-doc §4: 'A foray step rolls encounters' (plural) and §3 L8 charges a foray ONE tick — so a foray is an excursion of stepsPerForay encounter rolls, each at encounterChancePerStep, not a single roll. The pair is load-bearing: 16 ticks/year × stepsPerForay × encounterChancePerStep is the player's maximum encounters per year at one node, and the year-1 over-catch demo beat (build-doc §1, §15 I2) is only reachable if that budget beats the target populations' regrowth. Gated by tests/unit/transcription.test.ts.",
+    "_throughput": "build-doc §4: 'A foray step rolls encounters' (plural) and §3 L8 charges a foray ONE tick — so a foray is an excursion of stepsPerForay steps. A step rolls only on an ENCOUNTER TILE: the effective per-step rate is encounterTileFraction x encounterChancePerStep. The player's encounter budget per year is therefore NOT ticksPerYear x stepsPerForay x chance — battles cost clock.battleTicks each, so they consume the same meter the forays do. The honest form is: e = stepsPerForay x encounterTileFraction x encounterChancePerStep encounters per foray, costing forayTicks + e x battleTicks ticks, hence ticksPerYear / (forayTicks + e x battleTicks) forays a year. The year-1 over-catch beat (build-doc §1, §15 I2) is only reachable if that budget beats the target populations' regrowth. Gated by tests/unit/transcription.test.ts.",
     "stepsPerForay": 48,
     "encounterChancePerStep": 0.18,
+    "encounterTileFraction": 0.25,
     "outOfSeasonWeight": 0,
     "scavengerRecentDeathsDivisor": 10,
     "signChainGatedHabitatTag": "hidden",
-    "_finaleGatedNode": "bible \u00a78's finale is a SCRIPTED meeting in the Sanctum ring (game/finale.ts), not a foray roll. `maren.keystone.6` writes `chain.vellsire.complete` at act 6 requiring nothing of Greaves, and OverworldScene.unlockedSignChains() unlocks the `hidden` habitat tag on it \u2014 so before this key a player could complete the chain, walk into the Sanctum, forage, roll the stag and snare it BEFORE the approach cutscene had played, after which the cutscene narrated an animal the survey said was gone. Sign-chain unlocks are held at this node until `acts.runCompleteFlag` is set. The FLAG is deliberately not repeated here: acts.runCompleteFlag already spells it and core/acts.ts runCompleteFlag() is its reader, so a second spelling would be the two-authorities defect on the flag the whole finale hangs off. kilnback-line (cindershelf) and undermere-line (r2) are unaffected and stay wild.",
+    "_finaleGatedNode": "bible §8's finale is a SCRIPTED meeting in the Sanctum ring (game/finale.ts), not a foray roll. `maren.keystone.6` writes `chain.vellsire.complete` at act 6 requiring nothing of Greaves, and OverworldScene.unlockedSignChains() unlocks the `hidden` habitat tag on it — so before this key a player could complete the chain, walk into the Sanctum, forage, roll the stag and snare it BEFORE the approach cutscene had played, after which the cutscene narrated an animal the survey said was gone. Sign-chain unlocks are held at this node until `acts.runCompleteFlag` is set. The FLAG is deliberately not repeated here: acts.runCompleteFlag already spells it and core/acts.ts runCompleteFlag() is its reader, so a second spelling would be the two-authorities defect on the flag the whole finale hangs off. kilnback-line (cindershelf) and undermere-line (r2) are unaffected and stay wild.",
     "finaleGatedNode": "sanctum",
     "_levelByYear": "BOUND TO THE GYM RAMP in data/gyms.json (8/14/20/26/32/38): the same smooth +6 ramp held exactly two levels under the leader each entry feeds, and asserted against it in tests/unit/transcription.test.ts — at FOUR levels under, the harness's untrained player (the one who only catches and walks in) won gym 1 in 0.2% of 500 seeds. Retuning this key moves the UNTRAINED gym rates only: the TRAINED harness model reads gyms.json and never this array.",
     "_levelByYearIsAnActLadder": "THE KEY NAME IS HISTORY; BOTH READERS INDEX IT BY ACT. tools/harness/player.ts has always read it by the LEADER'S act, and these six values are tuned against the gym ramp, which is an act ladder. game/encounters.ts `rollLevel` read it by the CALENDAR YEAR until 2026-08-25, which under an unbounded decoupled calendar meant a player still in act 1 on Route 1 in calendar year 6 met level 34-38 wild creatures against heirs entering at ~5 — a soft fail state by the back door, and the exact pressure Q3 removed. It reads the ACT now, so the two readings agree and the array means one thing. The KEY is not renamed because that is data + core/types.ts + core/schemas.ts + tools/harness, all outside the change that found it; this note is the name.",
-    "ageWeights": { "J": 0.5, "A": 0.4, "E": 0.1 },
-    "levelByYear": [6, 12, 18, 24, 30, 36],
+    "ageWeights": {
+      "J": 0.5,
+      "A": 0.4,
+      "E": 0.1
+    },
+    "levelByYear": [
+      6,
+      12,
+      18,
+      24,
+      30,
+      36
+    ],
     "levelJitter": 2,
     "minLevel": 2
   },
@@ -253,10 +464,16 @@
         "id": "cullbrand-strip-harvest-r4",
         "act": 4,
         "nodeId": "r4",
-        "_source": "bible §6 act 4, Cindershelf: 'arrival mid-collapse — Route 4's web already crashed by Cullbrand strip-harvest'. This is the only raid the bible pins to a named node and act; the remaining per-act raids are content another lane must author into this list, not numbers to invent here.",
+        "_source": "bible §6 act 4, Cindershelf: 'arrival mid-collapse — Route 4's web already crashed by Cullbrand strip-harvest'. This is the only raid the bible pins to a named node and act, and THE LIST IS CLOSED AT ONE (T-9, Hank: \"Close the raid list at one.\"). Do not author more. Widening it at this same harvestFractionOfStanding was measured to exterminate lines at the two starter routes, and the shipped dialogue already treats the Cullbrand contract as finished. A per-act raid tier is a proposal for Hank, never an agent edit.",
         "targets": [
-          { "lineId": "ashvole-line", "remove": 11 },
-          { "lineId": "cragmar-line", "remove": 8 }
+          {
+            "lineId": "ashvole-line",
+            "remove": 11
+          },
+          {
+            "lineId": "cragmar-line",
+            "remove": 8
+          }
         ]
       }
     ]
@@ -271,7 +488,10 @@
     "denoiseFloor": 0.2,
     "maxRegenAttempts": 3,
     "_driftFootprintCells": "build-doc §8.2 criterion (2) — the largest walkable-mask drift a year variant may carry, in collision cells. It used to be DERIVED in tools/overlay-diff/config.ts as ceil(map.playerSpriteW / map.collisionCellPx) × ceil(map.playerSpriteH / map.collisionCellPx), which put the §9.5 acceptance criterion out of INV-3's reach: loosening it after a supervised run meant editing code. Shipped at the derived value (2 × 3) so this is a no-op move; a retune raises it here alone. The floor is the player's own footprint — a tolerance smaller than the player admits a drift that can strand him — and tests/unit/balance-inv3.test.ts holds it there.",
-    "driftFootprintCells": { "cols": 2, "rows": 3 }
+    "driftFootprintCells": {
+      "cols": 2,
+      "rows": 3
+    }
   },
   "map": {
     "_source": "build-doc §7.6 — virtual 480×320 integer-scaled; painted maps 1024² rendered 2×; mask sampled on a 16px grid (64×64 cells); player 32×48, tile step 32.",
@@ -303,29 +523,92 @@
   "economy": {
     "_source": "bible §11 — snares ×3 tiers, baits role-generic vs species-specific, medicines, inn rest. Prices are build-doc-addition tunables; medicine EFFECTS are in `medicine`.",
     "innCost": 40,
-    "snarePrice": { "base": 25, "weighted": 60, "master": 150 },
-    "baitPrice": { "none": 0, "role": 15, "species": 45 },
+    "snarePrice": {
+      "base": 25,
+      "weighted": 60,
+      "master": 150
+    },
+    "baitPrice": {
+      "none": 0,
+      "role": 15,
+      "species": 45
+    },
     "salvePrice": 30,
     "tonicPrice": 45,
     "trainerPayoutPerLevel": 12
   },
   "audio": {
     "_source": "bible §12a procedural treatments — season DSP presets and progressive year darkening.",
-    "seasonLowpassHz": { "spring": 20000, "summer": 20000, "autumn": 8000, "winter": 4500 },
-    "seasonBrightness": { "spring": 1.0, "summer": 1.15, "autumn": 0.9, "winter": 0.75 },
+    "seasonLowpassHz": {
+      "spring": 20000,
+      "summer": 20000,
+      "autumn": 8000,
+      "winter": 4500
+    },
+    "seasonBrightness": {
+      "spring": 1.0,
+      "summer": 1.15,
+      "autumn": 0.9,
+      "winter": 0.75
+    },
     "yearDarkenPerYear": 0.08
   },
   "_seasonTint": "Hard Requirement 6 — 'Season variation is a runtime tint shader; year variation is art. Never generate seasonal map art.' The four hues are the tint game/season-tint.ts multiplies over whichever painted map is on screen. The MAGNITUDES that dim them (audio.seasonBrightness, audio.yearDarkenPerYear) are their own keys above; these are the HUES, and they were literals in game/season-tint.ts until 2026-08-26. A channel is 0–255 and 255 means 'leave this channel alone' — setTint multiplies — so the reading normalises each preset to peak 255 before the two magnitudes are applied (see hueOf). overlayAlpha is the strength of the optional full-screen overlay pass a scene may draw above the tinted map. One preset per season, exhaustively: the group is a z.record over the Season enum, which unlike every other group here REJECTS an unrecognised key rather than stripping it — hence this note living outside the group.",
   "seasonTint": {
-    "spring": { "r": 198, "g": 232, "b": 178, "overlayAlpha": 0.1 },
-    "summer": { "r": 255, "g": 224, "b": 160, "overlayAlpha": 0.12 },
-    "autumn": { "r": 226, "g": 150, "b": 76, "overlayAlpha": 0.18 },
-    "winter": { "r": 150, "g": 186, "b": 226, "overlayAlpha": 0.22 }
+    "spring": {
+      "r": 198,
+      "g": 232,
+      "b": 178,
+      "overlayAlpha": 0.1
+    },
+    "summer": {
+      "r": 255,
+      "g": 224,
+      "b": 160,
+      "overlayAlpha": 0.12
+    },
+    "autumn": {
+      "r": 226,
+      "g": 150,
+      "b": 76,
+      "overlayAlpha": 0.18
+    },
+    "winter": {
+      "r": 150,
+      "g": 186,
+      "b": 226,
+      "overlayAlpha": 0.22
+    }
   },
   "harness": {
     "_source": "build-doc §10.5 — gym win-rate targets 80–95 / 60–80 / 45–65 by pair, round-robin flags outside 35–65%, 500 seeds.",
     "seeds": 500,
-    "gymWinRateTargets": [[0.8, 0.95], [0.8, 0.95], [0.6, 0.8], [0.6, 0.8], [0.45, 0.65], [0.45, 0.65]],
+    "gymWinRateTargets": [
+      [
+        0.8,
+        0.95
+      ],
+      [
+        0.8,
+        0.95
+      ],
+      [
+        0.6,
+        0.8
+      ],
+      [
+        0.6,
+        0.8
+      ],
+      [
+        0.45,
+        0.65
+      ],
+      [
+        0.45,
+        0.65
+      ]
+    ],
     "roundRobinMin": 0.35,
     "roundRobinMax": 0.65,
     "maxBattleTurns": 200,
@@ -349,6 +632,11 @@
     "_source": "build-doc §8.1 — one seeded xorshift128 stream per subsystem, seeds derived from save seed + subsystem tag. the seeded stream is the only source of randomness in the project (G11).",
     "defaultSeed": 1337,
     "_subsystemTags": "APPEND-ONLY, and the order is load-bearing: tools/harness/content.ts reads the first three positionally as (battle, sim, encounter). 'lifecycle' was added on 2026-08-26 — core/lifecycle.ts's heir roll draws randomness and had no stream of its own, so game/scenes/OverworldScene.ts composed its key out of the SIM tag. Each tag is seeded independently (hashSeed(saveSeed + tag)), so adding one moves no other stream by a single draw.",
-    "subsystemTags": ["battle", "sim", "encounter", "lifecycle"]
+    "subsystemTags": [
+      "battle",
+      "sim",
+      "encounter",
+      "lifecycle"
+    ]
   }
 }

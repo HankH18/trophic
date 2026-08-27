@@ -166,7 +166,22 @@ export class ComfyClient {
   }
 }
 
-/** Inject a prompt + seed into a copy of the base graph. Never mutates the base (G5 seed discipline). */
+/**
+ * Inject a prompt + seed into a copy of the base graph. Never mutates the base (G5 seed discipline).
+ *
+ * `o.negative` IS WIRED AND HAS NO EFFECT. The base graph's KSampler runs at `cfg: 1.0` — a locked
+ * §9.2 parameter — which disables classifier-free guidance, so the negative conditioning is encoded
+ * and then never evaluated. Measured 2026-08-26: two runs of the same positive prompt at the same
+ * seed, one with the frozen negative and one with twelve extra layout terms appended, produced
+ * files differing by 0 bytes out of 3,145,728
+ * (assets/raw/_trials/map-town-style/{t3-skelA-frozneg,t4-skelA-mapneg}.png;
+ * `node tools/artverify/imgdiff.mjs` prints the comparison).
+ *
+ * The parameter stays because the manifest carries the strings §9.2 locks and `manifest.test.ts`
+ * asserts every row still carries them — dropping it here would make the graph silently disagree
+ * with the manifest. What must not happen is someone reaching for it to fix an output: on this
+ * graph a defect is fixed in the POSITIVE prompt or it is not fixed.
+ */
 export function injectGraph(base: Graph, o: { positive?: string; seed?: number; negative?: string }): Graph {
   const g: Graph = JSON.parse(JSON.stringify(base));
   const byClass = (c: string) => Object.entries(g).filter(([, n]) => n.class_type === c);

@@ -1,7 +1,7 @@
 {
   "_source": "docs/content-bible.md §4 (Ancient lore surfaces), §6 (towns + aging arcs), §7 (gym leaders), §8 (story spine), §9 (side quests), §10 (NPCs), §13.13 (dialogue budget) + build-doc §15 C7. Names of species, places, people and organisations are transcribed from the bible, never invented (G2). GIVEN NAMES are the standing exception: the bible asks for quest and background NPCs without naming them, so their given names are coined under bible §10's naming convention — a coined given name is not a transcription error and must not be \"corrected\" back to a bible name.",
   "_guardrail": "G7 — no moralizing copy about catching, anywhere. NPCs state facts, express their own livelihood interests, and disagree with each other. No line tells the player they did wrong, implies guilt, or delivers a lesson. Enforced by the pattern scan in tests/unit/dialogue.test.ts and, because a regex cannot detect tone, by a line-by-line human-style read.",
-  "_budget": "bible §13.13: ~10 lines per named NPC, ~3 per ambient, roughly 400–500 total. Shipped: see _counts. Named speakers that carry an Ancient lore chain or a six-act arc (Maren, Wick, Sel, Bram) run above 10; ambient speakers in the vertical-slice towns run above 3 because they carry year/population state variants the flat budget did not price in.",
+  "_budget": "bible §13.13: ~10 lines per named NPC, ~3 per ambient, roughly 400–560 total. Shipped: see _counts. THERE IS NO PER-SPEAKER LINE CEILING — Hank removed it (docs/TICKETS.md T-5): \"I don't care about how much dialogue a character has.\" The corpus-level budget is the only one asserted (tests/unit/dialogue.test.ts LINE_COUNT 400–560). The per-kind floors and the ambient median stay, because they are a shape and not a cap: a named speaker with two lines is still an unfinished character.",
   "_conditionModel": "An entry fires when every clause of `when` holds. TWO INDEPENDENT CLOCKS (Q3, the authorised L8 amendment): act/actMin/actMax are the STORY clock and every story beat gates on them, so it fires whenever the player earns it, in any calendar year; years/yearMin/yearMax are the WORLD clock — unbounded, never waiting for the player — and only world-ageing copy reads it. THE ACT LADDER IS core/acts.ts actOf(), which is the repo's only act authority and reads data/balance.json acts.gates: acts run 0..6, and ACT 0 IS THE PROLOGUE — a real state every new save starts in, which act 1 opens on story.opening.done. An `act` EQUALITY closes the entry the moment the act advances, so it is used only where the beat belongs to that act and nowhere else (the prologue; each act's arrival greeting); anything a player can walk past and come back to uses actMin, because town N's gym and route N unlock in the same act. seasons gate the four migrant windows; flagsSet/flagsUnset/flagEquals read SaveFile.questFlags; population/floraStock read the LIVE node state (SaveFile.nodeStates), so a town's lines change as its web does — a line that quotes a count or an abundance must carry the clause that makes it true. Among the entries that match a (speaker,node,kind) request the game takes the highest `priority` (default 0). Every greeting/ambient group ships an unconditional fallback, so a matching entry always exists.",
   "_chains": {
     "vellsire-chain": "bible §4 'Maren's keystone lectures' + 'Duskhollow astronomers on the Vellsire's vanishing'. Steps 1..11 alternate NPC and antler-standing-stone props across Hearthollow → r1 → Brackwater → r2 → r3 → Bowerdeep → Cindershelf → Duskhollow (Orrin) → sanctum-approach → sanctum. Each step is gated on the previous step's flag, so the lore opens as it is earned rather than arriving as one block.",
@@ -10,8 +10,8 @@
   },
   "_counts": {
     "speakers": 63,
-    "entries": 212,
-    "lines": 500
+    "entries": 214,
+    "lines": 509
   },
   "speakers": [
     {
@@ -1290,7 +1290,7 @@
           "text": "You're not ours and here you are anyway. I put a query in to intake and the answer came back blank. They filed the blank."
         },
         {
-          "text": "Three years running and you've had me every time. If you were ours, you'd be up two grades by this afternoon — level with me at six."
+          "text": "Three times running and you've had me every time. If you were ours, you'd be up two grades by this afternoon — level with me at six."
         }
       ],
       "setFlags": {
@@ -1482,7 +1482,7 @@
       },
       "lines": [
         {
-          "text": "Every one of those six years is written up in the returns, whichever way it went. My first year's sheets are still in a box at intake with my own hand all over them."
+          "text": "Every one of those fights is written up in the returns, whichever way it went. My first year's sheets are still in a box at intake with my own hand all over them."
         },
         {
           "text": "The way up past the gate stone is clear and there's a man posted. His rate on the build sheet is nine."
@@ -1585,6 +1585,39 @@
       }
     },
     {
+      "id": "maren.act5.duskhollow",
+      "speaker": "maren",
+      "node": "duskhollow",
+      "kind": "cutscene",
+      "priority": 70,
+      "when": {
+        "actMin": 5,
+        "flagsUnset": [
+          "story.duskhollow.arrival"
+        ]
+      },
+      "lines": [
+        {
+          "text": "Duskhollow. I came up at the thaw and I've counted almost none of the vale since. What I'm after only moves after dark, and a board's no use to me in the dark."
+        },
+        {
+          "text": "The houses keep their shutters open all night for the observatory."
+        },
+        {
+          "text": "Idony will tell you what that costs her in oil, and she has the bills in a drawer to prove it."
+        },
+        {
+          "text": "Two people keep the records up there. Ives has the ground census, and he'll correct your wording before he answers the question."
+        },
+        {
+          "text": "Orrin keeps the older half of the record, and a good part of what's on those pages is in handwriting nobody can read. I can't get up the ridge and round the vale floor inside one night, so the floor goes uncounted most weeks."
+        }
+      ],
+      "setFlags": {
+        "story.duskhollow.arrival": true
+      }
+    },
+    {
       "id": "greaves.finale.pre",
       "speaker": "greaves",
       "node": "sanctum",
@@ -1598,7 +1631,7 @@
       },
       "lines": [
         {
-          "text": "You have been counting for the warden for six years, and she has your figures. I have no quarrel with the figures. My own people would have arrived at much the same numbers eventually, and later."
+          "text": "You have been counting for the warden since Meadow Reach, and she has your figures. I have no quarrel with the figures. My own people would have arrived at much the same numbers eventually, and later."
         },
         {
           "text": "A man I employ put it to me in writing that they would have been later, and it is minuted."
@@ -2342,6 +2375,36 @@
       ],
       "setFlags": {
         "quest.ferrymans-wager.done": true
+      }
+    },
+    {
+      "id": "sel.quest.wager.lost",
+      "speaker": "sel",
+      "node": "brackwater",
+      "kind": "quest",
+      "quest": "ferrymans-wager",
+      "priority": 60,
+      "when": {
+        "flagsSet": [
+          "quest.ferrymans-wager.lapsed"
+        ]
+      },
+      "lines": [
+        {
+          "text": "The year's turned, so the wager's gone with it."
+        },
+        {
+          "text": "You'll be paying the fare the same as you did before. I'd have taken it off you either way, because I don't move the rate on the post for a bet."
+        },
+        {
+          "text": "There was a fellow out of Bowerdeep took that same wager off me one autumn, and he was three days over with it and paid up without a word, and then he sat in my boat the whole crossing telling me about the one he nearly had — anyway."
+        },
+        {
+          "text": "Come down to the post when you want it up again, and bring the fare with you."
+        }
+      ],
+      "setFlags": {
+        "quest.ferrymans-wager.lapsed": false
       }
     },
     {
@@ -4155,7 +4218,7 @@
           "text": "With that animal loose, the ground round the Sanctum and along the Approach comes off that rate for the first time. That's three young brought on, against the two it has always made."
         },
         {
-          "text": "You were six years getting to it. In nine years somebody will ask me why the numbers moved, and I'd rather they had all of it from me."
+          "text": "You were a while getting to it. In nine years somebody will ask me why the numbers moved, and I'd rather they had all of it from me."
         }
       ],
       "setFlags": {
@@ -5238,7 +5301,7 @@
           "text": "I pack stone round them and they still shift."
         },
         {
-          "text": "Three posts down the west end won't hold now. They're in the holes I dug six years ago. Ground's gone soft at that end since."
+          "text": "Three posts down the west end won't hold now. They're in the holes I dug the first time round. Ground's gone soft at that end since."
         }
       ]
     },
@@ -5256,7 +5319,7 @@
           "text": "Every net I've cut down hangs in the shed on its own peg, oldest at the back. In the dark I can put my hand on the one I cut the year my son was born."
         },
         {
-          "text": "Three re-cuts in six years, and I overdid the second."
+          "text": "Three re-cuts on that one net, and I overdid the second."
         }
       ]
     },
@@ -5274,7 +5337,7 @@
           "text": "Picking's better than it ever was. Two more baskets out of that rise before dark, if the light holds."
         },
         {
-          "text": "Six years of the same four miles, and the Nibbin graze that rise flatter every year of it. Wet springs, I'd have said, and I only see it the one week."
+          "text": "Same four miles I walk every year I come back, and the Nibbin graze that rise flatter each time. Wet springs, I'd have said, and I only see it the one week."
         }
       ]
     },

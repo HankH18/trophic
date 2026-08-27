@@ -414,11 +414,34 @@ describe('credit gate (G13 / build-doc §9.1)', () => {
   });
 
   it('says UNKNOWN rather than inventing a number while the per-image cost is unmeasured', () => {
-    expect(manifest._credits.perImageCredits).toBeNull();
-    const plan = planBatch(rows.slice(0, 30), manifest);
+    // Built here rather than read off the shipped manifest. It used to assert
+    // `manifest._credits.perImageCredits` was null, which made the test a record of whether anyone
+    // had got round to measuring yet — so the day someone did (2026-08-26, dashboard delta over 18
+    // images) it went red for the right thing happening. The behaviour worth pinning is that the
+    // runner REFUSES TO INVENT a number when it has none, and that is a property of planBatch, not
+    // of the current state of the file.
+    const uncalibrated = clone(manifest);
+    uncalibrated._credits.perImageCredits = null;
+    uncalibrated._credits.measuredFrom = null;
+    const plan = planBatch(rows.slice(0, 30), uncalibrated);
     expect(plan.projectedCredits).toBeNull();
     expect(plan.lines.join('\n')).toMatch(/UNKNOWN/);
     expect(plan.lines.join('\n')).toMatch(/never been measured/);
+  });
+
+  it('a calibrated figure in the shipped manifest carries the measurement that produced it', () => {
+    // G13's rule is "a measured per-image figure or the runner says never measured". A number with
+    // no `measuredFrom` beside it is indistinguishable from an invented one, so the pair moves
+    // together or not at all.
+    const { perImageCredits, measuredFrom } = manifest._credits;
+    if (perImageCredits === null) {
+      expect(measuredFrom).toBeNull();
+    } else {
+      expect(typeof perImageCredits).toBe('number');
+      expect(perImageCredits).toBeGreaterThan(0);
+      expect(typeof measuredFrom).toBe('string');
+      expect((measuredFrom as string).length).toBeGreaterThan(20);
+    }
   });
 
   it('projects a real figure once someone measures one', () => {
@@ -524,8 +547,17 @@ describe('build-doc §9.7 asset counts', () => {
   });
 
   it('12 base maps, one per node file', () => {
-    expect(rowsOfClass('map-town').length + rowsOfClass('map-route').length).toBe(content.nodes.length);
+    // Counted by ORIGIN rather than by class. There are three base-map classes now — the Sanctum
+    // became `map-site` because bible §6 row 6 gives it "no shops, one long approach" and no
+    // buildings, while map-town's skeleton ends "every building has one clearly visible door" —
+    // and enumerating classes here is how a fourth would slip past unnoticed. Every base map, in
+    // any class, derives from a node's own mapAsset, so that is the thing worth counting.
+    const baseMaps = rows.filter((r) => /^data\/nodes\/.+\.json#mapAsset$/.test(r.origin ?? ''));
+    expect(baseMaps).toHaveLength(content.nodes.length);
     expect(content.nodes.length).toBe(12);
+    expect(rowsOfClass('map-town').length + rowsOfClass('map-route').length + rowsOfClass('map-site').length)
+      .toBe(content.nodes.length);
+    expect(rowsOfClass('map-site')).toHaveLength(1);
   });
 
   it('28 year variants: slice nodes 2–6, everything else year 2 (§9.7 cap 30, cut line C-2)', () => {
@@ -629,7 +661,7 @@ describe('manifest ↔ data/ seams', () => {
       expect(manifest.classes[cls]!.targetW, cls).toBe(map.playerSpriteW);
       expect(manifest.classes[cls]!.targetH, cls).toBe(map.playerSpriteH);
     }
-    for (const cls of ['map-town', 'map-route', 'map-variant']) {
+    for (const cls of ['map-town', 'map-route', 'map-site', 'map-variant']) {
       expect(manifest.classes[cls]!.targetW, cls).toBe(map.mapNativePx);
       expect(manifest.classes[cls]!.targetH, cls).toBe(map.mapNativePx);
     }
@@ -726,7 +758,13 @@ describe('style lock (build-doc §8.4 / §9.2 / L6)', () => {
 
   it('every untrialed class is flagged as such so nobody scales it up blind', () => {
     const untrialled = Object.entries(manifest.classes).filter(([, c]) => !c.trialled).map(([n]) => n);
-    expect(untrialled.sort()).toEqual(['dex-painted', 'map-route', 'map-variant', 'prop', 'ui-frame']);
+    // map-town rejoined this list on 2026-08-26: its skeleton changed projection (docs/TICKETS.md
+    // T-17, "fix scale, keep isometric") and gained an explicit scale bound, and neither form has
+    // an approved image. A class whose style lock moved is untrialed again by definition — the
+    // `trialled: true` it carried was earned by a skeleton that no longer exists.
+    expect(untrialled.sort()).toEqual([
+      'dex-painted', 'map-route', 'map-site', 'map-town', 'map-variant', 'prop', 'ui-frame',
+    ]);
   });
 });
 
@@ -815,6 +853,26 @@ describe('graph injection', () => {
 
 type StubBehaviour = (id: string, call: number) => 'ok' | Error;
 
+/**
+ * A minimal but REAL png for the stub client to "download".
+ *
+ * It used to be four bytes — the PNG magic number and nothing else. That was enough while every
+ * check in the runner was about transport (a file arrived, it hashed), but the runner now also asks
+ * whether the bytes are a picture (`tools/comfy/output-check.ts`, written after Comfy Cloud spent a
+ * morning returning pure black frames and reporting success). A stub that hands back bytes no image
+ * decoder accepts is testing a transport the cloud cannot produce: Comfy always returns a decodable
+ * PNG. So the stub returns one, with two colours in it so it is not the flat frame the guard exists
+ * to reject.
+ */
+async function writeStubPng(dest: string): Promise<void> {
+  const r = blankRaster(2, 2);
+  r.data.set([0, 0, 0, 255], 0);
+  r.data.set([255, 255, 255, 255], 4);
+  r.data.set([255, 0, 0, 255], 8);
+  r.data.set([0, 255, 0, 255], 12);
+  await writeRaster(dest, r);
+}
+
 function stubClient(behaviour: StubBehaviour) {
   const calls: string[] = [];
   const perRow = new Map<string, number>();
@@ -839,7 +897,7 @@ function stubClient(behaviour: StubBehaviour) {
         // would let a broken download look like a success.
         const dest = destFor({ filename: 'out.png' }, 0);
         await mkdir(dirname(dest), { recursive: true });
-        await writeFile(dest, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+        await writeStubPng(dest);
         return [dest];
       },
     },
@@ -1514,7 +1572,7 @@ describe('the runner does not re-bill for post-generation failures (§9.1)', () 
         if (downloads === 1) throw new Error('connection reset');
         const dest = destFor({ filename: 'out.png' }, 0);
         await mkdir(dirname(dest), { recursive: true });
-        await writeFile(dest, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+        await writeStubPng(dest);
         return [dest];
       },
     };

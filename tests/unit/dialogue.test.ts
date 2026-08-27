@@ -15,9 +15,9 @@
  *     against the thing that actually decides it — `core/foodweb.ts`'s derivation, `species.json`'s
  *     `seasonalWindow`, `balance.json`'s `age.yearsInClass`. Copy is content, and content can be
  *     wrong about its own game.
- *  4. **Budget + structure.** bible §13.13 (~10 lines per named NPC, ~3 per ambient, 400–500 total)
- *     with a real per-speaker ceiling, the three Ancient sign chains contiguous and REACHABLE, and
- *     the four lore surfaces bible §4 marks required content all present.
+ *  4. **Budget + structure.** The CORPUS budget (`LINE_COUNT` 400–560), the per-kind floors, the
+ *     three Ancient sign chains contiguous and REACHABLE, and the four lore surfaces bible §4 marks
+ *     required content all present. **There is no per-speaker ceiling** — see the budget block.
  *  5. **G7 — no moralizing copy about catching.** A vocabulary scan with positive controls (known-bad
  *     samples must be caught) and negative controls (real observational lines must not be).
  *
@@ -962,19 +962,23 @@ const median = (xs: number[]): number => {
 };
 
 /**
- * bible §13.13 budgets ~10 lines per named NPC. Four speakers legitimately exceed it: each carries
- * an Ancient lore chain or a six-act arc. They are named here with a ceiling, so "over budget" stays
- * a deliberate, bounded exception rather than an unbounded one.
+ * ⚠ THERE IS NO PER-SPEAKER LINE CEILING, AND ITS REMOVAL IS A RULING, NOT A LOOSENING.
+ *
+ * `NAMED_OVER_BUDGET` (a named exemption list with a number beside each speaker), `NAMED_CEILING`,
+ * `AMBIENT_CEILING` and `PROP_CEILING` stood here, together with the three assertions that read
+ * them. Hank set that cap and Hank removed it — docs/TICKETS.md T-5, verbatim: *"remove the
+ * ceiling. I don't care about how much dialogue a character has."* Deleting a bound its own author
+ * has withdrawn is not the same act as deleting a bound to turn a red test green, and nothing here
+ * was failing when it went: `git log -S "NAMED_OVER_BUDGET" -- tests/` has the whole of it.
+ *
+ * WHAT DELIBERATELY SURVIVES, because none of it is a cap on volume:
+ *   • the CORPUS budget, `LINE_COUNT` 400–560, asserted below and unchanged;
+ *   • the per-kind FLOORS (named ≥ 6, ambient ≥ 3) — a named speaker with two lines is an
+ *     unfinished character, which is the opposite complaint;
+ *   • the ambient MEDIAN of exactly 3 and the named median band 8–16, which are a distribution and
+ *     not a limit: they fail a corpus whose ambient speakers have all drifted up together, and a
+ *     single speaker may now sit anywhere above them.
  */
-const NAMED_OVER_BUDGET: Record<string, number> = {
-  maren: 72, // opening, tutorials, six keystone lectures, retirement, both epilogues
-  wick: 40, // pre/post for six act battles
-  sel: 34, // the whole Undermere chain plus the Ferryman's Wager
-  bram: 24, // the whole Kilnback chain plus the forge
-};
-const NAMED_CEILING = 18;
-const AMBIENT_CEILING = 9;
-const PROP_CEILING = 30;
 
 describe("dialogue budget — bible §13.13", () => {
   const per = linesBySpeaker();
@@ -999,35 +1003,20 @@ describe("dialogue budget — bible §13.13", () => {
     expect(median(counts)).toBeLessThanOrEqual(16);
   });
 
-  it("no named NPC exceeds its ceiling (the budget has a real upper bound)", () => {
-    expect(
-      idsOfKind("named")
-        .map((id) => [id, per.get(id) ?? 0] as const)
-        .filter(([id, n]) => n > (NAMED_OVER_BUDGET[id] ?? NAMED_CEILING))
-        .map(([id, n]) => `${id}=${n} (ceiling ${NAMED_OVER_BUDGET[id] ?? NAMED_CEILING})`),
-    ).toEqual([]);
-  });
-
-  it("the over-budget list names only speakers that carry a chain or a six-act arc", () => {
-    for (const id of Object.keys(NAMED_OVER_BUDGET)) {
-      const carriesChain = raw.entries.some((e) => e.speaker === id && e.signChain !== undefined);
-      const carriesArc = raw.entries.filter((e) => e.speaker === id && e.kind === "battle-pre").length >= 5;
-      expect(carriesChain || carriesArc, `${id} is over budget for no declared reason`).toBe(true);
-    }
-    expect(Object.keys(NAMED_OVER_BUDGET).length).toBeLessThanOrEqual(5);
-  });
-
-  it('ambient NPCs sit around "~3 lines" each, and none runs away', () => {
+  it('ambient NPCs sit around "~3 lines" each', () => {
+    // The ceiling that used to close this test is gone (T-5). The FLOOR and the MEDIAN are not a
+    // ceiling: they fail a corpus whose ambient speakers have all drifted up together, which is a
+    // statement about the corpus's shape rather than about any one character's volume.
     const counts = idsOfKind("ambient").map((id) => per.get(id) ?? 0);
     expect(counts.length).toBeGreaterThanOrEqual(24);
     expect(Math.min(...counts)).toBeGreaterThanOrEqual(3);
     expect(median(counts)).toBe(3);
-    expect(Math.max(...counts)).toBeLessThanOrEqual(AMBIENT_CEILING);
   });
 
-  it("prop and generic speakers are budgeted too", () => {
-    for (const id of idsOfKind("prop")) expect(per.get(id) ?? 0, id).toBeLessThanOrEqual(PROP_CEILING);
-    for (const id of idsOfKind("generic")) expect(per.get(id) ?? 0, id).toBeLessThanOrEqual(6);
+  it("prop and generic speakers are real kinds with lines behind them", () => {
+    // Was a pair of ceilings (prop 30, generic 6), removed with the rest of T-5. What is left is
+    // the half that was never a cap: both kinds exist and both are actually spoken.
+    for (const id of idsOfKind("prop")) expect(per.get(id) ?? 0, id).toBeGreaterThan(0);
     expect(idsOfKind("prop").length).toBeGreaterThan(0);
     expect(idsOfKind("generic").length).toBeGreaterThan(0);
   });
@@ -1067,6 +1056,15 @@ const EXTERNAL_FLAGS = [
   "quest.silk-shortage.turnin",
   "quest.star-census.milestone",
   "quest.vellsires-trail.turnin",
+  /*
+   * `quest.ferrymans-wager.lapsed` — written by `game/quests.ts` `settleCycles`, which sets it when
+   * the calendar year turns on an accepted wager the player did not meet. `sel.quest.wager.lost`
+   * reads it and clears it (`false`), and a `false` write is not a grant (`flagsSetByDialogue` uses
+   * `truthy`), so the key is owed to the game exactly as the turn-ins above are. Before that entry
+   * existed the flag had a writer and NO reader anywhere in the repo: the wager lapsed silently and
+   * Sel re-offered the identical bet with nothing said (docs/TICKETS.md T-5).
+   */
+  "quest.ferrymans-wager.lapsed",
   /*
    * ⚠ `story.vellsire.resolved` and `story.vellsire.outcome` USED TO STAND HERE, and their standing
    * here was the defect rather than the contract: nothing in the repo wrote either one, so both
@@ -2327,12 +2325,18 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
   });
 
   /**
-   * D19, unresolved and Hank's to rule on: six lines state "six years" as the length of a run, and
-   * the calendar is now unbounded, so a year-12 player can be told they have been counting for six.
-   * This does not rewrite them — G2 — it pins the set, so the ruling has an exact checklist and a
-   * seventh cannot appear unnoticed.
+   * D19, RULED AND DONE — docs/TICKETS.md T-4, Hank: *"reword all seven"*.
+   *
+   * Six lines stated "six years" as the length of a run and `wick.act3.win` stated it as "three
+   * years running". The calendar is unbounded and the story runs on acts, so a slow player reaches
+   * the finale in year 11 while the HUD prints the real year on screen beside a speaker saying six.
+   * All seven are reworded; `balance.clock.yearsTotal: 6` stays as the nominal length, because it
+   * is the sim's number and not a thing anybody says out loud.
+   *
+   * The pin stays, INVERTED: the set is now empty and a reintroduced "six years" fails here. The
+   * old list is in `git log -S "amb.brackwater-netmender.late" -- tests/`.
    */
-  it("the lines that hardcode a run length are exactly the six already flagged (D19)", () => {
+  it("no line states the run's length in years any more (D19 / T-4)", () => {
     // "six YEARS" only. Greaves' "six-year contract" (greaves.act4.steppe) is the Cullbrand
     // contract — a fixed historical fact, not the player's run — and it is pinned separately by
     // the steppe-duration assertion. Vesper's "nine years" is her own argument with Halder.
@@ -2341,13 +2345,18 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
       .filter((e) => e.lines.some((l) => RUN_LENGTH.test(l.text)))
       .map((e) => e.id)
       .sort();
-    expect(found).toEqual([
-      "amb.brackwater-netmender.late",
-      "amb.hearthollow-fenceman.late",
-      "amb.r1-forager.late",
-      "greaves.finale.pre",
-      "maren.epilogue.released",
-      "wick.act6.win",
+    expect(found).toEqual([]);
+  });
+
+  it("BINDS — the inverted pin still fires on a line that says it", () => {
+    // An empty expectation is only a test while something can fill it. Proves the regex and the
+    // walk still work, against a line shaped exactly like the six that were reworded.
+    const forged: RawDialogue = {
+      ...raw,
+      entries: [{ ...ENTRY.get("wick.act6.win")!, id: "forged", lines: [{ text: "Six years of returns." }] }],
+    };
+    expect(forged.entries.filter((e) => e.lines.some((l) => /\bsix years\b/i.test(l.text))).map((e) => e.id)).toEqual([
+      "forged",
     ]);
   });
 
@@ -2366,15 +2375,13 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     "gerta.warm.testimony": { lines: 1, kind: "world" }, // 31 years of shaft temperature log
     "greaves.act4.steppe": { lines: 2, kind: "world" }, // the Cullbrand contract, closed in four
     "greaves.finale.post": { lines: 1, kind: "world" }, // "forty years of records" — his career
-    "greaves.finale.pre": { lines: 1, kind: "run-length" }, // "you've been counting for six years"
-    "maren.epilogue.released": { lines: 1, kind: "run-length" }, // "spent six years finding"
+    "maren.epilogue.released": { lines: 1, kind: "world" }, // "In nine years somebody will ask me" — forward, about the record
     "maren.keystone.2": { lines: 1, kind: "world" }, // the herd, thirty years gone
     "maren.keystone.5": { lines: 1, kind: "world" }, // the vanishing, thirty years
     "maren.opening": { lines: 2, kind: "world" }, // a juvenile's three-year lifespan
     "orrin.vanishing": { lines: 2, kind: "world" }, // ninety years of margin entries
     "sel.quest.wager.offer": { lines: 1, kind: "world" }, // an Elder is one year from retiring
     "wick.act2.pre": { lines: 1, kind: "world" }, // the fishery, indexed for sixty years
-    "wick.act3.win": { lines: 1, kind: "run-length" }, // "three years running" — act 3 may be year 1
     "wick.act4.pre": { lines: 1, kind: "world" }, // Cullbrand paid out for four years
     /*
      * ADDED by the prose pass, each read before it was classified. Neither is a claim about how
@@ -2384,18 +2391,28 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
      *     figures to Vesper, so the span is the reason for the handover.
      *   wick.act5.pre "Two years I've looked for the answer to that" — anchored to the corridor
      *     where Greaves gave him the argument, which happened inside Cullbrand before act 1.
-     * Both stay `world`, so the four-name run-length pin below is untouched.
+     * Both stayed `world` and both still do.
      */
     "maren.greeting.act3": { lines: 1, kind: "world" },
     "wick.act5.pre": { lines: 1, kind: "world" },
     /*
-     * REMOVED: `prop.cindershelf-shrine-deep` was a row for "thirty-one years of still air", and
+     * REMOVED BY T-4, and named rather than silently dropped, because a register row whose entry
+     * stops matching goes dead in only one direction. All four were `run-length` rows and all four
+     * were reworded, so they name no span at all now:
+     *   greaves.finale.pre  "for six years" -> "since Meadow Reach"
+     *   wick.act6.win       "those six years" -> "those fights"
+     *   wick.act3.win       "Three years running" -> "Three times running"
+     * and `maren.epilogue.released` stayed, reclassified `world`: "You were six years getting to
+     * it" became "You were a while getting to it", and the row now covers the forward-looking
+     * "In nine years somebody will ask me why the numbers moved", which is a fact about the
+     * record and not about this run.
+     *
+     * REMOVED EARLIER: `prop.cindershelf-shrine-deep` was a row for "thirty-one years of still air", and
      * the deep-shrine copy no longer names a span — it counts wax cuts instead. The thirty-one
      * years moved to `gerta.warm.testimony`, which is already reviewed above and still matches at
      * one line. Recorded rather than dropped: a register row whose entry stops matching goes
      * silently dead in one direction, which is the failure this whole block exists to catch.
      */
-    "wick.act6.win": { lines: 1, kind: "run-length" }, // "six years"
   };
 
   it("every act-gated line that names a span in years has been read and classified", () => {
@@ -2419,15 +2436,17 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
     expect(diff.sort()).toEqual([]);
   });
 
-  it("the run-length claims an act gate can falsify are exactly the four named", () => {
-    // These say how long the PLAYER has been at it. Act-gated, so a fast run makes them false;
-    // they are load-bearing finale lines and the reword is D19, not this task's to make.
+  it("NO act-gated line claims a run length any more (T-4)", () => {
+    // These said how long the PLAYER had been at it, and an act gate can falsify that: four of them
+    // shipped, and T-4 reworded all four. The row TYPE survives so a new one has to be classified
+    // and, being `run-length`, fails here — which is the whole reason the empty set is worth
+    // asserting rather than deleting.
     expect(
       Object.entries(ACT_GATED_YEAR_CLAIMS)
         .filter(([, r]) => r.kind === "run-length")
         .map(([id]) => id)
         .sort(),
-    ).toEqual(["greaves.finale.pre", "maren.epilogue.released", "wick.act3.win", "wick.act6.win"]);
+    ).toEqual([]);
   });
 
   /**
@@ -2447,9 +2466,16 @@ describe("Q3 — the calendar and the acts are two clocks", () => {
   const CALENDAR_YEAR_CLAIMS: Record<string, { floor: number; says: number | null }> = {
     "amb.brackwater-dockhand.rebuilt": { floor: 3, says: null }, // eleven years since new timber — the dock's history
     "amb.bowerdeep-logger.thin": { floor: 4, says: null }, // nobody has cut there in four years — the canopy's
-    "amb.hearthollow-fenceman.late": { floor: 6, says: 6 }, // "Six years I've mended this line"
-    "amb.brackwater-netmender.late": { floor: 6, says: 6 }, // "three times in six years"
-    "amb.r1-forager.late": { floor: 6, says: 6 }, // "Six years on the same four miles"
+    /*
+     * T-4 TOOK THE OTHER THREE ROWS OUT, and it took the whole class with them. `yearMin: 6` gating
+     * `amb.hearthollow-fenceman.late` ("six years ago"), `amb.brackwater-netmender.late` ("three
+     * re-cuts in six years") and `amb.r1-forager.late` ("Six years of the same four miles") made
+     * each line true at exactly year 6 and drifting afterwards, on a calendar with no last year.
+     * All three now age without naming a span — "the holes I dug the first time round", "on that
+     * one net", "every year I come back" — so no calendar-gated line states a run length and the
+     * `says !== null` assertion below is empty. It is kept, not deleted: it is what a new figure in
+     * a `yearMin` line has to answer to, and the set-equality above is what forces the row.
+     */
   };
 
   it("every calendar-gated line that names a span in years has been read and classified", () => {

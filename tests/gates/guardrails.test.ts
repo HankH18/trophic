@@ -6,9 +6,11 @@
  *   no_phaser_in_core  §3 L11         — zero Phaser anywhere under core/, transitively.
  *   no_shadow_tables   §8.3 / G3      — only core/foodweb.ts computes diet edges; no encounter
  *                                       weight is tabled anywhere.
- *   no_moralizing_copy §16 / G7       — no string literal under game/ or core/ moralises about
- *                                       catching. SCOPE IS DELIBERATELY PARTIAL — see the section's
- *                                       own header for exactly what it does and does not cover.
+ *   no_moralizing_copy §16 / G7       — no player-facing string moralises about catching: every
+ *                                       string literal under game/ and core/, AND every
+ *                                       player-facing string in data/ — which is where the copy
+ *                                       actually lives. See the section's own header for how the
+ *                                       JSON side decides what "player-facing" means.
  *
  * Plus one the integration merge made necessary:
  *
@@ -308,10 +310,6 @@ const MAGIC_NUMBER_ALLOWANCE: Record<string, { values: readonly number[]; why: s
   "core/types.ts": {
     values: [2, 3, 4, 5, 6],
     why: "the type-level year-variant key union `Record<2|3|4|5|6, string>`, verbatim from build-doc §7.2's inlined schema",
-  },
-  "core/battle.ts": {
-    values: [2],
-    why: "the divisor of a midpoint between two balance values ((rollMin + rollMax) / 2) — structural, both operands are tunables",
   },
   "core/dialogue-schema.ts": {
     values: [4, 8, 120, 400],
@@ -707,20 +705,43 @@ describe("balance_keys_survive_validation — build-doc §6 INV-3", () => {
  * ════════════════════════════════════════════════════════════════════════════ */
 
 /**
- * ⚠ READ THE SCOPE BEFORE TRUSTING THIS GREEN. THE GATE IS DELIBERATELY PARTIAL.
+ * ⚠ READ THE SCOPE BEFORE TRUSTING THIS GREEN.
  *
- * WHAT IT COVERS: every string and template literal in every `.ts` file under `game/` and `core/`.
- * WHAT IT DOES NOT COVER: `data/**` — none of it, including `data/dialogue.json`, which is where
- * the overwhelming majority of the player-facing copy actually lives.
+ * WHAT IT COVERS, in two lanes:
+ *   1. `.ts` — every string and template literal in every file under `game/` and `core/`.
+ *   2. `data/` — every PLAYER-FACING string in the shipped JSON. `data/dialogue.json` gets a full
+ *      field-by-field classification derived from `core/dialogue-schema.ts`; every other data file
+ *      gets a prose census that cannot be added to without classifying the new prose.
  *
- * That omission is a decision, not an oversight. When this gate was written the prose lane was
- * mid-rewrite of `data/dialogue.json`; a gate over a file being rewritten in another lane goes red
- * for reasons its owner cannot act on, and a gate people learn to ignore is worse than no gate.
- * `data/dialogue.json` is scanned today by the vocabulary tripwire in `tests/unit/dialogue.test.ts`
- * §8, from which this pattern list is taken. **The next holder of this file should widen
- * `COPY_SCAN_DIRS` to `data/` once that rewrite has landed** — at which point the dialogue-side scan
- * becomes the redundant copy, not this one. Until then: a green here says nothing whatsoever about
- * the dialogue copy.
+ * WHAT IT DOES NOT COVER: tone. See the last paragraph — that limit is real and unfixable by a regex.
+ *
+ * HISTORY OF LANE 2, because the shape of the miss is the point. This gate originally scanned `.ts`
+ * only, on the reasoning that the prose lane was mid-rewrite of `data/dialogue.json` and a gate over
+ * a file being rewritten elsewhere goes red for reasons its owner cannot act on. The header carried
+ * an instruction to "widen `COPY_SCAN_DIRS` to `data/` once that rewrite has landed". **Widening that
+ * constant would have been a no-op**: the walk it feeds collects `.ts` files and `data/` contains
+ * none, so the gate would have reported green over `data/` while reading nothing in it. The scan had
+ * to learn to read JSON, which is lane 2. `COPY_SCAN_DIRS` is therefore still `game`/`core` on
+ * purpose — it is the source-code lane's constant, not a scope switch.
+ *
+ * HOW LANE 2 DECIDES WHAT IS PLAYER-FACING, and why it is not a guess. Every string in the file is
+ * reduced to a PATH SHAPE (`entries[].lines[].text`), and every shape must be declared in exactly one
+ * of two lists below: the ones that reach the screen, and the ones that do not. A shape in neither is
+ * a failure, not a pass — so a field added to the dialogue schema tomorrow cannot slip through
+ * unscanned, which is the only property that keeps this gate honest as the corpus grows. The
+ * player-facing list is short because the schema is: `DialogueSpeaker.name` is "the display name
+ * shown in the name plate" (drawn at `game/scenes/DialogueScene.ts:401`), `DialogueLine.text` is the
+ * line, `DialogueChoice.text` is the option (`game/dialogue-runner.ts:298`). Everything else in that
+ * schema is an id, an enum, a flag key, a flag value, a number, or `speakers[].role`, which the
+ * schema itself calls "flavour for tooling, not logic" and which nothing under `game/` reads.
+ *
+ * The `_`-prefixed keys are the repo-wide documentation convention (`core/dialogue-schema.ts` strips
+ * them before parsing) and are provenance prose, not copy — scanning them would fire on the very
+ * notes that explain the guardrail, which is the shape of a gate that gets exempted into uselessness.
+ *
+ * `tests/unit/dialogue.test.ts` §8 also scans the dialogue corpus, and is now the redundant copy
+ * rather than the only one; it is left in place because it is that lane's own tripwire and because
+ * this gate additionally carries the `sermon-register` row that its list does not.
  *
  * WHY THIS FILE. G7 is a fail-the-task guardrail whose whole value is that it holds for code nobody
  * has written yet, and until now `grep -rn "G7" tests/gates/` returned nothing. The only enforcement
@@ -736,12 +757,14 @@ describe("balance_keys_survive_validation — build-doc §6 INV-3", () => {
  *
  * WHY THE PATTERN LIST IS DUPLICATED. It is copied from `tests/unit/dialogue.test.ts` rather than
  * imported, because importing a test module executes its whole suite. The two lists can therefore
- * drift; folding the dialogue scan into this one when `data/` comes into scope is what ends that.
+ * drift — this one is the superset (it carries `sermon-register`), and it is the one a gate run
+ * enforces over the shipped corpus.
  *
  * WHAT THIS CANNOT DO — the caveat is inherited verbatim from the dialogue scan and matters just as
  * much here: a regex cannot detect tone. "I do not need the ledger to know which way you walked" is
  * a reprimand and trips nothing. Treat a green as "no banned vocabulary", NEVER as "G7 satisfied".
  */
+/** Lane 1: the SOURCE-CODE dirs. `data/` is lane 2 and is not a directory walk — see the header. */
 const COPY_SCAN_DIRS = ["game", "core"] as const;
 
 const COPY_FILES = COPY_SCAN_DIRS.flatMap((d) => walk(join(ROOT, d), [".ts"])).sort();
@@ -932,5 +955,405 @@ describe("no_moralizing_copy — build-doc §16 / G7 (game/ + core/ only — see
     expect(moralizingViolations("core/x.ts", "// the allow-list catches a table under an innocent name\n")).toEqual([]);
     expect(moralizingViolations("core/x.ts", "/* G7 forbids guilt, blame and shame in shipped copy. */\n")).toEqual([]);
     expect(moralizingViolations("core/x.ts", "const s = 1; // no lesson, no moralizing\n")).toEqual([]);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * no_moralizing_copy, lane 2 — the same G7 matcher over data/, where the copy lives
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+type JsonValue = string | number | boolean | null | JsonValue[] | { [k: string]: JsonValue };
+
+/**
+ * One string found in a JSON tree.
+ *
+ * `path` is where it actually is (`entries[7].lines[2].text`) so a failure names the line to fix.
+ * `shape` is that path with the indices removed (`entries[].lines[].text`) so the classification
+ * below is per FIELD and not per occurrence — a corpus that grows by a hundred entries adds no
+ * shapes, which is what lets this gate be strict about unknown ones.
+ * `doc` marks anything under a `_`-prefixed key: the repo-wide documentation convention.
+ */
+interface JsonString {
+  path: string;
+  shape: string;
+  text: string;
+  doc: boolean;
+}
+
+/**
+ * Free-key objects: maps whose KEYS are data (flag names), so their shapes collapse to `.*`.
+ * Without this, every flag a writer invents would arrive as a brand-new unclassified shape and the
+ * completeness check below would fire on ordinary authoring instead of on a schema change.
+ */
+const JSON_FREE_KEY_FIELDS = new Set(["setFlags"]);
+
+/** Every string value in a JSON tree, in document order. */
+function jsonStrings(root: JsonValue): JsonString[] {
+  const out: JsonString[] = [];
+  const rec = (v: JsonValue, path: string, shape: string, doc: boolean, collapsed: boolean): void => {
+    if (typeof v === "string") {
+      out.push({ path, shape, text: v, doc });
+      return;
+    }
+    if (Array.isArray(v)) {
+      v.forEach((item, i) => rec(item as JsonValue, `${path}[${String(i)}]`, `${shape}[]`, doc, collapsed));
+      return;
+    }
+    if (v === null || typeof v !== "object") return;
+    for (const [k, child] of Object.entries(v)) {
+      const nextDoc = doc || k.startsWith("_");
+      const nextPath = path === "" ? k : `${path}.${k}`;
+      if (collapsed) {
+        rec(child as JsonValue, nextPath, shape, nextDoc, true);
+      } else if (JSON_FREE_KEY_FIELDS.has(k)) {
+        rec(child as JsonValue, nextPath, shape === "" ? `${k}.*` : `${shape}.${k}.*`, nextDoc, true);
+      } else {
+        rec(child as JsonValue, nextPath, shape === "" ? k : `${shape}.${k}`, nextDoc, false);
+      }
+    }
+  };
+  rec(root, "", "", false, false);
+  return out;
+}
+
+/**
+ * The shipped bytes, not the validated object.
+ *
+ * Deliberately `JSON.parse` of the file rather than `core/dialogue-schema.ts`'s parse, for the same
+ * reason `balance_keys_survive_validation` exists a few hundred lines up: a zod parse can strip or
+ * normalise, and a gate that reads the post-parse object cannot see a field the schema dropped. G7
+ * is a claim about what ships in the file.
+ */
+function readJson(relPath: string): JsonValue {
+  return JSON.parse(readFileSync(join(ROOT, relPath), "utf8")) as JsonValue;
+}
+
+const clone = (v: JsonValue): JsonValue => JSON.parse(JSON.stringify(v)) as JsonValue;
+
+const DIALOGUE_FILE = "data/dialogue.json";
+const DIALOGUE_RAW: JsonValue = readJson(DIALOGUE_FILE);
+
+/**
+ * THE THREE FIELDS THAT REACH THE SCREEN, read off `core/dialogue-schema.ts` and confirmed against
+ * the code that draws them. This list is the whole scope of the dialogue scan, so it is short on
+ * purpose and each row carries its renderer:
+ *
+ *   `speakers[].name`        DialogueSpeaker.name — "display name shown in the name plate";
+ *                            `game/scenes/DialogueScene.ts:401` and `:497` print exactly this.
+ *   `entries[].lines[].text` DialogueLine.text — the line itself.
+ *   `entries[].choices[].text` DialogueChoice.text — `game/dialogue-runner.ts:298` returns these
+ *                            as "the choices on screen".
+ */
+const DIALOGUE_PLAYER_FACING: readonly string[] = [
+  "speakers[].name",
+  "entries[].lines[].text",
+  "entries[].choices[].text",
+];
+
+/**
+ * EVERYTHING ELSE THE SCHEMA DECLARES, listed rather than defaulted.
+ *
+ * A default-to-ignore would let a new player-facing field be added and be silently unscanned, which
+ * is the exact failure this lane was written to end — so the completeness check below treats a shape
+ * in neither list as a violation. Every row here is an id, an enum, a flag key, a flag value, a
+ * portrait handle, or a `goto` target. `speakers[].role` is the only judgement call and the schema
+ * makes it: "free-text role tag — flavour for tooling, not logic"; nothing under `game/` reads it.
+ * `entries[].lines[].speaker` is a speaker ID override for a multi-speaker scene — the NAME the
+ * player sees for it is `speakers[].name`, which is scanned.
+ */
+const DIALOGUE_NOT_PLAYER_FACING: readonly string[] = [
+  "speakers[].id",
+  "speakers[].kind",
+  "speakers[].role",
+  "speakers[].home",
+  "speakers[].portrait",
+  "entries[].id",
+  "entries[].speaker",
+  "entries[].node",
+  "entries[].kind",
+  "entries[].quest",
+  "entries[].signChain",
+  "entries[].propId",
+  "entries[].goto",
+  "entries[].setFlags.*",
+  "entries[].lines[].speaker",
+  "entries[].choices[].goto",
+  "entries[].choices[].setFlags.*",
+  "entries[].when.flagsSet[]",
+  "entries[].when.flagsUnset[]",
+  "entries[].when.flagEquals[].key",
+  "entries[].when.flagEquals[].value",
+  "entries[].when.seasons[]",
+  "entries[].when.population[].node",
+  "entries[].when.population[].lineId",
+  "entries[].when.population[].op",
+  "entries[].when.floraStock[].node",
+  "entries[].when.floraStock[].op",
+];
+
+/** Strings the player can read, out of any dialogue-shaped JSON (the real file or a sabotaged copy). */
+const dialoguePlayerFacingStrings = (root: JsonValue): JsonString[] =>
+  jsonStrings(root).filter((s) => !s.doc && DIALOGUE_PLAYER_FACING.includes(s.shape));
+
+/** Shapes the two lists above do not account for. Non-empty means the gate is reading blind. */
+const unclassifiedDialogueShapes = (root: JsonValue): string[] =>
+  [
+    ...new Set(
+      jsonStrings(root)
+        .filter(
+          (s) =>
+            !s.doc &&
+            !DIALOGUE_PLAYER_FACING.includes(s.shape) &&
+            !DIALOGUE_NOT_PLAYER_FACING.includes(s.shape),
+        )
+        .map((s) => s.shape),
+    ),
+  ].sort();
+
+/** Each entry's lines, and those lines joined so a phrase straddling two of them is one sentence. */
+function dialogueBodies(root: JsonValue): { id: string; lines: string[]; body: string }[] {
+  const entries = (root as { entries?: unknown }).entries;
+  if (!Array.isArray(entries)) return [];
+  return entries.map((rawEntry, i) => {
+    const entry = rawEntry as { id?: unknown; lines?: unknown };
+    const id = typeof entry.id === "string" ? entry.id : `entries[${String(i)}]`;
+    const lines = (Array.isArray(entry.lines) ? entry.lines : []).map((l) => {
+      const text = (l as { text?: unknown }).text;
+      return typeof text === "string" ? text : "";
+    });
+    return { id, lines, body: lines.join(" ") };
+  });
+}
+
+/** One message per offending string; empty means the corpus's player-facing copy is clean. */
+function dialogueCopyViolations(root: JsonValue): string[] {
+  const out: string[] = [];
+  for (const s of dialoguePlayerFacingStrings(root)) {
+    const hit = firstMoralizingHit(s.text);
+    if (hit === undefined) continue;
+    out.push(
+      `${DIALOGUE_FILE} ${s.path}: [${hit}] ${JSON.stringify(s.text)} — G7: the counts are reported, never judged`,
+    );
+  }
+  for (const { id, lines, body } of dialogueBodies(root)) {
+    // The join only adds what the per-line pass could not see. An entry that already reported a bad
+    // line is skipped, so one bad line is one failure and not two.
+    if (lines.some((t) => firstMoralizingHit(t) !== undefined)) continue;
+    const hit = firstMoralizingHit(body);
+    if (hit === undefined) continue;
+    out.push(`${DIALOGUE_FILE} ${id}: [${hit}] across its lines — G7: the counts are reported, never judged`);
+  }
+  return out;
+}
+
+/* ── the rest of data/ ───────────────────────────────────────────────────────
+ * dialogue.json is where the prose is, but "is" is a claim, and this gate exists because an
+ * unchecked claim about where the copy lives is what left `data/` unscanned in the first place. So
+ * every other shipped JSON is censused: any prose-shaped string outside a `_`-documentation key must
+ * be a shape declared here, and the player-facing ones are scanned by the same matcher. A new
+ * prose field anywhere under `data/` therefore fails this gate until someone classifies it.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+const OTHER_DATA_PROSE_SHAPES: Record<string, "player-facing" | "not-player-facing"> = {
+  /** `data/nodes/*.json` — `game/props.ts:99` prints this on the HUD; its own comment cites G7. */
+  "props[].label": "player-facing",
+  /**
+   * `data/moves.json` — `MoveDef.text`, "the bible's own parenthetical for this move, transcribed".
+   * Nothing under `game/` prints it TODAY. Scanned anyway: it is authored English sitting one move-
+   * info panel away from the screen, and "no screen reads it yet" is precisely the assumption that
+   * left the dialogue corpus unscanned. Costing a few dozen regex tests, it stays in scope.
+   */
+  "moves[].text": "player-facing",
+  /** `data/palette*.json` — the k-means run that produced the ramp. Provenance, never drawn. */
+  source: "not-player-facing",
+};
+
+const OTHER_DATA_FILES = walk(join(ROOT, "data"), [".json"])
+  .map(rel)
+  .filter((f) => f !== DIALOGUE_FILE)
+  .sort();
+
+/** Player-facing strings in a non-dialogue data file — every length, not only prose-shaped ones. */
+const otherDataPlayerFacing = (root: JsonValue): JsonString[] =>
+  jsonStrings(root).filter((s) => !s.doc && OTHER_DATA_PROSE_SHAPES[s.shape] === "player-facing");
+
+/** Prose in a non-dialogue data file that neither the docs convention nor the table above accounts for. */
+const unclassifiedOtherDataProse = (root: JsonValue): string[] =>
+  [
+    ...new Set(
+      jsonStrings(root)
+        .filter((s) => !s.doc && looksLikeProse(s.text) && OTHER_DATA_PROSE_SHAPES[s.shape] === undefined)
+        .map((s) => s.shape),
+    ),
+  ].sort();
+
+/* ── the sabotage kit ────────────────────────────────────────────────────────
+ * Every negative control below injects through `dialogueCopyViolations`, the same function the real
+ * scan calls, so a control passing is evidence about the real scan and not about a parallel one.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+const BAD_LINE = "You should be ashamed of what you took out of this marsh.";
+
+/** Copy of the corpus carrying exactly one entry, with `mutate` applied to it. */
+function oneEntry(index: number, mutate: (entry: Record<string, JsonValue>) => void): JsonValue {
+  const file = clone(DIALOGUE_RAW) as { speakers: JsonValue; entries: JsonValue[] };
+  const entry = file.entries[index] as Record<string, JsonValue>;
+  mutate(entry);
+  return { speakers: file.speakers, entries: [entry] } as unknown as JsonValue;
+}
+
+const entryCount = ((DIALOGUE_RAW as { entries?: unknown }).entries as unknown[]).length;
+
+describe("no_moralizing_copy — data/ (G7 over the copy itself, build-doc §16)", () => {
+  it("finds the real corpus, not an empty list", () => {
+    // The whole point of this lane. A scan that reads nothing reports green, and the previous
+    // version of this gate would have reported green over `data/` while collecting zero files.
+    const strings = dialoguePlayerFacingStrings(DIALOGUE_RAW);
+    expect(entryCount, "data/dialogue.json has no entries — the read is wrong").toBeGreaterThan(50);
+    expect(
+      strings.length,
+      "the dialogue scan is looking at nothing (wrong path, or a field was renamed)",
+    ).toBeGreaterThan(entryCount);
+    expect(
+      strings.filter((s) => looksLikeProse(s.text)).length,
+      "the scan found strings but almost no prose — it is reading ids, not copy",
+    ).toBeGreaterThan(100);
+    expect(OTHER_DATA_FILES.length, "the data/ walk found no other JSON").toBeGreaterThan(10);
+    expect(OTHER_DATA_FILES).toContain("data/nodes/hearthollow.json");
+  });
+
+  it("every declared player-facing path really occurs — a typo'd path would scan nothing", () => {
+    // Without this, renaming `text` to `body` in the schema turns the scan into a no-op that passes.
+    const present = new Set(jsonStrings(DIALOGUE_RAW).map((s) => s.shape));
+    for (const shape of DIALOGUE_PLAYER_FACING) {
+      expect(present.has(shape), `${shape} is declared player-facing but occurs nowhere in the file`).toBe(true);
+    }
+    expect(DIALOGUE_PLAYER_FACING.filter((s) => DIALOGUE_NOT_PLAYER_FACING.includes(s))).toEqual([]);
+  });
+
+  it("every string field in data/dialogue.json is classified — nothing is read blind", () => {
+    const unknown = unclassifiedDialogueShapes(DIALOGUE_RAW);
+    expect(
+      unknown,
+      `unclassified dialogue fields — decide whether the player reads these and add each to ` +
+        `DIALOGUE_PLAYER_FACING or DIALOGUE_NOT_PLAYER_FACING:\n  ${unknown.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("no player-facing string in data/dialogue.json moralises about catching", () => {
+    const violations = dialogueCopyViolations(DIALOGUE_RAW);
+    expect(violations, violations.join("\n")).toEqual([]);
+  });
+
+  it("every prose string in the rest of data/ is classified, and none of it moralises", () => {
+    const unknown: string[] = [];
+    const violations: string[] = [];
+    for (const relPath of OTHER_DATA_FILES) {
+      const root = readJson(relPath);
+      unknown.push(...unclassifiedOtherDataProse(root).map((s) => `${relPath}: ${s}`));
+      for (const s of otherDataPlayerFacing(root)) {
+        const hit = firstMoralizingHit(s.text);
+        if (hit !== undefined) violations.push(`${relPath} ${s.path}: [${hit}] ${JSON.stringify(s.text)}`);
+      }
+    }
+    expect(
+      unknown,
+      `unclassified prose under data/ — add each shape to OTHER_DATA_PROSE_SHAPES:\n  ${unknown.join("\n  ")}`,
+    ).toEqual([]);
+    expect(violations, violations.join("\n")).toEqual([]);
+  });
+
+  it("BINDS — a moralizing line smuggled into EVERY entry of the real corpus is caught", () => {
+    // Per-entry, not per-corpus: an entry the walker cannot reach would pass silently otherwise.
+    for (let i = 0; i < entryCount; i += 1) {
+      const sabotaged = oneEntry(i, (entry) => {
+        (entry["lines"] as JsonValue[]).push({ text: BAD_LINE });
+      });
+      const found = dialogueCopyViolations(sabotaged);
+      expect(found.join(" "), `entry ${String(i)}: the gate did not catch a smuggled moralizing line`).toMatch(
+        /\[shame\]/,
+      );
+    }
+  });
+
+  it("BINDS — a moralizing choice label and a moralizing name plate are caught", () => {
+    const withChoice = oneEntry(0, (entry) => {
+      entry["choices"] = [{ text: "Tell him the poaching paid well." }];
+    });
+    expect(dialogueCopyViolations(withChoice).join(" ")).toMatch(/\[poacher\]/);
+
+    const withName = clone(DIALOGUE_RAW) as { speakers: Record<string, JsonValue>[] };
+    (withName.speakers[0] as Record<string, JsonValue>)["name"] = "Maren the Guilty";
+    expect(dialogueCopyViolations(withName as unknown as JsonValue).join(" ")).toMatch(/\[guilt\]/);
+  });
+
+  it("BINDS — a moralizing phrase split across two lines of one entry is caught", () => {
+    // The per-string scan cannot see this; the joined-body pass is why the check exists.
+    const split = oneEntry(0, (entry) => {
+      entry["lines"] = [{ text: "You have taken" }, { text: "too many out of the shallows." }];
+    });
+    const found = dialogueCopyViolations(split);
+    expect(found.join(" "), "a phrase straddling two lines slipped through").toMatch(/\[took-too-many\]/);
+  });
+
+  it("BINDS — a plainly reported population count is NOT flagged (G7 permits the numbers)", () => {
+    // The other half of the guardrail: reporting counts plainly is the required register, so a gate
+    // that fires on it would push the copy away from G7 rather than toward it.
+    const plain = [
+      "Nine Fenmaw in the shallows this year. Last year the count was fourteen.",
+      "Brackmarsh reads 3 Mirefin, 0 Elder. Breeding coefficient is under one.",
+      "Two nets where it used to take three. Write down what you see.",
+      "The Kilnback are gone off this node. Nothing eats them here now.",
+      "recent deaths 4 · births 0 · net -4",
+    ];
+    for (const text of plain) {
+      const probe = oneEntry(0, (entry) => {
+        entry["lines"] = [{ text }];
+        delete entry["choices"];
+      });
+      expect(dialogueCopyViolations(probe), `plain reporting was flagged: ${text}`).toEqual([]);
+    }
+  });
+
+  it("BINDS — the scan reads copy, and not ids, flags, speaker roles or provenance prose", () => {
+    // A scan of the whole file would "pass" this ticket while firing on the notes that explain the
+    // guardrail. Precision is what makes the classification worth having, so it is asserted.
+    const noisy = clone(DIALOGUE_RAW) as Record<string, JsonValue>;
+    noisy["_source"] = `G7 forbids shame, guilt and blame; ${BAD_LINE}`;
+    const speakers = noisy["speakers"] as Record<string, JsonValue>[];
+    (speakers[0] as Record<string, JsonValue>)["role"] = "the guilty one";
+    const entries = noisy["entries"] as Record<string, JsonValue>[];
+    const first = entries[0] as Record<string, JsonValue>;
+    first["setFlags"] = { "story.shame": "you should be ashamed" };
+    first["when"] = { flagEquals: [{ key: "story.starter", value: "a cruel choice" }] };
+    expect(dialogueCopyViolations(noisy as unknown as JsonValue)).toEqual([]);
+    // …and none of that made a shape the classification does not already account for.
+    expect(unclassifiedDialogueShapes(noisy as unknown as JsonValue)).toEqual([]);
+  });
+
+  it("BINDS — a field the classification does not know is reported, not passed over", () => {
+    // The anti-drift property. A `subtitle` added to the schema tomorrow must fail loudly here
+    // rather than be quietly excluded from the G7 scan, which is how `data/` got skipped before.
+    const grown = clone(DIALOGUE_RAW) as { entries: Record<string, JsonValue>[] };
+    (grown.entries[0] as Record<string, JsonValue>)["subtitle"] = BAD_LINE;
+    expect(unclassifiedDialogueShapes(grown as unknown as JsonValue)).toEqual(["entries[].subtitle"]);
+    // It is unclassified, so the copy scan does NOT silently cover it — which is why the check above
+    // is a gate in its own right and not a nicety.
+    expect(dialogueCopyViolations(grown as unknown as JsonValue)).toEqual([]);
+  });
+
+  it("BINDS — a moralizing prop label in a node file is caught", () => {
+    const node = clone(readJson("data/nodes/hearthollow.json")) as { props: Record<string, JsonValue>[] };
+    (node.props[0] as Record<string, JsonValue>)["label"] = "what the poachers left";
+    const hits = otherDataPlayerFacing(node as unknown as JsonValue)
+      .map((s) => firstMoralizingHit(s.text))
+      .filter((h) => h !== undefined);
+    expect(hits, "a moralizing prop label was not caught").toContain("poacher");
+  });
+
+  it("BINDS — an unclassified prose field elsewhere under data/ is reported", () => {
+    const node = clone(readJson("data/nodes/hearthollow.json")) as Record<string, JsonValue>;
+    node["blurb"] = "A quiet spring town at the head of the valley road.";
+    expect(unclassifiedOtherDataProse(node as unknown as JsonValue)).toEqual(["blurb"]);
   });
 });

@@ -229,7 +229,7 @@ describe('the chain is re-runnable from assets/raw/ (§9.3)', () => {
   });
 
   it('the map recipe matches §9.3: quantize, size retained, NO background removal, no trim', () => {
-    for (const cls of ['map-town', 'map-route', 'map-variant']) {
+    for (const cls of ['map-town', 'map-route', 'map-site', 'map-variant']) {
       const spec = classOf(manifest, cls);
       expect(spec.postprocess.removeBackground, cls).toBe(false);
       expect(spec.postprocess.quantize, cls).toBe(true);

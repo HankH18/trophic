@@ -25,6 +25,8 @@ import type {
 import { AGE_CLASSES, STAT_KEYS } from "../../core/types";
 import {
   advanceYear,
+  ageFormMultiplier,
+  ageMultiplier,
   boonMaxStacksPerStat,
   boonMultiplier,
   heirLevelMin,
@@ -620,5 +622,64 @@ describe("the year turn completes whatever the caller answers", () => {
       }),
       { numRuns: 100 },
     );
+  });
+});
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * bible §2 / build-doc §7.4 — the SHAPE of the age curve.
+ *
+ * Written for T-10. Hank's ruling was "reduce the age buff/nerf to have half the effect it
+ * currently does", and the retune that carries it out (data/balance.json `age._multiplier`) is
+ * arithmetic on the DEVIATION FROM NEUTRAL: J 1.0-(1.0-0.75)/2, E 1.0+(1.15-1.0)/2, A untouched
+ * because A is the neutral. That sentence is only meaningful while two things stay true, and
+ * NOTHING in the suite said either of them — a later retune could set A to 1.2, or invert J and E,
+ * and the whole frame would quietly become nonsense with everything green.
+ *
+ * These are laws, not the specific values: no number from the retune is repeated here, so a
+ * FURTHER retune inside the frame passes and one that breaks the frame fails.
+ * ══════════════════════════════════════════════════════════════════════════════ */
+
+describe("the age curve has a shape, and the shape is what 'half the effect' is measured against", () => {
+  it("makes Adult the exact neutral — it is the reference every deviation is taken from", () => {
+    expect(ageMultiplier("A", balance)).toBe(1);
+  });
+
+  it("rises strictly with age: growing up is never a downgrade, for any line", () => {
+    // The bare multiplier first…
+    expect(ageMultiplier("J", balance)).toBeLessThan(ageMultiplier("A", balance));
+    expect(ageMultiplier("A", balance)).toBeLessThan(ageMultiplier("E", balance));
+    // …then the whole aging contribution, which folds in the metamorphic ×1.15 latch and is what
+    // core/battle.ts `effectiveStats` actually multiplies by. A metamorphic line gains the latch on
+    // the J→A step, so its curve is steeper there; it must still only ever rise.
+    fc.assert(
+      fc.property(arbLineId, (lineId) => {
+        const l = species.find((s) => s.id === lineId) as SpeciesLine;
+        const at = (age: AgeClass): number =>
+          ageFormMultiplier(
+            newOwnedCreature({ uid: "u", lineId, age, level: 10, caughtYear: 1 }, l, balance),
+            l,
+            balance,
+          );
+        expect(at("J"), `${lineId} J→A`).toBeLessThan(at("A"));
+        expect(at("A"), `${lineId} A→E`).toBeLessThan(at("E"));
+      }),
+      { numRuns: 100 },
+    );
+  });
+
+  it("straddles the neutral — the Juvenile is a penalty and the Elder a bonus, not two bonuses", () => {
+    // This is the "buff/nerf" the ruling names. If both classes ever landed on the same side of 1.0
+    // the age model would have stopped being a trade-off and become a flat level curve by another
+    // name, and halving "the deviation" would mean something else entirely.
+    expect(ageMultiplier("J", balance)).toBeLessThan(1);
+    expect(ageMultiplier("E", balance)).toBeGreaterThan(1);
+  });
+
+  it("is not vacuous: a retune that inverted the classes would fail the law above", () => {
+    const inverted = structuredClone(balance) as Balance;
+    inverted.age.multiplier = { J: 1.15, A: 1.0, E: 0.75 };
+    expect(ageMultiplier("J", inverted)).toBeGreaterThan(ageMultiplier("A", inverted));
+    expect(ageMultiplier("A", inverted)).toBeGreaterThan(ageMultiplier("E", inverted));
   });
 });

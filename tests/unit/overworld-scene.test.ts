@@ -224,10 +224,35 @@ vi.mock("phaser", () => {
 
       this.tweens = { add: (): unknown => ({ remove: (): void => undefined }), killTweensOf: (): void => undefined };
       this.time = { delayedCall: (): unknown => ({ remove: (): void => undefined }) };
+      /*
+       * ⚠ `start()` MUST EMIT `complete`, AND A BLANKET NO-OP PROXY HERE HANGS EVERY TRAVEL TEST.
+       * `game/mapview.ts`'s `ensureNodeArt` — which `travelTo` awaits — resolves its promise from
+       * `scene.load.once(Phaser.Loader.Events.COMPLETE, …)` after `scene.load.start()`. When every
+       * property of this double was a no-op the listener was never stored and never called, so the
+       * awaited promise never settled and seven tests died at the 30s timeout.
+       *
+       * Emitting synchronously is not a convenience, it is the platform: real `LoaderPlugin.start`
+       * calls `loadComplete()` inline when the queue is empty, and `loadComplete` ends by emitting
+       * `COMPLETE` — which also fires when files FAILED (they only raise `totalFailed`). So a
+       * loader that always answers `start` with `complete` is the honest double, not a lenient one.
+       *
+       * `textures.exists` deliberately still says NO for anything queued through `load.image`: this
+       * stub loads nothing, so the maps stay on game/placeholder.ts's Graphics fallback, which is
+       * what every §5/§6 assertion below is written against.
+       */
+      const loadComplete: Array<() => void> = [];
       this.load = new Proxy(
-        {},
         {
-          get(): unknown {
+          once: (event: string, run: () => void): void => {
+            if (event === Phaser.Loader.Events.COMPLETE) loadComplete.push(run);
+          },
+          start: (): void => {
+            for (const run of loadComplete.splice(0)) run();
+          },
+        } as Record<string, unknown>,
+        {
+          get(target, prop, receiver): unknown {
+            if (prop in target) return Reflect.get(target, prop, receiver);
             return (): void => undefined;
           },
         },
@@ -324,7 +349,7 @@ vi.mock("phaser", () => {
 
 import { RUN_COMPLETE_SHOWN_FLAG, actOf, nodeUnlockedAt, runIsComplete } from "@core/acts";
 import { startBattle, step as battleStep, caughtIndividual } from "@core/battle";
-import { seasonOf } from "@core/clock";
+import { seasonOf, subTicksForAction, ticksForAction } from "@core/clock";
 import {
   DIALOGUE,
   actFromFlags,
@@ -340,15 +365,20 @@ import { linesMetAt } from "@game/quests";
 import { isNever } from "@core/lifecycle";
 import { propDialogueFor, runHeadless, type DialogueRunState } from "@game/dialogue-runner";
 import type { DialogueSceneData } from "@game/scenes/DialogueScene";
-import { encounterTable } from "@game/encounters";
-import { newSave, openStreams, type SaveEnvelope } from "@core/save";
-import { subsystemRng } from "@core/rng";
+import { encounterTable, stepsPerForay } from "@game/encounters";
+import { deserialize, newSave, openStreams, serialize, type SaveEnvelope } from "@core/save";
+/*
+ * `subsystemRng` is deliberately NOT imported. §3 used to open its own battle stream with it; the
+ * stream a battle must run off is the RUN's, which the scene hands over as `BattleSceneData.rng` —
+ * see `fightWithSnares`. A fresh stream per fight is the exact thing `beginWildBattle` warns about.
+ */
 import type { Balance, Content, NodeFile, NodeState } from "@core/types";
 import { OverworldScene, type OverworldSceneData } from "@game/scenes/OverworldScene";
 import type { BattleSceneData } from "@game/scenes/BattleScene";
 import { SCENE_KEYS } from "@game/scene-keys";
 import { finishYearTurn, type YearTurnSceneData } from "@game/scenes/YearTurnScene";
-import { PROVISIONAL_STARTER_UID, provisionalStarter } from "@game/wild-battle";
+import { buildGymBattle } from "@game/gym-battle";
+import { PROVISIONAL_STARTER_UID, liveNodeOf, provisionalStarter } from "@game/wild-battle";
 import { maskTextureKey } from "@game/mapview";
 import { encounterWeights, indexSpecies } from "@core/foodweb";
 
@@ -533,11 +563,16 @@ function settleYearTurn(h: Harness): void {
       throw new Error("the scene is handed over with no year-turn sequence to answer");
     }
     const data = launch.data as YearTurnSceneData;
-    const { flow, tickBefore, carryTick } = data.drive;
+    // `drive.carry` — the WHOLE position across the turn, tick AND sub-tick, and the only spelling
+    // of it `YearTurnDrive` still carries. Both places the game commits a turn through go through
+    // this one field: `game/scenes/YearTurnScene.ts` `finish()` for the watched turn, and
+    // `beginYearTurn`'s headless branch for an unregistered sequence. A harness that read the tick
+    // alone would stop mirroring them the moment a cost is fractional — and a battle costs half.
+    const { flow, tickBefore, carry } = data.drive;
     while (!flow.done()) flow.chooseHeir();
     h.parts.launches.splice(h.parts.launches.indexOf(launch), 1);
     const result = flow.result();
-    data.onDone(finishYearTurn(result, tickBefore, carryTick), result);
+    data.onDone(finishYearTurn(result, tickBefore, carry), result);
   }
 }
 
@@ -673,18 +708,189 @@ describe("§2 the HUD's count and the encounter weight are the same number", () 
  * ════════════════════════════════════════════════════════════════════════════ */
 
 describe("§3 a wild encounter becomes a battle, and a catch moves a real number", () => {
+  /*
+   * ⚠ WHY THIS SECTION NO LONGER WALKS TO ONE ENCOUNTER AND THROWS ONE SNARE AT IT.
+   *
+   * It used to. `firstEncounter` walked until the scene launched a battle, and the two catch tests
+   * then ASSUMED whatever the roll had handed over was catchable before the starter fell. Nothing
+   * checked. That made the section a fixture of the DRAW ORDER rather than a test of the catch, and
+   * it broke the first time the draw order moved: the per-step gate now rolls on the grass share
+   * only — `stepEncounterChance = encounterTileFraction × encounterChancePerStep`, game/encounters.ts
+   * — and the gate is the FIRST draw in the fixed per-step sequence (chance → species → age → level
+   * → traits), so renumbering it renumbers every draw after it. The first encounter at the slice
+   * node went from a Juvenile to an ELDER of another line: `catch.baseCatch` 0.15 instead of 0.50,
+   * on a foe that knocks the level-`xp.starterLevel` starter out on turn one. Both tests went red
+   * for a reason that had nothing to do with what they assert.
+   *
+   * Measured over the first twelve encounters of the shipped seed at this node, the roll hands over
+   * ALL of: an Elder that wins on turn 1, an Adult that wins on turn 1, and Juveniles that are
+   * caught on the first throw. "The first animal met is catchable" is therefore an accident of a
+   * seed, never a property of the game — so this section stops assuming it. It walks REAL
+   * encounters and fights REAL battles until a catch actually lands, and when none does it prints
+   * every animal it met and how each fight ended. No gate, age table or draw order can quietly turn
+   * it into a test of a different animal, because it never depended on a particular one.
+   */
+
+  type SnareThrow = Extract<Parameters<typeof battleStep>[1], { kind: "snare" }>;
+  type WildBattleState = ReturnType<typeof startBattle>["state"];
+  type Met = NonNullable<ReturnType<OverworldScene["lastEncounterMet"]>>;
+
+  /** The strongest snare `data/balance.json` declares. G11 — read from balance, never typed in. */
+  const STRONGEST_SNARE: SnareThrow["tier"] = ((): SnareThrow["tier"] => {
+    const tiers = balance.catch.snareTier;
+    const best = (Object.keys(tiers) as Array<SnareThrow["tier"]>).reduce<SnareThrow["tier"] | null>(
+      (acc, tier) => (acc === null || tiers[tier] > tiers[acc] ? tier : acc),
+      null,
+    );
+    if (best === null) throw new Error("balance.catch.snareTier declares no tier to throw");
+    return best;
+  })();
+
+  /*
+   * Rig bounds — how far the walk and the fight may run before the test gives up and says what it
+   * saw. None is a gameplay number (G11): nothing outside this file reads them, and moving one
+   * changes how long the rig is willing to look, never what it accepts.
+   *
+   * `ENCOUNTERS_TO_TRY` is 24 because that is roughly 2.5× the worst case actually measured. Swept
+   * over 200 SEPARATE save seeds — i.e. 200 independent re-rolls of which animals this node hands
+   * over, in what order, at what ages — every one of them landed a catch, and the deepest search
+   * took 9 encounters. That sweep is the evidence for the claim above: the section does not depend
+   * on the draw order, and no future renumbering of it can quietly change what these tests test.
+   */
+  const ENCOUNTERS_TO_TRY = 24;
+  const THROWS_PER_ENCOUNTER = 64;
+  const WALK_BUDGET = 900;
+
   /** Walk until the scene has launched a battle, and return the encounter that launched it. */
   function firstEncounter(h: Harness): { lineId: string } {
-    walk(h, 900, () => h.parts.launches.some((l) => l.key === "Battle"));
+    walk(h, WALK_BUDGET, () => h.parts.launches.some((l) => l.key === SCENE_KEYS.battle));
     const met = h.scene.lastEncounterMet();
-    if (!met) throw new Error("no encounter in 900 steps — the fixture is wrong");
+    if (!met) throw new Error(`no encounter in ${String(WALK_BUDGET)} steps — the fixture is wrong`);
     return met;
+  }
+
+  /**
+   * A save carrying enough of the strongest snare that no fight below is lost to an empty bag.
+   *
+   * The bag is the save's OWN items (build-doc §7.8) — the scene invents nothing, and the test tops
+   * up only the tier it is going to throw rather than replacing the bag the save shipped with.
+   */
+  function saveWithSnares(): SaveEnvelope {
+    const save = freshSave();
+    return {
+      ...save,
+      items: { ...save.items, [STRONGEST_SNARE]: ENCOUNTERS_TO_TRY * THROWS_PER_ENCOUNTER },
+    };
+  }
+
+  /**
+   * Fight one launched wild battle through the REAL reducer, the way a player holding snares does:
+   * throw until core/battle.ts resolves the fight, or refuses the throw.
+   *
+   * ⚠ THE STREAM IS `data.rng`, THE ONE THE SCENE HANDED OVER — never a fresh `subsystemRng(seed,
+   * "battle")`. `beginWildBattle` positions the run's battle stream where the save left it and says
+   * why: "a new stream at draw zero would make every battle of a run replay the same numbers", and
+   * `BattleScene` steps off exactly this object. This rig used to open its own, which was harmless
+   * while it fought one battle and is not harmless now. MEASURED, walking twelve encounters: a fresh
+   * stream hands every fight the same first three floats, so `shakes` is decided by one fixed
+   * threshold for the whole run and "was it caught" collapses into "is this line's `baseCatch` above
+   * that threshold" — 4 of 12 save seeds then caught NOTHING in twelve encounters, against ~1-in-800
+   * for independent throws. That is the rig's own stream generating the correlation, not the game.
+   *
+   * ⚠ STOPPING ON THE REFUSAL IS ALSO THE POINT. `step()` returns the state UNCHANGED with an
+   * `actionRejected` event when the action cannot happen — an empty bag, a fainted active that has
+   * no replacement. A loop that ignores that spins for its whole bound against a battle that can no
+   * longer move and reports `outcome === null`, which is indistinguishable from a fight that is
+   * still going. Measured on the shipped seed: three of the first twelve encounters ended that way
+   * under the old 200-turn loop, all of them an exhausted bag wearing a stalemate's face.
+   */
+  function fightWithSnares(data: BattleSceneData): WildBattleState {
+    let state = startBattle(data.input, data.ctx).state;
+    for (let throws = 0; state.outcome === null && throws < THROWS_PER_ENCOUNTER; throws += 1) {
+      const stepped = battleStep(state, { kind: "snare", tier: STRONGEST_SNARE }, data.rng, data.ctx);
+      state = stepped.state;
+      if (stepped.events.some((e) => e.t === "actionRejected")) break;
+    }
+    return state;
+  }
+
+  interface StagedCatch {
+    /** The encounter the scene's OWN roll produced, and that its hand-off was built from. */
+    met: Met;
+    data: BattleSceneData;
+    state: WildBattleState;
+    caught: NonNullable<ReturnType<typeof caughtIndividual>>;
+    /** Every encounter met on the way here and how each fight ended. Goes in every message. */
+    transcript: string;
+    /** Hand the result back, exactly as `BattleScene` does. NOT called by the walk. */
+    commit(): void;
+  }
+
+  /**
+   * Walk the scene through REAL encounters, fighting each, until a catch actually lands — and hand
+   * the caller the catch UNAPPLIED, so it can read the node's numbers either side of `onFinished`.
+   *
+   * A fight that is not won is handed back too, which is what un-latches `battleRunning` and lets
+   * the walk meet the next animal; that is also exactly what `BattleScene` does with a lost fight.
+   */
+  function walkUntilACatchLands(h: Harness): StagedCatch {
+    const seen: string[] = [];
+    // Launches the scene made during `create()` are not ours to fight.
+    let consumed = h.parts.launches.length;
+    for (let attempt = 0; attempt < ENCOUNTERS_TO_TRY; attempt += 1) {
+      walk(h, WALK_BUDGET, () => h.parts.launches.length > consumed);
+      const launch = h.parts.launches[consumed];
+      if (!launch) {
+        seen.push(
+          `— walked ${String(WALK_BUDGET)} steps and the scene launched nothing` +
+            ` (handed over: ${String(h.scene.isHandedOver())})`,
+        );
+        break;
+      }
+      consumed += 1;
+      if (launch.key !== SCENE_KEYS.battle) {
+        seen.push(`— the scene launched "${launch.key}", which is not a battle`);
+        continue;
+      }
+      const met = h.scene.lastEncounterMet();
+      if (!met) throw new Error(`a battle launched with no encounter behind it\n${seen.join("\n")}`);
+      const data = launch.data as BattleSceneData;
+      const state = fightWithSnares(data);
+      const caught = caughtIndividual(state, data.ctx);
+      seen.push(`— ${met.lineId} ${met.age} L${String(met.level)} → ${state.outcome ?? "unresolved"}`);
+      if (state.outcome === "caught" && caught !== null) {
+        return {
+          met,
+          data,
+          state,
+          caught,
+          transcript: seen.join("\n"),
+          commit: () => data.onFinished?.({ state, caught }),
+        };
+      }
+      data.onFinished?.({ state, caught });
+    }
+    throw new Error(
+      `§3 walked ${String(ENCOUNTERS_TO_TRY)} encounters at ${SLICE_NODE} and caught nothing.\n` +
+        `Every wild creature met, and how its fight ended:\n${seen.join("\n")}\n` +
+        `This section does not depend on WHICH animal it meets — only that one of them can be ` +
+        `caught with a "${STRONGEST_SNARE}" snare. If nothing here can be, the node's roster, the ` +
+        `encounter gate, the catch formula or the starter is what changed.`,
+    );
+  }
+
+  /** What was met and what was caught, on every assertion, so a red never has to be re-derived. */
+  function report(staged: StagedCatch): string {
+    return (
+      `caught ${staged.caught.lineId} ${staged.caught.age} L${String(staged.caught.level)}` +
+      ` at ${SLICE_NODE}\nencounters met on the way:\n${staged.transcript}`
+    );
   }
 
   it("launches the Battle scene with the wild creature the roll produced, and pauses itself", () => {
     const h = mount();
     firstEncounter(h);
-    const launch = h.parts.launches.find((l) => l.key === "Battle");
+    const launch = h.parts.launches.find((l) => l.key === SCENE_KEYS.battle);
     expect(launch, "the overworld never started a battle").toBeDefined();
 
     const data = launch!.data as BattleSceneData;
@@ -701,62 +907,53 @@ describe("§3 a wild encounter becomes a battle, and a catch moves a real number
   });
 
   it("a REAL catch through core/battle.ts decrements the node by exactly one and keeps the creature", () => {
-    const h = mount({
-      // Master snares, so the fight resolves as a catch rather than as a long grind. The bag is the
-      // save's own items (build-doc §7.8) — the scene invents nothing.
-      save: { ...freshSave(), items: { master: 99 } },
-    });
-    const met = firstEncounter(h);
-    const launch = h.parts.launches.find((l) => l.key === "Battle");
-    const data = launch!.data as BattleSceneData;
+    const h = mount({ save: saveWithSnares() });
+    const staged = walkUntilACatchLands(h);
+    const where = report(staged);
 
-    const before = h.scene.countOf(met.lineId);
-    expect(before).toBeGreaterThan(0);
-    const partyBefore = h.scene.save.party.length;
+    // The animal that was caught is the animal the scene's OWN roll produced and built the hand-off
+    // from. A catch applied to any other line would move the wrong number, and every count
+    // assertion below would still pass — so this is asserted before them, not after.
+    expect(staged.state.outcome, where).toBe("caught");
+    expect(staged.data.input.enemyParty[0]!.lineId, where).toBe(staged.met.lineId);
+    expect(staged.caught.lineId, where).toBe(staged.met.lineId);
+    expect(staged.caught.nodeId, where).toBe(SLICE_NODE);
+
+    const before = h.scene.countOf(staged.met.lineId);
+    expect(before, where).toBeGreaterThan(0);
+    const keptBefore = h.scene.save.party.length + h.scene.save.box.length;
     const logBefore = h.scene.save.actionLog.length;
 
-    // Run the actual reducer, exactly as C3's scene would, and hand back what it produced.
-    const rng = subsystemRng(h.scene.save.seed, "battle");
-    let state = startBattle(data.input, data.ctx).state;
-    for (let turn = 0; state.outcome === null && turn < 200; turn += 1) {
-      state = battleStep(state, { kind: "snare", tier: "master" }, rng, data.ctx).state;
-    }
-    expect(state.outcome).toBe("caught");
-    const caught = caughtIndividual(state, data.ctx);
-    expect(caught).not.toBeNull();
+    staged.commit();
 
-    data.onFinished?.({ state, caught });
-
-    expect(h.scene.countOf(met.lineId)).toBe(before - 1);
-    expect(h.scene.save.party.length + h.scene.save.box.length).toBe(partyBefore + 1);
+    expect(h.scene.countOf(staged.met.lineId), where).toBe(before - 1);
+    expect(h.scene.save.party.length + h.scene.save.box.length, where).toBe(keptBefore + 1);
     // The tape carries the catch, so `core/save.ts` `replay` reproduces this save (L10).
-    expect(h.scene.save.actionLog.length).toBe(logBefore + 1);
+    expect(h.scene.save.actionLog.length, where).toBe(logBefore + 1);
     const last = h.scene.save.actionLog[h.scene.save.actionLog.length - 1]!;
-    expect(last.action).toMatchObject({ t: "catch", nodeId: SLICE_NODE, lineId: met.lineId });
+    expect(last.action, where).toMatchObject({ t: "catch", nodeId: SLICE_NODE, lineId: staged.met.lineId });
     // …and the scene came back to the player.
-    expect(h.parts.stops).toContain("Battle");
+    expect(h.parts.stops).toContain(SCENE_KEYS.battle);
     expect(h.parts.resumed).toBeGreaterThan(0);
   });
 
   it("the derived encounter weight follows the catch — the cascade needs no extinction check", () => {
-    const h = mount({ save: { ...freshSave(), items: { master: 99 } } });
-    const met = firstEncounter(h);
-    const data = (h.parts.launches.find((l) => l.key === "Battle")!.data as BattleSceneData);
+    const h = mount({ save: saveWithSnares() });
+    const staged = walkUntilACatchLands(h);
+    const where = report(staged);
 
     const weightOf = (lineId: string): number => {
       const ctx = h.scene.forayContext();
       return encounterWeights(ctx.node, species, balance, { season: ctx.season }).find((w) => w.lineId === lineId)?.weight ?? -1;
     };
-    const weightBefore = weightOf(met.lineId);
+    const weightBefore = weightOf(staged.met.lineId);
+    // A line the roll produced HAS a weight; without this the comparison below could be a pair of
+    // sentinels or a pair of zeroes agreeing about a line that is not in the table at all.
+    expect(weightBefore, `${where}\nthe line just met carries no encounter weight to move`).toBeGreaterThan(0);
 
-    const rng = subsystemRng(h.scene.save.seed, "battle");
-    let state = startBattle(data.input, data.ctx).state;
-    for (let turn = 0; state.outcome === null && turn < 200; turn += 1) {
-      state = battleStep(state, { kind: "snare", tier: "master" }, rng, data.ctx).state;
-    }
-    data.onFinished?.({ state, caught: caughtIndividual(state, data.ctx) });
+    staged.commit();
 
-    expect(weightOf(met.lineId)).toBeLessThan(weightBefore);
+    expect(weightOf(staged.met.lineId), where).toBeLessThan(weightBefore);
   });
 
   it("says so instead of silently doing nothing when there is nothing to send out", () => {
@@ -1393,7 +1590,7 @@ function ctxOf(h: Harness, overrideYear?: number): DialogueContext {
   return {
     act: h.scene.act(),
     year,
-    season: seasonOf({ year, tick: save.tick }, balance),
+    season: seasonOf({ year, tick: save.tick, subTick: save.subTick ?? 0 }, balance),
     flags: save.questFlags,
     populations,
     floraStock,
@@ -2273,5 +2470,640 @@ describe("§9 the year turn's heir roll goes through heirStreamKey", () => {
     rest(h, REST_PRESSES, true);
     expect(h.scene.save.year).toBeGreaterThan(balance.clock.startYear);
     expect(turnsRun(h), "the shipped balance turns no year either — the rig is measuring nothing").toBeGreaterThan(0);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §11 THE FOURTH PRICE — a fight costs `clock.battleTicks`, levied once at launch
+ *
+ * L8 priced three actions and the shell spent three. A battle was free: a player could meet, fight,
+ * flee and meet again all day and the meter never moved, so the encounter budget the balance
+ * harness tunes (`encounter._throughput`) was a fiction — the honest form of it prices every fight.
+ * `clock.battleTicks` is 0.5, which is why `ClockState` gained `subTick`: the price is a FRACTION,
+ * and two fights are one tick.
+ *
+ * Nothing below types a tick count in. Every expectation is `core/clock.ts`'s own reading of
+ * `data/balance.json` (G11), so a retune of the price moves the assertions with the world.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/** The clock as ONE integer count of sub-ticks — the only unit a half tick can be counted in. */
+function subTicksSpent(save: SaveEnvelope): number {
+  const { startYear, ticksPerYear, subTicksPerTick } = balance.clock;
+  return ((save.year - startYear) * ticksPerYear + save.tick) * subTicksPerTick + (save.subTick ?? 0);
+}
+
+/** What one action of each kind costs, in sub-ticks, straight from balance. */
+const COST: Record<"travel" | "foray" | "inn" | "battle", number> = {
+  travel: subTicksForAction("travel", balance),
+  foray: subTicksForAction("foray", balance),
+  inn: subTicksForAction("inn", balance),
+  battle: subTicksForAction("battle", balance),
+};
+
+describe("§11 a fight costs clock.battleTicks, and it is charged at LAUNCH", () => {
+  const first = LADDER[0]!;
+
+  /** A save standing in the first leader's town, with the whole ladder still to climb. */
+  function atTheGym(over: Partial<SaveEnvelope> = {}): SaveEnvelope {
+    return { ...freshSave(first.town), currentNode: first.town, ...over };
+  }
+
+  it("charges exactly clock.battleTicks, once, and puts the launch on the tape", () => {
+    const h = mount({ save: atTheGym() });
+    const before = subTicksSpent(h.scene.save);
+
+    h.press(KEY_G);
+    h.frame();
+
+    expect(h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle), "[G] launched no fight").toHaveLength(1);
+    expect(subTicksSpent(h.scene.save) - before).toBe(COST.battle);
+    // Derived from balance, never a literal 0.5: `subTicksForAction` IS `ticksForAction × resolution`.
+    expect(COST.battle).toBe(Math.round(ticksForAction("battle", balance) * balance.clock.subTicksPerTick));
+    /*
+     * …and the tape carries it, so `core/save.ts` `replay` pays the same price the live run did
+     * (L10). A charge that moved the clock without an entry would be a replay that finishes the run
+     * in a different year than the run it is replaying.
+     */
+    const last = h.scene.save.actionLog[h.scene.save.actionLog.length - 1]!;
+    expect(last.action).toMatchObject({ t: "battle", kind: "gym", nodeId: first.town });
+  });
+
+  it("two fights are exactly one whole tick — the sub-tick carries rather than rounding away", () => {
+    const per = balance.clock.subTicksPerTick;
+    // The premise, asserted rather than assumed: the price is a FRACTION of a tick and it divides
+    // one. `core/schemas.ts` refuses to boot a balance where it does not, so this cannot silently
+    // become a test of nothing.
+    expect(COST.battle).toBeGreaterThan(0);
+    expect(COST.battle).toBeLessThan(per);
+    expect(per % COST.battle, "clock.battleTicks does not divide a whole tick").toBe(0);
+    const fightsPerTick = per / COST.battle;
+
+    const h = mount({ save: atTheGym() });
+    const openingTick = h.scene.save.tick;
+    expect(h.scene.save.subTick ?? 0).toBe(0);
+
+    for (let fight = 0; fight < fightsPerTick; fight += 1) {
+      h.press(KEY_G);
+      h.frame();
+      // A LOSS is charged (the fight happened) and leaves the leader challengeable, which is what
+      // makes a second fight at the same gym reachable at all.
+      expect(settleBattle(h, "loss"), `fight ${String(fight)} never started`).toBe(true);
+      if (fight + 1 < fightsPerTick) {
+        // Mid-way: the whole-tick counter has NOT moved, because a fraction is owed and not yet due.
+        expect(h.scene.save.tick, "a fractional charge rounded up to a whole tick").toBe(openingTick);
+        expect(h.scene.save.subTick).toBe(COST.battle * (fight + 1));
+      }
+    }
+
+    expect(h.scene.save.tick).toBe(openingTick + 1);
+    expect(h.scene.save.subTick ?? 0).toBe(0);
+  });
+
+  it("THE YEAR-TURN HAZARD — a charge that fills the meter is not eaten, and no fight rides on top of the turn", () => {
+    /*
+     * `spendTicks` RETURNS WITHOUT CHARGING while `yearTurnRunning`, and `handOffToBattle` charges
+     * before it hands the screen over — so the one clock position where the two meet has to be
+     * pinned. This is it: the meter exactly `clock.battleTicks` short of full. The charge fills it,
+     * `handleClockEvents` hands the screen to the year turn, and a build that then launched the
+     * fight anyway would have two full-screen scenes up for one keypress; a build that charged
+     * AFTER the hand-off would give the fight away free, once a year, for ever.
+     */
+    const per = balance.clock.subTicksPerTick;
+    const at = balance.clock.ticksPerYear * per - COST.battle;
+    const h = mount({
+      save: atTheGym({ tick: Math.floor(at / per), subTick: at % per }),
+    });
+    const before = subTicksSpent(h.scene.save);
+    expect(balance.clock.ticksPerYear * per - before, "the fixture is not one fight short of the year").toBe(
+      COST.battle,
+    );
+
+    h.press(KEY_G);
+    h.frame();
+
+    // The year turned …
+    expect(h.parts.launches.some((l) => l.key === SCENE_KEYS.yearTurn), "the charge did not end the year").toBe(true);
+    // … and the fight was refused rather than launched underneath it. ONE hand-off, not two.
+    expect(h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle)).toHaveLength(0);
+    // The refusal is SAID, like every other refusal in this scene.
+    const said = h.parts.objects.filter((o) => o.kind === "text").map((o) => o.text);
+    expect(said.some((t) => t.includes("the year turned first"))).toBe(true);
+
+    settleYearTurn(h);
+
+    // THE CHARGE STANDS, and it is exactly one fight's worth — not zero, and not two.
+    expect(subTicksSpent(h.scene.save) - before).toBe(COST.battle);
+    expect(h.scene.save.year).toBe(balance.clock.startYear + 1);
+    expect(h.scene.save.actionLog.filter((e) => e.action.t === "battle")).toHaveLength(1);
+  });
+
+  it("an all-fainted party is refused BEFORE the tick is spent, instead of throwing inside the reducer", () => {
+    /*
+     * `game/wild-battle.ts` `partySpecs` counts party MEMBERS, so every `no creature in the party`
+     * refusal in the game layer passes a party of nothing but fainted creatures straight through —
+     * and `core/battle.ts` `startBattle` then throws. That was already a crash where a refusal
+     * belonged; with the price above it would be a crash with the tick already spent and the
+     * overworld already paused, i.e. an unrecoverable screen that had also charged for itself.
+     */
+    const base = freshSave(first.town);
+    expect(base.party.length, "the fixture depends on a party to knock down").toBeGreaterThan(0);
+    const down = { ...base, currentNode: first.town, party: base.party.map((c) => ({ ...c, curHp: 0 })) };
+
+    // The throw this refusal stands in front of is real: the reducer's own answer to that party.
+    const build = buildGymBattle({
+      content,
+      save: down,
+      gym: first,
+      node: liveNodeOf(content, down, first.town),
+    });
+    expect(() => startBattle(build.input, build.ctx)).toThrow(/fainted/);
+
+    const h = mount({ save: down });
+    const before = subTicksSpent(h.scene.save);
+    h.press(KEY_G);
+    h.frame();
+
+    expect(h.parts.launches.some((l) => l.key === SCENE_KEYS.battle)).toBe(false);
+    expect(subTicksSpent(h.scene.save), "a refused fight was charged for").toBe(before);
+    expect(h.scene.save.actionLog.some((e) => e.action.t === "battle")).toBe(false);
+    const said = h.parts.objects.filter((o) => o.kind === "text").map((o) => o.text);
+    expect(said.some((t) => t.includes("nothing in the party is standing"))).toBe(true);
+
+    // The positive control: the same save with the same party STANDING does fight, and is charged.
+    const up = mount({ save: { ...down, party: base.party.map((c) => ({ ...c })) } });
+    const upBefore = subTicksSpent(up.scene.save);
+    up.press(KEY_G);
+    up.frame();
+    expect(up.parts.launches.some((l) => l.key === SCENE_KEYS.battle)).toBe(true);
+    expect(subTicksSpent(up.scene.save) - upBefore).toBe(COST.battle);
+  });
+
+  it("NOTHING IS FREE — the clock's total is exactly the tape's, over a played run", () => {
+    /*
+     * The accounting invariant, and the one assertion that binds all four launch sites at once
+     * (wild, gym, rival, the ring) without naming any of them: every sub-tick the clock has moved is
+     * an action on the tape, and every action on the tape moved the clock by its balance price. A
+     * fight launched without a charge — the defect the year-turn guard exists to stop — breaks this
+     * whichever site it happens at, and so does a charge levied twice.
+     */
+    const h = mount({ save: { ...freshSave(), items: { master: 4 } } });
+    const opening = subTicksSpent(h.data.save as SaveEnvelope);
+
+    for (let round = 0; round < 12; round += 1) {
+      walk(h, 40);
+      settleBattle(h, "loss");
+      settleYearTurn(h);
+      h.press(KEY_R);
+      frameAndSettle(h);
+    }
+
+    const owed = h.scene.save.actionLog.reduce((sum, entry) => {
+      const kind = entry.action.t;
+      return sum + (kind === "travel" || kind === "foray" || kind === "inn" || kind === "battle" ? COST[kind] : 0);
+    }, 0);
+
+    expect(owed, "the run spent no ticks at all").toBeGreaterThan(0);
+    expect(subTicksSpent(h.scene.save) - opening).toBe(owed);
+    // …and the run really did contain fights, or the battle price is not being measured here.
+    expect(
+      h.scene.save.actionLog.filter((e) => e.action.t === "battle").length,
+      "no fight happened, so nothing above measures the fourth price",
+    ).toBeGreaterThan(0);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §12 THE FORAY ODOMETER IS THE SAVE'S — travel does not refund the walk, and
+ *     neither does quitting
+ *
+ * `stepsSinceTick` was scene state that `buildNodeView` reset whenever the node changed. Both
+ * halves gave the walk back: travelling with 47 of 48 steps banked started the next excursion at
+ * zero, and so did saving and reloading. Hank: *"I see no reason why stepsSinceTick should reset
+ * after a fast travel. We should get rid of that reset."*
+ *
+ * The counter measures WALKING, not a place. Nothing below types a step count in: the fixture is
+ * `stepsPerForay(balance)` (G11), so a retune of the foray price moves these with the world.
+ *
+ * THE THIRD CASE IS THE MIGRATION. `SaveFile.forayStepsSinceTick` is optional so a save written
+ * before the field existed still loads (INV-2), and that fallback was the one part of the ruling
+ * nothing here witnessed — an `init` made to throw on the absent field left this whole file green.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("§12 the foray odometer is banked in the save and survives travel and reload", () => {
+  const first = LADDER[0]!;
+
+  it("travel does not refund the walk — the odometer crosses the node boundary intact", async () => {
+    const per = stepsPerForay(balance);
+    // The premise: a foray tick is charged after MANY steps, so there is a part-walk to lose. With
+    // `stepsPerForay` of 1 nothing could ever be banked and the case below would test nothing.
+    expect(per, "a foray tick costs one step, so no part-walk can be banked").toBeGreaterThan(1);
+    const banked = per - 1;
+
+    /*
+     * The fixture is the SAVE's field, not a walk, because that is the whole claim of this section:
+     * the odometer is save state (`SaveFile.forayStepsSinceTick`) and the scene reads it in `init`.
+     * A walk would measure the same thing through a step loop that §11 already exercises.
+     */
+    const h = mount({ save: { ...freshSave(first.town), currentNode: first.town, forayStepsSinceTick: banked } });
+    expect(h.scene.forayStepsSinceTick(), "the scene did not open on the save's odometer").toBe(banked);
+
+    const route = h.scene.node.adjacency.find((id) => id !== first.town);
+    expect(route, `${first.town} is adjacent to nothing, so there is no travel to test`).toBeDefined();
+    await h.scene.travelTo(route as string);
+    // bible §8's rival is triggered by ARRIVAL on the first route, so the travel hands a fight over.
+    // Answered with a loss: which way it went is not what this measures.
+    settleBattle(h, "loss");
+
+    expect(h.scene.save.currentNode, "the travel was refused, so nothing below is about travel").toBe(route);
+    expect(h.scene.forayStepsSinceTick(), "travel gave the banked walk back").toBe(banked);
+    expect(h.scene.save.forayStepsSinceTick, "the save disagrees with the scene about the odometer").toBe(banked);
+  });
+
+  it("…and neither does quitting — a restart resumes on the banked walk, not on zero", () => {
+    const per = stepsPerForay(balance);
+    const h = mount({ save: freshSave() });
+
+    // Walk short of the rollover so a real part-walk is standing when the scene is torn down. A
+    // step that meets something hands the screen over and the rest of the walk would be a no-op.
+    const walked = walk(h, per - 1, () => h.scene.isHandedOver());
+    settleBattle(h, "loss");
+    expect(walked, "the rig walked nowhere, so nothing here is measuring the odometer").toBeGreaterThan(0);
+    const banked = h.scene.forayStepsSinceTick();
+    expect(banked, "the walk rolled over instead of banking").toBeGreaterThan(0);
+    /*
+     * AND IT IS THE RIGHT NUMBER, not merely a number the scene is willing to repeat. `banked` is
+     * read off the scene under test, so on its own it would carry any miscount straight into the
+     * expectation and still agree with itself afterwards. `walk` counts tile moves independently —
+     * off `movement.tile` changing, never off the odometer — so this is the one line here that can
+     * tell a counter that banks every step from one that banks every other one.
+     */
+    expect(banked, "the odometer disagrees with the number of steps actually walked").toBe(walked);
+    /*
+     * THE ODOMETER IS WRITTEN ON EVERY STEP, not only when it rolls over — whoever persists the save
+     * persists whatever `this.save` says at that moment, so a step that did not update it is a step
+     * the player gets back for free by reloading.
+     */
+    expect(h.scene.save.forayStepsSinceTick, "the banked walk was never written to the save").toBe(banked);
+
+    // `restart` is what `scene.start(Overworld, data)` does — the reload path, `init` and all.
+    h.restart({ save: h.scene.save });
+    expect(h.scene.forayStepsSinceTick(), "quitting gave the banked walk back").toBe(banked);
+
+    /*
+     * …AND THEN A COLD ONE, WHICH IS THE HALF THAT ACTUALLY BINDS `init`'s READ-BACK.
+     *
+     * ⚠ THE RESTART ABOVE PROVES LESS THAN IT LOOKS. Phaser reuses the scene INSTANCE across
+     * `scene.start` and the harness reproduces that faithfully, so `this.stepsSinceTick` survives as
+     * a FIELD whether or not `init` ever consults the save. Measured, by deleting
+     * `this.stepsSinceTick = this.save.forayStepsSinceTick ?? 0` from `init` outright: the assertion
+     * above stayed GREEN. It was passing for the old scene-only counter — the exact thing the ruling
+     * replaced — and so it bound nothing about persistence at all.
+     *
+     * Quitting the GAME reuses no instance. It writes bytes and builds a new scene out of them, so
+     * that is what is done here: the save goes through the real `serialize`/`deserialize` and a
+     * brand-new `OverworldScene` is mounted on what came back. This is the whole chain the ruling
+     * names — the field is written, it survives canonical JSON, the schema keeps it, and `init`
+     * reads it — and it fails if any single link drops the walk.
+     */
+    const reloaded = deserialize(serialize(h.scene.save), balance);
+    expect(reloaded.forayStepsSinceTick, "the odometer did not survive the save's own round trip").toBe(banked);
+    const cold = mount({ save: reloaded });
+    expect(cold.scene.forayStepsSinceTick(), "a cold reload opened the excursion on zero").toBe(banked);
+  });
+
+  it("A SAVE WRITTEN BEFORE THE FIELD EXISTED still loads, and opens on a fresh excursion (INV-2)", () => {
+    /*
+     * `SaveFile.forayStepsSinceTick` is optional exactly so a save written before it existed opens
+     * rather than failing to load, and `init` spells that `?? 0`.
+     *
+     * NOTHING EXERCISED THE ABSENT CASE. Measured, by making `init` THROW on a save that lacks the
+     * field: every test in this file stayed green apart from the two §3 failures already standing.
+     * The fallback was load-bearing for INV-2 and unwitnessed, so it is witnessed here.
+     */
+    const preField: SaveEnvelope = { ...freshSave() };
+    delete preField.forayStepsSinceTick;
+    expect("forayStepsSinceTick" in preField, "the fixture still carries the field it is missing").toBe(false);
+
+    const h = mount({ save: preField });
+    expect(h.scene.forayStepsSinceTick(), "an older save did not open on a fresh excursion").toBe(0);
+
+    /*
+     * …and it is a WORKING zero, not an `undefined` that merely prints like one. `undefined + 1` is
+     * `NaN`, `NaN >= stepsPerForay` is false for ever, and the odometer would then never charge a
+     * foray tick again for the rest of that run — a silent refund of every excursion, from one
+     * missing `?? 0`. So the next step is taken, and counted.
+     */
+    const walked = walk(h, 1, () => h.scene.isHandedOver());
+    expect(walked, "the rig could not take the one step this needs").toBe(1);
+    expect(h.scene.forayStepsSinceTick(), "the odometer did not count on from zero").toBe(1);
+    expect(h.scene.save.forayStepsSinceTick).toBe(1);
+  });
+
+  it("BINDS THE OTHER SIDE — the odometer still rolls over and still charges the foray tick", () => {
+    /*
+     * Without this, both cases above would pass for a counter that is frozen: never reset, never
+     * charged, and never a price. The walk is only kept because it is on its way to a tick.
+     */
+    const per = stepsPerForay(balance);
+    const h = mount({ save: { ...freshSave(), forayStepsSinceTick: per - 1 } });
+    const forays = (): number => h.scene.save.actionLog.filter((e) => e.action.t === "foray").length;
+    const before = forays();
+
+    const walked = walk(h, 1, () => h.scene.isHandedOver());
+    expect(walked, "the rig could not take the one step this needs").toBe(1);
+
+    expect(forays() - before, "the step that filled the odometer charged no foray tick").toBe(1);
+    expect(h.scene.forayStepsSinceTick(), "the odometer did not reset when it was charged").toBe(0);
+    expect(h.scene.save.forayStepsSinceTick).toBe(0);
+  });
+
+  it("A STEP THAT LANDS WHILE THE YEAR IS TURNING BANKS ITS FORAY — it is not zeroed and not lost", () => {
+    /*
+     * ⚠ THE ONE CASE THE FOUR ABOVE CANNOT REACH. Every one of them stops on `isHandedOver()`, so
+     * `yearTurnRunning` is false on every step they take and the second half of the guard —
+     * `&& !this.yearTurnRunning` — decides nothing for them. Measured: dropping that term from
+     * `onStepCompleted` leaves all four green.
+     *
+     * THE DEFECT IT STANDS IN FRONT OF. {@link OverworldScene.spendTicks} RETURNS WITHOUT CHARGING
+     * while `yearTurnRunning`, silently, which is safe only for a caller that has already decided
+     * there is nothing to do. `onStepCompleted` had not: it zeroed the odometer and wrote the zero
+     * into the save BEFORE asking, so the tick vanished and the whole excursion that earned it went
+     * with it — a foray the player walked and was not billed for, once per year turn, and no
+     * `onSaveChanged` for the reset either, because the notification sits in the other branch.
+     *
+     * IT IS A SAME-FRAME ROUTE, NOT A SAME-KEY ONE, and that is why an audit called it unreachable.
+     * `ScenePlugin.pause` pauses nothing on the spot — it is `this.manager.queueOp('pause', …)`
+     * (node_modules/phaser/src/scene/ScenePlugin.js), drained by `SceneManager.update`'s
+     * `processQueue()` at the top of the NEXT frame — and {@link OverworldScene.update} handles the
+     * inn key BEFORE it drains the movement events. So [R] pressed on the frame a tile step lands
+     * runs `restAtInn` → `spendTicks("inn")` → `beginYearTurn`, and then the same `update()` walks
+     * the completed step into `onStepCompleted` with the flag already up. One `h.frame()` below
+     * does both, through the shipped `update` in the shipped order.
+     */
+    const per = stepsPerForay(balance);
+    // The premise: a foray tick is charged after MANY steps, so there is a walk to bank at all.
+    expect(per, "a foray tick costs one step, so no part-walk can be banked").toBeGreaterThan(1);
+
+    /*
+     * ONE INN SHORT OF THE FULL METER, in sub-ticks off balance (G11) — the same arithmetic §11
+     * pins its year-turn hazard with, so a retune of `clock.innTicks` moves the fixture with the
+     * world. The odometer opens one step short of the rollover: this frame owes a foray tick AND
+     * ends the year, which is the whole collision.
+     */
+    const subPer = balance.clock.subTicksPerTick;
+    const at = balance.clock.ticksPerYear * subPer - COST.inn;
+    const h = mount({
+      save: {
+        ...freshSave(),
+        tick: Math.floor(at / subPer),
+        subTick: at % subPer,
+        forayStepsSinceTick: per - 1,
+      },
+    });
+    expect(
+      balance.clock.ticksPerYear * subPer - subTicksSpent(h.scene.save),
+      "the fixture is not one inn short of the year",
+    ).toBe(COST.inn);
+    expect(h.scene.forayStepsSinceTick(), "the scene did not open on the save's odometer").toBe(per - 1);
+
+    const forays = (): number => h.scene.save.actionLog.filter((e) => e.action.t === "foray").length;
+    expect(forays(), "the fixture starts with a foray already on the tape").toBe(0);
+
+    // Hold a direction with an open tile in front of it, so the step really lands on this frame
+    // rather than bumping a wall — a bump emits `blocked`, never `stepCompleted`, and would leave
+    // everything below measuring a frame in which nothing was walked.
+    const DELTAS = {
+      right: { dCol: 1, dRow: 0 },
+      down: { dCol: 0, dRow: 1 },
+      left: { dCol: -1, dRow: 0 },
+      up: { dCol: 0, dRow: -1 },
+    } as const;
+    const from = h.scene.movement.tile;
+    const open = (Object.keys(DELTAS) as Array<keyof typeof DELTAS>).find((dir) =>
+      h.scene.canEnter({ col: from.col + DELTAS[dir].dCol, row: from.row + DELTAS[dir].dRow }),
+    );
+    expect(open, "the player is walled in, so no step can land on the frame under test").toBeDefined();
+    h.hold(open as keyof typeof DELTAS, true);
+
+    // ONE FRAME. The inn is read first, the movement events after — see the header.
+    h.press(KEY_R);
+    h.frame();
+    h.hold(open as keyof typeof DELTAS, false);
+
+    // The frame really did both, or nothing below is about the collision it claims to be about.
+    expect(h.scene.movement.stepsTaken, "no tile step landed on the frame the inn ended the year").toBe(1);
+    expect(
+      h.parts.launches.some((l) => l.key === SCENE_KEYS.yearTurn),
+      "the inn did not end the year, so the flag was never up when the step landed",
+    ).toBe(true);
+    expect(h.scene.isHandedOver(), "the year turn is not holding the screen").toBe(true);
+
+    /*
+     * THE STEP IS BANKED, IN THE SCENE AND IN THE SAVE. `spendTicks` would refuse the charge, so the
+     * odometer must not be spent: it counts the step it just took and keeps the debt. `0` here is
+     * the defect — a walked foray billed to nobody.
+     */
+    expect(h.scene.forayStepsSinceTick(), "the odometer was zeroed for a tick that was never charged").toBe(per);
+    expect(h.scene.save.forayStepsSinceTick, "the save disagrees with the scene about the banked walk").toBe(per);
+    // …and nothing WAS charged for it, which is the half `spendTicks` was already doing on its own.
+    expect(forays(), "a foray tick was charged while the year turn held the screen").toBe(0);
+
+    settleYearTurn(h);
+    /*
+     * THE SCENE'S HALF OF THE DEBT SURVIVES THE TURN — and only the scene's. `beginYearTurn`
+     * snapshots `atEndedYear` from `this.save` while it is still inside `spendTicks("inn")`, i.e.
+     * BEFORE `onStepCompleted` writes the banked step, so the turn's own commit hands back a save
+     * carrying `per - 1`. Measured through this rig: the save reads one step short of the scene.
+     * That is a seam of its own and not the guard under test — the charge below still lands,
+     * because the scene's field is what `onStepCompleted` counts — so it is asserted neither way
+     * here rather than being written down as if it were correct.
+     */
+    expect(h.scene.forayStepsSinceTick(), "the year turn spent the banked walk on its way past").toBe(per);
+
+    /*
+     * …AND THE DEBT IS PAID ON THE OTHER SIDE, which is what makes this a test of the fix rather
+     * than of the symptom. Everything above says only that the odometer was not SPENT; none of it
+     * says the banked walk is ever billed. A build that kept the number and then never charged it,
+     * or charged it twice on the way past, reads identically up to this line. So one more step is
+     * taken — the first one past `stepsPerForay` — and it must charge exactly one foray tick.
+     */
+    const owedFrom = subTicksSpent(h.scene.save);
+    const walked = walk(h, 1, () => h.scene.isHandedOver());
+    expect(walked, "the rig could not take the one step this needs").toBe(1);
+
+    expect(forays(), "the banked foray was never charged — the walk was lost, not banked").toBe(1);
+    expect(subTicksSpent(h.scene.save) - owedFrom, "the step past the turn charged the wrong number of ticks").toBe(
+      COST.foray,
+    );
+    expect(h.scene.forayStepsSinceTick(), "the odometer did not reset when it was finally charged").toBe(0);
+    expect(h.scene.save.forayStepsSinceTick).toBe(0);
+    // The charge is on the TAPE too, so `core/save.ts` `replay` pays what the live run paid (L10).
+    expect(h.scene.save.actionLog.filter((e) => e.action.t === "foray")).toHaveLength(1);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §13 THE YEAR TURN DOES NOT DISCARD SAVE WRITES MADE WHILE IT HOLDS THE SCREEN
+ *
+ * `beginYearTurn` forks the save: it snapshots `atEndedYear` from `this.save` while it is still
+ * inside the `spendTicks` that ended the year, hands the fork to the sequence, and — frames later —
+ * `finish(save)` assigns the fork's descendant back over `this.save`. Every write the LIVE branch
+ * made in between was therefore overwritten, silently, whatever it was.
+ *
+ * ⚠ THIS IS A CLASS, NOT A FIELD. `forayStepsSinceTick` is the instance that was measured (the
+ * scene read 48 and the save read 47, so a player who quit between the turn and their next step
+ * lost the banked step) but nothing about the mechanism is about the odometer: `syncEvents` and
+ * `syncQuests` run in that window on EVERY year turn, `recordLineMet` runs there on a step that
+ * met a line, and a fight or a dialogue still on screen when the turn began answers into it. So the
+ * cases below assert the RULE — an arbitrary write survives — and the odometer is one of them.
+ *
+ * The other half of the rule is asserted too: where the TURN wrote a field, the turn wins. A merge
+ * that let a stale live value beat the turn's own commit would lose the aging and the fourth season
+ * step, which is a worse defect than the one being fixed.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("§13 a save write made while the year turn holds the screen survives it", () => {
+  /**
+   * Mount one inn short of the year, press [R], and return with the sequence launched and unanswered
+   * — i.e. standing inside the window between the fork and `finish`.
+   *
+   * The clock is arithmetic off balance (G11), the same fixture §12's banked-step case uses.
+   */
+  function openYearTurn(over: Partial<SaveEnvelope> = {}): Harness {
+    const subPer = balance.clock.subTicksPerTick;
+    const at = balance.clock.ticksPerYear * subPer - COST.inn;
+    const h = mount({
+      save: { ...freshSave(), tick: Math.floor(at / subPer), subTick: at % subPer, ...over },
+    });
+    expect(
+      balance.clock.ticksPerYear * subPer - subTicksSpent(h.scene.save),
+      "the fixture is not one inn short of the year",
+    ).toBe(COST.inn);
+    h.press(KEY_R);
+    h.frame();
+    expect(
+      h.parts.launches.some((l) => l.key === SCENE_KEYS.yearTurn),
+      "the inn did not end the year, so there is no window to write into",
+    ).toBe(true);
+    expect(h.scene.isHandedOver(), "the year turn is not holding the screen").toBe(true);
+    return h;
+  }
+
+  it("an arbitrary write to the save is not thrown away by the turn's commit", () => {
+    const h = openYearTurn();
+
+    /*
+     * THREE STRUCTURALLY DIFFERENT FIELDS — a number, a flag map and a count map — written the way
+     * every writer in the scene writes: a fresh top-level object over `this.save`. Three, because a
+     * fix that names the fields it rescues has to guess all of them, and the next writer to land in
+     * this window will be a field nobody guessed. None of the three is touched by `core/lifecycle.ts`
+     * `advanceYear`, so the turn has no claim on any of them and the live value must stand.
+     */
+    const MARK = "test.mid.turn.marker";
+    const ITEM = "test-mid-turn-item";
+    h.scene.save = {
+      ...h.scene.save,
+      money: h.scene.save.money + 777,
+      questFlags: { ...h.scene.save.questFlags, [MARK]: true },
+      items: { ...h.scene.save.items, [ITEM]: 3 },
+    };
+    const money = h.scene.save.money;
+
+    settleYearTurn(h);
+
+    expect(h.scene.save.money, "the turn's commit reverted a write made while it held the screen").toBe(money);
+    expect(h.scene.save.questFlags[MARK], "a quest flag written during the turn was discarded").toBe(true);
+    expect(h.scene.save.items[ITEM], "a bag change made during the turn was discarded").toBe(3);
+  });
+
+  it("where the TURN wrote the field, the turn's value wins — the merge does not resurrect stale state", () => {
+    const h = openYearTurn();
+
+    /*
+     * The mirror case, and the one a careless merge breaks. `nodeStates` IS the sim (build-doc §7.8)
+     * and the turn rewrites it — the fourth season step plus §7.3's cascade — so a live write made
+     * in the window has no standing against it. A sentinel far outside any population the sim can
+     * produce, so "the turn won" cannot be confused with "the sim happened to land here".
+     */
+    const SENTINEL = 987654321;
+    const nodeId = h.scene.node.id;
+    const state = h.scene.save.nodeStates[nodeId];
+    expect(state, "the fixture has no state for the node the player is standing in").toBeDefined();
+    const lineId = Object.keys((state as NodeState).populations)[0];
+    expect(lineId, "the node has no populations, so there is nothing for the turn to own").toBeDefined();
+    h.scene.save = {
+      ...h.scene.save,
+      nodeStates: {
+        ...h.scene.save.nodeStates,
+        [nodeId]: {
+          ...(state as NodeState),
+          populations: {
+            ...(state as NodeState).populations,
+            [lineId as string]: { ...(state as NodeState).populations[lineId as string]!, count: SENTINEL },
+          },
+        },
+      },
+    };
+
+    settleYearTurn(h);
+
+    expect(
+      h.scene.save.nodeStates[nodeId]?.populations[lineId as string]?.count,
+      "a stale live write beat the year turn's own sim commit",
+    ).not.toBe(SENTINEL);
+  });
+
+  it("the odometer is one case of the rule — the banked step reaches the save, not just the scene", () => {
+    /*
+     * THE REACHABLE INSTANCE, through the shipped `update` in the shipped order — the same same-frame
+     * route §12's banked-step case documents: [R] on the frame a tile step lands runs `restAtInn` →
+     * `spendTicks("inn")` → `beginYearTurn` (which forks the save) and THEN walks the completed step
+     * into `onStepCompleted`, whose `this.save = { ...this.save, forayStepsSinceTick }` lands in the
+     * window. §12 asserts the scene's half survives and says outright that the save's half does not;
+     * this is that half.
+     */
+    const per = stepsPerForay(balance);
+    expect(per, "a foray tick costs one step, so no part-walk can be banked").toBeGreaterThan(1);
+
+    const subPer = balance.clock.subTicksPerTick;
+    const at = balance.clock.ticksPerYear * subPer - COST.inn;
+    const h = mount({
+      save: {
+        ...freshSave(),
+        tick: Math.floor(at / subPer),
+        subTick: at % subPer,
+        forayStepsSinceTick: per - 1,
+      },
+    });
+
+    const DELTAS = {
+      right: { dCol: 1, dRow: 0 },
+      down: { dCol: 0, dRow: 1 },
+      left: { dCol: -1, dRow: 0 },
+      up: { dCol: 0, dRow: -1 },
+    } as const;
+    const from = h.scene.movement.tile;
+    const open = (Object.keys(DELTAS) as Array<keyof typeof DELTAS>).find((dir) =>
+      h.scene.canEnter({ col: from.col + DELTAS[dir].dCol, row: from.row + DELTAS[dir].dRow }),
+    );
+    expect(open, "the player is walled in, so no step can land on the frame under test").toBeDefined();
+    h.hold(open as keyof typeof DELTAS, true);
+    h.press(KEY_R);
+    h.frame();
+    h.hold(open as keyof typeof DELTAS, false);
+
+    expect(h.scene.movement.stepsTaken, "no tile step landed on the frame the inn ended the year").toBe(1);
+    expect(h.scene.isHandedOver(), "the year turn is not holding the screen").toBe(true);
+    expect(h.scene.save.forayStepsSinceTick, "the step was never written into the save at all").toBe(per);
+
+    settleYearTurn(h);
+
+    // The claim: the scene and the save agree on the other side. The scene's half was already true;
+    // `per` on BOTH is what stops a quit between the turn and the next step refunding the walk.
+    expect(h.scene.forayStepsSinceTick(), "the year turn spent the banked walk on its way past").toBe(per);
+    expect(
+      h.scene.save.forayStepsSinceTick,
+      "the turn's commit reverted the banked step — the save is one walk behind the scene",
+    ).toBe(per);
   });
 });

@@ -1643,8 +1643,10 @@ describe("an heir takes its parent's place, not the player's bench", () => {
 describe("aging keeps the HP fraction it was handed", () => {
   it.each(["nibbin-line", "mirefin-line"])("%s: full HP stays full across a transition", (lineId) => {
     /*
-     * Max HP grows at every age transition (0.75 → 1.0 → 1.15, plus the metamorphic ×1.15), so a
-     * curHp carried through unchanged silently drops the creature's HP fraction every year.
+     * Max HP grows at every age transition (0.875 → 1.0 → 1.075, plus the metamorphic ×1.15), so a
+     * curHp carried through unchanged silently drops the creature's HP fraction every year. T-10
+     * halved the age curve's deviation from neutral (J 0.75 → 0.875, A unchanged, E 1.15 → 1.075);
+     * the steps are smaller but every one still points the same way, so the case is unchanged.
      */
     const l = line(lineId);
     const maxOf = (c: OwnedCreature) =>
@@ -1785,7 +1787,10 @@ describe("the year turn refuses to run twice for the same year (build-doc §4's 
     expect(first.save.questFlags[YEAR_TURN_FLAG]).toBe(first.save.year);
     expect(canRunYearTurn(first.save)).toBe(true); // …for the NEXT year.
 
-    // The dangerous shape: gym victory and tick 16 both firing off the same pre-turn save.
+    // The dangerous shape: two year-end triggers firing off the same pre-turn save. It was written
+    // when a gym victory was the second trigger alongside the meter filling at tick 16; the gym
+    // trigger is gone and the meter is 52 ticks, but the shape it guards — a stale save replayed
+    // into a turn that already ran — is the same one, and it is what `canRunYearTurn` refuses.
     const stale = { ...first.save, year: save.year, tick: save.tick };
     expect(canRunYearTurn(stale)).toBe(false);
     expect(() => runYearTurn(stale, deps())).toThrow(LifecycleError);

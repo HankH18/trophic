@@ -83,7 +83,7 @@ describe("§1 dialogueContext", () => {
     const ctx = dialogueContext(save, content);
     expect(ctx.act).toBe(actOf(save, content.gyms, balance));
     expect(ctx.year).toBe(save.year);
-    expect(ctx.season).toBe(seasonOf({ year: save.year, tick: save.tick }, balance));
+    expect(ctx.season).toBe(seasonOf({ year: save.year, tick: save.tick, subTick: save.subTick ?? 0 }, balance));
     expect(ctx.flags).toBe(save.questFlags);
   });
 

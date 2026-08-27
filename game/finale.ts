@@ -76,6 +76,7 @@ import { rollLevel } from "./encounters";
 import {
   applyCatchToSave,
   liveNodeOf,
+  partyProblem,
   partySpecs,
   rollWildTraits,
   type CatchApplication,
@@ -277,8 +278,9 @@ export function buildVellsireBattle(opts: {
 
 /** Why the finale fight cannot start right now, or null. The overworld prints this string. */
 export function vellsireBattleProblem(save: SaveEnvelope): string | null {
-  if (partySpecs(save).length === 0) return "no creature in the party — nothing can be sent out";
-  return null;
+  // The party clause is `game/wild-battle.ts`'s, not a second reading of it: it refuses an EMPTY
+  // party and an all-fainted one, and the second used to fall through to `startBattle`'s throw.
+  return partyProblem(save);
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -305,6 +307,14 @@ export interface VellsireResolution {
  * `applyCatch`, then `newOwnedCreature`. G10 is therefore satisfied by construction — the caught
  * stag comes back with `yearsRemaining` NEVER and is skipped by the year turn, which is precisely
  * what `maren.epilogue.caught` asserts in words.
+ *
+ * ⚠ THIS IS THE OUTCOME, NOT THE COST, and the split is deliberate rather than an omission. What
+ * the ring did to the party's HP, levels and bag is `game/wild-battle.ts`
+ * `applyBattleResult(save, state)` — the ONE writer all four launchers share, on the same terms
+ * they share `partyProblem`. It is kept out of here because this function is deliberately asked of
+ * `Pick<BattleState, "outcome">`: the stand-aside branch and the no-battle-scene branch resolve the
+ * finale with no `BattleState` to read, and widening the parameter would make a beat that must
+ * never silently not happen depend on having fought.
  */
 export function resolveVellsireCatch(opts: {
   save: SaveEnvelope;

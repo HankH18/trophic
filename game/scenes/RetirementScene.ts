@@ -917,23 +917,33 @@ export interface RetirementSceneStyle {
  * than in the Phaser class and `tests/unit/survey-view.test.ts` can check it on the real style
  * object the scene draws from.
  *
+ * RE-PICKED AT T-15, when `data/palette.json` was re-frozen to the class-equal fit. Every id below
+ * moved and not one role did. The swap kept the ids positional and moved all 32 hex VALUES, so an id
+ * is a SLOT, not a colour — and this table held the two slots that inverted hardest: `c03` went from
+ * a near-black plate (#2a1212) to a near-white (#faf7eb), and `c18` from a cream text (#f7ebd3) to a
+ * mid-dark green (#37630f). Left alone, the never-cut Legacy card would have painted dark-green text
+ * on a white plate the code still called a "shade off the background".
+ *
  * Roles follow the house table in `game/menu-model.ts` (`UI_SWATCH_ID`), so the card and the menu
- * are one palette. Measured against the shipped frozen file: `text` reads 14.9 : 1 on the panel and
- * 17.5 : 1 on the background, `dim` 5.6 : 1 on the panel, `selected` 10.4 : 1 on the panel. The
- * panel is a PLATE, not text — it sits a shade off the background exactly as the hexes it replaces
- * did — and the test recomputes every one of those ratios from `data/palette.json`.
+ * are one palette: `text` is `c03` in both, `dim` is `c01` in both, and `selected` takes that
+ * table's `accent` (`c16`) exactly as it took the pre-swap `c15`. Measured against the shipped
+ * frozen file, with the pre-swap number in brackets: `text` reads 15.7 : 1 [14.9] on the panel and
+ * 19.15 : 1 [17.5] on the background, `dim` 5.70 : 1 [5.6] on the panel and 6.93 : 1 [6.6] on the
+ * background, `selected` 11.9 : 1 [10.4] on the panel. The panel is a PLATE, not text — it sits a
+ * shade off the background (1.22 : 1, was 1.18 : 1) exactly as the hexes it replaces did — and the
+ * test recomputes every one of those ratios from `data/palette.json`.
  */
 export const RETIREMENT_SWATCH_ID = {
   /** The letterbox behind the card. */
   bg: "c00",
   /** The plate the choice is drawn on — a shade off the background, never a text colour. */
-  panel: "c03",
+  panel: "c04",
   /** The row the cursor is on. */
-  selected: "c15",
+  selected: "c16",
   /** Primary text: the retiree's numbers, the heir's, the boon rows. */
-  text: "c18",
+  text: "c03",
   /** Secondary text: the footer, a row core refused, the mods line. */
-  dim: "c12",
+  dim: "c01",
 } as const;
 
 /**

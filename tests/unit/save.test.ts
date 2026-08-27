@@ -202,6 +202,8 @@ describe("serialize / deserialize round-trip", () => {
       box: a.box,
       party: a.party,
       currentNode: a.currentNode,
+      forayStepsSinceTick: a.forayStepsSinceTick,
+      subTick: a.subTick,
       tick: a.tick,
       year: a.year,
       seed: a.seed,
@@ -209,6 +211,23 @@ describe("serialize / deserialize round-trip", () => {
       rngState: a.rngState,
     };
     expect(serialize(b)).toBe(serialize(a));
+
+    /*
+     * The literal above spells §7.8's field list out by hand, so it has to be edited every time the
+     * save grows a field — and until it is, it is asserting canonical ordering over a SHORTER save
+     * than the one that ships. This second permutation is built from `a`'s own keys, so it states
+     * the property over whatever the save actually holds, now and after the next field is added.
+     * Reversal is a genuinely different insertion order, and the assertion below proves it is.
+     */
+    const src = a as unknown as Record<string, unknown>;
+    const reversed = Object.fromEntries(
+      Object.keys(a)
+        .reverse()
+        .map((key) => [key, src[key]]),
+    ) as unknown as SaveEnvelope;
+    expect(Object.keys(reversed)).not.toEqual(Object.keys(a));
+    expect(serialize(reversed)).toBe(serialize(a));
+
     expect(canonicalStringify({ b: 1, a: 2 })).toBe(canonicalStringify({ a: 2, b: 1 }));
   });
 

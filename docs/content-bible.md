@@ -11,8 +11,12 @@ NPCs, items, screens, audio. **G2**: no agent invents or alters a value here.
   `dous` → Douse · `keen-eye` → Bright Eye · `strong-jaw` → Broad Jaw · speaker `nessa` → Hetty. A
   replacement is a single plain word, never a compound. Screened and ruled **kept unchanged**: the
   status `Soak`, the moves `Harry` and `Lure`, and the names Maren, Maribel, Vesper, Odo, Bram.
+- **No name in this file is a placeholder.** Every coined name here is affirmed as shipped — the
+  region, the towns and routes, the species and their age forms, the moves, the traits and the cast.
+  The renames above are the whole of the list; nothing else is renamed, and a name already created is
+  never re-opened (build-doc L1).
 
-Region: **Fallowmere**. Six acts. Five gym towns + one boss site.
+Region: **Fallowmere**. Seven acts — act 0 is the prologue, then one act per gym. Five gym towns + one boss site.
 
 **Two clocks, independent.** The **calendar** (ticks → seasons → years) is unbounded and drives ageing,
 retirement, the ecosim and the aged art; **acts** are driven by badges and quest flags and drive
@@ -44,7 +48,9 @@ The chart **shape** is the content and is transcribed to `data/moves.json` `type
 Five stats: **HP, Attack, Defense, Speed** (turn order, flee), **Instinct** (crit chance, bait success, sign-reading quality).
 
 - Species base stats: 30–100 per stat.
-- Age multiplier: Juvenile ×0.75 · Adult ×1.0 · Elder ×1.15.
+- Age multiplier: Juvenile penalty · Adult neutral · Elder bonus. The **shape** is the content; the
+  **values** are tunable and live in `data/balance.json` `age.multiplier` — shipped today
+  J ×0.875 · A ×1.0 · E ×1.075, and expected to move again after playtesting. Build-doc L9 is the rule.
 - Levels 1–40, standard XP from battles. Effective stat = Base × AgeMult × (1 + 0.02 × Level) + trait modifiers.
 - Traits: flat ±10% modifiers with names ("Thick Pelt: +10% Defense"). 1 per wild creature, +1 slot via inheritance, Elders roll rare traits. Pool: `data/balance.json` `.traits.pool`.
 - Status conditions (4): Burn (Fire, chip damage), Toxin (Poison, ramping chip), Soak (Water, −Speed), Daze (Dark, 25% skip turn).
@@ -69,7 +75,7 @@ Each creature has exactly 4 move slots: **2 type moves + 1 role move + 1 utility
 All species have three age forms (J/A/E). Lifespan on catch: J = 3 years, A = 2, E = 1. **Hybrid evolution model:** most species keep one identity across all three age forms; five *metamorphic lines* change species identity as they age — evolution mapped onto the existing age system, so it costs zero extra mechanics and zero extra battle sprites.
 
 **Metamorphic lines (5):**
-- *Starters (full 3-stage, one name per age form):* Cindril → Vulkindle → Pyrevane · Puddlisk → Rillisk → Maelstrisk · Thornlet → Bramblore → Thornwald. Final form arrives in the elder year — your starter peaks right before the league, then retires.
+- *Starters (full 3-stage, one name per age form):* Cindril → Vulkindle → Pyrevane · Puddlisk → Rillisk → Maelstrisk · Thornlet → Bramblore → Thornwald. Final form arrives in the **elder** year, which is the calendar's business; the league is on the act clock, and the two do not meet. So where a starter stands at the finale is not fixed and no lifespan table can fix it: a fast player fights it with an adult, a slower one with the elder form, a slower one still with the heir of a starter already retired. All three are correct, and the survey is where the difference is written.
 - *Wild lines (2-stage, larval juvenile → evolved adult/elder):* **Bogling → Mirefin** (tadpole to lungfish; Grazer→Mesopredator, Water→Water/Poison — role and type shift at metamorphosis, so what it eats and what eats it changes mid-life) · **Gloomgrub → Gloomoth** (Poison/Plant grub → Dark/Wind moth). Wild adults of a line only appear in evolved form; the population sim tracks the line as one age-structured species.
 
 Metamorphosis stat jump: ×1.15 on top of the normal age multiplier at the J→A transition for metamorphic lines. Role/type per age class is one extra column in the species JSON.
@@ -163,6 +169,13 @@ Routes: one primary route per biome (R1 Meadow Reach, R2 Brackmarsh, R3 Bowerdee
   (`tools/comfy/manifest.json` `_nodes`).
 - **Cindershelf's "arrival mid-collapse" is produced, never baked.** `data/nodes/r4.json` ships the
   year-1 state; the act-4 raid fires on entry and the predator collapse must emerge (G6).
+- **Route 4's Apex reaching zero is the intended reading of that arrival, not an imbalance.** The raid
+  takes the two Steppe Grazer lines; the Mesopredator that eats them starves; the Apex above it has no
+  second pool in this habitat, so it follows. What the harness measures is its `baseline` profile —
+  no player in the region at all — and those lines still reach zero under it, because the raid fires
+  with or without a player. The raid-suppressed control that would show the raid is the *whole* cause
+  has not been run, and the harness has no mode for it; the raid is authored here either way
+  (build-doc §10.5).
 
 ## 7. Gym Leaders (fixed rosters)
 
@@ -206,7 +219,7 @@ Roster sizes (signature included): **3 / 4 / 5 / 6 / 6 / 6** (`core/schemas.ts` 
 | Town | Quest | Teaches / rewards |
 |---|---|---|
 | Hearthollow | *First Signs* — guided forage on R1 | sign-card system tutorial |
-| Hearthollow | *The Fallow Field* — farmer begs you not to catch Loamunder | producers matter; refusing pays better long-term (R1 bloom) |
+| Hearthollow | *The Fallow Field* — farmer begs you not to catch Loamunder | producers matter; the turn-in branches on Hearthollow's live Loamunder count and pays accordingly |
 | Brackwater | *Restock the Shallows* — release captured Boglings | **release verb** intro; restoration raises fishery payouts |
 | Brackwater | *Ferryman's Wager* — catch an Elder Mirefin before year's end | push-your-luck showcase; ferry discount |
 | Bowerdeep | *Silk Shortage* — merchant wants 3 Webvern; gym leader objects | over-catch dilemma with visible consequence either way |
@@ -216,7 +229,7 @@ Roster sizes (signature included): **3 / 4 / 5 / 6 / 6 / 6** (`core/schemas.ts` 
 | Duskhollow | *The Star Census* — dex milestones | painted dex art as collectible reward |
 | Duskhollow | *Vellsire's Trail* — follow ancient sign-cards | finale setup, Instinct checks |
 
-**Regional events:** Annual Festival (the year's closing celebration); Great Migration (Gloomoth flocks shift spawns region-wide); Cullbrand Harvest raids (scripted per act, populations visibly drop at a named node); Bloom Year (a route whose producers thrive — positive feedback made visible).
+**Regional events:** Annual Festival (the year's closing celebration); Great Migration (Gloomoth flocks shift spawns region-wide); Cullbrand Harvest raids (scripted per act, populations visibly drop at a named node); Bloom Year (a node whose producers cross into thriving — a season-long window, and nothing else).
 
 **Rules**
 
@@ -225,12 +238,26 @@ Roster sizes (signature included): **3 / 4 / 5 / 6 / 6 / 6** (`core/schemas.ts` 
 - **The Annual Festival is the year's final season, every year.** It gates no gym and closes no year;
   only a full meter ends a year.
 - **No regional event weights an encounter** — a second weight table is G3. The Migration's "shift spawns
-  region-wide" and the Bloom Year's "bonus spawns" ship as windows and nothing more.
-- **The Great Migration is autumn**, and as an event *kind* it is open 16 ticks of every 16 (one migrant
-  per season) — so every published flag is per line and no copy may say "the Great Migration is on".
+  region-wide" ships as a window and nothing more.
+- **The Bloom Year is a latch on the RISE, and in practice it opens once per node.** A node crossing
+  `balance.regionalEvents.bloomFloraFraction` of the flora ceiling *upward* opens one season-long
+  window; no second window opens until that node's producers have been pushed back under the
+  threshold. Under the shipped sim they cannot be: `ecosim.floraRegenPerSeason` exceeds the most a
+  node's grazers can consume in a season, so flora climbs to the ceiling and stays. Every location
+  therefore blooms once, in year 1 or 2, and never again — that is what the rules produce and it is
+  not treated as a defect.
+- **The Bloom Year grants no bonus spawns**, and none is owed. Weighting encounters off an event is a
+  second spawn table, which G3 forbids; `core/foodweb.ts` is the only thing that may compute a weight,
+  and it computes it from live counts. The window is the whole of the event.
+- **The Great Migration is autumn**, and as an event *kind* it is open in every season of every year —
+  one migrant per season, so some line's window is always open, whatever `ticksPerSeason` is retuned
+  to. Every published flag is therefore per line, and no copy may say "the Great Migration is on".
 - **Raids fire on entry to their act, never on a year turn**, take a fraction of standing stock, and may
-  decrement only the harvested prey — the collapse above them must emerge (G6). Only the act-4 R4 harvest
-  is authored; the rest are content to write into `balance.yearEvents.raids`, not numbers to invent.
+  decrement only the harvested prey — the collapse above them must emerge (G6).
+- **The raid list is closed at one.** The act-4 R4 strip-harvest is the only raid, against seven acts,
+  and that is a ruling rather than an unfinished list (build-doc §7.5): widening it at the same
+  intensity was measured to exterminate lines at the two starter routes, and the shipped dialogue
+  already treats the Cullbrand contract as finished. Do not author a second one.
 - ***The Fallow Field* re-arms annually**, a year after it settles — both endings promise it
   (`ANNUAL_QUESTS`, `game/quests.ts`).
 
@@ -268,26 +295,21 @@ Screens: title, overworld, battle, map + season meter, ecology survey (per-node 
 
 **Sourcing rule:** all BGM from a single CC0 pack or a single composer's pack family — mixing packs causes the audio version of style drift (inconsistent instrumentation reads as amateur faster than any single weak track). License CC0 preferred; CC-BY acceptable with an attribution file. SFX generated procedurally (bfxr/jsfxr-style) for authentic GB texture.
 
-**Track manifest** — curation happens against this, not by browsing vibes:
+**Track manifest — eleven tracks** — curation happens against this, not by browsing vibes:
 
 | Track | Context | Mood spec |
 |---|---|---|
-| Title | menu | wistful, pastoral, mid-tempo |
-| Hearthollow | town y1 | warm, homely, major key |
-| Brackwater | town y2 | damp, swaying, woodblock/marimba feel |
-| Bowerdeep | town y3 | canopy-dappled, arpeggiated, slightly mysterious |
-| Cindershelf | town y4 | industrial rhythm, low brass-ish square leads |
-| Duskhollow | town y5 | slow, starlit, minor key, sparse |
-| Sanctum Approach | site y6 | sacred, held tones, building dread |
+| Title | title screen | wistful, pastoral, mid-tempo |
+| Hearthollow | town, act 1 | warm, homely, major key |
+| Brackwater | town, act 2 | damp, swaying, woodblock/marimba feel |
 | Route (meadow/marsh) | R1–R2 | bright walking tempo |
-| Route (forest/steppe/vale) | R3–R5 | moodier walking tempo |
 | Wild battle | encounters | driving, loopable under 45s |
 | Trainer/gym battle | trainers | urgent, stronger percussion |
 | Greaves / finale | boss | heavy, mechanical, relentless |
 | Ancient encounter | Vellsire/Kilnback/Undermere | vast, slow, awe before threat |
 | Retirement / legacy | year-turn retirement scene | tender, short, resolves upward — this cue carries the game's emotional beat; pick it first |
-| Festival / year-turn | act transitions | celebratory jingle into a quiet outro |
-| Ending / credits | epilogue | title theme reprise, thinned |
+| Festival / year-turn | the year's final season, into the turn | celebratory jingle into a quiet outro |
+| Ending / credits | epilogue survey | title theme reprise, thinned |
 
 Jingles (short stingers): catch success, gym victory, level-up, item get, dex entry.
 
@@ -297,7 +319,15 @@ Jingles (short stingers): catch success, gym victory, level-up, item get, dex en
 
 **Rules**
 
-- **The Context column's `y1…y6` are act indices.** Town themes cue on acts; the **Festival cue is on
-  the calendar** (the year's final season, every year), and the two can be arbitrarily far apart.
+- **The Context column names an act where it names a story rung and the calendar where it names a
+  season.** Town themes cue on **acts**; the **Festival cue is on the calendar** (the year's final
+  season, every year), and the two can be arbitrarily far apart. The `y1…y6` labels this table used to
+  carry were the six-acts-equal-six-years model, replaced everywhere else in the project.
+- **Eleven rows, not sixteen.** The location themes for Bowerdeep, Cindershelf, Duskhollow, the Sanctum
+  Approach and R3–R5 came off the list: those nodes ship as travel-only vignette cards rather than
+  walkable maps, so a location theme for them has nowhere to play. The walkable slice carries three
+  location themes — Hearthollow, Brackwater, and one route theme across R1–R2 — and the other eight
+  cues are scene cues, not places. A twelfth row waits on a node becoming walkable, and G9's one-family
+  rule binds whatever is curated.
 - **"Year aging progressively darkens" is the calendar**, and the ramp **saturates** at
   `balance.clock.yearsTotal - 1` (`game/season-tint.ts` `yearDarkening`).

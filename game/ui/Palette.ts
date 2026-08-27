@@ -124,70 +124,96 @@ export function contrastRatio(a: string, b: string): number {
  * Semantic roles the battle UI paints with. Values are palette IDS, never hexes, so the B0 freeze
  * reaches the HUD the same way it reaches the sprites.
  *
+ * RE-PICKED AT T-15, AND WHY A SECOND RE-PICK WAS EVER NEEDED
+ * ───────────────────────────────────────────────────────────
+ * The header above says the ids are the stable contract. They are — but an id is a SLOT, not a
+ * colour, and `data/palette.json` was re-frozen at T-15 to the class-equal fit, moving all 32 hex
+ * values while leaving the ids and their order byte-identical. `c18` went from a cream (#f7ebd3,
+ * 17.5 : 1 on the void) to a mid-dark green (#37630f, 2.89 : 1), so `text` — every combatant name
+ * and every narration line — became unreadable on its own plate without one character of this file
+ * changing. That is the standing hazard of a positional palette: a re-freeze silently re-points
+ * every table like this one, and only the contrast tests below catch it.
+ *
+ * So the ids below moved and the ROLES did not. Each was re-picked by MEASURED contrast against the
+ * surface it is actually drawn on, preserving that role's LEVEL rather than its hue where the two
+ * disagreed, with the pre-swap number in brackets so the ladder is visibly the same ladder.
+ *
  * THE LADDER (ratios measured against the SHIPPED frozen palette; the test recomputes them)
  * ────────────────────────────────────────────────────────────────────────────────────────
- * On the plate (`panel` #6e3620):
- *   `text`          #f7ebd3   8.04 : 1   primary — the card's own name, the narration line
- *   `textMuted`     #eec092   5.69 : 1   secondary — HP readout, retirement/mods footer, row detail
- *   `textDisabled`  #ab8d62   3.04 : 1   a row core refused. DIMMEST, by construction.
- *   `status`        #faec67   7.80 : 1   the status chip
- *   `border`        #ab8d62   3.04 : 1   the plate's stroke
- * On the cursor bar (`cursor` #fdfdfb), which is where the FOCUSED row is drawn:
- *   `cursorInk`     #2a1212  17.27 : 1   the focused row's label — the boldest text on the screen
- *   `cursorInkMuted`#765b4e   6.11 : 1   the focused row's detail column
- *   `cursorInkDim`  #8f5230   6.03 : 1   a focused row core refused
- * On the HP track (`hpTrack` #030202):
- *   `hpHigh` #90b633 8.81 : 1 · `hpMid` #f39311 8.87 : 1 · `hpLow` #e1541b 5.41 : 1
- * On the field (`void` #030202), where the FX numbers float:
- *   `accent` #f0c05f 12.25 : 1 · `hot` #e1541b 5.41 : 1 · `good` #a9c93f 10.97 : 1 ·
- *   `cool` #2865cc 3.77 : 1 (the palette holds exactly one blue, and "resisted" must not read as
- *   "healed"; 3.77 clears WCAG 1.4.11's 3 : 1 for a non-text graphical mark, which is what a
- *   floating combat number over the field is).
+ * On the plate (`panel` c06 #74564e, 3.12 : 1 on the void [2.18]):
+ *   `text`          #faf7eb   6.15 : 1 [8.04]  primary — the card's own name, the narration line
+ *   `textMuted`     #f9dab4   4.94 : 1 [5.69]  secondary — HP readout, mods footer, row detail
+ *   `textDisabled`  #c8bca5   3.52 : 1 [3.04]  a row core refused. DIMMEST, by construction.
+ *   `status`        #d2e0e2   4.87 : 1 [7.80]  the status chip
+ *   `accent`        #f8d80f   4.66 : 1 [5.61]  the crit/catch highlight, and the Lure chip
+ *   `border`        #c8bca5   3.52 : 1 [3.04]  the plate's stroke
+ * On the cursor bar (`cursor` c03 #faf7eb, 6.15 : 1 on the plate [9.32]), where the FOCUSED row is:
+ *   `cursorInk`     #321410  15.74 : 1 [17.27] the focused row's label — boldest text on the screen
+ *   `cursorInkMuted`#8c5230   5.82 : 1 [6.11]  the focused row's detail column
+ *   `cursorInkDim`  #2d6f38   5.68 : 1 [6.03]  a focused row core refused
+ * On the HP track (`hpTrack` #040308):
+ *   `hpHigh` #89b935 8.86 : 1 [8.81] · `hpMid` #f3a262 9.94 : 1 [8.87] · `hpLow` #c72a1b 3.70 : 1
+ *   [5.41]. The three must be tellable APART, not merely each above the floor: green / warm orange
+ *   / red, separated 1.12 : 1, 2.69 : 1 and 2.40 : 1 from one another (was 1.01, 1.64, 1.63 — the
+ *   old high and mid were within 1 % of the same luminance and carried the reading on hue alone).
+ * On the field (`void` #040308), where the FX numbers float:
+ *   `accent` #f8d80f 14.51 : 1 [12.25] · `hot` #c72a1b 3.70 : 1 [5.41] · `good` #9ecd42 11.03 : 1
+ *   [10.97] · `cool` #2178bb 4.37 : 1 [3.77] (the palette still holds exactly one usable blue, and
+ *   "resisted" must not read as "healed"; 4.37 clears WCAG 1.4.11's 3 : 1 for a non-text graphical
+ *   mark, which is what a floating combat number over the field is).
+ *
+ * WHERE THE FIT FORCED A HUE TO MOVE. `panel` could not stay a saturated brown: the class-equal fit
+ * left NO swatch between L 0.046 (`c05`) and L 0.109 (`c06`), and `c05` reads 1.87 : 1 on the void,
+ * under the 2 : 1 a plate must clear to be a plate. `c06` is the darkest swatch that clears it,
+ * which in turn caps `text : panel` at 6.15 : 1 — every lighter plate breaks the 1.2× primary-over-
+ * muted separation, because only `c03` is bright enough to sit 1.2× above a role that is itself
+ * above 4.5. `hpLow`/`hot` take `c08`, the fit's only true red, at 3.70 : 1 rather than a
+ * level-faithful tan that would stop reading as critical.
  *
  * The battle screen is dark-plate / light-ink, which is what every other scene in the game already
- * is (`game/menu-model.ts` `UI_SWATCH_ID`: bg `c00`, text `c18`, dim `c12`, accent `c15`). Before
+ * is (`game/menu-model.ts` `UI_SWATCH_ID`: bg `c00`, text `c03`, dim `c01`, accent `c16`). Before
  * this fix it was the only light-plate / dark-ink screen in the build, and its dim roles were darker
  * rather than dimmer — which is how the inversion hid.
  */
 export const UI_SWATCH = {
   /** Deepest shade — screen letterbox, the field behind the combatants, and text shadow. */
   void: "c00",
-  /** Panel fill: the combatant cards, the menu, the message box. */
-  panel: "c05",
+  /** Panel fill: the combatant cards, the menu, the message box. The DARKEST plate ≥ 2 : 1 on void. */
+  panel: "c06",
   /** The HP bar's TRACK. Dark, so every band reads against it. Not the cursor — see `cursor`. */
   hpTrack: "c00",
   /** The menu's selection bar. Light, so it reads against the plate. */
-  cursor: "c02",
-  /** Panel border / stroke. */
+  cursor: "c03",
+  /** Panel border / stroke. Deliberately the same swatch as `textDisabled` — one muted neutral. */
   border: "c12",
   /** Muted body text on the plate. */
-  textMuted: "c16",
+  textMuted: "c15",
   /** Primary text on the plate. */
-  text: "c18",
+  text: "c03",
   /** A row core refused, drawn on the plate. Dimmest label there is. */
   textDisabled: "c12",
   /** The focused row's label, drawn ON the cursor bar. */
-  cursorInk: "c03",
+  cursorInk: "c04",
   /** The focused row's detail column, drawn ON the cursor bar. */
   cursorInkMuted: "c07",
-  /** A focused row core refused, drawn ON the cursor bar. */
-  cursorInkDim: "c08",
+  /** A focused row core refused, drawn ON the cursor bar. Dimmer than `cursorInkMuted`, not redder. */
+  cursorInkDim: "c19",
   /** HP healthy. */
-  hpHigh: "c19",
+  hpHigh: "c22",
   /** HP warning. */
-  hpMid: "c13",
+  hpMid: "c11",
   /** HP critical. */
-  hpLow: "c09",
+  hpLow: "c08",
   /** Highlight — the crit flash and the catch burst, over the field. */
-  accent: "c15",
+  accent: "c16",
   /** Damage number, super-effective flash. */
-  hot: "c09",
+  hot: "c08",
   /** Resisted flash, cool feedback. */
-  cool: "c31",
+  cool: "c28",
   /** Heal / positive delta. */
-  good: "c20",
+  good: "c24",
   /** Status chip. */
-  status: "c22",
+  status: "c02",
 } as const;
 
 export type UiSwatchRole = keyof typeof UI_SWATCH;

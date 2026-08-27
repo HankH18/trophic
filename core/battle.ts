@@ -356,7 +356,13 @@ function magnitudeOf(ctx: BattleContext, key: string): number {
  * 4. Effective stats — build-doc §7.4 / bible §2.
  *
  *   Effective stat = base × ageMult × (1 + 0.02 × level) + traitMods
- *   ageMult .75 / 1.0 / 1.15; a metamorphic line adds ×1.15 ONCE at the J→A transition;
+ *   ageMult is `balance.age.multiplier`, keyed J/A/E with A neutral — the key is the rule, and the
+ *   code below reads it. Shipped today: 0.875 / 1.0 / 1.075, HALVED from the bible's .75 / 1.0 / 1.15
+ *   on Hank's T-10 ruling — half the DEVIATION from neutral, which is why A did not move. Those three
+ *   figures are the current contents, not the contract; they are expected to move again after
+ *   playtesting, so read them from data/balance.json (`age._multiplier` records why they are what
+ *   they are). The metamorphic jump is a SEPARATE once-only term, `balance.age.metamorphicJump`, and
+ *   was deliberately not halved: a metamorphic line adds it ONCE at the J→A transition.
  *   Beast gets +10% BASE stats instead of an offensive type advantage (bible §1).
  * ════════════════════════════════════════════════════════════════════════════ */
 
@@ -1321,35 +1327,58 @@ function resolveOrder(
  * Deterministic argmax on expected damage (mid-roll, no crit), ties to the earliest move in the
  * pool. It consumes NO rng draws, so it cannot disturb the documented draw order, and it makes the
  * balance harness's win rates a property of the numbers rather than of a dice-rolling AI.
+ *
+ * WHY THE RANKING KEY IS NOT THE WHOLE DAMAGE FORMULA (T-27).
+ *   §7.4's expected damage is `((atk × power) / def) × mult × predation × midRoll`. Of those six
+ *   factors only two — the move's power (with its §3 role bonus) and its type multiplier — differ
+ *   between the moves in ONE pool. `atk` is the attacker's, `def` the defender's, `predation` is a
+ *   function of the two LINES and the node, and `midRoll` comes from balance: for a fixed matchup
+ *   all four are the same positive number for every move, so in exact arithmetic they scale every
+ *   score identically and cannot reorder them. (tests/unit/harness.test.ts already pins that
+ *   argument for the predation factor alone; it holds for the other three for the same reason.)
+ *
+ *   In floating point they are not harmless. `balance.types.superEffective` is 1.5, so a 40-power
+ *   super-effective move and a 60-power neutral one are EXACTLY tied — 40 × 1.5 = 60 × 1.0, both
+ *   representable. Ranking on the full product does not compute `power × mult`; it computes
+ *   `((atk × power) / def) × mult × …`, and those two orderings of the same product differ in the
+ *   last bit. Measured over the six shipped gym rosters as the enemy against every non-Ancient line
+ *   × J/A/E at the slot's level (2160 pairs): 59 tied on paper, 20 of those came out unequal as
+ *   doubles, and in 13 the argmax threw a NEUTRAL move where the earlier super-effective one was
+ *   promised — Odo's Mirefin (A, L14) against a Vulkindle picking `ambush` (93.63636363636364024)
+ *   over `dous` (93.63636363636362603), a gap of one ulp. Which one won was decided by the
+ *   ATTACKER'S ATTACK STAT, i.e. by its age and traits, and it changed fights the player has.
+ *
+ *   So the common factor is not merely redundant, it is the entire source of the noise, and it is
+ *   dropped: the key below is exactly the part of §7.4 that varies across a pool. The fix is NOT a
+ *   loosened comparison. The argmax stays a strict `>` over exact doubles, seeded with the first
+ *   move in the pool, so the winner is total and reproducible and never depends on evaluation
+ *   order — the determinism contract (no rng draws in the enemy policy) rests on that. What changed
+ *   is that two moves the build doc calls tied now ARE tied, and pool order breaks them, as
+ *   documented above. Ordering by the key is ordering by expected damage: the dropped factor is a
+ *   positive constant, so the docblock's claim is not weakened by this, it is finally true.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-function expectedDamage(
-  attacker: Battler,
-  defender: Battler,
-  move: MoveDef,
-  ctx: BattleContext,
-  nodeId?: string,
-): number {
+/**
+ * The enemy policy's ranking key — the only part of §7.4's expected damage that differs between the
+ * moves in one pool. See the section header for why the rest of the formula is deliberately absent.
+ */
+function moveRank(move: MoveDef, defender: Battler, ctx: BattleContext): number {
   if (move.power <= 0) return 0;
-  const balance = ctx.balance;
-  const atk = statWithMods(attacker, "atk", balance);
-  const def = statWithMods(defender, "def", balance);
-  const power = movePowerVs(move, defender.role);
-  const { mult } = typeMultiplier(move.type, defender.types, ctx.typeChart, balance);
-  const predation = ctx.predation.eats(attacker.lineId, defender.lineId, nodeId) ? balance.types.predation : ABSENT;
-  const midRoll = (balance.damage.rollMin + balance.damage.rollMax) / 2;
-  return ((atk * power) / def) * mult * predation * midRoll;
+  const { mult } = typeMultiplier(move.type, defender.types, ctx.typeChart, ctx.balance);
+  return movePowerVs(move, defender.role) * mult;
 }
 
 export function chooseEnemyAction(state: BattleState, ctx: BattleContext): BattleAction {
   const enemy = battlerAt(state, state.activeEnemyUid);
   const player = battlerAt(state, state.activePlayerUid);
+  // Seeded with the first move rather than with a sentinel, so "ties to the earliest move in the
+  // pool" is a property of the loop itself: a strict `>` never displaces an equal earlier entry.
   let bestId = must(enemy.moves[0], `battler "${enemy.uid}" knows no moves`);
-  let bestScore = -1;
+  let bestRank = moveRank(moveOf(ctx, bestId), player, ctx);
   for (const moveId of enemy.moves) {
-    const score = expectedDamage(enemy, player, moveOf(ctx, moveId), ctx, state.nodeId);
-    if (score > bestScore) {
-      bestScore = score;
+    const rank = moveRank(moveOf(ctx, moveId), player, ctx);
+    if (rank > bestRank) {
+      bestRank = rank;
       bestId = moveId;
     }
   }

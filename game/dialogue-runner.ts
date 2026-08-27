@@ -75,7 +75,7 @@ export function dialogueContext(save: SaveEnvelope, content: Content): DialogueC
   return {
     act: actOf(save, content.gyms, balance),
     year: save.year,
-    season: seasonOf({ year: save.year, tick: save.tick }, balance),
+    season: seasonOf({ year: save.year, tick: save.tick, subTick: save.subTick ?? 0 }, balance),
     flags: save.questFlags,
     populations,
     floraStock,

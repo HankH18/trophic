@@ -151,10 +151,13 @@ describe("effective stats (build-doc §7.4: base × ageMult × (1 + 0.02 × leve
     // mosslet-line base def 75, Plant (no Beast bonus), Adult ×1.0, level 10 ⇒ 1 + 0.02×10 = 1.2
     //   75 × 1.0 × 1.2 = 90
     expect(battler("mosslet-line", "A", 10).stats.def).toBe(90);
-    // Juvenile ×0.75:  75 × 0.75 × 1.2 = 67.5 → 68
-    expect(battler("mosslet-line", "J", 10).stats.def).toBe(68);
-    // Elder ×1.15:     75 × 1.15 × 1.2 = 103.5 → 104
-    expect(battler("mosslet-line", "E", 10).stats.def).toBe(104);
+    // RE-DERIVED for the T-10 halving of balance.age.multiplier (J 0.75 → 0.875, E 1.15 → 1.075;
+    // A is neutral and did not move, which is why the Adult line above is unchanged). Half the
+    // deviation from neutral, not half the value — see data/balance.json `age._multiplier`.
+    // Juvenile ×0.875: 75 × 0.875 × 1.2 = 78.75  → 79
+    expect(battler("mosslet-line", "J", 10).stats.def).toBe(79);
+    // Elder ×1.075:    75 × 1.075 × 1.2 = 96.75  → 97
+    expect(battler("mosslet-line", "E", 10).stats.def).toBe(97);
   });
 
   it("gives Beast +10% BASE stats instead of an offensive advantage (bible §1)", () => {
@@ -179,17 +182,21 @@ describe("effective stats (build-doc §7.4: base × ageMult × (1 + 0.02 × leve
     expect(line("webvern-line").metamorphic).toBe(false);
     expect(line("cindril-line").baseStats.atk).toBe(line("webvern-line").baseStats.atk);
 
-    // Juvenile — no jump yet:            70 × 0.75 × (1 + 0.02) = 53.55 → 54
-    expect(battler("cindril-line", "J", 1).stats.atk).toBe(54);
-    expect(battler("webvern-line", "J", 1).stats.atk).toBe(54);
-    // Adult — jump applied ONCE:         70 × 1.00 × 1.15 × 1.02 = 82.11 → 82
+    // The J and E rows are RE-DERIVED for the T-10 age halving (J 0.75 → 0.875, E 1.15 → 1.075).
+    // The metamorphic ×1.15 is deliberately NOT halved — it is build-doc §7.4's separate once-only
+    // term, not the J/A/E multiplier — so the Adult rows below are untouched, and this test's whole
+    // claim (the jump lands exactly once) is unchanged. Only the age factor moved.
+    // Juvenile — no jump yet:            70 × 0.875 × (1 + 0.02) = 62.475 → 62
+    expect(battler("cindril-line", "J", 1).stats.atk).toBe(62);
+    expect(battler("webvern-line", "J", 1).stats.atk).toBe(62);
+    // Adult — jump applied ONCE:         70 × 1.000 × 1.15 × 1.02 = 82.11  → 82
     expect(battler("cindril-line", "A", 1).stats.atk).toBe(82);
-    //   …against the non-metamorphic:    70 × 1.00 × 1.02        = 71.4  → 71
+    //   …against the non-metamorphic:    70 × 1.000 × 1.02        = 71.4   → 71
     expect(battler("webvern-line", "A", 1).stats.atk).toBe(71);
-    // Elder — STILL exactly one jump:    70 × 1.15 × 1.15 × 1.02 = 94.43 → 94
-    //   (twice would be 70 × 1.15³ × 1.02 = 108.6 → 109, which this pins out)
-    expect(battler("cindril-line", "E", 1).stats.atk).toBe(94);
-    expect(battler("webvern-line", "E", 1).stats.atk).toBe(82);
+    // Elder — STILL exactly one jump:    70 × 1.075 × 1.15 × 1.02 = 88.268 → 88
+    //   (twice would be 70 × 1.075 × 1.15² × 1.02 = 101.5 → 102, which this pins out)
+    expect(battler("cindril-line", "E", 1).stats.atk).toBe(88);
+    expect(battler("webvern-line", "E", 1).stats.atk).toBe(77);
 
     expect(hasMetamorphosed(line("cindril-line"), "J")).toBe(false);
     expect(hasMetamorphosed(line("cindril-line"), "A")).toBe(true);
@@ -202,8 +209,11 @@ describe("effective stats (build-doc §7.4: base × ageMult × (1 + 0.02 × leve
   it("adds trait modifiers as a flat ±10% of the pre-trait stat (bible §2)", () => {
     const thickPelt = B.traits.pool.find((t) => t.id === "thick-pelt");
     expect(thickPelt).toBeDefined();
-    // nibbin-line Elder level 10 def: 70 × 1.1(Beast) × 1.15 × 1.2 = 106.26
-    //   + Thick Pelt (+10%):          106.26 × 1.1 = 116.886 → 117
+    // RE-DERIVED for the T-10 age halving: the Elder factor is 1.075, not 1.15. The CLAIM this
+    // test makes — that the trait is a flat ±10% of the PRE-TRAIT stat — is unchanged, and the two
+    // numbers below still stand in exactly that ratio (109.263 = 99.33 × 1.1).
+    // nibbin-line Elder level 10 def: 70 × 1.1(Beast) × 1.075 × 1.2 = 99.33
+    //   + Thick Pelt (+10%):          99.33 × 1.1 = 109.263 → 109
     const withTrait = effectiveStats({
       line: line("nibbin-line"),
       age: "E",
@@ -211,9 +221,9 @@ describe("effective stats (build-doc §7.4: base × ageMult × (1 + 0.02 × leve
       balance: B,
       traits: [thickPelt as Trait],
     });
-    expect(withTrait.def).toBe(117);
-    // …and 106.26 → 106 without it.
-    expect(battler("nibbin-line", "E", 10).stats.def).toBe(106);
+    expect(withTrait.def).toBe(109);
+    // …and 99.33 → 99 without it.
+    expect(battler("nibbin-line", "E", 10).stats.def).toBe(99);
   });
 
   it("knows exactly the moves its level has unlocked (bible §3: 1/5/10/15)", () => {
@@ -418,8 +428,17 @@ describe("status tick math (build-doc §7.4)", () => {
   });
 
   it("ramps Toxin over successive turns inside a real battle", () => {
-    // Sporantle (Producer, Poison/Plant, base atk 40/def 75/hp 85) vs Loamunder (Producer,
-    // Earth/Plant, base hp 85 → max HP 85 × 1.2 = 102). Both are slow tanks, so the fight lasts.
+    // Sporantle (Producer, Poison/Plant, base atk 60/def 75/hp 85) vs Loamunder (Producer,
+    // Earth/Plant, base hp 85 → max HP 85 × 1.2 = 102).
+    //
+    // THE ASSERTION BELOW IS UNCHANGED — [4, 6, 8] and max HP 102 are exactly what they were. What
+    // moved is the STAGE. This used to throw Blight on all three turns, justified by "both are slow
+    // tanks, so the fight lasts"; T-11 re-spent the Producer template (atk 40 → 60), that sentence
+    // stopped being true, and Loamunder now dies on turn 3 before the third tick can be observed.
+    // Turns 2 and 3 are Regrow instead — Sporantle's own role move, which heals and deals no
+    // damage — so the three turns of the ramp happen. The draw-script guard the old version relied
+    // on (0.9 ≥ 0.2 keeps Blight from re-applying Toxin and resetting the ramp) is replaced by a
+    // stronger, direct claim at the bottom: turnsActive is 3, which a re-application could not be.
     const ctx = NO_WEB;
     const input: BattleInput = {
       seed: 1,
@@ -430,22 +449,26 @@ describe("status tick math (build-doc §7.4)", () => {
     let { state } = startBattle(input, ctx);
     expect(state.battlers["loam"]?.maxHp).toBe(102);
     const ticks: number[] = [];
-    // Turn 1 draws: [damage roll, crit, Blight's 20% Toxin roll] then the enemy's [roll, crit].
-    // 0.05 < 0.2 applies Toxin; on later turns 0.9 ≥ 0.2 keeps it from being re-applied (a
-    // re-application would reset turnsActive and flatten the ramp).
-    const turns = [
-      [0.5, 0.99, 0.05, 0.5, 0.99],
-      [0.5, 0.99, 0.9, 0.5, 0.99],
-      [0.5, 0.99, 0.9, 0.5, 0.99],
+    // Turn 1 draws: [damage roll, crit, Blight's 20% Toxin roll] then the enemy's [roll, crit];
+    // 0.05 < 0.2 applies Toxin. Regrow does no damage and rolls no status, so turns 2 and 3 draw
+    // only the enemy's two.
+    const turns: Array<{ moveId: string; draws: number[] }> = [
+      { moveId: "blight", draws: [0.5, 0.99, 0.05, 0.5, 0.99] },
+      { moveId: "regrow", draws: [0.5, 0.99] },
+      { moveId: "regrow", draws: [0.5, 0.99] },
     ];
-    for (const draws of turns) {
-      const out = step(state, { kind: "move", moveId: "blight" }, scripted(draws), ctx);
+    for (const { moveId, draws } of turns) {
+      const out = step(state, { kind: "move", moveId }, scripted(draws), ctx);
       state = out.state;
       for (const e of out.events) if (e.t === "statusTick") ticks.push(e.amount);
     }
     // floor(102 × 0.04) = 4 · floor(102 × 0.06) = 6 · floor(102 × 0.08) = 8
     expect(ticks).toEqual([4, 6, 8]);
     expect(state.battlers["loam"]?.status?.name).toBe("Toxin");
+    // The ramp is driven by turnsActive, so this is the claim the three amounts above rest on: one
+    // application, carried three turns. A re-application anywhere would read 1 or 2 here and the
+    // amounts would have flattened.
+    expect(state.battlers["loam"]?.status?.turnsActive).toBe(3);
   });
 
   it("keeps exactly one status: the newest replaces the old", () => {
@@ -1450,10 +1473,16 @@ describe("in-battle stat modifiers (bible §3 durations)", () => {
     const terrify = move("terrify");
     const effect = terrify.effects.find((e) => e.kind === "statMod");
     expect(effect?.kind === "statMod" ? effect.turns : undefined).toBe(2);
+    // THE ASSERTIONS BELOW ARE UNCHANGED — two turns, then expiry with its own event. What moved is
+    // the apex's level: 20 → 40. T-11 re-spent the Producer template (atk 40 → 60), so a level-20
+    // Loamunder now two-shots a level-20 Fenmaw and the battle ENDED on turn 2 — the countdown never
+    // reached its end and the test was measuring a dead fight rather than an expiring modifier. At
+    // the level cap the apex survives the two turns it is being asked to count. Nothing about
+    // Terrify's duration is level-dependent; the level only keeps the stage standing.
     const fight: BattleInput = {
       seed: 33,
       kind: "wild",
-      playerParty: [{ uid: "apex", lineId: "fenmaw-line", age: "A", level: 20, traits: [] }],
+      playerParty: [{ uid: "apex", lineId: "fenmaw-line", age: "A", level: 40, traits: [] }],
       enemyParty: [{ uid: "prey", lineId: "loamunder-line", age: "A", level: 20, traits: [] }],
     };
     let state = startBattle(fight, ctx).state;

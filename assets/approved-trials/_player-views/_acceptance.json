@@ -56,107 +56,12 @@
       "id": "front (APPROVED)",
       "source": "assets/approved-trials/player-APPROVED.png",
       "method": "txt2img, seed 42 — the reference",
-      "opaque": 1152,
-      "distinctSwatches": 21,
-      "edgePairs": 997,
-      "components": 221,
-      "tinyComponents": 154,
-      "edgeDensity": 0.8655,
-      "starPixels": 16,
-      "starRows": [
-        4,
-        5,
-        6,
-        7
-      ],
-      "bbox": {
-        "x0": 0,
-        "y0": 1,
-        "x1": 31,
-        "y1": 47
-      },
-      "satchelCentroidRel": 0.397,
-      "strapSlope": 0.02,
-      "beltSwatches": [
-        "#083f22",
-        "#2a1212",
-        "#4bac53",
-        "#53210c",
-        "#6e3620",
-        "#8f5230",
-        "#a4a3ad",
-        "#ab8d62",
-        "#b07037",
-        "#ec9a70",
-        "#eec092",
-        "#f9daae"
-      ],
-      "bootSwatches": [
-        "#030202",
-        "#2a1212",
-        "#53210c",
-        "#6e3620",
-        "#8f5230"
-      ],
-      "bootOpaque": 111,
-      "bands": {
-        "star yellow": {
-          "total": 16,
-          "dominant": "#f9db10",
-          "swatches": {
-            "#f9db10": 16
-          }
-        },
-        "shirt/cap green": {
-          "total": 353,
-          "dominant": "#4bac53",
-          "swatches": {
-            "#2a7a34": 81,
-            "#4bac53": 268,
-            "#1e4d35": 3,
-            "#68c361": 1
-          }
-        },
-        "skin": {
-          "total": 73,
-          "dominant": "#ec9a70",
-          "swatches": {
-            "#ec9a70": 67,
-            "#eec092": 6
-          }
-        },
-        "leather brown": {
-          "total": 255,
-          "dominant": "#53210c",
-          "swatches": {
-            "#6e3620": 30,
-            "#53210c": 117,
-            "#8f5230": 100,
-            "#b07037": 8
-          }
-        },
-        "dark outline": {
-          "total": 276,
-          "dominant": "#53210c",
-          "swatches": {
-            "#033309": 49,
-            "#030202": 32,
-            "#53210c": 117,
-            "#2a1212": 78
-          }
-        }
-      }
-    },
-    {
-      "id": "back  DERIVED",
-      "source": "assets/approved-trials/_player-views/derived/player-back-32x48.png",
-      "method": "derived: mirror + 6 edits",
-      "opaque": 1148,
-      "distinctSwatches": 20,
-      "edgePairs": 991,
-      "components": 206,
-      "tinyComponents": 143,
-      "edgeDensity": 0.8632,
+      "opaque": 1165,
+      "distinctSwatches": 19,
+      "edgePairs": 967,
+      "components": 194,
+      "tinyComponents": 119,
+      "edgeDensity": 0.83,
       "starPixels": 0,
       "starRows": [],
       "bbox": {
@@ -165,71 +70,152 @@
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": 0.603,
-      "strapSlope": -0.038,
+      "satchelCentroidRel": null,
+      "strapSlope": null,
       "beltSwatches": [
-        "#083f22",
-        "#2a1212",
-        "#4bac53",
-        "#53210c",
-        "#6e3620",
-        "#8f5230",
-        "#ab8d62",
-        "#b07037",
-        "#ec9a70",
-        "#eec092",
-        "#f9daae"
+        "#054114",
+        "#321410",
+        "#49ae53",
+        "#642c16",
+        "#8898a5",
+        "#8c5230",
+        "#aa7241",
+        "#d2e0e2",
+        "#f3a262",
+        "#f7c398",
+        "#f9dab4"
       ],
       "bootSwatches": [
-        "#030202",
-        "#2a1212",
-        "#53210c",
-        "#6e3620",
-        "#8f5230"
+        "#040308",
+        "#321410",
+        "#642c16",
+        "#8c5230"
       ],
       "bootOpaque": 111,
       "bands": {
         "star yellow": {
-          "total": 0,
-          "dominant": null,
-          "swatches": {}
+          "total": 16,
+          "dominant": "#f8d80f",
+          "swatches": {
+            "#f8d80f": 16
+          }
         },
         "shirt/cap green": {
-          "total": 408,
-          "dominant": "#4bac53",
+          "total": 358,
+          "dominant": "#49ae53",
           "swatches": {
-            "#2a7a34": 174,
-            "#4bac53": 230,
-            "#1e4d35": 3,
-            "#68c361": 1
+            "#2d6f38": 72,
+            "#49ae53": 286
           }
         },
         "skin": {
-          "total": 68,
-          "dominant": "#ec9a70",
+          "total": 73,
+          "dominant": "#f3a262",
           "swatches": {
-            "#ec9a70": 61,
-            "#eec092": 7
+            "#f3a262": 70,
+            "#f7c398": 3
           }
         },
         "leather brown": {
-          "total": 337,
-          "dominant": "#53210c",
+          "total": 227,
+          "dominant": "#642c16",
           "swatches": {
-            "#6e3620": 64,
-            "#53210c": 165,
-            "#8f5230": 100,
-            "#b07037": 8
+            "#642c16": 113,
+            "#8c5230": 105,
+            "#aa7241": 9
           }
         },
         "dark outline": {
-          "total": 327,
-          "dominant": "#53210c",
+          "total": 147,
+          "dominant": "#321410",
           "swatches": {
-            "#033309": 53,
-            "#2a1212": 106,
-            "#53210c": 165,
-            "#030202": 3
+            "#040308": 35,
+            "#321410": 111,
+            "#272940": 1
+          }
+        }
+      }
+    },
+    {
+      "id": "back  DERIVED",
+      "source": "assets/approved-trials/_player-views/derived/player-back-32x48.png",
+      "method": "derived: mirror + 6 edits",
+      "opaque": 1165,
+      "distinctSwatches": 19,
+      "edgePairs": 973,
+      "components": 197,
+      "tinyComponents": 123,
+      "edgeDensity": 0.8352,
+      "starPixels": 0,
+      "starRows": [],
+      "bbox": {
+        "x0": 0,
+        "y0": 0,
+        "x1": 31,
+        "y1": 47
+      },
+      "satchelCentroidRel": null,
+      "strapSlope": null,
+      "beltSwatches": [
+        "#054114",
+        "#321410",
+        "#49ae53",
+        "#642c16",
+        "#8898a5",
+        "#8c5230",
+        "#aa7241",
+        "#d2e0e2",
+        "#f3a262",
+        "#f7c398",
+        "#f9dab4"
+      ],
+      "bootSwatches": [
+        "#040308",
+        "#321410",
+        "#642c16",
+        "#8c5230"
+      ],
+      "bootOpaque": 111,
+      "bands": {
+        "star yellow": {
+          "total": 16,
+          "dominant": "#f8d80f",
+          "swatches": {
+            "#f8d80f": 16
+          }
+        },
+        "shirt/cap green": {
+          "total": 358,
+          "dominant": "#49ae53",
+          "swatches": {
+            "#49ae53": 286,
+            "#2d6f38": 72
+          }
+        },
+        "skin": {
+          "total": 79,
+          "dominant": "#f3a262",
+          "swatches": {
+            "#f3a262": 72,
+            "#f7c398": 7
+          }
+        },
+        "leather brown": {
+          "total": 227,
+          "dominant": "#642c16",
+          "swatches": {
+            "#642c16": 113,
+            "#8c5230": 105,
+            "#aa7241": 9
+          }
+        },
+        "dark outline": {
+          "total": 147,
+          "dominant": "#321410",
+          "swatches": {
+            "#040308": 35,
+            "#321410": 111,
+            "#272940": 1
           }
         }
       }
@@ -238,89 +224,82 @@
       "id": "side  DERIVED",
       "source": "assets/approved-trials/_player-views/derived/player-side-32x48.png",
       "method": "derived: squeeze + authored head",
-      "opaque": 1127,
-      "distinctSwatches": 19,
-      "edgePairs": 758,
-      "components": 139,
-      "tinyComponents": 80,
-      "edgeDensity": 0.6726,
-      "starPixels": 4,
-      "starRows": [
-        5,
-        6
-      ],
+      "opaque": 1192,
+      "distinctSwatches": 16,
+      "edgePairs": 784,
+      "components": 128,
+      "tinyComponents": 58,
+      "edgeDensity": 0.6577,
+      "starPixels": 0,
+      "starRows": [],
       "bbox": {
         "x0": 0,
         "y0": 0,
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": 0.385,
-      "strapSlope": -0.108,
+      "satchelCentroidRel": null,
+      "strapSlope": null,
       "beltSwatches": [
-        "#083f22",
-        "#2a1212",
-        "#4bac53",
-        "#53210c",
-        "#6e3620",
-        "#8f5230",
-        "#a4a3ad",
-        "#ab8d62",
-        "#b07037",
-        "#ec9a70",
-        "#f9daae"
+        "#054114",
+        "#321410",
+        "#49ae53",
+        "#642c16",
+        "#8898a5",
+        "#8c5230",
+        "#aa7241",
+        "#d2e0e2",
+        "#f3a262",
+        "#f7c398",
+        "#f9dab4"
       ],
       "bootSwatches": [
-        "#030202",
-        "#2a1212",
-        "#53210c",
-        "#6e3620",
-        "#8f5230"
+        "#040308",
+        "#321410",
+        "#642c16",
+        "#8c5230"
       ],
       "bootOpaque": 110,
       "bands": {
         "star yellow": {
           "total": 4,
-          "dominant": "#f9db10",
+          "dominant": "#f8d80f",
           "swatches": {
-            "#f9db10": 4
+            "#f8d80f": 4
           }
         },
         "shirt/cap green": {
-          "total": 329,
-          "dominant": "#4bac53",
+          "total": 330,
+          "dominant": "#49ae53",
           "swatches": {
-            "#4bac53": 254,
-            "#2a7a34": 72,
-            "#68c361": 1,
-            "#1e4d35": 2
+            "#49ae53": 258,
+            "#2d6f38": 72
           }
         },
         "skin": {
-          "total": 29,
-          "dominant": "#ec9a70",
+          "total": 42,
+          "dominant": "#f3a262",
           "swatches": {
-            "#ec9a70": 29
+            "#f3a262": 41,
+            "#f7c398": 1
           }
         },
         "leather brown": {
-          "total": 270,
-          "dominant": "#53210c",
+          "total": 266,
+          "dominant": "#642c16",
           "swatches": {
-            "#53210c": 139,
-            "#8f5230": 85,
-            "#6e3620": 41,
-            "#b07037": 5
+            "#642c16": 170,
+            "#8c5230": 89,
+            "#aa7241": 7
           }
         },
         "dark outline": {
-          "total": 361,
-          "dominant": "#53210c",
+          "total": 137,
+          "dominant": "#321410",
           "swatches": {
-            "#033309": 115,
-            "#2a1212": 99,
-            "#53210c": 139,
-            "#030202": 8
+            "#321410": 126,
+            "#040308": 9,
+            "#272940": 2
           }
         }
       }
@@ -330,99 +309,89 @@
       "source": "assets/raw/player/b0-player-back-e.png",
       "method": "txt2img — Hank rejected",
       "opaque": 1082,
-      "distinctSwatches": 23,
-      "edgePairs": 963,
-      "components": 222,
-      "tinyComponents": 150,
-      "edgeDensity": 0.89,
-      "starPixels": 10,
-      "starRows": [
-        9,
-        10,
-        11,
-        34
-      ],
+      "distinctSwatches": 21,
+      "edgePairs": 919,
+      "components": 194,
+      "tinyComponents": 122,
+      "edgeDensity": 0.8494,
+      "starPixels": 0,
+      "starRows": [],
       "bbox": {
         "x0": 0,
         "y0": 0,
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": 0.705,
-      "strapSlope": 0.26,
+      "satchelCentroidRel": null,
+      "strapSlope": null,
       "beltSwatches": [
-        "#030202",
-        "#2a1212",
-        "#53210c",
-        "#6e3620",
-        "#765b4e",
-        "#8f5230",
-        "#b07037",
-        "#ec9a70",
-        "#eec092",
-        "#f9daae",
-        "#f9db10",
-        "#fdfdfb"
+        "#040308",
+        "#321410",
+        "#642c16",
+        "#74564e",
+        "#8c5230",
+        "#aa7241",
+        "#f3a262",
+        "#f7c398",
+        "#f8d80f",
+        "#f9dab4",
+        "#faf7eb"
       ],
       "bootSwatches": [
-        "#030202",
-        "#2a1212",
-        "#2e6040",
-        "#53210c",
-        "#6e3620",
-        "#765b4e",
-        "#8f5230",
-        "#ab8d62",
-        "#b07037",
-        "#f9daae"
+        "#040308",
+        "#272940",
+        "#2d6f38",
+        "#321410",
+        "#642c16",
+        "#74564e",
+        "#8c5230",
+        "#aa7241",
+        "#ca9164",
+        "#f9dab4"
       ],
       "bootOpaque": 111,
       "bands": {
         "star yellow": {
           "total": 10,
-          "dominant": "#f9db10",
+          "dominant": "#f8d80f",
           "swatches": {
-            "#f9db10": 9,
-            "#faec67": 1
+            "#f8d80f": 10
           }
         },
         "shirt/cap green": {
-          "total": 377,
-          "dominant": "#4bac53",
+          "total": 369,
+          "dominant": "#49ae53",
           "swatches": {
-            "#4bac53": 266,
-            "#2a7a34": 98,
-            "#68c361": 1,
-            "#1e4d35": 7,
-            "#2e6040": 5
+            "#49ae53": 266,
+            "#2d6f38": 102,
+            "#68cb6c": 1
           }
         },
         "skin": {
-          "total": 47,
-          "dominant": "#ec9a70",
+          "total": 45,
+          "dominant": "#f3a262",
           "swatches": {
-            "#eec092": 8,
-            "#ec9a70": 39
+            "#f7c398": 8,
+            "#f3a262": 35,
+            "#ca9164": 2
           }
         },
         "leather brown": {
-          "total": 270,
-          "dominant": "#6e3620",
+          "total": 235,
+          "dominant": "#642c16",
           "swatches": {
-            "#6e3620": 100,
-            "#53210c": 77,
-            "#8f5230": 77,
-            "#b07037": 16
+            "#642c16": 133,
+            "#8c5230": 80,
+            "#aa7241": 22
           }
         },
         "dark outline": {
-          "total": 276,
-          "dominant": "#030202",
+          "total": 239,
+          "dominant": "#040308",
           "swatches": {
-            "#030202": 124,
-            "#033309": 6,
-            "#2a1212": 69,
-            "#53210c": 77
+            "#040308": 128,
+            "#321410": 110,
+            "#272940": 1
           }
         }
       }
@@ -431,102 +400,88 @@
       "id": "side-b REJECTED",
       "source": "assets/raw/player/b0-player-side-b.png",
       "method": "txt2img — Hank rejected",
-      "opaque": 968,
-      "distinctSwatches": 25,
-      "edgePairs": 820,
-      "components": 183,
-      "tinyComponents": 114,
-      "edgeDensity": 0.8471,
-      "starPixels": 13,
-      "starRows": [
-        3,
-        4,
-        5,
-        6,
-        17,
-        32,
-        33
-      ],
+      "opaque": 966,
+      "distinctSwatches": 22,
+      "edgePairs": 816,
+      "components": 177,
+      "tinyComponents": 109,
+      "edgeDensity": 0.8447,
+      "starPixels": 0,
+      "starRows": [],
       "bbox": {
         "x0": 0,
         "y0": 0,
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": 0.202,
-      "strapSlope": -0.018,
+      "satchelCentroidRel": null,
+      "strapSlope": null,
       "beltSwatches": [
-        "#030202",
-        "#2a1212",
-        "#53210c",
-        "#6e3620",
-        "#765b4e",
-        "#8f5230",
-        "#a4a3ad",
-        "#b07037",
-        "#ec9a70",
-        "#f0c05f",
-        "#f7ebd3",
-        "#f9daae",
-        "#f9db10",
-        "#faec67"
+        "#040308",
+        "#321410",
+        "#642c16",
+        "#74564e",
+        "#8898a5",
+        "#8c5230",
+        "#aa7241",
+        "#c8bca5",
+        "#d2e0e2",
+        "#efc57a",
+        "#f3a262",
+        "#f8d80f",
+        "#f9dab4"
       ],
       "bootSwatches": [
-        "#030202",
-        "#2a1212",
-        "#53210c",
-        "#6e3620",
-        "#8f5230",
-        "#f7ebd3"
+        "#040308",
+        "#321410",
+        "#642c16",
+        "#8c5230",
+        "#d2e0e2"
       ],
       "bootOpaque": 114,
       "bands": {
         "star yellow": {
-          "total": 11,
-          "dominant": "#faec67",
+          "total": 7,
+          "dominant": "#f8d80f",
           "swatches": {
-            "#faec67": 8,
-            "#f9db10": 3
+            "#f8d80f": 7
           }
         },
         "shirt/cap green": {
-          "total": 283,
-          "dominant": "#4bac53",
+          "total": 282,
+          "dominant": "#49ae53",
           "swatches": {
-            "#4bac53": 201,
-            "#1e4d35": 4,
-            "#2a7a34": 73,
-            "#90b633": 1,
-            "#2e6040": 2,
-            "#68c361": 2
+            "#49ae53": 202,
+            "#37630f": 2,
+            "#2d6f38": 76,
+            "#89b935": 1,
+            "#68cb6c": 1
           }
         },
         "skin": {
-          "total": 49,
-          "dominant": "#ec9a70",
+          "total": 48,
+          "dominant": "#f3a262",
           "swatches": {
-            "#ec9a70": 44,
-            "#eec092": 5
+            "#f3a262": 43,
+            "#f7c398": 3,
+            "#ca9164": 2
           }
         },
         "leather brown": {
-          "total": 221,
-          "dominant": "#8f5230",
+          "total": 198,
+          "dominant": "#8c5230",
           "swatches": {
-            "#6e3620": 58,
-            "#53210c": 49,
-            "#8f5230": 99,
-            "#b07037": 15
+            "#642c16": 81,
+            "#aa7241": 17,
+            "#8c5230": 100
           }
         },
         "dark outline": {
-          "total": 251,
-          "dominant": "#030202",
+          "total": 177,
+          "dominant": "#040308",
           "swatches": {
-            "#033309": 55,
-            "#53210c": 49,
-            "#030202": 108,
-            "#2a1212": 39
+            "#040308": 113,
+            "#321410": 64
           }
         }
       }
@@ -536,97 +491,85 @@
       "source": "assets/raw/player/img2img/pv-back-d92.png",
       "method": "img2img denoise 0.92",
       "opaque": 1148,
-      "distinctSwatches": 22,
-      "edgePairs": 858,
-      "components": 192,
-      "tinyComponents": 136,
-      "edgeDensity": 0.7474,
-      "starPixels": 12,
-      "starRows": [
-        8,
-        9,
-        10,
-        11,
-        36
-      ],
+      "distinctSwatches": 20,
+      "edgePairs": 825,
+      "components": 173,
+      "tinyComponents": 118,
+      "edgeDensity": 0.7186,
+      "starPixels": 0,
+      "starRows": [],
       "bbox": {
         "x0": 0,
         "y0": 0,
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": 0.716,
-      "strapSlope": -0.055,
+      "satchelCentroidRel": null,
+      "strapSlope": null,
       "beltSwatches": [
-        "#2a1212",
-        "#53210c",
-        "#6e3620",
-        "#765b4e",
-        "#8f5230",
-        "#ab8d62",
-        "#b07037",
-        "#ec9a70",
-        "#eec092",
-        "#f7ebd3",
-        "#f9daae"
+        "#321410",
+        "#642c16",
+        "#74564e",
+        "#8c5230",
+        "#aa7241",
+        "#ca9164",
+        "#d2e0e2",
+        "#f3a262",
+        "#f7c398",
+        "#f9dab4"
       ],
       "bootSwatches": [
-        "#030202",
-        "#2a1212",
-        "#53210c",
-        "#6e3620",
-        "#765b4e",
-        "#8f5230",
-        "#a4a3ad",
-        "#ab8d62",
-        "#f9daae"
+        "#040308",
+        "#321410",
+        "#642c16",
+        "#74564e",
+        "#8898a5",
+        "#8c5230",
+        "#f9dab4"
       ],
       "bootOpaque": 111,
       "bands": {
         "star yellow": {
           "total": 12,
-          "dominant": "#f9db10",
+          "dominant": "#f8d80f",
           "swatches": {
-            "#f9db10": 12
+            "#f8d80f": 12
           }
         },
         "shirt/cap green": {
-          "total": 482,
-          "dominant": "#4bac53",
+          "total": 474,
+          "dominant": "#49ae53",
           "swatches": {
-            "#4bac53": 384,
-            "#2e6040": 22,
-            "#1e4d35": 38,
-            "#2a7a34": 36,
-            "#688b2d": 2
+            "#49ae53": 385,
+            "#2d6f38": 85,
+            "#37630f": 4
           }
         },
         "skin": {
-          "total": 17,
-          "dominant": "#ec9a70",
+          "total": 16,
+          "dominant": "#f7c398",
           "swatches": {
-            "#ec9a70": 10,
-            "#eec092": 7
+            "#f7c398": 6,
+            "#f3a262": 5,
+            "#ca9164": 5
           }
         },
         "leather brown": {
-          "total": 264,
-          "dominant": "#8f5230",
+          "total": 205,
+          "dominant": "#8c5230",
           "swatches": {
-            "#53210c": 88,
-            "#8f5230": 167,
-            "#6e3620": 8,
-            "#b07037": 1
+            "#8c5230": 164,
+            "#642c16": 37,
+            "#aa7241": 4
           }
         },
         "dark outline": {
-          "total": 341,
-          "dominant": "#2a1212",
+          "total": 311,
+          "dominant": "#321410",
           "swatches": {
-            "#030202": 55,
-            "#2a1212": 196,
-            "#53210c": 88,
-            "#033309": 2
+            "#040308": 55,
+            "#272940": 115,
+            "#321410": 141
           }
         }
       }
@@ -635,105 +578,91 @@
       "id": "side  img2img d92",
       "source": "assets/raw/player/img2img/pv-side-d92.png",
       "method": "img2img denoise 0.92",
-      "opaque": 971,
-      "distinctSwatches": 24,
-      "edgePairs": 806,
-      "components": 188,
-      "tinyComponents": 115,
-      "edgeDensity": 0.8301,
-      "starPixels": 16,
-      "starRows": [
-        4,
-        5,
-        6,
-        7,
-        35,
-        36
-      ],
+      "opaque": 966,
+      "distinctSwatches": 22,
+      "edgePairs": 761,
+      "components": 166,
+      "tinyComponents": 94,
+      "edgeDensity": 0.7878,
+      "starPixels": 0,
+      "starRows": [],
       "bbox": {
         "x0": 0,
         "y0": 0,
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": 0.168,
-      "strapSlope": -0.164,
+      "satchelCentroidRel": null,
+      "strapSlope": null,
       "beltSwatches": [
-        "#030202",
-        "#033309",
-        "#083f22",
-        "#2a1212",
-        "#4bac53",
-        "#53210c",
-        "#6e3620",
-        "#8f5230",
-        "#a4a3ad",
-        "#b07037",
-        "#ec9a70",
-        "#eec092",
-        "#f7ebd3",
-        "#f9daae",
-        "#f9db10"
+        "#040308",
+        "#054114",
+        "#321410",
+        "#49ae53",
+        "#642c16",
+        "#8898a5",
+        "#8c5230",
+        "#aa7241",
+        "#c8bca5",
+        "#d2e0e2",
+        "#f3a262",
+        "#f8d80f",
+        "#f9dab4"
       ],
       "bootSwatches": [
-        "#030202",
-        "#2a1212",
-        "#53210c",
-        "#6e3620",
-        "#8f5230",
-        "#ec9a70",
-        "#eec092",
-        "#f9daae"
+        "#040308",
+        "#321410",
+        "#642c16",
+        "#8c5230",
+        "#f3a262",
+        "#f7c398",
+        "#f9dab4"
       ],
       "bootOpaque": 88,
       "bands": {
         "star yellow": {
-          "total": 16,
-          "dominant": "#faec67",
+          "total": 4,
+          "dominant": "#f8d80f",
           "swatches": {
-            "#faec67": 12,
-            "#f9db10": 4
+            "#f8d80f": 4
           }
         },
         "shirt/cap green": {
-          "total": 349,
-          "dominant": "#4bac53",
+          "total": 341,
+          "dominant": "#49ae53",
           "swatches": {
-            "#4bac53": 268,
-            "#2a7a34": 43,
-            "#2e6040": 5,
-            "#90b633": 2,
-            "#1e4d35": 7,
-            "#688b2d": 2,
-            "#68c361": 22
+            "#49ae53": 270,
+            "#2d6f38": 45,
+            "#89b935": 2,
+            "#6a9827": 2,
+            "#68cb6c": 22
           }
         },
         "skin": {
-          "total": 29,
-          "dominant": "#ec9a70",
+          "total": 30,
+          "dominant": "#f3a262",
           "swatches": {
-            "#ec9a70": 24,
-            "#eec092": 5
+            "#f3a262": 24,
+            "#ca9164": 4,
+            "#f7c398": 2
           }
         },
         "leather brown": {
-          "total": 210,
-          "dominant": "#8f5230",
+          "total": 191,
+          "dominant": "#642c16",
           "swatches": {
-            "#6e3620": 53,
-            "#53210c": 71,
-            "#8f5230": 82,
-            "#b07037": 4
+            "#642c16": 97,
+            "#8c5230": 90,
+            "#aa7241": 4
           }
         },
         "dark outline": {
-          "total": 250,
-          "dominant": "#033309",
+          "total": 137,
+          "dominant": "#040308",
           "swatches": {
-            "#033309": 71,
-            "#030202": 59,
-            "#53210c": 71,
-            "#2a1212": 49
+            "#040308": 65,
+            "#321410": 65,
+            "#272940": 7
           }
         }
       }
@@ -742,98 +671,89 @@
       "id": "back  img2img d80",
       "source": "assets/raw/player/img2img/pv-back-d80.png",
       "method": "img2img denoise 0.80",
-      "opaque": 1143,
-      "distinctSwatches": 23,
-      "edgePairs": 997,
-      "components": 211,
-      "tinyComponents": 146,
-      "edgeDensity": 0.8723,
-      "starPixels": 16,
-      "starRows": [
-        4,
-        5,
-        6,
-        7
-      ],
+      "opaque": 1150,
+      "distinctSwatches": 22,
+      "edgePairs": 1001,
+      "components": 207,
+      "tinyComponents": 135,
+      "edgeDensity": 0.8704,
+      "starPixels": 0,
+      "starRows": [],
       "bbox": {
         "x0": 0,
         "y0": 1,
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": 0.236,
-      "strapSlope": 0.101,
+      "satchelCentroidRel": null,
+      "strapSlope": null,
       "beltSwatches": [
-        "#1e4d35",
-        "#2a1212",
-        "#4bac53",
-        "#53210c",
-        "#688b2d",
-        "#6e3620",
-        "#765b4e",
-        "#8f5230",
-        "#a4a3ad",
-        "#ab8d62",
-        "#b07037",
-        "#ec9a70",
-        "#eec092",
-        "#f7ebd3",
-        "#f9daae"
+        "#054114",
+        "#321410",
+        "#49ae53",
+        "#642c16",
+        "#6a9827",
+        "#74564e",
+        "#8898a5",
+        "#8c5230",
+        "#aa7241",
+        "#c8bca5",
+        "#ca9164",
+        "#d2e0e2",
+        "#f3a262",
+        "#f7c398",
+        "#f9dab4"
       ],
       "bootSwatches": [
-        "#2a1212",
-        "#53210c",
-        "#6e3620",
-        "#8f5230",
-        "#f7ebd3"
+        "#040308",
+        "#321410",
+        "#642c16",
+        "#8c5230"
       ],
-      "bootOpaque": 108,
+      "bootOpaque": 107,
       "bands": {
         "star yellow": {
           "total": 16,
-          "dominant": "#f9db10",
+          "dominant": "#f8d80f",
           "swatches": {
-            "#f9db10": 16
+            "#f8d80f": 16
           }
         },
         "shirt/cap green": {
-          "total": 343,
-          "dominant": "#4bac53",
+          "total": 352,
+          "dominant": "#49ae53",
           "swatches": {
-            "#2a7a34": 73,
-            "#4bac53": 252,
-            "#1e4d35": 10,
-            "#68c361": 4,
-            "#2e6040": 3,
-            "#688b2d": 1
+            "#2d6f38": 88,
+            "#68cb6c": 3,
+            "#49ae53": 257,
+            "#37630f": 3,
+            "#6a9827": 1
           }
         },
         "skin": {
-          "total": 74,
-          "dominant": "#ec9a70",
+          "total": 75,
+          "dominant": "#f3a262",
           "swatches": {
-            "#ec9a70": 68,
-            "#eec092": 6
+            "#f3a262": 63,
+            "#f7c398": 4,
+            "#ca9164": 8
           }
         },
         "leather brown": {
-          "total": 245,
-          "dominant": "#53210c",
+          "total": 228,
+          "dominant": "#642c16",
           "swatches": {
-            "#53210c": 114,
-            "#6e3620": 31,
-            "#8f5230": 91,
-            "#b07037": 9
+            "#642c16": 119,
+            "#8c5230": 98,
+            "#aa7241": 11
           }
         },
         "dark outline": {
-          "total": 282,
-          "dominant": "#53210c",
+          "total": 138,
+          "dominant": "#321410",
           "swatches": {
-            "#033309": 49,
-            "#030202": 38,
-            "#2a1212": 81,
-            "#53210c": 114
+            "#040308": 40,
+            "#321410": 98
           }
         }
       }

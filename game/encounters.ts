@@ -28,7 +28,13 @@
  * RANDOMNESS (G11): `core/rng.ts` only. No `Math.random`.
  */
 
-import { encounterWeights, rollEncounter, type EcoNode, type SpeciesIndex } from "../core/foodweb";
+import {
+  encounterWeights,
+  rollEncounter,
+  stepEncounterChance,
+  type EcoNode,
+  type SpeciesIndex,
+} from "../core/foodweb";
 import type { Rng } from "../core/rng";
 import {
   AGE_CLASSES,
@@ -89,9 +95,18 @@ export interface Encounter {
  * build-doc §4 says "a foray step rolls encounter**s**" while §3 L8 charges a foray ONE tick, so a
  * foray is an excursion of `stepsPerForay` rolls at `encounterChancePerStep`. The overworld makes
  * that literal — a completed movement step IS a foray step — and charges the tick once the count
- * comes round. `clock.ticksPerYear × stepsPerForay × encounterChancePerStep` is
- * therefore the player's real maximum encounters per year, which is the arithmetic the year-1
- * over-catch beat depends on (build-doc §15 I2).
+ * comes round.
+ *
+ * ⚠ THE YEAR'S ENCOUNTER BUDGET IS NOT `ticksPerYear × stepsPerForay × encounterChancePerStep`.
+ * That product was true once and is now false twice over. Encounters roll on the grass share, so
+ * the rate is `stepEncounterChance` (core/foodweb.ts), not the bare tunable; and a battle costs
+ * `clock.battleTicks`, so battles spend the same meter forays do and not every tick can buy a
+ * foray. The honest form, and the one tests/unit/transcription.test.ts gates:
+ *     e               = stepsPerForay × encounterTileFraction × encounterChancePerStep
+ *     foraysPerYear   = ticksPerYear / (forayTicks + e × battleTicks)
+ *     encountersPerYear = e × foraysPerYear
+ * Shipped, that is 54.0 a year. The old product reports 449.28 — 8.3× the truth — which is what
+ * makes it worth naming here rather than deleting quietly.
  */
 export function stepsPerForay(balance: Balance): number {
   return balance.encounter.stepsPerForay;
@@ -99,6 +114,31 @@ export function stepsPerForay(balance: Balance): number {
 
 export function encounterChancePerStep(balance: Balance): number {
   return balance.encounter.encounterChancePerStep;
+}
+
+/** Grass gating — the share of a node's walkable cells that are encounter tiles. */
+export function encounterTileFraction(balance: Balance): number {
+  return balance.encounter.encounterTileFraction;
+}
+
+/**
+ * The chance that ONE walked step meets something — the two halves of grass gating multiplied.
+ *
+ * Encounters roll on tall grass, not on every cell of the map, so a walked step first has to BE on
+ * an encounter tile (`encounterTileFraction`) and then has to roll (`encounterChancePerStep`).
+ * Collapsing the pair into one draw here rather than rolling twice is deliberate and load-bearing:
+ * L10 requires that a replay of the same seed meets the same creatures, and the draw ORDER is the
+ * contract (chance, species, age, level, traits — see {@link rollForayStep}). A second draw for the
+ * tile would renumber every draw after it and desynchronise every existing fixture.
+ *
+ * When painted maps exist, the fraction becomes a sampled property of the node's encounter mask and
+ * this function takes the node — the product, and the single draw, stay exactly as they are.
+ */
+export function effectiveEncounterChance(balance: Balance): number {
+  // Delegates: core/foodweb.ts owns the one definition, so the harness and the overworld cannot
+  // drift apart on how dense the region is. Kept as a named re-export because game/ reads better
+  // saying "effective encounter chance" than reaching into the food web for it.
+  return stepEncounterChance(balance);
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -217,7 +257,7 @@ export function rollEncounterAt(ctx: ForayContext, rng: Rng): Encounter | null {
  * nothing costs exactly one draw.
  */
 export function rollForayStep(ctx: ForayContext, rng: Rng): Encounter | null {
-  if (!rng.chance(encounterChancePerStep(ctx.balance))) return null;
+  if (!rng.chance(effectiveEncounterChance(ctx.balance))) return null;
   return rollEncounterAt(ctx, rng);
 }
 

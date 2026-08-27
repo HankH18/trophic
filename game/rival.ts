@@ -52,7 +52,7 @@ import type {
   RivalEncounter,
 } from "../core/types";
 import { battleEntryFor } from "./dialogue-runner";
-import { partySpecs } from "./wild-battle";
+import { partyProblem, partySpecs } from "./wild-battle";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Which encounter is standing where
@@ -101,7 +101,10 @@ export function rivalBattleProblem(
   rival: RivalEncounter,
   content: Content,
 ): string | null {
-  if (partySpecs(save).length === 0) return "no creature in the party — nothing can be sent out";
+  // The party clause is `game/wild-battle.ts`'s, not a second reading of it: it refuses an EMPTY
+  // party and an all-fainted one, and the second used to fall through to `startBattle`'s throw.
+  const party = partyProblem(save);
+  if (party !== null) return party;
   const act = actOf(save, content.gyms, content.balance);
   if (act < rival.act) return `${rival.id} act ${String(rival.act)} · act ${String(act)}`;
   return null;
@@ -176,6 +179,12 @@ export function buildRivalBattle(opts: {
  * `"win"` and nothing else, enumerated rather than written as `!== "loss"` — the same discipline
  * `gymBattleWon` uses, and for the same reason: a fled fight is not a win, and a new outcome member
  * must be a decision rather than a free one.
+ *
+ * ⚠ THIS IS THE FLAG, NOT THE COST. What the fight did to the party's HP, levels and bag is
+ * `game/wild-battle.ts` `applyBattleResult(save, state)` — the ONE writer all four launchers share,
+ * on the same terms they share `partyProblem`. It matters most here: `wick.act<N>.loss` says "Come
+ * back when your team has slept", and that sentence is only true if losing left something to sleep
+ * off.
  */
 export function rivalBattleWon(state: Pick<BattleState, "outcome">): boolean {
   return state.outcome === "win";

@@ -86,6 +86,8 @@ export const zMoveKind = z.enum(MOVE_KINDS);
 
 const zInt = z.number().int();
 const zNonNegInt = zInt.min(0);
+/** A non-negative amount that may be fractional — tick costs, which can be half a tick. */
+const zNonNegNum = z.number().min(0);
 const zFrac = z.number().min(0).max(1);
 
 export const zStats = z.strictObject({
@@ -449,18 +451,77 @@ const zBalanceShape = {
     mesoSurvivesForcingMinFraction: zFrac,
     releaseCoverageMinFraction: zFrac,
   }),
-  clock: z.object({
-    ticksPerSeason: zInt.min(1),
-    ticksPerYear: zInt.min(1),
-    travelTicks: zNonNegInt,
-    forayTicks: zNonNegInt,
-    innTicks: zNonNegInt,
-    seasonOrder: z.array(zSeason).length(4),
-    startYear: zInt.min(1),
-    startTick: zNonNegInt,
-    // NOT a cap — the EXPECTED year count under normal pacing. The calendar is unbounded.
-    yearsTotal: zInt.min(1),
-  }),
+  /*
+   * THE CADENCE IS CROSS-VALIDATED, and it has to be. Before this refine every key below was
+   * bounded independently, so four different retunes passed zod, booted and played while silently
+   * breaking the clock — measured, all four: an 18/4 year never fired `yearEnd` and discarded the
+   * overshoot; a 12/4 year opened the regional-event festival window on zero ticks of twelve; a
+   * 20/4 year stepped winter TWICE, re-opening the five-season-steps regression that inflated every
+   * trajectory by 25%; and 2 ticks per season made ticks 8-15 all read "winter". None of them was
+   * a code change. The owner expects to retune these numbers again after playtesting, so the guard
+   * has to live where a data edit meets it.
+   */
+  clock: z
+    .object({
+      ticksPerSeason: zInt.min(1),
+      ticksPerYear: zInt.min(1),
+      subTicksPerTick: zInt.min(1),
+      travelTicks: zNonNegNum,
+      forayTicks: zNonNegNum,
+      innTicks: zNonNegNum,
+      battleTicks: zNonNegNum,
+      seasonOrder: z.array(zSeason).length(4),
+      startYear: zInt.min(1),
+      startTick: zNonNegInt,
+      // NOT a cap — the EXPECTED year count under normal pacing. The calendar is unbounded.
+      yearsTotal: zInt.min(1),
+    })
+    .superRefine((c, ctx) => {
+      const fail = (message: string, path: string): void => {
+        ctx.addIssue({ code: "custom", message, path: [path] });
+      };
+      // R1 — a year is a whole number of seasons, and exactly seasonOrder.length of them.
+      if (c.ticksPerYear !== c.ticksPerSeason * c.seasonOrder.length) {
+        fail(
+          `ticksPerYear must be ticksPerSeason x seasonOrder.length ` +
+            `(${String(c.ticksPerSeason)} x ${String(c.seasonOrder.length)} = ` +
+            `${String(c.ticksPerSeason * c.seasonOrder.length)}), got ${String(c.ticksPerYear)}`,
+          "ticksPerYear",
+        );
+      }
+      // R2 — the run cannot start past the end of its own first year.
+      if (c.startTick >= c.ticksPerYear) {
+        fail(
+          `startTick ${String(c.startTick)} must be inside the year (< ticksPerYear ${String(c.ticksPerYear)})`,
+          "startTick",
+        );
+      }
+      // R3 — every cost must be expressible at the declared resolution, or it would be rounded.
+      const costs = {
+        travelTicks: c.travelTicks,
+        forayTicks: c.forayTicks,
+        innTicks: c.innTicks,
+        battleTicks: c.battleTicks,
+      } as const;
+      for (const [key, value] of Object.entries(costs)) {
+        const sub = value * c.subTicksPerTick;
+        if (Math.abs(sub - Math.round(sub)) > 1e-9) {
+          fail(
+            `${key} ${String(value)} is not an exact multiple of 1/subTicksPerTick ` +
+              `(1/${String(c.subTicksPerTick)}) — raise subTicksPerTick to express it`,
+            key,
+          );
+        }
+        // R4 — no single action may cost a whole season. One that did could cross two boundaries
+        // at once, and the season-boundary consumers are written for one crossing per action.
+        if (value >= c.ticksPerSeason) {
+          fail(
+            `${key} ${String(value)} must cost less than a season (ticksPerSeason ${String(c.ticksPerSeason)})`,
+            key,
+          );
+        }
+      }
+    }),
   // The act model (core/acts.ts) — the second clock. Badges and flags only; never time.
   acts: z.object({
     first: zNonNegInt,
@@ -488,6 +549,9 @@ const zBalanceShape = {
   encounter: z.object({
     stepsPerForay: zInt.min(1),
     encounterChancePerStep: zFrac,
+    // Grass gating — the share of walkable cells that are encounter tiles. 1 means the whole map
+    // rolls, which is what shipped before the gate existed and is a legal (if dense) retune.
+    encounterTileFraction: zFrac,
     outOfSeasonWeight: z.number().min(0),
     scavengerRecentDeathsDivisor: z.number().positive(),
     signChainGatedHabitatTag: z.enum(HABITAT_SENTINELS),
@@ -731,6 +795,17 @@ export function zSaveFileFor(party: Balance["party"]): z.ZodType<SaveFile> {
     seed: zInt,
     year: zInt.min(1),
     tick: zNonNegInt,
+    /*
+     * DECLARED, OR ZOD DELETES THEM. `z.object` strips keys it does not know, and `deserialize()`
+     * runs every load through this schema — so an undeclared field is not merely unvalidated, it is
+     * silently discarded on the round trip. Both of these exist to stop the player being refunded
+     * time they already spent: `subTick` is the half-tick a battle costs, and `forayStepsSinceTick`
+     * is the walk banked toward the next foray tick. Dropping them made quitting mid-excursion a
+     * free reset of both, which is exactly the hole their own doc-comments say they close.
+     * Optional because a save written before either existed is still loadable and reads as 0.
+     */
+    subTick: zNonNegInt.optional(),
+    forayStepsSinceTick: zNonNegInt.optional(),
     currentNode: z.string().min(1),
     party: z.array(zOwnedCreature).max(party.maxPartySize),
     box: z.array(zOwnedCreature).max(party.maxBoxSize),
@@ -743,6 +818,9 @@ export function zSaveFileFor(party: Balance["party"]): z.ZodType<SaveFile> {
         seq: zNonNegInt,
         year: zInt.min(1),
         tick: zNonNegInt,
+        // Same reason as the save's own `subTick` above — undeclared means deleted on load, and a
+        // log that loses its fractions no longer replays to the save it came from (L10 / §8.1).
+        subTick: zNonNegInt.optional(),
         action: z.looseObject({ t: z.string().min(1) }),
       }),
     ),

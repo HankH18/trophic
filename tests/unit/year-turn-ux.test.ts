@@ -24,7 +24,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { advanceAction, createClock, meter, seasonsOfYear } from "@core/clock";
+import { advanceAction, createClock, meter, seasonsOfYear, subTicksForAction } from "@core/clock";
+import type { ClockActionKind, ClockState } from "@core/clock";
 import { actGates, awardBadge, runIsComplete } from "@core/acts";
 import { effectiveStats } from "@core/battle";
 import { defaultContext, stepRegionStates } from "@core/ecosim";
@@ -47,6 +48,7 @@ import type {
   ActionLogEntry,
   Balance,
   Content,
+  GameAction,
   NodeState,
   OwnedCreature,
   Season,
@@ -255,7 +257,8 @@ function stripComments(source: string): string {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
- * C5 — the 16-tick meter (locked decision L8)
+ * C5 — the year meter (locked decision L8, as retuned: `balance.clock.ticksPerYear` ticks a year,
+ * `ticksPerSeason` a season, and no assertion below writes either number down)
  * ════════════════════════════════════════════════════════════════════════════ */
 
 describe("season meter — L8 'travel 1 / foray 1 / inn 2'", () => {
@@ -328,8 +331,9 @@ describe("season meter — L8 'travel 1 / foray 1 / inn 2'", () => {
      * victory EACH end the year"; the second trigger is gone and the assertion is inverted.
      *
      * The perverse incentive it removes, priced: a player who won a gym at tick 1 used to forfeit
-     * 15 of that year's 16 ticks. Below, the meter after the badge is byte-identical to the meter
-     * before it, at every tick of the year.
+     * every remaining tick of that year — `ticksPerYear - 1` of them, whatever `ticksPerYear` is
+     * retuned to. Below, the meter after the badge is byte-identical to the meter before it, at
+     * every tick of the year.
      */
     // (a) full meter — L8 as amended: "year = full meter".
     let clock = createClock(balance);
@@ -348,8 +352,14 @@ describe("season meter — L8 'travel 1 / foray 1 / inn 2'", () => {
       const before = saveWith([creature({ uid: "p1", line: mortalLine(), age: "A", level: 10 })]);
       const at = { ...before, year: balance.clock.startYear, tick };
       const after = awardBadge(at, "maribel", balance);
-      expect(seasonMeterModel({ year: after.year, tick: after.tick }, balance)).toEqual(
-        seasonMeterModel({ year: at.year, tick: at.tick }, balance),
+      // The fraction is part of "byte-identical": a badge may not move `subTick` either.
+      expect(
+        seasonMeterModel(
+          { year: after.year, tick: after.tick, subTick: after.subTick ?? 0 },
+          balance,
+        ),
+      ).toEqual(
+        seasonMeterModel({ year: at.year, tick: at.tick, subTick: at.subTick ?? 0 }, balance),
       );
       expect(after.tick).toBe(tick);
       expect(after.year).toBe(balance.clock.startYear);
@@ -401,10 +411,11 @@ describe("season meter — L8 'travel 1 / foray 1 / inn 2'", () => {
 
   it("can draw L8's full meter — the one state a saved clock can never hold", () => {
     // `advance` fills the meter and resets the tick in one call, so `save.tick` only ever reads
-    // 0..ticksPerYear-1 and the meter topped out at 15/16 with one pip still 'current'. L8 names the
-    // game's year after a state the widget could not draw; `fullMeter` builds it.
+    // 0..ticksPerYear-1 and the meter topped out one tick short of the year with that last pip still
+    // 'current'. L8 names the game's year after a state the widget could not draw; `fullMeter`
+    // builds it.
     const last = seasonMeterModel(
-      { year: balance.clock.startYear, tick: balance.clock.ticksPerYear - 1 },
+      { year: balance.clock.startYear, tick: balance.clock.ticksPerYear - 1, subTick: 0 },
       balance,
     );
     expect(last.full).toBe(false);
@@ -550,7 +561,7 @@ describe("season tint — Hard Req 6 'season variation is a runtime tint; never 
      * `provisional` did not become dead with it — it still distinguishes a table a caller supplies
      * itself, which is what the constant below is for now and what the next assertion checks.
      */
-    const clock = { year: balance.clock.startYear, tick: balance.clock.ticksPerSeason };
+    const clock = { year: balance.clock.startYear, tick: balance.clock.ticksPerSeason, subTick: 0 };
     const tint = seasonTintForClock(clock, balance);
     expect(tint.season).toBe(balance.clock.seasonOrder[1]);
     for (const season of balance.clock.seasonOrder) {
@@ -788,7 +799,8 @@ describe("year turn — G10 / Hard Req 4: boxed creatures age, caught Ancients d
   });
 
   it("BINDS — one player action fires ONE year turn, however many times it is asked", () => {
-    // build-doc §4 USED TO SAY "At gym victory or tick 16, the year turn runs." Both triggers were
+    // build-doc §4 USED TO SAY "At gym victory or tick 16, the year turn runs" — the meter was 16
+    // ticks long when that sentence was written; it is `balance.clock.ticksPerYear` now. Both were
     // reachable in the same action, and a shell that ran a turn per trigger burnt TWO years on one
     // action — two festivals, two aging passes, two season steps, two retirement rounds. There is
     // one trigger now; the guard stays because a reload, a double call or a replay can
@@ -842,12 +854,18 @@ describe("year turn — G10 / Hard Req 4: boxed creatures age, caught Ancients d
      * now, and `yearTurnTrigger` still collapses: a caller that somehow saw two `yearEnd`
      * events in one action's log must still fire one turn.
      */
-    const atLastTick = { year: balance.clock.startYear, tick: balance.clock.ticksPerYear - 1 };
+    const atLastTick = {
+      year: balance.clock.startYear,
+      tick: balance.clock.ticksPerYear - 1,
+      subTick: 0,
+    };
     const meterEnd = advanceAction(atLastTick, "foray", balance);
     const meterTrigger = yearTurnTrigger(meterEnd);
     expect(meterTrigger?.endedYear).toBe(balance.clock.startYear);
     expect(meterTrigger?.reason).toBe("meter");
-    expect(meterTrigger?.carryTick).toBe(balance.clock.startTick);
+    // BOTH halves. This asked for `meterTrigger?.carryTick`, the ticks-only projection that no
+    // longer exists — the fraction it could not carry is asserted here beside the tick it could.
+    expect(meterTrigger?.carry).toEqual({ tick: balance.clock.startTick, subTick: 0 });
 
     // A pair of clock events carrying two yearEnds is still ONE trigger.
     const both = {
@@ -866,7 +884,7 @@ describe("year turn — G10 / Hard Req 4: boxed creatures age, caught Ancients d
     // has no clock; the shell has one, and `finishYearTurn` puts the carry back. Before the fix the
     // committed save said Y2 tick 0 while this lane's own `previewAction` promised Y2 tick 1.
     const straddling = balance.clock.ticksPerYear - 1;
-    const clock = { year: balance.clock.startYear, tick: straddling };
+    const clock = { year: balance.clock.startYear, tick: straddling, subTick: 0 };
     const advanced = advanceAction(clock, "inn", balance);
     const preview = previewAction(clock, "inn", balance);
     expect(preview.endsYear).toBe(true);
@@ -883,17 +901,185 @@ describe("year turn — G10 / Hard Req 4: boxed creatures age, caught Ancients d
       simRng: simRng(save.seed),
       lifecycleRng: countingRng(save.seed).fn,
       endedYear: trigger.endedYear,
-      carryTick: trigger.carryTick,
+      carry: trigger.carry,
     });
     expect(drive.turn.save.tick).toBe(balance.clock.startTick); // core's own reset, untouched
     while (!drive.flow.done()) drive.flow.chooseHeir();
-    const committed = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carryTick);
+    const committed = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carry);
 
     expect(committed.year).toBe(advanced.clock.year);
     expect(committed.tick).toBe(advanced.clock.tick);
-    expect(seasonMeterModel(committed, balance).label).toBe(preview.after.label);
+    expect(
+      seasonMeterModel(
+        { year: committed.year, tick: committed.tick, subTick: committed.subTick ?? 0 },
+        balance,
+      ).label,
+    ).toBe(preview.after.label);
     // The action-log entries still carry the tick the turn STARTED on, exactly as core writes them.
     expect(committed.actionLog[0]?.tick).toBe(straddling);
+
+    /*
+     * THE HALF-TICK STRADDLE — new, and the reason this test is not the same test it was.
+     *
+     * `balance.clock.battleTicks` is a FRACTION now, so a clock can stand on a non-zero `subTick`
+     * and a ONE-tick action can straddle the year end too. The carry then has two halves, and both
+     * have to survive: `advance` does its arithmetic in sub-ticks, so an action whose cost is a
+     * whole number of ticks leaves `subTick` exactly where it found it (a whole tick and a whole
+     * year are both whole numbers of sub-ticks) — which is what makes `subTick` invariant across
+     * the boundary here rather than merely unchanged by luck.
+     *
+     * ⚠ WHAT THIS GREEN IS AND IS NOT EVIDENCE OF. It binds the FORAY/TRAVEL/INN carry — the costs
+     * that are a whole number of ticks. It says nothing about a FRACTIONAL cost, which is a
+     * different arithmetic and has its own test below ("a FRACTIONAL action that fills the meter…").
+     * This note used to explain the gap differently, in terms of a `YearTurnTrigger.carryTick` that
+     * was whole ticks only and a `finishYearTurn` that wrote only `tick`; both are gone, so what is
+     * committed here is the whole position and the sub-tick assertion below is a real claim about
+     * the seam rather than a reading of whatever fraction the save walked in with.
+     */
+    const halfway = balance.clock.subTicksPerTick - 1; // the last sub-tick before a whole one
+    const onHalf = { year: balance.clock.startYear, tick: straddling, subTick: halfway };
+    const halfAdvanced = advanceAction(onHalf, "foray", balance);
+    expect(halfAdvanced.clock.year).toBe(balance.clock.startYear + 1); // a 1-tick action straddles
+    expect(halfAdvanced.clock.subTick).toBe(halfway); // …and the fraction crossed with it
+
+    const halfSave = { ...boxedAndAncientSave(), ...onHalf };
+    const halfTrigger = yearTurnTrigger(halfAdvanced);
+    expect(halfTrigger).not.toBeNull();
+    if (!halfTrigger) return;
+    const halfDrive = driveYearTurn(halfSave, {
+      content,
+      simRng: simRng(halfSave.seed),
+      lifecycleRng: countingRng(halfSave.seed).fn,
+      endedYear: halfTrigger.endedYear,
+      carry: halfTrigger.carry,
+    });
+    while (!halfDrive.flow.done()) halfDrive.flow.chooseHeir();
+    const halfCommitted = finishYearTurn(
+      halfDrive.flow.result(),
+      halfDrive.tickBefore,
+      halfDrive.carry,
+    );
+    expect(halfCommitted.year).toBe(halfAdvanced.clock.year);
+    expect(halfCommitted.tick).toBe(halfAdvanced.clock.tick);
+    expect(halfCommitted.subTick ?? 0).toBe(halfAdvanced.clock.subTick);
+  });
+
+  it("BINDS — a FRACTIONAL action that fills the meter carries its fraction across the turn", () => {
+    /*
+     * THE CASE THE TEST ABOVE SAYS IT DOES NOT COVER. `advanceAction` is the single source of the
+     * post-action clock, so the whole claim of this test is one equality: whatever the year turn
+     * commits must be the clock `advance` produced — all three numbers of it, not two.
+     *
+     * The carry used to be a bare TICK COUNT (`YearTurnTrigger.carryTick`, `finishYearTurn`'s third
+     * argument), so the fraction was not in the seam at all: the committed save kept whichever
+     * fraction the save happened to walk in with. For every whole-tick cost those two agree by
+     * arithmetic — a whole tick and a whole year are both whole numbers of sub-ticks, so the
+     * fraction is invariant across the boundary — and for a fractional cost they cannot: crossing
+     * the year on an odd number of sub-ticks FLIPS it.
+     */
+    const per = balance.clock.subTicksPerTick;
+    const kinds = ["travel", "foray", "inn", "battle"] as const;
+    // Which action is the fractional one is data, not knowledge this file may hold (G11). The
+    // shipped cadence has exactly one — battle, at half a tick — and this finds it by its cost.
+    const fractional = kinds.find((kind) => subTicksForAction(kind, balance) % per !== 0);
+    expect(fractional).toBeDefined();
+    if (!fractional) return;
+
+    // The one clock a fractional action can fill the meter from: exactly its own cost short of the
+    // full year. Derived, so a retune of ticksPerYear/subTicksPerTick/battleTicks moves it too.
+    const yearSub = balance.clock.ticksPerYear * per;
+    const before = yearSub - subTicksForAction(fractional, balance);
+    const clock = {
+      year: balance.clock.startYear,
+      tick: Math.floor(before / per),
+      subTick: before % per,
+    };
+    expect(clock.subTick).toBeGreaterThan(0); // the clock really is standing on a fraction
+
+    const advanced = advanceAction(clock, fractional, balance);
+    expect(advanced.events.some((e) => e.t === "yearEnd")).toBe(true);
+    // The fraction MOVED. This is what makes the equality below a real claim rather than a
+    // tautology satisfied by leaving `subTick` alone.
+    expect(advanced.clock.subTick).not.toBe(clock.subTick);
+
+    const trigger = yearTurnTrigger(advanced);
+    expect(trigger).not.toBeNull();
+    if (!trigger) return;
+
+    const save = { ...boxedAndAncientSave(), ...clock };
+    const drive = driveYearTurn(save, {
+      content,
+      simRng: simRng(save.seed),
+      lifecycleRng: countingRng(save.seed).fn,
+      endedYear: trigger.endedYear,
+      carry: trigger.carry,
+    });
+    while (!drive.flow.done()) drive.flow.chooseHeir();
+    const committed = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carry);
+
+    expect({
+      year: committed.year,
+      tick: committed.tick,
+      subTick: committed.subTick ?? 0,
+    }).toEqual(advanced.clock);
+
+    /*
+     * AND THE ORDERING THE SHIPPED SCENE ACTUALLY USES, for EVERY action kind.
+     *
+     * `game/scenes/OverworldScene.ts` `beginYearTurn` hands the turn a save it has ALREADY moved to
+     * the post-action clock and then retags `{year: endedYear, tick: tickBefore}` — so the save's
+     * `subTick` is the carry's, not the one the action started on. It used to finish with the bare
+     * `drive.carryTick`, and that was right only because `runYearTurn`'s `{...save}` spread leaked
+     * the fraction through; the leak is a stated rule now (`resolveCarry` reads it, the meter reset
+     * writes it) and the ticks-only spelling is deleted, so BOTH commits pass `drive.carry`. This
+     * loop replays that ordering for every action kind and holds both ends of the rule down.
+     *
+     * The start clock is ONE SUB-TICK short of the full meter, which is the only position from which
+     * every cost straddles the year AND leaves a different amount of carry behind: the fractional
+     * action lands exactly on the boundary (carry zero, fraction flipped), a 1-tick action carries a
+     * bare fraction, and the inn carries a whole tick and a fraction. A carry of zero cannot tell a
+     * preserved fraction from a dropped one, which is why the loop is not written against the
+     * boundary-exact clock above.
+     */
+    const oneShort = yearSub - 1;
+    const onFraction = {
+      year: balance.clock.startYear,
+      tick: Math.floor(oneShort / per),
+      subTick: oneShort % per,
+    };
+    for (const kind of kinds) {
+      const adv = advanceAction(onFraction, kind, balance);
+      expect(adv.events.some((e) => e.t === "yearEnd")).toBe(true);
+      const trig = yearTurnTrigger(adv);
+      expect(trig).not.toBeNull();
+      if (!trig) return;
+
+      const live = {
+        ...boxedAndAncientSave(),
+        ...adv.clock,
+        year: onFraction.year,
+        tick: onFraction.tick,
+      };
+      const liveDrive = driveYearTurn(live, {
+        content,
+        simRng: simRng(live.seed),
+        lifecycleRng: countingRng(live.seed).fn,
+        endedYear: trig.endedYear,
+        carry: trig.carry,
+      });
+      while (!liveDrive.flow.done()) liveDrive.flow.chooseHeir();
+      const liveCommitted = finishYearTurn(
+        liveDrive.flow.result(),
+        liveDrive.tickBefore,
+        liveDrive.carry,
+      );
+      expect({
+        kind,
+        year: liveCommitted.year,
+        tick: liveCommitted.tick,
+        subTick: liveCommitted.subTick ?? 0,
+      }).toEqual({ kind, ...adv.clock });
+    }
   });
 
   it("BINDS — a node in the save that data/nodes/ does not have fails loudly, never silently", () => {
@@ -1128,7 +1314,7 @@ describe("retirement flow — build-doc §7.5 step 3, HEIR or BOON", () => {
 
     // …and it is still there after the NEXT year turn, aged one year on. That turn ends the year the
     // first one BEGAN — naming it is what makes a second turn for the same year impossible.
-    const saveAfter = finishYearTurn(first, drive.tickBefore, drive.carryTick);
+    const saveAfter = finishYearTurn(first, drive.tickBefore, drive.carry);
     const second = driveYearTurn(saveAfter, {
       content,
       simRng: simRng(save.seed),
@@ -2394,6 +2580,93 @@ describe("the scenes, driven for real", () => {
     const shown = scene.stub.drawn.join("\n");
     expect(shown).not.toContain("PARTY 0");
   });
+
+  /**
+   * The clock a fractional straddle leaves behind, and a drive whose two halves DISAGREE about it.
+   *
+   * Every whole-tick cost hides the difference — a whole tick and a whole year are both whole
+   * numbers of sub-ticks, so the fraction is invariant across the boundary — so the only clock that
+   * can tell the two spellings apart is one standing on a fraction, taking the one action that costs
+   * a fraction. Which action that is comes from `balance` (G11), not from this file's knowledge.
+   *
+   * The save handed over is the save as it stood BEFORE the action, which is the shape
+   * `YearTurnDriveDeps.endedYear` documents and the shape `tests/integration/demo-beats.test.ts`
+   * `spend` uses. Its fraction is therefore the PRE-action one, and the carry's is the post-action
+   * one — so `drive.carry.subTick` and the fraction `runYearTurn` carries through really are two
+   * different numbers, which is what makes the assertion below a claim rather than a tautology.
+   */
+  function fractionalStraddleDrive() {
+    const per = balance.clock.subTicksPerTick;
+    const kinds = ["travel", "foray", "inn", "battle"] as const;
+    const fractional = kinds.find((kind) => subTicksForAction(kind, balance) % per !== 0);
+    if (!fractional) throw new Error("no fractional action cost in balance.clock — nothing straddles");
+
+    const yearSub = balance.clock.ticksPerYear * per;
+    const beforeSub = yearSub - subTicksForAction(fractional, balance);
+    const clock = {
+      year: balance.clock.startYear,
+      tick: Math.floor(beforeSub / per),
+      subTick: beforeSub % per,
+    };
+    const advanced = advanceAction(clock, fractional, balance);
+    const trigger = yearTurnTrigger(advanced);
+    if (!trigger) throw new Error("the fractional action did not end the year");
+
+    // A party young enough that nothing retires, so the sequence reaches `finish()` with the flow
+    // already done and no retirement card in the way of what this test is about.
+    const save: SaveEnvelope = {
+      ...saveWith([creature({ uid: "young", line: mortalLine(), age: "J", level: 10 })], [], 23),
+      ...clock,
+    };
+    const drive = driveYearTurn(save, {
+      content,
+      simRng: simRng(save.seed),
+      lifecycleRng: countingRng(save.seed).fn,
+      endedYear: trigger.endedYear,
+      carry: trigger.carry,
+    });
+    return { clock, advanced, drive };
+  }
+
+  it("BINDS — the WATCHED commit puts back the whole carry, fraction and all", () => {
+    /*
+     * THE HEADLESS PATH WAS MIGRATED TO `YearCarry` AND THE WATCHED ONE WAS LEFT BEHIND.
+     *
+     * `game/scenes/OverworldScene.ts` `beginYearTurn` commits its unregistered-scene fallback with
+     * `drive.carry`; this scene's own `finish()` still destructured `carryTick` and handed
+     * `finishYearTurn` the bare number — so the commit the PLAYER watches went through the lossy
+     * half of the seam and the one nobody watches went through the whole one.
+     *
+     * It was correct by accident for the shipped shell only: that caller hands over a save it has
+     * already moved to the post-action clock, so the fraction `runYearTurn` leaks through the meter
+     * reset happens to be the carry's. `resolveCarry`'s own note says what that is worth — "correct
+     * by accident is one refactor away from wrong" — and this is the drive that shows it: measured
+     * against the code as it was, the scene committed `{tick: 0, subTick: 1}` where the clock said
+     * `{tick: 0, subTick: 0}`, i.e. the half tick charged once by the clock and again by the carry.
+     */
+    const { clock, advanced, drive } = fractionalStraddleDrive();
+
+    // The premise, asserted rather than assumed. If a retune ever makes every cost whole, or makes
+    // the fraction survive the boundary, this test stops being able to see the defect and says so.
+    expect(clock.subTick).toBeGreaterThan(0);
+    expect(advanced.clock.subTick).not.toBe(clock.subTick);
+    expect(drive.turn.save.subTick ?? 0).toBe(clock.subTick);
+    expect(drive.carry.subTick).not.toBe(drive.turn.save.subTick ?? 0);
+
+    const { P } = stubEngine();
+    const Scene = createYearTurnScene(P as never) as unknown as SceneCtor;
+    const scene = new Scene();
+    let committed: SaveEnvelope | null = null;
+    scene.init({ drive, onDone: (save: SaveEnvelope) => { committed = save; } } as never);
+    scene.create();
+    for (let i = 0; i < drive.beats.length + 10; i += 1) tap(scene, "keydown-SPACE");
+
+    expect(committed).not.toBeNull();
+    const done = committed as unknown as SaveEnvelope;
+    // All three numbers of the clock `advance` produced — the same equality the model-level carry
+    // test makes, asked of the save the SCENE handed back.
+    expect({ year: done.year, tick: done.tick, subTick: done.subTick ?? 0 }).toEqual(advanced.clock);
+  });
 });
 
 /** Structural view of `AdvanceYearResult`, so this block needs no core type import of its own. */
@@ -2591,7 +2864,7 @@ describe("the repairs — reproduced defects, and what stops them coming back", 
         expect(line).not.toContain("complete");
       }
       while (!drive.flow.done()) drive.flow.chooseHeir();
-      save = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carryTick);
+      save = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carry);
       turns += 1;
     }
     expect(save.year).toBe(balance.clock.startYear + target);
@@ -2599,8 +2872,14 @@ describe("the repairs — reproduced defects, and what stops them coming back", 
     expect(() => driveOf(save)).not.toThrow();
 
     // The meter reads year 13 as year 13, with the same shape it reads year 1 with.
-    const late = seasonMeterModel(save, balance);
-    const early = seasonMeterModel({ year: balance.clock.startYear, tick: save.tick }, balance);
+    const late = seasonMeterModel(
+      { year: save.year, tick: save.tick, subTick: save.subTick ?? 0 },
+      balance,
+    );
+    const early = seasonMeterModel(
+      { year: balance.clock.startYear, tick: save.tick, subTick: save.subTick ?? 0 },
+      balance,
+    );
     expect(late.yearLabel).toBe(`Y${String(save.year)}`);
     expect(late.pastExpectedPace).toBe(true);
     expect(early.pastExpectedPace).toBe(false);
@@ -2633,7 +2912,7 @@ describe("the repairs — reproduced defects, and what stops them coming back", 
         if (event.t === "retirementDue") retired.push(event.uid);
       }
       while (!drive.flow.done()) drive.flow.chooseHeir();
-      save = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carryTick);
+      save = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carry);
     }
     expect(save.year).toBe(10 + balance.age.lifespanYears.J);
     expect(retired).toContain("late");
@@ -2699,8 +2978,8 @@ describe("the repairs — reproduced defects, and what stops them coming back", 
 
     // …and every tick a live clock CAN hold still reads exactly what core/clock.ts says.
     for (let tick = 0; tick < balance.clock.ticksPerYear; tick += 1) {
-      const model = seasonMeterModel({ year: balance.clock.startYear, tick }, balance);
-      const core = meter({ year: balance.clock.startYear, tick }, balance);
+      const model = seasonMeterModel({ year: balance.clock.startYear, tick, subTick: 0 }, balance);
+      const core = meter({ year: balance.clock.startYear, tick, subTick: 0 }, balance);
       expect(model.seasonIndex).toBe(core.seasonIndex);
       expect(model.season).toBe(core.season);
       expect(model.ticksIntoSeason).toBe(core.ticksIntoSeason);
@@ -2716,11 +2995,28 @@ describe("the repairs — reproduced defects, and what stops them coming back", 
  * The logged run replays (build-doc §8.1 / L10) — game/year-replay.ts
  * ════════════════════════════════════════════════════════════════════════════ */
 
-/** The action the shell logs for one player action, exactly as game/scenes/OverworldScene.ts does. */
-function actionFor(kind: "travel" | "foray" | "inn", nodeId: string) {
-  if (kind === "travel") return { t: "travel", to: nodeId } as const;
-  if (kind === "foray") return { t: "foray", nodeId } as const;
-  return { t: "inn", townId: nodeId } as const;
+/**
+ * The action the shell logs for one player action, exactly as game/scenes/OverworldScene.ts does.
+ *
+ * ⚠ KEYED ON `ClockActionKind`, NOT ON A HAND-LISTED SUBSET OF IT. While this said
+ * `"travel" | "foray" | "inn"`, `battle` could join the clock, the save's `GameAction` union and
+ * `balance.clock` without anything below being able to drive one — so the whole replay lane was
+ * exercised by a tape that could not contain the one action that costs a FRACTION of a tick. The
+ * switch is exhaustive, so a fifth costing action is a compile error here rather than a silent gap.
+ */
+function actionFor(kind: ClockActionKind, nodeId: string): GameAction {
+  switch (kind) {
+    case "travel":
+      return { t: "travel", to: nodeId };
+    case "foray":
+      return { t: "foray", nodeId };
+    case "inn":
+      return { t: "inn", townId: nodeId };
+    case "battle":
+      // `kind` records the launch SITE (core/types.ts `GameAction`); the charge is the same half
+      // tick whichever of the four it was, so a wild encounter stands for all of them here.
+      return { t: "battle", kind: "wild", nodeId };
+  }
 }
 
 /**
@@ -2735,7 +3031,7 @@ function actionFor(kind: "travel" | "foray" | "inn", nodeId: string) {
  */
 function liveRun(
   seed: number,
-  actions: ReadonlyArray<"travel" | "foray" | "inn">,
+  actions: ReadonlyArray<ClockActionKind>,
 ): { initial: SaveEnvelope; save: SaveEnvelope; yearTurns: number } {
   const initial = saveWith(
     [creature({ uid: "starter", line: mortalLine(), age: "J", level: 10, traits: [traitAt(0)] })],
@@ -2751,8 +3047,19 @@ function liveRun(
     // No calendar guard: the run does not end with the year and `isOver` is gone.
     save = appendAction(save, actionFor(kind, save.currentNode));
     const tickBefore = save.tick;
-    const advanced = advanceAction({ year: save.year, tick: save.tick }, kind, balance);
-    save = { ...save, year: advanced.clock.year, tick: advanced.clock.tick };
+    // The WHOLE clock, fraction included — `OverworldScene.clock()` reads the save exactly this way,
+    // and feeding `advanceAction` a two-field clock made every sub-tick sum NaN rather than failing.
+    const advanced = advanceAction(
+      { year: save.year, tick: save.tick, subTick: save.subTick ?? 0 },
+      kind,
+      balance,
+    );
+    save = {
+      ...save,
+      year: advanced.clock.year,
+      tick: advanced.clock.tick,
+      subTick: advanced.clock.subTick,
+    };
 
     for (const event of advanced.events) {
       if (event.t !== "seasonBoundary") continue;
@@ -2781,12 +3088,15 @@ function liveRun(
         lifecycleRng: () => heir.nextFloat(),
         endedYear: trigger.endedYear,
         reason: trigger.reason,
-        carryTick: trigger.carryTick,
+        // Both halves, exactly as `OverworldScene.beginYearTurn` hands them over. This harness
+        // claims to replay "the run the game actually produces", so it may not spell the seam a
+        // different way from the shipped shell — which is what it did while this said `carryTick`.
+        carry: trigger.carry,
         context,
       },
     );
     while (!drive.flow.done()) drive.flow.chooseHeir();
-    save = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carryTick);
+    save = finishYearTurn(drive.flow.result(), drive.tickBefore, drive.carry);
     yearTurns += 1;
   }
   return { initial, save, yearTurns };
@@ -2858,11 +3168,13 @@ describe("replaying the shipped path — build-doc §8.1's claim, for the run th
 
   it("BINDS — the tick the year turn carried is recoverable from the action log", () => {
     /*
-     * Measured before the fix: after an inn taken at tick 15, "D1 live tick: 1 year: 2 / D1
-     * replayed tick: 0 year: 2 / D1 tick divergence: true". `replay` does not model the clock at
-     * all, and `finishYearTurn` restores the carry `core/clock.ts` promises — so the two disagreed.
-     * The log was never missing the information: every entry carries the {year, tick} it was taken
-     * at, and L8's costs are in balance.
+     * Measured before the fix, on the then-16-tick year: after an inn taken on the year's last tick,
+     * "D1 live tick: 1 year: 2 / D1 replayed tick: 0 year: 2 / D1 tick divergence: true". `replay`
+     * does not model the clock at all, and `finishYearTurn` restores the carry `core/clock.ts`
+     * promises — so the two disagreed. The log was never missing the information: every entry
+     * carries the {year, tick, subTick} it was taken at, and L8's costs are in balance. Nothing
+     * below names a tick count: the inn's tick, the carry and the year are all read off
+     * `balance.clock`, so a retune of the meter moves this test's numbers with it.
      */
     // Stops ON the inn, so the save stands exactly where the carry left it.
     const run = liveRun(41, script.slice(0, script.indexOf("inn") + 1));
@@ -2874,9 +3186,13 @@ describe("replaying the shipped path — build-doc §8.1's claim, for the run th
     expect(run.save.tick).toBe(carry);
     expect(run.save.year).toBe(balance.clock.startYear + 1);
 
-    const start = { year: balance.clock.startYear, tick: balance.clock.startTick };
+    const start = { year: balance.clock.startYear, tick: balance.clock.startTick, subTick: 0 };
     const fromLog = clockFromLog(start, run.save.actionLog, balance);
-    expect(fromLog).toEqual({ year: run.save.year, tick: run.save.tick });
+    expect(fromLog).toEqual({
+      year: run.save.year,
+      tick: run.save.tick,
+      subTick: run.save.subTick ?? 0,
+    });
 
     const hooks = replayRegionHooks({
       content,
@@ -2895,7 +3211,20 @@ describe("replaying the shipped path — build-doc §8.1's claim, for the run th
     expect(replayed.tick).not.toBe(run.save.tick); // core's replay still models no clock…
     expect(withClockFromLog(replayed, start, run.save.actionLog, balance).tick).toBe(run.save.tick);
     expect(withClockFromLog(replayed, start, run.save.actionLog, balance).year).toBe(run.save.year);
-    // …and the whole save now matches, byte for byte, which is what L10 claims.
+    /*
+     * …and the whole save now matches, byte for byte, which is what L10 claims.
+     *
+     * ⚠ RED, AND THE SOURCE IS WHAT IS WRONG — do not soften this. `core/save.ts` `appendAction`
+     * (line 439) writes `subTick` on every entry it makes; `replay` (line 702) rebuilds each entry
+     * as `{seq, year, tick, action}` and DROPS it. So a save no longer equals its own replay: the
+     * measured diff between the two objects below is exactly one missing `"subTick": 0` per
+     * tick-spending entry and NOTHING else — nodeStates, party, box, questFlags, rngState, year and
+     * tick all match. `core/types.ts` `ActionLogEntry.subTick` names this defect in its own
+     * doc-comment ("Without it a replay of a log containing an odd number of half-tick battles lands
+     * a sub-tick short of the original, which L10 forbids"), and tests/unit/save.test.ts "is
+     * lossless, including mid-run RNG stream state" fails on the same one line. The repair is
+     * `core/save.ts:702` carrying `subTick` through, not an assertion here that stops looking.
+     */
     expect(withClockFromLog(replayed, start, run.save.actionLog, balance)).toEqual(run.save);
   });
 
@@ -2906,15 +3235,175 @@ describe("replaying the shipped path — build-doc §8.1's claim, for the run th
      * reads off the entry rather than off a tick cost. This used to be documented as "the other of
      * build-doc §4's two triggers", which no longer exists.
      */
-    const start = { year: balance.clock.startYear, tick: balance.clock.startTick };
+    const start = { year: balance.clock.startYear, tick: balance.clock.startTick, subTick: 0 };
     const log: ActionLogEntry[] = [
       { seq: 0, year: start.year, tick: 3, action: { t: "gymVictory", gymId: "g1" } },
       { seq: 1, year: start.year, tick: 3, action: { t: "yearTurn", year: start.year + 1 } },
     ];
+    // The new year opens on `startTick` AND on a whole tick: a `yearTurn` entry re-seats the clock,
+    // it does not carry a fraction of its own, so `subTick` reads 0 rather than being left behind.
     expect(clockFromLog(start, log, balance)).toEqual({
       year: start.year + 1,
       tick: balance.clock.startTick,
+      subTick: 0,
     });
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * The battle's half tick — the fraction the tape used to lose
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  it("BINDS — an odd number of battles rebuilds the tape into the SAME year, not the next one back", () => {
+    /*
+     * ⚠ THE DEFECT THIS EXISTS FOR, MEASURED BEFORE THE REPAIR. `game/year-replay.ts`
+     * `tickCostKind` matched `travel`, `foray` and `inn` with a chain of `===`, so a `battle` entry
+     * — an action that IS a `ClockActionKind` and IS charged live by `OverworldScene.spendTicks` —
+     * was priced at ZERO everywhere the clock is rebuilt from the log. On a tape of 51 forays and
+     * three battles:
+     *
+     *     live      year 2  tick 0   subTick 1
+     *     fromLog   year 1  tick 51  subTick 0     ← a different YEAR
+     *     withClockFromLog threw: "the action log's clock ends in year 1 but replaying it produced
+     *                              a save in year 2 — the log does not belong to this save"
+     *
+     * about a log that belonged to exactly that save. L10 / build-doc §8.1 promise identical
+     * (seed, actionLog) ⇒ a byte-identical save, so that is a determinism failure and not a
+     * cosmetic one — and it takes an ODD number of battles to see it, because an even number sums
+     * to whole ticks and hides itself.
+     *
+     * Nothing below names a tick count: the script length, the costs and the year are all read off
+     * `balance.clock`, so a retune of the meter moves this test's numbers with it (INV-3).
+     */
+    const start: ClockState = {
+      year: balance.clock.startYear,
+      tick: balance.clock.startTick,
+      subTick: 0,
+    };
+    const battles = 3; // odd on purpose — see above
+    expect(battles % 2).toBe(1);
+    expect(subTicksForAction("battle", balance) % balance.clock.subTicksPerTick).not.toBe(0);
+
+    // The live shell, exactly as `OverworldScene.spendTicks` does it: log the action at the clock
+    // it was taken on, then charge its cost. No year turn is driven here — `handOffToBattle`
+    // refuses to launch a fight whose own charge turned the year, and the charge still stands.
+    let save = saveWith([creature({ uid: "starter", line: mortalLine(), age: "J", level: 10, traits: [traitAt(0)] })], [], 41);
+    let clock: ClockState = start;
+    const script: ClockActionKind[] = [
+      ...Array.from({ length: balance.clock.ticksPerYear - 1 }, () => "foray" as const),
+      ...Array.from({ length: battles }, () => "battle" as const),
+    ];
+    for (const kind of script) {
+      save = appendAction({ ...save, ...clock }, actionFor(kind, save.currentNode));
+      clock = advanceAction(clock, kind, balance).clock;
+    }
+    // The forays fill the year to its last whole tick and the battles carry it over the boundary.
+    expect(clock.year).toBe(start.year + 1);
+    expect(clock.subTick).not.toBe(0);
+
+    expect(clockFromLog(start, save.actionLog, balance)).toEqual(clock);
+
+    /*
+     * THE NEGATIVE CONTROL — where a free battle would have landed. Asserted as a non-equality so
+     * the test above cannot pass by coincidence, and computed from `balance` rather than typed in:
+     * this IS the clock the log rebuilt to before the repair.
+     */
+    let free: ClockState = start;
+    for (const kind of script) {
+      if (kind === "battle") continue; // …priced at zero, which is what `tickCostKind` used to do
+      free = advanceAction(free, kind, balance).clock;
+    }
+    expect(free.year).toBe(start.year); // the wrong year the tape used to land in
+    expect(clockFromLog(start, save.actionLog, balance)).not.toEqual(free);
+  });
+
+  it("BINDS — the shipped path replays byte-identically with battles in the tape", () => {
+    /*
+     * The same claim as "the tick the year turn carried is recoverable", now on a tape that
+     * contains the fractional action. Two battles fall BEFORE the year turn and one after, so the
+     * region mirror is asked to survive a `battle` entry (it is handed to `applyOther` like any
+     * other action, which is what `core/save.ts` `replay`'s `battle` case does and all it does),
+     * and the run ends standing on half a tick.
+     *
+     * The year is deliberately NOT turned BY a battle, and the reason has CHANGED. It used to be
+     * that a fractional carry across the turn was an open defect — `YearTurnTrigger.carryTick` was
+     * whole ticks only and `finishYearTurn` wrote only `tick` — so this test would have gone red for
+     * that reason rather than its own. That defect is closed (the ticks-only spelling is deleted and
+     * both commits pass `YearCarry`) and it has two tests of its own: the model-level "a FRACTIONAL
+     * action that fills the meter carries its fraction across the turn" and the scene-level "the
+     * WATCHED commit puts back the whole carry". What is left here is isolation: this test is about
+     * the REPLAY surviving a `battle` in the tape, so the turn stays on a whole tick and a red here
+     * names the replay rather than the carry.
+     */
+    const script: ClockActionKind[] = [
+      ...Array.from({ length: balance.clock.ticksPerYear - 2 }, () => "foray" as const),
+      "battle",
+      "battle",
+      "foray", // fills the meter on a WHOLE tick — the year turns here
+      "inn",
+      "travel",
+      "battle",
+    ];
+    expect(script.filter((k) => k === "battle").length % 2).toBe(1);
+
+    const run = liveRun(41, script);
+    expect(run.yearTurns).toBe(1);
+    expect(run.save.subTick).not.toBe(0); // the run really does end on a fraction
+
+    const start: ClockState = {
+      year: balance.clock.startYear,
+      tick: balance.clock.startTick,
+      subTick: 0,
+    };
+    const hooks = replayRegionHooks({
+      content,
+      simRng: simRng(41),
+      initialStates: run.initial.nodeStates,
+      context: defaultContext(),
+    });
+    const replayed = replay(run.initial, run.save.actionLog, {
+      species: content.species,
+      gyms: content.gyms,
+      balance,
+      nodes: content.nodes,
+      ecosimStep: hooks.ecosimStep,
+      applyOther: hooks.applyOther,
+    });
+    // Byte-identical, fraction included — L10's whole claim, on the action that has a fraction.
+    expect(withClockFromLog(replayed, start, run.save.actionLog, balance)).toEqual(run.save);
+  });
+
+  it("BINDS — clockFromLog prices EVERY ClockActionKind, at balance's own cost", () => {
+    /*
+     * The guard against the next `battle`. `actionCosts` is `game/ui/SeasonMeter.ts`'s exhaustive
+     * `Record<ClockActionKind, number>`, so its keys ARE the union at runtime: a fifth costing
+     * action appears here the moment it exists, and `clockFromLog` charging it nothing is a red
+     * test rather than a tape that quietly lands in the wrong year. The expected cost is
+     * `subTicksForAction`, i.e. `balance.clock`'s own number — no literal (G11).
+     */
+    const kinds = Object.keys(actionCosts(balance)) as ClockActionKind[];
+    expect(kinds.length).toBeGreaterThan(0);
+    const start: ClockState = {
+      year: balance.clock.startYear,
+      tick: balance.clock.startTick,
+      subTick: 0,
+    };
+    const asSubTicks = (c: ClockState): number =>
+      (c.year - start.year) * balance.clock.ticksPerYear * balance.clock.subTicksPerTick +
+      c.tick * balance.clock.subTicksPerTick +
+      c.subTick;
+
+    const unpriced: string[] = [];
+    for (const kind of kinds) {
+      const log: ActionLogEntry[] = [
+        { seq: 0, year: start.year, tick: start.tick, subTick: 0, action: actionFor(kind, "r1") },
+      ];
+      const spent = asSubTicks(clockFromLog(start, log, balance)) - asSubTicks(start);
+      if (spent !== subTicksForAction(kind, balance)) {
+        unpriced.push(`${kind}: log charged ${String(spent)} sub-ticks, balance says ${String(subTicksForAction(kind, balance))}`);
+      }
+    }
+    // Named, not counted — the list is what tells the next reader which action went free.
+    expect(unpriced, "a ClockActionKind the replay path prices differently from balance").toEqual([]);
   });
 });
 

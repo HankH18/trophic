@@ -114,7 +114,7 @@ describe("regional events — the window model", () => {
       year: startYear,
       season: seasonOrder[0] ?? "spring",
     };
-    const at = (abs: number): ClockState => ({ year: startYear, tick: abs });
+    const at = (abs: number): ClockState => ({ year: startYear, tick: abs, subTick: 0 });
     expect(windowActive(window, at(7), balance)).toBe(false);
     expect(windowActive(window, at(8), balance)).toBe(true);
     expect(windowActive(window, at(8 + ticksPerSeason - 1), balance)).toBe(true);
@@ -127,7 +127,7 @@ describe("regional events — the window model", () => {
 /* ── 1. Annual Festival ────────────────────────────────────────────────────── */
 
 describe("bible §9 — the Annual Festival is the year's final season (D-Q2-2)", () => {
-  it("is open for EXACTLY 4 ticks, once a year, and it is the last season", () => {
+  it("is open for EXACTLY ticksPerSeason ticks, once a year, and it is the last season", () => {
     const clocks = everyTick(3);
     const runs = openRuns(clocks, (c) => festivalWindow(c, balance) !== null);
     expect(runs).toEqual([ticksPerSeason, ticksPerSeason, ticksPerSeason]);
@@ -148,10 +148,10 @@ describe("bible §9 — the Annual Festival is the year's final season (D-Q2-2)"
 
   it("still opens in years the old six-year cap did not have", () => {
     for (const year of [7, 9, 40]) {
-      const window = festivalWindow({ year, tick: ticksPerYear - 1 }, balance);
+      const window = festivalWindow({ year, tick: ticksPerYear - 1, subTick: 0 }, balance);
       expect(window).not.toBeNull();
       expect(window?.year).toBe(year);
-      expect(festivalWindow({ year, tick: 0 }, balance)).toBeNull();
+      expect(festivalWindow({ year, tick: 0, subTick: 0 }, balance)).toBeNull();
     }
   });
 
@@ -162,20 +162,27 @@ describe("bible §9 — the Annual Festival is the year's final season (D-Q2-2)"
     const base = fresh();
     const deps = { species: content.species, nodeStates: base.nodeStates };
 
-    const during = syncEventFlags(base, { year: startYear, tick: ticksPerYear - 2 }, deps, balance);
+    const during = syncEventFlags(
+      base,
+      { year: startYear, tick: ticksPerYear - 2, subTick: 0 },
+      deps,
+      balance,
+    );
     expect(during.questFlags["event.festival.open"]).toBe(true);
 
-    const after = syncEventFlags(during, { year: startYear + 1, tick: 0 }, deps, balance);
+    const after = syncEventFlags(during, { year: startYear + 1, tick: 0, subTick: 0 }, deps, balance);
     expect(after.questFlags["event.festival.open"]).toBeUndefined();
     // Idempotent and total: syncing twice at the same clock is the same save.
-    expect(syncEventFlags(after, { year: startYear + 1, tick: 0 }, deps, balance)).toEqual(after);
+    expect(syncEventFlags(after, { year: startYear + 1, tick: 0, subTick: 0 }, deps, balance)).toEqual(
+      after,
+    );
   });
 });
 
 /* ── 2. Great Migration ───────────────────────────────────────────────────── */
 
 describe("bible §9 — the Great Migration is a migrant's own season", () => {
-  it("each migrant is open for EXACTLY its 4-tick season, once a year", () => {
+  it("each migrant is open for EXACTLY its own season, once a year", () => {
     const migrants = content.species.filter((s) => s.seasonalWindow !== undefined);
     // Hard Req 10 — exactly four migrants; the window model must not invent a fifth.
     expect(migrants).toHaveLength(4);
@@ -206,7 +213,7 @@ describe("bible §9 — the Great Migration is a migrant's own season", () => {
     expect(gloomoth?.seasonalWindow).toBeDefined();
     const season = gloomoth?.seasonalWindow;
     const tick = seasonOrder.indexOf(season ?? "spring") * ticksPerSeason;
-    const open = migrationWindows({ year: startYear, tick }, content.species, balance);
+    const open = migrationWindows({ year: startYear, tick, subTick: 0 }, content.species, balance);
     expect(open.map((w) => w.lineId)).toContain("gloomoth-line");
   });
 });
@@ -219,18 +226,20 @@ describe("bible §9 — a Cullbrand raid's window is the season its ACT was ente
   /*
    * THE DEFECT THIS PINS. `openRaidWindow` used to snap the open DOWN to the season boundary, so a
    * raid whose act was entered part-way through a season was already most of the way through its own
-   * window when it fired. Measured, entering act 4 at each of the year's 16 ticks: the raid stayed
-   * visible for 4, 3, 2, 1, 4, 3, 2, 1 … ticks — a whole season in ONE case of four, against Hank's
-   * "events like that last for a whole season and not just for one in-game day".
+   * window when it fired. Measured under the then-shipped 16-tick year (four ticks to a season),
+   * entering act 4 at each of its 16 ticks: the raid stayed visible for 4, 3, 2, 1, 4, 3, 2, 1 …
+   * ticks — a whole season in ONE case of four, against Hank's "events like that last for a whole
+   * season and not just for one in-game day". The year is 52 ticks now; the shape of the defect is
+   * the same and the sweep below is over `ticksPerYear`, so it is measured rather than quoted.
    *
    * The old test could not see it: it measured the window over the window's OWN interval and never
    * from the tick the raid actually fired.
    */
-  it("is open for EXACTLY 4 ticks FROM THE TICK THE ACT WAS ENTERED, whichever tick that is", () => {
+  it("is open for EXACTLY one season FROM THE TICK THE ACT WAS ENTERED, whichever tick that is", () => {
     expect(raid).toBeDefined();
     if (!raid) return;
     for (let openTick = 0; openTick < ticksPerYear; openTick += 1) {
-      const enteredAt: ClockState = { year: startYear + 3, tick: openTick };
+      const enteredAt: ClockState = { year: startYear + 3, tick: openTick, subTick: 0 };
       const latched = openRaidWindow(fresh(), raid.id, enteredAt, balance);
       const windows = latchedRaidWindows(latched, balance);
       expect(windows).toHaveLength(1);
@@ -246,7 +255,7 @@ describe("bible §9 — a Cullbrand raid's window is the season its ACT was ente
       let visible = 0;
       for (let i = 0; i < ticksPerYear * 2; i += 1) {
         const abs = window.openedAt + i;
-        const clock = { year: startYear, tick: 0 };
+        const clock = { year: startYear, tick: 0, subTick: 0 };
         if (!windowActive(window, { ...clock, tick: abs }, balance)) break;
         visible += 1;
       }
@@ -260,7 +269,20 @@ describe("bible §9 — a Cullbrand raid's window is the season its ACT was ente
   it("act entry latches the window itself — the raid is visible for its whole season", () => {
     expect(raid).toBeDefined();
     if (!raid) return;
-    let save: SaveFile = { ...fresh(), year: startYear + 7, tick: 6 };
+    /*
+     * The entry tick is DERIVED and deliberately mid-season. It was the literal 6, picked against a
+     * 4-tick season where 6 was two ticks into season 1; against the shipped 13-tick season 6 is
+     * still mid-season by luck, and the ticks this test then probed (9 and 10) were flatly wrong.
+     * Half a season in keeps the case the test exists for — the window opens where the act was
+     * ENTERED, not at the boundary before it — true through any retune of ticksPerSeason.
+     */
+    const entryTick = Math.floor(ticksPerSeason / 2);
+    expect(entryTick % ticksPerSeason, "the entry tick landed on a season boundary — the test would " +
+      "no longer distinguish 'opens where it fired' from 'snaps to the boundary'").not.toBe(0);
+    const entryYear = startYear + 7;
+    const at = (tick: number): ClockState => ({ year: entryYear, tick, subTick: 0 });
+
+    let save: SaveFile = { ...fresh(), year: entryYear, tick: entryTick };
     save = { ...save, questFlags: { ...save.questFlags, "story.opening.done": true } };
     for (const gym of [...content.gyms].sort((a, b) => a.act - b.act)) {
       if (gym.act >= raid.act) break;
@@ -271,15 +293,16 @@ describe("bible §9 — a Cullbrand raid's window is the season its ACT was ente
     expect(windows.map((w) => w.id)).toContain(raidWindowId(raid.id));
     const window = windows.find((w) => w.id === raidWindowId(raid.id)) as EventWindow;
     // Opened AT the tick the act was entered on — of calendar year 8, which the old cap forbade.
-    expect(window.year).toBe(startYear + 7);
-    expect(window.openedAt).toBe(absoluteTick({ year: startYear + 7, tick: 6 }, balance));
-    expect(windowActive(window, { year: startYear + 7, tick: 6 }, balance)).toBe(true);
-    // A whole season from the entry, not until the next boundary: tick 9 is still inside it.
-    expect(windowActive(window, { year: startYear + 7, tick: 9 }, balance)).toBe(true);
-    expect(windowActive(window, { year: startYear + 7, tick: 10 }, balance)).toBe(false);
+    expect(window.year).toBe(entryYear);
+    expect(window.openedAt).toBe(absoluteTick(at(entryTick), balance));
+    expect(windowActive(window, at(entryTick), balance)).toBe(true);
+    // A whole season from the entry, not until the next boundary: the last tick inside the window
+    // is `entryTick + ticksPerSeason - 1`, and the one after it is out.
+    expect(windowActive(window, at(entryTick + ticksPerSeason - 1), balance)).toBe(true);
+    expect(windowActive(window, at(entryTick + ticksPerSeason), balance)).toBe(false);
     // And the flag is published for the season.
     const flags = regionalEventFlags(
-      activeWindows(entry.save, { year: startYear + 7, tick: 6 }, {
+      activeWindows(entry.save, at(entryTick), {
         species: content.species,
         nodeStates: entry.save.nodeStates,
       }, balance),
@@ -302,16 +325,18 @@ describe("bible §9 — a Bloom Year is a node whose producers are thriving", ()
 
   /*
    * ⚠ THIS TEST IS THE DEFECT, INVERTED. It used to be titled "is open for EXACTLY 4 ticks per
-   * season it qualifies in" and it ASSERTED `[ticksPerYear]` — 16, not 4 — because the bloom was
-   * DERIVED from a level and a level does not end. Driven honestly against the shipped ecosim
-   * (four `stepRegionStates` a year, seeded, ten years) the derived reading was open at 12 nodes
-   * of 12 from year 3 onward and never closed again: one unbroken 150-tick run per node. An event
-   * that is always on at every node is not an event, and the season-window rule's "stays open
+   * season it qualifies in" and it ASSERTED `[ticksPerYear]` — the whole year, not one season —
+   * because the bloom was DERIVED from a level and a level does not end. (The year was 16 ticks
+   * when that was measured; it is 52 now, which is why the assertion below names `ticksPerSeason`
+   * and never a number.) Driven honestly against the shipped ecosim (one `stepRegionStates` per
+   * season, seeded, ten years) the derived reading was open at 12 nodes of 12 from year 3 onward
+   * and never closed again: one unbroken run of every tick of the run, per node. An event that is
+   * always on at every node is not an event, and the season-window rule's "stays open
    * ticksPerSeason ticks and closes at the next" was simply false of it.
    *
    * The bloom LATCHES on the rise now, so this asserts the shape the title always claimed.
    */
-  it("opens ONE 4-tick window on the rise and does NOT re-open while the flora stays high", () => {
+  it("opens ONE one-season window on the rise and does NOT re-open while the flora stays high", () => {
     const nodeId = "r1";
     const above = statesWithFlora(nodeId, balance.ecosim.floraMax);
     expect(thrivingNodeIds(above, balance)).toEqual([nodeId]);
@@ -340,21 +365,35 @@ describe("bible §9 — a Bloom Year is a node whose producers are thriving", ()
     const below = statesWithFlora(nodeId, 0);
     const flag = windowOpenedAtFlag(bloomWindowId(nodeId), balance);
 
+    /*
+     * ⚠ THESE THREE TICKS MUST BE SEASON BOUNDARIES AND THEY ARE NOW DERIVED. `syncBloomLatches`
+     * snaps its open to `seasonStartTick`, so a sample tick that is NOT a boundary latches at the
+     * boundary before it and the flag reads back a number the test did not write. They were the
+     * literals 0 / 4 / 8, which were the first three boundaries of a 4-tick season and are all
+     * inside the FIRST season of the shipped 13-tick one.
+     */
+    const rise = 0;
+    const fall = ticksPerSeason;
+    const reRise = 2 * ticksPerSeason;
+    // The fresh window has to fit inside the year it opens in, or the last probe wraps.
+    expect(reRise + ticksPerSeason, "three seasons no longer fit in a year").toBeLessThanOrEqual(ticksPerYear);
+    const at = (tick: number): ClockState => ({ year: startYear, tick, subTick: 0 });
+
     let save: SaveFile = fresh();
-    save = syncBloomLatches(save, { year: startYear, tick: 0 }, above, balance);
-    expect(save.questFlags[flag]).toBe(0);
+    save = syncBloomLatches(save, at(rise), above, balance);
+    expect(save.questFlags[flag]).toBe(rise);
 
     // Producers pushed under the threshold: the latch goes, so the node can bloom again later.
-    save = syncBloomLatches(save, { year: startYear, tick: 4 }, below, balance);
+    save = syncBloomLatches(save, at(fall), below, balance);
     expect(save.questFlags[flag]).toBeUndefined();
     expect(latchedBloomWindows(save, balance)).toEqual([]);
 
     // …and it does, at the new boundary, as its own window.
-    save = syncBloomLatches(save, { year: startYear, tick: 8 }, above, balance);
-    expect(save.questFlags[flag]).toBe(8);
+    save = syncBloomLatches(save, at(reRise), above, balance);
+    expect(save.questFlags[flag]).toBe(reRise);
     const again = latchedBloomWindows(save, balance)[0] as EventWindow;
-    expect(windowActive(again, { year: startYear, tick: 11 }, balance)).toBe(true);
-    expect(windowActive(again, { year: startYear, tick: 12 }, balance)).toBe(false);
+    expect(windowActive(again, at(reRise + ticksPerSeason - 1), balance)).toBe(true);
+    expect(windowActive(again, at(reRise + ticksPerSeason), balance)).toBe(false);
   });
 
   /*
@@ -379,14 +418,14 @@ describe("bible §9 — a Bloom Year is a node whose producers are thriving", ()
       save = { ...save, nodeStates: stepped.states };
       const year = startYear + Math.floor(i / seasonOrder.length);
       const tick = (i % seasonOrder.length) * ticksPerSeason;
-      const clock: ClockState = { year, tick };
+      const clock: ClockState = { year, tick, subTick: 0 };
       save = syncEventFlags(save, clock, { species: content.species, nodeStates: save.nodeStates }, balance);
 
       // The LEVEL saturates — that is the fact the derived model tripped over, measured here.
       if (thrivingNodeIds(save.nodeStates, balance).length === nodes.length) saturatedSeasons += 1;
 
       for (let t = 0; t < ticksPerSeason; t += 1) {
-        const at: ClockState = { year, tick: tick + t };
+        const at: ClockState = { year, tick: tick + t, subTick: 0 };
         for (const window of latchedBloomWindows(save, balance)) {
           if (!windowActive(window, at, balance)) continue;
           openTicks.set(window.id, (openTicks.get(window.id) ?? 0) + 1);
@@ -450,9 +489,20 @@ describe("all four events, over a whole year", () => {
     const nodeId = "r1";
     const base: SaveFile = { ...fresh(), nodeStates: statesWithFlora(nodeId, balance.ecosim.floraMax) };
     const raid = balance.yearEvents.raids[0];
-    const withRaid = raid ? openRaidWindow(base, raid.id, { year: startYear, tick: 5 }, balance) : base;
+    // Mid-first-season, derived: the raid must open OFF a boundary (that is what makes it a
+    // different case from the bloom below) and must close inside the same year for `spans` to see
+    // its whole run. It was the literal 5, which was mid-season only for a 4-tick season.
+    const raidTick = Math.floor(ticksPerSeason / 2);
+    const withRaid = raid
+      ? openRaidWindow(base, raid.id, { year: startYear, tick: raidTick, subTick: 0 }, balance)
+      : base;
     // The bloom is LATCHED, so it has to be opened by a sync — exactly as the running game opens it.
-    const latched = syncBloomLatches(withRaid, { year: startYear, tick: 0 }, withRaid.nodeStates, balance);
+    const latched = syncBloomLatches(
+      withRaid,
+      { year: startYear, tick: 0, subTick: 0 },
+      withRaid.nodeStates,
+      balance,
+    );
     const deps = { species: content.species, nodeStates: latched.nodeStates };
 
     const kinds = new Set<string>();
@@ -481,16 +531,21 @@ describe("all four events, over a whole year", () => {
   });
 
   /*
-   * bible §9's "Great Migration" as a KIND is open 16 ticks of every 16, because data/species.json
-   * ships exactly one migrant line per season. Each per-LINE window is a correct 4 ticks and the
-   * published flags are per line, so nothing that gates on `event.migration.<lineId>.open` is
-   * wrong — but any copy that says "the Great Migration is on" would be permanently true. Published
-   * here so the fact is a decision rather than a surprise.
+   * bible §9's "Great Migration" as a KIND is open EVERY tick of every year, because
+   * data/species.json ships exactly one migrant line per season and the seasons tile the year with
+   * no gap. Each per-LINE window is a correct one season and the published flags are per line, so
+   * nothing that gates on `event.migration.<lineId>.open` is wrong — but any copy that says "the
+   * Great Migration is on" would be permanently true. Published here so the fact is a decision
+   * rather than a surprise.
+   *
+   * `ticksOpen.migration === ticksPerYear` is also this file's standing tripwire on the divisibility
+   * identity: it can only hold while `ticksPerSeason × seasonOrder.length === ticksPerYear`, so a
+   * retune that breaks that identity fails HERE rather than somewhere downstream.
    */
   it("PUBLISHES the per-kind coverage, so a HUD claim about a KIND cannot be made by accident", () => {
     const nodeId = "r1";
     const raw: SaveFile = { ...fresh(), nodeStates: statesWithFlora(nodeId, balance.ecosim.floraMax) };
-    const base = syncBloomLatches(raw, { year: startYear, tick: 0 }, raw.nodeStates, balance);
+    const base = syncBloomLatches(raw, { year: startYear, tick: 0, subTick: 0 }, raw.nodeStates, balance);
     const deps = { species: content.species, nodeStates: base.nodeStates };
     const ticksOpen: Record<string, number> = { festival: 0, migration: 0, bloom: 0, raid: 0 };
     for (const clock of everyTick(1)) {

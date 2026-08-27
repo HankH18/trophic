@@ -12,10 +12,14 @@
  *
  * Four of the five reproduce as measurements (see `_acceptance.json`). The density one does NOT
  * reproduce as a global density: the apparent art-pixel pitch is 4px on both the front and
- * `back-e`, and the 32x48 component count is 221 vs 222. What actually differs is the FEATURE
- * INVENTORY — `back-e`'s boot rows carry 10 distinct swatches against the front's 5, which is the
- * cuff, and its belt rows pick up `#765b4e` and `#fdfdfb` the front does not have. That reads as
- * "denser" without being denser. Recorded rather than smoothed over.
+ * `back-e`, and the 32x48 component count is 194 vs 194. What actually differs is the FEATURE
+ * INVENTORY — `back-e`'s boot rows carry 10 distinct swatches against the front's 4, which is the
+ * cuff, and its belt rows pick up `c00`, `c06`, `c16` and `c03` the front does not have. That reads
+ * as "denser" without being denser. Recorded rather than smoothed over.
+ *
+ * (Those counts are quoted as SLOT IDS and were re-measured after the T-15 palette re-freeze; the
+ * numbers they replace were the B0 palette's. A hex quoted in a comment goes stale silently for the
+ * same reason a hex in code does — see SWATCH_ID below for the defect that cost.)
  *
  * None of it is a prompt bug. txt2img re-invents the character inside the prompt's constraints on
  * every call; sub-feature placement and the feature inventory are free variables. So this file does
@@ -183,9 +187,11 @@ export async function sweep(views: string[], denoises: number[]): Promise<SweepR
  * not generated. Every colour is a swatch lifted from the front's own quantized pixels, so the
  * five defects Hank named are structurally impossible rather than merely unlikely:
  *   - the belt/boot/satchel/shirt swatches CANNOT drift — they are copied, not re-rendered;
- *   - no NEW swatch can appear at all: measured, the back's whole-sprite swatch set is the front's
- *     minus `#f9db10` (the star) and nothing else, the side's is the front's minus `#765b4e` and
- *     `#eec092` and nothing else. Both add zero. That is the whole guarantee, in one number;
+ *   - no NEW swatch can appear at all: measured on the SHIPPED PNGs, the back's whole-sprite swatch
+ *     set is the front's 19 minus `c16` (the star) and nothing else; the side's is the front's minus
+ *     `c25`, `c06`, `c12` and `c14`, all of which the front holds in 2-7 px. Both add ZERO. That is
+ *     the whole guarantee, in one number, and `tests/gates/player-art-contract.test.ts` asserts it
+ *     against the committed bytes so it stays a fact rather than a claim;
  *   - the star badge is removed from the back by an explicit swatch filter, not by a prompt.
  *
  * Honesty about what each one is:
@@ -208,17 +214,119 @@ const H = 48;
 type Px = [number, number, number, number];
 export interface Raster { width: number; height: number; data: Uint8ClampedArray }
 
-const px = (h: string): Px => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16), 255];
-/** Every swatch below is a frozen `data/palette.json` entry that the APPROVED FRONT already uses. */
-export const C = {
-  outline: px('#030202'), grey: px('#a4a3ad'), white: px('#fdfdfb'),
-  hairDark: px('#2a1212'), hair: px('#53210c'), hairHi: px('#6e3620'),
-  leather: px('#8f5230'), skinShade: px('#ec9a70'), leatherHi: px('#b07037'), tan: px('#ab8d62'),
-  goldDim: px('#f0c05f'), skinHi: px('#eec092'), skin: px('#f9daae'), cream: px('#f7ebd3'),
-  star: px('#f9db10'), starHi: px('#faec67'),
-  capOutline: px('#033309'), capDark: px('#2a7a34'), capGreen: px('#4bac53'),
-  capLight: px('#68c361'), capRim: px('#083f22'),
-};
+/**
+ * ROLE -> FROZEN PALETTE SLOT ID. Never a hex literal. `game/ui/Palette.ts` learned this first;
+ * this is the same table shape and the same lesson, one lane over.
+ *
+ * WHAT WENT WRONG WHEN THIS WAS 21 HEX LITERALS
+ * ─────────────────────────────────────────────
+ * build-doc §8.4: `data/palette.json` carries 32 swatches `c00`–`c31`, and **the ids are the stable
+ * contract** — a re-freeze is a VALUE SWAP in place, so a slot keeps its name and changes its
+ * colour. This table used to hold the B0 hexes. T-15 re-froze the palette to the class-equal fit and
+ * moved all 32 values; NOT ONE of the 21 literals still existed. Nothing failed. `derive` went on
+ * writing them, so `player-back-32x48.png` shipped 8 off-palette pixels and `player-side-32x48.png`
+ * 420, in 11 dead hexes — and the star-removal filter, which compared against the deleted `#f9db10`,
+ * silently stopped firing and put the star badge back on the REAR of the cap. Ids fix all of that at
+ * the root: a re-freeze now moves these colours with it, and cannot leave a dead one behind.
+ *
+ * HOW EACH ROLE WAS RE-POINTED — MEASURED, NOT GUESSED
+ * ────────────────────────────────────────────────────
+ * A dead hex is not self-describing, and "nearest new slot to the old hex" is the wrong question:
+ * the old hex was itself the B0 palette's IMAGE of a source pixel. So the same §9.3 chain was run
+ * over the SAME `player-APPROVED.png` under the B0 palette (`git show HEAD:data/palette.json` at
+ * T-24) and under the shipped one, pairing every source pixel's old colour with its new colour.
+ * The right-hand column is that histogram — measured pixels, not opinion.
+ *
+ *   role        B0 hex   was   now   evidence
+ *   outline     #030202  c00 -> c00  32/32 px
+ *   grey        #a4a3ad  c01 -> c01  11/17 px — the buckle metal and the cap stud
+ *   greyHi      (none)          c02  5/17 px  — NEW ROLE, see THE GREY SPLIT below
+ *   white       #fdfdfb  c02 -> c03  2/2 px
+ *   hairDark    #2a1212  c03 -> c04  78/79 px
+ *   hair        #53210c  c04 -> c05  84/117 px (33 to c04; c05 is also nearest in sRGB)
+ *   hairHi      #6e3620  c05 -> c05  29/34 px — COLLIDES with `hair`, see THE BROWN RAMP below
+ *   leather     #8f5230  c08 -> c07  101/101 px
+ *   leatherHi   #b07037  c11 -> c09  9/9 px — the satchel body, rows 32-37
+ *   tan         #ab8d62  c12 -> c10  NO EVIDENCE — nearest in sRGB; see THE THREE VESTIGIAL ROLES
+ *   goldDim     #f0c05f  c15 -> c13  NO EVIDENCE — nearest in sRGB; ditto
+ *   skinHi      #eec092  c16 -> c14  3/4 px
+ *   skin        #f9daae  c17 -> c15  190/190 px
+ *   cream       #f7ebd3  c18 -> c03  role + nearest; COLLAPSES onto `white`, see below
+ *   star        #f9db10  c21 -> c16  16/16 px, rows 4-7 — the badge on the cap front
+ *   starHi      #faec67  c22 -> c13  NO EVIDENCE — nearest in sRGB; see below
+ *   capOutline  #033309  c23 -> c17  46/48 px — COLLIDES with `capRim`, see THE CAP GREENS
+ *   capDark     #2a7a34  c24 -> c19  69/69 px
+ *   capGreen    #4bac53  c26 -> c21  285/292 px
+ *   capLight    #68c361  c27 -> c23  role + nearest; the one measured px is on the SHIRT, not the cap
+ *   capRim      #083f22  c28 -> c17  71/71 px — COLLIDES with `capOutline`
+ *
+ * THE GREY SPLIT — the one place a role had to be ADDED. B0 held one metal grey (`#a4a3ad`); the
+ * class-equal fit splits those same 17 source pixels across `c01` (11 px) and `c02` (5 px, the
+ * highlight). The back view's buckle filter matched exactly one swatch, so under the new palette it
+ * would have left the buckle's 5 highlight pixels sitting on the rear of the belt. `greyHi` is that
+ * highlight, and {@link isMetal} is the set the filter now keys on. Measured: those 5 px are the
+ * ONLY `c02` in rows 30-37, so the set cannot over-reach.
+ *
+ * THE BROWN RAMP LOST A LEVEL. B0 ran `#2a1212` / `#53210c` / `#6e3620` / `#8f5230`; the class-equal
+ * fit has no swatch between `c05` and `c07`, so `hair` and `hairHi` both land on `c05` (nearest in
+ * sRGB by 510 and 300 respectively; the next candidate, `c07`, is 4x further from `#6e3620`). That
+ * is the palette's fact, not a choice here: the back's nape band is now two tones where it was
+ * three, and the belt band it refills is the same `c05` the surrounding belt quantizes to. Pointing
+ * `hairHi` anywhere else would invent a distinction the shipped palette does not contain and would
+ * write a swatch the front sprite does not hold.
+ *
+ * THE CAP GREENS LOST ONE TOO. `capOutline` and `capRim` were two near-black greens; the fit has
+ * exactly one (`c17`), and both are nearest to it. The nape band's edge no longer reads as an
+ * outline against rows 13/15. Cosmetic, recorded rather than papered over.
+ *
+ * THE THREE VESTIGIAL ROLES. `tan`, `goldDim` and `starHi` appear in NO pixel of the quantized front
+ * under either palette — they were already defensive unions when they were literals. They are
+ * matched, never written, so they cannot recolour anything; they are pointed at the nearest slot in
+ * sRGB and flagged here rather than deleted, because deleting a member of a defensive union is a
+ * different decision from re-pointing one. `cream` and `capLight` are matched-only as well.
+ *
+ * WRITERS MUST EXIST IN THE FRONT. Every role this file ever WRITES resolves to a slot the approved
+ * front's own quantized pixels already hold — that is the file's whole guarantee (§DERIVATION: "no
+ * NEW swatch can appear at all"), and `tests/gates/player-art-contract.test.ts` decodes the shipped
+ * PNGs and asserts it, so it is a fact about the committed bytes rather than about this comment.
+ */
+export const SWATCH_ID = {
+  outline: 'c00', grey: 'c01', greyHi: 'c02', white: 'c03',
+  hairDark: 'c04', hair: 'c05', hairHi: 'c05',
+  leather: 'c07', skinShade: 'c11', leatherHi: 'c09', tan: 'c10',
+  goldDim: 'c13', skinHi: 'c14', skin: 'c15', cream: 'c03',
+  star: 'c16', starHi: 'c13',
+  capOutline: 'c17', capDark: 'c19', capGreen: 'c21',
+  capLight: 'c23', capRim: 'c17',
+} as const;
+
+export type SwatchRole = keyof typeof SWATCH_ID;
+
+/**
+ * Resolve every role against a palette. Throws on a slot id the palette does not carry — a silent
+ * black here would be a lie about the art, exactly as it is in `game/ui/Palette.ts::swatchHex`.
+ *
+ * The palette is a parameter for the same reason {@link toSprite} takes one: a test must be able to
+ * drive the derivation under a candidate palette without editing this file.
+ */
+export function swatchesFrom(palette: readonly PaletteRgb[]): Record<SwatchRole, Px> {
+  const byId = new Map(palette.map((c) => [c.id, c]));
+  const out = {} as Record<SwatchRole, Px>;
+  for (const [role, id] of Object.entries(SWATCH_ID) as Array<[SwatchRole, string]>) {
+    const sw = byId.get(id);
+    if (!sw) {
+      throw new Error(
+        `tools/comfy/player-views.ts: role "${role}" names palette slot "${id}", which data/palette.json ` +
+          `does not carry (ids are c00–c31 and are the stable contract across a re-freeze — build-doc §8.4).`,
+      );
+    }
+    out[role] = [sw.r, sw.g, sw.b, 255];
+  }
+  return out;
+}
+
+/** The live read of `data/palette.json` — the same file `toSprite`'s quantize step snaps to. */
+export const C: Record<SwatchRole, Px> = swatchesFrom(loadPalette());
 const eq = (a: Px, b: Px) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2];
 
 export function getPx(r: Raster, x: number, y: number): Px {
@@ -247,6 +355,20 @@ export function mirrorH(r: Raster): Raster {
 const SKINS = [C.skin, C.skinHi, C.skinShade, C.cream];
 const isSkin = (p: Px) => SKINS.some((c) => eq(p, c));
 const isHair = (p: Px) => eq(p, C.hair) || eq(p, C.hairDark) || eq(p, C.hairHi);
+/**
+ * The buckle and the cap stud. THREE swatches, not one: the class-equal fit split B0's single metal
+ * grey into `c01` and its highlight `c02` (see SWATCH_ID). A filter that matched only the dominant
+ * one would leave the buckle's highlight pixels on the rear of the belt.
+ */
+const METALS = [C.grey, C.greyHi, C.white];
+export const isMetal = (p: Px) => METALS.some((c) => eq(p, c));
+/**
+ * The star badge's yellows. Exported because `tests/gates/player-art-contract.test.ts` asserts the
+ * badge's absence from the rear view BY THIS SAME PREDICATE — a gate that measured the star its own
+ * way could go green while the filter that removes it was looking at something else, which is the
+ * exact failure T-24 is repairing.
+ */
+export const isStarYellow = (p: Px) => eq(p, C.star) || eq(p, C.starHi) || eq(p, C.goldDim);
 
 /**
  * BACK = mirror(front) + explicit edits. Transformation, not generation: every edit recolours a
@@ -259,7 +381,7 @@ export function deriveBack(front: Raster): Raster {
   // 1. the star badge is on the cap FRONT — from behind it is not visible at all.
   for (let y = 0; y <= 13; y++) for (let x = 0; x < W; x++) {
     const p = getPx(b, x, y);
-    if (eq(p, C.star) || eq(p, C.starHi) || eq(p, C.goldDim)) setPx(b, x, y, C.capGreen);
+    if (isStarYellow(p)) setPx(b, x, y, C.capGreen);
   }
   // 2. the peak points away, so its lit top surface drops to the crown's own shadow green.
   for (let y = 9; y <= 13; y++) for (let x = 0; x < W; x++) {
@@ -273,7 +395,8 @@ export function deriveBack(front: Raster): Raster {
   //     not a slab. Cap swatches only; the head silhouette is untouched.
   //     Rows 12-13 matter as much as 14-15: the mirror carries the FRONT's temple hair, ear and
   //     eye-shadow into the cap band, where from behind there is nothing but cap. The grey cap
-  //     stud (#a4a3ad) is deliberately NOT in the filter — it is a side-of-cap detail and survives.
+  //     stud (`grey`, slot c01) is deliberately NOT in the filter — it is a side-of-cap detail and
+  //     survives.
   const CAP_ROW: Record<number, Px> = { 12: C.capDark, 13: C.capRim, 14: C.capDark, 15: C.capRim };
   for (let y = 12; y <= 15; y++) {
     const [lo, hi] = rowBounds(b, y);
@@ -323,8 +446,9 @@ export function deriveBack(front: Raster): Raster {
   // 6. the buckle is on the front of the belt; from behind the band runs unbroken.
   for (let y = 30; y <= 37; y++) for (let x = 0; x < W; x++) {
     if (!on(b, x, y)) continue;
-    const p = getPx(b, x, y);
-    if (eq(p, C.grey) || eq(p, C.white)) setPx(b, x, y, C.hairHi); // #6e3620 IS the belt band's colour
+    // `hairHi` is not a hair colour here — it is the slot the belt band's own pixels quantize to
+    // (measured: c05 dominates rows 30-37 either side of the buckle), so the band closes seamlessly.
+    if (isMetal(getPx(b, x, y))) setPx(b, x, y, C.hairHi);
   }
   return b;
 }
@@ -400,7 +524,7 @@ export function deriveSide(front: Raster): Raster {
     }
   }
   // the buckle is on the FRONT of the belt: edge-on from the side, so it moves to the leading edge.
-  for (let y = 30; y <= 37; y++) for (let x = 0; x < W; x++) if (eq(getPx(s, x, y), C.grey)) setPx(s, x, y, C.hairHi);
+  for (let y = 30; y <= 37; y++) for (let x = 0; x < W; x++) if (isMetal(getPx(s, x, y))) setPx(s, x, y, C.hairHi);
   let beltEnd = -1;
   for (let x = 0; x < W; x++) if (eq(getPx(s, x, 33), C.hairHi)) beltEnd = x;  // leading end of the belt band
   if (beltEnd > 1) for (const y of [33, 34]) { setPx(s, beltEnd, y, C.grey); setPx(s, beltEnd - 1, y, C.grey); }
@@ -431,6 +555,33 @@ export async function toSprite(path: string, palette: readonly PaletteRgb[] = lo
   const { data, info } = await sharp(path).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
   const src: Raster = { width: info.width, height: info.height, data: new Uint8ClampedArray(data) };
   return removeFlatBackground(quantize(nearestResample(trimBackground(src, bg), W, H), palette), bg);
+}
+
+/**
+ * Decode an ALREADY-32x48 sprite exactly as it sits on disk, and assert that it is not empty.
+ *
+ * NOT `toSprite`. Running the §9.3 chain over a finished sprite is not a no-op: `trimBackground`
+ * counts a fully transparent pixel as background (steps.ts `isBackgroundPixel`, alpha === 0), so it
+ * crops the sprite's transparent margin away and `nearestResample` then STRETCHES the crop back to
+ * 32x48. Measured on the shipped side view, that turns 750 opaque pixels into 1123 — so every
+ * "derived" row in `_acceptance.json` used to describe a re-stretched copy rather than the bytes
+ * that ship. The `derive` command's subject loop already carried an `isSprite` flag with both
+ * branches calling `toSprite`; this is the branch it was reaching for.
+ *
+ * The emptiness check is not decoration: Comfy Cloud is known to return well-formed PNGs that are
+ * entirely one flat colour, and a measurement over zero opaque pixels reports `0` / `[]` / `null`
+ * for every identity detector — which reads exactly like "the star badge is absent".
+ */
+export async function readSprite(path: string): Promise<Raster> {
+  const { data, info } = await sharp(path).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  if (info.width !== W || info.height !== H) {
+    throw new Error(`readSprite(${path}): expected ${W}x${H}, got ${info.width}x${info.height}`);
+  }
+  const r: Raster = { width: info.width, height: info.height, data: new Uint8ClampedArray(data) };
+  let opaque = 0;
+  for (let i = 3; i < r.data.length; i += 4) if (r.data[i]! >= 128) opaque++;
+  if (opaque === 0) throw new Error(`readSprite(${path}): decoded ${W}x${H} but every pixel is transparent`);
+  return r;
 }
 
 const writePng = (r: Raster, p: string) =>
@@ -492,7 +643,7 @@ export function measure(id: string, source: string, method: string, r: Raster): 
     if (!on(r, x, y + 1)) edgePairs++;
     const lab = toLab(p);
     for (const [n, t] of Object.entries(BANDS)) if (t(lab)) { bands[n]!.total++; bands[n]!.swatches[h] = (bands[n]!.swatches[h] ?? 0) + 1; }
-    if (eq(p, C.star) || eq(p, C.starHi) || eq(p, C.goldDim)) { starPixels++; starRows.add(y); }
+    if (isStarYellow(p)) { starPixels++; starRows.add(y); }
     // the satchel body: leather swatches at hip height, below the belt band and outside the boots
     if (y >= 29 && y <= 40 && (eq(p, C.leatherHi) || eq(p, C.tan))) { satX += x; satN++; }
     if (y >= 24 && y <= 33 && (eq(p, C.leather) || eq(p, C.hairHi))) strap.push([x, y]);
@@ -694,7 +845,8 @@ if (isEntrypoint()) {
     for (const s of subjects) {
       const abs = s.file.startsWith('/') ? s.file : resolve(REPO_ROOT, s.file);
       const isSprite = abs.includes('/derived/');
-      out.push(measure(s.id, s.file.replace(REPO_ROOT + '/', ''), s.method, isSprite ? await toSprite(abs) : await toSprite(abs)));
+      // A finished 32x48 sprite is READ, not re-chained — see `readSprite` for what re-chaining did.
+      out.push(measure(s.id, s.file.replace(REPO_ROOT + '/', ''), s.method, isSprite ? await readSprite(abs) : await toSprite(abs)));
     }
 
     const ref = out[0]!;

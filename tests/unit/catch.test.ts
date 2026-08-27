@@ -265,9 +265,16 @@ describe("the bait term's Instinct factor (build-doc §7.4 as amended)", () => {
       // Webvern 60/70/45/80/45 (Poison)       ×1.4 ⇒ 84/98/63/112/63, total 420
       //   share 63/420 = 0.15 EXACTLY ⇒ 1 + 3 × 0                   = 1.00
       ["webvern-line", 45, 1.0, "the roster MEDIAN allocation — the pivot, unchanged from before"],
-      // Sporantle 85/40/75/35/65 (Poison/Plant) ×1.4 ⇒ 119/56/105/49/91, total 420
-      //   share 91/420 = 0.2166667   ⇒ 1 + 3 × 0.0666667            = 1.20
-      ["sporantle-line", 65, 1.2, "one of the round-robin's weakest lines, and a heavy Instinct buy"],
+      // Umbrat  75/55/70/45/55 (Dark)          ×1.4 ⇒ 105/77/98/63/77, total 420
+      //   share 77/420 = 0.1833333   ⇒ 1 + 3 × 0.0333333            = 1.10
+      // REPLACES Sporantle, which held this row at base ins 65. T-11 re-spent the Producer template
+      // — a zero-sum transfer of 20 points off Instinct onto Attack — so Sporantle is now
+      // 85/60/75/35/45: ×1.4 ⇒ 119/84/105/49/63, share 63/420 = 0.15 EXACTLY, multiplier 1.00. It no
+      // longer demonstrates an above-pivot buy; it ties Webvern ON the pivot, which the row above
+      // already states, so the row would have stopped testing what this table exists to test.
+      // Umbrat is the largest Instinct allocation the roster still carries under Carricrow's
+      // ceiling, so a strictly-above-pivot row survives and the floor-to-ceiling span is unchanged.
+      ["umbrat-line", 55, 1.1, "tied with Gloomoth for the roster's second-highest Instinct buy, now the Producers have stopped competing for it"],
       // Carricrow 50/60/45/75/70 (Dark/Wind)  ×1.4 ⇒ 70/84/63/105/98, total 420
       //   share 98/420 = 0.2333333   ⇒ 1 + 3 × 0.0833333            = 1.25
       ["carricrow-line", 70, 1.25, "the roster ceiling: 70 of 300 points in Instinct"],
@@ -316,19 +323,24 @@ describe("the bait term's Instinct factor (build-doc §7.4 as amended)", () => {
   });
 
   it("reads ALLOCATION, not the raw stat — so it does not become a level-scaled global catch buff", () => {
-    // This is the reason the term is a share. Webvern's RAW effective Instinct swings by 2.4× over
-    // a playthrough: J at level 1 is 45 × 0.75 × 1.02 = 34.4 → 34, A at level 40 is 45 × 1.8 = 81.
+    // This is the reason the term is a share. Webvern's RAW effective Instinct swings by 2.03× over
+    // a playthrough: J at level 1 is 45 × 0.875 × 1.02 = 40.1625 → 40, A at level 40 is 45 × 1.8 = 81.
     // A term reading the raw stat would hand a level-40 party a catch rate the level-1 one cannot
     // have, which is a global buff wearing a rebalance's clothes. The SHARE moves by under 1%.
-    expect(catcher("webvern-line", "J", 1).stats.ins).toBe(34);
+    // (The swing was 2.38× before T-10 halved the age multiplier's deviation from neutral, J
+    // 0.75 → 0.875; the juvenile's raw stat rose, so the raw-vs-share gap narrowed without closing.)
+    expect(catcher("webvern-line", "J", 1).stats.ins).toBe(40);
     expect(catcher("webvern-line", "A", 40).stats.ins).toBe(81);
-    expect(catcher("webvern-line", "A", 40).stats.ins / catcher("webvern-line", "J", 1).stats.ins).toBeCloseTo(2.382353, 6);
+    expect(catcher("webvern-line", "A", 40).stats.ins / catcher("webvern-line", "J", 1).stats.ins).toBeCloseTo(2.025, 6);
     const configs: readonly [AgeClass, number][] = [["J", 1], ["J", 4], ["A", 10], ["A", 20], ["E", 34], ["A", 40]];
     for (const [age, level] of configs) {
       // The residual is integer rounding of five effective stats, nothing else: age, level and the
       // metamorphic and Beast multipliers are common factors and cancel exactly. The worst case
-      // over the whole roster is the juvenile ×0.75, and it costs 0.56% — against the 138% swing a
-      // raw-stat reading would have produced over the same six configurations.
+      // over the whole roster is the juvenile ×0.875, and it costs 0.63% (0.006291, at thornlet J1;
+      // webvern's own peak is 0.002632 at J4) — against the 102% swing a raw-stat reading would
+      // have produced over these same six configurations, where webvern's ins runs 40 → 81.
+      // The 0.01 bound below is UNCHANGED by T-10: the halved age multiplier moved the worst
+      // residual 0.56% → 0.63%, and the bound had headroom for it.
       const drift = Math.abs(catchInstinctMultiplier(catcher("webvern-line", age, level), B) - 1);
       expect(drift, `webvern ${age}${String(level)} drifts off the pivot by ${drift.toFixed(5)}`).toBeLessThan(0.01);
     }
