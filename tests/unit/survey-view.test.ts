@@ -2588,12 +2588,24 @@ describe("BF-18 — every UI colour names a frozen swatch", () => {
      *   game/scenes/OverworldScene.ts, game/scenes/YearTurnScene.ts
      *                              BF-18's other two files, owned by a concurrent lane in this same
      *                              wave. Not touched here; listed so the ban still covers them.
-     *   game/boot.ts, game/mapview.ts, game/placeholder.ts, game/scenes/DialogueScene.ts
-     *                              FOUR FILES BF-18 DID NOT LIST — found by this scan, 13 more
-     *                              literals. `boot.ts` shares BootScene's watchdog reasoning and
-     *                              probably shares its exemption; the other three do not, and are
-     *                              unowned work. Pinned rather than silently fixed: they are
-     *                              outside this repair's declared file scope.
+     *   game/boot.ts, game/mapview.ts, game/placeholder.ts
+     *                              THREE OF THE FOUR FILES BF-18 DID NOT LIST — found by this scan.
+     *                              `boot.ts` shares BootScene's watchdog reasoning and probably
+     *                              shares its exemption; the other two do not, and are unowned work.
+     *                              Pinned rather than silently fixed: they are outside this repair's
+     *                              declared file scope.
+     *   game/scenes/DialogueScene.ts
+     *                              CLEARED, and held at ZERO so it cannot refill. Its four —
+     *                              `0x101317`, `0xe8e4c9`, `#e8e4c9`, `#7d8478` — were not four new
+     *                              hexes: `#e8e4c9` is named in BOTH the RetirementScene and
+     *                              SeasonMeter docstrings above as the defect each replaced, and
+     *                              `#7d8478` in the first — re-typed into a third style block while
+     *                              this ceiling sat at exactly 4 and stayed green, which is what a
+     *                              ceiling sized to a violation does. They resolve through
+     *                              `DIALOGUE_SWATCH_ID` now, and every ratio is enumerated by
+     *                              `tests/gates/ui-contrast-contract.test.ts`. The row is KEPT at 0
+     *                              rather than deleted because a ceiling of zero is a sentence
+     *                              ("this file was repaired") where an absent row is silence.
      */
     const EXEMPT: Record<string, number> = {
       "game/scenes/BootScene.ts": 5,
@@ -2602,7 +2614,7 @@ describe("BF-18 — every UI colour names a frozen swatch", () => {
       "game/boot.ts": 4,
       "game/mapview.ts": 1,
       "game/placeholder.ts": 4,
-      "game/scenes/DialogueScene.ts": 4,
+      "game/scenes/DialogueScene.ts": 0,
     };
     const fs = require("node:fs") as typeof import("node:fs");
     const root = new URL("../../", import.meta.url).pathname;

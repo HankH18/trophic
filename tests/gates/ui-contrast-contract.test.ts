@@ -29,17 +29,34 @@
  *    test named for a published standard. It broke at the re-freeze for a reason that had nothing to
  *    do with contrast maths.
  * 2. The PAIRINGS are enumerated from the real exported role tables — `UI_SWATCH`, `UI_SWATCH_ID`,
- *    `SCREEN_SWATCH_ID`, `RETIREMENT_SWATCH_ID`, `SEASON_METER_SWATCH_ID` — not from a list typed
- *    out here. Every role in every table is either declared GROUND (something is drawn ON it) or
- *    gets at least one pairing, and a role added later with no entry in {@link TableSpec.surfaces}
- *    falls through to that table's `fallback`, which is the STRICTEST tier. A new role can therefore
- *    be wrong, but it cannot be silently uncovered. "covers a role added later…" asserts that
- *    property rather than assuming it.
+ *    `SCREEN_SWATCH_ID`, `RETIREMENT_SWATCH_ID`, `SEASON_METER_SWATCH_ID`, `DIALOGUE_SWATCH_ID` —
+ *    not from a list typed out here. Every role in every table is either declared GROUND (something
+ *    is drawn ON it) or gets at least one pairing, and a role added later with no entry in
+ *    {@link TableSpec.surfaces} falls through to that table's `fallback`, which is the STRICTEST
+ *    tier. A new role can therefore be wrong, but it cannot be silently uncovered. "covers a role
+ *    added later…" asserts that property rather than assuming it.
  * 3. The contrast MATHS is `game/ui/Palette.ts`'s `contrastRatio`, imported, not re-implemented.
  *    Two implementations of a colour metric that can silently disagree is the class of defect this
- *    repo keeps paying for. (There is a third, hand-rolled one inline in
- *    `tests/unit/game-menu-model.test.ts`; it is outside this file's scope and is recorded as a
- *    finding rather than edited here.)
+ *    repo keeps paying for. The third, hand-rolled copy that used to sit inline in
+ *    `tests/unit/game-menu-model.test.ts` is gone — that file imports the same helper now.
+ *
+ * WHAT IS *NOT* DERIVED, AND THE TWO HOLES THAT LEFT
+ * ──────────────────────────────────────────────────
+ * The SURFACES are hand-declared, and that half is not safe the way the other two are. A role table
+ * cannot say what its roles are drawn ON — that fact lives in a Phaser class — so {@link TableSpec}
+ * carries it, and anything it does not say is a pairing this gate cannot see. Two were found:
+ *
+ *   · A PLATE BEHIND A SCREEN. `UI_SWATCH_ID` declares no surfaces, so every C1 menu role is
+ *     measured on the void — correct today (`MenuScene.create` sets the camera background to `bg`
+ *     and draws straight onto it, no plate anywhere), and wrong the day a frame lands behind it.
+ *     `tools/ui-frames/theme.ts` builds exactly that plate. Its twelve pairings per polarity were
+ *     read and measured, seven were added to `UI_SWATCH`, one was rejected with a reason and one
+ *     tier disagreement was resolved in this gate's favour — see the block above {@link SPECS}.
+ *   · A WHOLE TABLE MISSING. `game/scenes/DialogueScene.ts` had no role table at all: the text box
+ *     painted four hexes typed into its style block. It was invisible to this gate not because a
+ *     surface was wrong but because there was nothing to enumerate — and the raw-hex ban in
+ *     `tests/unit/survey-view.test.ts` held it at a ceiling sized exactly to the violation, so that
+ *     was green too. Deriving roles from tables only covers the files that have one.
  *
  * THE FLOORS, AND HOW THEY WERE PICKED
  * ────────────────────────────────────
@@ -47,7 +64,7 @@
  * body text, some are 1-pixel pips, some are region fills that carry no information at all. A gate
  * that is too strict is one somebody deletes; a gate that is too loose passes the cream-to-dark-green
  * swap that motivated it. So the whole distribution was measured against the shipped freeze first
- * and the floors were set under it — 44 pairings, the numbers in each tier's comment below.
+ * and the floors were set under it — 54 pairings, the numbers in each tier's comment below.
  *
  * The two numbers that justify the choice, both measured, neither asserted:
  *   · **Passes today.** The tightest TEXT pairing in the build is `accent` (`c16`) on the battle
@@ -66,11 +83,13 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import type { Balance } from "../../core/types";
 import { UI_SWATCH, contrastRatio } from "../../game/ui/Palette";
 import { UI_SWATCH_ID } from "../../game/menu-model";
 import { SCREEN_SWATCH_ID } from "../../game/survey-view";
 import { RETIREMENT_SWATCH_ID } from "../../game/scenes/RetirementScene";
 import { SEASON_METER_SWATCH_ID } from "../../game/ui/SeasonMeter";
+import { DIALOGUE_SWATCH_ID, defaultDialogueStyle } from "../../game/scenes/DialogueScene";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * The palette, read from disk
@@ -92,6 +111,16 @@ interface PaletteFileShape {
 }
 
 const PALETTE_FILE = JSON.parse(readFileSync(PALETTE_PATH, "utf8")) as PaletteFileShape;
+
+/**
+ * The shipped balance, read the same way — the only argument `defaultDialogueStyle` takes, and only
+ * for the two numbers that SIZE the box. Read off disk rather than through `validateContent()` so
+ * this gate keeps its one dependency (the bytes in `data/`) and does not acquire the whole content
+ * loader to check four colours.
+ */
+const SHIPPED_BALANCE = JSON.parse(
+  readFileSync(fileURLToPath(new URL("../../data/balance.json", import.meta.url)), "utf8"),
+) as Balance;
 
 /** `id → "#rrggbb"`, straight off disk. */
 const SHIPPED_HEX: ReadonlyMap<string, string> = new Map(
@@ -138,16 +167,24 @@ type Kind = "text" | "inactive" | "mark" | "plate";
  * The floor each tier must clear, and the measurement each number was set under.
  *
  * `text` 4.5 — WCAG 1.4.3 AA for small text, taken as published. The body face is 8–10px. Measured:
- *   20 text pairings, tightest 4.655 (`accent` on `panel`), loosest 19.153. It fits with 0.155 to
+ *   22 text pairings, tightest 4.655 (`accent` on `panel`), loosest 19.153. It fits with 0.155 to
  *   spare, which is deliberate — this is the tier that has to fail a re-freeze, not accommodate one.
- * `mark` 3 — WCAG 1.4.11 non-text contrast, taken as published. Measured: 17 pairings, tightest
- *   3.516 (`border` on `panel`), loosest 19.153. The floating combat numbers sit in this tier and
- *   not in `text`: `cool` reads 4.374 over the void and `hot` 3.695, and `game/ui/Palette.ts` had
- *   already ruled a number that floats over the field for a few frames a graphical mark. This gate
- *   follows that ruling rather than inventing a stricter one that would red a shipped, readable UI.
+ * `mark` 3 — WCAG 1.4.11 non-text contrast, taken as published. Measured: 23 pairings, tightest
+ *   3.116, loosest 19.153. THE TIGHTEST MARK MOVED when the frame surfaces landed: it was `border`
+ *   on `panel` at 3.516, and is now `void` on `panel` at 3.116 — the frame's inner keyline cut into
+ *   the dark plate, clearing the floor by 0.116. That is the narrowest margin anywhere in this file
+ *   and it is a real reading, not a modelling artefact: on a `c06` plate a `c00` line is a groove
+ *   you can only just see, which is what a 1px inner bevel is for. It is also the pairing most
+ *   likely to be the next re-freeze's first red, and that is the correct place for it to be.
+ *   The floating combat numbers sit in this tier and not in `text`: `cool` reads 4.374 over the void
+ *   and `hot` 3.695, and `game/ui/Palette.ts` had already ruled a number that floats over the field
+ *   for a few frames a graphical mark. This gate follows that ruling rather than inventing a
+ *   stricter one that would red a shipped, readable UI.
  * `inactive` 3 — the same floor as a mark, for the reason in {@link Kind}. Measured: 2 pairings,
- *   3.516 (`textDisabled` on `panel`) and 5.685 (`cursorInkDim` on `cursor`).
- * `plate` 1.1 — a fill is not a mark. Measured: 5 pairings, tightest 1.217 (the Legacy card's
+ *   3.516 (`textDisabled` on `panel`) and 5.685 (`cursorInkDim` on `cursor`). The second of those is
+ *   above the TEXT floor, which is a defect and not a reading — see
+ *   {@link BODY_TEXT_INACTIVE_EXEMPT}.
+ * `plate` 1.1 — a fill is not a mark. Measured: 7 pairings, tightest 1.217 (the Legacy card's
  *   `panel` `c04` on its `bg` `c00`), loosest 14.506. 1.1 sits under that with room, and still fails
  *   the case that matters — a re-freeze landing a plate on the same value as its ground reads
  *   exactly 1.000. NOTE the direction of the error here: `game/scenes/RetirementScene.ts` composites
@@ -194,20 +231,73 @@ const ON_PLATE = "the battle card / menu plate every HUD widget is drawn on";
 const FLOATING = "a floating combat number over the field — a graphical mark (1.4.11)";
 const HP_BAND = "an HP band is a bar, not a numeral";
 
+/*
+ * THE FRAME SURFACES, AND WHAT VERIFYING THEM CHANGED
+ * ───────────────────────────────────────────────────
+ * `tools/ui-frames/theme.ts` `framePairings()` enumerates what a nine-slice box paints, in two
+ * polarities, and its own docstring says each row "is a `Surface` entry the code lane must ADD to
+ * the gate": this file derived its ROLES from the live tables but hard-coded its SURFACES, so a
+ * PLATE — anything drawn on the light `cursor` swatch other than the three inks already listed —
+ * was a case it could not see.
+ *
+ * Twelve rows per polarity were read and measured, not transcribed. What that changed:
+ *
+ *  · SEVEN are genuinely new here and are added below: `void` on `panel` / `cursor` / `border`
+ *    (the frame's inner keyline and its recess well), `cursor` on `void` (the light plate against
+ *    the field), `panel` on `cursor` and on `border` (the light plate's rule, inner line and recess
+ *    dither), and `border` on `cursor` (the recess FILL — a fill, so `plate` and not `mark`).
+ *  · Adding them means `void` STOPS BEING A DECLARED GROUND. It is still the field behind
+ *    everything, and things are still drawn on it — but it is now also ink, because both polarities
+ *    cut their inner line and their recess out of it. A role that is only ever a ground gets no
+ *    pairing of its own, which is exactly how these three hid.
+ *  · ONE IS REJECTED. `outer line on the field` under the light polarity is `void` on `void`,
+ *    1.000 : 1. `theme.ts` scores it in an `edge` tier that floors at 1 and can never fail, and it
+ *    is right to: Gold's black keyline over a dark scene is SUPPOSED to merge into it, and the
+ *    near-white plate carries the edge at 19.153 : 1 on its own. Adding a pairing that is asserted
+ *    against nothing would be ceremony, and adding it at any real floor would red a box that looks
+ *    correct. It is named here instead, which is the honest place for it.
+ *  · ONE TIER IS DELIBERATELY NOT ADOPTED. `theme.ts` scores `plate on the field` as a `mark`
+ *    (floor 3); this gate scores `panel` on `void` as a `plate` (floor 1.1) and measures 3.116, so
+ *    the two agree today and would diverge on the next re-freeze. The gate's reading is kept: the
+ *    box's edge against the field is carried by the `border` ring, which is enumerated separately
+ *    and reads 10.955 : 1 there. Holding the FILL to a mark floor as well would make the same edge
+ *    pay twice, and would red the Legacy card's 1.217 : 1 plate for a fill nobody reads.
+ *
+ * NOTE WHAT IS NOT CLAIMED. `assets/raw/_ui-frames/` is candidate art; nothing under `game/`
+ * imports `tools/ui-frames`, so these boxes are not on screen yet. Every ROLE in the seven is
+ * already painted by shipped code, which is why they can be measured at all — what the frames add
+ * is the pairing, and modelling it now is what stops the next re-freeze from breaking a surface
+ * that lands after this file was last read.
+ */
+
 const SPECS: readonly TableSpec[] = [
   {
     name: "game/ui/Palette.ts UI_SWATCH",
     table: UI_SWATCH,
-    // `void` is the field behind everything; nothing is drawn behind IT.
-    ground: ["void"],
+    // `void` is the field behind everything — and, since the frames, ALSO the inner keyline and the
+    // recess cut into a plate. It is therefore no longer a pure ground; see the block above.
+    ground: [],
     fallback: [{ on: "panel", kind: "text", why: ON_PLATE }],
     surfaces: {
-      panel: [{ on: "void", kind: "plate", why: "the plate is a region fill; its edge is `border`" }],
+      void: [
+        { on: "panel", kind: "mark", why: "the frame's inner line and recess keyline, cut into the dark plate" },
+        { on: "cursor", kind: "mark", why: "…and the outer keyline of the light-plate frame" },
+        { on: "border", kind: "mark", why: "inner line against outer line — the bevel's own step" },
+      ],
+      panel: [
+        { on: "void", kind: "plate", why: "the plate is a region fill; its edge is `border`" },
+        { on: "cursor", kind: "mark", why: "the light plate's band rule and inner line" },
+        { on: "border", kind: "mark", why: "the light plate's recess dither, over the recess fill" },
+      ],
       hpTrack: [{ on: "panel", kind: "plate", why: "the HP bar's trough — a fill inside the card" }],
-      cursor: [{ on: "panel", kind: "mark", why: "the selection bar is a mark, not a label" }],
+      cursor: [
+        { on: "panel", kind: "mark", why: "the selection bar is a mark, not a label" },
+        { on: "void", kind: "plate", why: "the light-polarity frame's whole fill, against the field" },
+      ],
       border: [
         { on: "panel", kind: "mark", why: "the plate's stroke, read from inside" },
         { on: "void", kind: "mark", why: "…and from outside; it is the card's edge on both sides" },
+        { on: "cursor", kind: "plate", why: "the recess well's FILL inside the light plate — not its stroke" },
       ],
       textDisabled: [{ on: "panel", kind: "inactive", why: "a row core refused — still has to name it" }],
       cursorInk: [{ on: "cursor", kind: "text", why: "the focused row's label sits ON the bar" }],
@@ -293,6 +383,50 @@ const SPECS: readonly TableSpec[] = [
       seasonStart: [{ on: "empty", kind: "mark", why: "a pip is a 6×10 block, not a glyph" }],
     },
   },
+  {
+    name: "game/scenes/DialogueScene.ts DIALOGUE_SWATCH_ID",
+    table: DIALOGUE_SWATCH_ID,
+    /*
+     * `box` is the ground for the same reason `empty` is the season meter's: the text box is drawn
+     * OVER generated town and route art, so there is no palette swatch behind it to measure against
+     * — the box is what everything in it is read on, and the `border` ring is what separates it from
+     * whatever the map happens to be.
+     *
+     * This table did not exist when this gate was written. The box painted `0x101317`, `0xe8e4c9`,
+     * `#e8e4c9` and `#7d8478` straight into its style block — the same four hexes
+     * `RetirementScene` and `SeasonMeter` each record as the defect they replaced — so the one
+     * widget that puts `data/dialogue.json` on the screen was outside the freeze AND outside every
+     * contrast check in the build at once.
+     */
+    ground: ["box"],
+    fallback: [{ on: "box", kind: "text", why: "a corpus line, the speaker's name plate, a choice row" }],
+    surfaces: {
+      border: [{ on: "box", kind: "mark", why: "the box's 1px frame — a stroke, not a label" }],
+    },
+  },
+];
+
+/**
+ * The one inactive pairing allowed to sit above the TEXT floor, and why it may.
+ *
+ * A CEILING, never a licence — the same shape `tests/unit/survey-view.test.ts` uses for the raw-hex
+ * ban, and with the same expiry: the test below fails if a row here stops being a violation, so the
+ * allowance cannot outlive its reason.
+ *
+ * `cursorInkDim` on `cursor` reads 5.685 : 1. The repair is not available inside the 32 shipped
+ * swatches and was not left un-attempted: all of them were measured against the band a dim role must
+ * occupy on the `c03` plate — at or above the `inactive` floor of 3 : 1, and under `cursorInkMuted`
+ * or the ladder inverts outright. Every swatch in that band is a saturated hue (CIELAB C* 33 to 76);
+ * the palette's neutrals bracket it and miss, `c01` (C* 9.2) landing 0.237 under the floor and `c06`
+ * (C* 14.7) 0.330 over the ceiling. The fix is the appended `c36` #7e7c7f — C* 1.9, 3.855 : 1 on the
+ * plate — which is held pending the art session's recipe sweep. `game/ui/Palette.ts`'s
+ * `cursorInkDim` carries the full measurement and the one alternative that needs no append.
+ *
+ * Choosing a worse in-band swatch to empty this list would move a number and leave the screen wrong,
+ * which is the failure this whole file was written about.
+ */
+const BODY_TEXT_INACTIVE_EXEMPT: readonly string[] = [
+  "game/ui/Palette.ts UI_SWATCH.cursorInkDim on cursor",
 ];
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -427,6 +561,60 @@ describe("gate: the UI is legible against the palette that shipped", () => {
       }
     }
     expect(compared, "no inactive role was compared to anything — the loop found nothing").toBeGreaterThan(0);
+  });
+
+  it("an inactive role is not BODY-TEXT strength, so 'dimmer' is a reading and not a rounding", () => {
+    /*
+     * WHY THE TEST ABOVE WAS NOT ENOUGH, MEASURED.
+     *
+     * It asserts a strict inequality and nothing more. On the light `cursor` bar the shipped
+     * palette gives `cursorInkDim` 5.685 : 1 and `cursorInkMuted` 5.816 : 1 — so the refused row IS
+     * dimmer, by a factor of 1.023, and the guard passes. On the screen it does not: `c19` is a
+     * green (CIELAB C* 41.7, hue 144°) in a ladder that is otherwise warm neutrals, and
+     * `game/ui/BattleMenuPanel.ts` `ROW_ROLES.focusedClosed` paints it on a cream bar, so the rows
+     * the engine has REFUSED are the two loudest in the menu. An ordering true to three decimal
+     * places and false at arm's length is not a guard, and this is the second time this repo has
+     * shipped that exact inversion.
+     *
+     * THE PROPERTY, stated so it can fail: the `inactive` tier exists (see {@link Kind}) to hold a
+     * refused control to the NON-TEXT floor instead of the text one. A role that takes that
+     * exemption and then lands ABOVE 4.5 : 1 anyway is not using the tier — it is body text wearing
+     * the tier's name. So an inactive pairing must sit under `FLOOR.text`.
+     *
+     * `FLOOR.text` is WCAG 1.4.3 as published; no ratio measured off the shipped freeze appears in
+     * this test, which is the header's rule and the reason `battle-view.test.ts`'s fossilised 5.29
+     * is cited there as what not to do.
+     */
+    const failures: string[] = [];
+    const seen = new Set<string>();
+    for (const spec of SPECS) {
+      for (const pairing of pairingsFor(spec).filter((p) => p.kind === "inactive")) {
+        const key = `${spec.name}.${pairing.fgRole} on ${pairing.bgRole}`;
+        seen.add(key);
+        const ratio = contrastRatio(shipped(pairing.fgId), shipped(pairing.bgId));
+        const exempt = BODY_TEXT_INACTIVE_EXEMPT.includes(key);
+        if (!exempt && ratio >= FLOOR.text) {
+          failures.push(
+            `${key} (${pairing.fgId} on ${pairing.bgId}) reads ${ratio.toFixed(3)} : 1 — at or above ` +
+              `the ${String(FLOOR.text)} : 1 TEXT floor, so it is not a dim role at all. Re-point it at ` +
+              "a swatch under that floor on the surface it is drawn on.",
+          );
+        }
+        if (exempt && ratio < FLOOR.text) {
+          failures.push(
+            `${key} now reads ${ratio.toFixed(3)} : 1 and clears the rule on its own. DELETE its row ` +
+              "from BODY_TEXT_INACTIVE_EXEMPT — an allowance that has outlived its defect is an " +
+              "allowance nobody will ever remove.",
+          );
+        }
+      }
+    }
+    // A named exemption for a pairing that no longer exists checks nothing and hides the next one.
+    for (const key of BODY_TEXT_INACTIVE_EXEMPT) {
+      expect(seen, `BODY_TEXT_INACTIVE_EXEMPT names "${key}", which is not an inactive pairing`).toContain(key);
+    }
+    expect(seen.size, "no inactive pairing was enumerated — the filter found nothing").toBeGreaterThan(0);
+    expect(failures, failures.join("\n  ")).toEqual([]);
   });
 
   it("the contrast maths is WCAG's, checked against WCAG's own anchors and not against a freeze", () => {
@@ -569,6 +757,41 @@ describe("gate: BINDS — the failures it is meant to catch, replayed against it
     // That slot is also `game/survey-view.ts`'s `inkCollapsed`, so one value moving takes two
     // screens with it — the positional-palette hazard in one line.
     expect(report).toContain("game/survey-view.ts SCREEN_SWATCH_ID");
+  });
+
+  it("BINDS — the dialogue box's REAL style object is the palette, not a table beside four hexes", () => {
+    /*
+     * Bound to `defaultDialogueStyle(balance)` — the object `createDialogueScene` actually draws
+     * from — and not to `DIALOGUE_SWATCH_ID`, because a table that is right while the style block
+     * still holds hexes is the exact state this repair found. `RetirementScene` was repaired the
+     * same way and pinned the same way, and `DialogueScene` had re-typed two of its hexes verbatim.
+     *
+     * Both forms, because Phaser takes `0xRRGGBB` for a fill and a CSS string for text: the two
+     * halves of this style block are what drifted apart everywhere else this defect appeared.
+     */
+    const style = defaultDialogueStyle(SHIPPED_BALANCE);
+    const asHex = (color: number): string => `#${color.toString(16).padStart(6, "0")}`;
+    expect(asHex(style.boxColor), "boxColor").toBe(shipped(DIALOGUE_SWATCH_ID.box));
+    expect(asHex(style.borderColor), "borderColor").toBe(shipped(DIALOGUE_SWATCH_ID.border));
+    expect(style.textColor.toLowerCase(), "textColor").toBe(shipped(DIALOGUE_SWATCH_ID.text));
+    expect(style.dimColor.toLowerCase(), "dimColor").toBe(shipped(DIALOGUE_SWATCH_ID.dim));
+
+    // …and none of the four it replaced is a swatch, which is the whole premise. If a later fit
+    // happened to reintroduce one, this going red is correct: the docstring would then be false.
+    const swatches = new Set(SHIPPED_HEX.values());
+    for (const gone of ["#101317", "#e8e4c9", "#7d8478"]) {
+      expect(swatches.has(gone), `${gone} IS a swatch — the premise has changed`).toBe(false);
+    }
+  });
+
+  it("BINDS — a re-freeze that drags the box's ink onto the box is named, table and role", () => {
+    // The same rehearsal the two above run, aimed at the table this gate did not use to carry. The
+    // box is `c00`; drag `dim` (`c01`) to a near-black and the speaker's own name plate goes.
+    const dimId = DIALOGUE_SWATCH_ID.dim;
+    const boxId = DIALOGUE_SWATCH_ID.box;
+    const report = violations(reFrozen({ [dimId]: "#060409" })).join("\n");
+    expect(report).toContain(`dim(${dimId}) on box(${boxId})`);
+    expect(report).toContain("game/scenes/DialogueScene.ts DIALOGUE_SWATCH_ID");
   });
 
   it("CONTROL — the unmodified palette produces no violation, so the reds above are the sabotage", () => {

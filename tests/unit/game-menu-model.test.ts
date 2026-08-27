@@ -260,21 +260,17 @@ describe("UI colours come from data/palette.json, not from hexes typed into a sc
     // Palette compliance that made the menu unreadable would be a different defect, not a fix.
     // (Why the battle HUD's UI_SWATCH is not reused instead is the next test, which reads that
     // table out of the palette rather than restating a swatch id.)
-    const rgb = (hex: string): [number, number, number] => [
-      Number.parseInt(hex.slice(1, 3), 16) / 255,
-      Number.parseInt(hex.slice(3, 5), 16) / 255,
-      Number.parseInt(hex.slice(5, 7), 16) / 255,
-    ];
-    const lum = (hex: string): number => {
-      const f = (c: number): number => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-      const [r, g, b] = rgb(hex);
-      return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-    };
-    const bg = lum(UI.bg);
+    //
+    // THE MATHS IS IMPORTED, and it was not always. This test used to carry its own inline copy of
+    // WCAG relative luminance — a fourth-hand transcription of the coefficients, the 0.03928 knee
+    // and the +0.05 flare, sitting eleven lines below an `import { contrastRatio }` that was already
+    // in this file. `tests/gates/ui-contrast-contract.test.ts` recorded it as a finding it could not
+    // reach from its own scope. Two implementations of one metric agree until the day they do not,
+    // and then the disagreement reads as a palette problem: that is the class of defect this repo
+    // has already paid for twice (game/ui/Palette.ts's header, and the fossilised 5.29 in
+    // battle-view.test.ts). One implementation, in the module the game actually paints from.
     for (const role of ["text", "dim", "accent", "danger", "ok"] as const) {
-      const l = lum(UI[role]);
-      const ratio = (Math.max(l, bg) + 0.05) / (Math.min(l, bg) + 0.05);
-      expect(ratio, `${role} contrast on bg`).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(UI[role], UI.bg), `${role} contrast on bg`).toBeGreaterThanOrEqual(4.5);
     }
   });
 

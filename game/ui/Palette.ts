@@ -196,7 +196,40 @@ export const UI_SWATCH = {
   cursorInk: "c04",
   /** The focused row's detail column, drawn ON the cursor bar. */
   cursorInkMuted: "c07",
-  /** A focused row core refused, drawn ON the cursor bar. Dimmer than `cursorInkMuted`, not redder. */
+  /**
+   * A focused row core refused, drawn ON the cursor bar. Dimmer than `cursorInkMuted`, not redder.
+   *
+   * ⚠ OPEN DEFECT, MEASURED, AND BLOCKED ON THE PALETTE APPEND — do not "fix" it by re-picking
+   * from the 32 that are here. `c19` is a GREEN (#2d6f38, CIELAB C* 41.7, hue 144°) on a cream
+   * plate whose ink ladder is otherwise all warm neutrals (`cursorInk` c04 h 32°, `cursorInkMuted`
+   * c07 h 55°). It reads 5.685 : 1 where `cursorInkMuted` reads 5.816 : 1 — the refused row is
+   * 1.023× dimmer than the live one, which is an ordering that is true in the arithmetic and false
+   * on the screen. `game/ui/BattleMenuPanel.ts` `ROW_ROLES.focusedClosed` paints it today, so the
+   * two most eye-catching rows in the battle menu are the two the engine has REFUSED. That is the
+   * inversion this file's own header was written about, one hue later.
+   *
+   * WHY NOTHING HERE CAN SERVE. A greyed row wants a NEUTRAL. The band a dim role must occupy on
+   * the `c03` plate is [3 : 1 — the gate's `inactive` floor] to [5.816 : 1 — `cursorInkMuted`,
+   * or the ladder inverts]. All 32 were measured against it. The six swatches in the band are
+   * c25 (C* 33.1), c09 (39.6), c19 (41.7), c28 (42.3), c20 (61.0), c08 (76.2) — every one a
+   * saturated hue, none a neutral, and `c09` (the swatch the frame lane proposed) is neither the
+   * least chromatic of them nor free: it is already `menu-model.ts` `danger` and `survey-view.ts`
+   * `inkCollapsed`. The file's actual neutrals bracket the band and miss it: `c01` (#8898a5,
+   * C* 9.2, the one true mid grey) reads 2.763 : 1 — 0.237 UNDER the inactive floor — and `c06`
+   * (#74564e, C* 14.7) reads 6.146 : 1, 0.330 OVER `cursorInkMuted`.
+   *
+   * THE FIX is the appended `c36` #7e7c7f: C* 1.9, L* 52.3, 3.855 : 1 on the plate — a true
+   * neutral, in the band, colliding with no role. It is held pending the art session's recipe
+   * sweep. When it lands, this role takes it and the exemption in
+   * `tests/gates/ui-contrast-contract.test.ts` ("an inactive role is not BODY-TEXT strength")
+   * goes stale, which that gate fails on deliberately so the exemption cannot outlive its reason.
+   *
+   * The one repair available without the append is to widen the band from the other end — move
+   * `cursorInkMuted` to `c05` (10.225 : 1) and this role to `c06` (6.146 : 1), giving a
+   * 15.741 / 10.225 / 6.146 ladder with 1.54× and 1.66× between steps instead of 2.71× and 1.02×.
+   * It is NOT taken here: it re-levels a role that is not defective, and it would be undone by the
+   * append it is a substitute for. Recorded so the choice is Hank's rather than lost.
+   */
   cursorInkDim: "c19",
   /** HP healthy. */
   hpHigh: "c22",

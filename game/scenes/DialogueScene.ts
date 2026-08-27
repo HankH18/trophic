@@ -36,9 +36,68 @@ import {
 } from "@game/dialogue-runner";
 import { SCENE_KEYS } from "@game/scene-keys";
 import { TEXT_SPEED_CPS, registry, type TextSpeed } from "@game/registry";
+import { swatchColor, swatchHex } from "@game/ui/Palette";
 
 /** From the ONE registry (game/scene-keys.ts) — never a second spelling declared here. */
 export const DIALOGUE_SCENE_KEY = SCENE_KEYS.dialogue;
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The box's colours (build-doc §8.4)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The four colours the text box paints with, as PALETTE IDS.
+ *
+ * THE DEFECT THIS REPLACES: {@link defaultDialogueStyle} wrote out `0x101317`, `0xe8e4c9`,
+ * `#e8e4c9` and `#7d8478`, and **not one of them is one of the 32 swatches** `data/palette.json`
+ * holds. Three of the four are not new: `0xe8e4c9`/`#e8e4c9` is named verbatim in BOTH
+ * `game/scenes/RetirementScene.ts` `RETIREMENT_SWATCH_ID` and `game/ui/SeasonMeter.ts`
+ * `SEASON_METER_SWATCH_ID` as the defect each of them replaced, and `#7d8478` in the first of those
+ * — re-typed here into a third style block while a raw-hex ceiling sized to exactly four sat over
+ * this file and stayed green. (`0x101317` is still live in `game/scenes/YearTurnScene.ts`, with
+ * `#e8e4c9` and `#7d8478` beside it: same three, a fourth style block, another lane's scope.)
+ * `data/palette.json` is `"frozen": true` and the freeze is a VALUE SWAP over
+ * stable ids (build-doc §8.4), so a hex typed into a style block survives it untouched and then
+ * disagrees with every generated asset drawn beside it — and this box is the widget that puts
+ * `data/dialogue.json` on the screen, over the painted town and route art, so it is one of the two
+ * places (with the season meter) where UI pixels sit directly against generated pixels.
+ *
+ * They live here, above the Phaser class, for the reason `game/menu-model.ts` states: a palette
+ * rule inside a scene is a rule no node test can import. This scene is engine-free at runtime
+ * (`import type PhaserNS` only), so this table AND the style object it feeds are both reachable
+ * from `tests/gates/ui-contrast-contract.test.ts`, which recomputes every ratio below.
+ *
+ * ROLES FOLLOW THE HOUSE TABLE in `game/menu-model.ts` (`UI_SWATCH_ID`), the same way
+ * `RETIREMENT_SWATCH_ID` does, so the box, the menu and the Legacy card are one palette: `box` is
+ * that table's `bg` (`c00`), `text` its `text` (`c03`), `dim` its `dim` (`c01`). `border` has no
+ * counterpart there — the C1 screens have no plate and therefore no stroke — so it takes
+ * `game/ui/Palette.ts`'s `UI_SWATCH.border` (`c12`), the build's one muted neutral hairline.
+ *
+ * MEASURED against the shipped frozen file, with the hex each id replaces in brackets:
+ *   `text` (#faf7eb) on the box  19.15 : 1  [#e8e4c9 on #101317 was 14.52 : 1]
+ *   `dim`  (#8898a5) on the box   6.93 : 1  [#7d8478 on #101317 was  4.83 : 1]
+ *   `border` (#c8bca5) on the box 10.95 : 1 — a MARK (WCAG 1.4.11's 3 : 1), not a label
+ *     [the hexes made the border and the body copy the SAME colour, #e8e4c9: the frame competed
+ *      with the sentence inside it. A role names one surface, so the stroke is its own swatch now.]
+ * `dim` is held to the 4.5 : 1 TEXT floor rather than to a dimmer one because it is not a greyed
+ * role: it paints the speaker's name plate, the ▼ advance marker, and every choice row the cursor
+ * is not on — and an unselected choice is a row the player is about to take, not one refused.
+ *
+ * The box is chosen darkest-first (`c00`) because it is drawn OVER generated map art rather than
+ * over a palette ground: `#101317` was already near-black, `c00` is 5.1 ΔE from it and is the
+ * nearest swatch in the file, and the light `border` — not the plate — is what gives the box its
+ * edge against whatever the map happens to be behind it.
+ */
+export const DIALOGUE_SWATCH_ID = {
+  /** The box's fill, and the choice panel's. Drawn over the map, so: the darkest plate there is. */
+  box: "c00",
+  /** The 1px frame around both boxes. A stroke, never a label. */
+  border: "c12",
+  /** Body copy, and the choice row the cursor is on. */
+  text: "c03",
+  /** The speaker's name plate, the advance marker, and a choice row the cursor is not on. */
+  dim: "c01",
+} as const;
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Layout — presentation only. Not gameplay tunables (G11).
@@ -92,10 +151,13 @@ export function defaultDialogueStyle(balance: Balance): DialogueStyle {
     charWidth: 6,
     bodyLines: 3,
     advanceArmFrames: 4,
-    boxColor: 0x101317,
-    borderColor: 0xe8e4c9,
-    textColor: "#e8e4c9",
-    dimColor: "#7d8478",
+    // Resolved through `game/ui/Palette.ts`, never typed — see {@link DIALOGUE_SWATCH_ID}. Two
+    // forms because Phaser takes `0xRRGGBB` for a fill and a CSS string for text, and a style block
+    // that resolved one correctly and the other by hand is precisely how this file got here.
+    boxColor: swatchColor(DIALOGUE_SWATCH_ID.box),
+    borderColor: swatchColor(DIALOGUE_SWATCH_ID.border),
+    textColor: swatchHex(DIALOGUE_SWATCH_ID.text),
+    dimColor: swatchHex(DIALOGUE_SWATCH_ID.dim),
     fontFamily: "monospace",
     fontSize: "10px",
     nameSize: "10px",
