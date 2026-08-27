@@ -62,16 +62,21 @@
       "components": 194,
       "tinyComponents": 119,
       "edgeDensity": 0.83,
-      "starPixels": 0,
-      "starRows": [],
+      "starPixels": 16,
+      "starRows": [
+        4,
+        5,
+        6,
+        7
+      ],
       "bbox": {
         "x0": 0,
         "y0": 0,
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": null,
-      "strapSlope": null,
+      "satchelCentroidRel": 0.315,
+      "strapSlope": -0.033,
       "beltSwatches": [
         "#054114",
         "#321410",
@@ -140,12 +145,12 @@
       "id": "back  DERIVED",
       "source": "assets/approved-trials/_player-views/derived/player-back-32x48.png",
       "method": "derived: mirror + 6 edits",
-      "opaque": 1165,
-      "distinctSwatches": 19,
-      "edgePairs": 973,
-      "components": 197,
-      "tinyComponents": 123,
-      "edgeDensity": 0.8352,
+      "opaque": 1145,
+      "distinctSwatches": 18,
+      "edgePairs": 925,
+      "components": 175,
+      "tinyComponents": 112,
+      "edgeDensity": 0.8079,
       "starPixels": 0,
       "starRows": [],
       "bbox": {
@@ -154,17 +159,15 @@
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": null,
-      "strapSlope": null,
+      "satchelCentroidRel": 0.685,
+      "strapSlope": 0.004,
       "beltSwatches": [
         "#054114",
         "#321410",
         "#49ae53",
         "#642c16",
-        "#8898a5",
         "#8c5230",
         "#aa7241",
-        "#d2e0e2",
         "#f3a262",
         "#f7c398",
         "#f9dab4"
@@ -178,43 +181,41 @@
       "bootOpaque": 111,
       "bands": {
         "star yellow": {
-          "total": 16,
-          "dominant": "#f8d80f",
-          "swatches": {
-            "#f8d80f": 16
-          }
+          "total": 0,
+          "dominant": null,
+          "swatches": {}
         },
         "shirt/cap green": {
-          "total": 358,
+          "total": 401,
           "dominant": "#49ae53",
           "swatches": {
-            "#49ae53": 286,
-            "#2d6f38": 72
+            "#49ae53": 248,
+            "#2d6f38": 153
           }
         },
         "skin": {
-          "total": 79,
+          "total": 69,
           "dominant": "#f3a262",
           "swatches": {
-            "#f3a262": 72,
-            "#f7c398": 7
+            "#f3a262": 63,
+            "#f7c398": 6
           }
         },
         "leather brown": {
-          "total": 227,
+          "total": 321,
           "dominant": "#642c16",
           "swatches": {
-            "#642c16": 113,
+            "#642c16": 207,
             "#8c5230": 105,
             "#aa7241": 9
           }
         },
         "dark outline": {
-          "total": 147,
+          "total": 134,
           "dominant": "#321410",
           "swatches": {
-            "#040308": 35,
-            "#321410": 111,
+            "#040308": 5,
+            "#321410": 128,
             "#272940": 1
           }
         }
@@ -224,22 +225,25 @@
       "id": "side  DERIVED",
       "source": "assets/approved-trials/_player-views/derived/player-side-32x48.png",
       "method": "derived: squeeze + authored head",
-      "opaque": 1192,
-      "distinctSwatches": 16,
-      "edgePairs": 784,
-      "components": 128,
-      "tinyComponents": 58,
-      "edgeDensity": 0.6577,
-      "starPixels": 0,
-      "starRows": [],
+      "opaque": 750,
+      "distinctSwatches": 15,
+      "edgePairs": 571,
+      "components": 112,
+      "tinyComponents": 75,
+      "edgeDensity": 0.7613,
+      "starPixels": 2,
+      "starRows": [
+        5,
+        6
+      ],
       "bbox": {
-        "x0": 0,
-        "y0": 0,
-        "x1": 31,
+        "x0": 6,
+        "y0": 1,
+        "x1": 27,
         "y1": 47
       },
-      "satchelCentroidRel": null,
-      "strapSlope": null,
+      "satchelCentroidRel": 0.298,
+      "strapSlope": -0.169,
       "beltSwatches": [
         "#054114",
         "#321410",
@@ -248,9 +252,7 @@
         "#8898a5",
         "#8c5230",
         "#aa7241",
-        "#d2e0e2",
         "#f3a262",
-        "#f7c398",
         "#f9dab4"
       ],
       "bootSwatches": [
@@ -259,47 +261,46 @@
         "#642c16",
         "#8c5230"
       ],
-      "bootOpaque": 110,
+      "bootOpaque": 75,
       "bands": {
         "star yellow": {
-          "total": 4,
+          "total": 2,
           "dominant": "#f8d80f",
           "swatches": {
-            "#f8d80f": 4
+            "#f8d80f": 2
           }
         },
         "shirt/cap green": {
-          "total": 330,
+          "total": 229,
           "dominant": "#49ae53",
           "swatches": {
-            "#49ae53": 258,
-            "#2d6f38": 72
+            "#49ae53": 179,
+            "#2d6f38": 50
           }
         },
         "skin": {
-          "total": 42,
+          "total": 19,
           "dominant": "#f3a262",
           "swatches": {
-            "#f3a262": 41,
-            "#f7c398": 1
+            "#f3a262": 19
           }
         },
         "leather brown": {
-          "total": 266,
+          "total": 179,
           "dominant": "#642c16",
           "swatches": {
-            "#642c16": 170,
-            "#8c5230": 89,
-            "#aa7241": 7
+            "#642c16": 107,
+            "#8c5230": 68,
+            "#aa7241": 4
           }
         },
         "dark outline": {
-          "total": 137,
+          "total": 83,
           "dominant": "#321410",
           "swatches": {
-            "#321410": 126,
-            "#040308": 9,
-            "#272940": 2
+            "#321410": 74,
+            "#040308": 8,
+            "#272940": 1
           }
         }
       }
@@ -314,16 +315,23 @@
       "components": 194,
       "tinyComponents": 122,
       "edgeDensity": 0.8494,
-      "starPixels": 0,
-      "starRows": [],
+      "starPixels": 14,
+      "starRows": [
+        9,
+        10,
+        11,
+        21,
+        34,
+        37
+      ],
       "bbox": {
         "x0": 0,
         "y0": 0,
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": null,
-      "strapSlope": null,
+      "satchelCentroidRel": 0.627,
+      "strapSlope": 0.1,
       "beltSwatches": [
         "#040308",
         "#321410",
@@ -406,16 +414,25 @@
       "components": 177,
       "tinyComponents": 109,
       "edgeDensity": 0.8447,
-      "starPixels": 0,
-      "starRows": [],
+      "starPixels": 15,
+      "starRows": [
+        3,
+        4,
+        5,
+        6,
+        11,
+        17,
+        32,
+        33
+      ],
       "bbox": {
         "x0": 0,
         "y0": 0,
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": null,
-      "strapSlope": null,
+      "satchelCentroidRel": 0.148,
+      "strapSlope": -0.053,
       "beltSwatches": [
         "#040308",
         "#321410",
@@ -496,16 +513,24 @@
       "components": 173,
       "tinyComponents": 118,
       "edgeDensity": 0.7186,
-      "starPixels": 0,
-      "starRows": [],
+      "starPixels": 18,
+      "starRows": [
+        8,
+        9,
+        10,
+        11,
+        30,
+        36,
+        41
+      ],
       "bbox": {
         "x0": 0,
         "y0": 0,
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": null,
-      "strapSlope": null,
+      "satchelCentroidRel": 0.713,
+      "strapSlope": -0.044,
       "beltSwatches": [
         "#321410",
         "#642c16",
@@ -584,16 +609,23 @@
       "components": 166,
       "tinyComponents": 94,
       "edgeDensity": 0.7878,
-      "starPixels": 0,
-      "starRows": [],
+      "starPixels": 16,
+      "starRows": [
+        4,
+        5,
+        6,
+        7,
+        35,
+        36
+      ],
       "bbox": {
         "x0": 0,
         "y0": 0,
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": null,
-      "strapSlope": null,
+      "satchelCentroidRel": 0.188,
+      "strapSlope": -0.175,
       "beltSwatches": [
         "#040308",
         "#054114",
@@ -677,16 +709,23 @@
       "components": 207,
       "tinyComponents": 135,
       "edgeDensity": 0.8704,
-      "starPixels": 0,
-      "starRows": [],
+      "starPixels": 18,
+      "starRows": [
+        4,
+        5,
+        6,
+        7,
+        18,
+        22
+      ],
       "bbox": {
         "x0": 0,
         "y0": 1,
         "x1": 31,
         "y1": 47
       },
-      "satchelCentroidRel": null,
-      "strapSlope": null,
+      "satchelCentroidRel": 0.348,
+      "strapSlope": -0.023,
       "beltSwatches": [
         "#054114",
         "#321410",

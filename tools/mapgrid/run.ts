@@ -13,13 +13,13 @@ import { zBalance } from '../../core/schemas';
 import type { Balance } from '../../core/types';
 
 /**
- * Parse balance.json through the ENGINE'S OWN schema and consistency check, not a hand-rolled read.
+ * Parse balance.json through the ENGINE'S OWN schema, not a hand-rolled read.
  *
  * `mapNativePx`, `collisionCols`, `collisionRows` and `collisionCellPx` are not four independent
- * numbers — they are three statements of one fact, and `zBalance` is the check that they agree.
- * A raw JSON.parse bypasses it, and then this tool would keep
- * cheerfully drawing a 64x64 grid while the engine refused to boot on the same file: an instrument
- * whose entire job is to be trusted over the eye, drawing a grid nobody samples.
+ * numbers — they are three statements of one fact, and `zBalance` is the check that they agree. A
+ * raw JSON.parse bypasses it, and then this tool would keep cheerfully drawing a 64x64 grid while
+ * the engine refused to boot on the same file: an instrument whose entire job is to be trusted
+ * over the eye, drawing a grid nobody samples.
  *
  * `zBalance` alone is sufficient, verified rather than assumed: it refuses all four drifts this
  * tool could care about (collisionCols, collisionRows, collisionCellPx, mapNativePx), each with a
