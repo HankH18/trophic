@@ -49,6 +49,16 @@ interface FakeObj {
   text: string;
   texture: string;
   wordWrapWidth: number | null;
+  /**
+   * What `setDisplaySize` was last told, or null.
+   *
+   * RECORDED RATHER THAN LEFT TO THE PROXY, because the size a real texture is drawn at is a
+   * correctness property and not a cosmetic one: a room's painting has to cover exactly the
+   * rectangle its ASCII plan describes or the walls stop lining up with what the player can walk
+   * through, and `MapView` has the same relationship to the 2048² world. A chainable no-op records
+   * nothing, so §16's sizing assertion would have passed against a call that never happened.
+   */
+  displaySize: { w: number; h: number } | null;
   destroyed: boolean;
   self?: FakeObj;
   destroy(): void;
@@ -96,6 +106,7 @@ vi.mock("phaser", () => {
       text: "",
       texture: "",
       wordWrapWidth: null as number | null,
+      displaySize: null as { w: number; h: number } | null,
       destroyed: false,
       setVisible(v: boolean): FakeObj {
         o.visible = v;
@@ -116,6 +127,10 @@ vi.mock("phaser", () => {
       },
       setWordWrapWidth(w: number): FakeObj {
         o.wordWrapWidth = w;
+        return o.self as FakeObj;
+      },
+      setDisplaySize(w: number, h: number): FakeObj {
+        o.displaySize = { w, h };
         return o.self as FakeObj;
       },
       destroy(): void {
@@ -363,7 +378,7 @@ import { validateContent } from "@core/schemas";
 import { EPILOGUE_SHOWN_FLAG, recordVellsireOutcome } from "@game/finale";
 import { linesMetAt } from "@game/quests";
 import { isNever } from "@core/lifecycle";
-import { propDialogueFor, runHeadless, transcript, type DialogueRunState } from "@game/dialogue-runner";
+import { propDialogueFor, runHeadless, talkEntryFor, transcript, type DialogueRunState } from "@game/dialogue-runner";
 import type { DialogueSceneData } from "@game/scenes/DialogueScene";
 import { encounterTable, stepsPerForay } from "@game/encounters";
 /*
@@ -380,28 +395,39 @@ import {
   planSize,
   type InteriorBlueprint,
 } from "@core/interiors";
-import { chooseSpawnTile } from "@game/collision";
-import { placeAt } from "@game/movement";
+import { chooseSpawnTile, loadCollision } from "@game/collision";
+import { createMovement, movementConfig, placeAt, spriteWorldPosition } from "@game/movement";
+// §15's reach question is asked through the SAME helpers `interact()` asks it through, so the
+// fixture and the scene cannot disagree about where a player standing on a tile actually is.
+import { propAt, propLabel, propsOf, type WorldPoint } from "@game/props";
 import { deserialize, newSave, openStreams, serialize, type SaveEnvelope } from "@core/save";
 /*
  * `subsystemRng` is deliberately NOT imported. §3 used to open its own battle stream with it; the
  * stream a battle must run off is the RUN's, which the scene hands over as `BattleSceneData.rng` —
  * see `fightWithSnares`. A fresh stream per fight is the exact thing `beginWildBattle` warns about.
  */
-import type { Balance, Content, NodeFile, NodeState } from "@core/types";
+import type { Balance, Content, NodeFile, NodeState, PropPlacement } from "@core/types";
 import { OverworldScene, type OverworldSceneData } from "@game/scenes/OverworldScene";
 import type { BattleSceneData } from "@game/scenes/BattleScene";
 import { SCENE_KEYS } from "@game/scene-keys";
 import { finishYearTurn, type YearTurnSceneData } from "@game/scenes/YearTurnScene";
 import { buildGymBattle } from "@game/gym-battle";
 import { PROVISIONAL_STARTER_UID, liveNodeOf, provisionalStarter } from "@game/wild-battle";
-import { maskTextureKey } from "@game/mapview";
+import { interiorAssetPath, interiorTextureKey, maskTextureKey } from "@game/mapview";
+import { assetId, hasRealAsset, registerRealAsset } from "@game/placeholder";
 import { encounterWeights, indexSpecies } from "@core/foodweb";
 
 const content: Content = validateContent();
 const balance: Balance = content.balance;
 const species = indexSpecies(content.species);
 const ROOT = fileURLToPath(new URL("../../", import.meta.url));
+
+/** What the stub hands `readMaskPixels` — the decoded shape `game/collision.ts` samples. */
+interface MaskPixelsForTest {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+}
 
 /** The node the vertical slice starts at (build-doc §1). Derived, never typed in (G2). */
 const SLICE_NODE = content.nodes.find((n) => n.walkable)?.id ?? content.nodes[0]!.id;
@@ -3157,105 +3183,114 @@ describe("§13 a save write made while the year turn holds the screen survives i
  *      had to walk before it believed the odometer persisted.
  * ════════════════════════════════════════════════════════════════════════════ */
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * Interiors — the rig §14 and §16 SHARE.
+ *
+ * At module scope rather than inside §14 because §16 walks the player through the same
+ * front door to ask a different question, and a second copy of "which tile is the door and
+ * how do you step onto it" is a rig that can disagree with itself about where the player is.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Every shipped blueprint, so a fifth room added tomorrow is covered without editing this file. */
+const ROOMS = [...INTERIORS];
+
+/**
+ * The door's tile in the parent town, restated from the blueprint and `balance.map` INDEPENDENTLY
+ * of the scene's own conversion.
+ *
+ * ⚠ IT IS DELIBERATELY NOT `scene.doorTileOf`. `InteriorDoor.x/y` are map-NATIVE pixels; a world
+ * pixel is `mapRenderScale` of one and a tile is `tileStepPx` world pixels. Calling the scene's
+ * helper here would make every assertion below agree with whatever the scene does, including
+ * dropping the render scale — which is exactly the mistake this restatement can catch.
+ */
+function doorTile(bp: InteriorBlueprint): { col: number; row: number } {
+  const step = balance.map.tileStepPx;
+  return {
+    col: Math.floor((bp.door.x * balance.map.mapRenderScale) / step),
+    row: Math.floor((bp.door.y * balance.map.mapRenderScale) / step),
+  };
+}
+
+/** The plan's one `D` cell. `core/interiors.ts` refuses a blueprint that draws any other number. */
+function planDoor(bp: InteriorBlueprint): { col: number; row: number } {
+  const cells = planCellsWith(bp.plan, PLAN_DOOR);
+  expect(cells.length, `${bp.id} does not draw exactly one doorway`).toBe(1);
+  return cells[0]!;
+}
+
+const DELTA = {
+  up: { dCol: 0, dRow: -1 },
+  down: { dCol: 0, dRow: 1 },
+  left: { dCol: -1, dRow: 0 },
+  right: { dCol: 1, dRow: 0 },
+} as const;
+type Dir = keyof typeof DELTA;
+
+/** Which single step takes you from `from` to the adjacent `to`. */
+function dirFromTo(from: { col: number; row: number }, to: { col: number; row: number }): Dir {
+  const found = (Object.keys(DELTA) as Dir[]).find(
+    (d) => from.col + DELTA[d].dCol === to.col && from.row + DELTA[d].dRow === to.row,
+  );
+  expect(found, `${from.col},${from.row} and ${to.col},${to.row} are not neighbours`).toBeDefined();
+  return found as Dir;
+}
+
+/**
+ * Stand one tile back and take the ONE step that lands on `tile`.
+ *
+ * A step, not a teleport: the whole mechanism under test is `onStepCompleted`, and placing the
+ * player on the tile directly would prove nothing about it.
+ */
+function stepOnto(h: Harness, tile: { col: number; row: number }, dir: Dir): void {
+  const back = DELTA[dir];
+  h.scene.movement = placeAt(h.scene.movement, { col: tile.col - back.dCol, row: tile.row - back.dRow });
+  h.hold(dir, true);
+  h.frame();
+  h.hold(dir, false);
+}
+
+/**
+ * Walk the player in through the front door, answering whatever the walk ran into on the way.
+ *
+ * The step onto a threshold is an ordinary outdoor foray step — it rolls, and at the shipped rates
+ * one step in twenty or so meets something — so a fight or a year turn can land on the very frame
+ * the player would have gone inside, and the scene deliberately lets the creature have that step.
+ * This retries rather than pretending it is rare.
+ */
+function goInside(h: Harness, bp: InteriorBlueprint): void {
+  const door = doorTile(bp);
+  // Approach from the north so the step is a plain one; which side does not matter to the scene,
+  // and the synthesised town grid is open everywhere but its border.
+  for (let attempt = 0; attempt < 8 && h.scene.currentInterior() === null; attempt += 1) {
+    settleBattle(h, "fled");
+    settleYearTurn(h);
+    stepOnto(h, door, "down");
+  }
+  expect(h.scene.currentInterior()?.id, `the rig never got the player into ${bp.id}`).toBe(bp.id);
+}
+
+/** A save standing in a room's parent town, with that town's populations wiped to zero. */
+function saveAtTown(bp: InteriorBlueprint, quiet = true): SaveEnvelope {
+  const save = freshSave(bp.parentNode);
+  if (!quiet) return save;
+  /*
+   * ZEROED ON PURPOSE, and only where determinism is the point: with no weight in the table the
+   * encounter roll cannot return anything, so the step onto the threshold is guaranteed clean and
+   * the assertions below are about the door rather than about a seed. The guard tests further
+   * down do NOT rely on this — they measure the RNG stream, which advances whether or not the
+   * table has weight in it.
+   */
+  const zeros: Record<string, number> = {};
+  for (const lineId of Object.keys(nodeFile(bp.parentNode).populations)) zeros[lineId] = 0;
+  return withCounts(save, bp.parentNode, zeros);
+}
+
+function mountAt(bp: InteriorBlueprint, quiet = true): Harness {
+  return mount({ save: saveAtTown(bp, quiet), startNode: bp.parentNode });
+}
+
+
 describe("§14 interiors: entering, leaving, and the foray that does not come inside", () => {
-  /** Every shipped blueprint, so a fifth room added tomorrow is covered without editing this file. */
-  const ROOMS = [...INTERIORS];
-
-  /**
-   * The door's tile in the parent town, restated from the blueprint and `balance.map` INDEPENDENTLY
-   * of the scene's own conversion.
-   *
-   * ⚠ IT IS DELIBERATELY NOT `scene.doorTileOf`. `InteriorDoor.x/y` are map-NATIVE pixels; a world
-   * pixel is `mapRenderScale` of one and a tile is `tileStepPx` world pixels. Calling the scene's
-   * helper here would make every assertion below agree with whatever the scene does, including
-   * dropping the render scale — which is exactly the mistake this restatement can catch.
-   */
-  function doorTile(bp: InteriorBlueprint): { col: number; row: number } {
-    const step = balance.map.tileStepPx;
-    return {
-      col: Math.floor((bp.door.x * balance.map.mapRenderScale) / step),
-      row: Math.floor((bp.door.y * balance.map.mapRenderScale) / step),
-    };
-  }
-
-  /** The plan's one `D` cell. `core/interiors.ts` refuses a blueprint that draws any other number. */
-  function planDoor(bp: InteriorBlueprint): { col: number; row: number } {
-    const cells = planCellsWith(bp.plan, PLAN_DOOR);
-    expect(cells.length, `${bp.id} does not draw exactly one doorway`).toBe(1);
-    return cells[0]!;
-  }
-
-  const DELTA = {
-    up: { dCol: 0, dRow: -1 },
-    down: { dCol: 0, dRow: 1 },
-    left: { dCol: -1, dRow: 0 },
-    right: { dCol: 1, dRow: 0 },
-  } as const;
-  type Dir = keyof typeof DELTA;
-
-  /** Which single step takes you from `from` to the adjacent `to`. */
-  function dirFromTo(from: { col: number; row: number }, to: { col: number; row: number }): Dir {
-    const found = (Object.keys(DELTA) as Dir[]).find(
-      (d) => from.col + DELTA[d].dCol === to.col && from.row + DELTA[d].dRow === to.row,
-    );
-    expect(found, `${from.col},${from.row} and ${to.col},${to.row} are not neighbours`).toBeDefined();
-    return found as Dir;
-  }
-
-  /**
-   * Stand one tile back and take the ONE step that lands on `tile`.
-   *
-   * A step, not a teleport: the whole mechanism under test is `onStepCompleted`, and placing the
-   * player on the tile directly would prove nothing about it.
-   */
-  function stepOnto(h: Harness, tile: { col: number; row: number }, dir: Dir): void {
-    const back = DELTA[dir];
-    h.scene.movement = placeAt(h.scene.movement, { col: tile.col - back.dCol, row: tile.row - back.dRow });
-    h.hold(dir, true);
-    h.frame();
-    h.hold(dir, false);
-  }
-
-  /**
-   * Walk the player in through the front door, answering whatever the walk ran into on the way.
-   *
-   * The step onto a threshold is an ordinary outdoor foray step — it rolls, and at the shipped rates
-   * one step in twenty or so meets something — so a fight or a year turn can land on the very frame
-   * the player would have gone inside, and the scene deliberately lets the creature have that step.
-   * This retries rather than pretending it is rare.
-   */
-  function goInside(h: Harness, bp: InteriorBlueprint): void {
-    const door = doorTile(bp);
-    // Approach from the north so the step is a plain one; which side does not matter to the scene,
-    // and the synthesised town grid is open everywhere but its border.
-    for (let attempt = 0; attempt < 8 && h.scene.currentInterior() === null; attempt += 1) {
-      settleBattle(h, "fled");
-      settleYearTurn(h);
-      stepOnto(h, door, "down");
-    }
-    expect(h.scene.currentInterior()?.id, `the rig never got the player into ${bp.id}`).toBe(bp.id);
-  }
-
-  /** A save standing in a room's parent town, with that town's populations wiped to zero. */
-  function saveAtTown(bp: InteriorBlueprint, quiet = true): SaveEnvelope {
-    const save = freshSave(bp.parentNode);
-    if (!quiet) return save;
-    /*
-     * ZEROED ON PURPOSE, and only where determinism is the point: with no weight in the table the
-     * encounter roll cannot return anything, so the step onto the threshold is guaranteed clean and
-     * the assertions below are about the door rather than about a seed. The guard tests further
-     * down do NOT rely on this — they measure the RNG stream, which advances whether or not the
-     * table has weight in it.
-     */
-    const zeros: Record<string, number> = {};
-    for (const lineId of Object.keys(nodeFile(bp.parentNode).populations)) zeros[lineId] = 0;
-    return withCounts(save, bp.parentNode, zeros);
-  }
-
-  function mountAt(bp: InteriorBlueprint, quiet = true): Harness {
-    return mount({ save: saveAtTown(bp, quiet), startNode: bp.parentNode });
-  }
-
   /* ── 14.1 the threshold, both ways ─────────────────────────────────────── */
 
   it.each(ROOMS.map((bp) => [bp.id, bp] as const))(
@@ -3304,7 +3339,10 @@ describe("§14 interiors: entering, leaving, and the foray that does not come in
        * would satisfy "they are outdoors and standing somewhere legal" and read as correct — which
        * is exactly what `buildNodeView` does for every OTHER placement in this scene.
        */
-      const spawn = chooseSpawnTile(h.scene.collision.grid, balance).tile;
+      // WITH THE PROPS, because `buildNodeView` passes them (§15) — a props-less recomputation here
+      // is a different tile from the one the scene would actually have respawned them on, so the
+      // degeneracy guard below would be checking the door against a spawn nothing produces.
+      const spawn = chooseSpawnTile(h.scene.collision.grid, balance, { props: propsOf(h.scene.node) }).tile;
       expect(
         doorTile(bp),
         `the fixture is degenerate: ${bp.id}'s door tile IS the town spawn, so this proves nothing`,
@@ -3703,5 +3741,331 @@ describe("§14 interiors: entering, leaving, and the foray that does not come in
     expect(hudObject, "no text object carries the interior's provenance line").toBeDefined();
     expect(typeof hudObject!.wordWrapWidth, "the interior HUD sets no wrap width").toBe("number");
     expect(hudObject!.wordWrapWidth as number).toBeLessThanOrEqual(balance.map.virtualWidth);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §15 the arrival tile is chosen clear of the props [E] reads
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * WHAT THIS SECTION IS ABOUT, AND WHAT IT IS NOT.
+ *
+ * `interact()` asks `propUnderPlayer()` FIRST and returns on a hit — deliberately, because a player
+ * standing at a signpost pressed [E] at the signpost. The consequence is that a spawn tile which
+ * happens to sit inside some prop's `interactionRadius` makes that prop the ONLY thing [E] can
+ * reach from where the player is put down: every talk entry the node ships — quest offers, the
+ * innkeeper, the vendor, every chain step — moves a tile away, behind a walk nothing on screen asks
+ * for. That is not a prop bug and not a dialogue bug; it is the arrival tile.
+ *
+ * `game/collision.ts` `chooseSpawnTile` can already avoid it: `SpawnOptions.props` spirals once
+ * accepting only tiles no prop covers, then falls back to the original spiral unchanged. That
+ * function is proven in tests/unit/spawn-props.test.ts and is NOT what this section re-tests. What
+ * is tested here is the only thing those tests structurally cannot see — that the SCENE asks it.
+ * `chooseSpawnTile(grid, balance)` with the props left off typechecks, keeps every collision test
+ * green, and puts the player straight back under the sign.
+ *
+ * ONE GEOMETRY, NOT TWO. The stub loads no textures, so `buildNodeView` reads a null mask and the
+ * grid the scene walks is `synthesiseBorderCollision`'s. `AMBUSHED` below is built from the same
+ * public loader with the same null mask, so the fixture and the scene are looking at one grid — a
+ * node listed here is a node the scene really does spawn under a prop.
+ */
+describe("§15 the arrival tile is chosen clear of the props [E] reads", () => {
+  /** Where the sprite actually stands on a tile — `interact()`'s own point, through its own helpers. */
+  const standingAt = (tile: { col: number; row: number }): WorldPoint =>
+    spriteWorldPosition(createMovement(tile), movementConfig(balance));
+
+  /** The prop-blind spawn: what the scene chose before it was told the node had props. */
+  const blindSpawn = (node: NodeFile): { col: number; row: number } =>
+    chooseSpawnTile(loadCollision(node.id, node.collisionMask, null, balance).grid, balance).tile;
+
+  /**
+   * Every shipped node whose prop-blind spawn lands inside a prop's reach. DERIVED (G2): no node id
+   * is typed in, so a node that gains a prop, moves one, or has its mask repainted joins or leaves
+   * this section by itself rather than by somebody remembering to edit a list.
+   */
+  const AMBUSHED = content.nodes.filter(
+    (node) => propsOf(node).length > 0 && propAt(node, standingAt(blindSpawn(node)), balance) !== null,
+  );
+
+  it("at least one shipped node spawns under a prop — without that this section proves nothing", () => {
+    /*
+     * The vacuity guard. `it.each([])` registers no tests and reports success, which is exactly the
+     * shape of a green suite certifying an absence — so the fixture asserts its own non-emptiness
+     * before anything is asked of the scene.
+     */
+    expect(
+      AMBUSHED.map((n) => n.id),
+      "no shipped node's prop-blind spawn is inside a prop, so the it.each blocks below are empty",
+    ).not.toEqual([]);
+  });
+
+  it.each(AMBUSHED.map((n) => [n.id, n] as const))(
+    "%s — the player is not put down inside the prop, and [E] is not answered by it",
+    (_id, node) => {
+      const h = mount({ save: freshSave(node.id), startNode: node.id });
+
+      // The fixture, restated against the LIVE scene: this node is one where it matters.
+      const blind = blindSpawn(node);
+      const wouldRead = propAt(node, standingAt(blind), balance);
+      expect(wouldRead, `${node.id}'s blind spawn is not under a prop after all`).not.toBeNull();
+      const prop = wouldRead as PropPlacement;
+
+      // The wiring, seen from the scene's own field rather than from a second call to the function.
+      expect(
+        propAt(node, standingAt(h.scene.movement.tile), balance),
+        `the player was put down inside "${propLabel(prop)}" — [E] reads it instead of the node`,
+      ).toBeNull();
+
+      /*
+       * AND THE PRESS PROVES IT. The check above is geometry; this is the behaviour it is geometry
+       * FOR. A prop can answer [E] in two shapes and both are refusals of the room: it plays the
+       * entry authored for it, or — when nothing is authored — it swallows the press and flashes
+       * "nothing more to read". Neither may happen from the tile the player arrives on.
+       */
+      const propSaid = propDialogueFor(DIALOGUE, prop.id, node.id, h.scene.dialogueCtx());
+      h.press(KEY_E);
+      h.frame();
+
+      expect(h.hud(), `[E] at ${node.id}'s arrival tile was swallowed by a prop`).not.toContain(
+        "nothing more to read",
+      );
+      if (propSaid) {
+        const itsLines = transcript(DIALOGUE, runHeadless(DIALOGUE, propSaid.id));
+        expect(h.scene.lastLineSpoken(), `[E] at ${node.id}'s arrival tile read "${propLabel(prop)}"`).not.toBe(
+          itsLines[itsLines.length - 1],
+        );
+      }
+    },
+  );
+
+  /**
+   * The positive half, where the corpus has something for the press to REACH.
+   *
+   * Kept separate because it is act-gated content and not every ambushed node ships a talk entry
+   * eligible at the context a fresh save mounts in — `sanctum` is late-act and answers "nobody has
+   * anything to say" at act 1, which is correct and is not evidence about the spawn tile. Asserting
+   * a reached entry there would be asserting against the act ladder.
+   */
+  const SPEAKING = AMBUSHED.filter((node) => {
+    const h = mount({ save: freshSave(node.id), startNode: node.id });
+    return talkEntryFor(DIALOGUE, node.id, h.scene.dialogueCtx()) !== undefined;
+  });
+
+  it("…and at least one of them has something to say, so the press below reaches a real line", () => {
+    expect(
+      SPEAKING.map((n) => n.id),
+      "no ambushed node ships a talk entry eligible on arrival — the press witness is vacuous",
+    ).not.toEqual([]);
+  });
+
+  /**
+   * The other half of the wiring: what happens when the preference CANNOT be honoured.
+   *
+   * `SpawnOptions.props` is a preference and not collision, so a node on which every walkable tile
+   * is inside some prop's reach still spawns the player under a prop — correctly, because the
+   * alternative is refusing to place them at all. `chooseSpawnTile` reports that as
+   * `SpawnChoice.insideProp` and reporting is all it can do; the scene has to SAY it, or a mask the
+   * loader calls perfectly healthy silently hands [E] to a signpost from wherever the player lands.
+   *
+   * Driven by a mask with exactly one walkable cell, which `readMask` accepts (it refuses zero, not
+   * one) — so this is the real loader, the real grid and the real shipped prop, not a stubbed
+   * verdict.
+   */
+  it("says so on the HUD when NO walkable tile is clear of a prop", () => {
+    const node = AMBUSHED[0] as NodeFile;
+    const tile = blindSpawn(node);
+    const prop = propAt(node, standingAt(tile), balance) as PropPlacement;
+
+    /** 64×64, fully opaque, every cell blocked but one — one mask pixel per collision cell. */
+    const onlyWalkable = (at: { col: number; row: number }): MaskPixelsForTest => {
+      const side = balance.map.mapNativePx / balance.map.collisionCellPx;
+      const data = new Uint8ClampedArray(side * side * 4);
+      for (let i = 0; i < side * side; i += 1) data[i * 4 + 3] = 255; // black, opaque ⇒ blocked
+      const lit = (at.row * side + at.col) * 4;
+      data[lit] = 255;
+      data[lit + 1] = 255;
+      data[lit + 2] = 255;
+      return { width: side, height: side, data };
+    };
+
+    const h = mount({ save: freshSave(node.id), startNode: node.id }, (parts) => {
+      parts.maskPixels.set(maskTextureKey(node.collisionMask), onlyWalkable(tile));
+    });
+
+    // The rig is the real loader's answer, not a claim about it.
+    expect(h.scene.collision.source, "the one-cell mask was refused instead of loaded").toBe("authored");
+    expect(h.scene.collision.health?.usable, "a mask with one walkable cell must be usable").toBe(true);
+    expect(h.scene.movement.tile, "the player did not land on the only walkable tile").toEqual(tile);
+
+    expect(h.hud(), "the HUD does not name the prop the player was put down inside").toContain(
+      `is inside prop ${prop.id}`,
+    );
+  });
+
+  it.each(SPEAKING.map((n) => [n.id, n] as const))(
+    "%s — [E] on arrival reaches what the node is SAYING",
+    (_id, node) => {
+      const h = mount({ save: freshSave(node.id), startNode: node.id });
+      /*
+       * The box is unregistered in this rig, so `playEntry` runs the entry headlessly and
+       * `finishDialogue` records its last line — the same witness §14.6 reads the anchors through.
+       */
+      const expected = talkEntryFor(DIALOGUE, node.id, h.scene.dialogueCtx());
+      const wanted = transcript(DIALOGUE, runHeadless(DIALOGUE, (expected as DialogueEntry).id));
+
+      h.press(KEY_E);
+      h.frame();
+
+      const said = h.scene.lastLineSpoken();
+      expect(said, `[E] at ${node.id}'s arrival tile said nothing`).not.toBe("");
+      expect(said, `[E] at ${node.id}'s arrival tile did not reach "${(expected as DialogueEntry).id}"`).toBe(
+        wanted[wanted.length - 1],
+      );
+    },
+  );
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §16 a room draws its painting when there is one, and its footprint when there is not
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * The interior half of what `MapView` already does for a node: `assets/final/interiors/<id>.png` if
+ * the art lane has shipped it, `drawInteriorFootprint` if it has not.
+ *
+ * WHICH HALF MATTERS TODAY. No room is painted, so the FOOTPRINT is the path every shipped room
+ * takes and the one that must not regress; the painted branch is what stops being dead the day a
+ * picture lands. Both are tested, and the painted one is driven by making its two preconditions
+ * true in the rig rather than by asserting the helper against itself.
+ *
+ * ⚠ THE PAINTED TEST REGISTERS A SYNTHETIC ASSET and `game/placeholder.ts` has no un-register. The
+ * pollution is deliberately harmless: `paintedInteriorKey` needs the census AND a loaded texture,
+ * and the texture half lives on the scene stub, which dies with the harness — so every other test
+ * in this file goes on taking the footprint path whatever order it runs in. That is asserted below
+ * rather than assumed.
+ */
+describe("§16 an interior draws its painting when one exists, and its footprint when it does not", () => {
+  /** The image objects the display list is holding. */
+  function images(h: Harness): FakeObj[] {
+    return h.parts.objects.filter((o) => o.kind === "image");
+  }
+
+  it("the key grammar is the manifest's own, not a second one — `interiors/<id>`", () => {
+    for (const bp of ROOMS) {
+      /*
+       * T-19's shape, asked of the room: the key the SCREEN asks for must be the key
+       * `game/placeholder.ts` would derive from the file the art lane writes. `assetId` is a pure
+       * prefix strip, so a key that does not survive the round trip is a key nothing can ever
+       * satisfy — which is the defect `tests/gates/dex-path-contract.test.ts` exists for.
+       */
+      expect(interiorTextureKey(bp.id), `${bp.id}'s key is not what its path reduces to`).toBe(
+        assetId(interiorAssetPath(bp.id)),
+      );
+      expect(interiorAssetPath(bp.id), `${bp.id}'s painting is not under assets/final/`).toBe(
+        `assets/final/interiors/${bp.id}.png`,
+      );
+    }
+    // …and the ids really are distinct, so the loop above is not comparing one room to itself.
+    expect(new Set(ROOMS.map((bp) => interiorTextureKey(bp.id))).size).toBe(ROOMS.length);
+  });
+
+  it.each(ROOMS.map((bp) => [bp.id, bp] as const))(
+    "%s — unpainted: the footprint is on screen and no interior image was ever made",
+    (_id, bp) => {
+      const h = mountAt(bp);
+      goInside(h, bp);
+      expect(h.scene.currentInterior()?.id, "the player is not inside the room").toBe(bp.id);
+
+      expect(
+        images(h).map((o) => o.texture),
+        `${bp.id} put an image on screen for a room nothing has painted`,
+      ).not.toContain(interiorTextureKey(bp.id));
+      // The provenance line is the readout that tells the two apart, so it is the witness.
+      expect(h.hud(), `${bp.id}'s HUD does not say the footprint is what is drawn`).toContain(
+        `FOOTPRINT interior ${bp.id}`,
+      );
+    },
+  );
+
+  it("painted: the room draws ONE image at the plan's own size, and the footprint stands down", () => {
+    const bp = ROOMS[0]!;
+    const key = interiorTextureKey(bp.id);
+
+    // Precondition, asserted rather than assumed: nothing has painted this room yet.
+    expect(hasRealAsset(interiorAssetPath(bp.id)), `${bp.id} is already painted — this test is stale`).toBe(false);
+
+    /*
+     * BOTH halves of `paintedInteriorKey`, made true one at a time so each is shown to be
+     * load-bearing. A texture with no census entry is a key some other lane happened to create; a
+     * census entry with no texture is a build-time truth about a runtime failure.
+     */
+    const withTexture = mount({ save: saveAtTown(bp), startNode: bp.parentNode }, (parts) => {
+      parts.scratch.add(key);
+    });
+    goInside(withTexture, bp);
+    expect(
+      images(withTexture).map((o) => o.texture),
+      "a loaded texture alone painted the room — the census is not being asked",
+    ).not.toContain(key);
+
+    registerRealAsset(interiorAssetPath(bp.id), `/${bp.id}.png`);
+
+    const censusOnly = mountAt(bp);
+    goInside(censusOnly, bp);
+    expect(
+      images(censusOnly).map((o) => o.texture),
+      "the census alone painted the room — the loaded texture is not being asked",
+    ).not.toContain(key);
+
+    // Now both.
+    const h = mount({ save: saveAtTown(bp), startNode: bp.parentNode }, (parts) => {
+      parts.scratch.add(key);
+    });
+    goInside(h, bp);
+
+    // G1: ONE image for the whole room. Not a tileset, not an atlas, not a slice per plan cell —
+    // which is what a count of exactly one, over a room of `plan cols x rows` cells, says.
+    const drawn = images(h).filter((o) => o.texture === key);
+    expect(planSize(bp.plan).cols * planSize(bp.plan).rows, "the room is one cell, so ONE image proves nothing about G1")
+      .toBeGreaterThan(1);
+    expect(drawn.length, `${bp.id} did not draw its painting as exactly one image`).toBe(1);
+    expect(drawn[0]!.visible, `${bp.id}'s painting was made and then hidden`).toBe(true);
+    /*
+     * …AT THE PLAN'S OWN SIZE, in WORLD pixels: `cols x rows` cells of
+     * `collisionCellPx * mapRenderScale` each, which is the same rectangle `drawInteriorFootprint`
+     * fills. Restated from `balance.map` here rather than read back from `worldCellPx`, so a change
+     * that drops the render scale — the exact mistake §14's `doorTile` is restated against — moves
+     * the picture off the geometry and this goes red.
+     */
+    const cell = balance.map.collisionCellPx * balance.map.mapRenderScale;
+    const plan = planSize(bp.plan);
+    expect(drawn[0]!.displaySize, `${bp.id}'s painting is not sized to its plan`).toEqual({
+      w: plan.cols * cell,
+      h: plan.rows * cell,
+    });
+    // …and the town's map is not also up.
+    const mapKey = nodeFile(bp.parentNode).mapAsset;
+    expect(
+      images(h).some((o) => o.texture === assetId(mapKey) && o.visible),
+      "the town's map is still visible under the room",
+    ).toBe(false);
+    // The provenance line names the picture instead of the footprint.
+    expect(h.hud(), "the HUD still calls a painted room a footprint").not.toContain(`FOOTPRINT interior ${bp.id}`);
+    expect(h.hud(), "the HUD does not name the painting that is on screen").toContain(interiorAssetPath(bp.id));
+
+    /*
+     * AND THE STAND-IN PATH IS UNHARMED. Same room, a harness whose loader got nothing — which is
+     * every other test in this file, and every player until the art lands.
+     */
+    const unpainted = mountAt(bp);
+    goInside(unpainted, bp);
+    expect(
+      images(unpainted).map((o) => o.texture),
+      "the registered census entry leaked into a harness that loaded no texture",
+    ).not.toContain(key);
+    expect(unpainted.hud(), "the footprint stopped being drawn for an unpainted room").toContain(
+      `FOOTPRINT interior ${bp.id}`,
+    );
   });
 });

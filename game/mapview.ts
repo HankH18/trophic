@@ -68,6 +68,58 @@ export function maskTextureKey(maskPath: string): string {
   return assetId(maskPath);
 }
 
+/**
+ * A painted room's directory. The art lane's chosen convention, and it is deliberately the SHAPE the
+ * maps already use one directory over — `assets/final/maps/<node>.png` beside
+ * `assets/final/interiors/<room>.png` — because `game/placeholder.ts`'s glob is a RECURSIVE scan of
+ * `assets/final/` and `assetId` is a pure prefix strip, so a room is picked up by `hasRealAsset`,
+ * queued by `queueRealAssets` and audited by `tests/gates/asset-palette-contract.test.ts` with no
+ * special case anywhere. A directory of its own rather than a filename convention inside `maps/`,
+ * so nothing has to tell a room from a region by parsing its name.
+ */
+const INTERIOR_ART_DIR = "interiors";
+
+/**
+ * Where the painting of one room lives.
+ *
+ * DERIVED FROM THE ROOM ID, not carried on the blueprint. `NodeFile.mapAsset` names its own file
+ * because a node can swap paintings by YEAR (`mapAssetForYear`) and only the data can say which
+ * variants passed overlay-diff; a room has no year variants and no choice to record, so a
+ * `mapAsset` field on `InteriorBlueprint` would be the same string written a second time in a place
+ * that can drift from this one. One room, one id, one picture.
+ */
+export function interiorAssetPath(interiorId: string): string {
+  return `assets/final/${INTERIOR_ART_DIR}/${interiorId}.png`;
+}
+
+/**
+ * The room's texture key — {@link mapTextureKey}'s mirror, and reduced by the same `assetId`, so a
+ * room is addressed by the same grammar as everything else the game draws.
+ */
+export function interiorTextureKey(interiorId: string): string {
+  return assetId(interiorAssetPath(interiorId));
+}
+
+/**
+ * That key IF the room is painted AND the painting is loaded — otherwise null, meaning "draw the
+ * footprint".
+ *
+ * BOTH HALVES, exactly as {@link statusFor} asks them of a node's map: `hasRealAsset` says the file
+ * was in `assets/final/` when the bundle was built, and `textures.exists` says the loader actually
+ * got it. Either alone is a way to put a missing texture on screen — a build-time truth about a
+ * runtime failure, or a runtime truth about a key some other lane happened to create.
+ *
+ * NOT `textureFor`. That helper answers a missing texture with the ONE shared labelled rectangle,
+ * which is right for a map and wrong for a room: a room's honest stand-in is
+ * {@link drawInteriorFootprint}, drawn from the geometry the player is actually walking. Routing
+ * interiors through `textureFor` would replace the footprint with a flat card the moment this landed
+ * — the stand-in path is the one that has to keep working, because no room is painted yet.
+ */
+export function paintedInteriorKey(scene: Phaser.Scene, interiorId: string): string | null {
+  const key = interiorTextureKey(interiorId);
+  return hasRealAsset(interiorAssetPath(interiorId)) && scene.textures.exists(key) ? key : null;
+}
+
 export interface NodeArtKeys {
   mapKey: string;
   maskKey: string;

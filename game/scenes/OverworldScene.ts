@@ -123,7 +123,9 @@ import {
   drawCollisionOverlay,
   drawInteriorFootprint,
   ensureNodeArt,
+  interiorAssetPath,
   nodeArtKeys,
+  paintedInteriorKey,
   playerPlaceholderKey,
   queueNodeArt,
   readMaskPixels,
@@ -366,6 +368,17 @@ export class OverworldScene extends Phaser.Scene {
   private interiorGrid: CollisionGrid | null = null;
   /** The room's footprint stand-in (game/mapview.ts `drawInteriorFootprint`). Rebuilt every create. */
   private interiorView!: Phaser.GameObjects.Graphics;
+  /**
+   * The room's PAINTING, when one exists — the interior half of what {@link MapView} is for a node.
+   *
+   * Null until a painted room is actually stood in, and nulled again on every `create` because a
+   * restart tears the display list down while the fields survive (the asymmetry {@link overlay} and
+   * {@link interiorView} are rebuilt for). Made on demand rather than up front because there is no
+   * key to make it with until then: no room is painted yet, and `add.image` on a key the loader
+   * never got is a Phaser warning and a blank object. When it is null the footprint is what is on
+   * screen, and that is the path every shipped room takes today.
+   */
+  private interiorArt: Phaser.GameObjects.Image | null = null;
 
   private hooks: OverworldHooks = {};
   private startNodeId: string | null = null;
@@ -425,6 +438,21 @@ export class OverworldScene extends Phaser.Scene {
   private viewNodeId: string | null = null;
   /** Non-null when the player is standing somewhere they should not be able to stand. Printed. */
   private spawnProblem: string | null = null;
+  /**
+   * The prop covering the arrival tile, when the spawn could not be placed clear of one. Printed.
+   *
+   * NOT THE SAME QUESTION AS {@link spawnProblem}, and that is why it is a second field. A spawn
+   * problem is "there is nowhere legal to stand"; this is "there is somewhere legal to stand and
+   * every one of them is inside a prop's reach" — a mask the loader calls perfectly healthy, on
+   * which `interact()` nonetheless answers with a signpost from wherever the player is put down,
+   * because it asks `propUnderPlayer()` before it asks the room.
+   *
+   * `chooseSpawnTile` reports it rather than resolving it, deliberately: a prop is a spawn
+   * PREFERENCE and not collision (game/collision.ts `firstWalkableTile`), so the fallback spiral is
+   * right to land the player there — and then the only thing left to do about it is say so. It is
+   * null on every shipped node today, which is exactly the state a readout is for keeping true.
+   */
+  private spawnInsideProp: string | null = null;
   /**
    * Cutscenes {@link playPendingCutscene} has already fired this visit.
    *
@@ -547,6 +575,9 @@ export class OverworldScene extends Phaser.Scene {
     // `create` for the same reason the overlay is: the display list is torn down by a restart and
     // the fields are not.
     this.interiorView = this.add.graphics().setDepth(INTERIOR_DEPTH);
+    // The image is the display list's, so a restart destroyed it and this field would otherwise
+    // still be pointing at the corpse. `syncViewMode` remakes it if a painted room is up.
+    this.interiorArt = null;
     this.syncViewMode();
 
     const camera = this.cameras.main;
@@ -703,8 +734,26 @@ export class OverworldScene extends Phaser.Scene {
       balance: this.balance,
     });
 
-    const spawn = chooseSpawnTile(this.collision.grid, this.balance);
+    /*
+     * THE PROPS ARE HANDED OVER, and leaving them off is a live defect rather than a missed
+     * option. `interact()` asks `propUnderPlayer()` before it asks the room, so an arrival tile
+     * inside a prop's `interactionRadius` makes that prop the only thing [E] can reach from where
+     * the player is put down — measured at `bowerdeep`, whose market sign covers the blind spawn
+     * at 88.0 world px against a 96 px radius, putting a town that ships two quest chains, an
+     * innkeeper and a vendor one unprompted step out of reach. `SpawnOptions.props` is a spawn
+     * PREFERENCE and not collision (game/collision.ts `firstWalkableTile`): it spirals once for a
+     * prop-clear tile and falls back to the original spiral unchanged, so a node whose every
+     * walkable tile is covered still spawns exactly where it used to.
+     */
+    const spawn = chooseSpawnTile(this.collision.grid, this.balance, { props: propsOf(this.node) });
     this.spawnProblem = spawn.problem;
+    // Indoors the landing is the blueprint's `arrival` and not this tile (see below), so a reading
+    // about the town's spawn would be a readout about somewhere the player is not standing.
+    this.spawnInsideProp =
+      this.interior !== null || spawn.insideProp == null
+        ? null
+        : `spawn ${String(spawn.tile.col)},${String(spawn.tile.row)} is inside prop ${spawn.insideProp} ` +
+          `— no walkable tile on ${this.node.id} is clear of one, so [E] here reads the prop`;
     /*
      * ⚠ INDOORS THE LANDING IS THE BLUEPRINT'S, NOT `chooseSpawnTile`'S, and that is exactly why
      * `InteriorBlueprint.arrival` exists. `chooseSpawnTile` spirals out from the centre of the fixed
@@ -772,15 +821,24 @@ export class OverworldScene extends Phaser.Scene {
     return this.interiorGrid ?? this.collision.grid;
   }
 
-  /** The HUD's provenance line for whichever view is up. */
+  /**
+   * The HUD's provenance line for whichever view is up.
+   *
+   * IT SAYS WHICH OF THE TWO IS ON SCREEN, because that is the whole job of a provenance line and
+   * the map's has always done it (`MapView.status.note` prints either the path or `PLACEHOLDER map
+   * — … not built`). A room that keeps announcing `FOOTPRINT … NOT painted art` after its painting
+   * lands is a readout that has quietly become a lie, and the readout is the only thing on screen
+   * that can tell the two apart. Identifiers and integers (G7).
+   */
   private viewNote(): string {
     const bp = this.interior;
     if (bp === null) return `${this.mapView.status.note} · ${this.collision.note}`;
     const size = planSize(bp.plan);
-    return (
-      `FOOTPRINT interior ${bp.id} — ${size.cols}×${size.rows} plan cells from ` +
-      `data/interiors/${bp.id}.json; NOT painted art`
-    );
+    const plan = `${size.cols}×${size.rows} plan cells from data/interiors/${bp.id}.json`;
+    const painted = paintedInteriorKey(this, bp.id);
+    return painted === null
+      ? `FOOTPRINT interior ${bp.id} — ${plan}; NOT painted art`
+      : `interior ${bp.id} — ${interiorAssetPath(bp.id)} over ${plan}`;
   }
 
   /**
@@ -814,13 +872,39 @@ export class OverworldScene extends Phaser.Scene {
           gridFromAscii(this.interior.id, this.interior.plan, this.balance.map.collisionCellPx);
   }
 
-  /** Show the room or the town: one picture is up at a time, and the camera is bounded to it. */
+  /**
+   * Show the room or the town: one picture is up at a time, and the camera is bounded to it.
+   *
+   * A ROOM HAS TWO WAYS OF BEING DRAWN and the choice is made per room, exactly as it is per node —
+   * `MapView` draws `r1.png` if the art lane has shipped it and a stand-in if it has not, and this
+   * asks `paintedInteriorKey` the same question about `assets/final/interiors/<id>.png`. Today the
+   * answer is null for every shipped room and the footprint is what is on screen; the branch above
+   * it is what stops being dead the day a painting lands, with no further change here.
+   *
+   * G1 IS NOT BENT BY THE PAINTED BRANCH. It is ONE image at the room's own size — no tileset, no
+   * slicing, no atlas — sized to the same rectangle `drawInteriorFootprint` fills, `grid.cols` by
+   * `grid.rows` cells of `worldCellPx` each, with its top-left at world (0,0). It is sized rather
+   * than left at its natural pixels for the reason the map is (`MapView`'s constructor): the picture
+   * has to line up with the geometry the player is walking, and the geometry is the ASCII plan.
+   */
   private syncViewMode(): void {
     const grid = this.interiorGrid;
+    const bp = this.interior;
     this.mapView.setVisible(grid === null);
-    this.interiorView.setVisible(grid !== null);
-    if (grid !== null) drawInteriorFootprint(this.interiorView, grid, this.balance);
-    else this.interiorView.clear();
+
+    const painted = grid === null || bp === null ? null : paintedInteriorKey(this, bp.id);
+    if (grid !== null && painted !== null) {
+      const cell = worldCellPx(grid, this.balance);
+      this.interiorArt ??= this.add.image(0, 0, painted).setOrigin(0, 0).setDepth(INTERIOR_DEPTH);
+      this.interiorArt.setTexture(painted).setDisplaySize(grid.cols * cell, grid.rows * cell).setVisible(true);
+      this.interiorView.setVisible(false);
+      this.interiorView.clear();
+    } else {
+      this.interiorArt?.setVisible(false);
+      this.interiorView.setVisible(grid !== null);
+      if (grid !== null) drawInteriorFootprint(this.interiorView, grid, this.balance);
+      else this.interiorView.clear();
+    }
     this.applyCameraBounds();
   }
 
@@ -2778,6 +2862,9 @@ export class OverworldScene extends Phaser.Scene {
       lines.push(`last: ${this.lastEncounter.lineId} ${this.lastEncounter.age} L${this.lastEncounter.level}`);
     }
     if (this.spawnProblem) lines.push(this.spawnProblem);
+    // Same channel, same reason: a mask the loader calls healthy can still put the player down
+    // where the talk key is answered by a signpost, and nothing else on screen would say so.
+    if (this.spawnInsideProp) lines.push(this.spawnInsideProp);
     // Hard Req 6 — the season reading is a runtime tint. `provisional` is on while its hues are a
     // placeholder rather than data (game/season-tint.ts), and it says so on screen for the same
     // reason the map placeholder does.
