@@ -904,6 +904,26 @@ const RSE_CAPTURES: readonly ReferenceCapture[] = [
 ];
 
 /**
+ * How many reference captures the two tables above are required to hold, pinned as a literal.
+ *
+ * ⚠ **THIS EXISTS BECAUSE THE REFERENCE ARM ONCE PASSED WITH THE CORPUS GONE.** `mv
+ * assets/reference /tmp` and the whole file read **42 passed (42)**, identical to baseline: the
+ * band check skipped every absent file with a `continue`, nothing asserted the checked count, and
+ * every published Gold band — 12–18 colours, 51–79% edge, 2.6–3.8 concentration, 28.7–64.3%
+ * alternation — collapsed into a literal compared against a literal **in this same file**. That is
+ * exactly the vacuous pass header note 2 refuses everywhere else in this gate, living inside the
+ * one arm whose whole job is to prove the bands are sourced from real pixels. A skip is not a pass.
+ *
+ * A count rather than a mere non-zero floor, because the arm can be emptied from EITHER side: the
+ * PNGs can leave the tree, or rows can leave the tables. `COVERED` above has the same shape of
+ * guard and it is the reason a deleted shipped asset reds instead of shrinking the loop.
+ *
+ * Not a gameplay constant, so G11 does not reach it — it counts rows in a table of somebody else's
+ * shipped art, exactly as `GOLD_BAND_LOW` and the vacuity floors do.
+ */
+const REFERENCE_CAPTURE_COUNT = 10;
+
+/**
  * The band the advisory prints and the docs publish. Held as literals so they can go STALE against
  * `GOLD_CAPTURES`, and asserted against it below — this repo has paid for a fossilised anchor more
  * than once (T-24's 21 dead hex literals, T-25's stale comments), and a band nobody re-derives is
@@ -1337,12 +1357,33 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     expect(flat.alternationPct, 'A flat fill sits inside the alternation band').toBeLessThan(GOLD_ALT_LOW);
     // The inversion that is the whole reason the published reading is a COUNT and not the share the
     // settling measurement was quoted in: on the SHARE the blank rectangle wins outright.
+    //
+    // ⚠ **THIS ASSERTED `flat.topThreePct >= interleaved.topThreePct` AND THAT COMPARISON COULD NOT
+    // FAIL.** Measured, both sides read exactly 100.00 — 1.000×, no sign at all. `GROUND` holds
+    // THREE colours, so a top-THREE share is 100% for every synthetic built from it, the flat fill
+    // and the per-pixel weave alike; the comparison was a literal against the same literal wearing
+    // a different variable name. The claim it was making is the one 7525041's own message states —
+    // "a blank rectangle scores 100% on top-three share, beating Gold's 78.9%" — and `interleaved`
+    // was never able to stand in for Gold's 78.9%, because it saturates.
+    //
+    // So the comparison is replaced by the general form of the same claim, which is stronger than
+    // "beats 78.9" and which a partner image is not needed to state: **the share has its MAXIMUM at
+    // the degenerate image.** 100% is the algebraic ceiling of a share — nothing can score better
+    // than a blank field — exactly as 1.00 is the floor of `1/Σpᵢ²`, asserted three lines above.
+    // The two ends together ARE the inversion: same image, first on the share, last on the count.
+    // This one reds if `patchProfile.topThreePct` ever stops being maximal on a flat patch — an
+    // off-by-one in the `ranked` slice, a wrong denominator, or a share reported so that flatness
+    // is penalised. That is a failure it can have; the old one had none.
     expect(
       flat.topThreePct,
-      'a flat fill no longer scores higher than a real ground on the top-three SHARE. If that is ' +
-        'genuinely true the first trap has changed shape — re-measure before touching anything, ' +
-        'because the share being maximal on a blank field is why the reading is an effective COUNT.',
-    ).toBeGreaterThanOrEqual(interleaved.topThreePct);
+      `a flat fill reads ${flat.topThreePct.toFixed(2)}% on the top-three SHARE rather than the 100% ` +
+        'ceiling. The share being MAXIMAL on a blank field is the whole reason the published reading ' +
+        'is an effective COUNT, so either the share operator is broken or the first trap has changed ' +
+        'shape — re-measure before touching anything.',
+    ).toBe(100);
+    // …and the other end of the same image, which is what makes it an inversion rather than one
+    // reading: on the published COUNT the blank field comes LAST. This half was always real —
+    // 1.0000 against 3.0000 — and is untouched.
     expect(flat.effective, 'and on the published reading the blank field must come LAST').toBeLessThan(
       interleaved.effective,
     );
@@ -1506,17 +1547,44 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     //
     // The assertion is membership of the band rather than equality with the recorded figure, so a
     // legitimately re-cropped capture does not red while a resampled one — three orders of magnitude
-    // out — cannot pass. Absent captures are REPORTED and do not fail: `assets/reference/` is a
-    // reference corpus owned by the art lane, not shipped pixels, and its absence costs the band its
-    // corroboration rather than putting a defect in the bundle. Every present one is asserted.
+    // out — cannot pass.
+    //
+    // ⚠ **AND AN ABSENT CAPTURE IS A FAILURE, NOT A REPORT.** This comment used to read "absent
+    // captures are REPORTED and do not fail: assets/reference/ is a reference corpus owned by the
+    // art lane, not shipped pixels". Both halves of that were wrong. Wrong on the facts — `git
+    // ls-files -- assets/reference` lists all ten of these PNGs, so they are committed repo
+    // content and not an art-lane scratch directory. And wrong on the consequence — with the
+    // directory moved aside the entire file still read **42 passed (42)**, because a `continue`
+    // over a missing file skips every assertion under it and nothing counted what had been
+    // checked. The bands the advisory prints, build-doc §8.4 publishes and STATUS quotes were then
+    // literals verified against literals in this same file. That is the failure this gate was
+    // written to prevent, surviving in the one arm that exists to source the numbers.
+    //
+    // So: the corpus is asserted COMPLETE before anything is measured, the count is pinned, and the
+    // absent files are named. Deliberately NOT extended to "every PNG under assets/reference/ must
+    // appear in a table" — `gen2-ui/` is the ui-frames lane's (tools/ui-frames/raster.ts), and
+    // reaching into it would red on somebody else's directory for no defect here.
     const checked: string[] = [];
-    const missing: string[] = [];
+    const ALL_CAPTURES = [...GOLD_CAPTURES, ...RSE_CAPTURES];
+    const missing = ALL_CAPTURES.map((r) => r.file).filter((f) => !existsSync(resolve(REPO_ROOT, f)));
+    expect(
+      missing,
+      `${missing.length} of the ${ALL_CAPTURES.length} reference captures the published bands are ` +
+        `derived from are absent from the working tree: ${missing.join(' ')}. Every band in this ` +
+        `file — ${bandLabel} colours, ${edgeBandLabel} whole-image edge, ${concBandLabel} ` +
+        `concentration, ${altBandLabel} alternation — is a literal here whose ONLY corroboration is ` +
+        'a measurement of these PNGs. Without them this arm asserts nothing and the literals verify ' +
+        'each other. They are committed (`git ls-files -- assets/reference`); restore them rather ' +
+        'than letting this pass.',
+    ).toEqual([]);
+    expect(
+      ALL_CAPTURES.length,
+      `the capture tables hold ${ALL_CAPTURES.length} rows, not the pinned ` +
+        `${REFERENCE_CAPTURE_COUNT}. The arm can be emptied from either side — the PNGs can leave ` +
+        'the tree or the rows can leave the tables — and a floor of one would not notice the second.',
+    ).toBe(REFERENCE_CAPTURE_COUNT);
 
     for (const ref of GOLD_CAPTURES) {
-      if (!existsSync(resolve(REPO_ROOT, ref.file))) {
-        missing.push(ref.file);
-        continue;
-      }
       const m = await referenceColours(ref.file);
       checked.push(
         `${ref.file} ${m.width}×${m.height} ${m.colours}c (rec ${ref.colours}) ` +
@@ -1572,10 +1640,6 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     // The control. A counter that answered "about fifteen" for every image would satisfy all eight
     // rows above and tell us nothing; Gen 3 sits far outside the band on the same instrument.
     for (const ref of RSE_CAPTURES) {
-      if (!existsSync(resolve(REPO_ROOT, ref.file))) {
-        missing.push(ref.file);
-        continue;
-      }
       const m = await referenceColours(ref.file);
       checked.push(
         `${ref.file} ${m.width}×${m.height} ${m.colours}c (rec ${ref.colours}) ` +
@@ -1607,18 +1671,28 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
       // weaker control, it is a false one.
     }
 
+    // The count of what was actually measured, asserted rather than printed. The two guards above
+    // make an absent file and a shrunken table red on their own; this one is the backstop against
+    // the third shape — a loop that ran over fewer rows than the tables hold — and it is what turns
+    // "the console said 10" into something the suite fails on. `checked` is appended once per row
+    // in each loop, so it is the count of captures whose band assertions actually executed.
+    expect(
+      checked.length,
+      `${checked.length} reference capture(s) were measured, not the pinned ` +
+        `${REFERENCE_CAPTURE_COUNT}. Every band this file publishes is corroborated by exactly ` +
+        'these measurements; a loop that ran over fewer rows than the tables hold leaves the ' +
+        'difference asserting nothing at all.',
+    ).toBe(REFERENCE_CAPTURE_COUNT);
+
     console.log(
       `\nasset-palette-contract — reference band ${bandLabel} (mean ${GOLD_BAND_MEAN.toFixed(1)}), ` +
         `whole-image edge ${edgeBandLabel} (mean ${GOLD_EDGE_MEAN.toFixed(1)}%), ` +
         `concentration ${concBandLabel} (mean ${GOLD_CONC_MEAN.toFixed(2)}), ` +
         `alternation ${altBandLabel} (mean ${GOLD_ALT_MEAN.toFixed(2)}%), ` +
-        `${checked.length} capture(s) verified, ${missing.length} absent\n` +
+        `${checked.length} of ${REFERENCE_CAPTURE_COUNT} capture(s) verified\n` +
         checked.map((l) => `  ${l}`).join('\n') +
-        (missing.length > 0
-          ? `\n  ABSENT, so the band is uncorroborated by them: ${missing.join(' ')}\n` +
-            '  (assets/reference/ is the art lane\'s reference corpus, not shipped art; absence is not a defect)'
-          : '') +
-        '\n' +
+        '\n  The corpus is asserted COMPLETE, not surveyed: an absent capture reds this test and is\n' +
+        '  named. These PNGs are the only source the four bands above have.\n' +
         OPERATOR_LEGEND +
         '\n',
     );
