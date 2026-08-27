@@ -427,21 +427,24 @@ describe("det_replay — a run containing a catch replays to the party it lived 
     expect(live.save.party.map((c) => c.uid)).toEqual(["provisional-starter", gained.uid]);
 
     const initial: SaveEnvelope = { ...save, actionLog: [] };
-    const bare = live.save.actionLog;
+    const tape = live.save.actionLog;
 
     /*
-     * ⚠ THE ONE LINE THIS TEST STANDS IN FOR. `applyCatchToSave` still appends the pre-T-34 entry —
-     * `appendAction(save, { t: "catch", nodeId, lineId, uid })` at `game/wild-battle.ts:332` — so
-     * the tape it writes carries no creature. Swapping that for `appendAction(after, catchAction(
-     * nodeId, gained))` is the whole remaining change, and this rebuild is exactly what it does.
-     * `game/wild-battle.ts` is another lane's file today; when the swap lands, `bare` below IS the
-     * tape and this map becomes an identity.
+     * ⚠ THIS USED TO BE A REBUILD, AND THE REBUILD IS WHAT T-34 CLOSED. `applyCatchToSave` appended
+     * the pre-T-34 entry — `appendAction(save, { t: "catch", nodeId, lineId, uid })` — so the tape a
+     * real run wrote carried no creature, and this test had to substitute `catchAction(NODE, gained)`
+     * into it to have a tape worth replaying. That substitution was the stand-in for an unlanded
+     * line; the line has landed (`game/wild-battle.ts` `applyCatchToSave`), so what is replayed below
+     * is the PRODUCTION tape, unmodified.
+     *
+     * The assertion that replaced the rebuild is strictly stronger than the rebuild's own
+     * `toMatchObject` was: the entry a real catch writes must be exactly what the canonical
+     * constructor builds — no field missing, none extra, the creature included. A regression to the
+     * bare entry fails HERE, on the tape itself, before any replay is even attempted.
      */
-    const tape: ActionLogEntry[] = bare.map((e) =>
-      e.action.t === "catch" ? { ...e, action: catchAction(NODE, gained) } : e,
-    );
-    // The rebuild invents nothing: every field the live entry carried is still there, unchanged.
-    expect(tape.map((e) => e.action)).toMatchObject(bare.map((e) => e.action));
+    const logged = tape.at(-1)?.action;
+    expect(logged, "the catch wrote no tape entry at all").toBeDefined();
+    expect(logged).toEqual(catchAction(NODE, gained));
 
     const replayed = replay(initial, tape, deps);
     expect(replayed.party.map((c) => c.uid)).toEqual(live.save.party.map((c) => c.uid));
@@ -450,13 +453,25 @@ describe("det_replay — a run containing a catch replays to the party it lived 
     );
 
     /*
-     * NOT VACUOUS, AND THIS IS THE MEASUREMENT T-34 OPENED WITH. The same replay of the tape WITHOUT
-     * the creature on it reaches the same populations and a party one creature short — live
-     * ["provisional-starter","wild-r1-nibbin-line-0"] against replayed ["provisional-starter"]. An
-     * older tape still replays (INV-2); it just cannot say what was caught, which is why the entry
-     * has to carry it.
+     * NOT VACUOUS, AND THIS IS THE MEASUREMENT T-34 OPENED WITH — kept, because the property it
+     * states is INV-2 and is still live. A tape whose catch entry carries NO creature reaches the
+     * same populations and a party one creature short: live
+     * ["provisional-starter","wild-r1-nibbin-line-0"] against replayed ["provisional-starter"], with
+     * the counts at 10 on both sides. An older save still replays; it just cannot say what was
+     * caught, which is why the entry has to carry it.
+     *
+     * ⚠ IT IS BUILT BY STRIPPING `gained` NOW, and that is the whole difference the fix made. It
+     * used to be `bare`, the production tape itself, because production wrote a thin entry. Reading
+     * this arm green while production still wrote thin entries is exactly the false green T-34 was
+     * measuring, so the strip is deliberate: the old tape must be CONSTRUCTED here, never obtained.
      */
-    const withoutTheCreature = replay(initial, bare, deps);
+    const stripped: ActionLogEntry[] = tape.map((e) => {
+      if (e.action.t !== "catch") return e;
+      const { gained: _dropped, ...thin } = e.action;
+      return { ...e, action: thin };
+    });
+    expect(stripped.at(-1)?.action).not.toHaveProperty("gained");
+    const withoutTheCreature = replay(initial, stripped, deps);
     expect(withoutTheCreature.party.map((c) => c.uid)).toEqual(["provisional-starter"]);
     expect(canonicalStringify(withoutTheCreature.nodeStates)).toBe(
       canonicalStringify(replayed.nodeStates),

@@ -18,6 +18,7 @@ import type {
   Balance,
   BattleAftermath,
   BattleAftermathMember,
+  BlackoutRecovery,
   GameAction,
   GymLeader,
   NodeFile,
@@ -613,34 +614,24 @@ export function applyBattleAftermath(
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
- * One blackout, as the tape carries it. ABSOLUTE values, never deltas — the same rule
- * {@link BattleAftermathMember} states and for the same reason: applied twice it must still say the
- * same thing.
- *
- * `restored` is a list of uids and NOT a list of HP numbers, and that is the absolute form here:
- * "full" is one value, and this codebase already spells it — `game/wild-battle.ts` `isStanding`,
- * "`curHp === undefined` means full". So {@link applyBlackout} RESTORES by deleting `curHp`, which
- * is exactly the state `core/lifecycle.ts` `newOwnedCreature` leaves a creature in and exactly what
- * `core/battle.ts` `makeBattler` reads as `maxHp`. Writing numbers instead would mean a third
- * spelling of build-doc §7.4's effective-stat formula living in a file that has no business
- * knowing it.
+ * The recovery record itself lives in `core/types.ts`, because `GameAction` names it and that file
+ * may not import from a sibling (see the note on `BattleAftermathMember` there). Re-exported here so
+ * every caller that already reads it off this module keeps working — `core/recovery.ts` and
+ * `tests/unit/recovery.test.ts` both import it from here, and neither moved for this.
  */
-export interface BlackoutRecovery {
-  /** The node the player wakes in. A node with an inn — `core/recovery.ts` `wakeNodeFor` picks it. */
-  wakeNode: string;
-  /** Every party uid put back on its feet, at full. Absolute; re-applying it changes nothing. */
-  restored: readonly string[];
-}
+export type { BlackoutRecovery } from "./types";
 
 /**
  * The `t` discriminant the blackout rides on the tape under.
  *
- * ⚠ NOT A MEMBER OF `core/types.ts` `GameAction`, on exactly the terms {@link BATTLE_AFTERMATH_ACTION}
- * is not: `core/schemas.ts` `zSaveFileFor` validates `actionLog[].action` as
- * `z.looseObject({ t: z.string().min(1) })`, so a save carrying this entry loads, round-trips and
- * replays with no schema change; and {@link readBlackout} re-checks the SHAPE at replay time rather
- * than trusting the discriminant. The one line that removes the cast below is, in `core/types.ts`:
- *     | { t: "blackout"; recovery: BlackoutRecovery }
+ * ⚠ IT IS A `GameAction` MEMBER NOW, and the cast that used to stand below it is gone — the one line
+ * this docblock used to ask for landed in `core/types.ts` as
+ * `| { t: "blackout"; recovery: BlackoutRecovery }`. Nothing else needed to move with it:
+ * `core/schemas.ts` `zSaveFileFor` validates `actionLog[].action` as
+ * `z.looseObject({ t: z.string().min(1) })`, so a save carrying this entry always loaded,
+ * round-tripped and replayed with no schema change, and {@link readBlackout} still re-checks the
+ * SHAPE at replay time rather than trusting the discriminant — a tape reaches `replay` through that
+ * permissive schema, not through this constructor.
  *
  * ⚠ AND IT IS NOT A `ClockActionKind`. This entry is the CONSEQUENCE and carries no price: the
  * price is levied as the priced entries `core/recovery.ts` `BLACKOUT_COST` names — two `inn`s and a
@@ -652,13 +643,10 @@ export const BLACKOUT_ACTION = "blackout";
 
 /** The tape entry for one blackout. */
 export function blackoutAction(recovery: BlackoutRecovery): GameAction {
-  const action = {
+  return {
     t: BLACKOUT_ACTION,
     recovery: { wakeNode: recovery.wakeNode, restored: [...recovery.restored] },
   };
-  // The ONE cast, and it is the `GameAction` union member that does not exist yet — see
-  // BLACKOUT_ACTION. Everything downstream re-validates the shape.
-  return action as unknown as GameAction;
 }
 
 /**
@@ -1148,12 +1136,13 @@ export function replay(
         if (deps.applyOther) save = deps.applyOther(save, entry);
         break;
       }
-      default: {
+      case "blackout": {
         /*
-         * THE BLACKOUT, and it arrives here rather than as a named `case` for one reason, written
-         * down so nobody "tidies" it: `blackout` is not a `GameAction` member yet (see
-         * BLACKOUT_ACTION), so a `case` label for it would not compile — the one line that fixes
-         * that is the one T-33 added for its sibling. `readBlackout` checks the shape instead.
+         * THE BLACKOUT. A named `case` since `blackout` joined `core/types.ts` `GameAction`; it used
+         * to be dispatched from `default` through `readBlackout`, which is now what checks the shape
+         * of an entry that reached us through the permissive schema rather than through
+         * `blackoutAction`. That is the same split its sibling `case "battleAftermath"` makes, and
+         * for the same reason — the discriminant is a claim, not a proof.
          *
          * ⚠ WITHOUT THIS ARM A REPLAYED RUN WAKES UP SOMEWHERE ELSE. The blackout is the only
          * action that moves `currentNode` without a `travel` of its own reaching a handler here —
@@ -1164,6 +1153,17 @@ export function replay(
          */
         const blackout = readBlackout(action);
         if (blackout) save = applyBlackout(save, blackout);
+        if (deps.applyOther) save = deps.applyOther(save, entry);
+        break;
+      }
+      default: {
+        /*
+         * AN ENTRY THIS BUILD DOES NOT KNOW — and it changes state deliberately not at all. INV-2:
+         * a save written by a later build, or by a lane whose action has since been renamed, still
+         * loads and still replays; it simply cannot say what that entry meant. `applyOther` is
+         * called exactly as every named arm calls it, so a host that DOES understand the entry can
+         * still act on it.
+         */
         if (deps.applyOther) save = deps.applyOther(save, entry);
         break;
       }

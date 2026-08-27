@@ -613,6 +613,31 @@ export interface BattleAftermath {
   items: Record<string, number>;
 }
 
+/**
+ * One blackout, as the tape carries it. ABSOLUTE values, never deltas — the same rule
+ * {@link BattleAftermathMember} states and for the same reason: applied twice it must still say the
+ * same thing.
+ *
+ * `restored` is a list of uids and NOT a list of HP numbers, and that is the absolute form here:
+ * "full" is one value, and this codebase already spells it — `game/wild-battle.ts` `isStanding`,
+ * "`curHp === undefined` means full". So `core/save.ts` `applyBlackout` RESTORES by deleting
+ * `curHp`, which is exactly the state `core/lifecycle.ts` `newOwnedCreature` leaves a creature in
+ * and exactly what `core/battle.ts` `makeBattler` reads as `maxHp`. Writing numbers instead would
+ * mean a third spelling of build-doc §7.4's effective-stat formula living in a file that has no
+ * business knowing it.
+ *
+ * ⚠ IT LIVES HERE RATHER THAN IN `core/save.ts` FOR THE REASON {@link BattleAftermathMember} DOES,
+ * and it moved here for that reason: `GameAction` names it, and this file has ZERO imports and must
+ * keep them. `core/save.ts` re-exports the name, so every existing importer is untouched. The move
+ * costs nothing — the record is two primitives and drags no dependency behind it.
+ */
+export interface BlackoutRecovery {
+  /** The node the player wakes in. A node with an inn — `core/recovery.ts` `wakeNodeFor` picks it. */
+  wakeNode: string;
+  /** Every party uid put back on its feet, at full. Absolute; re-applying it changes nothing. */
+  restored: readonly string[];
+}
+
 export type GameAction =
   | { t: "travel"; to: string }
   | { t: "foray"; nodeId: string }
@@ -644,7 +669,19 @@ export type GameAction =
   | { t: "seasonStep"; season: Season }
   | { t: "gymVictory"; gymId: string }
   | { t: "yearTurn"; year: number }
-  | { t: "retirement"; choice: RetirementChoice };
+  | { t: "retirement"; choice: RetirementChoice }
+  /**
+   * A WIPED party put back on its feet — where the player woke and who stood up, absolute, and
+   * applied by `core/save.ts` `applyBlackout` on the live path and the replay path alike. It is the
+   * only action that moves `currentNode` without a `travel` of its own reaching a replay handler,
+   * so a tape replayed without it leaves the player on the route they went down on with a party
+   * still at zero — the unactable save `core/recovery.ts` exists to prevent.
+   *
+   * ⚠ IT CARRIES NO PRICE. The blackout's cost is levied as the priced entries `core/recovery.ts`
+   * `BLACKOUT_COST` names — two `inn`s and a `travel` — and an entry is a price or a consequence
+   * and never both.
+   */
+  | { t: "blackout"; recovery: BlackoutRecovery };
 
 /** build-doc §8.1 / L10 — identical (seed, actionLog) ⇒ byte-identical final save. */
 export interface ActionLogEntry {

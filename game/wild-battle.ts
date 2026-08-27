@@ -56,7 +56,9 @@ import type { Rng } from "../core/rng";
 import {
   appendAction,
   applyBattleAftermath,
+  applyCaught,
   battleAftermathAction,
+  catchAction,
   type BattleAftermath,
   type SaveEnvelope,
 } from "../core/save";
@@ -288,13 +290,17 @@ export interface CatchApplication {
  *
  * ORDER AND OWNERSHIP, because this is the seam that was proven by a hand-written test and by
  * nothing in production:
- *   1. `appendAction({t:"catch", nodeId, lineId, uid})` — the tape. `core/save.ts` `replay` reads
- *      this entry and applies the very same decrement through `adjustPopulation`, so a replay of the
- *      log reproduces this save (L10).
- *   2. `applyCatch` (core/ecosim.ts) on the live node, written back through `toNodeState`. This is
+ *   1. `newOwnedCreature` (core/lifecycle.ts) for the party side — which is where the Ancient
+ *      exemption (G10 / Hard Req 4) and the projected retirement year are decided, not here. It
+ *      goes FIRST because the tape entry carries the creature it builds.
+ *   2. `appendAction(catchAction(nodeId, gained))` — the tape, carrying BOTH halves of the act:
+ *      `core/save.ts` `replay` applies the very same decrement through `adjustPopulation` and puts
+ *      back the very same individual through `applyCaught`, so a replay of the log reproduces this
+ *      save — the whole save, not just its counts (L10).
+ *   3. `applyCatch` (core/ecosim.ts) on the live node, written back through `toNodeState`. This is
  *      the ONE population writer for the live path; §7.3 step 4's clamp lives inside it.
- *   3. `newOwnedCreature` (core/lifecycle.ts) for the party side — which is where the Ancient
- *      exemption (G10 / Hard Req 4) and the projected retirement year are decided, not here.
+ *   4. `applyCaught` (core/save.ts) for the live party — the same applier replay reaches, so the
+ *      run and its replay cannot answer "party or box" differently.
  *
  * A catch of a line that has no population at this node is a loud throw inside `applyCatch`; it is
  * caught and returned as `problem` so the overworld can print it instead of dying mid-foray.
@@ -337,17 +343,18 @@ export function applyCatchToSave(
     };
   }
 
-  let after: SaveEnvelope = appendAction(save, {
-    t: "catch",
-    nodeId,
-    lineId: caught.lineId,
-    uid: caught.uid,
-  });
-  after = {
-    ...after,
-    nodeStates: { ...after.nodeStates, [nodeId]: toNodeState(next) },
-  };
-
+  /*
+   * ⚠ THE CREATURE IS BUILT BEFORE THE TAPE ENTRY, AND THAT ORDER IS THE WHOLE OF T-34's LAST LINE.
+   * The entry carries the individual (`core/save.ts` `catchAction`), so it cannot be written until
+   * the individual exists. It used to be appended first, from `{t,nodeId,lineId,uid}` alone, and a
+   * replay of that tape reached the right population and a party one creature SHORT — measured
+   * through this very function: live `["provisional-starter","wild-r1-nibbin-line-0"]` against
+   * replayed `["provisional-starter"]`, populations 10/10 on both sides. L10 was false for any run
+   * containing a catch.
+   *
+   * Reading `save` rather than `after` for the year and the cohort decision is not a change of
+   * answer: `appendAction` writes `actionLog` and nothing else — not `year`, not `party`, not `box`.
+   */
   const line = content.species.find((s) => s.id === caught.lineId);
   let gained: OwnedCreature | null = null;
   let problem: string | null = null;
@@ -360,26 +367,42 @@ export function applyCatchToSave(
         lineId: caught.lineId,
         age: caught.age,
         level: caught.level,
-        caughtYear: after.year,
+        caughtYear: save.year,
         traits: caught.traits,
         metamorphosed: caught.metamorphosed,
         // The party is capacity-limited (build-doc §7.8); a full party boxes the newcomer, and
         // core/lifecycle.ts's year turn ages boxed creatures exactly as it ages party ones (G10).
-        boxed: after.party.length >= content.balance.party.maxPartySize,
+        boxed: save.party.length >= content.balance.party.maxPartySize,
       },
       line,
       content.balance,
     );
-    if (gained.boxed === true) {
-      if (after.box.length >= content.balance.party.maxBoxSize) {
-        gained = null;
-        problem = `party (${content.balance.party.maxPartySize}) and box (${content.balance.party.maxBoxSize}) are both full — the count moved, the creature was not kept`;
-      } else {
-        after = { ...after, box: [...after.box, gained] };
-      }
-    } else {
-      after = { ...after, party: [...after.party, gained] };
+    if (gained.boxed === true && save.box.length >= content.balance.party.maxBoxSize) {
+      gained = null;
+      problem = `party (${content.balance.party.maxPartySize}) and box (${content.balance.party.maxBoxSize}) are both full — the count moved, the creature was not kept`;
     }
+  }
+
+  /*
+   * THE BARE ENTRY IS STILL WHAT THE TWO KEPT-NOTHING CASES WRITE, and it is the honest record of
+   * them: an unknown line, or a full party AND box, moved the count and kept no creature, so there
+   * is no creature for the entry to carry. `caughtFromCatchAction` reads such an entry as null and
+   * `replay` applies the population half alone — which is exactly what happened live.
+   */
+  let after: SaveEnvelope = appendAction(
+    save,
+    gained
+      ? catchAction(nodeId, gained)
+      : { t: "catch", nodeId, lineId: caught.lineId, uid: caught.uid },
+  );
+  after = {
+    ...after,
+    nodeStates: { ...after.nodeStates, [nodeId]: toNodeState(next) },
+  };
+  if (gained) {
+    // `core/save.ts`'s own applier, the same one `replay` reaches through the entry just appended.
+    // Two spellings of "party or box" is how the live save and its replay came to disagree once.
+    after = applyCaught(after, gained);
   }
 
   return {

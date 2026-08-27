@@ -50,7 +50,7 @@ import {
   startBattle,
   step as battleStep,
 } from "../../core/battle";
-import { appendAction, newSave, replay, type SaveEnvelope } from "../../core/save";
+import { appendAction, catchAction, newSave, replay, type SaveEnvelope } from "../../core/save";
 import { applyCatchToSave } from "../../game/wild-battle";
 import { runYearTurn } from "../../core/lifecycle";
 
@@ -357,15 +357,29 @@ describe("SEAM — Hard Req 2: a real battle catch moves a real number in the su
     expect(applied.save.nodeStates["r1"]?.populations["nibbin-line"]?.count).toBe(before - 1);
     expect(applied.gained?.lineId).toBe("nibbin-line");
 
-    // The tape entry, and the replay of it — the two halves the stand-in described by hand.
+    /*
+     * The tape entry, and the replay of it — the two halves the stand-in described by hand.
+     *
+     * ⚠ THIS ASSERTION USED TO READ `toEqual({ t, nodeId, lineId, uid })`, AND THAT CONTRACT WAS
+     * SUPERSEDED BY T-34, not by a defect. A catch entry now carries the individual as well as the
+     * count (`core/types.ts` `GameAction`'s `gained`), because nothing else on the tape can rebuild
+     * it — the encounter roll, the trait roll and the fight that fixed its age, level and traits are
+     * not logged at all, and `replay` therefore reproduced the population and dropped the creature.
+     * Exact equality against the canonical constructor is kept, so this is strictly stronger than the
+     * four-field version: it still admits no extra field and no missing one, and it now also pins the
+     * creature. The four fields are asserted individually beneath it so a regression names itself.
+     */
     const logged = applied.save.actionLog.at(-1);
-    expect(logged?.action).toEqual({ t: "catch", nodeId: "r1", lineId: "nibbin-line", uid: caught.uid });
+    expect(logged?.action).toEqual(catchAction("r1", applied.gained!));
+    expect(logged?.action).toMatchObject({ t: "catch", nodeId: "r1", lineId: "nibbin-line", uid: caught.uid });
     const replayed = replay(
       { ...applied.save, actionLog: [], nodeStates: save.nodeStates },
       applied.save.actionLog,
       { species: content.species, gyms: content.gyms, balance },
     );
     expect(replayed.nodeStates["r1"]?.populations["nibbin-line"]?.count).toBe(before - 1);
+    // The creature half, which is the whole of T-34: the replay puts the individual back too.
+    expect(replayed.party.map((c) => c.uid)).toEqual(applied.save.party.map((c) => c.uid));
   });
 
   it("the join has a PRODUCTION caller — which is the half the stale scan could not see", () => {
