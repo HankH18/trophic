@@ -807,6 +807,20 @@ export function zSaveFileFor(party: Balance["party"]): z.ZodType<SaveFile> {
     subTick: zNonNegInt.optional(),
     forayStepsSinceTick: zNonNegInt.optional(),
     currentNode: z.string().min(1),
+    /*
+     * …AND SO IS THIS ONE, FOR THE SAME REASON. `interiorId` is which building the player is
+     * standing inside (`core/interiors.ts`); `currentNode` still names the town. Undeclared, the
+     * `z.object` above would delete it on every load and the bug would read as "reloading puts me
+     * outside", which is indistinguishable from the feature working. Optional because absent IS the
+     * outdoor state — there is no null form — and because a save written before interiors existed
+     * has to keep loading (INV-2).
+     *
+     * NOT cross-checked against the shipped blueprints here: this schema validates SHAPE, and
+     * `data/interiors/` is not one of its inputs. A save naming an interior this build does not
+     * ship is put back outdoors, loudly, by `game/scenes/OverworldScene.ts` — the layer that holds
+     * both the save and the blueprint set.
+     */
+    interiorId: z.string().min(1).optional(),
     party: z.array(zOwnedCreature).max(party.maxPartySize),
     box: z.array(zOwnedCreature).max(party.maxBoxSize),
     money: z.number().min(0),

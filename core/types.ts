@@ -620,6 +620,27 @@ export interface SaveFile {
    */
   forayStepsSinceTick?: number;
   currentNode: string;
+  /**
+   * The building interior the player is standing INSIDE — a `core/interiors.ts`
+   * `InteriorBlueprint.id`. Absent means outdoors, which is why it is optional: every save written
+   * before interiors existed loads and opens outside (INV-2), and every save written outdoors omits
+   * it entirely rather than carrying a null.
+   *
+   * ⚠ `currentNode` KEEPS NAMING THE TOWN while this is set, and that is not a convenience — it is
+   * the reason an interior is modelled this way at all. Nine places resolve a location by id and
+   * throw or answer wrong on one they do not know: `OverworldScene.nodeFile`, `game/wild-battle.ts`
+   * `liveNodeOf` and its eighteen callers, `forayContext`, and `game/survey-view.ts`; two more fail
+   * SILENTLY (`SurveyScene`'s `indexOf` → -1 → node[0], and `unlockActOf(unknown)` → null, which
+   * makes the act gate PASS). An interior id in `currentNode` would therefore throw inside
+   * `Scene.init` and hand the player a black canvas on reload. It never goes there.
+   *
+   * It is not on the replay tape either, and must not be: entering a building costs no tick and
+   * changes no simulated state, and `core/save.ts`'s contract is that a log entry is either a price
+   * or an absolute consequence. Position is not modelled by the tape, so a replay of a save written
+   * indoors reproduces the same world with the player outside it — which is the same thing the tape
+   * already does with `movement.tile`.
+   */
+  interiorId?: string;
   party: OwnedCreature[];
   box: OwnedCreature[];
   money: number;

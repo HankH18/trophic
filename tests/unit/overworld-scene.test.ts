@@ -363,9 +363,25 @@ import { validateContent } from "@core/schemas";
 import { EPILOGUE_SHOWN_FLAG, recordVellsireOutcome } from "@game/finale";
 import { linesMetAt } from "@game/quests";
 import { isNever } from "@core/lifecycle";
-import { propDialogueFor, runHeadless, type DialogueRunState } from "@game/dialogue-runner";
+import { propDialogueFor, runHeadless, transcript, type DialogueRunState } from "@game/dialogue-runner";
 import type { DialogueSceneData } from "@game/scenes/DialogueScene";
 import { encounterTable, stepsPerForay } from "@game/encounters";
+/*
+ * §14's inputs. The blueprints are read through `core/interiors.ts`'s own loader and its own
+ * solidity predicate, never re-parsed here: the whole point of §14.2 is that the SCENE agrees with
+ * that predicate cell for cell, and a second parser in the test would only ever agree with itself.
+ */
+import {
+  INTERIORS,
+  PLAN_DOOR,
+  planCellIsSolid,
+  planCellsWith,
+  planCharAt,
+  planSize,
+  type InteriorBlueprint,
+} from "@core/interiors";
+import { chooseSpawnTile } from "@game/collision";
+import { placeAt } from "@game/movement";
 import { deserialize, newSave, openStreams, serialize, type SaveEnvelope } from "@core/save";
 /*
  * `subsystemRng` is deliberately NOT imported. §3 used to open its own battle stream with it; the
@@ -1460,12 +1476,18 @@ describe("§10.2 create() builds before it reports", () => {
 });
 
 describe("§10.3 the published event flags follow the clock, including across the year turn", () => {
-  it("event.festival.open is open for 4 ticks, NOT 8 — it is retracted at the year turn", () => {
+  it("event.festival.open is open for ONE season window, not two — it is retracted at the year turn", () => {
     /*
      * THE DEFECT, and the stub-blindness that hid it. `syncEvents()` was called only inside the
      * `seasonBoundary` arm, and core/clock.ts deliberately emits NO `seasonBoundary` on the
-     * year-filling tick — so the festival flag survived into the next
-     * spring. Measured through this rig: 8 consecutive open ticks against a 4-tick window.
+     * year-filling tick — so the festival flag survived into the next spring. Measured through this
+     * rig: two consecutive windows open as one.
+     *
+     * THE READING IS HISTORY, NOT THE RULE: it was 8 consecutive open ticks, taken under the
+     * then-shipped 16-tick year where a season was four ticks. A window is `clock.ticksPerSeason`
+     * ticks long, whatever that key holds today — which is what the assertions below read, and why
+     * the title no longer names a number the balance file can move.
+     *
      * The suite that certified the retraction called `syncEventFlags` BY HAND at {year+1, tick:0},
      * a call the game never made.
      */
@@ -3105,5 +3127,581 @@ describe("§13 a save write made while the year turn holds the screen survives i
       h.scene.save.forayStepsSinceTick,
       "the turn's commit reverted the banked step — the save is one walk behind the scene",
     ).toBe(per);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §14 INTERIORS — the player goes inside, and the foray does not follow them in
+ *
+ * `core/interiors.ts` and four `data/interiors/*.json` shipped a model, a schema and 48 tests, and
+ * nothing in `game/` imported any of it: no shipped path put the player inside a building. This is
+ * the other half, and every claim below is about the SCENE executing, not about the model.
+ *
+ * Four things are being bound here, in the order they can break:
+ *
+ *   1. THE THRESHOLD BOTH WAYS. Stepping onto a town's door tile goes in and lands the player on
+ *      `InteriorBlueprint.arrival`; stepping onto the plan's `D` comes back out onto THE DOOR THEY
+ *      USED. `chooseSpawnTile` — which is what every other placement in this scene goes through —
+ *      spirals from the centre of the fixed 64×64 tile lattice, so it cannot find either one: on a
+ *      room thirteen cells wide every tile it tries is outside the room.
+ *   2. THE ROOM'S GEOMETRY IS THE PLAN'S. Cell for cell, over every shipped plan, against
+ *      `core/interiors.ts`'s own solidity predicate. This is where a wrong `cellPx` shows up:
+ *      `gridFromAscii` is handed `balance.map.collisionCellPx` and `gridDimensions()` would derive
+ *      one from the map's native width instead, which is meaningless for a room.
+ *   3. THE TWO GUARDS. `onStepCompleted` rolled an encounter on EVERY completed step and priced
+ *      every step as a foray step. Indoors it must do neither — and "neither" is measured at the
+ *      RNG stream and at the clock, not at the outcome, because an outcome-level check passes for a
+ *      scene that rolls and happens to meet nothing.
+ *   4. THE SAVE FIELD. `zSaveFileFor` deletes what it does not declare, so `interiorId` is followed
+ *      through the real `serialize`/`deserialize` and back into a COLD scene — the same chain §12
+ *      had to walk before it believed the odometer persisted.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("§14 interiors: entering, leaving, and the foray that does not come inside", () => {
+  /** Every shipped blueprint, so a fifth room added tomorrow is covered without editing this file. */
+  const ROOMS = [...INTERIORS];
+
+  /**
+   * The door's tile in the parent town, restated from the blueprint and `balance.map` INDEPENDENTLY
+   * of the scene's own conversion.
+   *
+   * ⚠ IT IS DELIBERATELY NOT `scene.doorTileOf`. `InteriorDoor.x/y` are map-NATIVE pixels; a world
+   * pixel is `mapRenderScale` of one and a tile is `tileStepPx` world pixels. Calling the scene's
+   * helper here would make every assertion below agree with whatever the scene does, including
+   * dropping the render scale — which is exactly the mistake this restatement can catch.
+   */
+  function doorTile(bp: InteriorBlueprint): { col: number; row: number } {
+    const step = balance.map.tileStepPx;
+    return {
+      col: Math.floor((bp.door.x * balance.map.mapRenderScale) / step),
+      row: Math.floor((bp.door.y * balance.map.mapRenderScale) / step),
+    };
+  }
+
+  /** The plan's one `D` cell. `core/interiors.ts` refuses a blueprint that draws any other number. */
+  function planDoor(bp: InteriorBlueprint): { col: number; row: number } {
+    const cells = planCellsWith(bp.plan, PLAN_DOOR);
+    expect(cells.length, `${bp.id} does not draw exactly one doorway`).toBe(1);
+    return cells[0]!;
+  }
+
+  const DELTA = {
+    up: { dCol: 0, dRow: -1 },
+    down: { dCol: 0, dRow: 1 },
+    left: { dCol: -1, dRow: 0 },
+    right: { dCol: 1, dRow: 0 },
+  } as const;
+  type Dir = keyof typeof DELTA;
+
+  /** Which single step takes you from `from` to the adjacent `to`. */
+  function dirFromTo(from: { col: number; row: number }, to: { col: number; row: number }): Dir {
+    const found = (Object.keys(DELTA) as Dir[]).find(
+      (d) => from.col + DELTA[d].dCol === to.col && from.row + DELTA[d].dRow === to.row,
+    );
+    expect(found, `${from.col},${from.row} and ${to.col},${to.row} are not neighbours`).toBeDefined();
+    return found as Dir;
+  }
+
+  /**
+   * Stand one tile back and take the ONE step that lands on `tile`.
+   *
+   * A step, not a teleport: the whole mechanism under test is `onStepCompleted`, and placing the
+   * player on the tile directly would prove nothing about it.
+   */
+  function stepOnto(h: Harness, tile: { col: number; row: number }, dir: Dir): void {
+    const back = DELTA[dir];
+    h.scene.movement = placeAt(h.scene.movement, { col: tile.col - back.dCol, row: tile.row - back.dRow });
+    h.hold(dir, true);
+    h.frame();
+    h.hold(dir, false);
+  }
+
+  /**
+   * Walk the player in through the front door, answering whatever the walk ran into on the way.
+   *
+   * The step onto a threshold is an ordinary outdoor foray step — it rolls, and at the shipped rates
+   * one step in twenty or so meets something — so a fight or a year turn can land on the very frame
+   * the player would have gone inside, and the scene deliberately lets the creature have that step.
+   * This retries rather than pretending it is rare.
+   */
+  function goInside(h: Harness, bp: InteriorBlueprint): void {
+    const door = doorTile(bp);
+    // Approach from the north so the step is a plain one; which side does not matter to the scene,
+    // and the synthesised town grid is open everywhere but its border.
+    for (let attempt = 0; attempt < 8 && h.scene.currentInterior() === null; attempt += 1) {
+      settleBattle(h, "fled");
+      settleYearTurn(h);
+      stepOnto(h, door, "down");
+    }
+    expect(h.scene.currentInterior()?.id, `the rig never got the player into ${bp.id}`).toBe(bp.id);
+  }
+
+  /** A save standing in a room's parent town, with that town's populations wiped to zero. */
+  function saveAtTown(bp: InteriorBlueprint, quiet = true): SaveEnvelope {
+    const save = freshSave(bp.parentNode);
+    if (!quiet) return save;
+    /*
+     * ZEROED ON PURPOSE, and only where determinism is the point: with no weight in the table the
+     * encounter roll cannot return anything, so the step onto the threshold is guaranteed clean and
+     * the assertions below are about the door rather than about a seed. The guard tests further
+     * down do NOT rely on this — they measure the RNG stream, which advances whether or not the
+     * table has weight in it.
+     */
+    const zeros: Record<string, number> = {};
+    for (const lineId of Object.keys(nodeFile(bp.parentNode).populations)) zeros[lineId] = 0;
+    return withCounts(save, bp.parentNode, zeros);
+  }
+
+  function mountAt(bp: InteriorBlueprint, quiet = true): Harness {
+    return mount({ save: saveAtTown(bp, quiet), startNode: bp.parentNode });
+  }
+
+  /* ── 14.1 the threshold, both ways ─────────────────────────────────────── */
+
+  it.each(ROOMS.map((bp) => [bp.id, bp] as const))(
+    "%s — a step onto its town door tile puts the player on the blueprint's ARRIVAL cell",
+    (_id, bp) => {
+      const h = mountAt(bp);
+      expect(h.scene.currentInterior(), "the player did not start outdoors").toBeNull();
+      expect(h.scene.save.interiorId, "a fresh save already names an interior").toBeUndefined();
+
+      const door = doorTile(bp);
+      expect(h.scene.canEnter(door), `${bp.id}'s door tile is not walkable in ${bp.parentNode}`).toBe(true);
+      stepOnto(h, door, "down");
+
+      expect(h.scene.currentInterior()?.id, "the step onto the doorway did not go inside").toBe(bp.id);
+      expect(h.scene.save.interiorId, "the save does not say which room the player is in").toBe(bp.id);
+      // `currentNode` KEEPS NAMING THE TOWN — the single decision the whole model rests on. An
+      // interior id here throws inside `Scene.init` on the next reload (nine call sites).
+      expect(h.scene.save.currentNode, "an interior id reached save.currentNode").toBe(bp.parentNode);
+
+      expect(
+        h.scene.movement.tile,
+        "the player did not land on the blueprint's arrival cell",
+      ).toEqual({ col: bp.arrival.col, row: bp.arrival.row });
+      // …and facing the way they walked in, which is the step from the doorway to the arrival.
+      expect(h.scene.movement.facing, "the player came in facing the wrong way").toBe(
+        dirFromTo(planDoor(bp), bp.arrival),
+      );
+    },
+  );
+
+  it.each(ROOMS.map((bp) => [bp.id, bp] as const))(
+    "%s — a step onto the plan's D comes back out ON THE DOOR TILE, not on the town's spawn",
+    (_id, bp) => {
+      const h = mountAt(bp);
+      goInside(h, bp);
+
+      const out = planDoor(bp);
+      stepOnto(h, out, dirFromTo(bp.arrival, out));
+
+      expect(h.scene.currentInterior(), "the step onto D did not leave the room").toBeNull();
+      expect("interiorId" in h.scene.save, "the save still carries an interiorId outdoors").toBe(false);
+      expect(h.scene.movement.tile, "the player did not come out at the door they used").toEqual(doorTile(bp));
+
+      /*
+       * AND IT IS NOT THE SPAWN TILE. Without this, placing the player through `chooseSpawnTile`
+       * would satisfy "they are outdoors and standing somewhere legal" and read as correct — which
+       * is exactly what `buildNodeView` does for every OTHER placement in this scene.
+       */
+      const spawn = chooseSpawnTile(h.scene.collision.grid, balance).tile;
+      expect(
+        doorTile(bp),
+        `the fixture is degenerate: ${bp.id}'s door tile IS the town spawn, so this proves nothing`,
+      ).not.toEqual(spawn);
+      expect(h.scene.movement.tile, "the player was respawned at the town's spawn tile").not.toEqual(spawn);
+    },
+  );
+
+  it("leaving and re-entering is a step each way — the doorway does not bounce the player back in", () => {
+    const bp = ROOMS[0]!;
+    const h = mountAt(bp);
+    goInside(h, bp);
+
+    const out = planDoor(bp);
+    stepOnto(h, out, dirFromTo(bp.arrival, out));
+    expect(h.scene.currentInterior(), "the player is still inside").toBeNull();
+
+    /*
+     * THE PLAYER IS NOW STANDING ON THE TOWN'S DOOR TILE. If entering were triggered by STANDING on
+     * a doorway rather than by a STEP onto one, this frame would put them straight back inside and
+     * the door would be a trap. One frame with nothing held: nothing moves, nothing happens.
+     */
+    h.frame();
+    expect(h.scene.currentInterior(), "standing on the doorway re-entered the building").toBeNull();
+  });
+
+  /* ── 14.2 the room's geometry is the plan's ────────────────────────────── */
+
+  /**
+   * The room the scene is standing in agrees with the plan, cell for cell.
+   *
+   * ⚠ SHARED BY THE TWO PATHS THAT BUILD A ROOM'S GRID, and it exists as a helper because they are
+   * two: `enterInterior` parses the plan when the player walks in, and `adoptInterior` parses it
+   * again on every `init` — the cold load and the trip to the in-run menu. A sabotage of the SECOND
+   * `gridFromAscii` call (its `cellPx` doubled to `tileStepPx`) came back GREEN with only the
+   * walk-in path checked here and a single `canEnter({0,0})` corner check on the cold one, because
+   * (0,0) is a wall under either cell size. One spelling, asked of both.
+   */
+  function expectRoomMatchesPlan(h: Harness, bp: InteriorBlueprint, where: string): void {
+    const size = planSize(bp.plan);
+    let solid = 0;
+    let open = 0;
+    for (let row = 0; row < size.rows; row += 1) {
+      for (let col = 0; col < size.cols; col += 1) {
+        const blocked = planCellIsSolid(bp.plan, col, row);
+        expect(
+          h.scene.canEnter({ col, row }),
+          `${where}: ${bp.id} cell ${col},${row} is "${String(planCharAt(bp.plan, col, row))}" — the scene disagrees`,
+        ).toBe(!blocked);
+        if (blocked) solid += 1;
+        else open += 1;
+      }
+    }
+    // The fixture has to contain both, or the loop above passes by asserting one thing many times.
+    expect(solid, `${where}: ${bp.id} draws no walls at all`).toBeGreaterThan(0);
+    expect(open, `${where}: ${bp.id} draws no floor at all`).toBeGreaterThan(0);
+    // …and the world does not continue past the plan. Out of bounds reads as blocked, which is what
+    // stops the player walking out of a room through a wall the plan never drew.
+    expect(h.scene.canEnter({ col: size.cols, row: 1 }), `${where}: the room leaks east`).toBe(false);
+    expect(h.scene.canEnter({ col: 1, row: size.rows }), `${where}: the room leaks south`).toBe(false);
+  }
+
+  it.each(ROOMS.map((bp) => [bp.id, bp] as const))(
+    "%s — every cell of the plan answers `canEnter` exactly as core/interiors.ts calls it solid",
+    (_id, bp) => {
+      const h = mountAt(bp);
+      goInside(h, bp);
+      expectRoomMatchesPlan(h, bp, "walked in");
+
+      // …and again after a restart, which re-parses the plan through `adoptInterior` rather than
+      // through `enterInterior`. Two call sites, two chances to be handed the wrong cell size.
+      h.restart({ save: h.scene.save });
+      expectRoomMatchesPlan(h, bp, "after a restart");
+    },
+  );
+
+  /* ── 14.3 the two guards ───────────────────────────────────────────────── */
+
+  it("NO ENCOUNTER IS ROLLED INDOORS — the encounter stream does not move, and outdoors it does", () => {
+    const bp = ROOMS[0]!;
+    const h = mountAt(bp);
+    goInside(h, bp);
+
+    /*
+     * MEASURED AT THE STREAM, NOT AT THE OUTCOME. `rollForayStep` opens with
+     * `rng.chance(effectiveEncounterChance(...))` — one draw on EVERY step, whatever the table holds
+     * — so the stream's position is the direct witness to "was the roll made at all". An
+     * `encountersMetCount() === 0` check would pass just as happily for a scene that rolled forty
+     * times and met nothing, which at the shipped 4.5% effective rate is most walks.
+     */
+    const STEPS = 40;
+    const before = h.scene.streamFor("encounter").save();
+    const inside = walk(h, STEPS, () => h.scene.currentInterior() === null || h.scene.isHandedOver());
+    expect(inside, "the rig could not walk inside the room").toBe(STEPS);
+    expect(h.scene.currentInterior()?.id, "the walk wandered out of the room").toBe(bp.id);
+    expect(h.scene.streamFor("encounter").save(), "a step indoors drew from the encounter stream").toEqual(before);
+    expect(h.scene.encountersMetCount(), "a wild creature was met indoors").toBe(0);
+
+    /*
+     * THE CONTROL, and it is the half that makes the assertion above mean anything: the same rig,
+     * the same seed, the same number of steps, taken outdoors. Without it, a scene that had stopped
+     * rolling everywhere would pass.
+     */
+    const out = planDoor(bp);
+    stepOnto(h, out, dirFromTo(bp.arrival, out));
+    expect(h.scene.currentInterior(), "the control did not get back outdoors").toBeNull();
+    const outdoorsBefore = h.scene.streamFor("encounter").save();
+    walk(h, STEPS, () => h.scene.isHandedOver());
+    expect(
+      h.scene.streamFor("encounter").save(),
+      "the same walk outdoors drew nothing either — the control proves the rig, not the guard",
+    ).not.toEqual(outdoorsBefore);
+  });
+
+  it("NO FORAY TICK IS CHARGED INDOORS — the clock, the tape and the odometer all stand still", () => {
+    const bp = ROOMS[0]!;
+    const h = mountAt(bp);
+    goInside(h, bp);
+
+    const forays = (): number => h.scene.save.actionLog.filter((e) => e.action.t === "foray").length;
+    const clockOf = (): string =>
+      `${String(h.scene.save.year)}/${String(h.scene.save.tick)}/${String(h.scene.save.subTick ?? 0)}`;
+
+    // MORE THAN A WHOLE FORAY'S WORTH. Fewer steps than `stepsPerForay` could not charge a tick even
+    // outdoors, so the walk has to be long enough that a missing guard really would bill the player.
+    const STEPS = stepsPerForay(balance) + 4;
+    const bankedBefore = h.scene.forayStepsSinceTick();
+    const forayBefore = forays();
+    const clockBefore = clockOf();
+    const logBefore = h.scene.save.actionLog.length;
+
+    const inside = walk(h, STEPS, () => h.scene.currentInterior() === null || h.scene.isHandedOver());
+    expect(inside, "the rig could not walk a full foray's worth inside the room").toBe(STEPS);
+    expect(h.scene.currentInterior()?.id, "the walk wandered out of the room").toBe(bp.id);
+
+    expect(forays() - forayBefore, "a foray tick was charged for walking indoors").toBe(0);
+    expect(clockOf(), "the clock moved while the player walked indoors").toBe(clockBefore);
+    expect(h.scene.save.actionLog.length - logBefore, "an indoor walk wrote to the replay tape").toBe(0);
+    /*
+     * AND THE ODOMETER DID NOT ADVANCE EITHER — a separate decision from not charging, and the one
+     * that decides WHEN the next outdoor tick lands. Banking indoor steps would suppress the roll
+     * and keep the price: a tick charged for a walk that could not have met anything.
+     */
+    expect(h.scene.forayStepsSinceTick(), "walking indoors banked steps toward a foray tick").toBe(bankedBefore);
+    expect(h.scene.save.forayStepsSinceTick, "the save banked what the scene did not").toBe(bankedBefore);
+
+    // THE CONTROL. The same walk outdoors charges the foray it is supposed to charge.
+    const out = planDoor(bp);
+    stepOnto(h, out, dirFromTo(bp.arrival, out));
+    const outdoorsForays = forays();
+    walk(h, STEPS, () => h.scene.isHandedOver());
+    settleBattle(h, "fled");
+    settleYearTurn(h);
+    expect(
+      forays(),
+      "the same walk outdoors charged nothing either — the control proves the rig, not the guard",
+    ).toBeGreaterThan(outdoorsForays);
+  });
+
+  it("…and the banked walk is KEPT across a visit indoors, not reset — free, not refunded", () => {
+    /*
+     * The other side of the odometer decision, and the one a "reset it on entry" implementation
+     * would fail. Hank's ruling on travel — *"I see no reason why stepsSinceTick should reset after
+     * a fast travel"* — is the same ruling: the counter measures walking, and a door is not a
+     * refund. A player who ducks inside one step short of a foray still owes that step outside.
+     */
+    const bp = ROOMS[0]!;
+    const per = stepsPerForay(balance);
+    /*
+     * SHORT OF THE ROLLOVER BY MORE THAN ONE, so the step through the door does not itself charge a
+     * foray and the number below is a plain `banked + 1`. With `per - 1` the entering step would
+     * roll the odometer over and land it on 0 — and 0 is the value a reset produces too, so the
+     * fixture would agree with the defect it is here to catch.
+     */
+    const banked = per - 3;
+    const h = mount({
+      save: { ...saveAtTown(bp), forayStepsSinceTick: banked },
+      startNode: bp.parentNode,
+    });
+    expect(h.scene.forayStepsSinceTick(), "the scene did not open on the save's odometer").toBe(banked);
+
+    // The step onto the threshold is an ordinary outdoor step and counts as one: the door is not a
+    // discount on walking. The town's counts are zeroed, so it is exactly one step and no more.
+    goInside(h, bp);
+    const afterEntry = h.scene.forayStepsSinceTick();
+    expect(afterEntry, "going through the door reset the banked walk, or failed to count the step").toBe(banked + 1);
+
+    walk(h, 6, () => h.scene.currentInterior() === null || h.scene.isHandedOver());
+    expect(h.scene.forayStepsSinceTick(), "walking indoors moved the odometer").toBe(afterEntry);
+
+    const out = planDoor(bp);
+    stepOnto(h, out, dirFromTo(bp.arrival, out));
+    expect(h.scene.forayStepsSinceTick(), "leaving the building reset the banked walk").toBe(afterEntry);
+    expect(h.scene.save.forayStepsSinceTick, "the save's odometer disagrees with the scene's").toBe(afterEntry);
+  });
+
+  /* ── 14.4 entering is free ─────────────────────────────────────────────── */
+
+  it("ENTERING COSTS NOTHING — no tick, no sub-tick, and nothing on the replay tape", () => {
+    const bp = ROOMS[0]!;
+    const h = mountAt(bp);
+
+    const door = doorTile(bp);
+    // Placed a tile back BEFORE the readings are taken, so the only thing that happens between them
+    // is the one step through the door.
+    h.scene.movement = placeAt(h.scene.movement, { col: door.col, row: door.row - 1 });
+    const logBefore = h.scene.save.actionLog.length;
+    const yearBefore = h.scene.save.year;
+    const tickBefore = h.scene.save.tick;
+    const subBefore = h.scene.save.subTick ?? 0;
+
+    h.hold("down", true);
+    h.frame();
+    h.hold("down", false);
+
+    expect(h.scene.currentInterior()?.id, "the step did not go inside, so nothing below is about entering").toBe(bp.id);
+    expect(h.scene.save.actionLog.length - logBefore, "entering a building wrote to the replay tape").toBe(0);
+    expect(h.scene.save.year, "entering a building moved the year").toBe(yearBefore);
+    expect(h.scene.save.tick, "entering a building spent a tick").toBe(tickBefore);
+    expect(h.scene.save.subTick ?? 0, "entering a building spent a sub-tick").toBe(subBefore);
+    // Named explicitly: a `{t:"travel", to:"hearthollow-inn"}` would satisfy a length check that
+    // happened to be taken across a step that also charged a foray.
+    expect(
+      h.scene.save.actionLog.some((e) => JSON.stringify(e.action).includes(bp.id)),
+      "the interior's id reached the action log",
+    ).toBe(false);
+  });
+
+  /* ── 14.5 the save field ───────────────────────────────────────────────── */
+
+  it("interiorId SURVIVES A COLD SAVE/LOAD — serialize, deserialize, and a brand-new scene", () => {
+    const bp = ROOMS[0]!;
+    const h = mountAt(bp);
+    goInside(h, bp);
+    // Walk off the arrival cell, so "the reload put me back inside" and "the reload restarted the
+    // room" are distinguishable below.
+    walk(h, 3, () => h.scene.currentInterior() === null || h.scene.isHandedOver());
+    const standing = { ...h.scene.movement.tile };
+    expect(standing, "the walk never left the arrival cell").not.toEqual({ col: bp.arrival.col, row: bp.arrival.row });
+
+    /*
+     * ⚠ THROUGH THE REAL SCHEMA. `zSaveFileFor` is a `z.object`, which DELETES keys it does not
+     * declare — its own comment says so — and `deserialize` runs every load through it. An
+     * undeclared `interiorId` round-trips to `undefined` and the bug reads as "reloading puts me
+     * outside", which is indistinguishable from the feature simply not existing.
+     */
+    const reloaded = deserialize(serialize(h.scene.save), balance);
+    expect(reloaded.interiorId, "the schema deleted interiorId on the way through").toBe(bp.id);
+    expect(reloaded.currentNode, "the town was lost on the round trip").toBe(bp.parentNode);
+
+    const cold = mount({ save: reloaded });
+    expect(cold.scene.currentInterior()?.id, "a cold reload opened outside the building").toBe(bp.id);
+    // A cold scene has no standing position, so it lands on the arrival cell — the blueprint's
+    // answer to "where does someone who is in this room with no position stand".
+    expect(cold.scene.movement.tile, "a cold reload did not land on the arrival cell").toEqual({
+      col: bp.arrival.col,
+      row: bp.arrival.row,
+    });
+    /*
+     * AND IT IS WALKING THE ROOM'S GRID, CELL FOR CELL. A single `canEnter({0,0}) === false` used to
+     * stand here and it proved nothing: (0,0) is a wall in every plan AND blocked on the town's own
+     * bordered grid, so it agreed with a cold scene that had never parsed the plan at all — and it
+     * agreed with one that parsed it at the wrong cell size, which is what a sabotage of
+     * `adoptInterior`'s `gridFromAscii` demonstrated by staying green.
+     */
+    expectRoomMatchesPlan(cold, bp, "cold reload");
+  });
+
+  it("a trip to the in-run menu and back leaves the player standing where they were INSIDE", () => {
+    // §4's claim, asked of the other view mode: `create()` runs `buildNodeView` on every restart,
+    // and a comparison that only looked at the NODE id would call a room and its town the same view.
+    const bp = ROOMS[0]!;
+    const h = mountAt(bp);
+    goInside(h, bp);
+    walk(h, 3, () => h.scene.currentInterior() === null || h.scene.isHandedOver());
+    const standing = { ...h.scene.movement.tile };
+
+    h.restart({ save: h.scene.save });
+
+    expect(h.scene.currentInterior()?.id, "the restart put the player outdoors").toBe(bp.id);
+    expect(h.scene.movement.tile, "the restart teleported the player").toEqual(standing);
+  });
+
+  it("A SAVE NAMING A ROOM THIS BUILD DOES NOT SHIP opens outdoors, and says so", () => {
+    /*
+     * The `interiorId` counterpart of §12's INV-2 case. A blueprint can be removed, and a save is a
+     * supported hand-editable input (`core/save.ts`). The one thing that must not happen is a scene
+     * that boots into a room with no geometry and no door.
+     */
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    try {
+      const bp = ROOMS[0]!;
+      const h = mount({
+        save: { ...saveAtTown(bp), interiorId: "no-such-building" },
+        startNode: bp.parentNode,
+      });
+      expect(h.scene.currentInterior(), "the scene claims to be inside a room that does not exist").toBeNull();
+      expect("interiorId" in h.scene.save, "the save kept an interiorId nothing can resolve").toBe(false);
+      expect(h.scene.canEnter(h.scene.movement.tile), "the player is standing in geometry").toBe(true);
+      expect(
+        warn.mock.calls.some((c) => String(c[0]).includes("no-such-building")),
+        "the scene put the player outdoors silently",
+      ).toBe(true);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  /* ── 14.6 the rest of the overworld stands down indoors ────────────────── */
+
+  it("travel is REFUSED from inside a building — the two halves of the save cannot disagree", async () => {
+    /*
+     * Not a nicety. `travelTo` rebuilds the TOWN's geometry through `buildNodeView`; taken from
+     * inside, `save.currentNode` would name the new node while `save.interiorId` still named a room
+     * in the old one, and the player would be walking an inn's floor plan over a route's map.
+     */
+    const bp = ROOMS[0]!;
+    const h = mountAt(bp);
+    goInside(h, bp);
+
+    const route = h.scene.node.adjacency[0];
+    expect(route, `${bp.parentNode} is adjacent to nothing, so there is no travel to refuse`).toBeDefined();
+    await h.scene.travelTo(route as string);
+
+    expect(h.scene.save.currentNode, "travel was allowed from inside a building").toBe(bp.parentNode);
+    expect(h.scene.currentInterior()?.id, "the refused travel still changed the view").toBe(bp.id);
+  });
+
+  it("[E] indoors reads the room's ANCHORS, and the town's props are out of reach", () => {
+    const bp = ROOMS.find((each) => each.anchors.some((a) => a.kind === "service"));
+    expect(bp, "no shipped blueprint carries a service anchor").toBeDefined();
+    const room = bp as InteriorBlueprint;
+    const anchor = room.anchors.find((a) => a.kind === "service")!;
+
+    const h = mountAt(room);
+    goInside(h, room);
+    h.scene.movement = placeAt(h.scene.movement, { col: anchor.col, row: anchor.row });
+
+    h.press(KEY_E);
+    h.frame();
+    /*
+     * The dialogue box is not registered in this rig, so `playEntry` runs the entry HEADLESSLY and
+     * `finishDialogue` records what was said — which is the witness that the corpus entry the anchor
+     * names actually reached the player. The anchor's target is validated by `core/interiors.ts` to
+     * be one of the eleven shipped `kind:"service"` entries, so this is a real line, not a stub.
+     */
+    const said = h.scene.lastLineSpoken();
+    expect(said.length, `${room.id}.${anchor.id} said nothing`).toBeGreaterThan(0);
+    /*
+     * AND IT IS THE ANCHOR'S OWN ENTRY, not merely a line. Without this the check passes for an
+     * `interact` that fell through to `talkEntryFor` and answered with whatever the TOWN happens to
+     * be saying — which is the exact failure mode indoors: the room's anchors ignored and the town's
+     * conversation played at a player standing in a shop. The expected transcript is produced by the
+     * same headless runner the scene used, off the id `core/interiors.ts` validated.
+     */
+    const expected = transcript(DIALOGUE, runHeadless(DIALOGUE, (anchor as { target: string }).target));
+    expect(said, `${room.id}.${anchor.id} played some other entry`).toBe(expected[expected.length - 1]);
+
+    // …and a cell with no anchor on it says so rather than answering with a town prop.
+    const empty = { col: room.arrival.col, row: room.arrival.row };
+    expect(
+      room.anchors.some((a) => a.col === empty.col && a.row === empty.row),
+      "the arrival cell carries an anchor, so it is not the empty case",
+    ).toBe(false);
+    h.scene.movement = placeAt(h.scene.movement, empty);
+    h.press(KEY_E);
+    h.frame();
+    expect(h.hud(), "an empty cell indoors did not report itself").toContain("nothing here");
+  });
+
+  it("the HUD names the way out from inside, and the ways in from outside", () => {
+    // A door is walkable floor in a collision mask and there is no painted door yet, so without a
+    // readout a shipped building is a tile the player has no way to find.
+    const bp = ROOMS[0]!;
+    const h = mountAt(bp);
+    const door = doorTile(bp);
+    expect(h.hud(), "the town's HUD does not say where its doors are").toContain(
+      `door ${bp.id} at tile ${String(door.col)},${String(door.row)}`,
+    );
+
+    goInside(h, bp);
+    const printed = h.hud();
+    expect(printed, "the room's HUD does not name the room").toContain(`inside ${bp.name} (${bp.id})`);
+    const out = planDoor(bp);
+    expect(printed, "the room's HUD does not say where the way out is").toContain(
+      `out at ${String(out.col)},${String(out.row)}`,
+    );
+    /*
+     * …AND IT IS STILL LEGIBLE, on §7's terms rather than on a line-length rule this file would be
+     * inventing: the HUD's own provenance line is 165 characters and is fine BECAUSE it is wrapped
+     * to the virtual screen. So the question asked here is the same one — the text object now
+     * carrying the interior's `FOOTPRINT …` provenance line must be a wrapped one. A room whose
+     * note landed on an unwrapped object would run off the right edge exactly as the map's did.
+     */
+    const hudObject = h.parts.objects.find((o) => o.kind === "text" && o.text.includes("FOOTPRINT interior"));
+    expect(hudObject, "no text object carries the interior's provenance line").toBeDefined();
+    expect(typeof hudObject!.wordWrapWidth, "the interior HUD sets no wrap width").toBe("number");
+    expect(hudObject!.wordWrapWidth as number).toBeLessThanOrEqual(balance.map.virtualWidth);
   });
 });

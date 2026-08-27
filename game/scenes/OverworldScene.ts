@@ -18,6 +18,24 @@
  *     spends the ticks, reports the boundary, and hands it over.
  *   • It writes no moralising copy about catching (G7). The HUD shows counts.
  *
+ * ══ INTERIORS ARE A SECOND VIEW MODE OF THIS SCENE, NOT A SECOND SCENE ══
+ *
+ * Stepping onto a building's doorway re-dresses this scene in place. That is not a new mechanism:
+ * {@link OverworldScene.travelTo} has always been exactly that move — same scene, new geometry, new
+ * picture, player repositioned — and pointing it at a `core/interiors.ts` blueprint instead of a
+ * node file reuses movement, collision, `interact`, the HUD, the two clocks and the save unchanged.
+ * A separate Phaser scene would have had to re-mount every one of them and keep them in step.
+ *
+ * The three things that ARE different indoors, each stated where it happens:
+ *   • `save.currentNode` KEEPS NAMING THE TOWN, and `save.interiorId` says which room. See
+ *     `core/types.ts` `SaveFile.interiorId` for the nine call sites that throw or answer silently
+ *     wrong on a location id they do not know.
+ *   • No encounter is rolled and no foray tick is charged — {@link OverworldScene.onStepCompleted}.
+ *   • Entering and leaving cost NOTHING: no tick, no action-log entry. Position is not on the
+ *     replay tape, entering changes no simulated state, and `core/save.ts`'s contract is that an
+ *     entry is either a price or an absolute consequence. A `ClockActionKind` for it would light up
+ *     five exhaustive switches to charge zero.
+ *
  * SEAMS FOR THE OTHER LANES. Every hand-off is an optional hook on {@link OverworldHooks}. When a
  * hook is absent the scene does the honest minimal thing itself and says so on screen, so the
  * vertical slice is walkable today; when C1/C3/C5/C6 land, they pass hooks and the defaults switch
@@ -46,6 +64,7 @@ import {
 } from "../../core/save";
 import type {
   Balance,
+  CollisionGrid,
   Content,
   GameAction,
   GymLeader,
@@ -54,13 +73,32 @@ import type {
   SaveFile,
   Season,
 } from "../../core/types";
+/*
+ * THE INTERIOR MODEL, AND NOTHING ELSE FROM IT. `core/interiors.ts` holds the blueprints, their
+ * schema and the second pass over the ASCII plan that reads its anchors; it deliberately does NOT
+ * build a collision grid, because `core/` may not import `game/` — so this file is the first (and
+ * only) production caller of `gridFromAscii` on a plan. See {@link OverworldScene.interiorGrid}.
+ */
+import {
+  PLAN_DOOR,
+  interiorById,
+  interiorsOf,
+  planCellsWith,
+  planSize,
+  stepFrom,
+  type InteriorAnchor,
+  type InteriorBlueprint,
+  type PlanCell,
+} from "../../core/interiors";
 import {
   cellTopLeftWorld,
   chooseSpawnTile,
   gridConsistencyProblem,
+  gridFromAscii,
   loadCollision,
   tileGridSize,
   tileWalkable,
+  worldCellPx,
   type LoadedCollision,
   type MaskPixels,
 } from "../collision";
@@ -83,6 +121,7 @@ import {
 import {
   MapView,
   drawCollisionOverlay,
+  drawInteriorFootprint,
   ensureNodeArt,
   nodeArtKeys,
   playerPlaceholderKey,
@@ -167,8 +206,10 @@ import {
   type YearTurnSceneData,
 } from "./YearTurnScene";
 import {
+  DIRECTIONS,
   chooseDirection,
   createMovement,
+  delta,
   movementConfig,
   newlyPressed,
   placeAt,
@@ -299,6 +340,33 @@ export class OverworldScene extends Phaser.Scene {
   movement!: MovementState;
   movementCfg!: MovementConfig;
 
+  /**
+   * The building the player is standing inside, or null outdoors.
+   *
+   * DERIVED FROM THE SAVE ON EVERY `init`, never latched independently of it — see
+   * {@link adoptInterior}. A Phaser scene instance survives a `scene.start`, so a field the save did
+   * not agree with would come back after a trip to the in-run menu and put the player in a room the
+   * save says they left.
+   */
+  private interior: InteriorBlueprint | null = null;
+  /**
+   * The room's collision, parsed from its ASCII plan by `game/collision.ts` `gridFromAscii` — the
+   * engine's own parser, so a wall in the picture and a wall the player bumps into are the same
+   * cell by construction. `core/interiors.ts` pins its own solidity predicate to this function's
+   * answer cell-for-cell, which is what makes that true across the seam.
+   *
+   * ⚠ `collisionCellPx` IS PASSED EXPLICITLY, and `gridDimensions()` must not be used to derive it:
+   * that function computes a cell size from the map's NATIVE width over the 64-cell lattice, which
+   * is meaningless for a room a dozen cells wide. `core/interiors.ts`'s header says the same.
+   *
+   * The town's own {@link collision} is left standing beside this, untouched, because the player is
+   * coming back out of that door — and because it is the node's authored mask, which a room's plan
+   * is not. {@link activeGrid} is the one place the two are chosen between.
+   */
+  private interiorGrid: CollisionGrid | null = null;
+  /** The room's footprint stand-in (game/mapview.ts `drawInteriorFootprint`). Rebuilt every create. */
+  private interiorView!: Phaser.GameObjects.Graphics;
+
   private hooks: OverworldHooks = {};
   private startNodeId: string | null = null;
   private msPerTile: number | undefined;
@@ -347,8 +415,12 @@ export class OverworldScene extends Phaser.Scene {
   private travelling = false;
   private hudDirty = true;
   /**
-   * The node the CURRENT view was built for. `buildNodeView` respawns the player only when this
-   * changes — see its header for the teleport-on-every-ESC defect that made it necessary.
+   * The VIEW the current geometry was built for — {@link viewId}, i.e. the interior's id when the
+   * player is inside one and the node's id when they are not. `buildNodeView` respawns the player
+   * only when this changes — see its header for the teleport-on-every-ESC defect that made it
+   * necessary, which an interior would otherwise reintroduce: a trip to the in-run menu taken while
+   * indoors comes back through `create()` → `buildNodeView`, and comparing against the NODE id
+   * alone would say "same place" and then keep a tile that belongs to the other geometry.
    */
   private viewNodeId: string | null = null;
   /** Non-null when the player is standing somewhere they should not be able to stand. Printed. */
@@ -413,8 +485,13 @@ export class OverworldScene extends Phaser.Scene {
 
     const problem = gridConsistencyProblem(this.balance);
     if (problem) console.warn(`[overworld] ${problem}`);
+    const cellProblem = interiorCellProblem(this.balance);
+    if (cellProblem) console.warn(`[overworld] ${cellProblem}`);
 
     this.node = this.nodeFile(this.save.currentNode);
+    // BEFORE `buildNodeView`, which asks {@link activeGrid} whether the standing tile is still legal
+    // and lands the player on the room's arrival cell when it is not.
+    this.adoptInterior(this.save.interiorId ?? null);
     this.movementCfg = movementConfig(this.balance, this.msPerTile);
     /*
      * THE FORAY ODOMETER IS THE SAVE'S, and it is read back here.
@@ -464,10 +541,16 @@ export class OverworldScene extends Phaser.Scene {
      * thing worth keeping across a restart; the object is the thing that has to be told.
      */
     this.overlay = this.add.graphics().setDepth(10).setVisible(this.overlayVisible);
-    if (this.overlayVisible) drawCollisionOverlay(this.overlay, this.collision.grid, this.balance);
+    if (this.overlayVisible) drawCollisionOverlay(this.overlay, this.activeGrid(), this.balance);
+
+    // Above the (hidden) painting, below the collision overlay and the player. Built on every
+    // `create` for the same reason the overlay is: the display list is torn down by a restart and
+    // the fields are not.
+    this.interiorView = this.add.graphics().setDepth(INTERIOR_DEPTH);
+    this.syncViewMode();
 
     const camera = this.cameras.main;
-    camera.setBounds(0, 0, this.mapView.worldWidth, this.mapView.worldHeight);
+    this.applyCameraBounds();
     camera.startFollow(this.player, true);
 
     // L8's season meter is HUD, not a menu: it is on screen while the overworld is. The widget is
@@ -622,9 +705,18 @@ export class OverworldScene extends Phaser.Scene {
 
     const spawn = chooseSpawnTile(this.collision.grid, this.balance);
     this.spawnProblem = spawn.problem;
+    /*
+     * ⚠ INDOORS THE LANDING IS THE BLUEPRINT'S, NOT `chooseSpawnTile`'S, and that is exactly why
+     * `InteriorBlueprint.arrival` exists. `chooseSpawnTile` spirals out from the centre of the fixed
+     * 64×64 tile lattice (`tileGridSize`) — on a room thirteen cells wide every one of those tiles is
+     * outside the room, so it walks the whole lattice, finds the first cell the room's grid does not
+     * mark solid (out of bounds reads as BLOCKED, so it finds nothing at all inside the plan) and
+     * lands the player in a far corner of a room that has none. It also cannot find a doorway.
+     */
+    const landing = this.interior === null ? spawn.tile : cellTile(this.interior.arrival);
 
     const standing: MovementState | undefined = this.movement;
-    const sameNode = this.viewNodeId === this.node.id;
+    const sameNode = this.viewNodeId === this.viewId();
     if (standing !== undefined && sameNode && this.canEnter(standing.tile)) {
       // Same node, still a legal tile: keep the position and the foray progress. `placeAt` drops any
       // step in flight, which is right — the tween belongs to a frame loop that has been torn down.
@@ -646,12 +738,252 @@ export class OverworldScene extends Phaser.Scene {
        * {@link travelTo} — and on a fresh scene the counter is already whatever the save carries
        * (see {@link init}), which is 0 for a new game and the banked walk for a reload.
        */
-      this.movement = standing !== undefined ? placeAt(standing, spawn.tile) : createMovement(spawn.tile);
+      this.movement = standing !== undefined ? placeAt(standing, landing) : createMovement(landing);
     }
-    this.viewNodeId = this.node.id;
+    this.viewNodeId = this.viewId();
 
-    this.lastNote = `${this.mapView.status.note} · ${this.collision.note}`;
+    this.lastNote = this.viewNote();
     this.hudDirty = true;
+  }
+
+  /* ── interiors (core/interiors.ts) ─────────────────────────────────────── */
+
+  /**
+   * The building the player is inside, or null. A read for the other lanes and for the tests; the
+   * scene's own copy is {@link interior} and nothing outside may set it.
+   */
+  currentInterior(): InteriorBlueprint | null {
+    return this.interior;
+  }
+
+  /** Which geometry is on screen — the room's id indoors, the node's id outdoors. */
+  private viewId(): string {
+    return this.interior?.id ?? this.node.id;
+  }
+
+  /**
+   * The grid every walkability question is asked of.
+   *
+   * ⚠ ONE PLACE, not a branch at each call site. `canEnter`, the collision overlay and the camera
+   * all read through here, so a room and a town can never be half-swapped: the same defect shape as
+   * `liveNode`'s two fallbacks, which printed one population and spawned another.
+   */
+  private activeGrid(): CollisionGrid {
+    return this.interiorGrid ?? this.collision.grid;
+  }
+
+  /** The HUD's provenance line for whichever view is up. */
+  private viewNote(): string {
+    const bp = this.interior;
+    if (bp === null) return `${this.mapView.status.note} · ${this.collision.note}`;
+    const size = planSize(bp.plan);
+    return (
+      `FOOTPRINT interior ${bp.id} — ${size.cols}×${size.rows} plan cells from ` +
+      `data/interiors/${bp.id}.json; NOT painted art`
+    );
+  }
+
+  /**
+   * Bring {@link interior} and {@link interiorGrid} into line with what the save says.
+   *
+   * REFUSES, LOUDLY, RATHER THAN LEAVING THE PLAYER IN A ROOM THAT DOES NOT EXIST. Two ways a save
+   * can name one: a build that no longer ships that blueprint, and a save whose `currentNode` was
+   * moved without its `interiorId` (which nothing does today — travel is refused indoors — but a
+   * hand-edited save is a supported input, `core/save.ts` says so). Either way the player is put
+   * back outdoors and the save is corrected, because the alternative is a black room with no door.
+   */
+  private adoptInterior(id: string | null): void {
+    const found = id === null ? null : interiorById(id);
+    const problem =
+      id === null || found === null
+        ? id === null
+          ? null
+          : `save.interiorId "${id}" is not a shipped interior`
+        : found.parentNode !== this.save.currentNode
+          ? `save.interiorId "${id}" belongs to "${found.parentNode}", not "${this.save.currentNode}"`
+          : null;
+    if (problem !== null) {
+      console.warn(`[overworld] ${problem} — the player is placed outdoors`);
+      this.save = withoutInteriorId(this.save);
+    }
+    this.interior = problem === null ? found : null;
+    this.interiorGrid =
+      this.interior === null
+        ? null
+        : // The engine's own parser, on the blueprint's own plan, at the balance cell size (G11).
+          gridFromAscii(this.interior.id, this.interior.plan, this.balance.map.collisionCellPx);
+  }
+
+  /** Show the room or the town: one picture is up at a time, and the camera is bounded to it. */
+  private syncViewMode(): void {
+    const grid = this.interiorGrid;
+    this.mapView.setVisible(grid === null);
+    this.interiorView.setVisible(grid !== null);
+    if (grid !== null) drawInteriorFootprint(this.interiorView, grid, this.balance);
+    else this.interiorView.clear();
+    this.applyCameraBounds();
+  }
+
+  /**
+   * Bound the camera to whatever is on screen.
+   *
+   * `Math.max` against the screen because a room is SMALLER than the 480×320 viewport (build-doc
+   * §7.6) and a camera bounded tighter than its own viewport has nothing to clamp to.
+   */
+  private applyCameraBounds(): void {
+    const grid = this.interiorGrid;
+    if (grid === null) {
+      this.cameras.main.setBounds(0, 0, this.mapView.worldWidth, this.mapView.worldHeight);
+      return;
+    }
+    const cell = worldCellPx(grid, this.balance);
+    this.cameras.main.setBounds(
+      0,
+      0,
+      Math.max(grid.cols * cell, this.scale.width),
+      Math.max(grid.rows * cell, this.scale.height),
+    );
+  }
+
+  /**
+   * The tile in the PARENT TOWN a building's door stands on.
+   *
+   * `InteriorDoor.x/y` are map-NATIVE pixels — the same space `PropPlacement.x/y` uses (build-doc
+   * §7.6: the painted town is 1024² native, rendered at `mapRenderScale`). Both conversions are read
+   * from `balance.map` and neither assumes the other (G11): a world pixel is a native pixel times
+   * `mapRenderScale`, and a tile is `tileStepPx` world pixels.
+   */
+  doorTileOf(bp: InteriorBlueprint): { col: number; row: number } {
+    const world = { x: bp.door.x * this.balance.map.mapRenderScale, y: bp.door.y * this.balance.map.mapRenderScale };
+    const step = this.balance.map.tileStepPx;
+    return { col: Math.floor(world.x / step), row: Math.floor(world.y / step) };
+  }
+
+  /**
+   * The HUD's doorway readout: where the way out is when indoors, where every way in is when not.
+   *
+   * The town maps carry no painted door yet and the collision mask cannot mark one — a threshold is
+   * walkable floor, indistinguishable from the grass beside it — so without this line a shipped
+   * building is a tile the player has no way to find. It is a readout, not a verdict (G7): a name
+   * and two integers.
+   */
+  private doorLines(): string[] {
+    const bp = this.interior;
+    if (bp !== null) {
+      const size = planSize(bp.plan);
+      const out = planDoorCell(bp);
+      return [
+        `inside ${bp.name} (${bp.id}) · ${size.cols}×${size.rows} cells` +
+          (out === null ? "" : ` · out at ${out.col},${out.row}`),
+      ];
+    }
+    return interiorsOf(this.node.id).map((each) => {
+      const at = this.doorTileOf(each);
+      return `door ${each.id} at tile ${at.col},${at.row}`;
+    });
+  }
+
+  /** The building whose town door stands on this tile, or null. Outdoors only. */
+  private doorwayAt(tile: { col: number; row: number }): InteriorBlueprint | null {
+    for (const bp of interiorsOf(this.node.id)) {
+      const at = this.doorTileOf(bp);
+      if (at.col === tile.col && at.row === tile.row) return bp;
+    }
+    return null;
+  }
+
+  /**
+   * Go inside. FREE — no tick, no action-log entry, no clock event. See this file's header.
+   *
+   * The player lands on {@link InteriorBlueprint.arrival}, facing the way they walked in. Both are
+   * read off the plan rather than off `door.facing`: `core/interiors.ts` refuses any blueprint whose
+   * arrival is not exactly one orthogonal step from the `D` cell, so the step from the doorway to
+   * the arrival IS the direction of travel, and deriving it that way cannot disagree with the
+   * picture the art lane is drawing.
+   */
+  private enterInterior(bp: InteriorBlueprint): void {
+    const door = planDoorCell(bp);
+    if (door === null) {
+      // core/interiors.ts refuses a plan without exactly one `D` at import, so this is unreachable
+      // through the shipped data — and a silent no-op would be a door that does nothing.
+      this.flashBanner(`${bp.id} — the plan draws no doorway`);
+      return;
+    }
+    const arrival = cellTile(bp.arrival);
+    this.interior = bp;
+    this.interiorGrid = gridFromAscii(bp.id, bp.plan, this.balance.map.collisionCellPx);
+    this.save = { ...this.save, interiorId: bp.id };
+    this.movement = placeAt(this.movement, arrival, stepFacing(door, bp.arrival) ?? this.movement.facing);
+    this.viewNodeId = this.viewId();
+    this.spawnProblem = this.canEnter(arrival)
+      ? null
+      : `arrival ${arrival.col},${arrival.row} of ${bp.id} is not walkable in its own plan`;
+    this.syncViewMode();
+    this.syncPlayerSprite();
+    this.lastNote = this.viewNote();
+    this.hudDirty = true;
+    this.refreshHud();
+    this.hooks.onSaveChanged?.(this.save, this);
+    this.flashBanner(`entered ${bp.name} (${bp.id})`);
+  }
+
+  /**
+   * Come back out — onto THE DOOR THEY USED, never the town's spawn tile.
+   *
+   * `chooseSpawnTile` would put them in the middle of the map: it is the answer to "where does a
+   * player who has no position stand", and a player leaving a building has one. The building's own
+   * `door.x/y` is that position.
+   *
+   * ⚠ IF THAT TILE IS BLOCKED BY THE TOWN'S MASK THE PLAYER IS STUCK IN GEOMETRY, so it is SAID —
+   * on the HUD, persistently, through the same `spawnProblem` line a broken mask reports through.
+   * The door positions in `data/interiors/*.json` are provisional by their own admission
+   * (`door._note`), so this is the line that will find a re-pin that never happened.
+   */
+  private leaveInterior(): void {
+    const bp = this.interior;
+    if (bp === null) return;
+    const door = planDoorCell(bp);
+    const tile = this.doorTileOf(bp);
+    const facing = door === null ? this.movement.facing : (stepFacing(bp.arrival, door) ?? this.movement.facing);
+    this.interior = null;
+    this.interiorGrid = null;
+    this.save = withoutInteriorId(this.save);
+    this.movement = placeAt(this.movement, tile, facing);
+    this.viewNodeId = this.viewId();
+    this.spawnProblem = this.canEnter(tile)
+      ? null
+      : `the doorway of ${bp.id} lands on ${this.node.id} tile ${tile.col},${tile.row}, which the ` +
+        `collision mask blocks — the player is standing in geometry`;
+    this.syncViewMode();
+    this.syncPlayerSprite();
+    this.lastNote = this.viewNote();
+    this.hudDirty = true;
+    this.refreshHud();
+    this.hooks.onSaveChanged?.(this.save, this);
+    this.flashBanner(`left ${bp.name} → ${this.node.id} ${tile.col},${tile.row}`);
+  }
+
+  /**
+   * [E] inside a building.
+   *
+   * The town's props are deliberately NOT consulted here. `propAt` measures WORLD distance, and a
+   * room is drawn at world origin — so a prop placed near the top-left of a town would answer a
+   * press made inside a shop on the other side of it. What is in reach indoors is the blueprint's
+   * anchors, and nothing else.
+   */
+  private interactIndoors(bp: InteriorBlueprint): void {
+    const tile = this.movement.tile;
+    const anchor = bp.anchors.find((a) => a.col === tile.col && a.row === tile.row);
+    if (!anchor) {
+      this.flashBanner(`${bp.name} — nothing here`);
+      return;
+    }
+    const entryId = interiorEntryId(bp, anchor);
+    if (entryId === null) {
+      this.flashBanner(`${bp.id}.${anchor.id} — nothing to say`);
+      return;
+    }
+    this.playEntry(entryId, `${bp.name} · ${anchor.id}`);
   }
 
   /* ── input ────────────────────────────────────────────────────────────── */
@@ -750,9 +1082,12 @@ export class OverworldScene extends Phaser.Scene {
     }
   }
 
-  /** The one walkability question, asked of the packed bitfield (build-doc §7.6). */
+  /**
+   * The one walkability question, asked of the packed bitfield (build-doc §7.6) — the node's mask
+   * outdoors, the room's parsed plan indoors ({@link activeGrid}).
+   */
   canEnter(tile: { col: number; row: number }): boolean {
-    return tileWalkable(this.collision.grid, tile.col, tile.row, this.balance);
+    return tileWalkable(this.activeGrid(), tile.col, tile.row, this.balance);
   }
 
   private syncPlayerSprite(): void {
@@ -764,7 +1099,7 @@ export class OverworldScene extends Phaser.Scene {
     this.overlayVisible = !this.overlayVisible;
     this.overlay.setVisible(this.overlayVisible);
     this.hudDirty = true;
-    if (this.overlayVisible) drawCollisionOverlay(this.overlay, this.collision.grid, this.balance);
+    if (this.overlayVisible) drawCollisionOverlay(this.overlay, this.activeGrid(), this.balance);
   }
 
   /* ── the foray ────────────────────────────────────────────────────────── */
@@ -775,6 +1110,35 @@ export class OverworldScene extends Phaser.Scene {
    * tick §3 L8 prices a foray at.
    */
   private onStepCompleted(): void {
+    /*
+     * ⚠ A STEP TAKEN INDOORS IS NOT A FORAY STEP. This one clause is BOTH place guards, deliberately
+     * placed above everything rather than repeated inside each:
+     *
+     *   • the encounter roll below drew from the encounter stream on EVERY completed step, with no
+     *     place check at all, so a lap of an inn's common room met wild animals;
+     *   • the odometer (`stepsSinceTick += 1`), the save write of it, and the foray charge
+     *     (`chargingForay`) all sit further down and would otherwise price that lap.
+     *
+     * NOT SPELLED AS A THIRD TERM ON `chargingForay`. That condition already carries a state guard
+     * (`&& !this.yearTurnRunning`, which stops a charge vanishing into a `spendTicks` that refuses
+     * silently), and extending it would suppress only the CHARGE — leaving the roll, the increment
+     * and the save write running, so indoors would still meet creatures, still bank steps, and pay
+     * the tick on the first step back outside. The place question is asked once, above all four.
+     *
+     * ⚠ AND THE ODOMETER IS NOT ADVANCED EITHER, which is a separate decision from not charging.
+     * A foray is an excursion that can meet something: build-doc §4 defines a foray step as the step
+     * that "rolls encounters", and §3 L8 prices exactly that. Suppressing the roll while still
+     * banking the step would sell the player a hunt they cannot take — a tick charged for walking to
+     * a shop counter, where the same tick outdoors buys a chance of an animal. Nothing is refunded
+     * by this: the banked walk is kept, exactly as it is across a travel (Hank: *"I see no reason
+     * why stepsSinceTick should reset after a fast travel"*), so a player who ducks inside at 47 of
+     * 48 steps comes back out still owing the 48th. Free, not reset.
+     */
+    if (this.interior !== null) {
+      this.leaveThroughDoorway();
+      return;
+    }
+
     /*
      * NO CALENDAR GUARD. A refusal used to stand here too — the encounter roll was skipped once
      * `isOver` was true, "so nothing is drawn from the encounter stream in a year the game does not
@@ -854,7 +1218,41 @@ export class OverworldScene extends Phaser.Scene {
       // The hook is an override; without one the scene fights it (see OverworldHooks.onEncounter).
       if (this.hooks.onEncounter) this.hooks.onEncounter(encounter, this);
       else this.beginWildBattle(encounter);
+      /*
+       * …AND THE THRESHOLD WAITS. A step that met something has handed the screen over (or is about
+       * to, on the next frame — `ScenePlugin.pause` is queued, not immediate), and walking the
+       * player into a building underneath a fight would put two views on one screen. They are
+       * standing ON the doorway; the next step onto it takes them in, and that step is charged like
+       * any other, so nothing here is free.
+       */
+      return;
     }
+
+    /*
+     * THE DOORWAY, LAST — AFTER the roll and after the tick, on purpose.
+     *
+     * Checking it first and returning would make the step onto a threshold FREE, and a free step is
+     * farmable: leaving a building lands the player on that very tile, so stepping off and back on
+     * would cost one step's ticks instead of two, for ever, next to every door in the game. The
+     * price of walking is not what a door changes.
+     */
+    if (!this.isHandedOver()) this.enterThroughDoorway();
+  }
+
+  /** Outdoors: the step landed on a building's door tile, so go in. */
+  private enterThroughDoorway(): void {
+    const doorway = this.doorwayAt(this.movement.tile);
+    if (doorway !== null) this.enterInterior(doorway);
+  }
+
+  /** Indoors: the step landed on the plan's `D` cell, so come back out. */
+  private leaveThroughDoorway(): void {
+    const bp = this.interior;
+    if (bp === null) return;
+    const door = planDoorCell(bp);
+    if (door === null) return;
+    const tile = this.movement.tile;
+    if (door.col === tile.col && door.row === tile.row) this.leaveInterior();
   }
 
   /* ── the hand-off to a fight (build-doc §3 L8's fourth price) ─────────────── */
@@ -1090,6 +1488,14 @@ export class OverworldScene extends Phaser.Scene {
     // it and the player has to walk away and come back.
     this.syncQuests();
 
+    // Indoors the room's anchors are what is in reach, and the town's props are not — see
+    // {@link interactIndoors} for why that is a correctness point and not a preference.
+    const inside = this.interior;
+    if (inside !== null) {
+      this.interactIndoors(inside);
+      return;
+    }
+
     const prop = this.propUnderPlayer();
     if (prop) {
       const entry = this.tryDialogue(() => propDialogueFor(DIALOGUE, prop.id, this.node.id, this.dialogueCtx()));
@@ -1123,7 +1529,11 @@ export class OverworldScene extends Phaser.Scene {
    * does not, and against that the alternative is a locked game.
    */
   playPendingCutscene(): void {
-    if (this.isHandedOver() || this.travelling) return;
+    // An arrival beat is the TOWN's and is keyed on its node id; playing one at the player while
+    // they are standing in a shop is the beat firing in the wrong room. It is not lost — every
+    // autoplay entry the corpus ships closes itself with a flag, so an unplayed one is still
+    // pending when they step back outside.
+    if (this.isHandedOver() || this.travelling || this.interior !== null) return;
     const entry = this.tryDialogue(() => autoplayEntryFor(DIALOGUE, this.node.id, this.dialogueCtx()));
     if (!entry || this.autoplayed.has(entry.id)) return;
     this.autoplayed.add(entry.id);
@@ -1264,6 +1674,17 @@ export class OverworldScene extends Phaser.Scene {
    */
   releaseHere(): void {
     if (this.isHandedOver() || this.travelling) return;
+    /*
+     * NOT FROM INSIDE A BUILDING. `releaseIntoNode` puts the creature back into `this.node.id` —
+     * still the town while the player is indoors — so the move would be silently right in the
+     * arithmetic and plainly wrong on the screen: a count moves in the region while the player is
+     * standing at a shop counter. G7 is not the issue; the issue is that the release verb is about
+     * a PLACE, and the place it would name is not the one the player is in.
+     */
+    if (this.interior !== null) {
+      this.flashBanner(`${this.interior.name} — step outside to release`);
+      return;
+    }
     const candidate = releaseCandidate(this.save);
     if (!candidate) {
       this.flashBanner(`no release: the party would be empty`);
@@ -1402,7 +1823,12 @@ export class OverworldScene extends Phaser.Scene {
     return actOf(this.save, this.content.gyms, this.balance);
   }
 
-  /** bible §9's regional events open right now — each one a 4-tick season window. */
+  /**
+   * bible §9's regional events open right now — each one a season window, `clock.ticksPerSeason`
+   * ticks long. The number is deliberately not respelled here: it has already moved once (a 16-tick
+   * year became `ticksPerYear` 52 / `ticksPerSeason` 13) and is expected to move again after
+   * playtesting, and this line said "4-tick" for as long as that was false.
+   */
   openEvents(): ReturnType<typeof activeWindows> {
     return activeWindows(this.save, this.clock(), {
       species: this.content.species,
@@ -1456,6 +1882,12 @@ export class OverworldScene extends Phaser.Scene {
    */
   challengeGym(nodeId: string = this.node.id): void {
     if (this.isHandedOver() || this.travelling) return;
+    // The leader stands in the town, not in the inn. Said rather than silently ignored, on the same
+    // terms every other refusal in this method is said.
+    if (this.interior !== null) {
+      this.flashBanner(`${this.interior.name} — step outside to challenge`);
+      return;
+    }
 
     const gym = gymAtNode(this.content, nodeId);
     if (!gym) {
@@ -1911,9 +2343,12 @@ export class OverworldScene extends Phaser.Scene {
    * sentence stood here and it was wrong by one moment — the most important one. `core/clock.ts`
    * `advance` deliberately emits NO `seasonBoundary` on the year-filling tick, so a scene syncing
    * only inside the `seasonBoundary` arm never re-synced at the year turn: measured,
-   * `event.festival.open` stayed true for **8 consecutive ticks** — the whole final season
-   * of year N plus the whole first season of year N+1 — against a 4-tick window, with the festival's
-   * dialogue firing in spring. Deleting that one call site turned ZERO tests red, because the suite
+   * `event.festival.open` stayed true for **two consecutive season windows** — the whole final
+   * season of year N plus the whole first season of year N+1 — with the festival's dialogue firing
+   * in spring. THE READING IS HISTORY, NOT THE RULE: it was 8 consecutive open ticks, taken under
+   * the then-shipped 16-tick year where a season was four ticks. A window is `clock.ticksPerSeason`
+   * ticks long, whatever that key holds today, and this line will not respell it.
+   * Deleting that one call site turned ZERO tests red, because the suite
    * called `syncEventFlags` by hand at a clock the game never reached (stub blindness). It is asked
    * from the three places the save can move — {@link create}, {@link spendTicks} and the year turn's
    * own `finish` — plus act entry, which moves a raid latch.
@@ -2224,6 +2659,18 @@ export class OverworldScene extends Phaser.Scene {
    */
   async travelTo(nodeId: string): Promise<void> {
     if (this.travelling) return;
+    /*
+     * ⚠ REFUSED FROM INSIDE A BUILDING, AND THIS ONE IS NOT MERELY INCOHERENT — IT IS A BROKEN
+     * STATE. `buildNodeView` below rebuilds the TOWN's geometry, but `interior`/`interiorGrid` and
+     * `save.interiorId` would still name a room in the town just left: the player would be walking
+     * an inn's floor plan over Route 1's map, with `save.currentNode` and `save.interiorId`
+     * disagreeing about which building they are in. Clearing the interior here instead would make
+     * a keypress teleport the player out of a door they never walked through.
+     */
+    if (this.interior !== null) {
+      this.flashBanner(`${this.interior.name} — step outside to travel`);
+      return;
+    }
     if (!this.node.adjacency.includes(nodeId)) return;
     /*
      * ACT GATING. content-bible §6 lists the six towns and their routes in order and the
@@ -2256,8 +2703,8 @@ export class OverworldScene extends Phaser.Scene {
       this.spokenHere = new Set<string>();
       this.save = { ...this.save, currentNode: target.id };
       this.buildNodeView();
-      this.cameras.main.setBounds(0, 0, this.mapView.worldWidth, this.mapView.worldHeight);
-      if (this.overlayVisible) drawCollisionOverlay(this.overlay, this.collision.grid, this.balance);
+      this.applyCameraBounds();
+      if (this.overlayVisible) drawCollisionOverlay(this.overlay, this.activeGrid(), this.balance);
       this.syncPlayerSprite();
       this.spendTicks("travel", { t: "travel", to: target.id });
       this.hooks.onTravel?.(from, target.id, this);
@@ -2313,6 +2760,9 @@ export class OverworldScene extends Phaser.Scene {
     const lines: string[] = [
       `${this.node.name} (${this.node.id}) · ${this.node.biome}`,
       `foray ${this.stepsSinceTick}/${stepsPerForay(this.balance)} steps · encounters ${this.encountersMet}`,
+      // A door with nothing on screen pointing at it is a door nobody finds. Indoors this is the way
+      // out; outdoors it is every way in. Identifiers and integers only (G7).
+      ...this.doorLines(),
       `tile ${this.movement.tile.col},${this.movement.tile.row} facing ${this.movement.facing}`,
       `party ${this.save.party.length}/${this.balance.party.maxPartySize} · box ${this.save.box.length}`,
       `weight ${totalActiveWeight(table).toFixed(1)} over ${active.length}/${table.length} lines`,
@@ -2386,12 +2836,23 @@ export class OverworldScene extends Phaser.Scene {
      * means. It is a readout, not a verdict.
      */
     {
-      const prop = this.propUnderPlayer();
+      // Indoors the town's props are out of reach by construction — `interact` does not ask for
+      // them — so the HUD must not offer one either, or [E] promises something it will not do.
+      const inside = this.interior;
+      const prop = inside === null ? this.propUnderPlayer() : null;
       const props = propsOf(this.node);
-      lines.push(
-        `[E] ${prop ? `read ${propLabel(prop)}` : "talk"} · props ${String(props.length)} here` +
-          ` · cards ${String(new Set(linesMetAt(this.save, this.node.id)).size)}`,
-      );
+      if (inside !== null) {
+        const tile = this.movement.tile;
+        const anchor = inside.anchors.find((a) => a.col === tile.col && a.row === tile.row);
+        lines.push(
+          `[E] ${anchor ? anchor.id : "nothing here"} · anchors ${String(inside.anchors.length)} in ${inside.id}`,
+        );
+      } else {
+        lines.push(
+          `[E] ${prop ? `read ${propLabel(prop)}` : "talk"} · props ${String(props.length)} here` +
+            ` · cards ${String(new Set(linesMetAt(this.save, this.node.id)).size)}`,
+        );
+      }
       const reports = questReports(this.save, this.content);
       const open = reports.filter((r) => r.stage === "accepted" || r.stage === "open");
       const done = reports.filter((r) => r.stage === "done").length;
@@ -2468,6 +2929,11 @@ const HUD_PAD = 6;
 const HUD_LINE_PX = 12;
 const BANNER_HOLD_MS = 1200;
 const BANNER_FADE_MS = 400;
+/**
+ * Where the interior footprint sits in the display list: above the map (0), below the collision
+ * overlay (10) and the player (20). Presentation, like every other depth in this file.
+ */
+const INTERIOR_DEPTH = 1;
 
 /**
  * Where the L8 meter sits. Presentation only — the tick counts, the season boundaries and the pip
@@ -2485,6 +2951,100 @@ const CHAIN_COMPLETE_SUFFIX = ".complete";
 /** An error's sentence, for a banner. */
 function describe(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * Interiors — the pure half, so it can be reasoned about without a scene
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * ONE PLAN CELL IS ONE MOVEMENT TILE — the identity every cell reference in a blueprint stands on,
+ * checked rather than assumed.
+ *
+ * `core/interiors.ts` states it in prose ("collisionCellPx is 16, the world cell is 16 ×
+ * mapRenderScale = 32, and tileStepPx is 32") and nothing enforced it: `gridConsistencyProblem`
+ * relates `collisionCols`, `collisionCellPx` and `mapNativePx` and says nothing about `tileStepPx`.
+ * A retune that moved the tile step off the world cell would leave every arrival cell, every anchor
+ * and every doorway pointing at a tile the player never stands on — silently, because both numbers
+ * would still be internally consistent. Returns the sentence, or null when they agree.
+ */
+function interiorCellProblem(balance: Balance): string | null {
+  const worldCell = balance.map.collisionCellPx * balance.map.mapRenderScale;
+  if (worldCell === balance.map.tileStepPx) return null;
+  return (
+    `balance.map: collisionCellPx × mapRenderScale = ${String(worldCell)}, not tileStepPx ` +
+    `${String(balance.map.tileStepPx)} — one interior plan cell is no longer one movement tile`
+  );
+}
+
+/** A plan cell as a movement tile. Same numbers; two vocabularies, joined in one place. */
+function cellTile(cell: PlanCell): { col: number; row: number } {
+  return { col: cell.col, row: cell.row };
+}
+
+/**
+ * The plan's doorway cell. `core/interiors.ts` refuses any blueprint that does not draw exactly one
+ * `D`, so `[0]` is the whole answer for shipped data; null is kept as a value so a caller cannot
+ * dereference a hole from a hand-built blueprint.
+ */
+function planDoorCell(bp: InteriorBlueprint): PlanCell | null {
+  return planCellsWith(bp.plan, PLAN_DOOR)[0] ?? null;
+}
+
+/**
+ * The walk direction from one plan cell to an ADJACENT one, or null when they are not neighbours.
+ *
+ * Derived from `game/movement.ts`'s own `delta`, so the facing a door hands the player is spelled by
+ * the same table that moves them. Deliberately NOT read off `InteriorDoor.facing`: the plan and that
+ * field could drift, and the plan is what the player walks.
+ */
+function stepFacing(from: PlanCell, to: PlanCell): Direction | null {
+  for (const dir of DIRECTIONS) {
+    const step = delta(dir);
+    if (from.col + step.dCol === to.col && from.row + step.dRow === to.row) return dir;
+  }
+  return null;
+}
+
+/**
+ * The dialogue entry an anchor plays, or null.
+ *
+ * A `service` anchor names its entry outright — `core/interiors.ts` validates that the id is one of
+ * the eleven shipped `kind:"service"` entries and that its speaker is homed to this town, so no
+ * selector is needed and none is invented.
+ *
+ * A `speaker` anchor resolves THROUGH the service that faces them: `InteriorServiceAnchor.faces`
+ * points at the fixture or the person the service is transacted with, and the blueprint's own
+ * validation refuses a service that faces open floor. For all four shipped rooms this is the same
+ * line either way — each of Aldis, Kett, Elsbet and Hild has exactly one entry in the whole corpus,
+ * and it is their service.
+ *
+ * HANDOFF: `game/dialogue-runner.ts` — a general per-speaker selector (`selectEntry` across
+ * `TALK_KINDS` for one speaker at one node) belongs beside `talkEntryFor`. Until it exists, a
+ * speaker anchor nobody transacts with is silent, and this says so rather than guessing an entry.
+ */
+function interiorEntryId(bp: InteriorBlueprint, anchor: InteriorAnchor): string | null {
+  if (anchor.kind === "service") return anchor.target;
+  for (const other of bp.anchors) {
+    if (other.kind !== "service") continue;
+    const faced = stepFrom({ col: other.col, row: other.row }, other.faces);
+    if (faced.col === anchor.col && faced.row === anchor.row) return other.target;
+  }
+  return null;
+}
+
+/**
+ * The save with `interiorId` REMOVED, not set to undefined.
+ *
+ * `core/save.ts` `canonicalize` walks the object's own keys, so a key holding `undefined` would be
+ * carried into the JSON as `null` or dropped depending on the walk — and `zSaveFileFor` would then
+ * either refuse it or delete it. Absent is the outdoor state and there is no other spelling of it.
+ */
+function withoutInteriorId(save: SaveEnvelope): SaveEnvelope {
+  if (save.interiorId === undefined) return save;
+  const next: SaveEnvelope = { ...save };
+  delete next.interiorId;
+  return next;
 }
 
 /**

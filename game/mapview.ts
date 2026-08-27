@@ -41,8 +41,10 @@
 import Phaser from "phaser";
 import { mapAssetForYear } from "../core/lifecycle";
 import type { Balance, CollisionGrid, NodeFile, Season } from "../core/types";
-import { debugOverlayRects, worldSizePx, type MaskPixels } from "./collision";
+import { debugOverlayRects, worldCellPx, worldSizePx, type MaskPixels } from "./collision";
 import { assetId, hasRealAsset, realAssetUrl, textureFor } from "./placeholder";
+// Every colour this file paints resolves through `data/palette.json` — see `drawInteriorFootprint`.
+import { roleColor } from "./ui/Palette";
 import { applySeasonTint, seasonTint, type SeasonTint } from "./season-tint";
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -287,6 +289,22 @@ export class MapView {
     return next;
   }
 
+  /**
+   * Show or hide the painted map.
+   *
+   * An INTERIOR is a second view mode inside the same scene (`game/scenes/OverworldScene.ts`), not
+   * a second scene: the player who steps onto a doorway keeps their movement, their collision query,
+   * their HUD and their save, and only the picture under them changes. So the town's painting is
+   * hidden rather than destroyed — it is the same node, the same `MapView`, and the player is coming
+   * back out of that door in a moment.
+   *
+   * A method rather than reaching for `.image` at the call site, so the one thing a caller may do to
+   * this object's Phaser image from outside is this.
+   */
+  setVisible(visible: boolean): void {
+    this.image.setVisible(visible);
+  }
+
   destroy(): void {
     this.image.destroy();
   }
@@ -311,6 +329,57 @@ export function drawCollisionOverlay(
 ): void {
   graphics.clear();
   graphics.fillStyle(colour, alpha);
+  for (const rect of debugOverlayRects(grid, balance)) {
+    graphics.fillRect(rect.x, rect.y, rect.w, rect.h);
+  }
+}
+
+/**
+ * An interior's FOOTPRINT, drawn from its collision grid — the honest stand-in until a room is
+ * painted.
+ *
+ * G1 IS NOT BENT HERE AND MUST NOT BE. This is not a tileset and there is no slicing: it is two
+ * `fillRect` families on one Graphics object — the room's extent, then the solid cells — and the
+ * solid cells come from `debugOverlayRects`, the SAME geometry `tileWalkable` answers from. So what
+ * is drawn and what the player can walk through cannot disagree, which is the property
+ * {@link drawCollisionOverlay} exists to keep and the reason this reuses its source rather than
+ * walking the grid a second time.
+ *
+ * WHAT REPLACES IT. When the art lane paints a room it paints ONE image, exactly as a town map is
+ * one image (this file's header), sized to `grid.cols × grid.rows` cells at
+ * `map.collisionCellPx × map.mapRenderScale` world pixels each, with its top-left at world (0,0).
+ * At that point this function stops being called for that room; nothing else about the interior
+ * changes, because the geometry the player walks is the ASCII plan and not the picture.
+ *
+ * ══ THE TWO COLOURS COME OUT OF `data/palette.json`, AND NOT FROM A LITERAL ══
+ *
+ * `game/ui/Palette.ts`'s `panel` and `border` roles, resolved through `roleColor`. A hex typed here
+ * would be a colour that stops existing: the palette was re-frozen at T-15 with all 32 hexes
+ * changed and every id and its order byte-identical, and the owner is appending `c32`+ over the
+ * coming hours — an id survives both, a literal survives neither. `tools/comfy/player-views.ts`
+ * held 21 of them and wrote 420 off-palette pixels into a committed sprite before anyone noticed.
+ *
+ * THE ROLES ARE BORROWED DELIBERATELY, not for want of a better name. `panel` is defined there as
+ * "the DARKEST plate ≥ 2 : 1 on void" — which is exactly what a footprint is, a flat surface
+ * standing in for art on the black field (3.12 : 1) — and `border` is that plate's stroke, sitting
+ * a measured 3.52 : 1 above it, clear of WCAG 1.4.11's 3 : 1 for a non-text graphical mark, which
+ * is the threshold this project already applies to a mark on the field. Naming a second table of
+ * ids here would duplicate a pick that `tests/unit/battle-view.test.ts` already recomputes from the
+ * shipped palette on every change — and a duplicate is precisely what a re-freeze re-points
+ * silently.
+ */
+export function drawInteriorFootprint(
+  graphics: Phaser.GameObjects.Graphics,
+  grid: CollisionGrid,
+  balance: Balance,
+  floorColour = roleColor("panel"),
+  wallColour = roleColor("border"),
+): void {
+  graphics.clear();
+  const cell = worldCellPx(grid, balance);
+  graphics.fillStyle(floorColour, 1);
+  graphics.fillRect(0, 0, grid.cols * cell, grid.rows * cell);
+  graphics.fillStyle(wallColour, 1);
   for (const rect of debugOverlayRects(grid, balance)) {
     graphics.fillRect(rect.x, rect.y, rect.w, rect.h);
   }
