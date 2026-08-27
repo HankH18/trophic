@@ -58,6 +58,33 @@ what replaced it.
 
 ---
 
+# R9 — `denoise` is QUANTISED, and above a threshold img2img is silently txt2img
+
+ComfyUI computes `total_steps = int(steps / denoise)` and runs the last `steps` sigmas of that
+schedule. Two consequences, both measured on this graph at 8 steps, each against a pure txt2img
+control on an identical seed and prompt:
+
+**Neighbouring denoise values are frequently the same cell.** 0.85, 0.86 and 0.88 all resolve to
+`int(8/d) = 9` and returned **byte-identical images** — 99.2015% differing from the control, mean
+delta 46.021, three times over. Asking for three decimals bought three identical pictures at three
+times the price.
+
+**At or above `denoise = steps/(steps+1)` there is NO init contribution at all.** 0.90 and 0.92 both
+resolve to `int(8/d) = 8`, which equals the step count, so the full schedule runs and the source image
+is discarded. Measured: **0.0000% of 3,145,728 bytes differ from txt2img.** At 8 steps the threshold
+is **8/9 ≈ 0.8889**.
+
+**This fails green.** The job succeeds, the image is fine, the label says img2img, it bills the same,
+and any conclusion drawn from it is about a mechanism that never ran. It already cost one: the
+14-generation player-view sweep in `assets/approved-trials/_player-views/README.md` records a 0.92 row
+whose identity "failed" as *"a different face, a different bag"* — which is not identity drift, it is a
+different character, because that cell was a fresh generation. Six of its seven cells were valid and
+distinct; only the top rung needs withdrawing.
+
+**So: step a denoise sweep in schedule counts, not decimals.** The usable settings at 8 steps are
+`int(8/d)` for d below 0.889 — roughly 10, 12, 16, 20, 26 as d falls — and there are only about eight
+distinct values in the whole 0–1 range.
+
 # Art contracts the CODE imposes (not style — these have mechanical consequences)
 
 - **Native 1024², rendered 2× to a 2048² world.** `balance.map.mapNativePx / mapRenderScale`.

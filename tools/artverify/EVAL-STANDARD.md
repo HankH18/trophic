@@ -96,6 +96,48 @@ do not use it for style, it will split the house look).
 **Too many colours is the failure mode, not too few.** A 48-swatch palette with ~16 used per map is
 correct. 31 used is the bug.
 
+### The right instrument for ground texture is COLOUR CONCENTRATION, not edge density
+
+**Measure: in a 64×64 patch of open ground, what share do the top three colours cover — AND how many
+distinct colours are in the patch?** Both halves, always. Concentration alone has a degenerate case:
+
+> **A flat fill scores 100%.** A blank green rectangle is one colour at 100% concentration, which
+> beats Gold's 78.9% on the share alone. **The discriminating shape is a small palette used densely
+> with more than one member** — Gold's patch is **8 distinct at 78.9%**; a flat fill is **1 at 100%**;
+> raw generation is **2,451 at 6.3%**. All three are different failures and only the pair separates them.
+
+Quote both numbers or neither. A concentration figure with no distinct-count beside it is exactly the
+kind of necessary-condition-reported-as-sufficient this file exists to stop.
+
+**One more caveat, because a gate cannot do what a human does here.** The 78.9% figure comes from a
+*hand-picked* patch of open ground. An automated rule cannot hand-pick, and a rule that samples the
+*most concentrated* patch rewards precisely the flat regions we are trying to catch. Any gate reading
+this must derive its own sampling rule, state that rule's weakness, and **re-derive its band from that
+rule over the reference set** — not quote the hand-picked figure. A whole-image aggregate is a
+different measurement wearing the same name.
+
+    GOLD new-bark                     78.9%      8 distinct colours in the patch
+    our postprocess dither            78.3%     12
+    pixel-art LoRA output              6.3%   2451
+    plain generation, no LoRA          4.9%   2385
+
+**This is the only measurement that separated a look from a structure**, and three others failed at it:
+
+- **A 3×3 Sobel is blind to a one-pixel dither** — it cancels on a period-2 pattern, reading 0.78% on
+  both a flat and a dithered synthetic. Anything in this project that checks "texture" with a standard
+  gradient operator cannot see the mechanism the art direction rests on.
+- **Luminance edge-density with a threshold nearly missed it too.** Gold's own two grass greens differ
+  by **28.2 luminance**, barely above a threshold of 25 — a dither slightly softer than Gold's vanishes
+  entirely. The design is sound; 25 is too close to the edge to trust.
+- **Exact-RGB edge density saturates on raw output.** With 355,101 distinct colours, almost no
+  neighbouring pair is byte-identical, so it reads near 100% on everything pre-quantization and ranks
+  nothing. It is only meaningful on an already-quantized image.
+
+**And the eye failed too, in the direction that matters.** A pixel-art LoRA's ground *looked* stippled
+and dithered; it is 2,451 near-identical colours differing by about one per channel. Rule zero says
+look before trusting a number — it does not say the eye settles it. **When a claim is about
+structure rather than appearance, measure the structure.**
+
 ### Dithered ground is the single largest visual gap — measured
 
 Gold's whole-map edge density is **47.51%**. Nearly half its pixels sit on an edge. That is not
