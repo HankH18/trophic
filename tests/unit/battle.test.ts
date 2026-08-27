@@ -587,6 +587,19 @@ describe("XP curve and the level cap (build-doc §7.4)", () => {
     expect(xpToNext(40, B)).toBeCloseTo(2624.069, 3); // 15 × 40^1.4
   });
 
+  it("opens a battler on the XP its spec carries, and on zero when it carries none", () => {
+    // The read-back half of the XP loop. `core/save.ts` `applyBattleAftermath` has always written a
+    // creature's banked XP OUT after a fight; `makeBattler` held a hard `xp: 0`, so nothing ever
+    // read it back and a level only ever arrived when ONE fight covered a whole `xpToNext(level)`.
+    // The whole loop — save → spec → battler → save — is bound in tests/unit/xp-carry.test.ts;
+    // this case pins the reducer's end of it, where the `0` used to be.
+    const carried: BattlerSpec = { uid: "carried", lineId: "mosslet-line", age: "A", level: 5, traits: [], xp: 88 };
+    expect(xpOf(makeBattler(carried, "player", NO_WEB, { isWild: false, enteredOnTurn: 1 }))).toBe(88);
+    // A gym slot, a wild encounter and a rival's roster all spec no `xp` at all — the default has
+    // to stay a default.
+    expect(xpOf(battler("mosslet-line", "A", 5))).toBe(0);
+  });
+
   it("levels up from a faint, banking the remainder", () => {
     const ctx = NO_WEB;
     // A level-1 Mosslet finishing an Adult level-10 Nibbin banks 52 XP.

@@ -526,7 +526,13 @@ export function makeBattler(
     isWild: opts.isWild,
     fainted: spec.curHp === 0,
     enteredOnTurn: opts.enteredOnTurn,
-    xp: 0,
+    // The XP the creature ALREADY BANKED, not a fresh slate. This read was a hard `0` until
+    // `BattlerSpec.xp` existed, which meant `core/save.ts` wrote a creature's banked total out after
+    // every fight and nothing ever read it back — so a level only ever arrived when ONE fight
+    // covered a whole `xpToNext(level)`. See the field's own note in core/types.ts for the measured
+    // figures. A carried remainder means `levelUps` can now fire on the first faint of a fight;
+    // that is the point, and it is still deterministic because the number comes off the save.
+    xp: spec.xp ?? 0,
     boons: (spec.boons ?? []).map((b) => ({ ...b })),
     metamorphosed,
   };

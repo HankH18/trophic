@@ -305,6 +305,23 @@ export interface BattlerSpec {
   boons?: Boon[];
   /** Optional HP carry-in; omitted = full. */
   curHp?: number;
+  /**
+   * Optional XP carry-in — XP banked toward the next level (build-doc §7.4); omitted = 0.
+   *
+   * ⚠ THIS FIELD IS THE READ-BACK HALF OF THE XP LOOP. `core/save.ts` `applyBattleAftermath` has
+   * always written `OwnedCreature.xp` OUT after a fight; with no field to carry one back IN,
+   * `core/battle.ts` `makeBattler` started every battler at 0 and the banked total was discarded at
+   * the next fight's first frame. Measured on shipped balance, that made levelling nearly
+   * unreachable from wild fights: a level-5 creature needs `xpToNext(5)` ≈ 142.8 and one level-5
+   * Adult enemy pays `xpGain` = 32, so only a long roster in a single fight could cover it. (It was
+   * not literally impossible — at level 1 the first enemy pays 16 against a threshold of 15 — but
+   * every level above the first was.)
+   *
+   * Carried, never derived: `game/wild-battle.ts` `battlerSpecOf` copies the owned creature's field
+   * verbatim, so what a battler enters a fight with is a pure function of the save and a replay
+   * (L10) sees the same number.
+   */
+  xp?: number;
   /** Optional explicit move ids; omitted = derived from the line's movePool at this level. */
   moves?: string[];
   nickname?: string;
@@ -562,6 +579,40 @@ export interface RivalEncounter {
  * §7.8 Save
  * ──────────────────────────────────────────────────────────────────────────── */
 
+/**
+ * One party member as a finished battle left it. ABSOLUTE values, never deltas.
+ *
+ * Absolute because the tape has to be replayable out of order-independence trouble: a delta applied
+ * twice is wrong twice, while `curHp = 7` applied twice is still 7. `core/save.ts` `replay` and the
+ * live path apply the SAME record through the SAME function — `core/save.ts` `applyBattleAftermath`
+ * — so there is no second answer to "what did that fight cost".
+ *
+ * ⚠ IT LIVES HERE RATHER THAN IN `core/save.ts` BECAUSE `GameAction` NAMES IT, and this file has
+ * ZERO imports and must keep them (see the header, and the `PRESENCE_MODES` note: core/types.ts may
+ * not import from a sibling module). A union member typed against a sibling's interface is therefore
+ * not expressible, and restating the shape inline would be two homes for one record. `core/save.ts`
+ * re-exports both names, so every existing importer is untouched.
+ */
+export interface BattleAftermathMember {
+  uid: string;
+  /** `Battler.curHp` at the last event of the fight. 0 = fainted. */
+  curHp: number;
+  /** `Battler.level` — the reducer's, after any in-battle level-up. */
+  level: number;
+  /** XP banked toward the next level (`core/battle.ts` `xpOf`). */
+  xp: number;
+}
+
+/**
+ * Everything one battle changed about the save's party and bag. The XP CARRY-IN caveat this record
+ * is half of is written where the applier is, on `core/save.ts` `applyBattleAftermath`.
+ */
+export interface BattleAftermath {
+  party: BattleAftermathMember[];
+  /** The bag as the reducer left it — `BattleState.bag`, which items were spent out of. */
+  items: Record<string, number>;
+}
+
 export type GameAction =
   | { t: "travel"; to: string }
   | { t: "foray"; nodeId: string }
@@ -573,7 +624,22 @@ export type GameAction =
    */
   | { t: "battle"; kind: "wild" | "gym" | "rival" | "ancient"; nodeId: string }
   | { t: "battleAction"; action: BattleAction }
-  | { t: "catch"; nodeId: string; lineId: string; uid: string }
+  /**
+   * What a finished fight left on the party and the bag — absolute, and applied by
+   * `core/save.ts` `applyBattleAftermath` on the live path and the replay path alike.
+   */
+  | { t: "battleAftermath"; aftermath: BattleAftermath }
+  /**
+   * A catch — the population write AND the creature. `gained` is the individual
+   * `core/lifecycle.ts` `newOwnedCreature` built, carried WHOLE and ABSOLUTE (applied twice it is
+   * still the same creature), because NOTHING else on the tape can rebuild it: the encounter roll,
+   * the trait roll and the fight that fixed its age, level and traits are not logged at all. Without
+   * it `core/save.ts` `replay` applied the population half and dropped the creature, and locked
+   * decision L10 was false for every run containing a catch. Optional so a tape written before it
+   * still loads and replays unchanged (INV-2); `core/save.ts` `catchAction` is the constructor that
+   * fills it in, and `applyCaught` is the one applier both paths come through.
+   */
+  | { t: "catch"; nodeId: string; lineId: string; uid: string; gained?: OwnedCreature }
   | { t: "release"; nodeId: string; lineId: string; uid: string }
   | { t: "seasonStep"; season: Season }
   | { t: "gymVictory"; gymId: string }

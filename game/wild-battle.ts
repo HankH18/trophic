@@ -120,6 +120,15 @@ export function battlerSpecOf(creature: OwnedCreature): BattlerSpec {
   };
   if (creature.boons && creature.boons.length > 0) spec.boons = creature.boons.map((b) => ({ ...b }));
   if (creature.curHp !== undefined) spec.curHp = creature.curHp;
+  // The banked XP goes back IN. This is the read-back half of the loop `applyBattleResult` below
+  // writes: the aftermath has always stored `OwnedCreature.xp`, and until `BattlerSpec.xp` existed
+  // `core/battle.ts` `makeBattler` opened every battler at 0, so the total accumulated on the save
+  // and was thrown away at the start of the very next fight. Copied verbatim — no clamp, no
+  // rescale, no re-derivation from the level — because a carried number that any reader could
+  // recompute differently is exactly the second source of truth this module refuses to be. Every
+  // launcher (wild, gym, rival, finale) reaches the reducer through `partySpecs`, so this one line
+  // wires all four.
+  if (creature.xp !== undefined) spec.xp = creature.xp;
   if (creature.nickname !== undefined) spec.nickname = creature.nickname;
   if (creature.metamorphosed !== undefined) spec.metamorphosed = creature.metamorphosed;
   return spec;
