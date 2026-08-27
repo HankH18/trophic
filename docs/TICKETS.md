@@ -14,14 +14,28 @@ cannot be worked by an agent — **T-1's open decision** — is first.
 while several agents were editing it.** Where a ticket's own predicted number turned out to be wrong,
 the measurement is recorded and the prediction is marked as wrong rather than quietly replaced.
 
-**Re-verified again on 2026-08-27 at 05:43 and 05:47, both runs complete.** `npx tsc --noEmit` reads
-**exit 0**; `npm run test` reads **10 failed of 2,848, 3 files of 70** — identical on both runs, and
-every failure is accounted for in STATUS's verified-state section. **The file count and the passing
-total rose because tests were ADDED, not because anything regressed** (67 → 70 files, ~2,760 → 2,848
-cases). **`main` is in sync with `origin/main`**, and the working tree is down from 20 dirty paths to
-6, all of them the art lane. **No commit hash is quoted here any more:** this file has named three
-different HEADs in as many hours and each was stale before the paragraph around it was finished. "In
-sync with origin" stays true; a hash does not.
+**Re-verified again on 2026-08-27 across four complete runs between 09:03 and 09:25**, three of them
+forced by HEAD moving mid-pass. `npx tsc --noEmit` reads **exit 0**, re-run after the last move;
+`npm run test` reads **10 failed of 2,876, 2,866 passing, 3 files of 70** — **an identical failure set
+on all four runs**, each of the ten named individually in STATUS's verified-state section. **The
+passing total rose because tests were ADDED, not because anything regressed** (~2,848 → 2,876 over the
+same 70 files, the additions being the inn-rest cases). **`main` is in sync with `origin/main`.**
+**No commit hash is quoted here any more, and neither is the dirty-path count or a commit tally:**
+this file has named three different HEADs in as many hours, HEAD moved four more times during this
+single pass, and the dirty list read the same number twice over a different tree. "In sync with
+origin" stays true; a hash does not, and neither does a count. Every dirty path belongs to a lane
+working right now. ⚠ **Several lanes were writing to `tests/` and `tools/` throughout, so the passing
+total above is a reading at a timestamp** — re-run before quoting it, and remember that a lower
+failure count is the reading nobody re-checks (STATUS item 39 №11).
+
+**Closing on this pass: T-12's clause 2.** The inn heals what it charges for, so T-28's largest
+unlanded clause is landed and T-12's remainder is the economy alone. **T-44, T-45 and T-46 were
+re-read and ALL THREE ARE STILL OPEN** — none was closed by the commits in between, and T-45's own
+cited line has drifted. **T-39 and T-41 were re-read and are unchanged.** **T-47 through T-50 are
+new** — the interior and map-edge work becoming visible now that the maps exist. **T-51 was opened and
+CLOSED within the pass**, its defect having been repaired by another lane while this was being
+written; it is kept as the record rather than deleted. **T-52 is new and is a gate, not a repair** —
+its subject is correct today and has nothing watching it.
 
 **Closing on this pass: T-28, T-29, T-30, T-31, T-33, T-34** — the progression loop and the travel
 soft-lock. **T-28 closes for its WIRING and its own remaining *done when* clauses are named as
@@ -319,36 +333,62 @@ them** (G14).
 ## Systems
 
 ### T-12 · Close the progression loop, and give money a purpose
-**Status:** IN PROGRESS — **the PROGRESSION half is DONE (T-28 · T-29 · T-30 · T-33 · T-34, all landed
-2026-08-27). The ECONOMY half is not.** · **Hank:** *"Close the loop, Health persists, plus an explicit
-penalty. Set up the new items to be sold in towns, giving a purpose for the money."*
+**Status:** IN PROGRESS — **clauses 1, 2 and 3 are DONE (T-28 · T-29 · T-30 · T-33 · T-34, then the
+inn heal, all landed 2026-08-27). CLAUSE 4, THE MONEY, IS THE WHOLE REMAINDER.** · **Hank:** *"Close
+the loop, Health persists, plus an explicit penalty. Set up the new items to be sold in towns, giving
+a purpose for the money."*
 
 **✅ Clause 1 — health, experience and items persist across battles.** `applyBattleResult`
 (`game/wild-battle.ts:503`) is the first statement of all four finish handlers
-(`game/scenes/OverworldScene.ts:1535 / :2233 / :2323 / :2397`), and `applyBattleAftermath`
+— **four call sites, which `grep -n 'applyBattleResult' game/scenes/OverworldScene.ts` returns and
+this file no longer lists by line, because all four had drifted by the next pass** — and
+`applyBattleAftermath`
 (`core/save.ts:579`) is the one writer of `curHp`, level, xp and the bag outside creation and the year
 turn. XP carries **in** as well as out (T-30). The fainted-party guards are no longer a dead end,
 because T-29 gives them a way out.
 
 **✅ The explicit penalty exists — but as the BLACKOUT's five ticks, and that is a reading.**
-`core/recovery.ts:21` and `game/scenes/OverworldScene.ts:1986` both argue in prose that the wipe cost
+`core/recovery.ts`'s header and `restAtInn`'s docblock both argue in prose that the wipe cost
 *is* the penalty this ticket asks for. It is a defensible reading and it is marked as one: **it prices
 a wipe, not a loss that leaves something standing.** Whether clause 3 wants more than that is open.
 
-**❌ Clause 2 — the inn heals what it charges for.** `restAtInn`
-(`game/scenes/OverworldScene.ts:1972`) is `spendTicks("inn", …)` plus a banner, and nothing else.
-`balance.medicine.innRestFullHeal` is `true` and its **only reader** is `core/recovery.ts:377`, the
-blackout's wake. **The key is not missing; the call is.**
+**✅ Clause 2 — the inn heals what it charges for. LANDED 2026-08-27.** ⚠ **This clause read `❌` and
+said the opposite until now; it is corrected, not rephrased.** `restAtInn` is `innRestFor` →
+`applyInnRest` → `spendTicks`, in that order — **consequence before price**, so the heal is on the
+save before a year turn the charge triggers, or a save write, or the HUD can read it.
+
+**The reader count is ONE and always was; what changed is who reaches it.** This clause used to say
+`balance.medicine.innRestFullHeal`'s *"only reader is the blackout's wake"*, which welded two claims
+together. Re-measured: the flag is branched on in exactly one place in the repo — `restoredUids` in
+`core/recovery.ts` — and that is still true. It now has **two callers**: `blackoutRecoveryFor` and
+`innRestFor`. **The selection was REUSED, not re-spelled**, and that was the load-bearing call: the
+docblock over `restoredUids` already said it answers *"what an inn rest does"*, so the inn asks the
+function that already knew the answer, and a test asserts both paths produce byte-identical parties
+so a private copy cannot creep in later.
+
+**The heal rides as its own absolute tape entry rather than being derived from the `{t:"inn"}` price
+beside it, and the reason is concrete rather than doctrinal:** `BLACKOUT_COST` levies two `{t:"inn"}`
+entries of its own, so a price-derived heal would fire on those too and restore a blackout three
+times, by two rules that disagree the moment the flag is retuned.
+
+**The `innCost` charge is deliberately still OFF**, and that is not an oversight — see clause 4. With
+no earner anywhere in the repo, switching it on makes the inn unpayable forever and re-creates the
+blockable run T-29 removed. **The owner's remaining question is therefore ordered: an earner first,
+then the sink.**
 
 **❌ Clause 4 — items sold in the town shops.** No shop sells anything. `balance.economy` ships
 `innCost` 40, `trainerPayoutPerLevel` 12, and snare / bait / salve / tonic prices, and **every one of
 them has zero readers** outside `core/schemas.ts` and `core/types.ts`. The only `money` occurrence in
 `core/` or `game/` is still `core/save.ts:420` `money: opts.money ?? 0` — no earner, no spender.
 
-⚠ **This is now urgent in a way it was not before, and the reason is the half that landed.** With
-damage persisting and the inn inert, **a damaged-but-not-wiped party's only out-of-battle heal is to
-get wiped.** Landing clause 1 without clause 2 did not block the game — T-29 saw to that — but it did
-make the recovery the *cheapest route to full HP*, which is not what a rest at an inn is for.
+⚠ **The urgency this ticket carried is DISCHARGED, and the paragraph that carried it is corrected
+rather than deleted, because the reasoning is what justified the fix.** It read: with damage
+persisting and the inn inert, a damaged-but-not-wiped party's only out-of-battle heal was to get
+wiped — the recovery had become the *cheapest route to full HP*, which is not what a rest at an inn
+is for. **That is no longer true**, and the two prices no longer compete at all: `innTicks` buys a
+night where you already are, and the blackout's extra `innTicks + travelTicks` buys the second night
+and the CARRY, which is the half a wiped player cannot perform for themselves. A wipe happens
+mid-fight on a route with no inn to walk to, so the inn is never the cheaper way out of one.
 
 **Do this before any further gym retune** — every published win rate still comes from a harness player
 model that never levels.
@@ -832,9 +872,15 @@ cited.
 | T-41 | `fit: true` vs `nearestResample` | The batch pipeline and the derived views disagree | TODO |
 | T-42 | Three comments call a season four ticks long | T-25 item 2's sibling, found while closing it | **DONE** |
 | T-43 | The palette append needs its own generator | `fit.mjs` is a re-freeze tool by construction | TODO |
-| T-44 | A test comment says `GameAction` has no `blackout` | It has one; the test passes and its reason is dead | TODO |
-| T-45 | `core/recovery.ts:30` misplaces `BlackoutRecovery` | The type moved to `core/types.ts`; imports unchanged | TODO |
-| T-46 | A fossilised precondition asserts the repo is empty | Ten maps landed; `manifest.test.ts:1414` is RED | TODO |
+| T-44 | A test comment says `GameAction` has no `blackout` | It has one; the test passes and its reason is dead | TODO · **re-read 2026-08-27, still open** |
+| T-45 | `core/recovery.ts` misplaces `BlackoutRecovery` | The type moved to `core/types.ts`; imports unchanged | TODO · **still open; its own cited line drifted** |
+| T-46 | A fossilised precondition asserts the repo is empty | Ten maps landed; the precondition is RED | TODO · **still open, still one of the ten** |
+| T-47 | Every interior door coordinate is a guess | The canon gives none; the painted map will | TODO · **blocked on the art lane** |
+| T-48 | Interiors cover four buildings in two towns | Three towns have no interior at all | TODO · **scope half is Hank's** |
+| T-49 | The maps paint edge exits nothing can walk through | Travel is still a number-key menu on `adjacency` | TODO |
+| T-50 | The door facing↔wall check lives only in the test layer | The load-time validator does not make it | TODO |
+| T-51 | `tools/mapgrid` bypassed the engine's cross-check | Real, and **repaired in flight** — it parses through `zBalance` | **CLOSED** |
+| T-52 | `tools/` → `game/` has no guard, only a correct habit | 9 sites, 5 files; the dependency is fine, the gate is missing | TODO |
 
 ### T-28 · Wire the persistence spine — nothing calls `applyBattleResult`
 **Status:** **DONE for the wiring, and three of its own *done when* clauses did NOT land and go back
@@ -846,10 +892,16 @@ is now the **first statement** of all four finish handlers:
 
 | launcher | call site |
 |---|---|
-| wild | `game/scenes/OverworldScene.ts:1535`, inside `finishWildBattle` — **before** the catch writer |
-| gym | `:2233` |
-| rival | `:2323` |
-| finale | `:2397`, before `resolveVellsireCatch` |
+| wild | inside `finishWildBattle` — **before** the catch writer |
+| gym | inside the gym finish handler |
+| rival | inside the rival finish handler |
+| finale | before `resolveVellsireCatch` |
+
+⚠ **This table used to give a line for each row and every one of the four had drifted within a day**
+(`:1535 / :2233 / :2323 / :2397`, against `:1537 / :2275 / :2365 / :2439` when re-measured). **The
+claim was never the line — it was that there are exactly four and that the call is first in each** —
+so the lines are gone and the claim stands. `grep -n 'applyBattleResult' game/scenes/OverworldScene.ts`
+is the check.
 
 **The three docblocks that already advertised it as *"the ONE writer all four launchers share"* —
 `game/rival.ts:184`, `game/gym-battle.ts:165`, `game/finale.ts:313` — BECAME TRUE rather than needing
@@ -862,7 +914,7 @@ false, nothing could tell the two cases apart.
 
 1. **THE BLACKOUT IS THE CONTINUATION OF THE FIGHT'S BEAT, NEVER THE OTHER WAY ROUND.** The leader's
    `battle-loss`, Wick's line, the finale's epilogue — each plays first, and `recoverFromBlackout`
-   (`game/scenes/OverworldScene.ts:2050`) is what runs when its box closes. **Measured, not
+   (`recoverFromBlackout` (`game/scenes/OverworldScene.ts`)) is what runs when its box closes. **Measured, not
    preferred:** `playPendingCutscene` asks the corpus what is queued for `this.node.id`, and
    `maren.epilogue.released` / `maren.epilogue.caught` are `cutscene`s at **`sanctum`** while
    `maren.finale` is one at **`sanctum-approach`**. Blacking out first carries the player two nodes
@@ -877,20 +929,25 @@ false, nothing could tell the two cases apart.
    extracted from `travelTo` rather than copied, so travel's adjacency check, its act gate and its
    tick stay with travel and the blackout's price stays with the blackout.
 
-**What did NOT land, and is now T-12's remainder** — each verified by reading the code, not inferred:
-- **The inn still heals nothing.** `restAtInn` (`game/scenes/OverworldScene.ts:1972`) is
-  `spendTicks("inn", …)` and a banner, and nothing else. `balance.medicine.innRestFullHeal` is `true`
-  and its **only** reader is `core/recovery.ts:377`, the blackout's wake.
-- **Money still has no earner and no sink.** `balance.economy`'s `innCost`, `trainerPayoutPerLevel`
-  and the four price groups have **zero readers** outside `core/schemas.ts` and `core/types.ts`.
+**What did NOT land** — each was verified by reading the code, not inferred. ⚠ **The first of the
+four has since LANDED and is struck rather than deleted, because a ticket that closes over its own
+recorded shortfall is exactly what this section exists to prevent:**
+- ~~**The inn still heals nothing.**~~ — **LANDED 2026-08-27.** `restAtInn` now calls `innRestFor` and
+  `applyInnRest` before it spends the tick. `balance.medicine.innRestFullHeal` still has exactly one
+  reader, `restoredUids`; it now has two callers, the blackout's wake and the inn's. The detail is in
+  T-12 clause 2 and is not repeated here.
+- **Money still has no earner and no sink.** Re-grepped 2026-08-27: `balance.economy`'s `innCost`,
+  `trainerPayoutPerLevel` and the four price groups have **zero readers** outside `core/schemas.ts`
+  and `core/types.ts`, and `save.money` is written once and read nowhere.
 - **No town shop sells anything.**
-- **A loss penalty exists only as the blackout's 5 ticks.** `core/recovery.ts:21` and
-  `OverworldScene.ts:1986` both argue in prose that this *is* the explicit penalty T-12 asks for.
-  **That is a reading and is marked as one** — it prices a WIPE, not a loss that leaves something
-  standing.
+- **A loss penalty exists only as the blackout's 5 ticks.** `core/recovery.ts`'s header argues in
+  prose that this *is* the explicit penalty T-12 asks for. **That is a reading and is marked as one**
+  — it prices a WIPE, not a loss that leaves something standing.
 
-**The consequence of landing the wiring without the heal, stated because it is live right now:** a
-party that is damaged but not wiped has exactly one out-of-battle way to heal, which is to get wiped.
+**The consequence this section recorded as live — a damaged-but-not-wiped party's only out-of-battle
+heal being to get wiped — is CLOSED by the inn landing.** It is kept because it is the argument that
+paid for the fix, and because it is the clearest instance this queue has of a shortfall recorded
+honestly at close-time and then actually worked.
 
 ### T-29 · Party-wipe recovery — Hank has ruled this and it exists nowhere on disk
 **Status:** **DONE — landed with T-28, as required.** · **Hank:** *"When your team is wiped, a dialogue
@@ -898,8 +955,12 @@ shows up with a black background saying you passed out or something like that, a
 at the inn."* · on the cost: *"it should use twice the inn ticks, in addition to the cost of one fast
 travel"*
 
-**Both rulings are still recorded verbatim, and they are recorded in the CODE as well as here** —
-`core/recovery.ts:5-11` quotes both, at the top of the module that implements them.
+**Both rulings are still recorded verbatim, and they are recorded in the CODE as well as here** — the
+header of `core/recovery.ts` quotes both under *"Hank, ruling, verbatim"*, at the top of the module
+that implements them. **Re-checked on the 2026-08-27 doc-currency pass, in both places, and both are
+intact** — including the *"take a note from Pokémon"* sentence the code copy opens with, which this
+file's shorter quotation drops. The `:5-11` this line published had drifted by one and is not
+published any more.
 
 **The cost composes from existing keys, so no new balance key and no literal in code (G11):**
 `2 × balance.clock.innTicks + 1 × balance.clock.travelTicks`. Re-read off the shipped file
@@ -912,11 +973,15 @@ exist, and `core/recovery.ts:24-28` says so where a future retuner will read it.
 **What shipped:**
 - `core/recovery.ts` — pure TypeScript, zero engine imports (L11). It owns the DECISIONS: is the party
   down, where do they wake, what is charged. `core/save.ts` owns the tape.
-- `game/scenes/OverworldScene.ts:2050` `recoverFromBlackout`, **called at the end of every fight and a
+- `recoverFromBlackout` (`game/scenes/OverworldScene.ts`), **called at the end of every fight and a
   no-op unless one is owed** — `blackoutRecoveryFor` answers null both for a party with something on
   its feet and for an empty one, which is a different state and belongs to the opening beat.
-- The party wakes **fully healed**: `core/recovery.ts:377` reads `balance.medicine.innRestFullHeal`
-  rather than restoring only the fallen, which is what a rest is and what bible §11 says in words.
+- The party wakes **fully healed**: `restoredUids` (`core/recovery.ts`) reads
+  `balance.medicine.innRestFullHeal` rather than restoring only the fallen, which is what a rest is
+  and what bible §11 says in words. **That function now serves the INN as well** (T-12 clause 2), so
+  the two paths cannot drift apart; on the blackout path its two branches provably cannot differ,
+  because nothing is standing when it is called. **The `:377` this line published has drifted to
+  `:389`, so the function is named here and the line is not.**
 - **`narration.blackout`** is authored in `data/dialogue.json` — a `service` entry, three lines, and
   the corpus went 214 entries / 509 lines → **215 / 512** because of it. It is gated on the cue the
   recovery raises and reached through the existing selector path, so the reachability gate sees it.
@@ -925,6 +990,14 @@ exist, and `core/recovery.ts:24-28` says so where a future retuner will read it.
 - `tests/unit/recovery.test.ts` — **33 cases**, covering the price list against the ruling, the
   absoluteness of the tape entry, the round trip, the refusal on a uid the save does not carry, and
   *"the dead end is real before the recovery exists to open it"* at every one of the twelve nodes.
+- ⚠ **AND THE NODE BINDING, WHICH WAS MISSING AND IS NOW BOUND (2026-08-27).** `recoverFromBlackout`'s
+  on-screen move was **deletable with the suite unchanged**, because the only assertion guarding it
+  ran at `hearthollow` — whose wake node **is** `hearthollow`, so the assertion compared a value with
+  itself. It is now driven at **every shipped node**, asserting that the scene and the save agree, and
+  it **counts how many nodes actually move** and fails loudly if a data change ever made them all
+  identity (`wakeNodeFor` is the identity at five of the twelve). The fixture cannot go degenerate in
+  silence. This is the same shape as STATUS item 39 №8 — an assertion that ran, compared, and could
+  not fail — reached from the fixture side rather than the threshold side.
 - The **end-to-end** case is in `tests/unit/overworld-scene.test.ts:1179-1198`, not in the unit file:
   it walks the slice until a real fight is lost, then asserts something is standing, at
   `wakeNodeFor(SLICE_NODE, content)`, that the scene moved with the save, that the clock moved by
@@ -1398,6 +1471,237 @@ dir rather than `REPO_ROOT`.
 
 **Done when:** the precondition no longer asserts the repository is empty, the REFUSE claim is
 unchanged, and sabotaging the refusal still reds it.
+
+---
+
+## Opened 2026-08-27 by the doc-currency pass — the seams the maps made visible
+
+**T-47 through T-50 were invisible until the maps landed**, and they are one dependency wearing four
+faces: **the art lane now decides things the code has already guessed at.** None is a defect in
+shipped behaviour; every one is a place where a number, a check or a route exists on one side of that
+seam and not the other.
+
+**T-51 and T-52 are a different pair and are about instruments, not seams.** One was a real defect
+already repaired by the time it could be written down; the other is a dependency that is correct today
+with nothing watching it. **Neither asks anybody to change working code**, and both are here because a
+thing nobody is measuring is this queue's most reliable source of expensive surprises.
+
+### T-47 · Every interior door coordinate is a guess, and the guess is about to be checkable
+**Status:** TODO — **blocked on the art lane declaring the map set; the code half is a paste plus a
+possible blueprint edit, see the caveat**
+
+**Every `door` object in `data/interiors/*.json` says so about itself.** From
+`data/interiors/hearthollow-inn.json`, verbatim:
+
+> **PROVISIONAL PLACEMENT** — the canon gives no coordinate, no compass direction and no prop for
+> this building; see `_canonSilent`. Units are map-native pixels in the 1024-square painted town, the
+> same space `data/nodes/hearthollow.json` props use. Placed west of the green and north of the
+> middle, clear of the two things the town map does pin: the exact centre stays empty ground, and the
+> survey board stands at 512,648.
+
+All four blueprints carry a `_note` of that shape. The coordinates today are
+**hearthollow-inn (296,392) · hearthollow-supply (712,372) · brackwater-inn (296,372) ·
+brackwater-supply (300,596)**, each reasoned from the handful of positions the canon does pin and
+from nothing else, because there is nothing else. **This is a dependency running ART → CODE and it is
+currently invisible**: nothing goes red when the painting lands, nothing lists these four numbers as
+outstanding, and a door on grass looks exactly like a door on a doorstep to every test in the repo.
+
+**The provisionality is now MEASURED rather than asserted, which is new.** The art session ran
+`tools/mapgrid` against the current Hearthollow painting and read the provisional inn door at
+(296,392) as landing **on grass between two trees**, while (512,512) lands on open walkable
+crossroads. ⚠ **That is a reading off a mid-round trial map that will be replaced, so it is evidence
+that the re-pin is NECESSARY and it is not a coordinate to act on.** Do not paste 512,512.
+
+⚠ **CAVEAT — A NON-SOUTH DOOR IS A BLUEPRINT EDIT, NOT A COORDINATE PASTE.** Measured across all four
+shipped blueprints: every one puts `D` on the **bottom row** and declares `facing: "south"` —
+hearthollow-inn (col 6, row 7 of 8), hearthollow-supply (col 5, row 6 of 7), brackwater-inn (col 6,
+row 6 of 7), brackwater-supply (col 5, row 7 of 8). **A non-south door has therefore never existed in
+this project.** If the painted map puts a door on a north, east or west wall, **three things move
+together or the room is entered through a wall**:
+1. the `D` is re-cut into that wall of the ASCII `plan`;
+2. `arrival` moves to the floor cell one orthogonal step inside the new doorway — `blueprintProblems`
+   enforces exactly that, so getting it wrong refuses at load rather than failing quietly;
+3. the `_room` sentence is rewritten, because it names the wall **in words**, and the validator
+   refuses a `_room` that has drifted from its drawing (`core/interiors.ts:422-426`).
+
+The art session has agreed to **flag any non-south door in the door manifest it hands over**,
+precisely because that flag costs real work and its absence would silently produce a room the player
+enters through a wall.
+
+**Done when:** the owner declares the map set; each of the four doors is re-pinned to the door the art
+lane actually painted; any non-south door has had all three of the above moved with it; and the
+`_note` on each door stops saying PROVISIONAL and says which painting it was read off.
+
+### T-48 · Interiors cover four buildings in two towns, and three towns have none at all
+**Status:** TODO — **the SCOPE half is Hank's and is in STATUS's waiting-on-the-owner register; the
+GAP is recorded here so it stops being invisible**
+
+**Hank, verbatim:** *"This game is nowhere near deep enough to need twenty homes in a town. A town
+should be a handful of buildings, and nearly all of the buildings should have an accessible
+interior."*
+
+**What exists: four blueprints.** An inn and a supply shop in **Hearthollow**, an inn and a supply
+shop in **Brackwater**. That is it — `ls data/interiors/` returns four files.
+
+**What has no interior at all**, read off `docs/content-bible.md` §6's six-town table and
+`data/nodes/`:
+- **Bowerdeep** (act 3, forest canopy) — the manifest itemises a night market, a winding house, an oil
+  shed, a gym hall and an inn.
+- **Cindershelf** (act 4, volcanic steppe) — the relic forge is a bible §6 unique feature.
+- **Duskhollow** (act 5, dusk vale) — the observatory is a bible §6 unique feature.
+- **The Sanctum Fallow** (act 6) is **NOT** in this list and must not be added to it: bible §6 says
+  *"no shops, one long approach"*, so having no interior is what the canon asks for there.
+
+**Do not invent a building to close this gap.** The three towns above are gaps in *coverage*, not
+missing files: under G2 every added interior must derive from canon the way the existing four do —
+every physical feature traced in `_featureSource` to a shipped line, every silence named in
+`_canonSilent` rather than filled. For a building the corpus barely mentions there may be nothing to
+derive from, **and where the canon is silent that is part of what the owner is deciding, not a licence
+to invent an inside.**
+
+**Two facts he may want while deciding, both re-verified.** **The engine is not the constraint** — a
+new interior is a `data/interiors/*.json` file and its citations, not code; the model, the loader, the
+tests and the scene layer are all generic. And **the gym hall is a different question from the rest**:
+gyms are challenged today by a keypress from the town node, with no building, no door and no position,
+yet six shipped leader lines already describe a room with a door and a bench — so making one enterable
+changes *how gyms are challenged*, not just how many rooms exist.
+
+**Done when:** the owner rules on how many buildings get an inside; the chosen set is authored under
+the same `_featureSource` / `_canonSilent` discipline; and this ticket records which towns were
+deliberately left without one and why.
+
+### T-49 · The maps paint edge exits, and nothing can walk through them
+**Status:** TODO — **the art is already deliberately painted for this; the code has never had it**
+
+**Travel is a number-key menu, and the code says so in as many words.** `travelTo`
+(`game/scenes/OverworldScene.ts`) refuses on exactly `adjacency` and the act ladder, and the keys that
+reach it are `this.travelKeys.forEach((key, i) => … this.node.adjacency[i])` in `update`. The
+docblock over `travelTo` states the deviation itself:
+
+> DEVIATION (reported, not silently taken): the node schema carries no exit or portal positions —
+> `props[]` is antler stones, shrines, idols and sign cards — so there is nothing in the data that
+> says where an edge of the map leads. Travel is therefore an explicit action keyed on `adjacency`,
+> not a walk-off-the-edge, and the HUD lists the destinations. **A door prop kind would change this,
+> and that is a content decision, not one to invent here (G2).**
+
+**Walk-through-edge does not exist. What DOES exist is the painting.** The art session reports the
+maps paint **two edge exits each — bottom back toward Hearthollow, top on toward the Sanctum — with
+Hearthollow and the Sanctum painting one apiece.** Corroborated from the code side by reading
+`tools/comfy/manifest.json`'s `_nodes` block: `r1` *"leaves at the bottom by a gate gap in a broken
+drystone wall toward the village"* and *"goes on at the top toward the marsh"*; `r2` drops *"at the
+bottom onto a mud landing … toward the stilt town"* and reaches *"firm peat at the top toward the
+forest"*; `cindershelf` and `duskhollow` the same shape; `hearthollow` paints only the top gate; the
+`sanctum` only the bottom path. **The art is deliberately painted so the exits are unambiguous when
+it lands** — which means the moment it lands, the maps promise a route the game refuses.
+
+**This ticket is the code half and it names the prior question rather than answering it.** The
+docblock is right that a door prop kind is a content decision (G2). So the work splits:
+- **the content question** — does `props[]` gain an exit/portal kind carrying a destination and an
+  edge, or does the exit derive from `adjacency` plus which edge the art painted? An agent may not
+  pick;
+- **the code question, which is decidable once the first is** — a step onto an exit cell calls
+  `travelTo` with the destination it names, paying travel's one tick exactly as the keypress does, and
+  the number-key menu stays as the accessible route rather than being replaced.
+
+**Done when:** the exit's data shape is ruled on; walking onto a painted exit travels; the tick is
+charged once and not twice; and the number-key menu still works.
+
+### T-50 · The door facing↔wall check lives only in the test layer
+**Status:** TODO — **narrow exposure, stated so whoever works it does not over-build**
+
+**`door.facing` is asserted to agree with the wall the plan cuts its `D` into** at
+`tests/unit/interiors.test.ts:440`: it derives the wall from the `D` cell's row/col against the plan's
+bounds, refuses an interior `D`, and then asserts `wall === bp.door.facing`. **`blueprintProblems`
+(`core/interiors.ts`), the load-time validator, does not make that check.** So a blueprint whose
+facing disagrees with its wall **fails the suite but would load at runtime without complaint** — the
+check exists in the place that runs on CI and not in the place that runs on a player's machine.
+
+**The exposure is narrow, and saying so is part of the ticket.** `blueprintProblems` already enforces
+the stronger, related invariant — **arrival must be exactly one orthogonal step from the `D` cell** —
+and `enterInterior` derives the walk-in direction **from that step**, not from `door.facing`. So a
+wrong facing cannot make the player walk in backwards. What it can do is put a door glyph on the wrong
+wall of a room the validator has already accepted.
+
+**This matters more now than it did**, because T-47 will edit these blueprints against a painted map,
+and a non-south door is the first case where the two could ever disagree.
+
+**Done when:** either the check moves into `blueprintProblems` beside the arrival-step rule and the
+test asserts through the validator rather than beside it, or a comment on `door.facing` records that
+the invariant is test-only and why that was judged sufficient. **Do not delete the test either way.**
+
+### T-51 · `tools/mapgrid` bypassed the engine's cross-check — **fixed in flight, before the ticket**
+**Status:** **CLOSED — the defect was real and is repaired.** ⚠ **Opened and closed within one pass,
+and written down rather than dropped, because the SEQUENCE is the useful part.**
+
+**The report, and it was correct when it was made.** `tools/mapgrid/run.ts` — the new tool that
+overlays the engine's collision grid on a painted map so a coordinate is READ rather than estimated,
+and therefore the instrument T-47's re-pin will be verified against — landed reading `collisionCols`,
+`collisionRows`, `collisionCellPx` and `mapNativePx` as four independent numbers through a raw
+`JSON.parse`. **They are not independent.** The engine refuses a `balance.json` unless
+`collisionCols × collisionCellPx === mapNativePx`, and likewise for rows: `gridConsistencyProblem`
+(`game/collision.ts`) states it directly and `zBalance`'s `.superRefine` (`core/schemas.ts`) derives
+the same constraint as a division. The tool went through neither. **They agreed anyway — 64 × 16 =
+1024 — so it drew the engine's real grid; the exposure was drift.**
+
+**It was repaired twice in five minutes while this doc pass was running**, which is why the ticket
+exists only to record it: first by parsing through **`zBalance`**, the engine's own schema, and
+throwing on the schema's own issue messages; then by **dropping a `gridConsistencyProblem` import that
+had been added as defence in depth.** That second move is the one worth keeping, because it looks like
+a weakening and is not: the call was **unreachable** — zod fires first in every case — and it made a
+node tool depend on `game/` staying free of Phaser, **which `game/` never promised.** L11 forbids
+Phaser in `core/` only; `game/` is the layer that is allowed to import it, so a legal edit to
+`game/movement.ts` would have broken this tool far from the cause. `core/schemas.ts` carries no such
+hazard, because L11 is exactly the rule that keeps `core/` importable from a plain node script.
+
+**Why it was worth a ticket at all, stated so the closure is not read as "a dev-tool nit".** mapgrid
+is an instrument, and an instrument cheerfully drawing a 64×64 grid while the engine refuses to boot
+on the same file is **this repo's most expensive recurring shape** — ten instances in STATUS item 39,
+every one of them a tool reporting confidently on something it could not resolve. The tool's own
+docblock now says it in the file: these are *"not four independent numbers — they are three statements
+of one fact"*.
+
+**And the standing rule this ticket illustrates is not "the reporter was careless" — it is the
+opposite.** The report was accurate against the tree when it was made and inaccurate against the tree
+forty minutes later, and **both readings were correct measurements of different trees.** *Re-read the
+file before you cite it* cuts in this direction too: a doc pass that had pasted the report without
+re-reading would have published a live defect ticket against code that was already fixed.
+
+### T-52 · The `tools/` → `game/` dependency needs a gate, and ONLY a gate
+**Status:** TODO — **the dependency itself is fine and must not be "fixed"; the ticket is the gate**
+
+⚠ **Read the first sentence before acting.** This ticket exists because a dependency class that is
+currently correct has **nothing watching it**, not because anything is wrong. An agent that arrives
+here and starts deleting imports is doing the wrong work.
+
+**What was measured: nine import sites across five files reach four `game/` modules from `tools/`.**
+- `game/collision.ts` ← `tools/mapgen/layout.ts`, `tools/mapgen/render.ts`, `tools/mapgen/verify.ts`,
+  `tools/collision-editor/main.ts`
+- `game/survey-view.ts` ← `tools/ui-frames/contact-sheet.ts`
+- `game/ui/Palette.ts` ← `tools/ui-frames/contact-sheet.ts`, `tools/ui-frames/theme.ts`
+- `game/placeholder.ts` ← `tools/collision-editor/main.ts`
+
+**Why none of it is a violation.** L11 forbids Phaser in **`core/`** and says nothing about `tools/`;
+the first three modules are transitively Phaser-free, and `game/placeholder.ts` imports Phaser
+directly and is reached only from `tools/collision-editor/`, **which is browser-hosted** — it ships an
+`index.html` and a `vite.config.ts` and `package.json` runs it as
+`vite --config tools/collision-editor/vite.config.ts`. A browser tool importing Phaser is a browser
+tool importing Phaser.
+
+**What is missing is the guard on the NODE-SIDE subset.** A plain node script that reaches into
+`game/` is depending on `game/` staying Phaser-free, **which `game/` has never promised** — that is
+precisely the hazard T-51 recorded when `tools/mapgrid` dropped its `game/collision.ts` import: a
+legal edit to `game/movement.ts` breaks a node tool far from the cause. Today nothing would go red.
+
+⚠ **The count in this ticket is itself a worked example of STATUS item 39 №11 and the number must not
+be trusted without re-deriving it.** The first walk used a `^import … from` pattern and found **five**
+sites; several real imports in this repo span lines with the specifier on the closing line, so the
+regex missed four and dropped `game/survey-view.ts` out of the audit entirely. **The smaller answer
+was the tidier one.** Re-derive with a multiline-aware read, not a line-anchored grep.
+
+**Done when:** a gate in `tests/gates/` enumerates the node-side `tools/` entry points, asserts that
+none of them transitively reaches Phaser, names the browser-hosted exceptions **explicitly rather than
+by a path prefix**, and **reds under a sabotage that adds a Phaser import to a module one of them
+already pulls in.** A gate that only lists today's imports is a snapshot, not a guard.
 
 ---
 
