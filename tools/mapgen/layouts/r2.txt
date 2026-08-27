@@ -1,0 +1,115 @@
+# SEEDED STARTING LAYOUT for "r2" — NOT A FINISHED MAP. Edit it by hand.
+#
+# Written by tools/mapgen/seed.ts. It knows four things about this node: which edges its
+# adjacency declares, where its props stand, what biome it is, and whether it is a settlement.
+# It does not know what this place looks like. Re-running the seeder OVERWRITES hand edits
+# unless --force is withheld; the renderers read this file, not the seeder.
+#
+# ── coordinate space ─────────────────────────────────────────────────────────
+# space        map-native pixels, origin TOP-LEFT (data/nodes/*.json props[].x/y are in this space)
+# grid         64 cols × 64 rows, one character per collision cell
+# cell         16 native px  (balance.map.collisionCellPx; 1024/64 = 16)
+# map          1024 × 1024 native px, rendered ×2 → 2048 world px
+# tiles        64 × 64 movement tiles of 32 world px
+# col ← x      col = floor(nativeX / 16);  a cell's centre is native (16·col + 8, 16·row + 8)
+# centre       native (512, 512) = cell (32, 32) = the tile firstWalkableTile starts on
+#
+# ── seeded from ──────────────────────────────────────────────────────────────
+# biome        Marsh
+# adjacency    brackwater, bowerdeep
+# bottom edge  brackwater
+# top edge     bowerdeep
+# settlement   no — zero building footprints
+# props        r2-antler-causeway @ (268,402) → cell (16,25); r2-idol-shallows @ (664,612) → cell (41,38)
+#
+# ── decisions this file made ─────────────────────────────────────────────────
+# · a spur was cut from the lane to prop "r2-antler-causeway" at cell (16,25)
+# · a spur was cut from the lane to prop "r2-idol-shallows" at cell (41,38)
+# · prop "r2-antler-causeway" sits on a path-corridor cell at (16,25); the anchor character takes the cell and the cell stays walkable
+# · prop "r2-idol-shallows" sits on a path-corridor cell at (41,38); the anchor character takes the cell and the cell stays walkable
+#
+# ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
+#   .  floor  open-ground         plain walkable ground; the default fill
+#   ,  floor  scrub               walkable but textured — long grass, ferns, heather
+#   :  floor  path-corridor       the worn track that joins the map edges through the middle
+#   o  floor  centre-clearing     the open region at native (512,512) the spawn search lands in
+#   ~  floor  shallow             walkable water margin — wadeable, not a wall
+#   #  WALL   wall                generic impassable mass with no more specific kind
+#   B  WALL   building-footprint  a building the player walks around, never through
+#   T  WALL   tree-mass           trunks and thicket dense enough to stop a walk
+#   W  WALL   water               open water — deep enough to block
+#   R  WALL   rock                basalt, scree, standing stone, crater rim
+#   F  WALL   fence               a thin built barrier — pen rail, jetty edge, ore-cart rail
+#   *  ANCH   prop-anchor         a data/nodes/*.json props[] entry, at floor(x/cellPx), floor(y/cellPx)
+#   @  ANCH   spawn-anchor        documentary marker for the centre cell the spawn search starts from
+#   ^  ANCH   edge-mouth          the cell where a corridor meets the map edge; one per declared adjacency
+#   D  ANCH   door-anchor         the walkable cell a building is entered from
+#
+# Only "#"-class characters block. tools/mapgen/layout.ts normalises every WALL character to "#"
+# before game/collision.ts gridFromAscii sees it; ANCH characters parse as floor and are read again
+# on a second pass. Region kinds are open strings — add a row to the legend, not a case to a switch.
+---
+WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW:^:WWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW::::WWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW::::WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW:::WWWWWWWWWW....W....WWWWWWWWWWWW
+WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW::::.WWW.W..................WWWWWW
+WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW::::........................WWWWWW
+WWWW........W........WWWWWW..::::..........................WWWWW
+WWW.........................::::..........................WWWWWW
+WWW.........................:::...........................WWWWWW
+WWW........................::::............................WWWWW
+WWW........................:::.............................WWWWW
+WWW........................:::............................WWWWWW
+WWW....................WWW::::............................WWWWWW
+WWW..................WWWW::::.............................WWWWWW
+WWWW................WWWWW::::.W............................WWWWW
+WWW.................WWWWWW:::WW.............................WWWW
+WWW..................WWWWW:::.W.............................WWWW
+WWW.................WWWWWW:::..............................WWWWW
+WWWW................WWWWWW::::..............................WWWW
+WWW................WWWWWWW.::::.............................WWWW
+WWW.................WWWW....::::............................WWWW
+WWW..................W.......::::............................WWW
+WWW...........................:::............................WWW
+WWW..............W...........::::...........................WWWW
+WWW...............W.........::::.............................WWW
+WWW.............*::::::::::::::..............................WWW
+WWW...............WW........:::.............................WWWW
+WWW...............WW........::::.............................WWW
+WWW..............WW..........::::.........W..................WWW
+WWWW......................oooo::::........WWW................WWW
+WWWWW....................oooooo::::......WWW.................WWW
+WWWWW....................oooooo::::......WWW.................WWW
+WWWWWW...................oooooo:@::o.....WWW..W..............WWW
+WWWWWW...................ooooooo::::.....WWWWWW..............WWW
+WWWWWW....................oooooo:::::....WWWWW...............WWW
+WWWWWW....................ooooo::::::....WWWW................WWW
+WWWWWW....................ooooo:::o:::..WWWWW................WWW
+WWWWW.....................ooooo:::o.:::::..W.................WWW
+WWWWWW.....................ooo::::.....::*:W.................WWW
+WWWWW...........W..........ooo:::............................WWW
+WWWW...........WW.............:::...........................WWWW
+WWWW..........WWWWW........W.::::............................WWW
+WWWW...........WWWW........W.:::...................WW........WWW
+WWWWW..........WWWW...W...WWW::::..................WWW.......WWW
+WWWWW.........WWWWW...WWWWWWW::::................W.WW.WW.....WWW
+WWWWW.........W.WWW....WWWWWW:::W...............WWWWWWWW.....WWW
+WWWWW...........WW.....WWWWW::::W...............WWWWWW.W..W.WWWW
+WWWWW..................WWWW::::WWWW.............WWWWWWWWWWW..WWW
+WWWWW....................WW:::WWWWWW.............WWWWWW......WWW
+WWWWW.....................W::::W.WWW............WWWWWWWW.....WWW
+WWWWW......................W:::W.W..............WWWWWW.......WWW
+WWWWWW......................::::W...............WWWWW........WWW
+WWWWWWW......................:::W...............WWWW.........WWW
+WWWWWWW.....................::::.................WWW.........WWW
+WWWWWWW.....................:::...................W..........WWW
+WWWWWWW.....................:::..............................WWW
+WWWWWWW.....................::::.............................WWW
+WWWWWWW......................:::....................W.WWWW...WWW
+WWWWWW.......................::::...........WWWW.WWWWWWWWWWW.WWW
+WWWWWW..W............WWW.....W:::..........WWWWWWWWWWWWWWWWWWWWW
+WWWWWWWWWWW..WWW..WWWWWWWWWWWW::::....WWWWWWWWWWWWWWWWWWWWWWWWWW
+WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW::::WWWWWWWWWWWWWWWWWWWWWWWWWWWWW
+WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW::::WWWWWWWWWWWWWWWWWWWWWWWWWWWW
+WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW:^:WWWWWWWWWWWWWWWWWWWWWWWWWWWW

@@ -23,6 +23,30 @@ negative that L6's cape ban is written against. The cape is excluded by the posi
 
 **Consequence: a defect is fixed in the POSITIVE prompt or it is not fixed.**
 
+### R2 is about the NEGATIVE PROMPT FIELD ONLY — negated phrases in the positive prompt work
+
+This has already been misread once, at cost. R2 says the `negative` string is never evaluated because
+cfg 1.0 disables classifier-free guidance. **It says nothing about the word "no" appearing inside the
+positive prompt.** Those are ordinary tokens and they demonstrably do work.
+
+The proof is R5's own survivor: **the full-bleed clause is phrased entirely as negations** — *"no
+island, no plinth, no cutaway earth wall, no border and no blank background anywhere"* — and it is
+the one clause in this file measured as a clear win, 0.06% void against 13.6–31.1% without it.
+
+**A round was run on the misreading.** An instruction to "delete every negation" removed the
+full-bleed clause along with the rest, and the framed-island failure returned immediately: **6 of 27
+cells rendered as a map floating on a grey matte frame, against 3 of 37 before.** The deletion was
+the cause; the clause was doing the work.
+
+So:
+
+- **A term in the `negative` field — inert. Ignore it entirely.**
+- **A negated phrase in the positive prompt — judge it on evidence, per clause.** Some work
+  (full-bleed). Some do not (*"none lined up in a regular grid or in repeated rows"*, which never
+  stopped a grid appearing and is fairly deleted on that evidence, not on its grammar).
+
+Never delete a positive-prompt clause because of its form. Delete it because it was measured inert.
+
 ## R3 — Never describe what the OTHER edges of the picture are
 "…the ONLY road leaving the picture, running off the top edge; every other edge of the picture is
 unbroken hedgerow" produced a rectangular hedge boundary around the whole town and a grid of paths

@@ -1,0 +1,113 @@
+# SEEDED STARTING LAYOUT for "bowerdeep" — NOT A FINISHED MAP. Edit it by hand.
+#
+# Written by tools/mapgen/seed.ts. It knows four things about this node: which edges its
+# adjacency declares, where its props stand, what biome it is, and whether it is a settlement.
+# It does not know what this place looks like. Re-running the seeder OVERWRITES hand edits
+# unless --force is withheld; the renderers read this file, not the seeder.
+#
+# ── coordinate space ─────────────────────────────────────────────────────────
+# space        map-native pixels, origin TOP-LEFT (data/nodes/*.json props[].x/y are in this space)
+# grid         64 cols × 64 rows, one character per collision cell
+# cell         16 native px  (balance.map.collisionCellPx; 1024/64 = 16)
+# map          1024 × 1024 native px, rendered ×2 → 2048 world px
+# tiles        64 × 64 movement tiles of 32 world px
+# col ← x      col = floor(nativeX / 16);  a cell's centre is native (16·col + 8, 16·row + 8)
+# centre       native (512, 512) = cell (32, 32) = the tile firstWalkableTile starts on
+#
+# ── seeded from ──────────────────────────────────────────────────────────────
+# biome        Forest
+# adjacency    r2, r3
+# bottom edge  r2
+# top edge     r3
+# settlement   yes — building footprints are placed
+# props        bowerdeep-sign-market @ (520,560) → cell (32,35)
+#
+# ── decisions this file made ─────────────────────────────────────────────────
+# · prop "bowerdeep-sign-market" sits on a centre-clearing cell at (32,35); the anchor character takes the cell and the cell stays walkable
+# · arrangement: around-green — a first composition drawn from this node's own stream, not a plan
+#
+# ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
+#   .  floor  open-ground         plain walkable ground; the default fill
+#   ,  floor  scrub               walkable but textured — long grass, ferns, heather
+#   :  floor  path-corridor       the worn track that joins the map edges through the middle
+#   o  floor  centre-clearing     the open region at native (512,512) the spawn search lands in
+#   ~  floor  shallow             walkable water margin — wadeable, not a wall
+#   #  WALL   wall                generic impassable mass with no more specific kind
+#   B  WALL   building-footprint  a building the player walks around, never through
+#   T  WALL   tree-mass           trunks and thicket dense enough to stop a walk
+#   W  WALL   water               open water — deep enough to block
+#   R  WALL   rock                basalt, scree, standing stone, crater rim
+#   F  WALL   fence               a thin built barrier — pen rail, jetty edge, ore-cart rail
+#   *  ANCH   prop-anchor         a data/nodes/*.json props[] entry, at floor(x/cellPx), floor(y/cellPx)
+#   @  ANCH   spawn-anchor        documentary marker for the centre cell the spawn search starts from
+#   ^  ANCH   edge-mouth          the cell where a corridor meets the map edge; one per declared adjacency
+#   D  ANCH   door-anchor         the walkable cell a building is entered from
+#
+# Only "#"-class characters block. tools/mapgen/layout.ts normalises every WALL character to "#"
+# before game/collision.ts gridFromAscii sees it; ANCH characters parse as floor and are read again
+# on a second pass. Region kinds are open strings — add a row to the legend, not a case to a switch.
+---
+TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT^:TTTTTTTTTTTTTTTTT
+TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT::TTTTTTTTTTTTTTTTT
+TTTTTTTTTTTTT,,,,TT,,TTTTTTTTTTTTTTTT,,,,,,,,:::,,,,,,,TTTTTTTTT
+TTTTTTTTTTTT,,,,,,,,,,,,TTTTTTTTTTT,,,,,,,,,,,:::,,,,,,,,,,TTTTT
+TTTTTTTTTT,,,,,,,,,,,,,,,TTTTTTT,,,,,TT,,,,,,,,:::,,,,,,,,,,TTTT
+TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTT,,,,,,,,,,:::,,,,,,,,TTTTT
+TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTTT,,,,,,,,,:::,,,,,,,,TTTTT
+TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTTTTT,,,,,T:::,,,,,,,,,TTTTT
+TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTTTTTT,,,,T:::,,TTTT,,,,TTTTT
+TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTT,T,,,,,:::T,,TTTT,,,,TTTTT
+TTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTT,,,,,,,::TTTTTTT,,,,,TTTTT
+TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTT,,,,,,:::TTTTTTTTTT,,TTTTT
+TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,T,TTT,,,,,,,:::TTTTTTTTT,,,,TTTTT
+TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,T,,,,,,,,::,,TTTTTTT,,,,,,TTTT
+TTTTT,,,,,,,,,,,TT,,,,,,,,,,,,,,,,,,,,,,,,:::,,,TTTT,,,,,,,,TTTT
+TTTTT,,,,,,,,,,TTT,,,,,,,,,,,,,,,,,,,,,,,,::,,,,,,TTTT,,,,,,TTTT
+TTTTT,,,,,,,,,TTTTTT,,,,,,,,,,,,,,,,,,,,,:::,,,,,TTTT,,,,,,,,TTT
+TTTTT,,,,,,,,,TTTTTT,,,,,,,,,BBBBBBB,,,,:::,,TTT,TTTT,,,,,,,,,TT
+TTTTT,,,,,,,,,,TTTTT,,,,,,,,,BBBBBBB,,,:::,,TTTTTTT,,,,,,,,,,,TT
+TTTTT,,,,,,,,,,TTTTT,,,,,,,,,BBBBBBB,,,::TTTTTTTTT,,,,,,,,,,,TTT
+TTTTT,,,,,,,,,,TTTTT,,,,,,,,,BBBBBBB,T:::TTTTTT,,,,,,,,,,,,,,,TT
+TTTT,,,,,,,,,,TTT,T,,,,,,,,,,BBBBBBBTT::TTTTTTT,,,,T,,,,,,,,,TTT
+TTTT,,,,,,,,,,,T,,T,,BBBBBBB,BBBBBBBT:::TTT,TT,,,,,T,,,,,,,,,,TT
+TTTT,,,,,,,,,,,,,,,,,BBBBBBB,BBBBBBBT::TT,,,TTT,,,TTT,,T,,,,,,TT
+TTTT,,,,,,,,,,,,,,,,,BBBBBBB,BBBBBBBT::TT,T,TTTT,,,TTTTTTT,,,,TT
+TTTT,,,,,,,,,,,,,,,,,BBBBBBBD,,,D,,,:::TT,TTTTTTTTTTTTTTTTTT,,TT
+TTT,,,,,,,T,,,,,,,,,,BBBBBBB,,,,,,,,::,,TTTTTTTT,TTTTTTTTTTT,,TT
+TTTT,,,,TTTT,,,,,,,,,BBBBBBB,,,,,,,:::,,,,,TTTTTTTTTTTTTTTTTT,TT
+TTTT,,,,TTTT,,,,,,,,,BBBBBBB,,,,,,:::,BBBBBBBBTTTTTTTTTT,TTTT,TT
+TTTTTTTTTTTTT,,,,,,,,,,,,,,oooo,,:::,,BBBBBBBBTTTTTTTTT,,T,,,,TT
+TTTT,,TTTTTTTT,,,,,,,,,,,oooooooo::,,,BBBBBBBBTTTT,,TTTT,T,,,,TT
+TTT,TTTTTTT,T,,,,,,,,,,,,ooooooo:::,,,BBBBBBBB,T,,,,T,,T,,,,,,TT
+TTTTTTTTTTTTT,,,BBBBBBBB,ooooooo@::o,DBBBBBBBBTT,,,,,,TT,,,,,,TT
+TTTTTTTTTTTTT,,,BBBBBBBB,oooooooo:::,,BBBBBBBBTTTT,,,,,,,,,,,,TT
+TTTTTTTT,T,,,,,,BBBBBBBB,ooooooooo:::,BBBBBBBBTTT,,,,,,,,,,,,,TT
+TTTTTTTT,,,,,,,,BBBBBBBB,ooooooo*oo:::BBBBBBBBTTTT,,,,,,,,,,,TTT
+TTT,T,,,,,,,,,,TBBBBBBBBDoooooooooo,:::,TTTTTTTTTTT,,,,,,,,,,TTT
+TTT,,,,,,,,,,,,TBBBBBBBBT,ooooooooo,,::,TTTTTTTTTTT,,,,,,,,,TTTT
+TTT,,,,,,,,,,,TTBBBBBBBBTT,ooooooo,,,:::,TTTTTTT,,,,,,,,,,,,TTTT
+TTT,,,,,,,,,,,TTBBBBBBBBTTT,oooo,,,,,,::,,TTTTTT,,,,,,,,,,,TTTTT
+TTTT,,,,,,,,,,,TTTTTTTTTTTTTT,,,,,,,,,::,,T,TTTT,,,,,,,,,,,TTTTT
+TTTT,,,,,,,,,,,TT,,,TTTTTTTTTT,TTD,,,,:::,,TTTTTT,,,,,,,,,,TTTTT
+TTTT,,,,,,,,,,,TT,,,,,TTTTTTTTBBBBBBB,,::,TTTTTTT,,,,,,,,,,TTTTT
+TTTT,,,,,,,,,,,TT,,,,,T,,TTTTTBBBBBBB,,:::TTTTTTT,,,,,,,,,,,TTTT
+TTT,,,,,,,,,,,,,,,,,,,T,,TTTTTBBBBBBB,,,::TTTTTTT,,,,,,,,,,,TTTT
+TTT,,,,,,,,,,,,,,,,,,,T,TTTTTTBBBBBBB,TT::TTTTTTTT,,,,,,,,,,TTTT
+TTT,,,,,,,,,,,,,,,,,,,,,TTTTTTBBBBBBB,,T::TTTTTTTTT,,,,,,,,,,TTT
+TTT,,,,,,,,,,,,,,,,,,,,,,,TTTTBBBBBBB,,T::TTTTTTTTTT,,,,,,,,,TTT
+TTT,,,,,,,,,,,,,,,,,,,,,,,TTTTT,,,,,,,,T:::TTTTTTT,,,,,T,,,,,TTT
+TTT,,,,,,,,,,,,,,,T,,T,,,,,,TTTTTT,,,,,,T:::,TTTTTTTT,,T,,,,,,TT
+TT,,,,,,,,,,,,,,TTTTTT,,,,,,T,,,,,,,,,,,,,::,TT,TTTTTTTTT,,,,,TT
+TTT,,,,,,,,,,,,,,TTTTT,,,,,,,,,,,,,,,,,,,,:::,,,TTTTTTT,,,,,,,TT
+TTT,,,,,,,,,,,,TTTTTT,,,TT,,,,,,,,,,,,,,,,,:::,,,TTTTT,,,,,,,,TT
+TT,,,,,,,,,,,,,,,TTTTTTTTTTTT,,,,,,,,,,,,,,,::,,,,TTTT,,,,,,,TTT
+TT,,,,,,,,,,,,,,,TTTTTTTTTTTTT,,,,,,,,,,,,,,:::,,,,,TT,,,,,,TTTT
+TT,,,,,,,,,,,,,,,TTTTTTTTTTTT,,,,,,,,,,,,,,,,::,,,,,,,,,,,,,TTTT
+TT,,,,,,,,,,,,,,,,TTTTTTTT,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,TTTT
+TT,,,,,,,,,,,,,,,TTTTTTTTT,,,,,,,,,,,,,,,,,,,,::,,,,,,,,,,,,TTTT
+TT,,,,,,,,,,,,,,,,,TT,TTTT,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,TTTT
+TT,,,,,,,,,,,,TTT,TT,,TTTTTTT,,,,,,,,,,,,,,,,T,:::,,,,,,,,,,TTTT
+TT,,,,,,,TTTTTTTTTTT,,,,,TTTTT,,,TTTTTTTTTTTTTT,:::,,,,,,,,,TTTT
+TTTTTTTTTTTTTTTTTTTTT,,,TTTTTTTTTTTTTTTTTTTTTTTTT:::,,,,,,,,TTTT
+TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT:::TTTTTTTTTTT
+TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT^:TTTTTTTTTTT

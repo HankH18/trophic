@@ -1,0 +1,116 @@
+# SEEDED STARTING LAYOUT for "cindershelf" — NOT A FINISHED MAP. Edit it by hand.
+#
+# Written by tools/mapgen/seed.ts. It knows four things about this node: which edges its
+# adjacency declares, where its props stand, what biome it is, and whether it is a settlement.
+# It does not know what this place looks like. Re-running the seeder OVERWRITES hand edits
+# unless --force is withheld; the renderers read this file, not the seeder.
+#
+# ── coordinate space ─────────────────────────────────────────────────────────
+# space        map-native pixels, origin TOP-LEFT (data/nodes/*.json props[].x/y are in this space)
+# grid         64 cols × 64 rows, one character per collision cell
+# cell         16 native px  (balance.map.collisionCellPx; 1024/64 = 16)
+# map          1024 × 1024 native px, rendered ×2 → 2048 world px
+# tiles        64 × 64 movement tiles of 32 world px
+# col ← x      col = floor(nativeX / 16);  a cell's centre is native (16·col + 8, 16·row + 8)
+# centre       native (512, 512) = cell (32, 32) = the tile firstWalkableTile starts on
+#
+# ── seeded from ──────────────────────────────────────────────────────────────
+# biome        Steppe
+# adjacency    r3, r4
+# bottom edge  r3
+# top edge     r4
+# settlement   yes — building footprints are placed
+# props        cindershelf-shrine-mine @ (372,508) → cell (23,31); cindershelf-shrine-deep @ (706,604) → cell (44,37)
+#
+# ── decisions this file made ─────────────────────────────────────────────────
+# · a spur was cut from the lane to prop "cindershelf-shrine-mine" at cell (23,31)
+# · a spur was cut from the lane to prop "cindershelf-shrine-deep" at cell (44,37)
+# · prop "cindershelf-shrine-mine" sits on a path-corridor cell at (23,31); the anchor character takes the cell and the cell stays walkable
+# · prop "cindershelf-shrine-deep" sits on a path-corridor cell at (44,37); the anchor character takes the cell and the cell stays walkable
+# · arrangement: along-lane — a first composition drawn from this node's own stream, not a plan
+#
+# ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
+#   .  floor  open-ground         plain walkable ground; the default fill
+#   ,  floor  scrub               walkable but textured — long grass, ferns, heather
+#   :  floor  path-corridor       the worn track that joins the map edges through the middle
+#   o  floor  centre-clearing     the open region at native (512,512) the spawn search lands in
+#   ~  floor  shallow             walkable water margin — wadeable, not a wall
+#   #  WALL   wall                generic impassable mass with no more specific kind
+#   B  WALL   building-footprint  a building the player walks around, never through
+#   T  WALL   tree-mass           trunks and thicket dense enough to stop a walk
+#   W  WALL   water               open water — deep enough to block
+#   R  WALL   rock                basalt, scree, standing stone, crater rim
+#   F  WALL   fence               a thin built barrier — pen rail, jetty edge, ore-cart rail
+#   *  ANCH   prop-anchor         a data/nodes/*.json props[] entry, at floor(x/cellPx), floor(y/cellPx)
+#   @  ANCH   spawn-anchor        documentary marker for the centre cell the spawn search starts from
+#   ^  ANCH   edge-mouth          the cell where a corridor meets the map edge; one per declared adjacency
+#   D  ANCH   door-anchor         the walkable cell a building is entered from
+#
+# Only "#"-class characters block. tools/mapgen/layout.ts normalises every WALL character to "#"
+# before game/collision.ts gridFromAscii sees it; ANCH characters parse as floor and are read again
+# on a second pass. Region kinds are open strings — add a row to the legend, not a case to a switch.
+---
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:^:RRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:::RRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR::::RRRRRRRRRRRRRRRRRRRRRRRRRRRR
+RRRRR......RRRRRRRRRRRRRRRRRR....:::........RRR...RRRRRRRRRRRRRR
+RRR.........R.RRR...RRRRRRR.....::::.........R.......RR.RRRRRRRR
+RRR.............................::::........................RRRR
+RRR..............................:::.........................RRR
+RRRR.............................:::.........................RRR
+RRRR.............................:::.........................RRR
+RRRR.............................:::...BBBBBB................RRR
+RRRR.............................:::...BBBBBB................RRR
+RRRRR............................:::...BBBBBB...............RRRR
+RRRRR............................::::..BBBBBB................RRR
+RRRRR.............................::::.BBBBBB.BBBBBBBB......RRRR
+RRRRR..............................:::.BBBBBB.BBBBBBBB......RRRR
+RRRRR..............................:::....D...BBBBBBBB......RRRR
+RRRRR..............................:::.......DBBBBBBBB......RRRR
+RRRRR..............................:::........BBBBBBBB......RRRR
+RRRRR.............................::::........BBBBBBBB......RRRR
+RRRR.......................BBBBBB.:::.........RRRRRRR......RRRRR
+RRRR.......................BBBBBB::::..........RRRRRRRR....RRRRR
+RRR........................BBBBBB::::...........RRRRRRRR...RRRRR
+RRRR.......................BBBBBB.:::..........RRRRRRRRR...RRRRR
+RRRR.......................BBBBBB.:::.........RRRRRRRRRRR..RRRRR
+RRRR.......................BBBBBB.:::............RRRRRRRR..RRRRR
+RRRRR..RRR.................BBBBBB.:::.............RR.RRRR..RRRRR
+RRRRRRRRRRRRR.................D.oo:::..............RRRRRRRRRRRRR
+RRRRRRRRRRRRRRR................ooo:::o.............RRRRRRR.RRRRR
+RRRRRRRRRRRRRRR................oo::::oo...............RRR..RRRRR
+RRRR..RRRRRR.R................ooo:::ooo.................RR.RRRRR
+RRRR.RRRRRR..R................oo::::oooo................RR..RRRR
+RRR.RRRRRRRR...........*:::::::::::ooooo....................RRRR
+RRR.RRRRRRRRR................oo:@:oooooo.....................RRR
+RRR.RRRRRRRR.................oo:::oooooo.....................RRR
+RRR..RRRRR...................oo::::oooo...........RR.........RRR
+RRR..R.RRR....................oo:::ooo......R.RRRRRR.........RRR
+RRR.....RR.................D...o:::o..........RRRRRR.........RRR
+RRR....................BBBBBBBB.::::::::::::*:RRRRRRR.......RRRR
+RRR....................BBBBBBBB.:::...........RRRRR..........RRR
+RRR....................BBBBBBBB.:::.........RRRRRRRR........RRRR
+RRR....................BBBBBBBB.:::............RRR.R........RRRR
+RRR....................BBBBBBBB.:::............RRR.R.........RRR
+RRR....................BBBBBBBB::::.............R............RRR
+RRR....................BBBBBBBB:::..............R............RRR
+RRR............................:::...........................RRR
+RRRR.......................R...:::...........................RRR
+RRRR......................RR...:::..........................RRRR
+RRR......................RRRR..:::..............R...........RRRR
+RRR......................RRR...::::...........RRR...........RRRR
+RRR......................RRRR...:::....D....RRRR.R...........RRR
+RRRR.....................RRRRRR.:::.BBBBBBRRRRRRRR..RR......RRRR
+RRRR.....................R.RRRR.:::.BBBBBB.RRRRRRRRRRR......RRRR
+RRRR......................RRRR..:::.BBBBBB.RRRRRRRRRRR......RRRR
+RRRR........................RR..:::.BBBBBB....RRRRRR.......RRRRR
+RRRR........................R...:::.BBBBBB.....RRR.........RRRRR
+RRRR............................:::.BBBBBB......R..........RRRRR
+RRR.............................::::BBBBBB.................RRRRR
+RRR..............................::::......................RRRRR
+RRR...............................::::.....................RRRRR
+RRR..RRRRRRRR.......R..RRRRRRRR.RRR::::...R.RRRR...RRRRRRRRRRRRR
+RRRRRRRRRRRRRR...RRRRRRRRRRRRRRRRRRR::::RRRRRRRRRRRRRRRRRRRRRRRR
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR::::RRRRRRRRRRRRRRRRRRRRRRR
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:::RRRRRRRRRRRRRRRRRRRRRRR
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:^:RRRRRRRRRRRRRRRRRRRRRRR
