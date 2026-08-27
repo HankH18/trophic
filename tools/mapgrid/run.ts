@@ -10,18 +10,26 @@
 import { readFile } from 'node:fs/promises';
 import sharp from 'sharp';
 import { zBalance } from '../../core/schemas';
-import { gridConsistencyProblem } from '../../game/collision';
 import type { Balance } from '../../core/types';
 
 /**
  * Parse balance.json through the ENGINE'S OWN schema and consistency check, not a hand-rolled read.
  *
  * `mapNativePx`, `collisionCols`, `collisionRows` and `collisionCellPx` are not four independent
- * numbers — they are three statements of one fact, and `gridConsistencyProblem` is the check that
- * they agree (game/collision.ts). A raw JSON.parse bypasses it, and then this tool would keep
+ * numbers — they are three statements of one fact, and `zBalance` is the check that they agree.
+ * A raw JSON.parse bypasses it, and then this tool would keep
  * cheerfully drawing a 64x64 grid while the engine refused to boot on the same file: an instrument
- * whose entire job is to be trusted over the eye, drawing a grid nobody samples. So it borrows the
- * engine's check rather than restating it, because a restated check is one that can drift.
+ * whose entire job is to be trusted over the eye, drawing a grid nobody samples.
+ *
+ * `zBalance` alone is sufficient, verified rather than assumed: it refuses all four drifts this
+ * tool could care about (collisionCols, collisionRows, collisionCellPx, mapNativePx), each with a
+ * purpose-written message. An earlier version of this file ALSO called `gridConsistencyProblem`
+ * from `game/collision.ts` as defence in depth. That import is deliberately gone. It was
+ * unreachable — zod fires first in every case — and it made a node tool depend on `game/` staying
+ * free of Phaser, which `game/` never promised: L11 forbids Phaser in `core/` only, and `game/` is
+ * the layer that is ALLOWED to import it. A legal edit to `game/movement.ts` would have broken this
+ * tool far from the cause. `core/schemas.ts` carries no such hazard, because L11 is exactly the
+ * rule that keeps `core/` importable from a plain node script.
  */
 async function mapConstants(): Promise<Balance['map']> {
   const raw: unknown = JSON.parse(await readFile('data/balance.json', 'utf8'));
@@ -29,8 +37,6 @@ async function mapConstants(): Promise<Balance['map']> {
   if (!parsed.success) {
     throw new Error(`data/balance.json failed the engine schema: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`);
   }
-  const problem = gridConsistencyProblem(parsed.data);
-  if (problem) throw new Error(`REFUSED — the engine would not accept this balance.json: ${problem}`);
   return parsed.data.map;
 }
 
