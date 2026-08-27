@@ -12,10 +12,12 @@
  * is a statement about values and never an accident of key insertion order.
  */
 
-import { zSaveFile } from "./schemas";
+import { zOwnedCreature, zSaveFile } from "./schemas";
 import type {
   ActionLogEntry,
   Balance,
+  BattleAftermath,
+  BattleAftermathMember,
   GameAction,
   GymLeader,
   NodeFile,
@@ -483,68 +485,43 @@ export function appendYearTurn(
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
- * One party member as a finished battle left it. ABSOLUTE values, never deltas.
+ * The aftermath record itself lives in `core/types.ts`, because `GameAction` names it and that file
+ * may not import from a sibling (see the note on `BattleAftermathMember` there). Re-exported here so
+ * every caller that already reads it off this module keeps working.
  *
- * Absolute because the tape has to be replayable out of order-independence trouble: a delta applied
- * twice is wrong twice, while `curHp = 7` applied twice is still 7. `core/save.ts` `replay` and the
- * live path apply the SAME record through the SAME function ({@link applyBattleAftermath}), so
- * there is no second answer to "what did that fight cost".
+ * XP CARRY-IN IS THE OTHER HALF OF THIS RECORD AND IT HAS LANDED: `core/types.ts` `BattlerSpec`
+ * carries `xp`, and `core/battle.ts` `makeBattler` reads it back in as `xp: spec.xp ?? 0`. So the
+ * `xp` written OUT here is the same number the next fight starts from, and levelling no longer needs
+ * ONE fight to cover a whole `xpToNext(level)` — which it could not, on shipped balance: `xpGain`
+ * against a level-5 enemy is 32 against an `xpToNext(5)` of ~143. Nothing in this module moved for
+ * it, which is what the record being ABSOLUTE bought.
  */
-export interface BattleAftermathMember {
-  uid: string;
-  /** `core/types.ts` `Battler.curHp` at the last event of the fight. 0 = fainted. */
-  curHp: number;
-  /** `Battler.level` — the reducer's, after any in-battle level-up. */
-  level: number;
-  /** XP banked toward the next level (`core/battle.ts` `xpOf`). See the CARRY-IN note below. */
-  xp: number;
-}
+export type { BattleAftermath, BattleAftermathMember } from "./types";
 
 /**
- * Everything one battle changed about the save's party and bag.
+ * The `t` discriminant the aftermath rides on the tape under. A real `core/types.ts` `GameAction`
+ * member since T-33, which is why {@link battleAftermathAction} returns one with no cast and
+ * {@link replay} dispatches it from a named `case` instead of its `default` arm.
  *
- * ⚠ XP CARRY-IN IS NOT WIRED YET, AND THIS RECORD IS THE HALF THAT IS. `core/battle.ts`
- * `makeBattler` starts every battler at `xp: 0` because `core/types.ts` `BattlerSpec` has no `xp`
- * field to carry one in — so a creature's banked XP is written OUT here and never read back IN, and
- * levelling only happens when ONE fight covers a whole `xpToNext(level)`. Measured on shipped
- * balance: `xpGain` against a level-5 enemy is 32 and `xpToNext(5)` is ~143, so no single-enemy wild
- * fight can ever level anything; a six-slot gym roster can. The completing change is one optional
- * field on `BattlerSpec` plus `xp: spec.xp ?? 0` in `makeBattler`; nothing here moves when it lands.
- */
-export interface BattleAftermath {
-  party: BattleAftermathMember[];
-  /** The bag as the reducer left it — `BattleState.bag`, which items were spent out of. */
-  items: Record<string, number>;
-}
-
-/**
- * The `t` discriminant the aftermath rides on the tape under.
- *
- * ⚠ NOT YET A MEMBER OF `core/types.ts` `GameAction`, WHICH IS ANOTHER LANE'S FILE. Two things make
- * that survivable rather than a lie:
- *   • `core/schemas.ts` `zSaveFileFor` validates `actionLog[].action` as
- *     `z.looseObject({ t: z.string().min(1) })` — "permissive BY DESIGN … pinning the GameAction
- *     union here would make every lane that adds an action edit this file". So a save carrying this
- *     entry loads, round-trips and replays with no schema change at all.
- *   • {@link readBattleAftermath} re-checks the SHAPE at replay time rather than trusting the
- *     discriminant, so a hand-edited tape cannot smuggle a half-record past it.
- * The one line that removes the cast in {@link battleAftermathAction} is, in `core/types.ts`:
- *     | { t: "battleAftermath"; aftermath: BattleAftermath }
+ * `core/schemas.ts` NEEDED NO CHANGE FOR IT AND MUST NOT GET ONE. `zSaveFileFor` validates
+ * `actionLog[].action` as `z.looseObject({ t: z.string().min(1) })` — "permissive BY DESIGN …
+ * pinning the GameAction union here would make every lane that adds an action edit this file" — and
+ * `looseObject` hands the payload back INTACT (measured: a `battleAftermath` entry survives
+ * `serialize` → `deserialize` with its party and items whole, where a `z.object` would have returned
+ * `{t}` alone). {@link readBattleAftermath} still re-checks the SHAPE at replay time rather than
+ * trusting the discriminant, so a hand-edited tape cannot smuggle a half-record past it.
  */
 export const BATTLE_AFTERMATH_ACTION = "battleAftermath";
 
 /** The tape entry for one finished fight. */
 export function battleAftermathAction(aftermath: BattleAftermath): GameAction {
-  const action = {
+  return {
     t: BATTLE_AFTERMATH_ACTION,
     aftermath: {
       party: aftermath.party.map((m) => ({ ...m })),
       items: { ...aftermath.items },
     },
   };
-  // The ONE cast, and it is the `GameAction` union member that does not exist yet — see
-  // BATTLE_AFTERMATH_ACTION. Everything downstream re-validates the shape.
-  return action as unknown as GameAction;
 }
 
 function isFiniteNumber(value: unknown): value is number {
@@ -754,6 +731,146 @@ export function applyBlackout(save: SaveEnvelope, recovery: BlackoutRecovery): S
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * The catch — the CREATURE half, which the tape used to drop (§7.3 → §7.8)
+ *
+ * ⚠ WHY THIS SECTION EXISTS. A `catch` entry carried `{nodeId, lineId, uid}` and nothing else, so
+ * `replay` applied the population decrement and delegated the party/box side to the optional
+ * `ReplayDeps.applyOther` — whose only implementor, `game/year-replay.ts` `replayRegionHooks`,
+ * refreshes an ecology mirror and adds no creature. Measured on a real fight driven to a real catch:
+ * live party `["provisional-starter","wild-r1-nibbin-line-0"]`, replayed party
+ * `["provisional-starter"]`, with the population correct at 10 on both sides — with no `applyOther`
+ * AND through the production hooks. Locked decision L10 ("identical (seed, actionLog) ⇒
+ * byte-identical final save") was therefore FALSE for any run containing a catch.
+ *
+ * The information was not merely unapplied, it was ABSENT: age, level, traits, `caughtYear`,
+ * `metamorphosed` and which cohort the newcomer landed in are decided by the encounter roll, the
+ * trait roll and the fight, and none of those are on the tape. So the entry has to carry the
+ * creature, and it carries the WHOLE creature — the same absolute-consequence rule
+ * `core/types.ts` `BattleAftermathMember` states: applied twice it must still say the same thing.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The tape entry for one catch: the population write and the creature, in one entry.
+ *
+ * Both halves belong to the same act, which is why they are not two entries — and neither half is a
+ * PRICE. The tick a catch cost was already levied by the `foray` or `battle` entry beside it, so
+ * this entry is a consequence only, exactly as this module's contract requires (an entry is a price
+ * or a consequence and never both).
+ *
+ * `lineId` and `uid` are taken FROM the creature rather than passed alongside it, so the entry
+ * cannot be built disagreeing with itself; {@link caughtFromCatchAction} refuses one that does,
+ * because a hand-edited tape can still say two things.
+ */
+export function catchAction(nodeId: string, creature: OwnedCreature): GameAction {
+  return {
+    t: "catch",
+    nodeId,
+    lineId: creature.lineId,
+    uid: creature.uid,
+    gained: cloneCreature(creature),
+  };
+}
+
+/** A defensive copy deep enough for what `OwnedCreature` actually holds: two arrays of records. */
+function cloneCreature(creature: OwnedCreature): OwnedCreature {
+  return {
+    ...creature,
+    traits: creature.traits.map((t) => ({ ...t })),
+    boons: creature.boons.map((b) => ({ ...b })),
+  };
+}
+
+/**
+ * The creature a `catch` entry carries — null when it carries none, and a LOUD throw when it carries
+ * a broken one.
+ *
+ * THREE OUTCOMES, NOT TWO, AND THAT IS THE DIFFERENCE FROM {@link readBattleAftermath}. That reader
+ * answers "is this entry an aftermath at all?", so a malformed record is indistinguishable from an
+ * unknown action and returning null is right. Here the discriminant has ALREADY said this is a
+ * catch: a `gained` that will not parse is a corrupt record on an entry we are certainly applying,
+ * and swallowing it would silently reproduce the exact defect this section exists to close — a
+ * replayed party quietly one creature short.
+ *
+ * `core/schemas.ts` `zOwnedCreature` does the parsing, so "what a valid OwnedCreature is" keeps ONE
+ * home; it is a `strictObject`, so it neither invents a field nor drops one, which is what
+ * byte-identity needs. The uid/lineId cross-check catches the other corruption a permissive tape
+ * allows: an entry whose two halves name different creatures.
+ */
+export function caughtFromCatchAction(action: unknown): OwnedCreature | null {
+  if (action === null || typeof action !== "object") return null;
+  const raw = action as { t?: unknown; uid?: unknown; lineId?: unknown; gained?: unknown };
+  if (raw.t !== "catch") return null;
+  if (raw.gained === undefined) return null;
+  const parsed = zOwnedCreature.safeParse(raw.gained);
+  if (!parsed.success) {
+    throw new SaveCorruptError(
+      `a catch entry carries a creature that is not a valid OwnedCreature: ${parsed.error.message}`,
+    );
+  }
+  const creature = parsed.data;
+  if (creature.uid !== raw.uid) {
+    throw new SaveCorruptError(
+      `a catch entry logs uid "${String(raw.uid)}" but carries the creature "${creature.uid}" — ` +
+        `the entry disagrees with itself`,
+    );
+  }
+  if (creature.lineId !== raw.lineId) {
+    throw new SaveCorruptError(
+      `a catch entry logs line "${String(raw.lineId)}" but carries a "${creature.lineId}" — ` +
+        `the entry disagrees with itself`,
+    );
+  }
+  return creature;
+}
+
+/**
+ * Put a caught creature where the tape says it went. Pure, idempotent, and the ONE applier the live
+ * path's replay comes through.
+ *
+ * `boxed` decides the cohort and nothing else does: `game/wild-battle.ts` `applyCatchToSave` already
+ * answered "party or box" against `balance.party.maxPartySize` when the catch happened, and
+ * re-deciding it here would be a second answer to a question the record already carries. That is
+ * also why no capacity check lives here — the tape records what DID happen, not what the current
+ * balance would allow.
+ *
+ * IDEMPOTENT BY REPLACEMENT, NOT BY APPEND. A uid already present is overwritten in place (and moved
+ * if the record names the other cohort), so applying the same entry twice lands exactly where
+ * applying it once did — the property an absolute consequence has to have, and the reason a
+ * duplicated tape entry cannot grow the party.
+ */
+export function applyCaught(save: SaveEnvelope, creature: OwnedCreature): SaveEnvelope {
+  const record = cloneCreature(creature);
+  const toBox = record.boxed === true;
+  const target = toBox ? save.box : save.party;
+  const other = toBox ? save.party : save.box;
+  const replaced = target.some((c) => c.uid === record.uid);
+  const nextTarget = replaced
+    ? target.map((c) => (c.uid === record.uid ? record : c))
+    : [...target, record];
+  const nextOther = other.filter((c) => c.uid !== record.uid);
+  return toBox
+    ? { ...save, box: nextTarget, party: nextOther }
+    : { ...save, party: nextTarget, box: nextOther };
+}
+
+/**
+ * Take a released creature back off the save. Pure, idempotent, and the mirror of
+ * {@link applyCaught} — `game/quests.ts` `releaseIntoNode` filters the same uid out of both cohorts.
+ *
+ * A uid the save does not have is a NO-OP, deliberately, and it is the one place this module does
+ * NOT refuse loudly. {@link applyBattleAftermath} and {@link applyBlackout} refuse an unknown uid
+ * because they WRITE to a member that must exist; a removal that threw on an absent uid could not be
+ * applied twice, and idempotence is what makes an absolute consequence safe to replay at all.
+ */
+export function applyReleased(save: SaveEnvelope, uid: string): SaveEnvelope {
+  return {
+    ...save,
+    party: save.party.filter((c) => c.uid !== uid),
+    box: save.box.filter((c) => c.uid !== uid),
+  };
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
  * Deterministic replay (build-doc §8.1 / L10, test `det_replay`)
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -842,17 +959,19 @@ function adjustPopulation(
  *                act model's only numeric input and act entry applies the Cullbrand raid,
  *                so a tape without this case replays a run with no badges and an unharvested r4.
  *   battleAftermath — `applyBattleAftermath`: the curHp / level / xp a fight left on the party, and
- *                the bag it left behind. Dispatched from the `default` arm because the action is not
- *                a `GameAction` member yet; see BATTLE_AFTERMATH_ACTION.
+ *                the bag it left behind. A named `case` since T-33 put it in the `GameAction` union.
  *   blackout   — `applyBlackout`: the party back on its feet and the node the player woke in, after
  *                a fight left nothing standing. Dispatched from `default` for the same reason;
  *                see BLACKOUT_ACTION. Its PRICE is not here — it rides as the ordinary `inn` /
  *                `travel` entries beside it, which cost this module nothing and cost
  *                `game/year-replay.ts` `clockFromLog` exactly what `balance.clock` says.
- *   catch/release — ONLY the node-population delta build-doc §7.3 attributes to the action itself
- *                   ("Player catch/release directly increments/decrements count at action time").
- *                   The party/box side needs the individual's age, level and traits, which the
- *                   action does not carry, so it belongs to `applyOther` (the game reducer, C1).
+ *   catch/release — BOTH halves. The node-population delta build-doc §7.3 attributes to the action
+ *                   itself ("Player catch/release directly increments/decrements count at action
+ *                   time"), AND the creature: `applyCaught` puts back the individual the `catch`
+ *                   entry carries, `applyReleased` takes back off the one the `release` entry names.
+ *                   The party/box side used to be delegated to `applyOther` because the entry did
+ *                   not carry the individual's age, level and traits — see the section above
+ *                   `catchAction` for what that cost. `applyOther` is still called for both, after.
  */
 export function replay(
   initial: SaveEnvelope,
@@ -969,11 +1088,41 @@ export function replay(
       }
       case "catch": {
         save = adjustPopulation(save, deps.balance, action.nodeId, action.lineId, -1);
+        /*
+         * THE CREATURE. `caughtFromCatchAction` returns null for a tape written before the entry
+         * carried one, which replays exactly as it always did — the population moves and the party
+         * does not — and throws for one that carries a BROKEN record. Both are deliberate; the
+         * section above `catchAction` says why, and says what the silent-null case costs.
+         */
+        const caught = caughtFromCatchAction(action);
+        if (caught) save = applyCaught(save, caught);
         if (deps.applyOther) save = deps.applyOther(save, entry);
         break;
       }
       case "release": {
         save = adjustPopulation(save, deps.balance, action.nodeId, action.lineId, +1);
+        // The release's creature half needs NOTHING new on the tape: `uid` is the whole of a
+        // removal, and the entry has always carried it. `applyOther` never did this either.
+        save = applyReleased(save, action.uid);
+        if (deps.applyOther) save = deps.applyOther(save, entry);
+        break;
+      }
+      case "battleAftermath": {
+        /*
+         * WHAT THE FIGHT COST THE PARTY AND THE BAG — curHp, level, xp and the items spent. A named
+         * `case` since `battleAftermath` joined `core/types.ts` `GameAction`; it used to be
+         * dispatched from `default` through `readBattleAftermath`, which is now what checks the
+         * shape of an entry that reached us through the permissive schema rather than through
+         * `battleAftermathAction`.
+         *
+         * ⚠ WITHOUT THIS ARM, L10 IS FALSE THE MOMENT HP PERSISTS. The sibling `case "battle"`
+         * deliberately re-applies nothing (it is the half-tick charge, not the fight), and that was
+         * correct only while a fight left no mark on the save. It now leaves three — curHp, level
+         * and xp on the party, and the bag — and none of them can be re-derived from the tape,
+         * because neither the encounter roll nor the player's in-battle actions are logged at all.
+         */
+        const aftermath = readBattleAftermath(action);
+        if (aftermath) save = applyBattleAftermath(save, aftermath);
         if (deps.applyOther) save = deps.applyOther(save, entry);
         break;
       }
@@ -1001,25 +1150,10 @@ export function replay(
       }
       default: {
         /*
-         * THE FIGHT'S CONSEQUENCES ON THE PARTY AND THE BAG. It arrives here rather than as a named
-         * `case` for one reason and it is written down so nobody "tidies" it: `battleAftermath` is
-         * not a member of `core/types.ts` `GameAction` yet (see BATTLE_AFTERMATH_ACTION), so a
-         * `case` label for it would not compile. `readBattleAftermath` checks the shape instead —
-         * which is what a permissively-validated tape needs anyway — and an entry that is not one
-         * falls through unchanged, exactly as every unknown action always has.
-         *
-         * ⚠ WITHOUT THIS ARM, L10 IS FALSE THE MOMENT HP PERSISTS. The sibling `case "battle"`
-         * deliberately re-applies nothing (it is the half-tick charge, not the fight), and that was
-         * correct only while a fight left no mark on the save. It now leaves three — curHp, level
-         * and xp on the party, and the bag — and none of them can be re-derived from the tape,
-         * because neither the encounter roll nor the player's in-battle actions are logged at all.
-         */
-        const aftermath = readBattleAftermath(action);
-        if (aftermath) save = applyBattleAftermath(save, aftermath);
-        /*
-         * THE BLACKOUT, and it arrives here for the same reason its sibling does: `blackout` is not
-         * a `GameAction` member yet (see BLACKOUT_ACTION), so a `case` label for it would not
-         * compile. `readBlackout` checks the shape instead.
+         * THE BLACKOUT, and it arrives here rather than as a named `case` for one reason, written
+         * down so nobody "tidies" it: `blackout` is not a `GameAction` member yet (see
+         * BLACKOUT_ACTION), so a `case` label for it would not compile — the one line that fixes
+         * that is the one T-33 added for its sibling. `readBlackout` checks the shape instead.
          *
          * ⚠ WITHOUT THIS ARM A REPLAYED RUN WAKES UP SOMEWHERE ELSE. The blackout is the only
          * action that moves `currentNode` without a `travel` of its own reaching a handler here —

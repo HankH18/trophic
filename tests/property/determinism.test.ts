@@ -5,9 +5,11 @@
  * the tests, and the balance harness for free. The named gate here is `det_sim` (build-doc §10.2):
  * the same seed must produce a byte-identical six-year trajectory, run over many seeds.
  *
- * `det_replay` (the full save-level property) belongs to the lane that owns the action log; what is
- * provable here is its load-bearing half: the ecology is a pure function of (state, seed, seasons),
- * and a stream snapshot resumes exactly where it left off.
+ * `det_replay` — the full SAVE-level property — is the last describe block, and it is stated over a
+ * run that actually catches and actually releases a creature. It used to be stated only over the
+ * ecology (the load-bearing half: the ecology is a pure function of (state, seed, seasons), and a
+ * stream snapshot resumes exactly where it left off), and that is what let `replay()` drop the
+ * party half of a catch unnoticed — see T-34 and the section above `catchAction` in `core/save.ts`.
  */
 
 import fc from "fast-check";
@@ -23,10 +25,25 @@ import {
 } from "../../core/ecosim";
 import { cloneEcoNode, toEcoNode, type EcoNode } from "../../core/foodweb";
 import { Rng, createRng, deriveStream, subsystemRng } from "../../core/rng";
-import { canonicalStringify } from "../../core/save";
+import {
+  canonicalStringify,
+  catchAction,
+  newSave,
+  replay,
+  serialize,
+  type SaveEnvelope,
+} from "../../core/save";
 import { validateContent } from "../../core/schemas";
-import type { NodePopulation, NodeState, Season } from "../../core/types";
+import type { ActionLogEntry, NodePopulation, NodeState, Season } from "../../core/types";
 import { advanceAction, createClock } from "../../core/clock";
+import { caughtIndividual, startBattle, step as battleStep } from "../../core/battle";
+import {
+  applyCatchToSave,
+  buildWildBattle,
+  provisionalStarter,
+  rollWildTraits,
+} from "../../game/wild-battle";
+import { releaseIntoNode } from "../../game/quests";
 
 const content = validateContent();
 const ctx = defaultContext();
@@ -343,5 +360,170 @@ describe("determinism — a run resumes exactly where it was saved (build-doc §
 
     const battleAgain = subsystemRng(4242, "battle");
     expect([0, 0, 0, 0, 0].map(() => battleAgain.nextUint32())).toEqual(firstFive);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * det_replay — the SAVE-level property, over a run that actually catches (T-34)
+ *
+ * ⚠ THE TWO SIDES ARE BUILT BY DIFFERENT CODE ON PURPOSE. The live party comes from the production
+ * catch path — a real `startBattle`/`step` fight driven to `outcome === "caught"`, `caughtIndividual`,
+ * then `game/wild-battle.ts` `applyCatchToSave`, which builds the creature with
+ * `core/lifecycle.ts` `newOwnedCreature`. The replayed party comes from the TAPE, through
+ * `core/save.ts` `caughtFromCatchAction` + `applyCaught`. Nothing constructs both.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("det_replay — a run containing a catch replays to the party it lived (L10)", () => {
+  const NODE = "r1";
+  const LINE = "nibbin-line";
+
+  function nodeFile(id: string) {
+    const found = content.nodes.find((n) => n.id === id);
+    if (!found) throw new Error(`no node ${id}`);
+    return found;
+  }
+
+  function saveWithStarter(): SaveEnvelope {
+    const base = newSave({ seed: 4242, currentNode: NODE, nodes: content.nodes }, balance);
+    const starter = provisionalStarter(content);
+    if (!starter) throw new Error("data ships no starter line");
+    return { ...base, party: [starter], items: { master: 99 } };
+  }
+
+  /** A real fight, driven to a real catch. No stubs and no hand-built creature. */
+  function catchOne(save: SaveEnvelope) {
+    const state0 = save.nodeStates[NODE];
+    if (!state0) throw new Error("no r1 state");
+    const built = buildWildBattle({
+      content,
+      save,
+      encounter: {
+        nodeId: NODE,
+        lineId: LINE,
+        age: "J",
+        level: 4,
+        traits: rollWildTraits(balance, "J", createRng(1)),
+      },
+      node: fromNodeState(nodeFile(NODE), state0),
+    });
+    const rng = subsystemRng(save.seed, "battle");
+    let state = startBattle(built.input, built.ctx).state;
+    for (let turn = 0; state.outcome === null && turn < 200; turn += 1) {
+      state = battleStep(state, { kind: "snare", tier: "master" }, rng, built.ctx).state;
+    }
+    const caught = caughtIndividual(state, built.ctx);
+    if (!caught) throw new Error("the fight did not reach a catch");
+    return applyCatchToSave(save, caught, content);
+  }
+
+  const deps = { gyms: content.gyms, species: content.species, balance, nodes: content.nodes };
+
+  it("reproduces the WHOLE save — the creature included, not just the count", () => {
+    const save = saveWithStarter();
+    const live = catchOne(save);
+    expect(live.problem).toBeNull();
+    const gained = live.gained;
+    if (!gained) throw new Error("the catch kept no creature");
+    expect(live.save.party.map((c) => c.uid)).toEqual(["provisional-starter", gained.uid]);
+
+    const initial: SaveEnvelope = { ...save, actionLog: [] };
+    const bare = live.save.actionLog;
+
+    /*
+     * ⚠ THE ONE LINE THIS TEST STANDS IN FOR. `applyCatchToSave` still appends the pre-T-34 entry —
+     * `appendAction(save, { t: "catch", nodeId, lineId, uid })` at `game/wild-battle.ts:332` — so
+     * the tape it writes carries no creature. Swapping that for `appendAction(after, catchAction(
+     * nodeId, gained))` is the whole remaining change, and this rebuild is exactly what it does.
+     * `game/wild-battle.ts` is another lane's file today; when the swap lands, `bare` below IS the
+     * tape and this map becomes an identity.
+     */
+    const tape: ActionLogEntry[] = bare.map((e) =>
+      e.action.t === "catch" ? { ...e, action: catchAction(NODE, gained) } : e,
+    );
+    // The rebuild invents nothing: every field the live entry carried is still there, unchanged.
+    expect(tape.map((e) => e.action)).toMatchObject(bare.map((e) => e.action));
+
+    const replayed = replay(initial, tape, deps);
+    expect(replayed.party.map((c) => c.uid)).toEqual(live.save.party.map((c) => c.uid));
+    expect(serialize({ ...replayed, actionLog: [] })).toBe(
+      serialize({ ...live.save, actionLog: [] }),
+    );
+
+    /*
+     * NOT VACUOUS, AND THIS IS THE MEASUREMENT T-34 OPENED WITH. The same replay of the tape WITHOUT
+     * the creature on it reaches the same populations and a party one creature short — live
+     * ["provisional-starter","wild-r1-nibbin-line-0"] against replayed ["provisional-starter"]. An
+     * older tape still replays (INV-2); it just cannot say what was caught, which is why the entry
+     * has to carry it.
+     */
+    const withoutTheCreature = replay(initial, bare, deps);
+    expect(withoutTheCreature.party.map((c) => c.uid)).toEqual(["provisional-starter"]);
+    expect(canonicalStringify(withoutTheCreature.nodeStates)).toBe(
+      canonicalStringify(replayed.nodeStates),
+    );
+  });
+
+  it("is idempotent: the same catch entry twice leaves the same party as once", () => {
+    const save = saveWithStarter();
+    const live = catchOne(save);
+    const gained = live.gained;
+    if (!gained) throw new Error("the catch kept no creature");
+    const initial: SaveEnvelope = { ...save, actionLog: [] };
+    const entry = catchAction(NODE, gained);
+    const once = replay(initial, [{ seq: 0, year: 1, tick: 0, subTick: 0, action: entry }], deps);
+    const twice = replay(
+      initial,
+      [
+        { seq: 0, year: 1, tick: 0, subTick: 0, action: entry },
+        { seq: 1, year: 1, tick: 0, subTick: 0, action: entry },
+      ],
+      deps,
+    );
+    expect(twice.party).toEqual(once.party);
+    expect(twice.box).toEqual(once.box);
+  });
+
+  it("refuses a catch entry whose creature is not the one the entry names", () => {
+    const save = saveWithStarter();
+    const live = catchOne(save);
+    const gained = live.gained;
+    if (!gained) throw new Error("the catch kept no creature");
+    const initial: SaveEnvelope = { ...save, actionLog: [] };
+    for (const bad of [
+      { ...catchAction(NODE, gained), uid: "somebody-else" },
+      { ...catchAction(NODE, gained), lineId: "cindril-line" },
+      { t: "catch" as const, nodeId: NODE, lineId: LINE, uid: gained.uid, gained: { uid: gained.uid } },
+    ]) {
+      expect(() =>
+        replay(initial, [{ seq: 0, year: 1, tick: 0, subTick: 0, action: bad as never }], deps),
+      ).toThrow();
+    }
+  });
+
+  it("a run containing a RELEASE replays to the party it lived — the real quest path", () => {
+    /*
+     * The release half needed nothing new on the tape: `uid` is the whole of a removal and the
+     * `release` entry has always carried it. This side is end-to-end real — `game/quests.ts`
+     * `releaseIntoNode` writes the tape AND the party, and the replay below reads that same tape.
+     */
+    const save = saveWithStarter();
+    const caughtSave = catchOne(save).save;
+    const gone = caughtSave.party[caughtSave.party.length - 1];
+    if (!gone) throw new Error("nothing to release");
+
+    const live = releaseIntoNode(caughtSave, content, gone.uid, NODE);
+    expect(live.problem).toBeNull();
+    expect(live.save.party.map((c) => c.uid)).toEqual(["provisional-starter"]);
+
+    // Replay the release alone, from the save that held the creature.
+    const initial: SaveEnvelope = { ...caughtSave, actionLog: [] };
+    const releaseEntries = live.save.actionLog.filter((e) => e.action.t === "release");
+    expect(releaseEntries).toHaveLength(1);
+    const tape: ActionLogEntry[] = releaseEntries.map((e, i) => ({ ...e, seq: i }));
+    const replayed = replay(initial, tape, deps);
+    expect(replayed.party.map((c) => c.uid)).toEqual(live.save.party.map((c) => c.uid));
+    expect(serialize({ ...replayed, actionLog: [] })).toBe(
+      serialize({ ...live.save, actionLog: [] }),
+    );
   });
 });

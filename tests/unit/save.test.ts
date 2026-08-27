@@ -11,6 +11,7 @@ import { validateContent } from "../../core/schemas";
 import type {
   ActionLogEntry,
   Balance,
+  GameAction,
   GymLeader,
   NodeFile,
   OwnedCreature,
@@ -28,7 +29,13 @@ import {
   appendAction,
   appendEntries,
   appendYearTurn,
+  applyBattleAftermath,
+  applyCaught,
+  applyReleased,
+  battleAftermathAction,
   canonicalStringify,
+  catchAction,
+  caughtFromCatchAction,
   captureStreams,
   withStreamState,
   deserialize,
@@ -1036,5 +1043,269 @@ describe("the action log is a gapless sequence from 0", () => {
     const entries = yearTurnActions(result, tickBefore);
     expect(entries[0]?.seq).toBe(1);
     expect(entries.map((e) => e.seq)).toEqual(entries.map((_, i) => i + 1));
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * T-33 — `battleAftermath` is a real `GameAction` member, not a cast
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("T-33 — the battleAftermath entry is typed, and validation is not loosened", () => {
+  const aftermath = { party: [{ uid: "p1", curHp: 7, level: 5, xp: 3 }], items: { salve: 2 } };
+
+  it("returns a GameAction the union NARROWS — which is what deleted the cast", () => {
+    /*
+     * The binding here is the type annotation and the narrowing below, not the `expect`s: before
+     * the member existed, `battleAftermathAction` ended in `action as unknown as GameAction` and
+     * `action.aftermath` was unreachable from a narrowed `GameAction`. Reverting the union member
+     * turns this file red at COMPILE time, which is the strongest form the assertion has.
+     */
+    const action: GameAction = battleAftermathAction(aftermath);
+    expect(action.t).toBe("battleAftermath");
+    if (action.t !== "battleAftermath") throw new Error("the union no longer narrows");
+    expect(action.aftermath.party[0]?.curHp).toBe(7);
+    expect(action.aftermath.items).toEqual({ salve: 2 });
+  });
+
+  it("copies the record it is handed rather than aliasing it", () => {
+    const source = { party: [{ uid: "p1", curHp: 7, level: 5, xp: 3 }], items: { salve: 2 } };
+    const action = battleAftermathAction(source);
+    source.party[0]!.curHp = 1;
+    source.items.salve = 99;
+    if (action.t !== "battleAftermath") throw new Error("the union no longer narrows");
+    expect(action.aftermath.party[0]?.curHp).toBe(7);
+    expect(action.aftermath.items.salve).toBe(2);
+  });
+
+  it("round-trips through the SAME permissive schema, payload intact (no schemas.ts change)", () => {
+    // `zSaveFileFor` validates `actionLog[].action` as `z.looseObject({ t: … })` — deliberately, so
+    // that a lane adding an action need not edit core/schemas.ts. `looseObject` hands the payload
+    // back whole; a `z.object` there would return `{t}` alone and the aftermath would vanish on load.
+    const save = appendAction(fresh(), battleAftermathAction(aftermath));
+    const round = deserialize(serialize(save), balance);
+    expect(round.actionLog[0]?.action).toEqual({ t: "battleAftermath", aftermath });
+  });
+
+  it("still refuses a tape entry with no discriminant — permissive is not unvalidated", () => {
+    const save = appendAction(fresh(), battleAftermathAction(aftermath));
+    const json = JSON.parse(serialize(save)) as { actionLog: { action: Record<string, unknown> }[] };
+    json.actionLog[0]!.action = { aftermath };
+    expect(() => deserialize(JSON.stringify(json), balance)).toThrow(SaveCorruptError);
+    const empty = JSON.parse(serialize(save)) as typeof json;
+    empty.actionLog[0]!.action = { t: "" };
+    expect(() => deserialize(JSON.stringify(empty), balance)).toThrow(SaveCorruptError);
+  });
+
+  it("replay applies it — the named case does what the default arm used to", () => {
+    const cindril = line("cindril-line");
+    const hurt = newOwnedCreature(
+      { uid: "p1", lineId: cindril.id, age: "A", level: 5, caughtYear: 1 },
+      cindril,
+      balance,
+    );
+    const initial: SaveEnvelope = { ...fresh(), party: [hurt], items: { salve: 4 } };
+    const live = applyBattleAftermath(
+      appendAction(initial, battleAftermathAction(aftermath)),
+      aftermath,
+    );
+    const replayed = replay({ ...initial, actionLog: [] }, live.actionLog, {
+      gyms: content.gyms,
+      species,
+      balance,
+      nodes,
+    });
+    expect(replayed.party[0]?.curHp).toBe(7);
+    expect(replayed.items).toEqual({ salve: 2 });
+    expect(serialize({ ...replayed, actionLog: [] })).toBe(serialize({ ...live, actionLog: [] }));
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * T-34 — the catch entry carries the creature, and replay puts it back
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("T-34 — applyCaught / applyReleased, the two creature-half appliers", () => {
+  const nibbin = line("nibbin-line");
+
+  function wild(uid: string, boxed?: boolean): OwnedCreature {
+    return newOwnedCreature(
+      {
+        uid,
+        lineId: nibbin.id,
+        age: "J",
+        level: 4,
+        caughtYear: 1,
+        traits: [balance.traits.pool[0] as never],
+        ...(boxed === undefined ? {} : { boxed }),
+      },
+      nibbin,
+      balance,
+    );
+  }
+
+  it("puts an unboxed creature in the party and a boxed one in the box", () => {
+    const base = fresh();
+    expect(applyCaught(base, wild("a")).party.map((c) => c.uid)).toEqual(["a"]);
+    expect(applyCaught(base, wild("a")).box).toEqual([]);
+    expect(applyCaught(base, wild("b", true)).box.map((c) => c.uid)).toEqual(["b"]);
+    expect(applyCaught(base, wild("b", true)).party).toEqual([]);
+  });
+
+  it("is idempotent: applied twice it lands where applying it once landed", () => {
+    const base = fresh();
+    const once = applyCaught(base, wild("a"));
+    const twice = applyCaught(once, wild("a"));
+    expect(serialize(twice)).toBe(serialize(once));
+  });
+
+  it("moves a creature between cohorts rather than duplicating it", () => {
+    const inParty = applyCaught(fresh(), wild("a"));
+    const moved = applyCaught(inParty, wild("a", true));
+    expect(moved.party.map((c) => c.uid)).toEqual([]);
+    expect(moved.box.map((c) => c.uid)).toEqual(["a"]);
+  });
+
+  it("never mutates the save or the creature it is given", () => {
+    const base = fresh();
+    const before = serialize(base);
+    const creature = wild("a");
+    const snapshot = JSON.stringify(creature);
+    const out = applyCaught(base, creature);
+    out.party[0]!.traits.push(balance.traits.pool[1] as never);
+    expect(serialize(base)).toBe(before);
+    expect(JSON.stringify(creature)).toBe(snapshot);
+  });
+
+  it("applyReleased takes the uid off BOTH cohorts, and is a no-op for one it does not hold", () => {
+    const held = applyCaught(applyCaught(fresh(), wild("a")), wild("b", true));
+    expect(applyReleased(held, "a").party).toEqual([]);
+    expect(applyReleased(held, "b").box).toEqual([]);
+    // A removal that threw on an absent uid could not be applied twice, and idempotence is what
+    // makes an absolute consequence safe to replay at all.
+    expect(serialize(applyReleased(applyReleased(held, "a"), "a"))).toBe(
+      serialize(applyReleased(held, "a")),
+    );
+    expect(serialize(applyReleased(fresh(), "nobody"))).toBe(serialize(fresh()));
+  });
+});
+
+describe("T-34 — caughtFromCatchAction refuses a broken record LOUDLY", () => {
+  const nibbin = line("nibbin-line");
+  const creature = newOwnedCreature(
+    { uid: "c1", lineId: nibbin.id, age: "J", level: 4, caughtYear: 1 },
+    nibbin,
+    balance,
+  );
+
+  it("reads back exactly what catchAction wrote", () => {
+    const action = catchAction("r1", creature);
+    expect(action).toMatchObject({ t: "catch", nodeId: "r1", lineId: nibbin.id, uid: "c1" });
+    expect(caughtFromCatchAction(action)).toEqual(creature);
+  });
+
+  it("is null for an entry that is not a catch, and for a catch carrying no creature", () => {
+    expect(caughtFromCatchAction({ t: "travel", to: "r1" })).toBeNull();
+    expect(caughtFromCatchAction(null)).toBeNull();
+    // INV-2 — every tape written before the creature rode on the entry still reads.
+    expect(caughtFromCatchAction({ t: "catch", nodeId: "r1", lineId: nibbin.id, uid: "c1" })).toBeNull();
+  });
+
+  it("throws on a record that is not an OwnedCreature", () => {
+    const half = { t: "catch", nodeId: "r1", lineId: nibbin.id, uid: "c1", gained: { uid: "c1" } };
+    expect(() => caughtFromCatchAction(half)).toThrow(SaveCorruptError);
+  });
+
+  it("throws when the entry's two halves name different creatures", () => {
+    const wrongUid = { ...catchAction("r1", creature), uid: "somebody-else" };
+    expect(() => caughtFromCatchAction(wrongUid)).toThrow(SaveCorruptError);
+    const wrongLine = { ...catchAction("r1", creature), lineId: "cindril-line" };
+    expect(() => caughtFromCatchAction(wrongLine)).toThrow(SaveCorruptError);
+  });
+
+  it("carries the creature through the tape's own serializer unchanged", () => {
+    const save = appendAction(fresh(), catchAction("r1", creature));
+    const round = deserialize(serialize(save), balance);
+    expect(caughtFromCatchAction(round.actionLog[0]?.action)).toEqual(creature);
+  });
+});
+
+describe("T-34 — replay applies both halves of a catch and of a release", () => {
+  const nibbin = line("nibbin-line");
+  const NODE = "r1";
+
+  function wild(uid: string, boxed?: boolean): OwnedCreature {
+    return newOwnedCreature(
+      {
+        uid,
+        lineId: nibbin.id,
+        age: "A",
+        level: 9,
+        caughtYear: 1,
+        traits: [balance.traits.pool[1] as never],
+        ...(boxed === undefined ? {} : { boxed }),
+      },
+      nibbin,
+      balance,
+    );
+  }
+
+  it("reproduces the population AND the creature", () => {
+    const initial = fresh();
+    const before = initial.nodeStates[NODE]?.populations[nibbin.id]?.count as number;
+    const log: ActionLogEntry[] = [
+      { seq: 0, year: 1, tick: 0, action: catchAction(NODE, wild("c1")) },
+    ];
+    const out = replay(initial, log, { gyms: content.gyms, species, balance, nodes });
+    expect(out.nodeStates[NODE]?.populations[nibbin.id]?.count).toBe(before - 1);
+    expect(out.party).toEqual([wild("c1")]);
+  });
+
+  it("a duplicated catch entry moves the count twice but the party once", () => {
+    // The population delta is what build-doc §7.3 attributes to the action; the creature is an
+    // ABSOLUTE consequence, and an absolute applied twice must still say the same thing.
+    const initial = fresh();
+    const before = initial.nodeStates[NODE]?.populations[nibbin.id]?.count as number;
+    const entry = catchAction(NODE, wild("c1"));
+    const log: ActionLogEntry[] = [
+      { seq: 0, year: 1, tick: 0, action: entry },
+      { seq: 1, year: 1, tick: 0, action: entry },
+    ];
+    const out = replay(initial, log, { gyms: content.gyms, species, balance, nodes });
+    expect(out.nodeStates[NODE]?.populations[nibbin.id]?.count).toBe(before - 2);
+    expect(out.party.map((c) => c.uid)).toEqual(["c1"]);
+  });
+
+  it("a release takes the creature back off — with nothing new on the entry", () => {
+    // `uid` is the whole of a removal and the release entry has always carried it.
+    const initial: SaveEnvelope = { ...fresh(), party: [wild("keep"), wild("go")] };
+    const log: ActionLogEntry[] = [
+      { seq: 0, year: 1, tick: 0, action: { t: "release", nodeId: NODE, lineId: nibbin.id, uid: "go" } },
+    ];
+    const out = replay(initial, log, { gyms: content.gyms, species, balance, nodes });
+    expect(out.party.map((c) => c.uid)).toEqual(["keep"]);
+  });
+
+  it("refuses a catch entry whose creature disagrees with the entry", () => {
+    const initial = fresh();
+    const bad = { ...catchAction(NODE, wild("c1")), uid: "someone-else" };
+    expect(() =>
+      replay(initial, [{ seq: 0, year: 1, tick: 0, action: bad }], {
+        gyms: content.gyms,
+        species,
+        balance,
+        nodes,
+      }),
+    ).toThrow(SaveCorruptError);
+  });
+
+  it("boxes what the tape says was boxed, and does not re-decide it", () => {
+    const out = replay(fresh(), [{ seq: 0, year: 1, tick: 0, action: catchAction(NODE, wild("c1", true)) }], {
+      gyms: content.gyms,
+      species,
+      balance,
+      nodes,
+    });
+    expect(out.party).toEqual([]);
+    expect(out.box.map((c) => c.uid)).toEqual(["c1"]);
   });
 });
