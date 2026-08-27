@@ -30,7 +30,7 @@ import { chooseEnemyAction, makeBattler, movesKnownAt, startBattle, typeMultipli
 import { deriveFoodWeb, preyOf, toEcoNode, webRole } from "../../core/foodweb";
 import { createRng } from "../../core/rng";
 import { AGE_CLASSES } from "../../core/types";
-import type { BattleInput, GymLeader, GymTeamSlot } from "../../core/types";
+import type { AgeClass, BattleInput, GymLeader, GymTeamSlot, SpeciesLine, Trait } from "../../core/types";
 
 import { bestMoveId, mirrorPolicy, runBattle } from "../../tools/harness/arena";
 import { loadContent, loadContentFromRaw, seedFor, subsystemTags } from "../../tools/harness/content";
@@ -518,27 +518,99 @@ describe("the reasonable player model (build-doc §10.5(a))", () => {
 
   it("clause 7: the key scores the creature that is FIELDED — its own age, not a stand-in", () => {
     /*
-     * The discriminating half. Shipped content holds (attacker line, roster slot) pairings whose
-     * greedy pick flips with the attacker's AGE — see the tie finding in the next test — so the age
-     * `coverageScore` is handed decides the answer, and a stand-in would answer about a creature
-     * nobody fields.
+     * The first half asserts that the age and the traits `coverageScore` is handed are INERT — that
+     * a stand-in Adult with no traits scores every cell identically to the creature actually
+     * fielded. It used to assert the exact opposite, and both readings were correct on the day they
+     * were written:
+     *
+     *   `bestMoveId` ranked on the full `((atk × power) / def) × mult × roll`. Attack, defence,
+     *   predation and the roll are the same number for every move in one pool, so in exact
+     *   arithmetic they cannot reorder it — in floating point they did. `balance.types.superEffective`
+     *   is 1.5, so a 40-power super-effective move and a 60-power neutral one tie EXACTLY on paper,
+     *   the two orderings of that product do not round to the same double, and the winner was
+     *   decided by the ATTACKER'S Attack stat, i.e. by its age and traits. T-27 dropped the common
+     *   factor from the ranking key on both sides, and the key is now a function of the move and the
+     *   DEFENDER alone.
+     *
+     * The fact the old half pinned no longer exists, so this pins the fact that replaced it — and it
+     * does so with an EXACT EQUALITY where the old one held an inequality (`flips > 0`). That is a
+     * strictly stronger claim, not a looser one: it goes red the moment attacker sensitivity returns.
+     *
+     * WHY THE PARAMETERS STAY, since deleting them is the obvious move and it is the wrong one.
+     * Removing `ages` and `traits` from `coverageScore` was MEASURED safe — 1.71M calls over 32,400
+     * cells with zero variance, and 6,000 real drafts with zero differences — and was deliberately
+     * NOT done. T-13 was a ruling to "fix the instrument", and one of its two fixes was precisely to
+     * thread the real ages and traits in here, because the old key asked whether a creature merely
+     * KNEW an effective move rather than whether its policy would throw one; that published
+     * confident wrong win rates for weeks. The parameters are now a GUARD: the next scorer that
+     * starts reading the attacker again — a crit model, an accuracy model, a Soak-aware key — turns
+     * this test red instead of moving published win rates in silence.
+     *
+     * MEASURED, so the exact equality is a gauge and not a decoration: the sweep is 4,050 cells ×
+     * 48 loadouts = 194,400 comparisons, and reverting `bestMoveId` to the pre-T-27 full-product
+     * argmax makes 274 of them disagree with the stand-in — `pyrelisk-line` L15 as an Elder scoring
+     * 0 against `bramblehog-line` where a stand-in Adult scores 1, and 273 more.
      */
-    let flips = 0;
+    // Every attacker loadout coverage can be handed: each age class, and each single trait the
+    // shipped pool can roll (`balance.traits.slotsPerWildCreature` is 1), against the bare baseline.
+    const loadouts: { age: AgeClass; traits: Trait[] }[] = [];
+    for (const age of AGE_CLASSES) {
+      loadouts.push({ age, traits: [] });
+      for (const trait of balance.traits.pool) loadouts.push({ age, traits: [{ ...trait }] });
+    }
+    expect(loadouts.length).toBe(AGE_CLASSES.length * (balance.traits.pool.length + 1));
+
+    // Every level at which the known-move set changes, plus the level clause 4 actually fields —
+    // the level is what decides the pool the greedy pick chooses from, so it is swept rather than fixed.
+    const unlockLevels = [...new Set(Object.values(balance.moves.slotUnlockLevels))].sort((a, b) => a - b);
+    let cells = 0;
+    let varying = 0;
+    const attackerSensitive: string[] = [];
     for (const gym of loaded.gyms) {
-      const level = playerLevelFor(gym, balance, "trained");
+      const levels = [...new Set([...unlockLevels, playerLevelFor(gym, balance, "trained")])];
       for (const slot of gymRoster(gym)) {
+        const one = oneSlotGym(slot);
         for (const line of loaded.content.species) {
-          if (line.ancient) continue;
-          const byAge = new Set(
-            AGE_CLASSES.map((age) =>
-              coverageScore([line], [age], [[]], level, oneSlotGym(slot), loaded.battle),
-            ),
-          );
-          if (byAge.size > 1) flips += 1;
+          for (const level of levels) {
+            // The stand-in: an Adult with no traits, which is what dropping the parameters would leave.
+            const standIn = coverageScore([line], ["A"], [[]], level, one, loaded.battle);
+            for (const loadout of loadouts) {
+              const fielded = coverageScore([line], [loadout.age], [loadout.traits], level, one, loaded.battle);
+              if (fielded !== standIn) {
+                varying += 1;
+                if (attackerSensitive.length < 10) {
+                  const trait = loadout.traits[0];
+                  attackerSensitive.push(
+                    `${line.id} L${level} as ${loadout.age}${trait ? ` +${trait.id}` : ""} vs ` +
+                      `${slot.lineId}: scores ${fielded}, stand-in Adult scores ${standIn}`,
+                  );
+                }
+              }
+            }
+            cells += 1;
+          }
         }
       }
     }
-    expect(flips).toBeGreaterThan(0);
+    // A zero over an empty sweep asserts nothing, so the sweep's own size is pinned first.
+    expect(cells).toBe(
+      loaded.gyms.reduce(
+        (n, gym) =>
+          n +
+          gymRoster(gym).length *
+            loaded.content.species.length *
+            new Set([...unlockLevels, playerLevelFor(gym, balance, "trained")]).size,
+        0,
+      ),
+    );
+    expect(cells).toBeGreaterThan(0);
+    expect(
+      varying,
+      `coverageScore reads the attacker again: ${varying} of ${cells * loadouts.length} loadouts ` +
+        `disagree with a stand-in Adult. This is not a licence to loosen the assertion — a scorer ` +
+        `that reads the attacker is a scorer that can reorder a tie by rounding, which is T-27.\n  ` +
+        attackerSensitive.join("\n  "),
+    ).toBe(0);
 
     /*
      * The invariant half: what `draftParty` credits is a recomputation from the specs it hands back.
@@ -570,57 +642,30 @@ describe("the reasonable player model (build-doc §10.5(a))", () => {
     }
   });
 
-  it("clause 7: the greedy pick CAN turn on the attacker's own stats — the finding that forces the above", () => {
-    /*
-     * Pinned because it is counter-intuitive and because it is the reason `coverageScore` takes
-     * ages and traits at all. `balance.types.superEffective` is 1.5, so a 40-power super-effective
-     * move ties EXACTLY with a 60-power neutral one. The scorer computes
-     * `((atk × power) / def) × mult × roll` rather than `power × mult`, and the two do not round to
-     * the same double — so on a tie the winner is decided by the attacker's Attack, i.e. by its age
-     * and traits, not by the "ties broken by pool order" rule the scorer's own docblock states.
-     *
-     * If this goes green-to-red, the scorer's tie-break became stable. That is an IMPROVEMENT, and
-     * the response is to delete this test deliberately (and then `coverageScore` may drop its ages
-     * and traits) — not to make the assertion looser.
-     */
-    let stable = 0;
-    let stateDependent = 0;
-    for (const gym of loaded.gyms) {
-      const level = playerLevelFor(gym, balance, "trained");
-      for (const slot of gymRoster(gym)) {
-        const defender = makeBattler(
-          { uid: "d", lineId: slot.lineId, age: slot.age, level: slot.level, traits: [] },
-          "enemy",
-          loaded.battle,
-          { isWild: false, enteredOnTurn: 0 },
-        );
-        for (const line of loaded.content.species) {
-          if (line.ancient) continue;
-          const picks = new Set(
-            AGE_CLASSES.map((age) =>
-              bestMoveId(
-                makeBattler({ uid: "a", lineId: line.id, age, level, traits: [] }, "player", loaded.battle, {
-                  isWild: false,
-                  enteredOnTurn: 0,
-                }),
-                defender,
-                loaded.battle,
-                { usePredation: true },
-              ),
-            ),
-          );
-          if (picks.size > 1) stateDependent += 1;
-          else stable += 1;
-        }
-      }
-    }
-    expect(stable).toBeGreaterThan(0);
-    expect(
-      stateDependent,
-      "no shipped pairing's greedy pick depends on the attacker's age — the scorer's tie-break is " +
-        "now stable, so `coverageScore` no longer needs ages and traits; remove them deliberately",
-    ).toBeGreaterThan(0);
-  });
+  /*
+   * DELETED, deliberately, per its own protocol — not loosened.
+   *
+   * `clause 7: the greedy pick CAN turn on the attacker's own stats — the finding that forces the
+   * above` asserted `stateDependent > 0`: that shipped pairings existed whose greedy pick flipped
+   * with the attacker's age. Its docblock wrote the response out in advance — "If this goes
+   * green-to-red, the scorer's tie-break became stable. That is an IMPROVEMENT, and the response is
+   * to delete this test deliberately … not to make the assertion looser."
+   *
+   * T-27 made the tie-break stable: `moveRank` (core/battle.ts, and the same key in
+   * tools/harness/arena.ts) dropped `atk`, `def`, `predation` and the mid-roll, which are common to
+   * every move in one pool and so cannot reorder it in exact arithmetic — they were the whole source
+   * of the floating-point noise this test was pinning. 13 of 2160 shipped enemy choices changed; the
+   * divergence count went 13 → 0. The FACT the test held is gone, so the test goes with it. What
+   * replaced it is the exact-equality sweep in `the key scores the creature that is FIELDED` above,
+   * which is strictly stronger: it goes red the moment attacker sensitivity comes back.
+   *
+   * Its docblock's second clause — "and then `coverageScore` may drop its ages and traits" — is NOT
+   * acted on, and the reason is recorded at that test and in `coverageScore`'s own docblock.
+   *
+   * It was a correct test, not a wrong one: run against the pre-T-27 full-product argmax it still
+   * reads GREEN (stable 717, stateDependent 3), and against the shipped key it reads
+   * stateDependent 0 over the same 720 pairings. What went away is the fact, not the instrument.
+   */
 
   it("clause 7: coverage is bounded by the roster and is what `draftParty` reports", () => {
     for (const gym of loaded.gyms) {
@@ -739,25 +784,97 @@ describe("the reasonable player model (build-doc §10.5(a))", () => {
  * ════════════════════════════════════════════════════════════════════════════ */
 
 describe("the harness runs the same game core/battle.ts does", () => {
-  it("its move scorer picks exactly what core/battle.ts's `chooseEnemyAction` picks", () => {
+  it("its move scorer picks exactly what core/battle.ts's `chooseEnemyAction` picks — over EVERY shipped pairing", () => {
+    /*
+     * EXHAUSTIVE, and the exhaustiveness IS the test.
+     *
+     * What this replaced drew 36 samples — six gyms × six seeds — and closed on
+     * `expect(checked).toBeGreaterThan(20)`. It was green on the day the two scorers disagreed on 13
+     * of 2160 shipped enemy choices (T-27). The divergences were real and reachable; 36 draws simply
+     * never landed on one, and a green sample was read as agreement for as long as that lasted. A
+     * BIGGER sample is not the fix. The space is small enough to walk, so it is walked, and a
+     * failure names the pairings rather than reporting a count.
+     *
+     * The space is every form the ranking key can see. `moveRank` reads the attacker's known-move
+     * set — which changes only at `balance.moves.slotUnlockLevels` — and the defender's types and
+     * role. Age and traits feed neither today (see the clause-7 inertness sweep above); they are
+     * still swept on both sides, because the day a scorer starts reading them is the day this has to
+     * notice. Ancients are included: nothing about the two argmaxes is restricted to the draftable
+     * pool, so restricting the sweep would only hide a disagreement.
+     *
+     * As shipped that is 324 forms a side — 27 lines × 3 ages × 4 unlock levels — and 104,976
+     * pairings, in under a second.
+     *
+     * MEASURED, so that this is a binding gauge and not a reassuring one: reverting `bestMoveId` to
+     * the pre-T-27 full-product argmax makes this name 78 divergent pairings — `mirefin-line` J L15
+     * against `cindril-line` A L5 throwing `ambush` where core/battle.ts throws `dous`, and 77 more.
+     * The 36-sample test this replaced stays GREEN under that same sabotage. That is the whole
+     * argument for the change, and it was run rather than assumed.
+     */
+    const species: readonly SpeciesLine[] = loaded.content.species;
+    const unlockLevels = [...new Set(Object.values(balance.moves.slotUnlockLevels))].sort((a, b) => a - b);
+    expect(unlockLevels.length).toBeGreaterThan(0);
+
+    interface Form {
+      lineId: string;
+      age: AgeClass;
+      level: number;
+    }
+    const forms: Form[] = [];
+    for (const line of species) {
+      for (const age of AGE_CLASSES) {
+        for (const level of unlockLevels) forms.push({ lineId: line.id, age, level });
+      }
+    }
+    // Nothing was filtered out of the sweep on its way in.
+    expect(forms.length).toBe(species.length * AGE_CLASSES.length * unlockLevels.length);
+
+    const divergent: string[] = [];
+    let disagreements = 0;
     let checked = 0;
-    for (const gym of loaded.gyms) {
-      for (let seed = 0; seed < 6; seed++) {
-        const party = draftParty(gym, loaded, createRng(seed), 2, "trained");
+    for (const attacker of forms) {
+      for (const defender of forms) {
+        // `chooseEnemyAction` reads the ENEMY seat as the attacker, so the swept attacker sits there.
         const state = startBattle(
-          { seed, kind: "gym", playerParty: party.specs, enemyParty: gymParty(gym) },
+          {
+            seed: 1,
+            kind: "gym",
+            playerParty: [
+              { uid: "p", lineId: defender.lineId, age: defender.age, level: defender.level, traits: [] },
+            ],
+            enemyParty: [
+              { uid: "e", lineId: attacker.lineId, age: attacker.age, level: attacker.level, traits: [] },
+            ],
+          },
           loaded.battle,
         ).state;
         const enemy = state.battlers[state.activeEnemyUid];
         const player = state.battlers[state.activePlayerUid];
         if (!enemy || !player) throw new Error("empty field");
         const theirs = chooseEnemyAction(state, loaded.battle);
+        if (theirs.kind !== "move") throw new Error(`chooseEnemyAction answered "${theirs.kind}", not a move`);
         const ours = bestMoveId(enemy, player, loaded.battle, { usePredation: true, nodeId: state.nodeId });
-        if (theirs.kind === "move") expect(ours).toBe(theirs.moveId);
+        if (ours !== theirs.moveId) {
+          disagreements += 1;
+          if (divergent.length < 10) {
+            divergent.push(
+              `${attacker.lineId} ${attacker.age} L${attacker.level} vs ` +
+                `${defender.lineId} ${defender.age} L${defender.level}: ` +
+                `core/battle.ts throws "${theirs.moveId}", the harness throws "${ours}"`,
+            );
+          }
+        }
         checked += 1;
       }
     }
-    expect(checked).toBeGreaterThan(20);
+    // The sweep really was the whole cross product — no early exit, no skipped arm.
+    expect(checked).toBe(forms.length * forms.length);
+    expect(
+      disagreements,
+      `the harness and core/battle.ts pick different moves on ${disagreements} of ${checked} ` +
+        `pairings — the round-robin is measuring a different game. First divergences:\n  ` +
+        divergent.join("\n  "),
+    ).toBe(0);
   });
 
   it("the §7.4 predation bonus cannot change a greedy attacker's choice — a reported finding, pinned", () => {
