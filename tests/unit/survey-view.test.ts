@@ -57,6 +57,8 @@ import {
   renderDexEntry,
   renderDexFlags,
   renderDexSeasonStatus,
+  renderSurveyHeader,
+  renderSurveyHeading,
   renderSurveyPage,
   renderSurveyPresence,
   renderSurveyRow,
@@ -756,6 +758,47 @@ describe("epilogue reuse — the same renderer over a different state", () => {
       /^flora \d+(\.\d)?\/\d+ · recent deaths \d+(\.\d)? · lines \d+ · individuals \d+ · at 0: \d+$/,
     );
     expect(totals.length).toBeLessThanOrEqual(columnBudget(balance, SCREEN_TEXT.padPx));
+  });
+
+  /**
+   * THE HEADING — a title is a prefix, and it took a node's name off the screen when it was not.
+   *
+   * `game/scenes/SurveyScene.ts` `redraw` drew `this.args.title ?? renderSurveyHeader(page)`, and
+   * {@link renderSurveyHeader} is the only string on this screen that carries a node's name. The
+   * epilogue passes a title, so its twelve pages all read the same two words. `renderSurveyHeading`
+   * is the one place the two now combine; these are its two branches, over the shipped region.
+   */
+  it("with no title the heading is the node header verbatim — the in-run survey does not move", () => {
+    const save = newSave({ seed: 42, currentNode: "r1", nodes: content.nodes }, balance);
+    for (const file of content.nodes) {
+      const page = surveyPageForSave(save, file.id, content);
+      // The branch `game/scenes/MenuScene.ts` takes: it builds its data with no title at all.
+      expect(renderSurveyHeading(page)).toBe(renderSurveyHeader(page));
+      // …and an empty string is not a name either, so it falls back rather than printing a stub.
+      expect(renderSurveyHeading(page, "")).toBe(renderSurveyHeader(page));
+      // The header itself is untouched by this repair — the line the survey has always drawn.
+      expect(renderSurveyHeading(page)).toBe(`${file.name} — year ${save.year} · ${page.season}`);
+    }
+  });
+
+  it("with a title every node still gets its own heading, and none runs off the canvas", () => {
+    const save = newSave({ seed: 42, currentNode: "r1", nodes: content.nodes }, balance);
+    const title = "EPILOGUE SURVEY";
+    const headings = content.nodes.map((file) =>
+      renderSurveyHeading(surveyPageForSave(save, file.id, content), title),
+    );
+    // Twelve nodes, twelve distinguishable lines. This is the assertion the defect fails: every
+    // one of them was the title alone, so this set had size 1.
+    expect(new Set(headings).size).toBe(content.nodes.length);
+    content.nodes.forEach((file, i) => {
+      const line = headings[i] as string;
+      expect(line, `"${file.id}" is not named`).toContain(file.name);
+      expect(line, `"${file.id}" drops the screen's own name`).toContain(title);
+      expect(line, `"${file.id}" is the title alone`).not.toBe(title);
+      expect(line.length, `"${file.id}" runs off a 480px canvas`).toBeLessThanOrEqual(
+        columnBudget(balance, SCREEN_TEXT.padPx),
+      );
+    });
   });
 });
 

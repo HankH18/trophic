@@ -20,9 +20,18 @@ import { readFileSync } from "node:fs";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { CaughtIndividual } from "../../core/battle";
+import { subsystemRng } from "../../core/rng";
 import { ContentValidationError, validateContent } from "../../core/schemas";
 import { MemoryStorage, newSave, slotKey, type SaveEnvelope } from "../../core/save";
 import type { Balance, Content, NodeState } from "../../core/types";
+import {
+  ancientAgeClass,
+  buildVellsireBattle,
+  finaleAncientLine,
+  finaleNodeId,
+  resolveVellsireCatch,
+} from "../../game/finale";
 import {
   GAME_PARENT_ID,
   SCENE_KEYS,
@@ -585,6 +594,28 @@ function fakeScene(registered: string[]): {
 
 type RouterScene = Parameters<typeof enterGameplay>[0];
 
+/**
+ * Route into gameplay, fire the REAL `onRunComplete`, and hand back the states the epilogue survey
+ * was actually launched with.
+ *
+ * Nothing here stands in for the projection: `game/boot.ts` builds the RNG stream, calls
+ * `game/finale.ts` `projectEpilogueRegion` and puts the answer on the scene data. The caller supplies
+ * the save, which is the input the tests below vary — and the input that could be dropped entirely
+ * without a single test noticing.
+ */
+function epilogueStatesFor(save: SaveEnvelope): Record<string, NodeState> {
+  const rig = fakeScene([SCENE_KEYS.menu, SCENE_KEYS.overworld, SCENE_KEYS.survey]);
+  enterGameplay(rig.scene as RouterScene);
+  const routed = rig.started[0]?.data as {
+    hooks: { onRunComplete?: (s: SaveEnvelope, o: unknown) => void };
+  };
+  expect(routed.hooks.onRunComplete, "nothing supplies the ending hook").toBeDefined();
+  routed.hooks.onRunComplete?.(save, rig.overworld);
+  const launched = rig.launched[0]?.data as { states: Record<string, NodeState> } | undefined;
+  expect(launched, "the ending launched nothing").toBeDefined();
+  return launched?.states ?? {};
+}
+
 describe("enterGameplay — the seam that decides whether the game is reachable", () => {
   it("routes to the in-run menu, saying so, while the overworld is unregistered", () => {
     const fake = new FakeLocalStorage();
@@ -665,7 +696,20 @@ describe("enterGameplay — the seam that decides whether the game is reachable"
     };
     expect(survey.content).toBe(content);
     expect(survey.year).toBe(save.year);
-    expect(survey.title, "the epilogue survey does not name itself").toBeTruthy();
+    /*
+     * ⚠ THIS ASSERTION COVERS THE FIELD AND NOT THE SCREEN, AND IT WAS READ AS COVERING BOTH.
+     *
+     * Its old message was "the epilogue survey does not name itself", which is true of what it
+     * checks and was taken for more. `SurveyScene.redraw` drew `this.args.title ?? renderSurveyHeader
+     * (page)`, and that renderer is the only string on the screen carrying a NODE's name — so this
+     * green certified the presence of the field that erased every one of them: twelve pages reading
+     * `EPILOGUE SURVEY`, the Sanctum among them. The scene composes the two now
+     * (`game/survey-view.ts` `renderSurveyHeading`), and what the player reads on each of the twelve
+     * pages is asserted where the page can actually be rendered —
+     * `tests/unit/survey-scene.test.ts`, "every page of the ending names the node it is reading".
+     * This one is left at its own strength, saying only what it is evidence of.
+     */
+    expect(survey.title, "the epilogue survey is launched with no name of its own").toBeTruthy();
     // Every node the region carries is reported, not a subset.
     expect(Object.keys(survey.states).sort()).toEqual(content.nodes.map((n) => n.id).sort());
 
@@ -762,6 +806,151 @@ describe("enterGameplay — the seam that decides whether the game is reachable"
       return (rig.launched[0]?.data as { states: unknown }).states;
     };
     expect(JSON.stringify(run())).toBe(JSON.stringify(run()));
+  });
+
+  /**
+   * …AND THE SEED IS WHAT IT REPLAYS FROM. The half the test above cannot reach.
+   *
+   * "Same save, same numbers" is true of every deterministic function of the save, including one
+   * that ignores the generator entirely: replace `subsystemRng(save.seed, "epilogue")` with a
+   * hard-coded stream and it stays green. What it DOES bind is worth keeping — the ending cannot
+   * depend on a wall clock, and it cannot depend on call order through a shared generator, both of
+   * which turn it red — so it stays, and this states the other half beside it.
+   *
+   * Two fresh runs at different seeds carry byte-identical `nodeStates` (asserted below, not
+   * assumed — a new save's states are the shipped node files), so the SEED is the only input that
+   * differs. Measured on the shipped balance: the two projections differ across ten of the twelve
+   * nodes.
+   */
+  it("…and it is drawn from the SAVE's seed — two runs differing only in the seed do not match (L10)", () => {
+    bootWith(new FakeLocalStorage());
+    startNewGame({ slot: 0, seed: 77 });
+    const a = registry.save();
+    startNewGame({ slot: 0, seed: 4242 });
+    const b = registry.save();
+
+    expect(a.seed).not.toBe(b.seed);
+    expect(
+      JSON.stringify(a.nodeStates),
+      "the two saves differ by more than the seed — this test would not be about the seed",
+    ).toBe(JSON.stringify(b.nodeStates));
+
+    expect(
+      JSON.stringify(epilogueStatesFor(a)),
+      "the ending's numbers do not depend on the save's seed — it is not replaying anything",
+    ).not.toBe(JSON.stringify(epilogueStatesFor(b)));
+  });
+
+  /**
+   * HARD REQ 7'S ACTUAL SUBJECT: THE DIFFERENCE THE PLAYER'S CHOICE MADE.
+   *
+   * ⚠ NOTHING BOUND THIS. Replacing `projectEpilogueRegion({ content, save, … })` with
+   * `save: { nodeStates: {} }` left all 95 tests in this suite green — and that is not a cosmetic
+   * hole. With no states the projection falls back to the shipped node files, `data/nodes/sanctum
+   * .json` ships the stag with a count of 1, and the resulting projection is byte-identical to the
+   * RELEASED ending (measured). So a player who caught the Vellsire would have read the released
+   * region's numbers under `maren.epilogue.caught`'s words, with the suite fully green. The tests
+   * that existed asked whether the states had MOVED from the live save — which the shipped-file
+   * fallback also satisfies, because six years of seasons move it.
+   *
+   * So the claim is made about two runs rather than one: same content, same seed, same everything
+   * except what happened at the ring. Both saves come out of `game/finale.ts`
+   * `resolveVellsireCatch` — the function the finale really resolves through — so the difference
+   * between them is the difference the game produces, not one typed in here.
+   */
+  it("the ending reports THIS run's region: the two Vellsire branches project different numbers", () => {
+    bootWith(new FakeLocalStorage());
+    startNewGame({ slot: 0, seed: 4242 });
+    const base = registry.save();
+
+    const ring = finaleNodeId(balance);
+    const stagLine = finaleAncientLine(content, ring);
+    expect(stagLine, `no Ancient stands at "${ring}" — there is no choice to make`).not.toBeNull();
+    if (!stagLine) return;
+
+    // The individual the SCRIPTED fight really fields (G2 — no species id typed in here).
+    const built = buildVellsireBattle({
+      content,
+      save: base,
+      act: balance.acts.last,
+      rng: subsystemRng(base.seed, "encounter"),
+    });
+    const stag: CaughtIndividual = {
+      uid: built.enemy.uid,
+      lineId: built.enemy.lineId,
+      formName: stagLine.formNames[ancientAgeClass()],
+      age: ancientAgeClass(),
+      level: built.enemy.level,
+      traits: built.enemy.traits,
+      nodeId: built.nodeId,
+      ancient: true,
+      metamorphosed: false,
+    };
+    const caught = resolveVellsireCatch({
+      save: base,
+      content,
+      state: { outcome: "caught" },
+      caught: stag,
+    });
+    const released = resolveVellsireCatch({
+      save: base,
+      content,
+      state: { outcome: "loss" },
+      caught: null,
+    });
+    expect(caught.outcome).toBe("caught");
+    expect(caught.problem, "the snare did not move the count it was supposed to").toBeNull();
+    expect(released.outcome).toBe("released");
+
+    const endingIfCaught = epilogueStatesFor(caught.save);
+    const endingIfReleased = epilogueStatesFor(released.save);
+
+    // 1. TWO ENDINGS, NOT ONE. This is the assertion `save: { nodeStates: {} }` fails: with the
+    //    save dropped, both branches project the shipped files and these are the same object twice.
+    expect(
+      JSON.stringify(endingIfCaught),
+      "the ending is the same whichever way the finale went — it is not reading the player's save",
+    ).not.toBe(JSON.stringify(endingIfReleased));
+
+    // 2. …AND EACH IS ITS OWN BRANCH'S. "They differ" alone would pass if the two were swapped, or
+    //    if the difference came from anywhere but the ring.
+    const countAt = (states: Record<string, NodeState>, lineId: string): number => {
+      const seen = states[ring]?.populations[lineId]?.count;
+      expect(seen, `the projection carries no "${lineId}" at "${ring}"`).toBeTypeOf("number");
+      return seen ?? -1;
+    };
+    expect(
+      countAt(endingIfCaught, stagLine.id),
+      "the caught ending still has the animal the player took",
+    ).toBe(0);
+    expect(
+      countAt(endingIfReleased, stagLine.id),
+      "the released ending lost the animal the player let go",
+    ).toBeGreaterThan(0);
+
+    /*
+     * 3. …AND THE CHOICE REACHED PAST THE ONE ANIMAL.
+     *
+     * An Ancient lifts what breeds around it, out to `balance.ecosim.presenceRadiusNodes` hops
+     * (build-doc §7.3 step 1), so taking one out of the region shows up on lines the player never
+     * touched. That is what makes the ending a report on a region rather than a receipt for a catch,
+     * and it is asserted over the WHOLE projection rather than the ring alone because which node the
+     * radius reaches is the sim's business, not this test's — measured at the seed pinned above, the
+     * moved line is the ring's other one (3 against 6), and at other seeds it is the approach's.
+     */
+    const downstream: string[] = [];
+    for (const nodeId of Object.keys(endingIfReleased)) {
+      for (const lineId of Object.keys(endingIfReleased[nodeId]?.populations ?? {})) {
+        if (lineId === stagLine.id) continue;
+        const withCatch = endingIfCaught[nodeId]?.populations[lineId]?.count ?? -1;
+        const without = endingIfReleased[nodeId]?.populations[lineId]?.count ?? -1;
+        if (withCatch !== without) downstream.push(`${nodeId}/${lineId} ${withCatch} vs ${without}`);
+      }
+    }
+    expect(
+      downstream.length,
+      "the only difference the finale made is the missing animal — nothing downstream of it moved",
+    ).toBeGreaterThan(0);
   });
 
   it("falls back to the menu when there is no session to hand over", () => {

@@ -606,7 +606,15 @@ function overworldData(): OverworldSceneData {
  */
 const EPILOGUE_STREAM = "epilogue";
 
-/** Heading the epilogue survey names itself with — `SurveySceneData.title` (Hard Req 7). */
+/**
+ * What the epilogue survey calls ITSELF — `SurveySceneData.title` (Hard Req 7).
+ *
+ * ⚠ IT IS A PREFIX, NOT THE HEADING, and it used to be the heading. `SurveyScene.redraw` drew
+ * `this.args.title ?? renderSurveyHeader(page)`, so passing this string REPLACED the one line on the
+ * screen that prints a node's name: every one of the ending's twelve pages read `EPILOGUE SURVEY`
+ * and nothing else, the Sanctum among them. `game/survey-view.ts` `renderSurveyHeading` composes the
+ * two now, so a title cannot take a node's name off the screen from here.
+ */
 const EPILOGUE_SURVEY_TITLE = "EPILOGUE SURVEY";
 
 /** Scenes are started with `unknown` data; this is the shape the menu keys off. */

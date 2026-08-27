@@ -106,6 +106,8 @@ vi.mock("phaser", () => {
 import { validateContent } from "../../core/schemas";
 import type { Content } from "../../core/types";
 import type { SaveEnvelope } from "../../core/save";
+import { finaleNodeId } from "../../game/finale";
+import { SCREEN_TEXT, columnBudget, renderSurveyHeader } from "../../game/survey-view";
 import {
   SCENE_KEYS,
   enterGameplay,
@@ -255,6 +257,120 @@ function pressKey(scene: SurveyScene, event: string): number {
 function selfCalls(scene: SurveyScene): string[] {
   return (scene as unknown as { stubScene: string[] }).stubScene;
 }
+
+/**
+ * Every string the scene DREW on the current page, in draw order.
+ *
+ * This is the point of driving a real scene rather than calling the renderers: `redraw()` decides
+ * which of the strings a renderer produced actually reach a text object, and that decision — not the
+ * renderers — is where both of this screen's shipped defects have lived. The background and the web
+ * diagram come back as the stub's `Graphics` proxy, which answers every property with a function, so
+ * `typeof … === "string"` keeps them out without the stub needing to tag anything.
+ */
+function drawnText(scene: SurveyScene): string[] {
+  const layer = (scene as unknown as { layer: { children: Array<{ text?: unknown }> } }).layer;
+  return layer.children.flatMap((child) => (typeof child.text === "string" ? [child.text] : []));
+}
+
+/** The top line of the page as a player reads it. */
+function heading(scene: SurveyScene): string {
+  const first = drawnText(scene)[0];
+  expect(first, "the survey drew no text at all").toBeDefined();
+  return first ?? "";
+}
+
+/** Walk every page the scene is browsing, collecting node id → the heading it drew. */
+function headingsByNode(scene: SurveyScene): Map<string, string> {
+  const start = scene.currentNodeId();
+  const seen = new Map<string, string>();
+  for (let guard = 0; guard <= content.nodes.length; guard += 1) {
+    seen.set(scene.currentNodeId(), heading(scene));
+    scene.step(1);
+    if (scene.currentNodeId() === start) break;
+  }
+  return seen;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The ending says which node each page is
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+describe("the epilogue survey — twelve pages, and the heading says which node each one is", () => {
+  /**
+   * ⚠ THE DEFECT. `redraw()` drew `this.args.title ?? renderSurveyHeader(page)`, and that renderer
+   * is the ONLY place a node's name appears on this screen. `game/boot.ts` `onRunComplete` passes
+   * `title: "EPILOGUE SURVEY"`, so the title REPLACED the name: all twelve pages of the last screen
+   * of the run read the same two words, with `3/12  ←/→ node` in the footer as the entire difference
+   * between one node and the next — the Sanctum, which the finale is about, among them.
+   *
+   * It survived every gate because no test in this repo had ever rendered the epilogue's page text.
+   * `tests/unit/survey-view.test.ts` asserts what the RENDERERS produce, and the renderers were
+   * never wrong; `tests/unit/game-boot.test.ts` asserted `expect(survey.title).toBeTruthy()`, which
+   * is the presence of the field that did the erasing. So this drives the real scene over the real
+   * ending data and reads the strings back off the text objects.
+   */
+  it("every page of the ending names the node it is reading", () => {
+    const { data } = runToEpilogue();
+    expect(data).toBeDefined();
+    if (!data) return;
+    expect(data.title, "the ending no longer names itself").toBeTruthy();
+
+    const scene = open(data);
+    const headings = headingsByNode(scene);
+
+    // The ending browses the whole region — every node the projection covers, none skipped.
+    expect(headings.size).toBe(content.nodes.length);
+    for (const node of content.nodes) {
+      const line = headings.get(node.id);
+      expect(line, `the ending has no page for "${node.id}"`).toBeDefined();
+      expect(line, `page "${node.id}" does not name the node`).toContain(node.name);
+      // The defect stated at its source: the heading was the title and nothing else.
+      expect(line, `page "${node.id}" is the title alone`).not.toBe(data.title);
+      // …and the screen still says what it is, on every page rather than only the first.
+      expect(line?.startsWith(data.title ?? ""), `page "${node.id}" drops the screen's name`).toBe(
+        true,
+      );
+      // Drawn, not merely returned: a line past the budget runs off a 480px canvas unwrapped.
+      expect(line?.length, `page "${node.id}" runs off the canvas`).toBeLessThanOrEqual(
+        columnBudget(content.balance, SCREEN_TEXT.padPx),
+      );
+    }
+
+    // Twelve pages that read the same thing are one page shown twelve times.
+    expect(new Set(headings.values()).size).toBe(headings.size);
+
+    // Named on its own, because it is the node the never-cut beat is about and it was one of the
+    // twelve that read `EPILOGUE SURVEY`.
+    const ring = finaleNodeId(content.balance);
+    const ringName = content.nodes.find((n) => n.id === ring)?.name ?? "";
+    expect(ringName).not.toBe("");
+    expect(headings.get(ring), "the ending does not name the Sanctum").toContain(ringName);
+  });
+
+  /**
+   * THE OTHER HALF: the in-run survey must not have moved.
+   *
+   * `game/scenes/MenuScene.ts` builds its `SurveySceneData` with no `title`, so this is the branch
+   * the survey a player opens mid-run takes, driven through the same real scene. The heading it
+   * draws has to be `renderSurveyHeader(page)` character for character — the string
+   * `tests/unit/survey-view.test.ts` already asserts everywhere else.
+   */
+  it("with NO title — the branch the in-run survey takes — the heading is the node header, verbatim", () => {
+    const { data } = runToEpilogue();
+    expect(data).toBeDefined();
+    if (!data) return;
+    const untitled = { ...data } as SurveySceneData;
+    delete untitled.title;
+
+    const scene = open(untitled);
+    for (let i = 0; i < content.nodes.length; i += 1) {
+      const page = scene.page();
+      expect(page, `no page for "${scene.currentNodeId()}"`).not.toBeNull();
+      if (page) expect(heading(scene)).toBe(renderSurveyHeader(page));
+      scene.step(1);
+    }
+  });
+});
 
 /* ────────────────────────────────────────────────────────────────────────────
  * The ending is leavable

@@ -702,6 +702,37 @@ export function renderSurveyHeader(page: SurveyPage): string {
 }
 
 /**
+ * The heading line the survey actually DRAWS: the node, and — when the caller has a name for the
+ * screen itself — that name ahead of the node rather than instead of it.
+ *
+ * ⚠ THE DEFECT THIS REPLACES. `game/scenes/SurveyScene.ts` `redraw` drew
+ * `this.args.title ?? renderSurveyHeader(page)`, and {@link renderSurveyHeader} is the ONLY place a
+ * node's name is printed anywhere on this screen. The epilogue supplies a title (`game/boot.ts`
+ * `onRunComplete`), so all twelve of its pages drew the same two words and nothing else — the
+ * footer's `3/12  ←/→ node` was the entire difference between one node and the next. The Sanctum,
+ * which the whole finale is about, was one of the twelve. Build-doc §16 lists "Vellsire choice +
+ * epilogue survey" among the never-cut.
+ *
+ * So a title is a PREFIX and can no longer be a replacement — the shape is what enforces it, not a
+ * caller remembering. {@link renderSurveyHeader} is untouched, and the in-run survey passes no title
+ * (`game/scenes/MenuScene.ts` builds its `SurveySceneData` without one), so it takes the first
+ * branch and gets the identical string it has always got.
+ *
+ * **A titled line carries no year and no season, and that is deliberate rather than an omission.**
+ * {@link renderSurveyHeader} stamps `page.year` and `page.season` on the line. For the epilogue those
+ * two come off the SAVE, while every number underneath them is `game/finale.ts`
+ * `projectEpilogueRegion`'s — `balance.clock.yearsTotal` years of seasons further on (6 on the
+ * shipped balance, measured). Printing "year 6" over year-12 numbers would put a NEW false statement
+ * on the last screen of the run in the course of repairing an old one. The titled line therefore
+ * says which screen this is and which node it is reading, and claims no calendar it cannot vouch
+ * for. What year an ending should report is a question for whoever owns `epilogueSeasons`.
+ */
+export function renderSurveyHeading(page: SurveyPage, title?: string): string {
+  if (!title) return renderSurveyHeader(page);
+  return `${title} · ${page.nodeName}`;
+}
+
+/**
  * The node-level numbers, on one line. Every one of them is a number, not a band.
  *
  * The two real-valued ones go through {@link renderNumber}: unbounded they ran this line to 99

@@ -27,7 +27,7 @@ import {
   SCREEN_HEX,
   SCREEN_TEXT,
   buildSurveyPage,
-  renderSurveyHeader,
+  renderSurveyHeading,
   renderSurveyPage,
   type SurveyHistory,
   type SurveyPage,
@@ -79,7 +79,18 @@ export interface SurveySceneData {
   startNodeId?: string;
   /** Optional per-node season history, for the trend column. Absent = trend shows the live count. */
   histories?: Readonly<Record<string, SurveyHistory>>;
-  /** Heading override — the epilogue names itself (Hard Req 7). */
+  /**
+   * A name for the SCREEN — the epilogue calls itself one (Hard Req 7). Drawn ahead of the node's
+   * own heading, never in place of it.
+   *
+   * ⚠ IT USED TO BE A HEADING OVERRIDE, AND THAT ERASED EVERY NODE NAME IN THE ENDING. `redraw`
+   * did `this.args.title ?? renderSurveyHeader(page)`, and that renderer is the only thing on this
+   * screen that prints which node you are looking at — so the epilogue's twelve pages all read
+   * `EPILOGUE SURVEY`, the Sanctum among them, distinguishable only by `3/12` in the footer. The
+   * composition now lives in one place, `game/survey-view.ts` `renderSurveyHeading`, where a node
+   * test can read the string; the word "override" is gone from this field because that is what a
+   * caller acted on.
+   */
   title?: string;
   mode?: SurveyMode;
   /**
@@ -283,7 +294,9 @@ export class SurveyScene extends Phaser.Scene {
       return;
     }
 
-    const heading = this.args.title ?? renderSurveyHeader(page);
+    // One composition, in the engine-free module, so the string a test reads is the string drawn:
+    // the screen's own name where the caller gave one, and ALWAYS the node the page is reading.
+    const heading = renderSurveyHeading(page, this.args.title);
     this.layer.add(this.text(PAD, PAD, heading, INK));
 
     if (this.mode === "numbers") {
@@ -294,7 +307,9 @@ export class SurveyScene extends Phaser.Scene {
       const lines = renderSurveyPage(page);
       const firstRow = lines.length - page.rows.length;
       lines.forEach((line, i) => {
-        if (i === 0) return; // the heading, already drawn (and overridable by the epilogue)
+        // Line 0 is `renderSurveyHeader(page)`, which the heading above already carries — titled or
+        // not, the node's name is on that line. Skipping it here draws it once rather than twice.
+        if (i === 0) return;
         const dim = i < firstRow && i !== TOTALS_LINE;
         this.layer.add(this.text(PAD, PAD + LINE_H * i, line, dim ? INK_DIM : INK));
       });
