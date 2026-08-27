@@ -272,7 +272,7 @@ while closing item 6.
    amended §10.2, and no predicate moved.** The assertions are byte-identical to what stood before;
    green before, green after. It also **dropped a figure sourced nowhere in this repo** — *"16% of
    seeds at 4 seasons"* — for the published **12.5%** (3 of 24 seeds), which §10.2
-   (`docs/build-doc.md:373`) and `core/foodweb.ts:242` both carry. The test **is** that measurement.
+   (`docs/build-doc.md:401`) and `core/foodweb.ts:242` both carry. The test **is** that measurement.
    The deleted line is in git: `git show af82c46 -- tests/integration/demo-beats.test.ts`.
 9. **CLOSED — the mesopredator filter is bound.** `isMesoLine` (`tools/harness/fixture.ts:110`,
    applied `:115`) is covered by `tests/unit/harness-fixture.test.ts`, 5 tests, whose count assertion
@@ -485,15 +485,28 @@ while closing item 6.
     dense checkerboard between two greens, paths a fine dot pattern, tree masses a repeating weave —
     and the texture lives in the **ground**, not the objects. Their figures: a 32×32 tile of plain New
     Bark grass, seven colours and no keylines, tiled to 1024², carries **43.59%** of their whole-map
-    **47.51%** by itself, against **8.83%** for our best output. `tools/artverify/ground-comparison.png`
+    **47.51%** by itself, against **8.83%** for our best output. ⚠ **Those three figures are WITHDRAWN
+    AS UNSOURCED** — see the withdrawal register at the foot of this file. `tools/artverify/ground-comparison.png`
     is 96 native pixels of Gold ground against ours at 6×, and it is the one artefact in this finding
-    a number cannot substitute for.
+    a number cannot substitute for — **it is what the finding now rests on**, and it is untouched,
+    because it is a picture rather than a percentage.
 
     **Two facts, kept split, because a combined sentence gets half-implemented.** **A — ordered dither
     buys edge density** and does nothing to the colour count. **B — a per-map colour subset buys colour
     discipline** and does nothing to edge density. Each disproves the other's sufficiency: dither at
     amplitude 45 without the subset → 40.02% in 43 colours; the subset without dither → 16 colours at
-    12.88%; both together → **44.74% in 16**, against Gold's 47.51% in 17.
+    12.88%; both together → **44.74% in 16**, against Gold's 47.51% in 17. ⚠ **The `47.51` baseline is
+    withdrawn as unsourced, and the three readings quoted against it go with it** (register at the foot
+    of this file). **A and B each disproving the other's sufficiency does not rest on the baseline and
+    stands**; *how close to Gold this got* does rest on it and does not.
+
+    **And the dither is source-dependent, which makes it a fragility rather than a settled recipe.** A
+    ±22 ordered bias crosses a palette boundary only where the ground colour already sits near one, so
+    the same amplitude transforms one source and leaves another flat. Through the same postprocess, on
+    one operator, comparable to each other and to nothing else: today's baseline input read **6.89%**
+    ground edge after the dither; a c64-LoRA input read **54.84%**, against **60.10%** for Gold read
+    the same way. Both are real; neither is "what the dither buys". An amplitude that works is a
+    property of the **pair** `(source, amplitude)`.
 
     **Both readings are reported and neither is capped.** `tests/gates/asset-palette-contract.test.ts`
     prints each shipped asset's colour count and ground texture against their measured bands: under its
@@ -529,6 +542,34 @@ while closing item 6.
     slot moves (T-15's lesson: **a palette id is a SLOT, not a colour**). Recorded here because the
     obvious future instinct is *"why not just pass K to the fitter"*, and the answer is that the fitter
     is a re-freeze tool by construction and a re-freeze is exactly what an append must not be.
+
+34. **The FOURTH incomplete ground-texture instrument: concentration plus distinct-count cannot see
+    ARRANGEMENT.** The published pair — *what share do the top three colours cover, and how many
+    distinct colours are in the patch* — is a histogram, and a histogram has no notion of where a
+    pixel is. **Three colours in large flat patches score identically to the same three interleaved
+    per pixel**, which are the two grounds the whole art direction is about telling apart. **Neighbour
+    alternation — the share of adjacent pairs that differ — is the third axis, and Gold sits at
+    48.7%.** Recorded beside the three that failed before it (a 3×3 Sobel blind to a period-2 dither;
+    a luminance threshold of 25 against Gold's own 28.2 separation; exact-RGB density saturating on
+    unquantized output) because it is the same shape: **an instrument reporting confidently on a
+    property it could not resolve.** Written into build-doc §16 with them, together with the rule the
+    night's edge figures produced — **an edge-density percentage means nothing without its
+    definition: threshold, channels, neighbours and denominator.**
+
+35. **The recurring dark band across the bottom edge is the prompt skeleton's own cliff-step clause
+    being obeyed literally — and this is the night's highest-value fix, LoRA-free.** It was called a
+    cutaway strip for hours and read as a projection failure. It is not. **Hearthollow is a flat
+    meadow hamlet with no elevation**, so the model has nowhere to put the step the clause asks for
+    and puts it at the frame. **Deleting the clause removes the band.** The shape of the fix is that
+    the clause should be **conditional on nodes that actually have elevation** rather than carried by
+    every node's prompt — but **the art lane owns the prompt files and the fix is theirs to make**;
+    this is recorded, not prescribed, and no prompt file was touched from here.
+
+    **Recorded with it because a disproof is worth more than a plausible story: the negations
+    hypothesis is cleanly DISPROVEN.** The theory was that the band came from negated phrasing. All
+    six negated phrases were rewritten as affirmations; **the band survived, and a second band
+    appeared at the top.** That is a disproof, not a weakened hypothesis — do not re-raise negation
+    as the cause.
 
 ## What is next
 
@@ -579,7 +620,7 @@ The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
   node and is `walkable: false`, and the feasibility gate measures `brackwater` and `r2`.
 - **Whether `node.walkable` gets a real reader, or the claim gets dropped** (**T-36**). The flag gates
   nothing: `travelTo` refuses only on adjacency and the act ladder, so the player walks all twelve
-  nodes. `docs/build-doc.md:202`, cut line **C-1** (`:428`) and `docs/content-bible.md:162` all
+  nodes. `docs/build-doc.md:202`, cut line **C-1** (`:456`) and `docs/content-bible.md:162` all
   describe a vignette-card fallback that **does not exist in `game/`**. Either build it or delete the
   language — an agent may not pick, because C-1 is a cut line and the content half is G2's.
 - **Whether the enemy AI should value moving first** (**T-37**). T-27 made the tie-break exact, and
@@ -648,6 +689,30 @@ The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
   settles may mean fitting it twice, and the second pass is the expensive one: everything already
   quantized against the new 48 has to be regenerated again. Recorded as open, not as a decision.
 
+- **Whether the pipeline adopts a LoRA — REOPENED, and the earlier "the LoRA lost" conclusion is
+  REVERSED.** The comparison that produced it measured **raw LoRA output against Gold**. That is
+  correct as far as it goes, and it answers *"does the LoRA alone produce Gold's ground"* — but the
+  question that decides adoption is **"does the LoRA plus our postprocess produce it"**, and that
+  combination had never been run. It has been now. Both inputs through the same dither:
+
+  | input to the same dither | ground edge after |
+  |---|---|
+  | today's baseline | **6.89%** |
+  | c64-LoRA cell | **54.84%** (Gold **60.10%** on the same operator) |
+
+  **The LoRA and the dither are multiplicative, not alternatives.** The LoRA does not supply the
+  texture — it supplies the **substrate the dither has nothing to bite on without**. Stated plainly,
+  because this trade gets habitually understated: **dropping the LoRA is not "lose a little polish";
+  it is the ground stays flat.** The same measurement is what established the dither's
+  source-dependence (item 32), so the two are one finding read from two ends.
+
+  **`docs/build-doc.md:418` states "zero LoRAs"** in the *How was AI used?* answer, which is written
+  for an external audience. **It is still true today, and it has NOT been touched.** An approval to
+  edit that sentence was reported through the art session — but that approval was **conditional on a
+  LoRA winning**, so it may now apply after all. **The conditionality is recorded and deliberately
+  not acted on.** Whether a LoRA is adopted, and whether that sentence changes, is the owner's call;
+  no agent may make either, and the sentence must not move ahead of the ruling on the first one.
+
 **Struck from this file, having been checked and found false:** the claim that
 `tools/comfy/manifest.json`'s `_deviations[]` rows index a ledger the repo no longer keeps (item 10);
 the two prose-lint corpus structural failures (`G8-ASSERT-CHOP`, `G9-SHAPE-SIG`), both now CLEAN;
@@ -684,3 +749,28 @@ and re-measuring on a schedule-count ladder is worth doing eventually and is not
 claim that **two** of the seven cells were suspect is withdrawn too — 0.86 measured as a real 9-step
 img2img, distinct from 0.80's 10. One cell was invalid, and the two-cell figure was a reading of a gap
 between measurements stated with a measurement's confidence.
+
+**Withdrawn on the same standard, same day — Gold's `47.51%` whole-map edge density, cited six times
+across this file, `docs/build-doc.md` and `docs/TICKETS.md`.** An independent re-measurement of **the
+same eight `assets/reference/gen2/` captures** could not reproduce it: at 1:1 native the property
+reads **50.4–78.8%**, and density-matched at 2× it reads **30.3–51.5%**. **No threshold reproduces
+47.51.** Its author has withdrawn it **pending republication with the operator attached** — threshold,
+channels, neighbours and denominator — and it is recorded rather than deleted precisely because it may
+come back and turn out fine. **Not disproved; not evidence either.** *As a consequence rather than a
+separate withdrawal* — mark a reading as a reading — the figures published beside it in the same
+session cannot be read against it: **43.59%**, **8.83%**, **44.74%**, **40.02%**, **12.88%** and the
+amplitude ladder `0 → 12.88, 24 → 24.09, 40 → 40.02, 56 → 63.77`. **Three things are explicitly NOT
+withdrawn and are not to be marked.** The **colour** figures — 12 to 18 distinct opaque colours, mean
+**16.0** over those same eight captures — were re-derived and **reproduce exactly**; item 32's colour
+half is sound. The palette gate's own band constants `GOLD_EDGE_LOW / HIGH / MEAN` = **51.0 / 78.7 /
+64.2** are computed by **its own** operator over the same PNGs and are unaffected — a band that ships
+with the code that produced it is the thing a bare percentage in prose is not. And the qualitative
+finding — **Gold's ground is dithered everywhere and ours is a flat fill** — rests on
+`tools/artverify/ground-comparison.png`, which is a picture. **The lesson is in build-doc §16: an
+edge-density percentage means nothing without its definition.** Every edge figure quoted that night
+without its operator attached produced **two numbers for one property**.
+
+**`tools/artverify/EVAL-STANDARD.md` still publishes the withdrawn figure at `:143`, `:145`, `:147`
+and `:165`, and `tests/gates/asset-palette-contract.test.ts` carries it in a comment at `:703` and
+`:716`.** Neither file is corrected here — the art lane and the gate's owner hold them. The gate's
+**asserted** constants are the unaffected ones; only its prose quotes the struck figure.

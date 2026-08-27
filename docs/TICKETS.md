@@ -28,6 +28,14 @@ Two scope questions moved to STATUS's *waiting on the owner* register rather tha
 as work: how many buildings should have an interior, and when the palette expands to 48 relative to
 the top-down re-author. Neither is an agent's to answer.
 
+**Later on 2026-08-27: T-17's ground-texture figures are MARKED, not removed.** Gold's `47.51%`
+whole-map edge density could not be reproduced and its author withdrew it pending republication with
+the operator attached; the marking and what survives it are at the end of T-17. **T-17 also gains the
+cause of the bottom-edge dark band** (the skeleton's cliff-step clause, obeyed literally on a node
+with no elevation) and the **disproof** of the negations hypothesis. **A third question — whether the
+pipeline adopts a LoRA — is REOPENED and sits in STATUS's *waiting on the owner* register, not here**,
+because it is the owner's call and not work.
+
 ---
 
 ## T-1 · Revise the tick system — RULED, BUILT, one decision outstanding
@@ -110,7 +118,7 @@ a mind of their own and not forcing any particular outcomes"* … *"keep that ho
 **The ruling: do not force it.** The simulation stays as it is. The specification stops promising a
 guaranteed outcome and describes what the §7.3 rules actually produce. Guardrail G6 still binds.
 
-- ✅ **build-doc §10.2 amended** (`docs/build-doc.md:370`): *"That collapse is the assertion.
+- ✅ **build-doc §10.2 amended** (`docs/build-doc.md:398`): *"That collapse is the assertion.
   Mesopredator release is reported, not required"*, with the 12.5% / 0–13% measurements and the G6
   clause. Supporting edits at §7.3 step 6 and §1 beat 1.
 - ✅ **`tests/integration/demo-beats.test.ts` rewritten, and no predicate moved.** The comment block
@@ -131,7 +139,7 @@ guaranteed outcome and describes what the §7.3 rules actually produce. Guardrai
 **A figure this ticket paid for, recorded rather than quietly dropped.** The comment block used to
 publish *"16% of seeds at 4 seasons, measured on the SIM"* — **a number sourced nowhere in this repo.**
 The real figure is **12.5%, being 3 of 24 seeds**, which is exactly what §10.2
-(`docs/build-doc.md:373`) and `core/foodweb.ts:242` already publish. The test **is** that measurement,
+(`docs/build-doc.md:401`) and `core/foodweb.ts:242` already publish. The test **is** that measurement,
 not a second opinion agreeing with one. The deleted line is in git:
 `git show af82c46 -- tests/integration/demo-beats.test.ts`.
 
@@ -194,7 +202,7 @@ the R1 quest row were corrected with it. No effect was fabricated.
 ### T-8 · Record Route 4's apex extinction as intended
 **Status:** DONE · **Hank:** *"Say so in the spec"*
 
-Recorded in both canonical docs: `docs/content-bible.md:170` and `docs/build-doc.md:377` (§10.5),
+Recorded in both canonical docs: `docs/content-bible.md:170` and `docs/build-doc.md:405` (§10.5),
 the latter naming the raid-suppressed **control run** as the instrument that separates intended from
 unintended extinction.
 
@@ -221,7 +229,7 @@ not a working instrument.
 ⚠ **Both canonical docs still describe the gap as open, and are now wrong.** Correcting them is the
 remainder of this ticket, and the wording is constrained: **any restored §10 claim must cite
 `baseline-no-raid` over 32 seeds, not "the baseline".**
-- `docs/build-doc.md:377` — *"A control run with the raid suppressed has not been run and no such
+- `docs/build-doc.md:405` — *"A control run with the raid suppressed has not been run and no such
   mode exists in the harness"*, and, in the same sentence, that an extinction is attributed to the
   raid *"by the node the raid script names, not by measurement"*. Both halves are now false.
 - `docs/content-bible.md:176-178` — *"The raid-suppressed control that would show the raid is the
@@ -483,8 +491,10 @@ actually been shipping wrong.** **Gold never uses a flat fill anywhere**: grass 
 checkerboard between two greens, paths a fine dot pattern, tree masses a repeating weave, and the
 texture is in the **ground**, not the objects — a 32×32 tile of plain New Bark grass with seven
 colours and no keylines carries **43.59%** of the whole map's **47.51%** on its own, against **8.83%**
-for our best output. See `tools/artverify/ground-comparison.png`; it is the one artefact here that a
-number cannot substitute for. **Work the two facts separately, because a combined sentence gets
+for our best output. ⚠ **Those three figures are WITHDRAWN AS UNSOURCED** — see the note at the end of
+this ticket, and STATUS's withdrawal register. See `tools/artverify/ground-comparison.png`; it is the
+one artefact here that a number cannot substitute for, **and with the figures struck it is what the
+finding rests on** — it is untouched, being a picture rather than a percentage. **Work the two facts separately, because a combined sentence gets
 half-implemented:**
 
 - **A — ordered dither buys EDGE DENSITY.** It does nothing to the colour count.
@@ -492,7 +502,16 @@ half-implemented:**
 
 Measured, each disproving the other's sufficiency: dither at amplitude 45 without the subset →
 **40.02% in 43 colours**; the subset without dither → **16 colours at 12.88%**; both together →
-**44.74% in 16**, against Gold's 47.51% in 17.
+**44.74% in 16**, against Gold's 47.51% in 17. ⚠ **The `47.51` baseline is withdrawn as unsourced and
+the three readings quoted against it go with it.** **A and B each disproving the other's sufficiency
+does not rest on the baseline and stands**; *how close to Gold this got* does rest on it and does not.
+
+**And the dither is SOURCE-DEPENDENT, so treat it as a fragility, not a settled recipe.** A ±22
+ordered bias crosses a palette boundary only where the ground colour already sits near one, so the
+same amplitude transforms one source and leaves another flat: through the same postprocess, on one
+operator, today's baseline input read **6.89%** ground edge and a c64-LoRA input read **54.84%**
+(Gold **60.10%** the same way). Both are real. An amplitude that works is a property of the **pair**
+`(source, amplitude)`, so do not carry one number into the re-author as *what the dither buys*.
 
 **Both readings are reported and NEITHER is capped**, by `tests/gates/asset-palette-contract.test.ts`'s
 advisory, for the reasons recorded at their thresholds. A colour cap at or above `palette.length`
@@ -523,6 +542,39 @@ neither axis. It returned nothing.** Do not cite it as evidence for or against a
 
 See also the Closed table below on `MAP-PROMPT-RULES.md` R2: the negative prompt's inertness is a
 property of **cfg 1.0**, not of the pipeline, and R2 stands as a decision regardless.
+
+**The recurring dark band across the bottom edge has a cause, and it is the highest-value fix
+available on this ticket. It is the skeleton's own cliff-step clause being obeyed literally.** It was
+called a *cutaway strip* for hours and read as a projection failure; it is not one. **Hearthollow is a
+flat meadow hamlet with no elevation**, so the model has nowhere to put the step the clause asks for
+and puts it at the frame. **Deleting the clause removes the band.** The shape of the fix is that the
+clause belongs **only on nodes that actually have elevation** — but **the map lane owns the prompt
+files, so this is recorded and not prescribed**, and nothing under `tools/comfy/` was touched from
+here. Note it is **LoRA-free**: it is available regardless of how the LoRA question in STATUS's
+*waiting on the owner* register is ruled.
+
+**The negations hypothesis is cleanly DISPROVEN — do not re-raise it.** The theory was that the band
+came from negated phrasing in the prompt. All **six** negated phrases were rewritten as affirmations;
+**the band survived, and a second band appeared at the top.** A disproof, not a plausible story, and
+not a weakened hypothesis.
+
+⚠ **The withdrawal this ticket's texture figures are marked against.** Gold's **`47.51%`** whole-map
+edge density — cited twice in this ticket, twice in `docs/build-doc.md` §8.4 and twice in
+`docs/STATUS.md` — **cannot be reproduced.** An independent re-measurement of the **same eight
+`assets/reference/gen2/` captures** reads **50.4–78.8% at 1:1 native** and **30.3–51.5%
+density-matched at 2×**; **no threshold reproduces 47.51.** Its author withdrew it **pending
+republication with the operator attached**, and it is marked rather than deleted on this queue's
+standing practice — a withdrawn claim is recorded, because it may be republished and turn out fine.
+**Not disproved; not evidence either.** *As a consequence rather than a separate withdrawal:* the
+figures published beside it in the same session — 43.59, 8.83, 44.74, 40.02, 12.88 and the amplitude
+ladder — cannot be read against it. **What the re-author must NOT drop, because it survived
+re-measurement:** the **colour** half of this ticket — Gold at **12 to 18 distinct opaque colours,
+mean 16.0**, against the shipped ten at 17–32 — **reproduces exactly and is untouched**; so are the
+palette gate's own band constants `GOLD_EDGE_LOW / HIGH / MEAN` = **51.0 / 78.7 / 64.2**, which are
+computed by its own operator over the same PNGs. **The general rule is in build-doc §16: an
+edge-density percentage means nothing without its definition** — threshold, channels, neighbours,
+denominator. `tools/artverify/EVAL-STANDARD.md` still publishes the struck figure and is the art
+lane's to correct.
 
 ### T-18 · Field-guide plates — trial it
 **Status:** TODO · **Hank:** *"you said this is listed in the spec, so why are you asking me about
@@ -581,14 +633,14 @@ Gloomoth, Umbrat, Wispurr, Bramblore, Cragmar, Daunt, and the 37-name second tie
 
 All three recordings landed: L1 (`docs/build-doc.md:39`) now reads **"Affirmed, not provisional"**;
 `docs/content-bible.md:14` inverts the old claim to **"No name in this file is a placeholder"**; and
-§18's IP-sweep box (`docs/build-doc.md:452`) is **ticked** and reworded to state what was screened.
+§18's IP-sweep box (`docs/build-doc.md:503`) is **ticked** and reworded to state what was screened.
 
 **Never put a name question to Hank again for anything already created.**
 
 ### T-23 · TROPHIC is a free class project — record it and stop
 **Status:** DONE · **Hank:** *"this is a class project that will be free. Shut the fuck up about IP!"*
 
-Recorded as locked decision **L14** (`docs/build-doc.md:54`): *"Free class project — not sold, no paid
+Recorded as locked decision **L14** (`docs/build-doc.md:52`): *"Free class project — not sold, no paid
 storefront, free distribution."* That closes the distribution question, the clearance-search question,
 and the storefront-dependent half of the naming ratings.
 
@@ -1015,7 +1067,7 @@ field (`core/schemas.ts:216`).
 
 **Three canonical sentences describe a path that does not exist in `game/`:**
 - `docs/build-doc.md:202` — `walkable: boolean; // false => vignette card fallback`
-- `docs/build-doc.md:428` — cut line **C-1**, *"acts 5–6 towns walkable → vignettes (already
+- `docs/build-doc.md:456` — cut line **C-1**, *"acts 5–6 towns walkable → vignettes (already
   default)"*. It is not the default and it is not implemented.
 - `docs/content-bible.md:162` — *"later nodes fall back to vignette cards."*
 
