@@ -14,15 +14,23 @@ cannot be worked by an agent — **T-1's open decision** — is first.
 while several agents were editing it.** Where a ticket's own predicted number turned out to be wrong,
 the measurement is recorded and the prediction is marked as wrong rather than quietly replaced.
 
-**Re-verified again on 2026-08-27 at 04:36, and the earlier claim that the tree had settled is
-retracted — six lanes are live in it.** `npx tsc --noEmit` reads **exit 0**; `npm run test` reads
-**10 failed, 3 files of 67**, stable across four consecutive runs, every one accounted for in STATUS's
-verified-state section (the passing total is not stable — other lanes were adding tests as this was
-written); **`main` is in sync with `origin/main`**. **No commit hash is quoted here any
-more:** this file has named three different HEADs in as many hours and each was stale before the
-paragraph around it was finished. "In sync with origin" stays true; a hash does not.
+**Re-verified again on 2026-08-27 at 05:43 and 05:47, both runs complete.** `npx tsc --noEmit` reads
+**exit 0**; `npm run test` reads **10 failed of 2,848, 3 files of 70** — identical on both runs, and
+every failure is accounted for in STATUS's verified-state section. **The file count and the passing
+total rose because tests were ADDED, not because anything regressed** (67 → 70 files, ~2,760 → 2,848
+cases). **`main` is in sync with `origin/main`**, and the working tree is down from 20 dirty paths to
+6, all of them the art lane. **No commit hash is quoted here any more:** this file has named three
+different HEADs in as many hours and each was stale before the paragraph around it was finished. "In
+sync with origin" stays true; a hash does not.
 
-**Closing on this pass: T-32, T-35, T-40, T-42.** **T-17 gains the colour and ground-texture
+**Closing on this pass: T-28, T-29, T-30, T-31, T-33, T-34** — the progression loop and the travel
+soft-lock. **T-28 closes for its WIRING and its own remaining *done when* clauses are named as
+unlanded and handed back to T-12**, rather than the ticket being marked done over them.
+**T-30 CORRECTS an overstatement it was itself carrying.** **T-34 closes with one gap left explicitly
+open** — `replay()` still has zero production callers. **T-44, T-45 and T-46 are new**, and all three
+are comments that went false without anything going red.
+
+**Closed on the previous pass: T-32, T-35, T-40, T-42.** **T-17 gains the colour and ground-texture
 findings.** **T-38 is CORRECTED — its own claim was false and the truth is worse.** **T-43 is new.**
 Two scope questions moved to STATUS's *waiting on the owner* register rather than being written here
 as work: how many buildings should have an interior, and when the palette expands to 48 relative to
@@ -151,7 +159,7 @@ didn't even pick this rule."*
 
 The blocker is cleared: the permanent G7 gate now genuinely reads `data/dialogue.json`
 (`tests/gates/guardrails.test.ts:1037` → `dialogueCopyViolations()` at `:1132`, asserted `:1247`),
-scanning 592 player-facing strings plus a joined-body pass over all 214 entries and a prose census
+scanning every player-facing string plus a joined-body pass over all 215 entries and a prose census
 over 18 other `data/*.json` files. It bites: `:1276` smuggles a moralizing line into every entry,
 `:1289` into a choice label and a name plate, `:1298` splits a banned phrase across two lines, and
 `:1338` fails loudly on an unknown field rather than leaving it unscanned. `COPY_SCAN_DIRS` stays
@@ -194,7 +202,7 @@ plus write Duskhollow's arrival scene"*
 ### T-7 · Amend the bible on the Bloom Year
 **Status:** DONE · **Hank:** *"amend the bible"*
 
-`docs/content-bible.md:237-246`: the Bloom Year is a latch on the rise, opens once per node in year
+`docs/content-bible.md:242-249`: the Bloom Year is a latch on the rise, opens once per node in year
 1–2 because `floraRegenPerSeason` exceeds maximum consumption, *"and it is not treated as a defect"*;
 **"The Bloom Year grants no bonus spawns, and none is owed"**, citing G3. The regional-events line and
 the R1 quest row were corrected with it. No effect was fabricated.
@@ -235,10 +243,14 @@ remainder of this ticket, and the wording is constrained: **any restored §10 cl
 - `docs/content-bible.md:176-178` — *"The raid-suppressed control that would show the raid is the
   whole cause has not been run, and the harness has no mode for it."* Same correction.
 
+  *(Both citations re-read 2026-08-27 and both are still at the lines given, and both are still wrong
+  in the way described. The bible's line numbers below `:76` have drifted ~5 lines since this file was
+  written and the T-7, T-9, T-10 and T-21 citations are corrected for it; these two had not moved.)*
+
 ### T-9 · Close the raid list at one
 **Status:** DONE · **Hank:** *"Close the raid list at one."*
 
-Recorded in both canonical docs: `docs/build-doc.md:268` (§7.5) and `docs/content-bible.md:252`.
+Recorded in both canonical docs: `docs/build-doc.md:268` (§7.5) and `docs/content-bible.md:257`.
 **"Do not author a second raid.** A per-act raid tier is a content proposal for Hank, not a row an
 agent adds."
 
@@ -246,7 +258,7 @@ agent adds."
 **Status:** DONE · **Hank:** *"correct the bible sentence, then reduce the age buff/nerf to have half
 the effect it currently does."*
 
-- Bible sentence corrected (`docs/content-bible.md:76`): the final form arrives in the elder year,
+- Bible sentence corrected (`docs/content-bible.md:78`): the final form arrives in the elder year,
   which is the calendar's business, and the league is on the act clock — *"the two do not meet"*.
 - `age.multiplier` **0.75 / 1.0 / 1.15 → 0.875 / 1.0 / 1.075** — half the *deviation from neutral*,
   which is what "half the effect" means; A is the neutral, so A did not move. `metamorphicJump` 1.15
@@ -260,16 +272,19 @@ the effect it currently does."*
   `balance.age.multiplier[age]` symbolically, so it tracked the retune (119 pass). The one prose
   comment that still quoted the old triple (`tests/unit/lifecycle.test.ts:1646`) has been corrected —
   T-25 item 3, DONE.
-- **Four copies of the OLD curve are still stated as the current rule**, each outside the doc scope
-  that corrected L9 and each verified by reading the line:
-  - `docs/content-bible.md:51` — "Age multiplier: Juvenile ×0.75 · Adult ×1.0 · Elder ×1.15." The
-    bible is canonical for content, and this is the sentence every other copy cites.
-  - `core/lifecycle.ts:349` — the `ageMultiplier()` docblock, `/** bible §2 — Juvenile ×0.75 · Adult
-    ×1.0 · Elder ×1.15. */`, above a body that reads `balance.age.multiplier[age]`.
-  - `core/lifecycle.ts:639` — "The age multiplier grows (J 0.75 → A 1.0 → E 1.15)", in the comment
-    that explains why `curHp` is rescaled at a transition. The argument is sound; the numbers are not.
-  - `data/gyms.json:5` `_levels` — "Old Nib is still unambiguously the ace: Elder (×1.15)". The ace
-    claim may still hold at ×1.075 and the roster is unaffected, but the figure is the old one.
+- ✅ **The four copies of the OLD curve are now ZERO — closed 2026-08-27, verified by re-reading each
+  line and then by a repo-wide grep.** `×0.75` does not appear in `core/`, `game/`, `data/` or `docs/`
+  at all. Each was fixed the way T-25 item 2 established — **name the balance key, refuse to name the
+  number**:
+  - `docs/content-bible.md:51` now reads *"Age multiplier: Juvenile penalty · Adult neutral · Elder
+    bonus. The **shape** is the content"* — the sentence every other copy cited.
+  - `core/lifecycle.ts:350` — the `ageMultiplier()` docblock now says *"a Juvenile penalty, a neutral
+    Adult, an Elder bonus … the three numbers are `balance.age.multiplier` and are a retune away, so
+    they are READ here and never restated."*
+  - `core/lifecycle.ts` — the `curHp`-rescale comment keeps its argument and drops the triple; the
+    surviving `×1.15` there is `metamorphicJump`, which is correct and was never in scope.
+  - `data/gyms.json:5` `_levels` now reads *"an Elder — the bonus is `balance.age.multiplier.E`,
+    ×1.075 today"*.
   Genuinely historical mentions are NOT in this list and must not be "corrected":
   `data/balance.json` `age._multiplier`, `tests/unit/battle.test.ts:154/185/212`,
   `tests/unit/catch.test.ts:331`, `tests/unit/lifecycle.test.ts:1648`,
@@ -304,37 +319,38 @@ them** (G14).
 ## Systems
 
 ### T-12 · Close the progression loop, and give money a purpose
-**Status:** IN PROGRESS — **the persistence spine landed 2026-08-27; the wiring did not. The remainder
-is T-28, and it ships with T-29.** · **Hank:** *"Close the loop, Health persists, plus an explicit
+**Status:** IN PROGRESS — **the PROGRESSION half is DONE (T-28 · T-29 · T-30 · T-33 · T-34, all landed
+2026-08-27). The ECONOMY half is not.** · **Hank:** *"Close the loop, Health persists, plus an explicit
 penalty. Set up the new items to be sold in towns, giving a purpose for the money."*
 
-**What landed:** `applyBattleResult` (`game/wild-battle.ts:471`), `applyBattleAftermath`
-(`core/save.ts:601`), the `battleAftermath` action-log entry, and
-`tests/unit/battle-persistence.test.ts`. **What did not:** anything calling it. The four sub-claims
-below were all true when written; the first two are now true only because the spine is unwired.
+**✅ Clause 1 — health, experience and items persist across battles.** `applyBattleResult`
+(`game/wild-battle.ts:503`) is the first statement of all four finish handlers
+(`game/scenes/OverworldScene.ts:1535 / :2233 / :2323 / :2397`), and `applyBattleAftermath`
+(`core/save.ts:579`) is the one writer of `curHp`, level, xp and the bag outside creation and the year
+turn. XP carries **in** as well as out (T-30). The fainted-party guards are no longer a dead end,
+because T-29 gives them a way out.
 
-**The largest build ticket here.** Today, losing a battle costs nothing:
+**✅ The explicit penalty exists — but as the BLACKOUT's five ticks, and that is a reading.**
+`core/recovery.ts:21` and `game/scenes/OverworldScene.ts:1986` both argue in prose that the wipe cost
+*is* the penalty this ticket asks for. It is a defensible reading and it is marked as one: **it prices
+a wipe, not a loss that leaves something standing.** Whether clause 3 wants more than that is open.
 
-- `save.party[].curHp` has **zero writers**. The only writers anywhere are `core/lifecycle.ts:458`
-  (creation-time) and `:638` (year-turn rescale of an already-defined value); `game/wild-battle.ts:115`
-  only reads it. Damage evaporates between fights, so the inn's rest heals nothing it needs to.
-- **Experience and levels are never written back.** `core/battle.ts:980`/`:1014` mutate the in-battle
-  `Battler` only; `game/battle-view.ts:890` renders the `levelUp` event. No assignment to
-  `OwnedCreature.level` or `.xp` exists in `game/`. A creature carried six in-game years is exactly
-  as strong on the last day as the first.
-- **The item bag is a copy** (`game/wild-battle.ts:244`, `gym-battle.ts:152`, `rival.ts:171`,
-  `finale.ts:274`, copied again at `core/battle.ts:574`), so consumables are effectively infinite.
-- **Nothing spends money.** The only occurrence outside the type and schema is
-  `core/save.ts:417` `money: opts.money ?? 0`. No earner, no spender.
+**❌ Clause 2 — the inn heals what it charges for.** `restAtInn`
+(`game/scenes/OverworldScene.ts:1972`) is `spendTicks("inn", …)` plus a banner, and nothing else.
+`balance.medicine.innRestFullHeal` is `true` and its **only reader** is `core/recovery.ts:377`, the
+blackout's wake. **The key is not missing; the call is.**
 
-Deliver all of it:
-1. Health, experience and items persist across battles. Wire the fainted-party guards.
-2. The inn heals what it charges for.
-3. An explicit loss penalty. The constant goes in `balance.json` (G11), never in code.
-4. **Items sold in the five town shops**, so money has a sink and the penalty bites.
+**❌ Clause 4 — items sold in the town shops.** No shop sells anything. `balance.economy` ships
+`innCost` 40, `trainerPayoutPerLevel` 12, and snare / bait / salve / tonic prices, and **every one of
+them has zero readers** outside `core/schemas.ts` and `core/types.ts`. The only `money` occurrence in
+`core/` or `game/` is still `core/save.ts:420` `money: opts.money ?? 0` — no earner, no spender.
 
-Touches `game/` battle-end handlers, the four fainted-party guards, the shop service beats, and ~6
-test files. **Do this before any further gym retune** — every win rate still comes from a player
+⚠ **This is now urgent in a way it was not before, and the reason is the half that landed.** With
+damage persisting and the inn inert, **a damaged-but-not-wiped party's only out-of-battle heal is to
+get wiped.** Landing clause 1 without clause 2 did not block the game — T-29 saw to that — but it did
+make the recovery the *cheapest route to full HP*, which is not what a rest at an inn is for.
+
+**Do this before any further gym retune** — every published win rate still comes from a harness player
 model that never levels.
 
 ### T-13 · Fix the gym measuring instrument
@@ -611,7 +627,7 @@ animation exists. Wiring it is part of this ticket.
 **Status:** IN PROGRESS — **doc half DONE** · **Hank:** *"correct the list to its 11 real rows first
 (3 doc edits, 0 cost), then shop one family against it"*
 
-- ✅ `docs/content-bible.md:293` now reads "Track manifest — **eleven tracks**" with exactly 11 rows.
+- ✅ `docs/content-bible.md:298` now reads "Track manifest — **eleven tracks**" with exactly 11 rows.
   Five rows for cut places deleted; the timeline labels replaced (`town y1` → `town, act 1`, etc.).
   build-doc carries no track table and needed no edit.
 - ❌ **No composer family has been shopped**, and there is no `ATTRIBUTION.md`. G9 requires one family
@@ -800,137 +816,194 @@ cited.
 
 | # | Ticket | In one line | Status |
 |---|---|---|---|
-| T-28 | Wire the persistence spine | `applyBattleResult` exists and nothing calls it | TODO |
-| T-29 | Party-wipe recovery | Ruled by Hank, on disk nowhere; T-28 makes a wipe terminal | TODO |
-| T-30 | XP is written out, never read back | `makeBattler` zeroes it every fight | TODO |
-| T-31 | `ensureNodeArt` can soft-lock travel | An unsettled promise strands `travelling` forever | TODO |
-| T-32 | Two clause-7 tests are RED | T-27 removed the state dependence they pinned | TODO |
-| T-33 | `GameAction` needs `battleAftermath` | One line; deletes the repo's only `as GameAction` | TODO |
-| T-34 | `replay()` loses a caught creature | L10 is false for any run containing a catch | TODO |
-| T-35 | Interiors, phase 2 — the scene layer | Doors, arrival cell, indoor guards, save field | TODO |
+| T-28 | Wire the persistence spine | All four finish handlers call `applyBattleResult` | **DONE** — wiring only; 3 clauses back to T-12 |
+| T-29 | Party-wipe recovery | Blackout, wake at an inn, 5 ticks, composed from existing keys | **DONE** |
+| T-30 | XP is written out, never read back | `BattlerSpec.xp` carries it back in | **DONE** |
+| T-31 | `ensureNodeArt` can soft-lock travel | It has a deadline and resolves on it | **DONE** |
+| T-32 | Two clause-7 tests are RED | T-27 removed the state dependence they pinned | **DONE** |
+| T-33 | `GameAction` needs `battleAftermath` | There were TWO casts and there are now zero | **DONE** |
+| T-34 | `replay()` loses a caught creature | Fixed — but `replay()` still has no production caller | **DONE, one gap open** |
+| T-35 | Interiors, phase 2 — the scene layer | Doors, arrival cell, indoor guards, save field | **DONE** |
 | T-36 | `node.walkable` gates nothing | Two canonical docs describe a path `game/` does not have | TODO · **Hank's** |
 | T-37 | The enemy AI is blind to move `priority` | A design call, not a defect | TODO · **Hank's** |
-| T-38 | The level-5 starter is one-shot on Route 1 | 78 damage against 58 HP, and a loss now persists | TODO |
+| T-38 | The level-5 starter is one-shot on Route 1 | Measured again with persistence live; the loss now costs | measured · **Hank's** |
 | T-39 | `sanctum-antler-ring` is on the spawn cell | Two map rules land on the same cell | TODO |
-| T-40 | `DexScene` / `SummaryScene` optional `onClose` | The epilogue-survey shape, one supplier from repeating | TODO |
+| T-40 | `DexScene` / `SummaryScene` optional `onClose` | The epilogue-survey shape, one supplier from repeating | **DONE** |
 | T-41 | `fit: true` vs `nearestResample` | The batch pipeline and the derived views disagree | TODO |
-| T-42 | Three comments call a season four ticks long | T-25 item 2's sibling, found while closing it | TODO |
+| T-42 | Three comments call a season four ticks long | T-25 item 2's sibling, found while closing it | **DONE** |
+| T-43 | The palette append needs its own generator | `fit.mjs` is a re-freeze tool by construction | TODO |
+| T-44 | A test comment says `GameAction` has no `blackout` | It has one; the test passes and its reason is dead | TODO |
+| T-45 | `core/recovery.ts:30` misplaces `BlackoutRecovery` | The type moved to `core/types.ts`; imports unchanged | TODO |
+| T-46 | A fossilised precondition asserts the repo is empty | Ten maps landed; `manifest.test.ts:1414` is RED | TODO |
 
 ### T-28 · Wire the persistence spine — nothing calls `applyBattleResult`
-**Status:** TODO — **T-12's remainder. Ships together with T-29; read that one before starting.**
+**Status:** **DONE for the wiring, and three of its own *done when* clauses did NOT land and go back
+to T-12.** Marked this way deliberately: this queue's standing practice is to record what was not done
+rather than let a ticket close over it. Shipped with T-29 as required.
 
-T-12's spine landed: `applyBattleResult` (`game/wild-battle.ts:471`) appends a `battleAftermath` action
-and applies it (`:476`), and `applyBattleAftermath` (`core/save.ts:601`) is the only writer of
-`save.party[].curHp`, level and xp outside creation and the year turn. **What is missing is the
-wiring.**
+**What landed, re-read line by line on 2026-08-27.** `applyBattleResult` (`game/wild-battle.ts:503`)
+is now the **first statement** of all four finish handlers:
 
-- **Zero production callers.** Every caller in the repo is a test —
-  `tests/unit/battle-persistence.test.ts:293, 336, 394, 418, 457, 482, 529`.
-- **Three docblocks already advertise it as *"the ONE writer all four launchers share"***:
-  `game/rival.ts:184`, `game/gym-battle.ts:165`, `game/finale.ts:313`. **All three are false today** —
-  the derived-artifact-carrying-a-hand-written-claim shape, arriving in a docblock.
-- The four handlers, re-read (the `:1033 / :1559 / :1646 / :1716` this queue used to carry are each
-  about four lines high): wild `onFinished` at `game/scenes/OverworldScene.ts:1006` →
-  `finishWildBattle` `:1024` (body `:1029`, `applyWildBattleOutcome` `:1035`); gym inline
-  `:1555-1567`; rival inline `:1642-1653`; finale inline `:1712-1731`.
-- **The inn heals nothing.** `restAtInn` (`game/scenes/OverworldScene.ts:1423`) spends two ticks and
-  prints a banner (`:1424-1427`). No party HP write at all.
+| launcher | call site |
+|---|---|
+| wild | `game/scenes/OverworldScene.ts:1535`, inside `finishWildBattle` — **before** the catch writer |
+| gym | `:2233` |
+| rival | `:2323` |
+| finale | `:2397`, before `resolveVellsireCatch` |
 
-Each of the four is one line — `this.save = applyBattleResult(this.save, result.state);` — but landing
-only that is the dangerous half: the moment `curHp` persists, an unhealed party has no recovery.
+**The three docblocks that already advertised it as *"the ONE writer all four launchers share"* —
+`game/rival.ts:184`, `game/gym-battle.ts:165`, `game/finale.ts:313` — BECAME TRUE rather than needing
+repair.** That is worth stating plainly, because it is the opposite outcome to the
+derived-artifact-carrying-a-hand-written-claim shape this file keeps recording: the claim was written
+ahead of the code, and the code caught up to it. It only reads as a success in hindsight; while it was
+false, nothing could tell the two cases apart.
 
-**Done when:** all four handlers call it; the inn heals what it charges for; a loss penalty reads its
-constant from `data/balance.json` (G11 — never a literal); the five town shops sell items so money has
-a sink and the penalty bites; the three docblocks above are true; and **T-29 ships in the same
-change.**
+**Two decisions to record, because both are the kind someone later "simplifies".**
+
+1. **THE BLACKOUT IS THE CONTINUATION OF THE FIGHT'S BEAT, NEVER THE OTHER WAY ROUND.** The leader's
+   `battle-loss`, Wick's line, the finale's epilogue — each plays first, and `recoverFromBlackout`
+   (`game/scenes/OverworldScene.ts:2050`) is what runs when its box closes. **Measured, not
+   preferred:** `playPendingCutscene` asks the corpus what is queued for `this.node.id`, and
+   `maren.epilogue.released` / `maren.epilogue.caught` are `cutscene`s at **`sanctum`** while
+   `maren.finale` is one at **`sanctum-approach`**. Blacking out first carries the player two nodes
+   away and none of the three is eligible any more — losing the Vellsire fight left **the released
+   epilogue unplayed**, which is half of a never-cut beat. (It is not *lost*: every autoplay entry
+   closes itself with a flag, so it is still pending when the player walks back. But "the ending
+   arrives after a hike" is not the beat.) The reasoning is written at `OverworldScene.ts:1999-2012`,
+   where whoever reorders it will read it.
+2. **`enterNode` IS SYNCHRONOUS** (`game/scenes/OverworldScene.ts:2928`, returns `void`). The async
+   version left `save.currentNode` and `this.node` naming **different nodes** between the write and
+   the microtask — precisely the half-swapped state `liveNode` / `activeGrid` exist to prevent. It was
+   extracted from `travelTo` rather than copied, so travel's adjacency check, its act gate and its
+   tick stay with travel and the blackout's price stays with the blackout.
+
+**What did NOT land, and is now T-12's remainder** — each verified by reading the code, not inferred:
+- **The inn still heals nothing.** `restAtInn` (`game/scenes/OverworldScene.ts:1972`) is
+  `spendTicks("inn", …)` and a banner, and nothing else. `balance.medicine.innRestFullHeal` is `true`
+  and its **only** reader is `core/recovery.ts:377`, the blackout's wake.
+- **Money still has no earner and no sink.** `balance.economy`'s `innCost`, `trainerPayoutPerLevel`
+  and the four price groups have **zero readers** outside `core/schemas.ts` and `core/types.ts`.
+- **No town shop sells anything.**
+- **A loss penalty exists only as the blackout's 5 ticks.** `core/recovery.ts:21` and
+  `OverworldScene.ts:1986` both argue in prose that this *is* the explicit penalty T-12 asks for.
+  **That is a reading and is marked as one** — it prices a WIPE, not a loss that leaves something
+  standing.
+
+**The consequence of landing the wiring without the heal, stated because it is live right now:** a
+party that is damaged but not wiped has exactly one out-of-battle way to heal, which is to get wiped.
 
 ### T-29 · Party-wipe recovery — Hank has ruled this and it exists nowhere on disk
-**Status:** TODO — **urgent, and paired with T-28** · **Hank:** *"When your team is wiped, a dialogue
+**Status:** **DONE — landed with T-28, as required.** · **Hank:** *"When your team is wiped, a dialogue
 shows up with a black background saying you passed out or something like that, and then you wake up
 at the inn."* · on the cost: *"it should use twice the inn ticks, in addition to the cost of one fast
 travel"*
 
+**Both rulings are still recorded verbatim, and they are recorded in the CODE as well as here** —
+`core/recovery.ts:5-11` quotes both, at the top of the module that implements them.
+
 **The cost composes from existing keys, so no new balance key and no literal in code (G11):**
-`2 × balance.clock.innTicks + 1 × balance.clock.travelTicks`. On the shipped file
-(`data/balance.json:321` and `:319`) that is **2 × 2 + 1 = 5 ticks**.
+`2 × balance.clock.innTicks + 1 × balance.clock.travelTicks`. Re-read off the shipped file
+(`data/balance.json:319` `travelTicks: 1`, `:321` `innTicks: 2`) that is **2 × 2 + 1 = 5 ticks**, and
+`core/recovery.ts` composes it through `core/clock.ts`'s own helpers rather than multiplying — the
+"twice" is the length of a list, so there is no numeric literal at all. **There is no `blackoutTicks`
+balance key and there must not be one**; the ruling defines the price in terms of the two that already
+exist, and `core/recovery.ts:24-28` says so where a future retuner will read it.
 
-**Nothing like it exists.** Grep across `game/` and `data/dialogue.json` for wipe / blackout / "passed
-out" / whiteout returns zero recovery paths. What exists is **refusal**, not recovery:
+**What shipped:**
+- `core/recovery.ts` — pure TypeScript, zero engine imports (L11). It owns the DECISIONS: is the party
+  down, where do they wake, what is charged. `core/save.ts` owns the tape.
+- `game/scenes/OverworldScene.ts:2050` `recoverFromBlackout`, **called at the end of every fight and a
+  no-op unless one is owed** — `blackoutRecoveryFor` answers null both for a party with something on
+  its feet and for an empty one, which is a different state and belongs to the opening beat.
+- The party wakes **fully healed**: `core/recovery.ts:377` reads `balance.medicine.innRestFullHeal`
+  rather than restoring only the fallen, which is what a rest is and what bible §11 says in words.
+- **`narration.blackout`** is authored in `data/dialogue.json` — a `service` entry, three lines, and
+  the corpus went 214 entries / 509 lines → **215 / 512** because of it. It is gated on the cue the
+  recovery raises and reached through the existing selector path, so the reachability gate sees it.
+  Its copy holds G7: it reports the ceiling, the beam, the cold water on the stool. No line tells the
+  player they did wrong.
+- `tests/unit/recovery.test.ts` — **33 cases**, covering the price list against the ruling, the
+  absoluteness of the tape entry, the round trip, the refusal on a uid the save does not carry, and
+  *"the dead end is real before the recovery exists to open it"* at every one of the twelve nodes.
+- The **end-to-end** case is in `tests/unit/overworld-scene.test.ts:1179-1198`, not in the unit file:
+  it walks the slice until a real fight is lost, then asserts something is standing, at
+  `wakeNodeFor(SLICE_NODE, content)`, that the scene moved with the save, that the clock moved by
+  exactly `blackoutTicks(balance)` (*"the blackout was free"* is its failure message), that the tape
+  carries it, and that **the next fight can actually be launched** (`wildBattleProblem` is null).
 
-- `partyProblem` — `game/wild-battle.ts:201`, the one shared clause; `:206` returns *"nothing in the
-  party is standing — nothing can be sent out"*.
-- Four launcher guards reach it: `game/wild-battle.ts:218`, `game/gym-battle.ts:75`,
-  `game/rival.ts:99`, `game/finale.ts:280`; called from `game/scenes/OverworldScene.ts:975, 1477,
-  1604, 1673, 2377`.
-- Last-ditch `unfieldableProblem` at `game/scenes/OverworldScene.ts:951`, from `handOffToBattle`
-  (`:897`) at `:921-925`.
-- Pinned by `tests/unit/battle-launch-guards.test.ts` §1 `:137`, §2 `:187` (`:205` pins the exact
-  string), §3 `:219`, §4 `:246`.
-- `game/rival.ts:94` and `game/scenes/OverworldScene.ts:1465` **already note** that an
-  arrival-triggered fight can strand a fainted party on a route.
-
-**Net: the game refuses every fight forever and never offers a way to un-wipe.** It is unreachable
-today only because HP never persists — the inn heals nothing and the year turn keeps a zero at zero.
-**T-28 makes it reachable and terminal**, which contradicts the closed ruling that a forced choice
-exists *"so the game cannot block"*.
-
-**G7 binds hard on the copy.** Black screen, passed out, wake at the inn. No line may tell the player
-they did wrong, imply guilt, or draw a lesson from the wipe.
-
-**Done when:** a wipe is detected at battle end; the blackout dialogue is authored in
-`data/dialogue.json` and reachable through the existing selector path, so the reachability gate can
-see it; the party wakes healed at the inn; the clock is charged `2 × innTicks + 1 × travelTicks` read
-from `balance.clock`; and a test drives a real wipe end to end and asserts the run continues.
+**What it replaced.** The game used to answer a wipe with **refusal** and never with recovery:
+`partyProblem` (`game/wild-battle.ts:212`, returning *"nothing in the party is standing — nothing can
+be sent out"* at `:217`), four launcher guards, and a last-ditch `unfieldableProblem`. That was
+survivable only because HP never persisted. **T-28 made it reachable and terminal**, which would have
+contradicted the closed ruling that a forced choice exists *"so the game cannot block"* — which is why
+the two had to ship together and did.
 
 ### T-30 · XP is written out and never read back in
-**Status:** TODO — **depends on T-28; without the writeback there is nothing to carry**
+**Status:** **DONE — landed with T-28.**
 
-`core/battle.ts:529` — `makeBattler` (`:487-492`) hard-codes `xp: 0`. `BattlerSpec`
-(`core/types.ts:299-313`) has **no `xp` field**, so `battlerSpecOf` (`game/wild-battle.ts:113`) cannot
-carry one even in principle. Banked XP is reset to zero at the start of every fight.
+`BattlerSpec` now carries **`xp?`** (`core/types.ts`), `makeBattler` reads it back as
+`xp: spec.xp ?? 0` instead of hard-coding zero, and `battlerSpecOf` (`game/wild-battle.ts`) copies
+the owned creature's field **verbatim** — carried, never derived, so what a battler enters a fight
+with is a pure function of the save and a replay (L10) sees the same number. The reason is written on
+the field itself, which is where whoever deletes it will read it.
 
-Measured on shipped balance:
-- `xpGain` (`core/battle.ts:882`) against a level-5 enemy = `floor(12 + 4 × 5 × 1.0)` = **32**.
-- `xpToNext` (`core/battle.ts:887`) at level 5 = `15 × 5^1.4` = **142.77**.
+⚠ **THIS TICKET'S OWN CLAIM WAS AN OVERSTATEMENT AND IS CORRECTED, NOT REPHRASED.** It said, quoting
+`core/save.ts`, that *"no single-enemy wild fight can ever level anything."* **That is true from
+level 2 up and FALSE at level 1.** Re-derived from `data/balance.json` `xp`
+(`base` 12, `perEnemyLevel` 4, `ageBonus.A` 1.0, `toNextCoefficient` 15, `toNextExponent` 1.4) rather
+than quoted from anywhere:
 
-So at the level the starter is granted at, a creature needs about **4.5 wins to level and banks none
-of them**: no wild fight can ever level a level-5 creature.
+| level | `xpToNext(L)` | `xpGain` vs a same-level Adult | levels off one kill? |
+|---|---|---|---|
+| 1 | **15.000** | **16** | **yes** |
+| 2 | 39.585 | 20 | no |
+| 5 | 142.774 | 32 | no |
+| 8 | 275.688 | 44 | no |
 
-⚠ **One claim to correct while you are in there.** `core/save.ts:509-511` states this as *"no
-single-enemy wild fight can ever level anything"*. **That is too strong.** At level 1, `xpGain` = 16
-against `xpToNext(1)` = 15.0, so a level-1 creature **does** level off a single kill; the crossover is
-immediate after that (L2: 20 vs 39.59). The claim is true at level 5 and false at level 1, and a
-docblock that overstates is the thing T-25 exists for.
-
-**Done when:** `BattlerSpec` carries `xp?`, `makeBattler` reads it instead of zeroing it,
-`battlerSpecOf` sets it, the `core/save.ts` docblock states the level-dependent truth, and a test
-carries XP across two consecutive fights and levels a creature on the second.
+The crossover is immediate and never comes back — the threshold grows as `L^1.4` and the gain grows
+linearly. So the honest statement is **level-dependent**, and both docblocks now make it:
+`core/types.ts` `BattlerSpec.xp` says *"(It was not literally impossible — at level 1 the first enemy
+pays 16 against a threshold of 15 — but every level above the first was.)"*, and `core/save.ts:493-498`
+carries the same qualification. **A docblock that overstates is the thing T-25 exists for**, and this
+one was in a ticket rather than in the code.
 
 ### T-31 · `ensureNodeArt` can permanently soft-lock travel
-**Status:** TODO — **on the never-cut walkable slice**
+**Status:** **DONE — committed.** `ensureNodeArt` (`game/mapview.ts:278`) takes a deadline —
+`ART_LOAD_TIMEOUT_MS` 8000, as a **parameter** so a test drives it rather than sleeping through it —
+and the stall that left `travelling` stuck true, silently refusing every later travel for the rest of
+the session, cannot happen now.
 
-`ensureNodeArt` (`game/mapview.ts:130`) builds its promise at `:137-141`, and its **only** settle path
-is `scene.load.once(Phaser.Loader.Events.COMPLETE, () => resolve())` at `:139`. No
-`FILE_LOAD_ERROR` listener, no `reject`, no timer. (There is an early-out at `:136` when nothing is
-pending, which is why this has never been noticed.)
+⚠ **CORRECT ONE OF THIS TICKET'S OWN THREE STALL PATHS.** It said `start()`'s early return was
+reachable *"during `LOADER_PROCESSING`"*. Read off the pinned Phaser (`node_modules/phaser` is
+**3.90.0**): **`LOADER_PROCESSING` is declared in `loader/const.js` and never assigned anywhere in
+`LoaderPlugin.js`** — its only appearance is inside `isLoading()` at `LoaderPlugin.js:884`. **That
+framing is not reachable in the pinned version.** The real form of the path is
+**`LOADER_SHUTDOWN` / `LOADER_DESTROYED`** (`LoaderPlugin.js:1261` and `:1281`), where `start` returns,
+nothing is subscribed to scene UPDATE, and nothing will ever emit again. The corrected reading is
+written at `game/mapview.ts:211-220`. **The other two paths are confirmed:** `XHRSettings.timeout`
+defaults to `0`, so the `xhr.ontimeout` wiring is dead code and the `HTMLImageElement` alternative
+wires no timeout at all; and teardown mid-load returns early on two guards. *A ticket's own file:line
+is not a measurement* — and neither is a ticket's own reading of a dependency.
 
-`travelTo` (`game/scenes/OverworldScene.ts:2225`) sets `this.travelling = true` at `:2249`, opens
-`try {` at `:2250`, awaits `ensureNodeArt` at `:2252`, and clears the flag in `finally` at `:2266`.
-**If the promise never settles, the `finally` never runs.** Seven sites early-return on that flag —
-`:1087, :1126, :1266, :1424, :1595, :1750`, plus `travelTo`'s own guard at `:2226` — so travel, foray,
-inn and menu actions are **silently refused for the rest of the session**. No error, no message, no
-way back.
+**THE DESIGN DECISION: IT RESOLVES, IT DOES NOT REJECT — and that was measured rather than argued.**
+**Neither caller has a `.catch`**: the sole travel caller is `void this.travelTo(target)` and
+`recoverFromBlackout`'s is `void ensureNodeArt(…).then(…)`. A rejection is therefore an *unhandled*
+rejection, which puts **less** on screen than the hang did. Proven, not asserted — the reject sabotage
+produced **six unhandled rejections**. What it does instead is separate two states the HUD had been
+collapsing, so **built-but-absent reads *"did not load"*** and reaches the player through a line the
+scene already prints (`statusFor`, shown at `OverworldScene.ts:844`).
 
-**Not live today**, because Phaser emits `COMPLETE` even when a file 404s. Three paths stall it anyway:
-1. **`XHRSettings.timeout` defaults to `0`** — no timeout — so a hung connection fires neither `load`
-   nor `error` and the loader never completes.
-2. **`start()` is a silent no-op unless the loader is IDLE or COMPLETE**, so two overlapping travels
-   can leave the second waiting on a `COMPLETE` that already fired.
-3. **Teardown mid-load.**
+**And the cost, stated rather than glossed: the load is NOT cancelled.** A texture that arrives after
+the deadline sits in the TextureManager unused, and that visit finishes on the labelled stand-in with
+a synthesised collision grid. **It self-heals on the next entry** — `pending` is then empty and the
+real art draws. **A degraded visit instead of an un-travellable session** is the trade, and it is the
+right side of it.
 
-**Done when:** the promise has both an error branch and a bounded timeout, each of which settles it;
-`travelling` cannot outlive the await (cleared on any settle, not only on success); and a test that
-deliberately never fires `COMPLETE` proves travel still recovers.
+**The instrument failure this ticket paid for is on STATUS item 39 as №7**, and it is a shape none of
+the earlier six had: the first version of the timer assertion watched `console.warn` to prove the
+watchdog had been cleared, and the callback's own `if (settled) return` suppresses that warning **even
+with a live timer still pending**. It observed nothing and passed. It binds now because it counts live
+timers directly — `vi.getTimerCount()`, `tests/unit/mapview.test.ts:380-383`.
 
 ### T-32 · Two clause-7 tests are RED because T-27 stabilised the tie-break
 **Status:** DONE — **three changes landed; `tests/unit/harness.test.ts` reads 76 passed of 76.**
@@ -972,50 +1045,51 @@ scores **identically**. The docblock resolves the tension explicitly; the title 
 wrong, and not renamed in passing — recorded because it is no longer self-explaining.
 
 ### T-33 · `GameAction` needs a `battleAftermath` member
-**Status:** TODO — **one line, and it unblocks T-34's named case**
+**Status:** **DONE.** `core/types.ts:641` declares the union and it now carries **both**
+`| { t: "battleAftermath"; aftermath: BattleAftermath }` (`:656`) and
+`| { t: "blackout"; recovery: BlackoutRecovery }` (`:684`), each with the reason written above it.
 
-`core/types.ts:565` declares the `GameAction` union — `travel`, `foray`, `inn`, `battle`,
-`battleAction`, `catch`, `release`, `seasonStep`, `gymVictory`, `yearTurn`, `retirement`. **No
-`battleAftermath`.** Two consequences, both documented in place:
+⚠ **This ticket's own count was wrong, and in the direction that matters.** It said the change
+*"deletes the repo's only `as GameAction`"*. **There were two, and there are now zero** —
+`grep "as GameAction"` over `core/` and `game/` returns **nothing**, re-run before this line was
+written. The single surviving hit anywhere is a **comment** in `tests/unit/save.test.ts:1059`
+recording what the cast used to look like, which is history and is correct where it stands.
 
-- `battleAftermathAction` (`core/save.ts:537`) ends in the repo's **only** `as GameAction` cast, at
-  `core/save.ts:547`, under a comment naming the missing member.
-- `replay` has to consume the entry in its `default` arm (`core/save.ts:864-882`) instead of a named
-  `case`, for the reason written at `:866-869`: a `case` label will not compile without the member.
+`battleAftermathAction` (`core/save.ts:518`) and `blackoutAction` (`:645`) both return a `GameAction`
+with no cast, and `replay` dispatches each from a **named `case`** instead of its `default` arm.
+`npx tsc --noEmit` reads **exit 0**.
 
-The exact line is already written out at `core/save.ts:531-532`:
-
-    | { t: "battleAftermath"; aftermath: BattleAftermath }
-
-**No `core/schemas.ts` change is needed.** `actionLog[].action` is
-`z.looseObject({ t: z.string().min(1) })` at `core/schemas.ts:824`, permissive by design — the
-rationale is at `:783`.
-
-**Done when:** the member is in the union, the cast at `core/save.ts:547` is deleted, `replay` reads it
-in a named `case`, and `npx tsc --noEmit` still reads exit 0.
+**No `core/schemas.ts` change was needed and none must be added.** `actionLog[].action` is
+`z.looseObject({ t: z.string().min(1) })` — permissive by design, and `looseObject` hands the payload
+back **intact**, measured: a `battleAftermath` entry survives `serialize` → `deserialize` with its
+party and items whole, where a `z.object` would have returned `{t}` alone. Pinning the union in the
+schema would make every lane that adds an action edit that file. The reason is recorded at
+`core/save.ts:502-514`.
 
 ### T-34 · `replay()` loses a caught creature — L10 is false for any run containing a catch
-**Status:** TODO — **measured: live party `[starter, wild-loamunder]` replays to `[starter]`**
+**Status:** **DONE for the defect. ONE GAP STAYS OPEN and must not read as if it were closed.**
 
-`replay()` is `core/save.ts:719`. The party half of a catch is delegated to `ReplayDeps.applyOther`,
-declared **optional** at `core/save.ts:651` and called at `:829, :834, :839, :861, :881`. The only
-implementor is `replayRegionHooks(...).applyOther` at `game/year-replay.ts:135-139`, which resyncs the
-ecosim population mirror and **adds no creature to the party**; the inner `deps.applyOther` it
-delegates to has no production supplier anywhere (the sole implementation in the repo is a test stub,
-`tests/unit/save.test.ts:948`). `core/save.ts:716-717` says so in prose.
+**The defect is fixed and was measured on one run before and after.** The `catch` action now carries
+the creature itself — `| { t: "catch"; nodeId; lineId; uid; gained?: OwnedCreature }` in the
+`GameAction` union — **whole and absolute**, because *nothing else on the tape can rebuild it*: the
+encounter roll, the trait roll and the fight that fixed its age, level and traits are not logged at
+all. `catchAction` (`core/save.ts:752`) is the constructor that fills it in and `applyCaught` (`:829`)
+is the one applier both the live path and the replay path come through. `gained` is **optional** so a
+tape written before it still loads and replays unchanged (INV-2). The pattern is the one
+`battleAftermath` established, applied to the catch, exactly as this ticket proposed.
 
-**The `battleAftermath` entry added on 2026-08-27 is exactly the pattern this needs** —
-`applyBattleResult` appends one (`game/wild-battle.ts:476`) and `replay` re-applies it
-(`core/save.ts:879-880`). Do the same for the catch.
+Bound by `tests/property/determinism.test.ts:421` — *"reproduces the WHOLE save — the creature
+included, not just the count"* — with `:481` proving the entry is idempotent, `:501` proving a catch
+entry whose creature is not the one the entry names is **refused**, and `:518` covering a run
+containing a RELEASE.
 
-⚠ **Scope this honestly: `replay()` has ZERO production callers.** Every call site is a test —
-`tests/unit/year-turn-ux.test.ts:3131, 3153, 3203, 3363`, `tests/unit/wild-battle.test.ts:241`,
-`tests/unit/battle-persistence.test.ts:491, 513, 517, 540, 612`. **L10 is a property the suite
-asserts, not a load path the game takes.** That is what made a false L10 survivable, and it is also
-the thing to notice: the determinism tests are certifying less than their name suggests.
-
-**Done when:** a replayed run containing a catch reproduces the live party exactly, and the thing that
-proves it is a determinism test that actually catches a creature.
+⚠ **STILL OPEN, AND IT WAS NOT CLOSED BY THIS TICKET: `replay()` HAS ZERO PRODUCTION CALLERS.**
+Re-grepped after the fix landed — every call site in the repo is a test
+(`year-turn-ux`, `wild-battle`, `battle-persistence`, `recovery`, `determinism`, `seams`). **L10
+remains a property the suite asserts, not a load path the game takes.** That is what made a false L10
+survivable for as long as it was, and it is the part still worth noticing: the determinism tests
+certify less than their name suggests, and fixing the creature did nothing about that. Carried in
+STATUS's *what is open* as item 37.
 
 ### T-35 · Interiors, phase 2 — the scene layer
 **Status:** DONE — **the player can walk into a building, move around it, and walk back out.**
@@ -1142,9 +1216,21 @@ lines. Name the starter whenever a figure here is quoted.
 1. **It was predicted in writing.** `data/balance.json`'s `age._multiplier` note recorded this
    instrument reading a **66.2%** loss rate after T-10 and said the T-11 Producer re-spend would move
    it. It has, to about **80%**. This is a known consequence arriving, not a surprise.
-2. **It matters far more now than when it was first noted**, because a lost fight is about to cost
-   something: T-28 makes battle damage persist and T-29 charges the recovery. Nothing in `game/` calls
-   `applyBattleResult` yet — verified by grep — and both tickets are in flight.
+2. **It matters far more now, because both tickets have LANDED.** T-28 makes battle damage persist and
+   T-29 charges the recovery; `applyBattleResult` is called from all four finish handlers as of
+   2026-08-27, so a lost fight costs 5 ticks and a walk back.
+
+**Re-measured with both wirings live — and this is the SAME finding, seen from the other side of the
+change, not a second one.** Over **24 encounters at `hearthollow`**: **10 catches** where the
+pre-recovery measurement of the same slice got **zero**; **4 wipes** at 5 ticks each; **20 of the
+run's 40 ticks** spent waking up; year 1 ending at `hearthollow`. And **the first three encounters are
+all losses** — the granted juvenile starter loses to Elders and Adults alike, and the run only becomes
+viable once the fourth encounter's catch enlarges the party. That is the table above arriving in a
+real run: ~80% losses and ~79% one-shots, now with the loss persisting. **Half the year buys the
+opening.** The material is in STATUS's waiting-on-the-owner register as one item, deliberately, rather
+than filed twice.
+
+**Nothing was tuned to produce any of it and nothing should be** (G2, G14, and T-11's own ruling).
 
 **Nothing was tuned to produce these numbers and nothing should be.** Levels, rosters, stats and
 balance values are Hank's; G2 and T-11's ruling forbid an agent moving them, and G14 forbids moving a
@@ -1252,6 +1338,69 @@ palette change.
 
 ---
 
+## Opened 2026-08-27 by the progression-loop pass — three comments that went false in silence
+
+**All three share one shape and it is the shape this queue keeps paying for: a sentence that was true
+when written, is false now, and has NOTHING that will ever go red to say so.** Two of the three sit in
+files a green suite runs over every time. They are recorded rather than fixed here because each is in
+a file another lane holds; none is a behaviour defect, and none blocks anything.
+
+### T-44 · A test comment says `GameAction` deliberately has no `blackout` member
+**Status:** TODO — **the test PASSES and its stated reason is dead, which is the dangerous half**
+
+`tests/unit/overworld-scene.test.ts:1194` reads, in a block explaining why the assertion below it goes
+through `readBlackout` rather than comparing `action.t`:
+
+> `core/types.ts` `GameAction` deliberately has no `blackout` member (see `core/save.ts`
+> `blackoutAction`), so a string comparison here does not even typecheck.
+
+**`core/types.ts:684` is that member** (T-33). A string comparison would typecheck fine now. The
+assertion itself is still good — reading through `readBlackout` checks the payload's *shape* and not
+just its tag, which is a better test — but **the reason given for it is no longer true**, and nothing
+in the suite can notice: the test is green and will stay green.
+
+**Done when:** the comment states the real reason (`readBlackout` validates the payload, a tag
+comparison does not) instead of a compile-time claim that has expired.
+
+### T-45 · `core/recovery.ts:30` says `core/save.ts` owns `BlackoutRecovery`
+**Status:** TODO — **imprecise, not broken; nothing to repair in the code**
+
+`core/recovery.ts:30` reads *"WHAT LIVES WHERE. `core/save.ts` owns the TAPE — `BlackoutRecovery`,
+`blackoutAction`, `readBlackout`, `applyBlackout`."* Three of those four are in `core/save.ts`. **The
+TYPE is not:** `BlackoutRecovery` is declared at `core/types.ts:634` — it had to move, because
+`GameAction` names it and `core/types.ts` may not import from a sibling — and `core/save.ts:622`
+re-exports it (`export type { BlackoutRecovery } from "./types";`), which is why **every import is
+unchanged and nothing is broken.**
+
+The sentence's actual claim — that `save.ts` owns the tape and `recovery.ts` owns the decisions — is
+correct and worth keeping. Only the enumeration is off by one member.
+
+**Done when:** the list names the three functions and says the type lives in `core/types.ts` and is
+re-exported, with the reason (`GameAction` names it) beside it.
+
+### T-46 · A fossilised precondition asserts the repo has no maps on disk
+**Status:** TODO — **RED in the suite today; one of the ten failures**
+
+`tests/unit/manifest.test.ts:1414` asserts `existsSync(resolve(REPO_ROOT, node.mapAsset))` is
+**`false`** for `r1`, under a comment at `:1410-1413` reading *"The repo's true state today: no node
+has a base map or a mask on disk, so the honest verdict for every year variant is REFUSE."*
+
+**Ten maps landed.** The premise expired and the setup went red with it — this is the *fossilised
+anchor* shape (STATUS, "a derived artifact carrying a hand-written claim") arriving in a
+**precondition** rather than in an expected value.
+
+**The claim the test exists to make is worth keeping and must not be weakened**: a node with no
+collision mask must **REFUSE**, never fall back to "every pixel is walkable", because a fallback
+compares the whole frame and turns the gate into decoration. The body already builds a temp dir and
+writes the base map so that *the mask is the only thing missing* — which is the right rig. **Only the
+opening assertion about the repo's own state has to stop being made**, or be made against the temp
+dir rather than `REPO_ROOT`.
+
+**Done when:** the precondition no longer asserts the repository is empty, the REFUSE claim is
+unchanged, and sabotaging the refusal still reds it.
+
+---
+
 ## Closed — recorded so nobody re-raises them
 
 | Item | Ruling |
@@ -1302,5 +1451,14 @@ palette change.
   sabotage it to see whether it bites. This repo has had a cascade metric that counted the wrong
   animal, a prose linter whose checks were fossils, a gym harness measuring a party size the game
   does not allow, 2,095 tests certifying a finale nobody could reach, a WCAG-anchor test whose third
-  assertion was a hex fossil, and an integration test that certifies a cascade whose cost it never
-  advances the clock to pay.
+  assertion was a hex fossil, an integration test that certifies a cascade whose cost it never
+  advances the clock to pay, an assertion watching a `console.warn` the code under test suppresses,
+  and an ordering check that passed on 5.685 against 5.816.
+- **LOOKING IS A CHECK, NEVER THE ANSWER.** *Look before trusting a number* still stands, with its
+  scope narrowed: looking **disqualifies** a number, it does not qualify one. A rule that told you to
+  look and let you stop there is what produced the LoRA reversal — a ground that looked stippled was
+  2,451 colours differing by one per channel. The full list of nine is in STATUS item 39.
+- **RETIRE AN INSTRUMENT THAT HAS PRODUCED A WRONG ANSWER — do not merely correct the answer.** A
+  corrected conclusion leaves the tool in service, and the tool is what produced it. Self-reported by
+  the art session after a crude hue-family bucketer produced a second wrong claim: *"Second time from
+  the same tool; I should have stopped using it after the first."*
