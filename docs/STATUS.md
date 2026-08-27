@@ -5,14 +5,16 @@ population, the food web is derived from those numbers rather than authored besi
 calendar ages every creature and map underneath the story. **A run is playable end to end today** —
 Hearthollow → R1 → Brackwater → R2 on foot, catching off the node's real counts, quests, gyms and
 badges, a year turn that ages the party and the box, a retirement that puts an heir in the party,
-and the Sanctum with the Vellsire choice and the epilogue survey. Everything on screen is a labelled
-placeholder; no generated art is on disk and no audio exists.
+and the Sanctum with the Vellsire choice and the epilogue survey, and buildings the player can walk
+into. **Ten painted maps are on disk and everything else on screen is a labelled placeholder** — no
+sprite, no dex plate, no UI frame, no collision mask, and no audio exists. The ten maps are WIP
+against T-17's amended top-down projection.
 
 ---
 
 ## ⚠ THE OPEN DECISION — the year-1 over-catch beat no longer clears its gate
 
-`tests/unit/transcription.test.ts:1358` is **RED**, and it is red on the shipped numbers, not on
+`tests/unit/transcription.test.ts:1365` is **RED**, and it is red on the shipped numbers, not on
 anything in flight. It gates build-doc §1 beat 1 / §15 I2 — the cascade, a never-cut beat.
 
     AssertionError: brackwater: 19.2 removals needed to starve fenmaw-line,
@@ -70,44 +72,52 @@ cannot see it.
 
 ## Verified state
 
-**Measured 2026-08-27 against a tree that has settled.** The 2026-08-26 measurement this section used
-to carry was taken while several agents were editing, and it never held still: `git status` went
-55 → 74 → 78 → 80 dirty paths inside half an hour, and four `tsc` runs produced three different error
-sets. **That is over.** The tree was committed at `af82c46` at Hank's instruction, and the numbers
-below repeat across consecutive runs.
+**Re-measured 2026-08-27 between 04:36 and 04:54, and the earlier claim that the tree had settled is
+retracted — six lanes are live in it.** The FAILURE set repeats across consecutive runs; the passing
+count, the dirty-path count and the commit hash do not, and neither did two one-run transients.
 
 - `npx tsc --noEmit` — **exit 0.** Silence, which is clean.
   Note `cmd | tail; echo $?` reports **tail's** status, not the command's — that mistake has already
   reported this repo's prose linter as exit 0 when it is exit 1.
-- `npm run test` — **12 failed / 2548 passed, 4 files of 61.** Every one of the twelve is accounted
-  for, and **none of them is an unknown**:
-  - **`tests/unit/transcription.test.ts:1358` — 1 failure.** The cascade feasibility gate, the
-    section at the top of this file. Settled, and it is the owner's decision, not a defect to fix.
-  - **`tests/gates/player-art-contract.test.ts` — 7 of 16.** *Correctly* red: the first gate in this
-    repo that decodes a PNG, reporting real defects in committed sprites the art session owns
+- `npm run test` — **10 failed, 3 files of 67.** The ten are stable across four consecutive runs and
+  every one is accounted for below; **the PASSING total is not stable and is not a health figure** —
+  it read 2,740 at 04:36 and 2,762 at 04:54 because other lanes were adding tests while this was
+  written. Two transients were caught in the same window and neither is a finding:
+  `tests/unit/overworld-scene.test.ts` was red once (spawn-props lane mid-edit) and green on the next
+  run, and `npx tsc --noEmit` reported one error in `game/scenes/SurveyScene.ts` and was silent again
+  a minute later. **Run a file alone before believing it is red, and run it twice before writing it
+  down.**
+  - **`tests/gates/player-art-contract.test.ts` — 7 of 16**, confirmed by running the file alone.
+    *Correctly* red: it decodes the committed sprites and reports real defects the art session owns
     (T-24). Verbatim: `player-back-32x48.png` *"holds 8 px in 2 colour(s) that data/palette.json does
-    not contain: #ec9a70×4 #eec092×4"*; the star badge fails on the cap rows and on the whole rear
-    view; and the freshness assertion reports the committed back view disagreeing with a fresh
-    derivation in **333 px**, first at (10,4).
-  - **`tests/unit/harness.test.ts` — 2 of 77.** Both clause-7 (`:519` failing at `:541`, `:573`
-    failing at `:622`), and both **red because they are working**: T-27 removed the state dependence
-    they were pinning, exactly as `:574-585` said it would. T-32.
-  - **`tests/unit/manifest.test.ts` — 2 of 118.** The art lane mid-flight in
-    `tools/comfy/manifest.json`. Not a defect and not to be quoted as one.
+    not contain: #ec9a70×4 #eec092×4"*; `player-side-32x48.png` holds 420 px in 11; the star badge
+    fails on the cap rows and on the whole rear view; and the freshness assertion reports the committed
+    back view disagreeing with a fresh derivation in **333 px**, first at (10,4).
+  - **`tests/unit/manifest.test.ts` — 2 of 118**, and they are two different things. `:345` is the art
+    lane mid-flight in `tools/comfy/manifest.json` and is not a defect. **`:1414` is a fossilised
+    PRECONDITION**: it asserts `existsSync(r1.mapAsset)` is `false`, under a comment reading *"The
+    repo's true state today: no node has a base map or a mask on disk."* Ten maps landed; the premise
+    expired. The claim the test exists to make — a maskless node must REFUSE, never fall back to
+    "every pixel walkable" — is untouched and worth keeping; only its setup needs to stop asserting
+    the repo is empty. Owned by the art lane's files, so it is handed over rather than edited here.
+  - **`tests/unit/transcription.test.ts:1365` — 1 failure.** The cascade feasibility gate, the section
+    at the top of this file. Settled, and it is the owner's decision, not a defect to fix.
+  - **`tests/unit/harness.test.ts` is GREEN — 76 of 76.** The two clause-7 reds this section carried
+    are closed (T-32); the 77 → 76 is one deliberate deletion, not a lost test.
 - `python3 tools/prose/prose-lint.py data/dialogue.json` — **exit 1**, 214 entries, 63 speakers, 509
   lines. 27 control assertions green over 7 structural checks. **0 corpus structural failures.**
   3 per-beat advisory flags, all `R1-SUBJECT-SWITCH`, 3 speakers.
   **The non-zero exit is not evidence of a structural failure**: `tools/prose/prose-lint.py:1085`
   exits on `beat_total + fails ≠ 0`, so three advisory flags alone produce exit 1.
-- `git` — HEAD is **`461169c`**, and **`main` is in sync with `origin/main` — everything is pushed.**
-  The exposure this file carried all night (a machine that had already lost power once holding the
-  only copy) is closed. One session owns the index by Hank's instruction; the art lane does not commit.
-  `git status --porcelain` is **11 paths**: the interiors lane (`core/interiors.ts`,
-  `data/interiors/*.json`, `tests/unit/interiors.test.ts`), `assets/reference/`, `tools/mapgen/`, and
-  a lock file. The commit captured the whole tree at Hank's instruction, which is why the previous
-  80-path snapshot has no successor. **The dirty-path count is the one figure here that still moves
-  under you** — the interiors and map lanes are both live, and it changed while this was being
-  written. The test and typecheck numbers above repeated across consecutive runs; that one does not.
+- `git` — **`main` is in sync with `origin/main`; everything is pushed.** **No commit hash is quoted
+  here any more, deliberately.** This section has named three different HEADs in as many hours and each
+  was stale before the paragraph around it was finished — "in sync with origin" is a claim that stays
+  true, a hash is a claim that expires. One session owns the index by Hank's instruction; the art lane
+  does not commit. `git status --porcelain` was **20 paths** when this was written, all of them lanes
+  in flight — party-wipe recovery (`core/save.ts`, `core/recovery.ts`, `tests/unit/recovery.test.ts`),
+  spawn and props (`game/scenes/OverworldScene.ts`, `game/mapview.ts`, `tests/unit/overworld-scene.test.ts`),
+  the art session (`tools/comfy/`, `tools/mapgen/`, `tools/artverify/`, `assets/approved-trials/_palette-refreeze/`),
+  dialogue, and `docs/`. **The dirty-path count moves under you and is not a health figure.**
 
 ## What is built
 
@@ -141,6 +151,9 @@ below repeat across consecutive runs.
 | Battle persistence | The **spine** exists — `applyBattleResult` appends a `battleAftermath` action and `applyBattleAftermath` writes `curHp`/level/xp. **Nothing in `game/` calls it**, so no fight persists yet (T-28) | `game/wild-battle.ts:471`, `core/save.ts:601` |
 | Enemy AI tie-break | Ranks on `movePowerVs × typeMultiplier` alone — the dropped factors are common to a pool and cannot reorder it. 13 → 0 divergences; the argmax is still an exact strict `>` | `core/battle.ts:1364` |
 | Player art contract | **The first gate here that decodes a PNG** (via `sharp`): palette exactness, star-badge absence, no new swatches, and a freshness check against a live re-derivation. Currently and correctly RED | `tests/gates/player-art-contract.test.ts` |
+| Asset palette contract | Every PNG the bundle ships out of `assets/final/`, decoded: exact palette membership, no vacuous pass, deletion detected by anchoring the scope to git. The advisory now prints each asset's distinct-colour count **against the measured Gold band 12–18**, and asserts that band against the reference captures it was derived from. The count itself is a reading aid and caps nothing — see item 32 | `tests/gates/asset-palette-contract.test.ts` |
+| UI contrast contract | The UI cannot go illegible on a palette change without going red | `tests/gates/ui-contrast-contract.test.ts` |
+| Interiors | Blueprints, plans, and a **view mode inside `OverworldScene`** — the player walks in, moves around and walks back out; `save.currentNode` keeps naming the town and `save.interiorId` says which room. Four plans: inn and supply shop in both walkable towns | `core/interiors.ts`, `data/interiors/*.json`, `game/scenes/OverworldScene.ts` |
 | Art pipeline | Comfy Cloud client, batch runner, postprocess, overlay diff; **plus a supervised trial runner** (`tools/comfy/trial.ts`, `TRIAL_ROW_CAP` 20 for G13) | `tools/comfy/`, `tools/postprocess/` |
 | Palette | 32 positional swatches, **re-frozen 2026-08-26 to the class-equal fit** — all 32 hex values changed, ids/count/`frozen` intact | `data/palette.json` |
 | Dex art path | `dexArtId()` produces `dex-painted/dex-<name>`; bound by a 9-test set-identity gate | `game/survey-view.ts:828`, `tests/gates/dex-path-contract.test.ts` |
@@ -324,14 +337,25 @@ while closing item 6.
     player-side change is backed by an exhaustive sweep over **8.1 million pairings**: zero real
     reorders, all 11,602 divergences exact ties.
 
-    ⚠ **Two clause-7 tests in `tests/unit/harness.test.ts` went red as a direct consequence** —
-    `:519` (failing `:541`) and `:573` (failing `:622`) — exactly as `:574-585` predicted in writing.
-    They are red because they work. T-32.
+    **The two clause-7 tests this consequence reddened are CLOSED** *(T-32, DONE)*. `harness.test.ts`
+    reads **76 passed of 76** — the 77 → 76 is one deliberate deletion carried out under the deleted
+    test's own written protocol, not a lost test. What replaced it is an exhaustive sweep, and the
+    sabotage that justifies it is the sharpest demonstration this repo has of a green test binding
+    nothing: reverting `tools/harness/arena.ts` to the pre-T-27 full-product argmax reds the new sweep
+    on **78 of 104,976 pairings with the cases named**, and **the 36-sample test it replaced stays
+    green.** The reasoning, including the clause in the deleted test's docblock that was deliberately
+    *not* acted on, is in TICKETS T-32.
 
 ### Art and audio
 
-22. **No art is on disk.** `assets/final/` holds a `.gitkeep`. `tools/comfy/manifest.json` is 288
-    rows, `{pending: 287, approved: 1}`. The B1 reproduction gate has never been run.
+22. **Ten maps are on disk and nothing else is.** `assets/final/maps/` holds the twelve nodes' art
+    less bowerdeep and cindershelf — all ten committed, all ten exactly on-palette (mean ΔE 0.000,
+    zero off-palette pixels, measured by `tests/gates/asset-palette-contract.test.ts`), and all ten
+    still WIP against T-17's amended top-down projection. No sprite, no dex plate, no UI frame, no
+    collision mask exists. `tools/comfy/manifest.json` is 288 rows, `{pending: 287, approved: 1}`;
+    **10 of the 288 declared `finalFile`s exist.** The B1 reproduction gate has never been run.
+    *(This item read "No art is on disk. `assets/final/` holds a `.gitkeep`" until now — it was true
+    when written and had been false for a day.)*
 23. **Billing is now calibrated, and the scarcity framing this file used to carry was wrong.**
     *(T-26, DONE)* `tools/comfy/manifest.json:9` reads **`perImageCredits: 1.12`** — dashboard
     **4,147 → 4,127 across 18 images at 1024²**. **The entire 288-row manifest costs roughly 323
@@ -353,11 +377,14 @@ while closing item 6.
 
 ### Found on the 2026-08-27 pass
 
-26. **Three comments still call a season four ticks long** — the sibling of item 6, found while
-    closing it. `balance.clock.ticksPerSeason` is **13**, and `data/balance.json:410` already says a
-    regional-event window *"stays open for clock.ticksPerSeason ticks"*. The stale figure survives at
-    `game/scenes/OverworldScene.ts:1405` (stated as the current rule), `:1915` (as narration) and
-    `core/regional-events.ts:415`. *(T-42)*
+26. **CLOSED — the comments that called a season four ticks long.** *(T-42, DONE)* The ticket
+    predicted three sites; there were **four** — a test docblock was carrying the same figure and was
+    found while the other three were being fixed. None of the four now states the number as the
+    current rule: `game/scenes/OverworldScene.ts:1830` says in as many words that this line *"said
+    '4-tick' for as long as that was false"*, and `:2349`, `core/regional-events.ts:418` and
+    `tests/unit/overworld-scene.test.ts:1487` each name the window as `clock.ticksPerSeason` and mark
+    the old figure as the then-shipped 16-tick year. **A ticket's own count is not a measurement**, in
+    this file's own standing phrasing, and this is a fourth instance of it.
 
 27. **Layouts must be AUTHORED, not derived — and this was reached twice, independently.** Once from
     the schema side, asking what an interior could be generated from; once from the pixel side,
@@ -395,12 +422,23 @@ while closing item 6.
     `game/survey-view.ts:270` states that `Palette.ts`'s `UI_SWATCH` "is not an alignment target and
     never was", so this is recorded as a fact about the tables, not as a defect in either.
 
-30. **`assets/reference/` now holds seven Gen 2 / Gen 3 maps — inspiration only.** Five under
-    `gen2/` (`azalea-town`, `cherrygrove-city`, `new-bark-town`, `route-29`, `violet-city-partial`)
-    and two under `gen3/` (`fortree-city`, `lavaridge-town`), plus a `README.md` that says so.
-    **Never shipped, never quantized, never fed to the pipeline.** Hank directed the folder
-    explicitly. The two Gen 3 maps are T-17's structural references: Fortree is Bowerdeep, Lavaridge
-    is Cindershelf.
+30. **`assets/reference/` holds ten Gen 2 / Gen 3 maps — inspiration only, and they were REFETCHED
+    at native size after the first set was found contaminated.** Eight under `gen2/` (Azalea,
+    Cherrygrove, New Bark, Olivine, Violet, Routes 29, 32 and 42) and two under `gen3/` (Fortree,
+    Lavaridge), plus a `README.md` that says so. **Never shipped, never quantized, never fed to the
+    pipeline.** Hank directed the folder explicitly. The two Gen 3 maps are T-17's structural
+    references: Fortree is Bowerdeep, Lavaridge is Cindershelf.
+
+    **The first captures were browser screenshots and every figure taken from them is withdrawn.**
+    They were resampled — **642×574 from a 320×288 source, not even a clean 2×** — and interpolation
+    invented colour on the way: they held **673 to 2,080 distinct colours** where the native frames
+    hold 12 to 18. The only figures ever published from them were the **pixel-block measurements**,
+    and those are **withdrawn as unsourced**, on the same standard as the other struck claims at the
+    foot of this file: not disproved, but taken from an instrument now known to have been wrong by two
+    orders of magnitude, so they are not evidence of anything and must be re-measured before reuse.
+    The contaminated files are deleted. `tests/gates/asset-palette-contract.test.ts` now asserts that
+    each surviving capture still measures inside the band it is quoted for, so a resampled screenshot
+    cannot re-enter the reference set unnoticed.
 
 31. **SETTLED — Hild's pitch is a building, and the doc prose was the outlier.** `CAST-AND-VOICE.md`
     called it a *"marsh stall"* while `tools/comfy/manifest.json` counted it among Brackwater's five
@@ -425,6 +463,73 @@ while closing item 6.
     a contradiction between two documents without a new measurement — and here it settled one against
     the doc that everybody would have assumed was canonical.
 
+32. **The maps use twice the colour Gold's do, and that is most of the "MS Paint" verdict.** The art
+    session measured the eight native-size Gen 2 captures: **12 to 18 distinct opaque colours, mean
+    16.0**. The two Gen 3 RSE captures read **49** each — a second reason not to mix the two as style
+    sources on this axis, beyond T-17's projection. Measured the same way on the same day, **the ten
+    shipped maps run 17 to 32, mean 27.0**: r2 uses all 32 of the frozen palette, brackwater 31, and
+    only sanctum-approach at 17 falls inside the Gold band. Both sets of figures were reproduced
+    independently before being written here, file by file.
+
+    **This does not argue against a larger palette, and the two must not be read as opposed.** A
+    palette **contains** a region; a single map **uses** a subset of it — 48 available and 16 used is
+    correct, 48 available and 31 used is the bug. A per-scene subset drawn from a wider shared set is
+    nearer to how the hardware being imitated worked than one global list every picture dips into.
+    Written into build-doc §8.4 as a locked distinction rather than left here, because the next reader
+    of the palette expansion will otherwise take this finding as a reason to abandon it.
+
+    **And the colour count is only half of it. The other half is GROUND TEXTURE, and it is the half
+    that has actually been shipping wrong.** A map at 16 colours and 9% edge density is flat; a map at
+    16 colours and 45% is right; a colour check cannot tell them apart. The art session's diagnosis is
+    a **postprocess** fact, not a generation one: **Gold never uses a flat fill anywhere** — grass is a
+    dense checkerboard between two greens, paths a fine dot pattern, tree masses a repeating weave —
+    and the texture lives in the **ground**, not the objects. Their figures: a 32×32 tile of plain New
+    Bark grass, seven colours and no keylines, tiled to 1024², carries **43.59%** of their whole-map
+    **47.51%** by itself, against **8.83%** for our best output. `tools/artverify/ground-comparison.png`
+    is 96 native pixels of Gold ground against ours at 6×, and it is the one artefact in this finding
+    a number cannot substitute for.
+
+    **Two facts, kept split, because a combined sentence gets half-implemented.** **A — ordered dither
+    buys edge density** and does nothing to the colour count. **B — a per-map colour subset buys colour
+    discipline** and does nothing to edge density. Each disproves the other's sufficiency: dither at
+    amplitude 45 without the subset → 40.02% in 43 colours; the subset without dither → 16 colours at
+    12.88%; both together → **44.74% in 16**, against Gold's 47.51% in 17.
+
+    **Both readings are reported and neither is capped.** `tests/gates/asset-palette-contract.test.ts`
+    prints each shipped asset's colour count and ground texture against their measured bands: under its
+    own operator the ten maps read **8.4–44.1% texture, mean 22.0**, against **51–79%, mean 64.2** for
+    the eight Gold captures — **all ten below the texture band, nine of ten above the colour band.**
+    Nothing about either number is asserted, and the reasons are at the thresholds. A colour cap at or
+    above `palette.length` cannot fail at all, because every opaque pixel is already asserted to be an
+    exact palette colour, and a cap below it is taste with a number painted on it. A texture cap is
+    worse: the response to dither amplitude is near-linear (0 → 12.88, 24 → 24.09, 40 → 40.02,
+    56 → 63.77), so a generator can be tuned to any figure named — and applied globally the dither
+    speckles roofs and walls, so **a map that reached 47% by ruining its buildings would pass.** What
+    the gate asserts instead is the instrument: that both published bands match the captures they came
+    from, that those captures still measure what they are quoted as measuring, and that the texture
+    reading actually discriminates.
+
+    **§8.2's Sobel was tried first for the texture reading and is structurally blind to it.** A 3×3
+    Sobel cancels on a period-2 checkerboard — the `x±1` samples in each row share parity, so `Gx` and
+    `Gy` are identically zero. Measured on a 256² synthetic: flat ground with one object **0.78%**, the
+    same image with a one-pixel dithered ground **0.78%**, while the neighbour-difference operator the
+    gate uses separates them **0.39%** and **93.94%**. Benign for `overlay-diff` itself, which measures
+    layout drift and is right not to see dither — but it means **that gate cannot be used to check a
+    re-dithered variant kept its texture**, and it is why this one defines its own operator. Both halves
+    are asserted in the gate, so the note cannot rot into a claim nobody re-measures.
+
+33. **`tools/palette/fit.mjs` structurally cannot produce a palette APPEND, and a second generator is
+    the correct shape rather than a workaround.** Two properties, both read in the file: `K = 32` is a
+    module constant at `:61` with no CLI override — the flags are `--sources`, `--out`, `--outdir`,
+    `--label` and nothing else (`:78-99`) — and swatch ids are **re-derived from sorted ramp
+    position** at `:373`, over a sort at `:361-372` that puts the neutral ramp first by L\* and then
+    groups chromatics into 30° hue families. So raising K does not add swatches to the end: it refits
+    from scratch and **silently re-orders every existing id**, which destroys the one guarantee an
+    append exists to preserve — `c00`–`c31` byte-identical, so that nothing already indexed against a
+    slot moves (T-15's lesson: **a palette id is a SLOT, not a colour**). Recorded here because the
+    obvious future instinct is *"why not just pass K to the fitter"*, and the answer is that the fitter
+    is a re-freeze tool by construction and a re-freeze is exactly what an append must not be.
+
 ## What is next
 
 The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
@@ -439,20 +544,19 @@ The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
    ruling.
 3. **Land T-30 behind it** — XP is written out and never read back, so nothing the player owns gets
    stronger across six in-game years.
-4. **Land T-32.** Two tests are red in the tree right now, and they are red because they work.
-5. **Repair the player-sprite assets** (T-24's remaining half). The code half and the gate are done;
+4. **Repair the player-sprite assets** (T-24's remaining half). The code half and the gate are done;
    the committed PNGs are not, and the gate is correctly RED against them.
-6. **Interiors phase 2** (T-35), once phase 1 settles.
-7. **Re-author the maps top-down** (T-17, amended). Three of the nine rejects retire at the root and
-   `r5`'s defect inverts, so the reject list is smaller than it looks.
-8. **Run the B1 reproduction gate** (build-doc §15, Lane B) — one asset per pixel class reproduced
+5. **Re-author the maps top-down** (T-17, amended). Three of the nine rejects retire at the root and
+   `r5`'s defect inverts, so the reject list is smaller than it looks. **Colour discipline is part of
+   the re-author, not a separate pass** — item 32: the shipped ten run 17–32 colours against Gold's
+   12–18, and nine of the ten are flagged above the band by the palette gate's advisory.
+6. **Run the B1 reproduction gate** (build-doc §15, Lane B) — one asset per pixel class reproduced
    from `manifest.json` byte-identically. Nothing multi-version starts before it passes.
-9. **Give the harness a lifecycle mode** so the Legacy beat is measured rather than asserted.
-10. **Batch the vertical-slice art** (B3/B4). G13 still binds — no batch of 20 or more without an
-    explicit `--confirm` — but it binds as a *review* gate now, not a budget one: the whole manifest
-    is about 8% of the balance.
-11. **Audio** (C8): retirement cue first, then the pack, then the DSP season presets.
-12. **Push.** Eight commits are ahead of `origin/main` and nothing has been pushed.
+7. **Give the harness a lifecycle mode** so the Legacy beat is measured rather than asserted.
+8. **Batch the vertical-slice art** (B3/B4). G13 still binds — no batch of 20 or more without an
+   explicit `--confirm` — but it binds as a *review* gate now, not a budget one: the whole manifest
+   is about 8% of the balance.
+9. **Audio** (C8): retirement cue first, then the pack, then the DSP season presets.
 
 ## Waiting on the owner
 
@@ -482,10 +586,67 @@ The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
   the exact key is blind to move `priority` — which is the whole of Odo's +9.8 pp. Leaving it means
   the roster is the lever (pool order is authored order); ranking priority in re-opens every gym band
   measured under T-13. It moves published win rates either way.
-- **Whether the starter's opening matchup is acceptable** (**T-38**). A level-1 Loamunder lands ~78
-  super-effective damage on the level-5 **Fire** starter's 58 HP, and Loamunder is 47.8% of Route 1's
-  encounter weight. That was tolerable while a loss cost nothing; T-28 and T-29 make it cost. G2 and
-  T-11's ruling both forbid an agent retuning it.
+- **Whether the starter's opening matchup is acceptable** (**T-38**). **T-38's own claim was wrong,
+  and the truth is worse than the claim, not milder** — read this as a correction, not a rephrasing.
+  The ticket said *"four of R1's six lines beat the level-5 starter one-on-one at level 1."* Measured,
+  that is false for every starter: at level 1 it is **Cindril 1 of 6, Puddlisk 2 of 6, Thornlet 0 of
+  6.** But level 1 is not what Route 1 produces. At the levels it actually rolls (4–8, ages weighted
+  by the real encounter table), the granted **juvenile** starter reads:
+
+  | starter | wins | **one-shot** | lines that beat it |
+  |---|---|---|---|
+  | Cindril | 21.3% | **78.7%** | 3 of 6 |
+  | Puddlisk | 14.1% | **84.8%** | 6 of 6 |
+  | Thornlet | 25.0% | **74.8%** | 5 of 6 |
+
+  **The starter loses roughly four fifths of its first encounters in one hit.** How the ticket got it
+  wrong is instructive: it computed ~78 damage using **attack 61, which is the level-1 *Adult*'s**
+  figure, against a starter granted as a **Juvenile** — it mixed ages. Correcting the age makes the
+  conclusion *stronger*, not weaker: a level-1 juvenile Loamunder's true band is **67–82**, so the
+  **minimum** roll already exceeds the Fire starter's 58 HP and the one-shot is certain rather than
+  likely. The effect is starter-specific as flagged — the same move is *resisted* by Thornlet and
+  Puddlisk, which is why their one-shot rates come from other lines.
+
+  Two things that make this decidable rather than alarming. **This was predicted in writing**:
+  `data/balance.json`'s `age._multiplier` note recorded this instrument reading a 66.2% loss rate
+  after T-10 and said the T-11 Producer re-spend would move it. It has — to about 80%. This is a known
+  consequence arriving on schedule, not a surprise. And **it matters far more the moment T-28/T-29
+  land** than it did when it was first noted: a first encounter that wipes the starter costs nothing
+  today, because nothing in `game/` calls `applyBattleResult` yet (verified by grep at the time of
+  writing), and both tickets are in flight tonight. **Nothing was tuned to produce these numbers and
+  nothing should be** — levels, rosters, stats and balance values are Hank's, G2 and T-11's ruling
+  both forbid an agent retuning them, and G14 forbids moving a target to accommodate a result.
+
+- **How many buildings should have an interior** — a scope question, and only Hank can answer it.
+  What he said, verbatim: *"This game is nowhere near deep enough to need twenty homes in a town. A
+  town should be a handful of buildings, and nearly all of the buildings should have an accessible
+  interior."* What exists: **four blueprints** — inn and supply shop in Hearthollow and Brackwater.
+  What the art manifest itemises, read out of `tools/comfy/manifest.json`'s `_nodes` block directly:
+  **Hearthollow, five buildings** — Warden Maren's field station, a gym hall, the inn, the supply shop
+  and a deep-thatched cottage; **Brackwater, five** — a fishery shed, an angler's hut, a gym hall, the
+  inn and the supply barn, plus a ferry landing that is not a building. So *"nearly all"* read
+  literally is ten rooms across the two walkable towns and thirty-odd across the region.
+
+  **Four is not a failure to have tried; it is a different reading of scope**, and "the inn and the
+  shop are the ones that matter, the cottage does not need an inside" is an entirely reasonable answer
+  that nothing he said rules out. Three facts he may want while deciding. **The engine is not the
+  constraint** — a new interior is a `data/interiors/*.json` file and its citations, not code; the
+  model, the loader, the tests and now the scene layer are all generic. **The gym hall is a different
+  question from the rest**: gyms are challenged today by a keypress from the town node — `challengeGym`
+  — with no building, no door and no position, yet six shipped leader lines already describe a room
+  with a door and a bench (Noct's *"Room's dark. It stays dark. Bring a lamp for the walk down"*,
+  Odo's *"Badge is in the tin by the door"*, Sable's *"Six on the bench."*), so making one enterable
+  changes how gyms are challenged and not just how many rooms exist. And **under G2 every added
+  interior must derive from canon** the way the existing four do — every physical feature traced in
+  `_featureSource` to a shipped line, every gap named in `_canonSilent` rather than filled. For a
+  building the corpus barely mentions there may be nothing to derive from, and where the canon is
+  silent that is part of what he is deciding, not a licence to invent an inside.
+
+- **When the palette expands to 48, relative to the top-down map re-author** — a sequencing question
+  the art session raised and neither of us should settle. The 48-colour fit was made over **18 raw
+  sources that are the isometric maps T-17 is now replacing**. Landing it before the top-down recipe
+  settles may mean fitting it twice, and the second pass is the expensive one: everything already
+  quantized against the new 48 has to be regenerated again. Recorded as open, not as a decision.
 
 **Struck from this file, having been checked and found false:** the claim that
 `tools/comfy/manifest.json`'s `_deviations[]` rows index a ledger the repo no longer keeps (item 10);
@@ -509,3 +670,17 @@ at 25 steps / cfg 4.0 the same experiment moved **98.4% of bytes**. **R2 stands 
 anyway** — raising cfg fixed no defect class, lost the projection, and degraded mean CIEDE2000
 palette fit 4.185 → 5.402 (~29% worse). Do not edit that file; the correction lives in TICKETS'
 Closed table.
+
+**Withdrawn later on 2026-08-27, for want of a sound instrument rather than for being disproved:**
+the **pixel-block measurements taken from the first `assets/reference/` captures** (item 30). Those
+captures were resampled browser screenshots holding 673–2,080 colours where the native frames hold
+12–18, so nothing measured on them is sourced. They are the only figures ever published from that set.
+And **one cell of the img2img denoise sweep** in `assets/approved-trials/_player-views/README.md`:
+`denoise 0.92` at 8 steps is `int(8/0.92) = 8`, the full schedule, so that row was **txt2img** and is
+not evidence about img2img at all. Its recorded failure — *"a different face, a different bag"* — is
+what a fresh generation produces, not identity drift. **The finding it belonged to is narrowed, not
+refuted:** "img2img on this model cannot turn a view" now rests on six valid cells rather than seven,
+and re-measuring on a schedule-count ladder is worth doing eventually and is not urgent. A companion
+claim that **two** of the seven cells were suspect is withdrawn too — 0.86 measured as a real 9-step
+img2img, distinct from 0.80's 10. One cell was invalid, and the two-cell figure was a reading of a gap
+between measurements stated with a measurement's confidence.

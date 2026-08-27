@@ -86,6 +86,19 @@
  *    that one. It is loaded through a computed specifier because the module is untyped `.mjs` and a
  *    static import trips TS7016 under `strict` — the alternative was a duplicate implementation,
  *    which is the exact failure being avoided.
+ *
+ * 5. **The distinct-colour count is printed against a measured reference band, because on its own it
+ *    means nothing.** "brackwater 31 colours" told nobody whether 31 was disciplined or a mess. The
+ *    band, and the reason there is no cap, are in the GOLD BAND section below.
+ *
+ * 6. **A second reading sits beside it — GROUND TEXTURE — because the colour count alone cannot tell
+ *    a good map from the one this project has been shipping.** A map at 16 colours and 9% edge
+ *    density is flat and wrong; a map at 16 colours and 45% is right. Both satisfy a colour-count
+ *    check identically, and the flat one is the failure that has actually been shipping. Note 4's
+ *    principle — reuse the repo's instrument — was applied here and it **failed the measurement**:
+ *    §8.2's Sobel is structurally blind to a one-pixel dither, so `edgePercent` defines its own
+ *    operator and the control below proves both halves of that. Reuse an existing instrument, but
+ *    measure that it can see the thing before you trust it.
  */
 
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -95,6 +108,14 @@ import { join, relative, resolve } from 'node:path';
 import sharp from 'sharp';
 
 import { loadPalette, loadPaletteFile, REPO_ROOT, type PaletteRgb } from '../../tools/postprocess/palette.ts';
+import type { Raster } from '../../tools/postprocess/raster.ts';
+import {
+  contrastNormalise,
+  contrastRange,
+  luminance,
+  sobelMagnitude,
+  thresholdEdges,
+} from '../../tools/overlay-diff/edges.ts';
 import balance from '../../data/balance.json';
 
 /* ────────────────────────────────────────────────────────────────────────────────────────────────
@@ -219,10 +240,53 @@ interface Census {
   alphaValues: Set<number>;
   /** `#rrggbb` -> occurrence, over OPAQUE pixels only. */
   swatches: Map<string, Swatch>;
+  /** Percent of pixels on a §8.2 Sobel edge — see the GROUND TEXTURE section. */
+  edgePct: number;
 }
 
 const hexAt = (d: Buffer, i: number): string =>
   '#' + [d[i]!, d[i + 1]!, d[i + 2]!].map((v) => v.toString(16).padStart(2, '0')).join('');
+
+/**
+ * Percent of pixels whose colour differs from the pixel to their RIGHT or BELOW.
+ *
+ * ── WHY THIS OPERATOR AND NOT §8.2's SOBEL, WHICH WAS TRIED FIRST ────────────────────────────────
+ * `tools/overlay-diff/edges.ts` is the repo's existing edge instrument and the obvious thing to reuse
+ * — header note 4's principle. It was measured against this job and it is **structurally blind to the
+ * exact texture this reading exists to see.** A 3×3 Sobel cancels on a period-2 checkerboard: the
+ * `x±1` samples in each row share parity, so `Gx` and `Gy` are identically zero. Measured on a 256²
+ * synthetic — flat ground with one object **0.78%**, the same image with a one-pixel dithered ground
+ * **0.78%**, the same number to two decimals, while this operator reads **0.39%** and **93.94%**.
+ * That control ships below as `the ground-texture reading discriminates`, on the same footing as the
+ * CIEDE2000 one: a reading that answered 0.78 for both would have looked like a clean bill of health.
+ *
+ * **That is a fact about `overlay-diff` worth carrying**, not a complaint: the §8.2 year-variant gate
+ * will not see ground dither at all. Benign there — it measures LAYOUT drift and dither is not layout
+ * — but it means the gate cannot be used to check that a re-dithered variant kept its texture.
+ *
+ * ── THE HONEST LIMIT OF THIS OPERATOR ────────────────────────────────────────────────────────────
+ * It counts colour CHANGES, so it cannot tell deliberate texture from smooth gradient noise: an
+ * unquantized airbrushed image reads near 100% for the same reason a checkerboard does. It is only
+ * meaningful over an image with flat colour runs — and every asset it is printed for has already been
+ * asserted, above, to be an exact member of a 32-colour frozen palette. The assertion is what makes
+ * the reading mean anything, so do not lift this function out of this file without it.
+ */
+function edgePercent(data: Buffer, width: number, height: number): number {
+  const total = width * height;
+  if (total === 0) return Number.NaN;
+  const rgbAt = (x: number, y: number): number => {
+    const i = (y * width + x) * 4;
+    return (data[i]! << 16) | (data[i + 1]! << 8) | data[i + 2]!;
+  };
+  let on = 0;
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const c = rgbAt(x, y);
+      if ((x + 1 < width && rgbAt(x + 1, y) !== c) || (y + 1 < height && rgbAt(x, y + 1) !== c)) on += 1;
+    }
+  }
+  return (100 * on) / total;
+}
 
 /**
  * Decode one shipped PNG. Throws rather than returning an empty census for every way a file can be
@@ -259,6 +323,7 @@ async function census(repoRelative: string): Promise<Census> {
     opaque: 0,
     alphaValues: new Set(),
     swatches: new Map(),
+    edgePct: edgePercent(data, info.width, info.height),
   };
   for (let i = 0; i < data.length; i += 4) {
     c.alphaValues.add(data[i + 3]!);
@@ -380,6 +445,167 @@ const NATIVE_PX = balance.map.mapNativePx;
 const MIN_DISTINCT_NATIVE = 8;
 
 /* ────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE GOLD BAND — what a distinct-colour count means, and why there is no cap
+ *
+ * The advisory below has always printed a per-asset distinct-colour count. It was uninterpretable:
+ * nobody reading "brackwater 31 colours" knows what a Gold map costs. The art session measured ten
+ * real console maps at true native resolution — **eight Gen-2 Johto maps run 12 to 18 distinct
+ * opaque colours, mean 16.0**, and the two Gen-3 RSE captures beside them both run **49**. Those ten
+ * figures were reproduced here on 2026-08-27, file by file, before this section was written; the
+ * per-file numbers are in `GOLD_CAPTURES` and `RSE_CAPTURES` and are asserted against the PNGs.
+ *
+ * Measured the same way on the same day, the ten shipped maps run **17 to 32, mean 27.0** — r2 uses
+ * all 32 of the frozen palette, brackwater 31. Gold's discipline is severe, and it is most of why its
+ * texture reads as deliberate rather than mushy.
+ *
+ * **This does not contradict a larger palette; it is the other half of the same design.** The palette
+ * should CONTAIN enough colour for every biome the region has to paint; any single map should USE
+ * about sixteen of them. A per-scene subset drawn from a wider shared set is closer to how the
+ * hardware being imitated actually worked than one global list everything dips into. The trap, stated
+ * as a trap so nobody reads the two facts as opposed: **48 available and 16 used is correct;
+ * 48 available and 31 used is the bug.**
+ *
+ * ── WHY THE COUNT IS ADVISORY AND NOT ASSERTED ──────────────────────────────────────────────────
+ * A cap at the top of the Gold band was considered and REJECTED, for two independent reasons.
+ *
+ * 1. **It is arithmetically incapable of being both binding and defensible.** Every opaque pixel is
+ *    already asserted to be an exact palette colour, so a file that passes that assertion cannot
+ *    hold more distinct colours than the palette has entries. Any cap at or above `palette.length`
+ *    therefore CANNOT FAIL — the vacuous gate this file's header refuses to ship — and any cap below
+ *    it is a judgement about how much of the palette a picture may spend, which is taste with a
+ *    number painted on it. Note also which direction Gen 3 falls: RSE's own maps sit at 49, so a cap
+ *    tight enough to bind would fail a shipped, defensible pixel-art style.
+ * 2. **A countable cap is exactly the thing that gets optimised while the picture gets worse.** The
+ *    art session made that error three times in one night in its own lane and named it: *"I optimised
+ *    the countable contract and destroyed the picture."* Running ControlNet at strength 0.9 improved
+ *    every number being watched — edge density, distinct colours, flat area — and produced art the
+ *    owner rejected outright. A generator can be tuned to hit 18 by dithering colour away; it cannot
+ *    be tuned to compose.
+ *
+ * So the count binds nothing and is a reading aid. **What IS asserted is the instrument**: that the
+ * published band matches the captures it was derived from, and that those captures still measure what
+ * they are quoted as measuring. That is the failure that actually occurred — the first reference
+ * captures were browser screenshots, resampled to 642×574 from a 320×288 source, and read 673 to
+ * 2,080 colours because interpolation invented them. A band quoted from those would have been wrong
+ * by two orders of magnitude and nothing here would have noticed. It would now.
+ * ──────────────────────────────────────────────────────────────────────────────────────────────── */
+
+/* ────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE GROUND-TEXTURE READING — the half a colour count cannot see
+ *
+ * **The colour count alone cannot tell a good map from the one this project has been shipping.** A
+ * map at 16 colours and 9% edge density is flat and wrong; a map at 16 colours and 45% is right. Both
+ * satisfy a colour-count check identically, and the flat one is the failure that has actually been
+ * shipping. So the count is printed beside a second reading and neither is printed alone.
+ *
+ * The art session's diagnosis of the "MS Paint" verdict is a POSTPROCESS fact, not a generation one:
+ * **Gold never uses a flat fill anywhere.** Grass is a dense checkerboard between two greens, paths
+ * are a fine dot pattern, tree masses are a repeating dark/light weave — and their measurement is
+ * that the texture is in the GROUND, not in the objects: a 32×32 tile of plain New Bark grass, seven
+ * colours and not one keyline pixel, tiled to 1024², carries **43.59%** of their whole-map **47.51%**
+ * on its own, against **8.83%** for our best output. **Those four figures are theirs and were taken
+ * with a different operator from this file's** — do not compare them to the numbers printed below;
+ * the band here is derived from the same reference PNGs re-measured with the operator above, so it is
+ * internally consistent, which is the property that makes it readable.
+ * `tools/artverify/ground-comparison.png` is 96 native pixels of Gold ground against ours at 6×, and
+ * it is the one artefact in this finding a number cannot substitute for. Look at it.
+ *
+ * ── TWO FACTS, KEPT SPLIT, BECAUSE A COMBINED SENTENCE GETS HALF-IMPLEMENTED ─────────────────────
+ *   **A — ordered dither buys EDGE DENSITY.** It does nothing to the colour count.
+ *   **B — a per-map colour subset buys COLOUR DISCIPLINE.** It does nothing to edge density.
+ * Measured by the art session, each disproving the other's sufficiency: dither at amplitude 45
+ * without the subset → **40.02% in 43 colours**; the subset without dither → **16 colours at
+ * 12.88%**; both together → **44.74% in 16**, against Gold's 47.51% in 17. Do one and the map is
+ * still wrong in the other axis, and the number you were watching will have improved.
+ *
+ * ── AND IT IS ADVISORY, MORE FIRMLY THAN THE COLOUR COUNT IS ─────────────────────────────────────
+ * **An edge-density figure is even more gameable than a colour count**, because the art session
+ * measured the response to dither amplitude as near-linear — 0 → 12.88%, 24 → 24.09%, 40 → 40.02%,
+ * 56 → 63.77% — so a generator can be tuned to ANY figure you name. They have already hit the failure
+ * that implies: applied globally the dither speckles roofs and walls, so a thatched roof comes out
+ * dirty rather than textured. **A map that reached 47% by ruining its buildings would pass a hard
+ * assertion on this number.** That is the clearest worked example this project has of the §16
+ * standing caution — two numbers both moving the right way while the artefact gets worse — so this
+ * reading fails nothing, and the control below binds the INSTRUMENT instead.
+ * ──────────────────────────────────────────────────────────────────────────────────────────────── */
+
+/** One reference capture: a real console map PNG at native size, and what it measures. */
+interface ReferenceCapture {
+  file: string;
+  colours: number;
+  /** Percent of pixels differing from the pixel right or below — `edgePercent`, not §8.2's Sobel. */
+  edge: number;
+}
+
+/** Gen 2 (Gold/Silver/Crystal), native size, measured 2026-08-27. Both bands are derived from these. */
+const GOLD_CAPTURES: readonly ReferenceCapture[] = [
+  { file: 'assets/reference/gen2/johto-route-29-gsc.png', colours: 12, edge: 78.65 },
+  { file: 'assets/reference/gen2/johto-route-42-gsc.png', colours: 13, edge: 64.51 },
+  { file: 'assets/reference/gen2/azalea-town-gsc.png', colours: 15, edge: 71.32 },
+  { file: 'assets/reference/gen2/new-bark-town-gsc.png', colours: 17, edge: 58.88 },
+  { file: 'assets/reference/gen2/violet-city-gs.png', colours: 17, edge: 67.73 },
+  { file: 'assets/reference/gen2/cherrygrove-city-gsc.png', colours: 18, edge: 57.68 },
+  { file: 'assets/reference/gen2/johto-route-32-gsc.png', colours: 18, edge: 63.81 },
+  { file: 'assets/reference/gen2/olivine-city-gs.png', colours: 18, edge: 51.03 },
+];
+
+/**
+ * Gen 3 (Ruby/Sapphire), same method, same day. Not a style source for colour — T-17 cites RSE for
+ * how top-down elevation is drawn, and 49 against Gold's 16 is a second reason not to mix the two on
+ * this axis. They are here because they are the control: a counter that read every image as "about
+ * fifteen" would satisfy the Gold rows and fail these.
+ */
+const RSE_CAPTURES: readonly ReferenceCapture[] = [
+  { file: 'assets/reference/gen3/fortree-city-rs.png', colours: 49, edge: 73.25 },
+  { file: 'assets/reference/gen3/lavaridge-town-rs.png', colours: 49, edge: 50.50 },
+];
+
+/**
+ * The band the advisory prints and the docs publish. Held as literals so they can go STALE against
+ * `GOLD_CAPTURES`, and asserted against it below — this repo has paid for a fossilised anchor more
+ * than once (T-24's 21 dead hex literals, T-25's stale comments), and a band nobody re-derives is
+ * the same defect in a nicer coat. G11 governs gameplay constants; a reference measurement of
+ * somebody else's shipped art is neither a gameplay constant nor a threshold anything must hit.
+ */
+const GOLD_BAND_LOW = 12;
+const GOLD_BAND_HIGH = 18;
+const GOLD_BAND_MEAN = 16.0;
+
+/**
+ * The ground-texture band, same eight captures, same day, rounded OUTWARD to one decimal from the
+ * measured extremes (51.03 and 78.65). Same fossil risk as the colour band and the same guard.
+ */
+const GOLD_EDGE_LOW = 51.0;
+const GOLD_EDGE_HIGH = 78.7;
+const GOLD_EDGE_MEAN = 64.2;
+
+const bandLabel = `${GOLD_BAND_LOW}–${GOLD_BAND_HIGH}`;
+const edgeBandLabel = `${GOLD_EDGE_LOW.toFixed(0)}–${GOLD_EDGE_HIGH.toFixed(0)}%`;
+
+const outsideMark = (v: number, lo: number, hi: number): string => (v > hi ? ' ▲ ' : v < lo ? ' ▼ ' : ' = ');
+
+/** `▲`/`▼` when a map sits outside the Gold band, blank when it is inside or is not a map. */
+function bandFlag(c: Census, isMap: boolean): string {
+  return isMap ? outsideMark(c.swatches.size, GOLD_BAND_LOW, GOLD_BAND_HIGH) : '   ';
+}
+
+/** The same, for the ground-texture reading. */
+function edgeFlag(c: Census, isMap: boolean): string {
+  return isMap ? outsideMark(c.edgePct, GOLD_EDGE_LOW, GOLD_EDGE_HIGH) : '   ';
+}
+
+/** A reference capture measured exactly the way `census` measures a shipped asset. */
+async function referenceColours(
+  file: string,
+): Promise<{ colours: number; edge: number; width: number; height: number }> {
+  const c = await census(file);
+  return { colours: c.swatches.size, edge: c.edgePct, width: c.width, height: c.height };
+}
+
+/** The map assets, by what `data/nodes/*.json` declares — never by directory name or by pixel size. */
+const DECLARED_MAPS = new Set(DECLARED.mapAssets.map((p) => p.replace(/^\.?\/+/, '')));
+
+/* ────────────────────────────────────────────────────────────────────────────────────────────────
  * The gate
  * ──────────────────────────────────────────────────────────────────────────────────────────────── */
 
@@ -458,6 +684,179 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     expect(color.deltaE2000(black, white), 'ΔE black→white').toBeGreaterThan(10);
   });
 
+  it('the Gold band the advisory prints is derived from the captures, not typed beside them', () => {
+    // The band is quoted in the advisory, in build-doc §8.4 and in STATUS. Three copies of a number
+    // whose source is a table right above it is how a figure fossilises: someone re-measures, edits
+    // the table, and the published band goes on saying what it always said.
+    const counts = GOLD_CAPTURES.map((r) => r.colours);
+    expect(counts.length, 'no Gold reference capture is recorded; the band has no source').toBeGreaterThan(0);
+    const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
+    expect(Math.min(...counts), `the published band floor ${GOLD_BAND_LOW} is not the lowest recorded capture`).toBe(
+      GOLD_BAND_LOW,
+    );
+    expect(Math.max(...counts), `the published band ceiling ${GOLD_BAND_HIGH} is not the highest recorded capture`).toBe(
+      GOLD_BAND_HIGH,
+    );
+    expect(
+      Number(mean.toFixed(1)),
+      `the published band mean ${GOLD_BAND_MEAN} disagrees with the recorded captures (${counts.join('/')})`,
+    ).toBe(GOLD_BAND_MEAN);
+
+    // The ground-texture band, same table, same guard. Rounded OUTWARD from the extremes so the
+    // captures the band is derived from are inside it rather than on its rim.
+    const edges = GOLD_CAPTURES.map((r) => r.edge);
+    const edgeMean = edges.reduce((a, b) => a + b, 0) / edges.length;
+    expect(
+      Math.floor(Math.min(...edges) * 10) / 10,
+      `the published edge-band floor ${GOLD_EDGE_LOW} is not the lowest recorded capture, rounded down`,
+    ).toBe(GOLD_EDGE_LOW);
+    expect(
+      Math.ceil(Math.max(...edges) * 10) / 10,
+      `the published edge-band ceiling ${GOLD_EDGE_HIGH} is not the highest recorded capture, rounded up`,
+    ).toBe(GOLD_EDGE_HIGH);
+    expect(
+      Number(edgeMean.toFixed(1)),
+      `the published edge-band mean ${GOLD_EDGE_MEAN} disagrees with the recorded captures ` +
+        `(${edges.map((e) => e.toFixed(2)).join('/')})`,
+    ).toBe(GOLD_EDGE_MEAN);
+  });
+
+  it('the ground-texture reading discriminates — and §8.2\'s Sobel, measured, does NOT', () => {
+    // The control that makes the advisory worth reading. A reading that answered the same number for
+    // a flat fill and for a dithered ground would look exactly like a clean bill of health, and the
+    // obvious instrument to have reused does precisely that: a 3×3 Sobel cancels on a period-2
+    // checkerboard, because the x±1 samples in each row share parity. Measured here rather than
+    // asserted in a comment, because the comment above this file's `edgePercent` claims it.
+    const N = 128;
+    const ground = [58, 90, 42];
+    const speck = [86, 122, 60];
+    const object = [90, 64, 48];
+    const build = (dithered: boolean): Buffer => {
+      const b = Buffer.alloc(N * N * 4);
+      for (let y = 0; y < N; y += 1) {
+        for (let x = 0; x < N; x += 1) {
+          const i = (y * N + x) * 4;
+          const inObject = x >= 48 && x < 80 && y >= 48 && y < 80;
+          const c = inObject ? object : dithered && (x + y) % 2 === 1 ? speck : ground;
+          b[i] = c[0]!;
+          b[i + 1] = c[1]!;
+          b[i + 2] = c[2]!;
+          b[i + 3] = 255;
+        }
+      }
+      return b;
+    };
+    const sobelPercent = (data: Buffer): number => {
+      const raster: Raster = {
+        width: N,
+        height: N,
+        data: new Uint8ClampedArray(data.buffer, data.byteOffset, data.length),
+      };
+      const lum = luminance(raster);
+      const mag = sobelMagnitude(contrastNormalise(lum, contrastRange(lum)), N, N);
+      const edges = thresholdEdges(mag, balance.overlayDiff.sobelThreshold);
+      let on = 0;
+      for (let i = 0; i < edges.length; i += 1) if (edges[i]) on += 1;
+      return (100 * on) / edges.length;
+    };
+
+    const flat = edgePercent(build(false), N, N);
+    const dithered = edgePercent(build(true), N, N);
+    expect(flat, 'a flat ground with one object should read near zero').toBeLessThan(5);
+    expect(dithered, 'a one-pixel dithered ground should read high').toBeGreaterThan(80);
+    expect(dithered / Math.max(flat, 0.01), 'the reading barely moves between flat and dithered').toBeGreaterThan(10);
+
+    // …and the negative half: the instrument that WOULD have been reused is blind to it. If this ever
+    // stops being true the note on `edgePercent` needs rewriting, not deleting.
+    const sFlat = sobelPercent(build(false));
+    const sDith = sobelPercent(build(true));
+    expect(
+      Math.abs(sDith - sFlat),
+      `§8.2's Sobel now separates flat (${sFlat.toFixed(2)}%) from dithered (${sDith.toFixed(2)}%). It ` +
+        'did not when this file chose a different operator, and the reason recorded at `edgePercent` ' +
+        'is now stale — re-measure before trusting either note.',
+    ).toBeLessThan(1);
+  });
+
+  it('the reference captures still measure what the band quotes them as measuring', async () => {
+    // THE ONE FAILURE THAT ACTUALLY HAPPENED. The first captures of these maps were browser
+    // screenshots, resampled to 642×574 from a 320×288 source — not even a clean 2× — and they held
+    // 673 to 2,080 distinct colours, every one of them invented by interpolation. A band derived from
+    // those would have been wrong by two orders of magnitude, and the advisory would have gone on
+    // printing an authoritative-looking comparison against it.
+    //
+    // The assertion is membership of the band rather than equality with the recorded figure, so a
+    // legitimately re-cropped capture does not red while a resampled one — three orders of magnitude
+    // out — cannot pass. Absent captures are REPORTED and do not fail: `assets/reference/` is a
+    // reference corpus owned by the art lane, not shipped pixels, and its absence costs the band its
+    // corroboration rather than putting a defect in the bundle. Every present one is asserted.
+    const checked: string[] = [];
+    const missing: string[] = [];
+
+    for (const ref of GOLD_CAPTURES) {
+      if (!existsSync(resolve(REPO_ROOT, ref.file))) {
+        missing.push(ref.file);
+        continue;
+      }
+      const m = await referenceColours(ref.file);
+      checked.push(
+        `${ref.file} ${m.width}×${m.height} ${m.colours}c (rec ${ref.colours}) ` +
+          `edge ${m.edge.toFixed(2)}% (rec ${ref.edge.toFixed(2)}%)`,
+      );
+      expect(
+        m.edge,
+        `${ref.file} reads ${m.edge.toFixed(2)}% ground texture, outside the band ${edgeBandLabel} the ` +
+          'eight Gold captures define. Either this capture was refetched from a different source, or ' +
+          'the band needs re-deriving from the new measurements — it is not a defect in shipped art.',
+      ).toBeGreaterThanOrEqual(GOLD_EDGE_LOW);
+      expect(m.edge, `${ref.file}: ${m.edge.toFixed(2)}% ground texture, above ${edgeBandLabel}`).toBeLessThanOrEqual(
+        GOLD_EDGE_HIGH,
+      );
+      expect(
+        m.colours,
+        `${ref.file} measures ${m.colours} distinct opaque colours at ${m.width}×${m.height}; the Gold ` +
+          `band ${bandLabel} is derived from it and from seven others like it. A count in the hundreds ` +
+          'or thousands means this capture is a RESAMPLED screenshot rather than a native-size frame, ' +
+          'and every figure quoted from it is unsourced — refetch at native size. A count near the band ' +
+          `but outside it means the band itself needs re-deriving from the new measurements.`,
+      ).toBeGreaterThanOrEqual(GOLD_BAND_LOW);
+      expect(m.colours, `${ref.file}: ${m.colours} colours, above the band ${bandLabel}`).toBeLessThanOrEqual(
+        GOLD_BAND_HIGH,
+      );
+    }
+
+    // The control. A counter that answered "about fifteen" for every image would satisfy all eight
+    // rows above and tell us nothing; Gen 3 sits far outside the band on the same instrument.
+    for (const ref of RSE_CAPTURES) {
+      if (!existsSync(resolve(REPO_ROOT, ref.file))) {
+        missing.push(ref.file);
+        continue;
+      }
+      const m = await referenceColours(ref.file);
+      checked.push(
+        `${ref.file} ${m.width}×${m.height} ${m.colours}c (rec ${ref.colours}) ` +
+          `edge ${m.edge.toFixed(2)}% (rec ${ref.edge.toFixed(2)}%)`,
+      );
+      expect(
+        m.colours,
+        `${ref.file} measures ${m.colours}; Gen 3 RSE was measured at ${ref.colours}, which is three ` +
+          'times the Gold mean. If this one reads inside the Gold band, the counter is not ' +
+          'discriminating and every figure in the advisory is suspect.',
+      ).toBeGreaterThan(GOLD_BAND_HIGH);
+    }
+
+    console.log(
+      `\nasset-palette-contract — reference band ${bandLabel} (mean ${GOLD_BAND_MEAN.toFixed(1)}), ` +
+        `${checked.length} capture(s) verified, ${missing.length} absent\n` +
+        checked.map((l) => `  ${l}`).join('\n') +
+        (missing.length > 0
+          ? `\n  ABSENT, so the band is uncorroborated by them: ${missing.join(' ')}\n` +
+            '  (assets/reference/ is the art lane\'s reference corpus, not shipped art; absence is not a defect)'
+          : '') +
+        '\n',
+    );
+  }, 60_000);
+
   /* ──────────────────────────────────────────────────────────────────────────────────────────────
    * 1. Nothing may pass vacuously.
    * ────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -527,10 +926,12 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
       const offenders = offendersIn(d, palette);
       const offPixels = offenders.reduce((n, o) => n + o.count, 0);
       const mean = meanDeltaE(d, palette);
+      const isMap = DECLARED_MAPS.has(path);
       lines.push(
         `  ${path.padEnd(44)} ${`${d.width}×${d.height}`.padStart(9)} ` +
-          `${String(d.swatches.size).padStart(3)} colours  meanΔE ${mean.toFixed(3)}  ` +
-          `off ${offPixels}px/${offenders.length}c` +
+          `${String(d.swatches.size).padStart(3)}c${bandFlag(d, isMap)}` +
+          `texture ${d.edgePct.toFixed(1).padStart(5)}%${edgeFlag(d, isMap)}` +
+          `meanΔE ${mean.toFixed(3)}  off ${offPixels}px/${offenders.length}c` +
           (offenders.length > 0 ? `  worst ${describeOffenders(offenders, 3)}` : ''),
       );
       // Guards the INSTRUMENT, not the art: over a file that HAS opaque pixels, a NaN or negative
@@ -543,9 +944,28 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
         expect(mean, `${path}: mean ΔE is negative`).toBeGreaterThanOrEqual(0);
       }
     }
+    const maps = COVERED.filter((p) => DECLARED_MAPS.has(p))
+      .map((p) => decoded.get(p))
+      .filter((d): d is Census => d !== undefined && !(d instanceof Error));
+    const spreadOf = (vs: number[], dp: number): string =>
+      vs.length === 0
+        ? 'no map decoded'
+        : `${Math.min(...vs).toFixed(dp)}–${Math.max(...vs).toFixed(dp)}, mean ` +
+          (vs.reduce((a, b) => a + b, 0) / vs.length).toFixed(dp);
     console.log(
       `\nasset-palette-contract — ADVISORY drift, ${COVERED.length} shipped PNG(s) vs the frozen ` +
-        `${palette.length}-colour palette\n${lines.join('\n')}\n`,
+        `${palette.length}-colour palette\n${lines.join('\n')}\n` +
+        `  ▼ below / = inside / ▲ above the measured Gold bands, over ${GOLD_CAPTURES.length} ` +
+        `native-size Gen-2 maps: ${bandLabel} colours (mean ${GOLD_BAND_MEAN.toFixed(1)}), ` +
+        `${edgeBandLabel} ground texture (mean ${GOLD_EDGE_MEAN.toFixed(1)}%).\n` +
+        `  ${maps.length} shipped map(s) run ${spreadOf(maps.map((d) => d.swatches.size), 0)} colours ` +
+        `and ${spreadOf(maps.map((d) => d.edgePct), 1)}% texture.\n` +
+        '  BOTH ARE READING AIDS AND FAIL NOTHING, and they are two facts, not one: dither buys\n' +
+        '  texture and does nothing to the colour count; a per-map subset buys colour discipline and\n' +
+        '  does nothing to texture. A cap on either is a number a generator can be tuned to hit while\n' +
+        '  the picture gets worse — see the GOLD BAND and GROUND-TEXTURE sections at the top of this\n' +
+        '  file, and `tools/artverify/ground-comparison.png`, which a number cannot substitute for.\n' +
+        '  The palette CONTAINS the region; one map USES a subset of it.\n',
     );
   });
 

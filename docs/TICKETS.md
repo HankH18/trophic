@@ -14,12 +14,19 @@ cannot be worked by an agent — **T-1's open decision** — is first.
 while several agents were editing it.** Where a ticket's own predicted number turned out to be wrong,
 the measurement is recorded and the prediction is marked as wrong rather than quietly replaced.
 
-**Re-verified again on 2026-08-27, against a tree that has settled.** `npx tsc --noEmit` reads
-**exit 0**; `npm run test` reads **12 failed / 2548 passed, 4 files of 61**; HEAD is `461169c`, `main` is
-**in sync with `origin/main`**, and the only uncommitted paths are the art lane's in-flight
-`tools/mapgen/` (deliberately not checkpointed at its owner's request) and a lock file. **T-2, T-25, T-26 and T-27 close on this pass. T-8 and T-17 are amended. T-24 loses
-its code half. T-28–T-42 are new.** Every line number cited below was re-read before it was cited,
-and the ones that had drifted are corrected in place rather than carried.
+**Re-verified again on 2026-08-27 at 04:36, and the earlier claim that the tree had settled is
+retracted — six lanes are live in it.** `npx tsc --noEmit` reads **exit 0**; `npm run test` reads
+**10 failed, 3 files of 67**, stable across four consecutive runs, every one accounted for in STATUS's
+verified-state section (the passing total is not stable — other lanes were adding tests as this was
+written); **`main` is in sync with `origin/main`**. **No commit hash is quoted here any
+more:** this file has named three different HEADs in as many hours and each was stale before the
+paragraph around it was finished. "In sync with origin" stays true; a hash does not.
+
+**Closing on this pass: T-32, T-35, T-40, T-42.** **T-17 gains the colour and ground-texture
+findings.** **T-38 is CORRECTED — its own claim was false and the truth is worse.** **T-43 is new.**
+Two scope questions moved to STATUS's *waiting on the owner* register rather than being written here
+as work: how many buildings should have an interior, and when the palette expands to 48 relative to
+the top-down re-author. Neither is an agent's to answer.
 
 ---
 
@@ -70,7 +77,7 @@ is `map.collisionCols` = 64 cells, hence 0.75 crossings per 48-step foray.)*
 
 ### ⚠ THE DECISION — the cascade beat no longer clears its gate, and the named knob cannot fix it
 
-`tests/unit/transcription.test.ts:1358` is RED. **`docs/STATUS.md` carries the full arithmetic and
+`tests/unit/transcription.test.ts:1365` is RED. **`docs/STATUS.md` carries the full arithmetic and
 the knob table; read it before ruling.** The short form:
 
 - `brackwater/fenmaw-line` needs 19.2 removals against 11.42/yr available (78.96 encounters needed).
@@ -458,6 +465,43 @@ levels, and top-down cannot produce the failure:
 **`r5`'s blocking defect inverts.** It was flagged for coming back **flat top-down**. That is now the
 correct output, not the defect.
 
+**Colour discipline is part of this re-author, not a separate pass — and it inverts the obvious
+intuition.** Measured at true native resolution: the eight Gen 2 captures run **12 to 18 distinct
+opaque colours, mean 16.0**; the two Gen 3 RSE captures run **49**, which is a second reason not to
+mix the two as style sources beyond the projection. The ten shipped maps, measured the same way, run
+**17 to 32, mean 27.0** — r2 uses all 32 of the frozen palette, brackwater 31, and only
+sanctum-approach at 17 is inside the Gold band. Hank's verdict on these maps was *"this looks like it
+was made in MS Paint"*, and **this is most of the explanation: too many colours, not too few.**
+
+**It does not contradict the palette expansion, and must not be read as contradicting it.** A palette
+*contains* a region; a single map *uses* a subset — **48 available and 16 used is correct; 48
+available and 31 used is the bug.** Locked into build-doc §8.4 so the two facts cannot be set against
+each other later.
+
+**And colour is only half of it — the other half is GROUND TEXTURE, and it is the half that has
+actually been shipping wrong.** **Gold never uses a flat fill anywhere**: grass is a dense
+checkerboard between two greens, paths a fine dot pattern, tree masses a repeating weave, and the
+texture is in the **ground**, not the objects — a 32×32 tile of plain New Bark grass with seven
+colours and no keylines carries **43.59%** of the whole map's **47.51%** on its own, against **8.83%**
+for our best output. See `tools/artverify/ground-comparison.png`; it is the one artefact here that a
+number cannot substitute for. **Work the two facts separately, because a combined sentence gets
+half-implemented:**
+
+- **A — ordered dither buys EDGE DENSITY.** It does nothing to the colour count.
+- **B — a per-map colour subset buys COLOUR DISCIPLINE.** It does nothing to edge density.
+
+Measured, each disproving the other's sufficiency: dither at amplitude 45 without the subset →
+**40.02% in 43 colours**; the subset without dither → **16 colours at 12.88%**; both together →
+**44.74% in 16**, against Gold's 47.51% in 17.
+
+**Both readings are reported and NEITHER is capped**, by `tests/gates/asset-palette-contract.test.ts`'s
+advisory, for the reasons recorded at their thresholds. A colour cap at or above `palette.length`
+cannot fail at all, and a cap below it is taste with a number painted on it. A texture cap is worse:
+the response to dither amplitude is near-linear (0 → 12.88, 24 → 24.09, 40 → 40.02, 56 → 63.77), so a
+generator can be tuned to any figure named — and applied globally the dither speckles roofs and walls,
+so **a map that reached 47% by ruining its buildings would pass a hard assertion.** That is the
+ControlNet-0.9 failure exactly, and the gate refuses to invite it twice.
+
 **Multi-level towns are back ON**, at Hank's own suggestion and referenced to Ruby/Sapphire:
 elevation expressed **top-down** through cliff bands, ledges, stairs and ladders rather than through a
 projected vertical axis. **Fortree City is structurally Bowerdeep; Lavaridge Town is structurally
@@ -837,36 +881,43 @@ way back.
 deliberately never fires `COMPLETE` proves travel still recovers.
 
 ### T-32 · Two clause-7 tests are RED because T-27 stabilised the tie-break
-**Status:** TODO — **red in the tree now, and failing by doing their job**
+**Status:** DONE — **three changes landed; `tests/unit/harness.test.ts` reads 76 passed of 76.**
 
-From `npm run test` on 2026-08-27, `tests/unit/harness.test.ts`, 2 failed of 77:
-- `:519` — *"clause 7: the key scores the creature that is FIELDED — its own age, not a stand-in"*,
-  fails at `:541`.
-- `:573` — *"clause 7: the greedy pick CAN turn on the attacker's own stats — the finding that forces
-  the above"*, fails at `:622`.
+The 77 → 76 is **one deliberate deletion, not a lost test**, verified three ways: 76 `✓` lines under
+the verbose reporter, 76 `it(` blocks in the file, and zero `.skip` / `.only` / `.todo`.
 
-The second asserts `stateDependent > 0` with the message *"no shipped pairing's greedy pick depends on
-the attacker's age — the scorer's tie-break is now stable, so `coverageScore` no longer needs ages and
-traits; remove them deliberately"*. **T-27 removed the state dependence it was pinning.** Its docblock
-at `:574-585` writes the protocol out in advance: this goes green-to-red, you delete it *deliberately*,
-and only then may `coverageScore` drop ages and traits. Follow that, not around it.
+**The measurement that justifies the whole ticket.** Under one sabotage — reverting
+`tools/harness/arena.ts` to the pre-T-27 full-product argmax — the **new exhaustive sweep reds on 78
+of 104,976 pairings with the cases named**, and **the 36-sample test it replaced stays GREEN.** That is
+a green test binding nothing, demonstrated rather than argued, and it is the sharpest instance this
+repo has of the failure mode it keeps paying for. A bigger sample was never the fix; exhaustiveness is.
 
-Two changes are written and waiting to land:
-1. **An exhaustive enemy/player agreement test**, replacing the sampled one at `:742-761` — six shipped
-   gyms × six seeds, closing on `expect(checked).toBeGreaterThan(20)` at `:760`. **That sample stayed
-   green while the two scorers disagreed on 13 of 2160 choices.** It is the instrument T-27 walked
-   past, and a bigger sample is not the fix — exhaustiveness is.
-2. **A clause-7 replacement** asserting that `coverageScore`'s ages and traits are **currently inert**,
-   rather than live.
+**A test was deleted, and that was not a weakening.** *"clause 7: the greedy pick CAN turn on the
+attacker's own stats"* is gone. **Its own docblock prescribed the deletion in advance:** *"If this goes
+green-to-red, the scorer's tie-break became stable. That is an IMPROVEMENT, and the response is to
+delete this test deliberately … not to make the assertion looser."* The sabotage row settles the
+question the protocol leaves open — whether the test was wrong: run against the pre-T-27 code it reads
+**green** (stable 717, stateDependent 3), and against the shipped key it reads stateDependent 0 over
+the same 720 pairings. **It was correct for the code it was written against; its FACT was removed by a
+cited decision, not by a defect.** A comment stands where it was
+(`tests/unit/harness.test.ts:645-668`), and what replaced it is strictly stronger — the exact-equality
+sweep in *"the key scores the creature that is FIELDED"* (`:519`) goes red the moment attacker
+sensitivity returns.
 
-**Record why the parameters stay, because the obvious move is to delete them.** Removing them was
-measured safe — **1.71M calls, zero variance** — and was **deliberately not done.** They stay as a
-guard: the next scorer that starts reading the attacker goes **red**, instead of moving published win
-rates in silence, which is exactly how T-13 happened.
+**The clause in that docblock that was deliberately NOT acted on, because the next reader will find the
+same sentence and be tempted the same way.** It continued *"…and then `coverageScore` may drop its ages
+and traits."* It reads like an instruction. Taking it would have **partially undone T-13**, which was a
+ruling to *fix the instrument* — and whose fix was precisely to thread real ages and traits in, because
+the old scorer asked whether a creature merely *knew* an effective move rather than whether its policy
+would pick one. The parameters were **measured inert** — 1.71M calls over 32,400 cells with zero
+variance, and 6,000 real drafts with zero differences — and **kept anyway, deliberately, as a guard**:
+the next scorer that starts reading the attacker again turns a test red instead of moving published win
+rates in silence.
 
-**Done when:** both changes land, the file is green, the sampled agreement test is gone, and the
-deletion of the `:573` test is justified in writing against its own protocol — **never by loosening an
-assertion.**
+**One thing left open rather than resolved.** The surviving test's title reads *"the key scores the
+creature that is FIELDED — its own age, not a stand-in"*, while its first half now proves a stand-in
+scores **identically**. The docblock resolves the tension explicitly; the title still carries it. Not
+wrong, and not renamed in passing — recorded because it is no longer self-explaining.
 
 ### T-33 · `GameAction` needs a `battleAftermath` member
 **Status:** TODO — **one line, and it unblocks T-34's named case**
@@ -915,36 +966,40 @@ the thing to notice: the determinism tests are certifying less than their name s
 proves it is a determinism test that actually catches a creature.
 
 ### T-35 · Interiors, phase 2 — the scene layer
-**Status:** TODO — **phase 1 is in flight; do not start inside its files**
+**Status:** DONE — **the player can walk into a building, move around it, and walk back out.**
 
-Phase 1 (model + blueprints) is the eleven dirty paths in the tree: `core/interiors.ts`,
-`data/interiors/*.json`, `tests/unit/interiors.test.ts`.
+**It is a VIEW MODE inside `OverworldScene`, not a new scene**, and that was the load-bearing call.
+`travelTo` was already a re-dress in place — same scene, new map, new collision, player repositioned —
+so pointing that move at a `core/interiors.ts` blueprint instead of a node reuses movement, collision,
+`interact`, the HUD, both clocks and the save, rather than reimplementing any of them beside a second
+scene. Phase 1's decided architecture held: an interior is **not** a node, `save.currentNode` keeps
+naming the town, and `save.interiorId` says which room.
 
-**Decided architecture, recorded so phase 2 does not relitigate it: an interior is NOT a node.**
-`save.currentNode` keeps naming the town and a **new declared save field** says which room. A 13th
-node would demand a painted base map (`tests/unit/manifest.test.ts:556-557`) and trip every hard-pinned
-node count in the suite. **Five such pins, measured:** `tests/gates/schemas.test.ts:57`,
-`tests/gates/guardrails.test.ts:558`, `tests/unit/manifest.test.ts:557`,
-`tests/unit/transcription.test.ts:922`, `tests/property/ecosim.test.ts:1490`. *(An earlier count of
-six is corrected to five — `manifest.test.ts:556` is the map-row assertion, not a count pin.)*
+**Two judgement calls, recorded because both are the kind someone later "simplifies".**
 
-Phase 2 needs four things:
-1. **Door entry and exit.**
-2. **An explicit arrival cell.** `chooseSpawnTile` (`game/collision.ts:716`) delegates to
-   `firstWalkableTile` (`:673-693`), which spirals in Chebyshev rings from the fixed 64×64 lattice
-   centre. That is right for a 64×64 outdoor map and lands in a far corner of a small room.
-3. **Guards so no wild encounter rolls and no foray tick accrues indoors.**
-   `game/scenes/OverworldScene.ts:783` calls `rollForayStep` **unconditionally on every completed
-   step** (`onStepCompleted`, `:777`). `:849` writes the odometer unconditionally; the charge at
-   `:850` is conditional on `chargingForay` (computed `:840`). **Both need an indoor guard — note the
-   asymmetry: the tick charge is conditional, the odometer write is not**, so an indoor step still
-   walks the player toward a foray tick even if it never spends one. *(This queue previously described
-   both as unconditional; only the roll and the odometer are.)*
-4. **The save field declared in `zSaveFileFor`** — or zod silently deletes it on the next load.
+1. **Entering is free, but the step ONTO the threshold is billed like any other step.** The doorway is
+   checked *after* the encounter roll, not before (`game/scenes/OverworldScene.ts:1225-1245`). Checking
+   it first would make that step free — and since leaving lands the player back on that same tile,
+   stepping off and on again would halve the cost of walking past every door in the game.
+2. **Indoor steps do not advance the foray odometer, and nothing is refunded.** A foray step is
+   *defined* as the step that rolls encounters (build-doc §4), so banking one whose roll is suppressed
+   sells the player a hunt they cannot take. Duck inside at 47 of 48 and you come out still owing the
+   48th. — `game/scenes/OverworldScene.ts:1129-1145`
 
-**Done when:** the player can enter and leave a room from the town map, arrives on an authored cell,
-walks indoors without rolling an encounter or accruing a foray tick, and the room survives a save/load
-round trip.
+**What its own sabotage caught in its own work, which is the more valuable half of this ticket.**
+Twenty cases were written; two of them found holes in the work committing them.
+
+- **A harness reported *"no red"* for a sabotage because the run never started.** vitest 4 has no
+  `--reporter=basic`, the invocation failed, and **silence read as success.** A self-verification that
+  cannot distinguish "nothing failed" from "nothing ran" is not a verification. Read the events
+  literally: an empty result is not a green one. Its sibling, from the same night and nastier because
+  there is no error at all: **`vitest -t` takes a REGEX, not a literal** — a case named `[E1]` parses
+  as a **character class** matching one of `E` or `1`, so the filter matches nothing, runs nothing and
+  **reports success.** The next person to name a case `[G2]` or `[R9]` walks into it, and the art lane
+  already R-numbers its rules. **Confirm the summary line and the expected test count before believing
+  a green.**
+- **A cold-load test's only geometry assertion was true under every cell size *and* true of a scene
+  that never parsed the plan at all.** It was asserting a shape the failure also has.
 
 ### T-36 · `node.walkable` gates nothing, and two canonical docs say otherwise
 **Status:** TODO — **blocked on Hank's decision; an agent may not pick a side**
@@ -1001,35 +1056,47 @@ enemy should value moving first is a design question:
 the thirteen measured ties. **Do not slip it in as a tie-break tweak** — it changes what the AI
 values, and it has to be measured as that.
 
-### T-38 · The level-5 starter is one-shot on Route 1
-**Status:** TODO — **measurement and consequence only; retuning is a separate deliberate call**
+### T-38 · The starter is one-shot on Route 1 — **CORRECTED, and the real figure is worse**
+**Status:** measured; **the decision is Hank's and is in STATUS's waiting-on-the-owner register.**
+Nothing here is a TODO and nothing was tuned.
 
-A level-1 `loamunder-line` lands **78 super-effective damage** against a level-5 Juvenile starter's
-**58 HP**, and **four of Route 1's six lines beat the starter one-on-one at level 1.**
+**This ticket's own claim was false and is withdrawn, not rephrased.** It said *"four of Route 1's six
+lines beat the level-5 starter one-on-one at level 1."* Measured, that holds for no starter: at level 1
+it is **Cindril 1 of 6, Puddlisk 2 of 6, Thornlet 0 of 6.**
 
-Inputs, re-read:
-- The starter is granted at `balance.xp.starterLevel` = **5**, age **J**. HP by `effectiveStats`
-  (`core/battle.ts:390`; level term `:396`; write `:414`): `60 × 0.875 × 1.1 = 57.75 → **58**` for
-  Cindril and Thornlet, **63** for Puddlisk.
-- Route 1 ships **six** lines (`data/nodes/r1.json:17-48`): `loamunder-line` 32 head, `nibbin-line` 11,
-  `skir-line` 8, `bramblehog-line` 7, `pollywisp-line` 6, `carricrow-line` 3 — 67 head.
-- `loamunder-line` (`data/species.json:337`) is Earth/Plant, base **85/60/85/30/40** after T-11's
-  Producer re-spend. At level 1 only `type1` unlocks (`data/balance.json:175-179`), so it fields
-  `sunder` (Earth, power 40). Earth is strongVs Fire and `superEffective` is 1.5, so against the Fire
-  starter: `61 × 40 / 43 × 1.5 ≈ 85`, × roll 0.9–1.1 → **77–94**.
+**But level 1 is not what Route 1 rolls, and the true finding is larger than the claim it replaces.**
+At the levels the node actually produces — 4 to 8, ages weighted by the real encounter table — the
+granted **juvenile** starter reads:
 
-⚠ **The 78 is starter-specific.** Against Thornlet (Plant) that move is not super-effective. Name the
-starter whenever this figure is quoted.
+| starter | wins | **one-shot** | lines that beat it |
+|---|---|---|---|
+| Cindril | 21.3% | **78.7%** | 3 of 6 |
+| Puddlisk | 14.1% | **84.8%** | 6 of 6 |
+| Thornlet | 25.0% | **74.8%** | 5 of 6 |
 
-Loamunder is **47.8% of Route 1's encounter weight**, and T-11 recorded the cost it accepted at the
-time: a level-5 adult starter's loss rate against one went **6.5% → 38.0%**. That was tolerable while
-a loss cost nothing. **T-28 makes the loss persist and T-29 charges five ticks to recover from a
-wipe** — the same number now buys a different game.
+**The starter loses about four fifths of its first encounters in a single hit.** Read the correction
+that way round: "starter is weak on Route 1, again" and "the starter is one-shot four times in five"
+provoke different decisions, and only the second is true.
 
-**Nothing here is a licence to retune.** G2 binds on species values and T-11's re-spend is Hank's.
+**How this ticket got it wrong, because the mistake is instructive.** It computed ~78 damage using
+**attack 61 — the level-1 *Adult*'s figure** — against a starter granted as a **Juvenile**. It mixed
+ages. Correcting the age makes the conclusion **stronger, not weaker**: a level-1 juvenile Loamunder's
+true damage band is **67–82**, so the **minimum** roll already exceeds the Fire starter's 58 HP and the
+one-shot is certain rather than likely. The starter-specificity flagged in the original stands — the
+same move is *resisted* by Thornlet and Puddlisk, which is why their one-shot rates come from other
+lines. Name the starter whenever a figure here is quoted.
 
-**Done when:** the four losing matchups are enumerated from a real harness run rather than from this
-text, the figure is recorded per starter, and the result goes to Hank beside T-28 and T-29.
+**Two things that make this decidable rather than alarming.**
+1. **It was predicted in writing.** `data/balance.json`'s `age._multiplier` note recorded this
+   instrument reading a **66.2%** loss rate after T-10 and said the T-11 Producer re-spend would move
+   it. It has, to about **80%**. This is a known consequence arriving, not a surprise.
+2. **It matters far more now than when it was first noted**, because a lost fight is about to cost
+   something: T-28 makes battle damage persist and T-29 charges the recovery. Nothing in `game/` calls
+   `applyBattleResult` yet — verified by grep — and both tickets are in flight.
+
+**Nothing was tuned to produce these numbers and nothing should be.** Levels, rosters, stats and
+balance values are Hank's; G2 and T-11's ruling forbid an agent moving them, and G14 forbids moving a
+target to accommodate a result.
 
 ### T-39 · `sanctum-antler-ring` sits exactly on the Sanctum's spawn cell
 **Status:** TODO — **a genuine data conflict, not a generator bug**
@@ -1052,19 +1119,15 @@ the Sanctum's spawn is authored away from the lattice centre — and whichever r
 down where the map lane will read it. The map lane owns the painting; this ticket owns the node file.
 
 ### T-40 · `DexScene` and `SummaryScene` take an optional `onClose`
-**Status:** TODO — **not broken today; one supplier away from repeating a defect just repaired**
+**Status:** DONE — **both are required now, and both carry the runtime fallback as well.**
 
-`game/scenes/DexScene.ts:61` and `game/scenes/SummaryScene.ts:50` both declare
-`onClose?: () => void;` — the same shape as the epilogue-survey defect, where an optional close
-handler meant a screen with no way out.
-
-Each has **exactly one supplier**, both in `MenuScene.ts` (dex `:587`, summary `:599`), and both pass
-one, so nothing is stranded now. But nothing structurally prevents a second launcher omitting it, and
-`SurveyScene` has already paid for that: `game/scenes/SurveyScene.ts:101-102` carries the note, `:105`
-made its own `onClose` **required**, and `:227-233` added a runtime fallback these two do not have.
-
-**Done when:** both are required, or both carry the same runtime fallback `SurveyScene` has, and a
-test proves a launcher that forgets it cannot strand the player.
+`game/scenes/DexScene.ts:72` and `game/scenes/SummaryScene.ts:57` both declare `onClose: () => void;`
+with no `?`, so a launcher that forgets one no longer compiles. The belt-and-braces half landed too:
+`closeScreen` (`game/scenes/DexScene.ts:102-114`) is one shared exit shared by both scenes and by
+`SurveyScene`'s pattern — it warns and reopens the menu rather than stranding the player when it is
+handed something that is not a function, which the type system cannot prevent at a `scene.start`
+boundary. `SummaryScene.ts:51` records the reason on the field itself, where whoever loosens it will
+read it.
 
 ### T-41 · The manifest says `fit: true`; `toSprite()` calls `nearestResample`
 **Status:** TODO — **pre-existing at HEAD; not introduced by T-24's repair**
@@ -1084,24 +1147,56 @@ resampled. They are not interchangeable: `nearestResample` is `tools/postprocess
 whichever matches the approved front sprite's actual geometry, **decided by decoding it rather than by
 reading either file.** `tests/gates/player-art-contract.test.ts` is where the answer gets bound.
 
-### T-42 · Three comments still call a season four ticks long
-**Status:** TODO — **T-25 item 2's sibling, found while closing it**
+### T-42 · Comments still calling a season four ticks long
+**Status:** DONE — **and the ticket's own count was wrong: there were FOUR, not three.**
 
-`balance.clock.ticksPerSeason` is **13**, and `data/balance.json:410` already says a regional-event
-window *"stays open for clock.ticksPerSeason ticks"*.
+The fourth was a test docblock (`tests/unit/overworld-scene.test.ts:1487`) carrying the same figure,
+found while the named three were being fixed. `balance.clock.ticksPerSeason` is **13**.
 
-- `game/scenes/OverworldScene.ts:1405` — *"bible §9's regional events open right now — each one a
-  4-tick season window."* **Stale as a statement of the current rule.**
-- `game/scenes/OverworldScene.ts:1915` — the same figure, as historical narration.
-- `core/regional-events.ts:415` — the same figure, the same shape.
+None of the four now states the number as the current rule. `game/scenes/OverworldScene.ts:1830` says
+in as many words that this line *"said '4-tick' for as long as that was false"*; `:2349`,
+`core/regional-events.ts:418` and `tests/unit/overworld-scene.test.ts:1487` each name the window as
+`clock.ticksPerSeason` and mark the old figure explicitly as the then-shipped 16-tick year, so a
+reader cannot mistake the history for the rule. That is T-25 item 2's repaired `seasonBoundary`
+docblock applied as a pattern: **name the balance key, refuse to name the number.**
 
-This is precisely the defect T-25 item 2 closed and then made unrepeatable: **a comment that quotes
-ticks goes stale in silence.** The repaired `seasonBoundary` docblock
-(`game/scenes/OverworldScene.ts:1973-1985`) is the model — it names the balance keys and refuses to
-name the number, and says at `:1980-1982` that it does so for this reason.
+**A fourth instance of this file's own standing rule** — *a ticket's own predicted number is not a
+measurement.* Re-grep before you believe a count written here.
 
-**Done when:** all three name `clock.ticksPerSeason` rather than a figure, and the two that are
-genuinely historical say so explicitly instead of reading as the current rule.
+---
+
+### T-43 · The palette append needs its own generator — `fit.mjs` structurally cannot make one
+**Status:** TODO — **a separate generator is the only correct shape, not a workaround.**
+Sequencing is Hank's and is open (STATUS, waiting-on-the-owner).
+
+**What an append has to guarantee:** the existing swatches keep their ids and their bytes. `c00`–`c31`
+byte-identical, new colours appended after them. That is the whole reason to append rather than
+re-freeze — T-15's lesson is that **a palette id is a SLOT, not a colour**, and fifteen of nineteen
+`UI_SWATCH` roles had to be re-pointed the last time a freeze moved values under fixed ids.
+
+**`tools/palette/fit.mjs` cannot produce that, and passing it a bigger K makes it worse rather than
+better.** Both properties were read in the file:
+- **`K = 32` is a module constant** (`:61`) with no CLI override — the flags are `--sources`, `--out`,
+  `--outdir`, `--label`, and nothing else (`:78-99`).
+- **Ids are re-derived from sorted ramp position** (`:373`), over a sort at `:361-372` that puts the
+  neutral ramp first by L\*, then groups chromatics into 30° hue families and orders within them by
+  L\*.
+
+So a larger K does not extend the list: it refits from scratch and **silently re-orders every existing
+id**. Nothing errors. `data/palette.json` still holds `c00`–`c31`; they are simply different colours
+than they were, and every consumer that stored a slot id is now pointing somewhere else. **That is
+precisely the failure the append exists to avoid, arriving through the tool meant to prevent it.**
+
+The fitter is a **re-freeze** instrument by construction, and a re-freeze is what an append must not
+be. Recorded here because the obvious future instinct is *"why not just pass K to the fitter"*, and
+the answer needs to be on record before somebody spends a session on it.
+
+**Done when:** a generator exists that reads the frozen 32 as fixed input, fits only the additional
+swatches, writes them at ids after `c31`, and **refuses** if any of the first 32 hexes moves — with a
+test that sabotages exactly that and reds. The gate that would notice it downstream already exists:
+`tests/gates/asset-palette-contract.test.ts` reads the palette from disk at test time rather than from
+a copied list, and `tests/gates/ui-contrast-contract.test.ts` reds if the UI goes illegible under a
+palette change.
 
 ---
 
@@ -1140,6 +1235,17 @@ genuinely historical say so explicitly instead of reading as the current rule.
 - **A ticket's own file:line is not a measurement either.** On the 2026-08-27 pass, `ensureNodeArt`,
   the mesopredator filter, four battle handlers, both foray hooks and the enemy-AI docblock had all
   drifted from the lines this file cited. Re-read the line before you cite it.
+- **A green you did not watch turn red is not evidence.** Two ways a vitest run reads as a pass having
+  executed nothing, both hit in one night: **`-t` takes a regex**, so a case named `[E1]` is a
+  character class that matches nothing and reports success; and **`--reporter=basic` does not exist in
+  vitest 4**, so passing it produces a run that never starts. An empty run and a passing run look
+  identical — **confirm the summary line and the expected test count.**
+- **A reading is not a measurement, and a consequence of one of Hank's sentences is not one of his
+  sentences.** Every quoted line in this file came from him; everything else is somebody's reading of
+  it. Two instances in one night, both caught: a requirement inferred from a quote and written down as
+  a shortfall, and a "two of seven cells are suspect" claim inferred from a gap between two
+  measurements and stated with a measurement's confidence — it was one cell. **Mark a reading as a
+  reading**, so the next person can disagree with it without first discovering it was never his.
 - **Green tests prove only what they exercise.** Before trusting a metric, ask what produced it and
   sabotage it to see whether it bites. This repo has had a cascade metric that counted the wrong
   animal, a prose linter whose checks were fossils, a gym harness measuring a party size the game
