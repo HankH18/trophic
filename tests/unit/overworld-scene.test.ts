@@ -363,7 +363,7 @@ vi.mock("phaser", () => {
 /* ── imports that must come AFTER vi.mock ─────────────────────────────────── */
 
 import { RUN_COMPLETE_SHOWN_FLAG, actOf, nodeUnlockedAt, runIsComplete } from "@core/acts";
-import { BLACKOUT_ENTRY_ID, blackoutTicks, restBeatAt, wakeNodeFor } from "@core/recovery";
+import { BLACKOUT_ENTRY_ID, blackoutTicks, readInnRest, restBeatAt, wakeNodeFor } from "@core/recovery";
 import { startBattle, step as battleStep, caughtIndividual } from "@core/battle";
 import { seasonOf, subTicksForAction, ticksForAction } from "@core/clock";
 import {
@@ -4365,5 +4365,213 @@ describe("§16 an interior draws its painting when one exists, and its footprint
     expect(unpainted.hud(), "the footprint stopped being drawn for an unpainted room").toContain(
       `FOOTPRINT interior ${bp.id}`,
     );
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §17 THE INN HEALS WHAT IT CHARGES FOR — and the blackout still MOVES the player
+ *
+ * ⚠ WHAT WAS TRUE BEFORE, HALF ONE. `restAtInn` was `spendTicks("inn", …)` and a banner. It took
+ * `clock.innTicks` and touched the party not at all — harmless only while damage evaporated between
+ * fights, which it stopped doing when `applyBattleResult` began writing `curHp` back. The
+ * consequence: a damaged-but-not-wiped party's only route to full was to LOSE a fight on purpose.
+ *
+ * ⚠ WHAT WAS TRUE BEFORE, HALF TWO, AND IT IS THE MORE DANGEROUS ONE. `recoverFromBlackout`'s
+ * step 2 — `this.enterNode(target)`, the on-screen move — was DELETABLE with the whole suite
+ * unchanged. The only assertion comparing `scene.node.id` to `save.currentNode` after a blackout
+ * runs at the vertical slice's first walkable node, and `wakeNodeFor` is the IDENTITY there: the
+ * assertion compared two values that are the same value at its fixture. An end-to-end assertion
+ * placed at the one node where its two sides cannot differ cannot fail. §17.2 drives the wipe at
+ * EVERY shipped node and counts how many actually move, the way `tests/unit/recovery.test.ts`
+ * already loops rather than picking.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/** Walk until a battle is launched, and hand back its data. The encounter is real; the walk is §3's. */
+function walkIntoABattle(h: Harness): BattleSceneData {
+  const before = h.parts.launches.length;
+  const found = (): boolean => h.parts.launches.slice(before).some((l) => l.key === SCENE_KEYS.battle);
+  walk(h, 4000, found);
+  const launch = h.parts.launches.slice(before).find((l) => l.key === SCENE_KEYS.battle);
+  if (!launch) throw new Error("walked 4000 steps and no wild encounter became a battle");
+  return launch.data as BattleSceneData;
+}
+
+/**
+ * Finish the fight as a WIN that left the player standing on one hit point, and hand back the uids.
+ *
+ * ⚠ THE DAMAGE IS FABRICATED THE WAY {@link settledState} FABRICATES A FAINT — one point above the
+ * `curHp: 0` it writes — and for the same reason: what is under test here is the SCENE. That a real
+ * shipped matchup can leave a party hurt AND standing is `tests/unit/recovery.test.ts` §8.1's, and
+ * it is played there through the real reducer. What is NOT fabricated is the write: the number below
+ * reaches the save through production's own `game/wild-battle.ts` `applyBattleResult`, off the
+ * finish handler this launch was given.
+ */
+function settleWinLeavingThePartyHurt(h: Harness, data: BattleSceneData): string[] {
+  const started = startBattle(data.input, data.ctx).state;
+  const battlers = { ...started.battlers };
+  for (const uid of started.enemyOrder) {
+    const enemy = battlers[uid];
+    if (enemy) battlers[uid] = { ...enemy, curHp: 0, fainted: true };
+  }
+  const hurt: string[] = [];
+  for (const uid of started.playerOrder) {
+    const player = battlers[uid];
+    if (!player || player.maxHp <= 1) continue;
+    battlers[uid] = { ...player, curHp: 1 };
+    hurt.push(uid);
+  }
+  const launch = h.parts.launches.find((l) => l.data === data);
+  if (launch) h.parts.launches.splice(h.parts.launches.indexOf(launch), 1);
+  data.onFinished({ state: { ...started, battlers, outcome: "win" }, caught: null });
+  return hurt;
+}
+
+describe("§17.1 [R] restores the party it charges for", () => {
+  it("a damaged party comes back at full, for exactly clock.innTicks, and says so", () => {
+    const h = mount();
+    const hurt = settleWinLeavingThePartyHurt(h, walkIntoABattle(h));
+    expect(hurt.length, "the fight left nobody to heal — the rest below would prove nothing").toBeGreaterThan(0);
+    // THE RIG FIRST: the damage is really on the SAVE, through production's own write.
+    for (const uid of hurt) {
+      expect(h.scene.save.party.find((c) => c.uid === uid)?.curHp, uid).toBe(1);
+    }
+
+    /*
+     * ⚠ A CREATURE THAT DID NOT FIGHT IS ADDED BEFORE THE REST, AND IT IS WHAT MAKES THE BANNER
+     * ASSERTION ABLE TO FAIL. `applyBattleResult` writes an explicit `curHp` for EVERY battler,
+     * hurt or not, so after a fight the tape's `restored` (the whole fieldable party) and the
+     * banner's `healed` (what the rest rewrites) are the same list — and a banner printing the
+     * wrong one would read identically. A creature caught after the fight has never carried a
+     * number, which is the ordinary save state that tells the two apart. Added through `restart`,
+     * the way §4 changes a save, rather than by writing over the scene's own field.
+     */
+    const spare = provisionalStarter(content);
+    if (!spare) throw new Error("data ships no starter line — the fixture cannot be built");
+    h.restart({
+      save: {
+        ...h.scene.save,
+        party: [...h.scene.save.party, { ...spare, uid: `${spare.uid}-spare` }],
+      },
+    });
+    expect(h.scene.save.party).toHaveLength(hurt.length + 1);
+    expect(
+      h.scene.save.party.filter((c) => c.curHp !== undefined),
+      "every party member carries a number — the two counts cannot differ",
+    ).toHaveLength(hurt.length);
+
+    const spentBefore = subTicksSpent(h.scene.save);
+    const logBefore = h.scene.save.actionLog.length;
+    h.press(KEY_R);
+    frameAndSettle(h);
+
+    // 1. THE HEAL — absent `curHp`, which is the one spelling of full (`isStanding`).
+    for (const creature of h.scene.save.party) {
+      expect(creature.curHp, `${creature.uid} came out of the inn still carrying an HP number`).toBeUndefined();
+    }
+    // 2. THE PRICE — the inn's, unchanged. A heal that made the rest free would pass every other
+    //    assertion here.
+    expect(subTicksSpent(h.scene.save) - spentBefore, "the rest did not cost clock.innTicks").toBe(COST.inn);
+    // 3. THE TAPE — TWO entries, because a price and a consequence are never the same entry. Without
+    //    the consequence entry `core/save.ts` `replay` reproduces a party that is still hurt (L10).
+    const added = h.scene.save.actionLog.slice(logBefore).map((e) => e.action);
+    expect(added.filter((a) => readInnRest(a) !== null), "no inn-rest entry reached the tape").toHaveLength(1);
+    expect(added.filter((a) => (a as { t: string }).t === "inn"), "no inn PRICE reached the tape").toHaveLength(1);
+    const taped = readInnRest(added.find((a) => readInnRest(a) !== null));
+    expect(taped).toContain(hurt[0]);
+    /*
+     * …and the tape's list is the WHOLE fieldable party, not just the one that was hurt. That is the
+     * absolute form: applied to any save it names the same creatures and leaves them in the same
+     * state, which is what lets `replay` re-apply it without asking who was standing at the time.
+     */
+    expect(taped, "the tape recorded only what changed, which is not an absolute record").toHaveLength(
+      h.scene.save.party.length,
+    );
+    /*
+     * 4. THE BANNER — identifiers and arithmetic (G7), and the count is what CHANGED. `restored` is
+     *    the whole party here and `healed` is one of it, so a banner printing the wrong list reads
+     *    "2 restored" and fails.
+     */
+    expect(hurt.length, "the rig hurt everybody — the two counts cannot differ").toBeLessThan(
+      h.scene.save.party.length,
+    );
+    expect(h.hud()).toContain(`${String(hurt.length)} restored`);
+    expect(h.hud(), "the banner counted the tape's list instead of what changed").not.toContain(
+      `${String(h.scene.save.party.length)} restored`,
+    );
+  });
+
+  it("a party already at full may rest: charged, not refused, and nothing written", () => {
+    /*
+     * The decision, stated as a test: a rest the party did not need is a NO-OP with a price, not an
+     * error and not a refusal. A cost that depended on how hurt the party was would be a second
+     * pricing rule beside `core/clock.ts`'s — and a refusal would make [R] silently do nothing in
+     * the state the player is in for most of a run.
+     */
+    const h = mount();
+    expect(h.scene.save.party.every((c) => c.curHp === undefined), "the rig is not at full").toBe(true);
+    const partyBefore = JSON.stringify(h.scene.save.party);
+    const spentBefore = subTicksSpent(h.scene.save);
+    const logBefore = h.scene.save.actionLog.length;
+
+    expect(() => {
+      h.press(KEY_R);
+      frameAndSettle(h);
+    }).not.toThrow();
+
+    expect(subTicksSpent(h.scene.save) - spentBefore).toBe(COST.inn);
+    expect(JSON.stringify(h.scene.save.party)).toBe(partyBefore);
+    const added = h.scene.save.actionLog.slice(logBefore).map((e) => e.action);
+    expect(added.filter((a) => readInnRest(a) !== null), "an empty consequence reached the tape").toHaveLength(0);
+    expect(added, "the price stopped being levied").toHaveLength(1);
+    expect(h.hud(), "the banner reported a restore that did not happen").not.toContain("restored");
+  });
+});
+
+describe("§17.2 a wipe moves the SCENE, not only the save", () => {
+  it("at every shipped node, and the wake rule really moves at some of them", () => {
+    /*
+     * ⚠ THE LOOP IS THE TEST. `wakeNodeFor` is the identity at five of the twelve nodes — every town
+     * wakes in itself — so a single-node version of this assertion is `x === x` unless the fixture
+     * happens to be a route. The count below is what makes the loop mean something: if a data change
+     * ever made every node wake where it fell, this fails loudly instead of passing vacuously.
+     *
+     * ⚠ THE PARTY IS PUT AT ZERO DIRECTLY, and that is deliberate here rather than sloppy: this
+     * asserts the SCENE's half of the recovery — that step 2 exists — and building twelve real
+     * wipes by walking twelve maps into twelve losses would test the encounter tables. That a
+     * shipped matchup produces this state at every one of the twelve is
+     * `tests/unit/recovery.test.ts` §6, played through the real reducer; §3 above drives one
+     * end-to-end through this very scene.
+     */
+    let moved = 0;
+    const seen: string[] = [];
+    for (const node of content.nodes) {
+      const wake = wakeNodeFor(node.id, content);
+      const base = freshSave(node.id);
+      const h = mount({ save: { ...base, party: base.party.map((c) => ({ ...c, curHp: 0 })) } });
+      expect(h.scene.node.id, `${node.id}: the harness did not start where it was asked to`).toBe(node.id);
+
+      h.scene.recoverFromBlackout();
+
+      // The consequence fired at all — without this the comparison below is two unmoved values.
+      expect(h.scene.save.currentNode, `${node.id}: the blackout did not fire`).toBe(wake);
+      expect(
+        h.scene.save.party.every((c) => c.curHp === undefined),
+        `${node.id}: the wake left the party on the floor`,
+      ).toBe(true);
+      // …AND THE VIEW FOLLOWED IT. `forayContext`, `liveNode`, the encounter roll and the collision
+      // grid all read `this.node`; a save that moved without it leaves the player walking one map
+      // while the game rolls encounters for another.
+      expect(h.scene.node.id, `${node.id} → ${wake}: the save moved and the scene did not`).toBe(
+        h.scene.save.currentNode,
+      );
+
+      if (wake !== node.id) moved += 1;
+      seen.push(`${node.id} → ${wake}`);
+    }
+    expect(
+      moved,
+      `every shipped node wakes where it fell, so this loop compared a value with itself ` +
+        `twelve times:\n${seen.join("\n")}`,
+    ).toBeGreaterThan(0);
   });
 });

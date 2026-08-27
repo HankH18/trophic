@@ -122,9 +122,11 @@ import {
 import {
   BLACKOUT_ENTRY_ID,
   applyBlackoutRecovery,
+  applyInnRest,
   blackoutCharges,
   blackoutRecoveryFor,
   blackoutTicks,
+  innRestFor,
   restBeatAt,
 } from "../../core/recovery";
 import {
@@ -1968,11 +1970,44 @@ export class OverworldScene extends Phaser.Scene {
    * walked. Measured for contrast: `previewAction({year:1,tick:15}, "inn")` → cost 2, endsYear true,
    * afterTick 1. The town is `save.currentNode` — the node schema has no separate inn prop, and
    * inventing one would be content (G2).
+   *
+   * ⚠ IT NOW HEALS WHAT IT CHARGES FOR, AND IT DID NOT. This was `spendTicks` plus a banner: it took
+   * `clock.innTicks` and touched the party not at all. Harmless while damage evaporated between
+   * fights; not harmless since `game/wild-battle.ts` `applyBattleResult` began writing `curHp` back
+   * and `core/lifecycle.ts` began carrying a zero through the year turn unchanged. The consequence
+   * was that a damaged-but-not-wiped party's only route to full was to LOSE a fight on purpose —
+   * `2 × innTicks + 1 × travelTicks` and a forced relocation ({@link recoverFromBlackout}) — while
+   * the inn standing in front of the player cost `innTicks` and did nothing. Meanwhile
+   * `balance.medicine.innRestFullHeal` was `true` with exactly one reader, the blackout's wake, and
+   * bible §11 reads "inn rest (full heal, 2 ticks)".
+   *
+   * ⚠ NO SECOND RESTORE. `core/recovery.ts` `applyInnRest` selects with the same `restoredUids` the
+   * blackout selects with and writes through the same `core/save.ts` `applyBlackout`; the only thing
+   * this scene decides is WHEN. See that module's §5 for why the heal rides as its own absolute tape
+   * entry instead of being derived from the `{t:"inn"}` price beside it.
+   *
+   * ⚠ CONSEQUENCE BEFORE PRICE, exactly as {@link recoverFromBlackout} step 1 is: the heal is on the
+   * save before a year turn the charge triggers, or a save write, or the HUD can read it. The two
+   * cannot come apart in between — `isHandedOver()` above already covers `yearTurnRunning`, which is
+   * the one condition {@link spendTicks} refuses on, so a rest that healed can never be a rest that
+   * was not charged.
+   *
+   * A FULL PARTY RESTING IS NOT AN ERROR AND NOT A REFUSAL. `innRestFor` answers null, the price is
+   * levied anyway, and no tape entry is written — the inn's cost is `clock.innTicks` whatever state
+   * the party is in, because a price that depended on how hurt the party was would be a second
+   * pricing rule beside `core/clock.ts`'s.
    */
   restAtInn(townId: string = this.save.currentNode): void {
     if (this.isHandedOver() || this.travelling) return;
+    const rest = innRestFor(this.save, this.balance, isStanding);
+    if (rest !== null) this.save = applyInnRest(this.save, rest);
     this.spendTicks("inn", { t: "inn", townId });
-    this.flashBanner(`inn at ${townId} · ${String(actionCosts(this.balance).inn)} ticks`);
+    // G7 — identifiers and arithmetic, and nothing about the player. The count is `healed` and not
+    // `restored`: under `innRestFullHeal` the record names the whole fieldable party whether or not
+    // anybody was hurt, so `restored.length` would report the same number for a rest that changed
+    // nothing. Absent entirely when nothing was healed, rather than a "0" the player must interpret.
+    const healed = rest === null ? "" : ` · ${String(rest.healed.length)} restored`;
+    this.flashBanner(`inn at ${townId} · ${String(actionCosts(this.balance).inn)} ticks${healed}`);
   }
 
   /**
@@ -1982,9 +2017,16 @@ export class OverworldScene extends Phaser.Scene {
    * you passed out or something like that, and then you wake up at the inn"*, and *"it should use
    * twice the inn ticks, in addition to the cost of one fast travel."* Without it a wiped save has
    * no action left that can change its state: all four launchers refuse a party with nothing
-   * standing, `restAtInn` charges ticks and heals nothing, and `core/lifecycle.ts` keeps a zero at
-   * zero through the year turn. This is also the explicit penalty docs/TICKETS.md T-12 asks for —
-   * the same thing seen from the other side.
+   * standing, and `core/lifecycle.ts` keeps a zero at zero through the year turn. This is also the
+   * explicit penalty docs/TICKETS.md T-12 asks for — the same thing seen from the other side.
+   *
+   * ⚠ {@link restAtInn} HEALS NOW, AND THIS IS STILL NOT REDUNDANT. The inn is a way back to full
+   * for a player STANDING IN A TOWN with a key to press. A wipe happens mid-fight, and this method
+   * is called from the last statement of all four finish handlers — the player never regains control
+   * holding a wiped party, and a wipe on Route 1 has no inn to walk to in any case. So the two never
+   * compete on price: `innTicks` buys a night's rest where you already are, and the extra
+   * `innTicks + travelTicks` here buys the second night and the CARRY, which is the half the player
+   * cannot perform for themselves.
    *
    * ⚠ CALLED AT THE END OF EVERY FIGHT AND IT IS A NO-OP UNLESS ONE IS OWED.
    * `blackoutRecoveryFor` answers null for a party with anything on its feet AND for an empty one,

@@ -15,7 +15,15 @@
  * `applyBattleResult` writes it back now, and three things then line up into a dead end —
  * `core/lifecycle.ts` keeps a zero at zero through the year turn, the inn charges ticks and heals
  * nothing, and all four `*BattleProblem` launchers refuse a party with nothing standing. A player
- * whose last creature falls has no action left that can change the state. That contradicts a
+ * whose last creature falls has no action left that can change the state.
+ *
+ * ⚠ THE MIDDLE ONE OF THOSE THREE IS NOW FALSE, AND THE BLACKOUT IS STILL NOT OPTIONAL. §5 below
+ * makes the inn heal, so an inn is a way back to full — but only for a player who is STANDING IN A
+ * TOWN and free to press a key, and a wipe happens on a route, mid-fight, with the four launchers
+ * refusing every fight and the shell calling {@link applyBlackoutRecovery} at the end of the fight
+ * before control returns. The inn is never the cheaper route out of a wipe because it is never
+ * reachable from one. What the extra `innTicks + travelTicks` buys is what §3's price list has
+ * always said it buys: the SECOND night and the CARRY. That contradicts a
  * ruling Hank has already closed — *"if the player finds themselves in a situation where all they
  * have is one creature, then this forced choice prevents the game from being blocked, which is a
  * good thing"* — and it is also the explicit penalty docs/TICKETS.md T-12 asks for. THEY ARE THE
@@ -371,6 +379,12 @@ export function blackoutRecoveryFor(
  * weakness: nothing is standing when this is called, so "everyone" and "everyone who is down" name
  * the same creatures. The branch exists so the magnitude follows balance where it can, while the
  * one property the ruling actually fixes — a wiped save can act again — is not a tunable.
+ *
+ * ⚠ IT HAS TWO CALLERS NOW, AND THAT WAS ALWAYS THE POINT OF ITS SHAPE. The docblock above already
+ * said this function answers "what an inn rest does"; {@link innRestFor} is the inn asking it. The
+ * two branches genuinely differ there — a party with one member down and two upright is exactly the
+ * state the blackout can never be in — which is what turns `innRestFullHeal` from a flag with one
+ * reader into the flag it is named for.
  */
 function restoredUids(save: SaveEnvelope, balance: Balance, isStanding: StandingFn): string[] {
   const party = fieldable(save);
@@ -400,4 +414,170 @@ function restoredUids(save: SaveEnvelope, balance: Balance, isStanding: Standing
 export function applyBlackoutRecovery(save: SaveEnvelope, recovery: BlackoutRecovery): SaveEnvelope {
   const applied = applyBlackout(appendAction(save, blackoutAction(recovery)), recovery);
   return { ...applied, questFlags: { ...applied.questFlags, [BLACKOUT_CUE_FLAG]: true } };
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * 5. The INN REST — the same restore, at a third of the price and with no move
+ *
+ * ⚠ WHY IT LIVES BESIDE THE BLACKOUT AND NOT IN THE SHELL. `game/scenes/OverworldScene.ts`
+ * `restAtInn` was `spendTicks("inn", …)` and a banner: it charged `clock.innTicks` and healed
+ * nothing. That was harmless only while damage evaporated between fights. It does not evaporate —
+ * `game/wild-battle.ts` `applyBattleResult` writes `curHp` back and `core/lifecycle.ts` carries a
+ * zero through the year turn unchanged — so the inn charged for a thing it did not do, and a
+ * damaged-but-not-wiped party's only route back to full was to LOSE a fight on purpose: the
+ * blackout, at `2 × innTicks + 1 × travelTicks` and a forced relocation, next door to an inn that
+ * cost `innTicks` and did nothing.
+ *
+ * ⚠ AND `balance.medicine.innRestFullHeal` HAD EXACTLY ONE READER — {@link restoredUids}, reached
+ * only from the blackout — while bible §11 reads "inn rest (full heal, 2 ticks)". The inn was the
+ * one thing that flag is named for and the one place it was not used.
+ *
+ * SO THIS SECTION ADDS NO SECOND RESTORE. The selection is {@link restoredUids}, the same function
+ * the blackout selects with; the WRITE is `core/save.ts` `applyBlackout`, the same writer `replay`
+ * comes through. A rest that computed its own HP numbers would be a third spelling of build-doc
+ * §7.4's effective-stat formula in a file with no business knowing it — which is precisely what
+ * `core/types.ts` `BlackoutRecovery` exists to avoid by spelling "full" as a DELETED `curHp`.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * What one inn rest does to this save.
+ *
+ * TWO LISTS, and they answer two different questions:
+ *   • `restored` — every member the rest puts AT FULL. This is {@link restoredUids} verbatim and it
+ *     is what the tape carries, because it is the ABSOLUTE statement: applied to any save it names
+ *     the same creatures and leaves them in the same state, which is the rule `core/types.ts`
+ *     {@link BlackoutRecovery} states for its own `restored`.
+ *   • `healed` — the ones the rest actually CHANGES, i.e. the ones carrying an explicit `curHp`.
+ *     Under `innRestFullHeal` the first list is the whole fieldable party whether or not anybody was
+ *     hurt, so it is the wrong number to show a player. DERIVED, never taped: a record that carried
+ *     both would have two answers to "who was restored" the moment a save was hand-edited.
+ */
+export interface InnRest {
+  restored: readonly string[];
+  healed: readonly string[];
+}
+
+/**
+ * What resting at an inn would do to this save, or null when it would do nothing.
+ *
+ * NULL IS "NOTHING TO RESTORE", NOT "NOT ALLOWED", and the distinction is the whole of the
+ * full-party case: an undamaged party may rest, is charged `clock.innTicks` for it exactly as a
+ * damaged one is, and is neither refused nor thrown at. The shell reads null as "levy the price,
+ * write nothing", which is what keeps the inn's price unconditional — a rest whose cost depended on
+ * how hurt the party was would be a second, hidden pricing rule beside `core/clock.ts`'s.
+ *
+ * ⚠ THE PREDICATE IS `curHp !== undefined`, WHICH IS NOT A SECOND SPELLING OF `isStanding`. It asks
+ * "does this creature carry an explicit HP number", not "is it on its feet" — and it is exactly the
+ * condition `core/save.ts` `applyBlackout` branches on when it decides whether a member changes at
+ * all. So `healed` being empty is the same statement as "the restore is a no-op on this save", and
+ * the tape stays byte-identical for the ordinary full-party rest rather than growing an entry per
+ * keypress.
+ */
+export function innRestFor(
+  save: SaveEnvelope,
+  balance: Balance,
+  isStanding: StandingFn,
+): InnRest | null {
+  const restored = restoredUids(save, balance, isStanding);
+  const wanted = new Set(restored);
+  const healed = save.party.filter((c) => wanted.has(c.uid) && c.curHp !== undefined).map((c) => c.uid);
+  if (healed.length === 0) return null;
+  return { restored, healed };
+}
+
+/**
+ * The `t` discriminant an inn rest rides on the tape under.
+ *
+ * ⚠ IT IS A CONSEQUENCE AND IT NEEDS ITS OWN ENTRY. `{t:"inn", townId}` is a PRICE — `replay`
+ * applies no state for it and `game/year-replay.ts` `clockFromLog` charges `balance.clock.innTicks`
+ * for it — and `core/save.ts`'s contract is that an entry is a price or an absolute consequence and
+ * never both. Two concrete failures follow from breaking it here rather than one doctrinal one:
+ *   • `core/recovery.ts` `BLACKOUT_COST` levies TWO `{t:"inn"}` entries of its own. A heal derived
+ *     from the price entry would fire on those as well, so the blackout would be restored three
+ *     times by two different rules — and `applyBlackout` and a price-derived heal disagree the
+ *     moment `innRestFullHeal` is retuned to false.
+ *   • the false branch of {@link restoredUids} needs `isStanding`, which `replay` does not have and
+ *     must not acquire: the one spelling lives in `game/wild-battle.ts` and `core/` may not import
+ *     `game/` (L11). An absolute uid list needs no predicate at replay time, which is the same
+ *     reason `BlackoutRecovery` carries uids instead of HP numbers.
+ *
+ * ⚠ THE CAST BELOW IS A HANDOFF, NOT A HABIT. `core/types.ts` `GameAction` has no `innRest` member
+ * yet and that file is not this lane's to edit. This is the identical position `blackout` shipped
+ * from — "the cast that used to stand below it is gone", `core/save.ts` `BLACKOUT_ACTION` — and it
+ * is removed the same way, by one line joining the union. `core/schemas.ts` needs no change and must
+ * not get one: `zSaveFileFor` validates `actionLog[].action` as `z.looseObject({t: z.string()})`,
+ * which hands the payload back intact, and {@link readInnRest} re-checks the shape at read time
+ * rather than trusting the discriminant.
+ */
+export const INN_REST_ACTION = "innRest";
+
+/** The tape entry for one inn rest. Absolute: the uids it puts at full. */
+export function innRestAction(restored: readonly string[]): GameAction {
+  return { t: INN_REST_ACTION, restored: [...restored] } as unknown as GameAction;
+}
+
+/**
+ * The uid list carried by a tape entry, or null when the entry is not an inn rest.
+ *
+ * Takes `unknown` for the reason `core/save.ts` `readBlackout` does: the tape reaches a reader
+ * through a permissive schema, so this is the only place the record's shape is checked, and a
+ * malformed one is null — it then changes nothing — rather than making a corrupt tape unreadable.
+ */
+export function readInnRest(action: unknown): string[] | null {
+  if (action === null || typeof action !== "object") return null;
+  const raw = action as { t?: unknown; restored?: unknown };
+  if (raw.t !== INN_REST_ACTION) return null;
+  if (!Array.isArray(raw.restored)) return null;
+  const uids: string[] = [];
+  for (const uid of raw.restored) {
+    if (typeof uid !== "string" || uid.length === 0) return null;
+    uids.push(uid);
+  }
+  return uids;
+}
+
+/**
+ * PUT THE NAMED MEMBERS AT FULL, and change nothing else.
+ *
+ * ⚠ IT IS `core/save.ts` `applyBlackout`, DELIBERATELY, AND THE TWO ARGUMENTS IT IS GIVEN ARE WHAT
+ * NARROW IT TO THE PARTY. That function does three writes — the party, `currentNode`, and clearing
+ * `interiorId` — and only the first belongs to an inn rest:
+ *   • `wakeNode: save.currentNode` makes the move an IDENTITY. A rest does not relocate anybody; the
+ *     player is already standing in the town whose inn they are using.
+ *   • `interiorId` is PUT BACK. `applyBlackout` clears it because it MOVES the player, and a save
+ *     whose `currentNode` has changed while `interiorId` still names the room it left is the broken
+ *     state `travelTo` refuses travel to avoid. Nothing moves here, and [R] is live inside a room —
+ *     `data/interiors/hearthollow-inn.json` is a room the player can be standing in when they press
+ *     it — so clearing it would put the save outdoors while the scene still drew the inn floor.
+ *
+ * Routing through the shared writer is the point: it is the one place "restored" is spelled, it is
+ * the one `replay` reaches, and it is where the loud `SaveCorruptError` for a uid the save does not
+ * have already lives. A private copy of that four-line map is the defect class this repo has spent
+ * its night removing. STANDING HANDOFF: split `applyBlackout` into a party half and a relocation
+ * half over there, and this function becomes a call to the party half with no correction after it.
+ */
+export function restoreParty(save: SaveEnvelope, restored: readonly string[]): SaveEnvelope {
+  const healed = applyBlackout(save, { wakeNode: save.currentNode, restored });
+  if (save.interiorId === undefined) return healed;
+  return { ...healed, interiorId: save.interiorId };
+}
+
+/**
+ * The LIVE composition: the tape entry, then the write. No cue and no move.
+ *
+ * The order is {@link applyBlackoutRecovery}'s and it is load-bearing for the same reason — the
+ * consequence is on the save before anything the PRICE triggers can read it (a year turn, a save
+ * write, the HUD). Call this BEFORE the charge.
+ *
+ * ⚠ NO CORPUS CUE. The blackout raises {@link BLACKOUT_CUE_FLAG} because it owes the player a
+ * black-screen beat explaining where they woke up. A rest the player chose owes them nothing: the
+ * innkeeper's shipped `service` beat is already reachable through [E], and raising the wake cue here
+ * would make "you passed out" playable after a voluntary night's sleep.
+ *
+ * ⚠ AND NO CLOCK. This module is pure and models no meter; the shell levies `clock.innTicks` through
+ * whatever it already uses to spend a tick, so a rest crosses a season boundary or fills the year
+ * meter exactly as it always did.
+ */
+export function applyInnRest(save: SaveEnvelope, rest: InnRest): SaveEnvelope {
+  return restoreParty(appendAction(save, innRestAction(rest.restored)), rest.restored);
 }
