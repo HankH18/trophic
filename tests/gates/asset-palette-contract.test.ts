@@ -91,7 +91,8 @@
  *    means nothing.** "brackwater 31 colours" told nobody whether 31 was disciplined or a mess. The
  *    band, and the reason there is no cap, are in the GOLD BAND section below.
  *
- * 6. **A second reading sits beside it — GROUND TEXTURE — because the colour count alone cannot tell
+ * 6. **A second reading sits beside it — WHOLE-IMAGE EDGE DENSITY — because the colour count alone
+ *    cannot tell
  *    a good map from the one this project has been shipping.** A map at 16 colours and 9% edge
  *    density is flat and wrong; a map at 16 colours and 45% is right. Both satisfy a colour-count
  *    check identically, and the flat one is the failure that has actually been shipping. Note 4's
@@ -254,7 +255,7 @@ interface Census {
   alphaValues: Set<number>;
   /** `#rrggbb` -> occurrence, over OPAQUE pixels only. */
   swatches: Map<string, Swatch>;
-  /** Percent of pixels on a §8.2 Sobel edge — see the GROUND TEXTURE section. */
+  /** WHOLE-IMAGE edge density. Objects supply most of it — see `edgePercent`. Not a ground figure. */
   edgePct: number;
   /** Median patch's effective colour count — see THE GROUND READING section. */
   conc: number;
@@ -270,7 +271,41 @@ const hexAt = (d: Buffer, i: number): string =>
   '#' + [d[i]!, d[i + 1]!, d[i + 2]!].map((v) => v.toString(16).padStart(2, '0')).join('');
 
 /**
- * Percent of pixels whose colour differs from the pixel to their RIGHT or BELOW.
+ * Percent of pixels whose colour differs from the pixel to their RIGHT or BELOW, **over EVERY PIXEL
+ * OF THE IMAGE**.
+ *
+ * ── THE REGION IS PART OF THE DEFINITION, AND THIS ONE IS *NOT* A GROUND MEASUREMENT ─────────────
+ * **A whole-map number is not a ground measurement, and objects supply most of it.** Buildings,
+ * trees and props are keyline-dense by construction, so they carry an edge figure upward while the
+ * ground underneath stays flat — and the ground is the thing every finding in this file is actually
+ * about. The art session isolated this on their own numbers: a dither that read **44.74%** across a
+ * whole map read **6.89%** on the ground alone. Same image, same operator, **more than six-fold
+ * apart**, and the gap is furniture.
+ *
+ * Measured here on a synthetic built for it — flat ground, seven of sixteen 64² cells filled with
+ * dense keyline object — `edgePercent` reads **44.34%** while the ground-patch reading reads
+ * **0.00%**. That case ships below in `THE GROUND READING discriminates` precisely so that the two
+ * cannot quietly be treated as the same property again.
+ *
+ * **This is a DIFFERENT ERROR from the operator error recorded in the GROUND-TEXTURE section, and it
+ * compounds with it.** Two figures called "edge density" taken with different operators cost this
+ * project two evenings; two figures called "texture" measured over different REGIONS is the same
+ * trap wearing different clothes. So: every number this file prints carries BOTH its operator and
+ * its region, and **an `edgePct` figure may never be compared with a ground-patch figure** — not
+ * against `altPct` below, not against anything the art session measures on ground alone.
+ *
+ * ── WHY IT STAYS ANYWAY, RATHER THAN BEING DELETED IN FAVOUR OF THE GROUND READING ───────────────
+ * Judged rather than assumed. It stays, for three reasons that are about what it CAN see:
+ *   1. **It is the only reading here that sees composition at all.** The ground reading takes a
+ *      MEDIAN over patches, which is designed to find the typical material and therefore designed to
+ *      ignore the buildings. A map that lost every object would read identically on `conc`/`altPct`
+ *      and drop sharply here. That is worth knowing, and nothing else in this file would notice.
+ *   2. **`GOLD_EDGE_LOW/HIGH/MEAN` are derived from it** over the same eight captures and re-asserted
+ *      against them every run. It is a live, corroborated instrument, not a legacy figure.
+ *   3. **Its negative control is load-bearing** — `the ground-texture reading discriminates` is what
+ *      records, in measurement rather than in prose, that §8.2's Sobel cannot see a one-pixel dither.
+ * What it does NOT get to keep is an ambiguous name: the advisory column is `img-edge`, never
+ * `texture`, and the legend states its region on every line it appears in.
  *
  * ── WHY THIS OPERATOR AND NOT §8.2's SOBEL, WHICH WAS TRIED FIRST ────────────────────────────────
  * `tools/overlay-diff/edges.ts` is the repo's existing edge instrument and the obvious thing to reuse
@@ -548,14 +583,25 @@ function groundReading(data: Buffer, width: number, height: number): GroundReadi
   };
 }
 
-/** The definitions that travel with every number this file prints — see header note 8. */
+/**
+ * The definitions that travel with every number this file prints — see header note 8. **REGION is
+ * part of the definition, not a footnote**: a whole-image figure and a ground-patch figure are
+ * different measurements even when the operator is identical, and the six-fold gap recorded on
+ * `edgePercent` is what that costs when it goes unstated. Nothing in the WHOLE-IMAGE group may be
+ * compared with anything in the GROUND-PATCH group.
+ */
 const OPERATOR_LEGEND = [
-  '  operators, so no figure here is quotable without one:',
-  '    colours  = distinct exact-RGB colours over ALL opaque pixels of the whole image',
-  '    texture  = percent of whole-image pixels differing from the pixel to their right or below',
-  `    conc     = MEDIAN over non-overlapping ${GROUND_PATCH_PX}² patches of 1/Σpᵢ² (effective colours; 1.00 = flat)`,
-  `    alt      = MEDIAN over the same patches of the percent of adjacent opaque pairs that differ`,
-  '    top3     = MEDIAN over the same patches of the share held by the three commonest colours',
+  '  region + operator, because a figure is not quotable without both:',
+  '    WHOLE-IMAGE — every pixel, so objects (keyline-dense) supply most of it:',
+  '      colours   = distinct exact-RGB colours over ALL opaque pixels',
+  '      img-edge  = percent of pixels differing from the pixel to their right or below',
+  `    GROUND-PATCH — MEDIAN over non-overlapping ${GROUND_PATCH_PX}² patches, so it reports the`,
+  '                   TYPICAL material and largely ignores the objects:',
+  '      conc      = 1/Σpᵢ² per patch (effective colours; 1.00 = flat, hundreds = continuous noise)',
+  '      alt       = percent of adjacent opaque pairs in the patch whose colours differ',
+  '      top3      = share held by the three commonest colours in the patch',
+  '    img-edge and alt both count colour changes and are NOT comparable: on one synthetic —',
+  '    flat ground, dense objects — they read 44.34% and 0.00%.',
 ].join('\n');
 
 /**
@@ -766,7 +812,12 @@ const MIN_DISTINCT_NATIVE = 8;
  * ──────────────────────────────────────────────────────────────────────────────────────────────── */
 
 /* ────────────────────────────────────────────────────────────────────────────────────────────────
- * THE GROUND-TEXTURE READING — the half a colour count cannot see
+ * THE WHOLE-IMAGE EDGE READING — the half a colour count cannot see
+ *
+ * ⚠ **IT WAS CALLED "GROUND TEXTURE" AND THAT NAME WAS WRONG ABOUT ITS REGION.** `edgePercent`
+ * walks every pixel of the image, and objects — keyline-dense by construction — supply most of what
+ * it reports. The full finding, the six-fold measured gap, and the judgement to keep the reading
+ * under an unambiguous name are on `edgePercent` itself. Nothing below is a ground figure.
  *
  * **The colour count alone cannot tell a good map from the one this project has been shipping.** A
  * map at 16 colours and 9% edge density is flat and wrong; a map at 16 colours and 45% is right. Both
@@ -1196,7 +1247,7 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     ).toBeLessThan(1);
   });
 
-  it('THE GROUND READING discriminates over four cases — flat, pooled, interleaved, and Gold', () => {
+  it('THE GROUND READING discriminates — flat, pooled, interleaved, Gold, and object-heavy', () => {
     // ═══════════════════════════════════════════════════════════════════════════════════════════
     // THE MOST IMPORTANT TEST IN THIS FILE. It is the only part that proves the reading can see
     // what it claims to measure, and it exists because FOUR instruments have now been proposed for
@@ -1223,12 +1274,30 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     /** Deterministic, never Math.random (G11). Each colour takes a third of any full period. */
     const pick = (u: number, v: number): readonly [number, number, number] => GROUND[(u + 2 * v) % 3]!;
     const BLOCK_PX = 8;
-    const paint = (kind: 'flat' | 'pooled' | 'interleaved'): Buffer => {
+    /**
+     * Case E's furniture: seven of the sixteen 64² cells filled with dense keyline object, the rest
+     * left as flat ground. Seven of sixteen is chosen so that GROUND still wins the median patch
+     * (nine cells) while objects carry a large share of the whole-image pixel count — which is
+     * exactly the shape of a real map, and exactly the shape that makes a whole-image edge figure
+     * look like texture the ground does not have.
+     */
+    const OBJECT_CELLS = new Set(['0,0', '1,0', '2,0', '0,1', '3,1', '1,2', '2,3']);
+    const KEYLINE: ReadonlyArray<readonly [number, number, number]> = [
+      [40, 30, 24],
+      [150, 120, 80],
+      [90, 70, 50],
+      [20, 16, 12],
+    ];
+    const paint = (kind: 'flat' | 'pooled' | 'interleaved' | 'objects'): Buffer => {
       const b = Buffer.alloc(N * N * 4);
       for (let y = 0; y < N; y += 1) {
         for (let x = 0; x < N; x += 1) {
           const c =
-            kind === 'flat'
+            kind === 'objects'
+              ? OBJECT_CELLS.has(`${Math.floor(x / GROUND_PATCH_PX)},${Math.floor(y / GROUND_PATCH_PX)}`)
+                ? KEYLINE[(x * 3 + y * 5) % 4]!
+                : GROUND[0]!
+              : kind === 'flat'
               ? GROUND[0]!
               : kind === 'pooled'
                 ? pick(Math.floor(x / BLOCK_PX), Math.floor(y / BLOCK_PX))
@@ -1252,6 +1321,9 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     const flat = groundReading(paint('flat'), N, N);
     const pooled = groundReading(paint('pooled'), N, N);
     const interleaved = groundReading(paint('interleaved'), N, N);
+    const objectHeavy = paint('objects');
+    const objectGround = groundReading(objectHeavy, N, N);
+    const objectWhole = edgePercent(objectHeavy, N, N);
 
     /* ── A. FLAT FILL — one colour ────────────────────────────────────────────────────────────── */
     expect(flat.effective, 'A flat fill: one colour must read exactly 1.00 effective colours').toBeCloseTo(1, 6);
@@ -1331,6 +1403,46 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
       'a Gold capture reads at or below the flat floor on concentration',
     ).toBeGreaterThan(flat.effective);
 
+    /* ── E. FLAT GROUND, DENSE OBJECTS — THE REGION FAULT, NOT THE OPERATOR FAULT ─────────────── */
+    // The second error the art session separated, and it is about WHERE a number is measured rather
+    // than HOW. Their dither read 44.74% across a whole map and 6.89% on the ground alone — the same
+    // image, six-fold apart, the gap entirely furniture. `edgePercent` walks every pixel, so it
+    // carries that fault by construction; the ground reading takes a median over patches, so it does
+    // not. This case pins the difference so the two can never quietly be read as one property again.
+    expect(
+      objectWhole,
+      `flat ground with dense objects reads ${objectWhole.toFixed(2)}% WHOLE-IMAGE edge. It must read ` +
+        'HIGH — that is the whole point: objects are keyline-dense and a whole-image operator counts ' +
+        'them. If this fell, the synthetic stopped containing objects and case E proves nothing.',
+    ).toBeGreaterThan(40);
+    expect(
+      objectGround.alternationPct,
+      `the same image reads ${objectGround.alternationPct.toFixed(2)}% GROUND-PATCH alternation. It ` +
+        'must read LOW: the ground is flat, and a reading that calls it textured is reporting the ' +
+        'buildings. If these two ever converge, one of them is not measuring the region its name says.',
+    ).toBeLessThan(5);
+    expect(
+      objectGround.effective,
+      'and the ground concentration of a flat ground must still be the flat floor, objects or not',
+    ).toBeCloseTo(1, 6);
+
+    // …and the control that proves the gap above is REGION and not operator. Both readings count
+    // colour changes, so on a UNIFORM image — no objects, one material everywhere — they must agree.
+    // Without this, case E could be explained away as two operators simply disagreeing.
+    const uniformWhole = edgePercent(paint('interleaved'), N, N);
+    expect(
+      Math.abs(uniformWhole - interleaved.alternationPct),
+      `on a uniform image the whole-image (${uniformWhole.toFixed(2)}%) and ground-patch ` +
+        `(${interleaved.alternationPct.toFixed(2)}%) readings disagree. They count the same thing, so ` +
+        'a gap here means the operators differ — and case E above would then be measuring that, not ' +
+        'the region.',
+    ).toBeLessThan(1);
+    expect(
+      Math.abs(objectWhole - objectGround.alternationPct),
+      'the object-heavy image does not separate the two regions, so nothing distinguishes a ' +
+        'whole-image figure from a ground figure and the advisory may as well print one number',
+    ).toBeGreaterThan(30);
+
     /* ── AND A BROKEN READING MUST NOT LOOK LIKE A PASS ───────────────────────────────────────── */
     // `1 / Σ pᵢ²` is ≥ 1 for any non-empty patch, so anything below 1 — 0.0 most of all — is the
     // instrument having failed, never a flatter picture. The advisory asserts the same floor per
@@ -1349,7 +1461,7 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     const row = (label: string, conc: number, alt: number, tail: string): string =>
       `  ${label.padEnd(34)} conc ${conc.toFixed(4).padStart(8)}  alt ${alt.toFixed(2).padStart(6)}%  ${tail}\n`;
     console.log(
-      '\nasset-palette-contract — GROUND READING, the four cases\n' +
+      '\nasset-palette-contract — GROUND READING, the cases\n' +
         row('A flat fill', flat.effective, flat.alternationPct, `top3 ${flat.topThreePct.toFixed(2)}%`) +
         row(
           `B three colours, ${BLOCK_PX}px blocks`,
@@ -1369,8 +1481,18 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
           goldAltMean,
           `band ${concBandLabel} / ${altBandLabel}`,
         ) +
+        row(
+          'E flat ground, dense objects',
+          objectGround.effective,
+          objectGround.alternationPct,
+          `whole-image img-edge ${objectWhole.toFixed(2)}%`,
+        ) +
         '  B and C share a histogram to three decimals. Concentration cannot tell them apart;\n' +
         '  alternation separates them ~9×. That is why the reading is three numbers and not one.\n' +
+        '  E is the REGION fault, not the operator fault: one image, whole-image ' +
+        `${objectWhole.toFixed(2)}% against\n  ground-patch ${objectGround.alternationPct.toFixed(2)}%. ` +
+        'The gap is buildings. A whole-image edge figure is not a\n  ground measurement and the two ' +
+        'may never be compared.\n' +
         OPERATOR_LEGEND +
         '\n',
     );
@@ -1423,11 +1545,15 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
       );
       expect(
         m.edge,
-        `${ref.file} reads ${m.edge.toFixed(2)}% ground texture, outside the band ${edgeBandLabel} the ` +
+        `${ref.file} reads ${m.edge.toFixed(2)}% WHOLE-IMAGE edge density, outside the band ${edgeBandLabel} ` +
+          'the ' +
           'eight Gold captures define. Either this capture was refetched from a different source, or ' +
           'the band needs re-deriving from the new measurements — it is not a defect in shipped art.',
       ).toBeGreaterThanOrEqual(GOLD_EDGE_LOW);
-      expect(m.edge, `${ref.file}: ${m.edge.toFixed(2)}% ground texture, above ${edgeBandLabel}`).toBeLessThanOrEqual(
+      expect(
+        m.edge,
+        `${ref.file}: ${m.edge.toFixed(2)}% WHOLE-IMAGE edge density, above ${edgeBandLabel}`,
+      ).toBeLessThanOrEqual(
         GOLD_EDGE_HIGH,
       );
       expect(
@@ -1483,7 +1609,7 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
 
     console.log(
       `\nasset-palette-contract — reference band ${bandLabel} (mean ${GOLD_BAND_MEAN.toFixed(1)}), ` +
-        `texture ${edgeBandLabel} (mean ${GOLD_EDGE_MEAN.toFixed(1)}%), ` +
+        `whole-image edge ${edgeBandLabel} (mean ${GOLD_EDGE_MEAN.toFixed(1)}%), ` +
         `concentration ${concBandLabel} (mean ${GOLD_CONC_MEAN.toFixed(2)}), ` +
         `alternation ${altBandLabel} (mean ${GOLD_ALT_MEAN.toFixed(2)}%), ` +
         `${checked.length} capture(s) verified, ${missing.length} absent\n` +
@@ -1571,7 +1697,7 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
       lines.push(
         `  ${path.padEnd(44)} ${`${d.width}×${d.height}`.padStart(9)} ` +
           `${String(d.swatches.size).padStart(3)}c${bandFlag(d, isMap)}` +
-          `texture ${d.edgePct.toFixed(1).padStart(5)}%${edgeFlag(d, isMap)}` +
+          `img-edge ${d.edgePct.toFixed(1).padStart(5)}%${edgeFlag(d, isMap)}` +
           `conc ${d.conc.toFixed(2).padStart(6)}${concFlag(d, isMap)}` +
           `alt ${d.altPct.toFixed(1).padStart(5)}%${altFlag(d, isMap)}` +
           `top3 ${d.concTopThreePct.toFixed(1).padStart(5)}%  ` +
@@ -1615,22 +1741,25 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
         `${palette.length}-colour palette\n${lines.join('\n')}\n` +
         `  ▼ below / = inside / ▲ above the measured Gold bands, over ${GOLD_CAPTURES.length} ` +
         `native-size Gen-2 maps: ${bandLabel} colours (mean ${GOLD_BAND_MEAN.toFixed(1)}), ` +
-        `${edgeBandLabel} ground texture (mean ${GOLD_EDGE_MEAN.toFixed(1)}%), ` +
+        `${edgeBandLabel} whole-image edge (mean ${GOLD_EDGE_MEAN.toFixed(1)}%), ` +
         `${concBandLabel} effective colours per median 64² patch (mean ${GOLD_CONC_MEAN.toFixed(2)}), ` +
         `${altBandLabel} alternation (mean ${GOLD_ALT_MEAN.toFixed(2)}%).\n` +
         `  ${maps.length} shipped map(s) run ${spreadOf(maps.map((d) => d.swatches.size), 0)} colours, ` +
-        `${spreadOf(maps.map((d) => d.edgePct), 1)}% texture, ` +
+        `${spreadOf(maps.map((d) => d.edgePct), 1)}% whole-image edge, ` +
         `${spreadOf(maps.map((d) => d.conc), 2)} concentration ` +
         `and ${spreadOf(maps.map((d) => d.altPct), 1)}% alternation.\n` +
         '  ALL OF THESE ARE READING AIDS AND FAIL NOTHING, and they are separate facts, not one:\n' +
-        '  dither buys texture and does nothing to the colour count; a per-map subset buys colour\n' +
-        '  discipline and does nothing to texture; concentration separates a small palette used densely\n' +
-        '  from continuous noise that merely LOOKS dithered, and is blind to arrangement; alternation\n' +
-        '  is the arrangement axis and is blind to everything else. A patch reads as structured only\n' +
-        '  with all three: a small palette, held densely, INTERLEAVED rather than pooled. A cap on any\n' +
-        '  one is a number a generator can be tuned to hit while the picture gets worse — see the GOLD\n' +
-        '  BAND, GROUND-TEXTURE and GROUND READING sections at the top of this file, and\n' +
-        '  `tools/artverify/ground-comparison.png`, which a number cannot substitute for.\n' +
+        '  dither buys edge density and does nothing to the colour count; a per-map subset buys colour\n' +
+        '  discipline and does nothing to edge density; concentration separates a small palette used\n' +
+        '  densely from continuous noise that merely LOOKS dithered, and is blind to arrangement;\n' +
+        '  alternation is the arrangement axis and is blind to everything else. A patch reads as\n' +
+        '  structured only with all three: a small palette, held densely, INTERLEAVED not pooled.\n' +
+        '  REGION SPLITS THEM AGAIN: img-edge is WHOLE-IMAGE, conc/alt/top3 are GROUND-PATCH. A map can\n' +
+        '  raise img-edge by adding buildings while its ground stays flat — one synthetic reads 44.34%\n' +
+        '  whole-image and 0.00% ground — so the two groups never compare, in either direction.\n' +
+        '  A cap on any of them is a number a generator can be tuned to hit while the picture gets\n' +
+        '  worse — see the GOLD BAND, WHOLE-IMAGE EDGE and GROUND READING sections at the top of this\n' +
+        '  file, and `tools/artverify/ground-comparison.png`, which a number cannot substitute for.\n' +
         '  ▼ on conc means FLATTER than Gold, ▲ mushier; ▼ on alt means POOLED where Gold interleaves.\n' +
         '  `top3` is printed beside conc and never instead of it — a blank rectangle scores 100% on the\n' +
         '  share, 1.00 on the count and 0.0% on alternation.\n' +
