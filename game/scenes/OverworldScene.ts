@@ -112,12 +112,21 @@ import {
   type ForayContext,
 } from "../encounters";
 import {
+  applyBattleResult,
   applyWildBattleOutcome,
   buildWildBattle,
   isStanding,
   liveNodeOf,
   wildBattleProblem,
 } from "../wild-battle";
+import {
+  BLACKOUT_ENTRY_ID,
+  applyBlackoutRecovery,
+  blackoutCharges,
+  blackoutRecoveryFor,
+  blackoutTicks,
+  restBeatAt,
+} from "../../core/recovery";
 import {
   MapView,
   drawCollisionOverlay,
@@ -1513,6 +1522,17 @@ export class OverworldScene extends Phaser.Scene {
     this.scene.stop(SCENE_KEYS.battle);
     this.scene.resume();
     this.hudDirty = true;
+    /*
+     * THE FIGHT, AND THEN ITS PRIZE — `applyBattleResult` (game/wild-battle.ts) BEFORE the catch
+     * writer below. It is the one writer of `curHp`, `level`, `xp` and the bag off a finished
+     * fight, and it had NO production caller: an audit drove this very scene through real
+     * `core/battle.ts` fights and found a snare spent in the reducer still sitting in the bag
+     * afterwards, and four battles that left no `battleAftermath` entry on the tape at all. The
+     * order is safe either way — the aftermath names only the battlers that were FIELDED, and a
+     * creature caught in this fight is not one of them — but written this way the tape reads as
+     * the fight and then its prize.
+     */
+    this.save = applyBattleResult(this.save, result.state);
 
     const applied = applyWildBattleOutcome({
       save: this.save,
@@ -1523,20 +1543,29 @@ export class OverworldScene extends Phaser.Scene {
     });
     if (!applied) {
       this.flashBanner(`${encounter.lineId} — ${result.state.outcome ?? "unresolved"}`);
-      return;
+    } else {
+      if (applied.problem !== null) {
+        this.flashBanner(`catch problem: ${applied.problem}`);
+      }
+      this.save = applied.save;
+      // A catch can close a quest — *Ferryman's Wager* is an Elder in the party and *Silk Shortage*
+      // is three adults off Bowerdeep Wilds — so the tracker is asked here, where the party moved.
+      this.syncQuests();
+      this.hooks.onSaveChanged?.(this.save, this);
+      this.refreshHud();
+      this.flashBanner(
+        `caught ${encounter.lineId} at ${encounter.nodeId} — ${applied.before} → ${applied.after}`,
+      );
     }
-    if (applied.problem !== null) {
-      this.flashBanner(`catch problem: ${applied.problem}`);
-    }
-    this.save = applied.save;
-    // A catch can close a quest — *Ferryman's Wager* is an Elder in the party and *Silk Shortage*
-    // is three adults off Bowerdeep Wilds — so the tracker is asked here, where the party moved.
-    this.syncQuests();
-    this.hooks.onSaveChanged?.(this.save, this);
-    this.refreshHud();
-    this.flashBanner(
-      `caught ${encounter.lineId} at ${encounter.nodeId} — ${applied.before} → ${applied.after}`,
-    );
+
+    /*
+     * ⚠ ON THE WAY OUT, AND ON BOTH ARMS. The `!applied` arm used to `return` here, and it is the
+     * arm every fight the player LOST takes — i.e. every fight a blackout can follow. A snare can
+     * also hold on the last turn of a fight the party did not survive, so the caught arm needs it
+     * too: a caught creature does not put the rest of the party back on its feet. There is no beat
+     * of this launcher's to be the continuation of — a wild fight says nothing when it ends.
+     */
+    this.recoverFromBlackout();
   }
 
   /* ── C7: the corpus, played (build-doc §15 C7) ───────────────────────────── */
@@ -1612,16 +1641,26 @@ export class OverworldScene extends Phaser.Scene {
    * its own cutscenes with a flag, so this only guards against a corpus edit that ships one which
    * does not, and against that the alternative is a locked game.
    */
-  playPendingCutscene(): void {
+  playPendingCutscene(then?: () => void): void {
     // An arrival beat is the TOWN's and is keyed on its node id; playing one at the player while
     // they are standing in a shop is the beat firing in the wrong room. It is not lost — every
     // autoplay entry the corpus ships closes itself with a flag, so an unplayed one is still
     // pending when they step back outside.
-    if (this.isHandedOver() || this.travelling || this.interior !== null) return;
+    //
+    // `then` runs whether or not anything was queued, on {@link playBattleOutcome}'s terms: it is
+    // what {@link recoverFromBlackout} is handed through {@link afterFinale}, and a blackout that
+    // only happened when the corpus had a line ready would be a wiped party left standing.
+    if (this.isHandedOver() || this.travelling || this.interior !== null) {
+      then?.();
+      return;
+    }
     const entry = this.tryDialogue(() => autoplayEntryFor(DIALOGUE, this.node.id, this.dialogueCtx()));
-    if (!entry || this.autoplayed.has(entry.id)) return;
+    if (!entry || this.autoplayed.has(entry.id)) {
+      then?.();
+      return;
+    }
     this.autoplayed.add(entry.id);
-    this.playEntry(entry.id, entry.speaker);
+    this.playEntry(entry.id, entry.speaker, then);
   }
 
   /**
@@ -1937,6 +1976,122 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
+   * NOTHING IS STANDING — the black screen, the inn, and the price (`core/recovery.ts`).
+   *
+   * Hank, verbatim: *"When your team is wiped, a dialogue shows up with a black background saying
+   * you passed out or something like that, and then you wake up at the inn"*, and *"it should use
+   * twice the inn ticks, in addition to the cost of one fast travel."* Without it a wiped save has
+   * no action left that can change its state: all four launchers refuse a party with nothing
+   * standing, `restAtInn` charges ticks and heals nothing, and `core/lifecycle.ts` keeps a zero at
+   * zero through the year turn. This is also the explicit penalty docs/TICKETS.md T-12 asks for —
+   * the same thing seen from the other side.
+   *
+   * ⚠ CALLED AT THE END OF EVERY FIGHT AND IT IS A NO-OP UNLESS ONE IS OWED.
+   * `blackoutRecoveryFor` answers null for a party with anything on its feet AND for an empty one,
+   * which is a different state and belongs to the opening beat, not to an inn.
+   *
+   * ⚠ IT MUST RUN AFTER {@link applyBattleResult} HAS BEEN WRITTEN TO `this.save`, and in all four
+   * launchers it does — `applyBattleResult` is the first statement of the finish handler and this
+   * is reached from the last. It is the ONLY writer that can put a party member at zero from a
+   * fight; while it had no caller this method was a permanent no-op, and a call placed above it
+   * still would be.
+   *
+   * ⚠ IT IS THE CONTINUATION OF THE FIGHT'S OWN BEAT, NEVER THE OTHER WAY ROUND. The leader's
+   * `battle-loss`, Wick's, the finale's epilogue — each is played first and this is what runs when
+   * its box closes. Two reasons, and the second is the one that was measured:
+   *   • it is the order the ruling's own reference has. In Pokémon the trainer finishes speaking,
+   *     and THEN the screen goes black.
+   *   • THE BEATS THAT FOLLOW ARE KEYED ON THE NODE THE PLAYER IS STANDING ON, and this method
+   *     moves them. {@link playPendingCutscene} asks the corpus what is queued for `this.node.id`,
+   *     and `maren.epilogue.released` / `maren.epilogue.caught` are `cutscene`s at `sanctum` while
+   *     `maren.finale` is one at `sanctum-approach`. Blacking out first carries the player two
+   *     nodes away and none of the three is eligible any more — measured: losing the Vellsire
+   *     fight left the released epilogue unplayed, which is half of a never-cut beat. (It is not
+   *     LOST — every autoplay entry closes itself with a flag, so it is still pending when the
+   *     player walks back — but "the ending arrives after a hike" is not the beat.) Played first,
+   *     the epilogue fires at the ring and the blackout follows it.
+   * {@link playEntry} refuses while a box is open, so the two can never be fired side by side:
+   * whichever went second would silently not happen.
+   *
+   * ⚠ THE ORDER IS CONSEQUENCE → MOVE → PRICE → SPEECH, and each step is where it is for a reason:
+   *   1. `applyBlackoutRecovery` writes the tape entry, the restored party, the wake node and the
+   *      corpus cue. FIRST, so that anything the price triggers — a season boundary, a year turn, a
+   *      save write — reads a save that is already coherent.
+   *   2. `enterNode` makes the move real on screen, SYNCHRONOUSLY. Deliberately NOT `travelTo`:
+   *      there is no adjacency between a route and the town you are carried to, the act gate is
+   *      travel's refusal and not this one's, and `travelTo` would charge a second travel tick.
+   *      Travel awaits `ensureNodeArt` before it adopts a node; this does not, because the whole
+   *      of step 4 is a black screen drawn over the load — and because a wake finishing in a
+   *      microtask would leave `save.currentNode` and `this.node` naming different nodes for as
+   *      long as it took (see {@link enterNode}). The art is asked for anyway, and the view is
+   *      rebuilt IF the wait actually produced a texture: a wake node whose map has never been
+   *      loaded would otherwise keep its placeholder and its synthesised collision grid until the
+   *      next travel, which is a walkable map the mask does not agree with.
+   *   3. the charges — one `spendTicks` per element of `core/recovery.ts` `BLACKOUT_COST`, which is
+   *      `["inn", "inn", "travel"]`. They are ORDINARY priced entries, and that is what makes the
+   *      blackout cost the same on the replay path (`game/year-replay.ts` `clockFromLog` prices
+   *      them straight out of `balance.clock`) with nothing added to `ClockActionKind`, to
+   *      `GameAction`, to `TICK_COSTING` or to `actionCosts`.
+   *   4. the beat, by ID. The corpus gates `narration.blackout` on the cue step 1 raised, and
+   *      `finishDialogue` -> `applyRunFlags` lowers it again with the entry's own `setFlags`.
+   *      `DialogueScene` draws the name plate from the speaker and `narration`'s is a single
+   *      space, which is what makes it read as a black screen rather than as somebody talking.
+   *      The innkeeper's SHIPPED rest beat follows it, so "you wake up at the inn" is her own
+   *      voice and not a word of new copy.
+   *
+   * ⚠ THE CHARGE IS NOT ATOMIC, SAID OUT LOUD BECAUSE {@link spendTicks} REFUSES SILENTLY. If the
+   * first inn fills the year meter, `beginYearTurn` raises `yearTurnRunning` and the remaining two
+   * charges vanish — a discount of up to three ticks in a narrow window. It is not a corruption:
+   * `spendTicks` appends nothing when it refuses, so the tape and the clock still agree and the
+   * replay lands where the live run did, and step 1 has already left the save coherent. Closing it
+   * means teaching `spendTicks` to take a LIST and handle the crossed boundaries once, which is a
+   * bigger change than this trigger and is the owner's call.
+   */
+  recoverFromBlackout(): void {
+    if (this.battleRunning || this.yearTurnRunning || this.travelling) return;
+    const recovery = blackoutRecoveryFor(this.save, this.content, isStanding);
+    if (recovery === null) return;
+
+    // Step outside first: `currentNode` is about to move, and a save whose `interiorId` names a
+    // room in the town it just left is the broken state `travelTo` refuses travel to avoid.
+    if (this.interior !== null) this.leaveInterior();
+
+    // 1. the consequence.
+    this.save = applyBlackoutRecovery(this.save, recovery);
+
+    // 2. the move, on screen.
+    const target = this.nodeFile(recovery.wakeNode);
+    const keys = nodeArtKeys(target, this.save.year, this.balance);
+    const artMissing = !this.textures.exists(keys.mapKey) || !this.textures.exists(keys.maskKey);
+    this.enterNode(target);
+    if (artMissing) {
+      void ensureNodeArt(this, keys).then(() => {
+        // Guarded on all three counts: the player may have moved on, the fetch may have found
+        // nothing real to fetch (`ensureNodeArt` resolves immediately then), and a rebuild that
+        // changes no texture is a MapView destroyed and remade for nothing.
+        if (this.node.id !== target.id) return;
+        if (!this.textures.exists(keys.mapKey) && !this.textures.exists(keys.maskKey)) return;
+        this.enterNode(target);
+      });
+    }
+
+    // 3. the price.
+    for (const charge of blackoutCharges(recovery)) this.spendTicks(charge.kind, charge.action);
+
+    this.syncQuests();
+    this.hudDirty = true;
+    this.refreshHud();
+    this.hooks.onSaveChanged?.(this.save, this);
+    // G7 — identifiers and arithmetic, exactly as `restAtInn`'s banner is. The prose says nothing
+    // about ticks and the banner says nothing about the player.
+    this.flashBanner(`${recovery.wakeNode} · ${String(blackoutTicks(this.balance))} ticks`);
+
+    // 4. the black screen, and then the room.
+    const rest = restBeatAt(recovery.wakeNode, this.dialogueCtx());
+    this.playEntry(BLACKOUT_ENTRY_ID, "narration", rest && (() => this.playEntry(rest.id, rest.speaker)));
+  }
+
+  /**
    * A gym win: a BADGE, and the act it may advance. It does NOT end the year.
    *
    * ⚠ THIS USED TO END THE YEAR, and that was L8's second trigger: "year = gym victory or full
@@ -2073,13 +2228,17 @@ export class OverworldScene extends Phaser.Scene {
         this.scene.stop(SCENE_KEYS.battle);
         this.scene.resume();
         this.hudDirty = true;
+        // The damage, the levels and the bag, before anything reads the party again — see
+        // `finishWildBattle` for why this call is the one that was missing.
+        this.save = applyBattleResult(this.save, result.state);
         // A badge on a WIN and on nothing else — `gymBattleWon` enumerates the outcome rather than
         // reading "not a loss", so a fled fight is not a badge.
         const won = gymBattleWon(result.state);
         if (won) this.winGym(gym.id);
         else this.flashBanner(`${gym.id} — ${result.state.outcome ?? "unresolved"}`);
-        // …and THEN the leader answers it. See `playBattleOutcome` for why this order is not free.
-        this.playBattleOutcome(gym.id, gym.town, won);
+        // …and THEN the leader answers it. See `playBattleOutcome` for why this order is not free,
+        // and `recoverFromBlackout` for why the black screen comes after her line and not before it.
+        this.playBattleOutcome(gym.id, gym.town, won, () => this.recoverFromBlackout());
       },
     };
 
@@ -2160,12 +2319,15 @@ export class OverworldScene extends Phaser.Scene {
         this.scene.stop(SCENE_KEYS.battle);
         this.scene.resume();
         this.hudDirty = true;
+        // Same one writer, same position — see `finishWildBattle`.
+        this.save = applyBattleResult(this.save, result.state);
         const won = rivalBattleWon(result.state);
         this.flashBanner(`${rival.id} act ${String(rival.act)} — ${result.state.outcome ?? "unresolved"}`);
         // The entry writes `rival.act<N>.fought` on a WIN only, so a loss leaves the encounter
         // standing — which is what `wick.act6.loss` promises in words ("Come back when your team has
-        // slept") and what it could not do while the loss closed itself.
-        this.playBattleOutcome(rival.id, rival.node, won);
+        // slept") and what it could not do while the loss closed itself. The blackout follows his
+        // line rather than preceding it, for the reason `recoverFromBlackout` gives.
+        this.playBattleOutcome(rival.id, rival.node, won, () => this.recoverFromBlackout());
       },
     };
 
@@ -2230,6 +2392,9 @@ export class OverworldScene extends Phaser.Scene {
         this.scene.stop(SCENE_KEYS.battle);
         this.scene.resume();
         this.hudDirty = true;
+        // Same one writer, same position — see `finishWildBattle`. Before `resolveVellsireCatch`,
+        // which is this fight's catch writer.
+        this.save = applyBattleResult(this.save, result.state);
         const resolution = resolveVellsireCatch({
           save: this.save,
           content: this.content,
@@ -2244,22 +2409,31 @@ export class OverworldScene extends Phaser.Scene {
             ? `${build.lineId} at ${build.nodeId} — ${String(applied.before)} → ${String(applied.after)}`
             : `${build.lineId} — ${vellsireBattleOutcomeLabel(result.state)} · ${resolution.outcome}`,
         );
-        this.afterFinale();
+        // `afterFinale` ends in `playPendingCutscene`, and BOTH epilogues are cutscenes at
+        // `sanctum` — so the blackout is what runs when the ending's box closes, never before it.
+        this.afterFinale(() => this.recoverFromBlackout());
       },
     };
 
     this.handOffToBattle(data, { t: "battle", kind: "ancient", nodeId: build.nodeId }, "the ring");
   }
 
-  /** Adopt the resolution and let the corpus answer it — one of the two epilogues is now eligible. */
-  private afterFinale(): void {
+  /**
+   * Adopt the resolution and let the corpus answer it — one of the two epilogues is now eligible.
+   *
+   * `then` is passed straight through to the epilogue's box, so a caller can put something after
+   * the ending. {@link recoverFromBlackout} is the one that does: both epilogues are `cutscene`s at
+   * `sanctum`, so a blackout taken BEFORE them would carry the player off the node they are keyed
+   * on and neither would be eligible.
+   */
+  private afterFinale(then?: () => void): void {
     this.syncQuests();
     this.advanceActs();
     this.syncEvents();
     this.hudDirty = true;
     this.refreshHud();
     this.hooks.onSaveChanged?.(this.save, this);
-    this.playPendingCutscene();
+    this.playPendingCutscene(then);
   }
 
   winGym(gymId: string): void {
@@ -2733,6 +2907,37 @@ export class OverworldScene extends Phaser.Scene {
   /* ── travel ───────────────────────────────────────────────────────────── */
 
   /**
+   * Put the player IN a node: adopt it, rebuild the view, and reset the room.
+   *
+   * Extracted from {@link travelTo} rather than copied, because {@link recoverFromBlackout} moves
+   * the player too and a second spelling of "enter a node" is how one of them ends up missing the
+   * camera bounds or the overlay redraw. It does NOT charge, refuse or play anything: travel's
+   * adjacency check, its act gate and its tick belong to travel, and the blackout's price belongs
+   * to the blackout. It does not clear the interior either — both callers settle that first, on
+   * their own terms (`travelTo` refuses indoors; the blackout steps outside).
+   *
+   * ⚠ SYNCHRONOUS, AND THE ART IS THE CALLER'S. `ensureNodeArt` is the only thing about entering a
+   * node that has to wait, and the two callers want to wait differently: travel holds the player on
+   * the old map until the new one is decoded, while the blackout has a full-screen black narration
+   * beat over the load and can adopt the node at once. Leaving the await inside would have forced
+   * the blackout to finish in a microtask nobody holds — which is a real hazard and not only a test
+   * inconvenience: between the save write and the microtask, `save.currentNode` and `this.node`
+   * would name different nodes, which is exactly the half-swapped state `liveNode` and
+   * {@link activeGrid} exist to prevent, and any travel keyed in that window would race it.
+   */
+  private enterNode(target: NodeFile): void {
+    this.node = target;
+    // A new room has its own conversation: what was said in the last one must not suppress a
+    // line here (see `talkEntryFor`).
+    this.spokenHere = new Set<string>();
+    this.save = { ...this.save, currentNode: target.id };
+    this.buildNodeView();
+    this.applyCameraBounds();
+    if (this.overlayVisible) drawCollisionOverlay(this.overlay, this.activeGrid(), this.balance);
+    this.syncPlayerSprite();
+  }
+
+  /**
    * Move along the node adjacency graph, spending the one tick build-doc §3 L8 prices travel at.
    *
    * DEVIATION (reported, not silently taken): the node schema carries no exit or portal positions —
@@ -2781,15 +2986,7 @@ export class OverworldScene extends Phaser.Scene {
     try {
       const target = this.nodeFile(nodeId);
       await ensureNodeArt(this, nodeArtKeys(target, this.save.year, this.balance));
-      this.node = target;
-      // A new room has its own conversation: what was said in the last one must not suppress a
-      // line here (see `talkEntryFor`).
-      this.spokenHere = new Set<string>();
-      this.save = { ...this.save, currentNode: target.id };
-      this.buildNodeView();
-      this.applyCameraBounds();
-      if (this.overlayVisible) drawCollisionOverlay(this.overlay, this.activeGrid(), this.balance);
-      this.syncPlayerSprite();
+      this.enterNode(target);
       this.spendTicks("travel", { t: "travel", to: target.id });
       this.hooks.onTravel?.(from, target.id, this);
       this.flashBanner(`travelled ${from} → ${target.id}`);

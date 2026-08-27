@@ -363,6 +363,7 @@ vi.mock("phaser", () => {
 /* ── imports that must come AFTER vi.mock ─────────────────────────────────── */
 
 import { RUN_COMPLETE_SHOWN_FLAG, actOf, nodeUnlockedAt, runIsComplete } from "@core/acts";
+import { BLACKOUT_ENTRY_ID, blackoutTicks, restBeatAt, wakeNodeFor } from "@core/recovery";
 import { startBattle, step as battleStep, caughtIndividual } from "@core/battle";
 import { seasonOf, subTicksForAction, ticksForAction } from "@core/clock";
 import {
@@ -400,7 +401,7 @@ import { createMovement, movementConfig, placeAt, spriteWorldPosition } from "@g
 // §15's reach question is asked through the SAME helpers `interact()` asks it through, so the
 // fixture and the scene cannot disagree about where a player standing on a tile actually is.
 import { propAt, propLabel, propsOf, type WorldPoint } from "@game/props";
-import { deserialize, newSave, openStreams, serialize, type SaveEnvelope } from "@core/save";
+import { deserialize, newSave, openStreams, readBlackout, serialize, type SaveEnvelope } from "@core/save";
 /*
  * `subsystemRng` is deliberately NOT imported. §3 used to open its own battle stream with it; the
  * stream a battle must run off is the RUN's, which the scene hands over as `BattleSceneData.rng` —
@@ -412,7 +413,7 @@ import type { BattleSceneData } from "@game/scenes/BattleScene";
 import { SCENE_KEYS } from "@game/scene-keys";
 import { finishYearTurn, type YearTurnSceneData } from "@game/scenes/YearTurnScene";
 import { buildGymBattle } from "@game/gym-battle";
-import { PROVISIONAL_STARTER_UID, liveNodeOf, provisionalStarter } from "@game/wild-battle";
+import { PROVISIONAL_STARTER_UID, liveNodeOf, provisionalStarter, wildBattleProblem } from "@game/wild-battle";
 import { interiorAssetPath, interiorTextureKey, maskTextureKey } from "@game/mapview";
 import { assetId, hasRealAsset, registerRealAsset } from "@game/placeholder";
 import { encounterWeights, indexSpecies } from "@core/foodweb";
@@ -586,11 +587,53 @@ function walk(h: Harness, steps: number, stop?: () => boolean): number {
  * and — since the rival's loss entry no longer closes his encounter — no progress the test did not
  * ask for). A test that cares which way a fight went answers that fight itself.
  */
+type SettledOutcome = "win" | "loss" | "fled" | "caught";
+
+/**
+ * The state `BattleScene` would hand back for a fight that ended this way: the REAL battlers, uids,
+ * orders and bag `core/battle.ts` `startBattle` builds from the launcher's own input, carrying the
+ * reducer's terminal invariant for that outcome.
+ *
+ * ⚠ IT USED TO BE `{ outcome } as never`, AND THAT LIE HELD A DEFECT OPEN FOR THE WHOLE FILE.
+ * `game/wild-battle.ts` `applyBattleResult` — the one writer of `curHp`, `level`, `xp` and the bag
+ * off a finished fight — had NO production caller, and every fake here was shaped so that wiring it
+ * in would have changed nothing: a state with no `playerOrder` cannot be read for an aftermath. The
+ * four launchers call it now, so a fake that omits the party is not a fight the reducer could have
+ * produced; it is a `TypeError`. Rebuilding the state through `startBattle` is what makes these
+ * tests able to see the write.
+ *
+ * THE INVARIANTS ARE THE REDUCER'S OWN, not this rig's choice:
+ *   • `"loss"` — `core/battle.ts` `finish(…, "loss")` is reached from exactly one condition,
+ *     `firstStanding(state, state.playerOrder) === undefined`, so a loss IS a wiped player side.
+ *     That is what makes a loss here reach `recoverFromBlackout`, which is the point.
+ *   • `"win"` — `fieldNextEnemy` finishes the fight when the enemy order has nobody left standing.
+ *   • `"fled"` / `"caught"` — neither side is required to be down.
+ *
+ * The bag is `startBattle`'s, i.e. the save's: a fake cannot spend a snare it never threw, and a
+ * test that wants to see a snare leave the bag has to throw one through the real reducer (§3 does).
+ */
+function settledState(data: BattleSceneData, outcome: SettledOutcome): BattleSceneState {
+  const started = startBattle(data.input, data.ctx).state;
+  const down =
+    outcome === "loss" ? started.playerOrder : outcome === "win" ? started.enemyOrder : [];
+  const battlers = { ...started.battlers };
+  for (const uid of down) {
+    const battler = battlers[uid];
+    if (!battler) continue;
+    battlers[uid] = { ...battler, curHp: 0, fainted: true };
+  }
+  return { ...started, battlers, outcome };
+}
+
+/** `BattleScene`'s own `onFinished` state type, without re-spelling it. */
+type BattleSceneState = Parameters<BattleSceneData["onFinished"]>[0]["state"];
+
 function settleBattle(h: Harness, outcome: "win" | "loss" | "fled" = "loss"): boolean {
   const launch = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop();
   if (!launch) return false;
   h.parts.launches.splice(h.parts.launches.indexOf(launch), 1);
-  (launch.data as BattleSceneData).onFinished({ state: { outcome } as never, caught: null });
+  const data = launch.data as BattleSceneData;
+  data.onFinished({ state: settledState(data, outcome), caught: null });
   return true;
 }
 
@@ -970,13 +1013,190 @@ describe("§3 a wild encounter becomes a battle, and a catch moves a real number
 
     expect(h.scene.countOf(staged.met.lineId), where).toBe(before - 1);
     expect(h.scene.save.party.length + h.scene.save.box.length, where).toBe(keptBefore + 1);
-    // The tape carries the catch, so `core/save.ts` `replay` reproduces this save (L10).
-    expect(h.scene.save.actionLog.length, where).toBe(logBefore + 1);
-    const last = h.scene.save.actionLog[h.scene.save.actionLog.length - 1]!;
-    expect(last.action, where).toMatchObject({ t: "catch", nodeId: SLICE_NODE, lineId: staged.met.lineId });
+    /*
+     * The tape carries THE FIGHT AND THEN ITS PRIZE, so `core/save.ts` `replay` reproduces this
+     * save (L10). Two entries, not one: `applyBattleResult` appends the `battleAftermath` — the
+     * HP, the levels, the XP and the bag the fight actually left — and the catch writer appends
+     * the catch. The aftermath entry used to be absent because nothing in `game/` called that
+     * writer, which is why the order is pinned here and not merely the catch.
+     */
+    expect(h.scene.save.actionLog.length, where).toBe(logBefore + 2);
+    const [aftermath, last] = h.scene.save.actionLog.slice(-2);
+    expect(aftermath!.action, where).toMatchObject({ t: "battleAftermath" });
+    expect(last!.action, where).toMatchObject({ t: "catch", nodeId: SLICE_NODE, lineId: staged.met.lineId });
     // …and the scene came back to the player.
     expect(h.parts.stops).toContain(SCENE_KEYS.battle);
     expect(h.parts.resumed).toBeGreaterThan(0);
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * §3.1 THE FIGHT ITSELF IS WRITTEN BACK — and it used not to be.
+   *
+   * `game/wild-battle.ts` `applyBattleResult` is the ONE writer of `curHp`, `level`, `xp` and the
+   * bag off a finished fight, and it had NO caller in `game/` at all. Three docstrings —
+   * `gym-battle.ts`, `rival.ts`, `finale.ts` — described it as "the ONE writer all four launchers
+   * share" while zero launchers shared it. `tests/unit/battle-persistence.test.ts` is 620 lines
+   * about that function and passed identically with the wiring absent, because it calls the writer
+   * itself: it binds the FUNCTION and not the WIRING, which is this repo's signature defect.
+   *
+   * Measured before the wiring, driving this rig through real `core/battle.ts` fights: a snare was
+   * spent in the reducer and was still in the bag afterwards, and four battles produced zero
+   * `battleAftermath` entries on the tape. So these two tests assert EFFECTS on the save — never
+   * that the writer was called — and they are the only place in the repo where the four launchers'
+   * calls to it can go red.
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  /** True when this state has anybody on the player side below full HP. */
+  function playerIsHurt(state: WildBattleState): boolean {
+    return state.playerOrder.some((uid) => {
+      const battler = state.battlers[uid];
+      return battler !== undefined && battler.curHp < battler.maxHp;
+    });
+  }
+
+  /**
+   * Walk REAL encounters until one ends with the player HURT and STILL STANDING, one snare thrown.
+   *
+   * Fled rather than won or lost on purpose, and each is a different thing to assert: a WIN can
+   * leave the starter untouched, and a LOSS is a wiped party, which `recoverFromBlackout` heals on
+   * the way to the inn — so neither could witness damage surviving a fight. A flee can, and
+   * `core/battle.ts` `illegalActionReason` allows one against a wild enemy.
+   *
+   * Handed back UNAPPLIED, so the caller reads the save on both sides of `onFinished`.
+   */
+  function walkUntilASurvivedFight(h: Harness): {
+    data: BattleSceneData;
+    state: WildBattleState;
+    transcript: string;
+  } {
+    const seen: string[] = [];
+    let consumed = h.parts.launches.length;
+    for (let attempt = 0; attempt < ENCOUNTERS_TO_TRY; attempt += 1) {
+      walk(h, WALK_BUDGET, () => h.parts.launches.length > consumed);
+      const launch = h.parts.launches[consumed];
+      if (!launch) {
+        seen.push(`— walked ${String(WALK_BUDGET)} steps and the scene launched nothing`);
+        break;
+      }
+      consumed += 1;
+      if (launch.key !== SCENE_KEYS.battle) {
+        seen.push(`— the scene launched "${launch.key}", which is not a battle`);
+        continue;
+      }
+      const met = h.scene.lastEncounterMet();
+      const data = launch.data as BattleSceneData;
+      // ONE snare, so the bag has to move, and then out — on the scene's OWN stream (`data.rng`),
+      // for the reason `fightWithSnares` gives.
+      let state = battleStep(
+        startBattle(data.input, data.ctx).state,
+        { kind: "snare", tier: STRONGEST_SNARE },
+        data.rng,
+        data.ctx,
+      ).state;
+      for (let turn = 0; state.outcome === null && turn < THROWS_PER_ENCOUNTER; turn += 1) {
+        const stepped = battleStep(state, { kind: "flee" }, data.rng, data.ctx);
+        state = stepped.state;
+        if (stepped.events.some((e) => e.t === "actionRejected")) break;
+      }
+      const hurt = playerIsHurt(state);
+      seen.push(
+        `— ${met?.lineId ?? "?"} ${met?.age ?? "?"} L${String(met?.level ?? 0)} → ` +
+          `${state.outcome ?? "unresolved"}${hurt ? " (player hurt)" : " (player untouched)"}`,
+      );
+      if (state.outcome === "fled" && hurt) return { data, state, transcript: seen.join("\n") };
+      data.onFinished({ state, caught: caughtIndividual(state, data.ctx) });
+    }
+    throw new Error(
+      `§3.1 walked ${String(ENCOUNTERS_TO_TRY)} encounters at ${SLICE_NODE} and never fled a fight ` +
+        `having taken a hit.\nEvery wild creature met, and how its fight ended:\n${seen.join("\n")}`,
+    );
+  }
+
+  it("the damage taken, the snare thrown and the aftermath entry all survive the fight", () => {
+    const h = mount({ save: saveWithSnares() });
+    const fought = walkUntilASurvivedFight(h);
+    const where = `the fight that was handed back:\n${fought.transcript}`;
+
+    const snaresBefore = h.scene.save.items[STRONGEST_SNARE] ?? 0;
+    const logBefore = h.scene.save.actionLog.length;
+    expect(snaresBefore, where).toBeGreaterThan(0);
+    // The reducer really did spend one, so the save has something to be wrong about.
+    expect(fought.state.bag[STRONGEST_SNARE] ?? 0, where).toBe(snaresBefore - 1);
+
+    fought.data.onFinished({ state: fought.state, caught: null });
+
+    // 1. THE BAG. The snare the reducer spent is gone from the save.
+    expect(h.scene.save.items[STRONGEST_SNARE] ?? 0, where).toBe(snaresBefore - 1);
+
+    // 2. THE PARTY. Every battler's HP is on its owned creature, and somebody is below full.
+    for (const uid of fought.state.playerOrder) {
+      const battler = fought.state.battlers[uid];
+      if (!battler) continue;
+      const owned = h.scene.save.party.find((c) => c.uid === uid);
+      expect(owned, `${where}\nbattler ${uid} is not in the party`).toBeDefined();
+      expect(owned!.curHp, where).toBe(battler.curHp);
+      expect(owned!.level, where).toBe(battler.level);
+    }
+    const hurt = h.scene.save.party.filter((c) => c.curHp !== undefined && c.curHp > 0);
+    expect(hurt.length, `${where}\nthe fight left nobody hurt on the save`).toBeGreaterThan(0);
+
+    // 3. THE TAPE, so `core/save.ts` `replay` reproduces it (L10). One new entry, and it is the
+    //    aftermath: a fled fight catches nothing and moves no population.
+    expect(h.scene.save.actionLog.length, where).toBe(logBefore + 1);
+    expect(h.scene.save.actionLog[h.scene.save.actionLog.length - 1]!.action, where).toMatchObject({
+      t: "battleAftermath",
+    });
+  });
+
+  it("A WIPE IS NOT A DEAD END — the party is carried to an inn, put back on its feet, and charged", () => {
+    /*
+     * THE OTHER HALF OF THE SAME CHANGE, AND IT DOES NOT SHIP WITHOUT IT. With `curHp` persisting
+     * and nothing that heals, a wiped save has no action left that can change its state: all four
+     * `*BattleProblem` launchers refuse a party with nothing standing, `restAtInn` charges ticks and
+     * heals nothing, and `core/lifecycle.ts` keeps a zero at zero through the year turn. Hank's
+     * closed ruling is that a forced choice exists precisely so the game cannot block.
+     */
+    const h = mount({ save: saveWithSnares() });
+    const seen: string[] = [];
+    let consumed = h.parts.launches.length;
+    let lost: { tickBefore: number; subTickBefore: number } | null = null;
+
+    for (let attempt = 0; attempt < ENCOUNTERS_TO_TRY && lost === null; attempt += 1) {
+      walk(h, WALK_BUDGET, () => h.parts.launches.length > consumed);
+      const launch = h.parts.launches[consumed];
+      if (!launch) break;
+      consumed += 1;
+      if (launch.key !== SCENE_KEYS.battle) continue;
+      const data = launch.data as BattleSceneData;
+      const state = fightWithSnares(data);
+      seen.push(`— ${h.scene.lastEncounterMet()?.lineId ?? "?"} → ${state.outcome ?? "unresolved"}`);
+      const before = { tickBefore: h.scene.save.tick, subTickBefore: h.scene.save.subTick ?? 0 };
+      data.onFinished({ state, caught: caughtIndividual(state, data.ctx) });
+      if (state.outcome === "loss") lost = before;
+    }
+
+    const where = `encounters met on the way:\n${seen.join("\n")}`;
+    expect(lost, `§3.1 walked ${String(ENCOUNTERS_TO_TRY)} encounters and never lost one.\n${where}`).not.toBeNull();
+
+    // 1. SOMETHING IS STANDING AGAIN — the only property the ruling actually fixes.
+    expect(h.scene.save.party.some((c) => c.curHp === undefined || c.curHp > 0), where).toBe(true);
+    // 2. …AT AN INN, which is `core/recovery.ts`'s destination rule and not this rig's guess.
+    expect(h.scene.save.currentNode, where).toBe(wakeNodeFor(SLICE_NODE, content));
+    expect(h.scene.node.id, `${where}\nthe save moved and the scene did not`).toBe(h.scene.save.currentNode);
+    // 3. …AND IT WAS PAID FOR, in whole ticks, off `BLACKOUT_COST`.
+    const spent =
+      (h.scene.save.tick - lost!.tickBefore) +
+      ((h.scene.save.subTick ?? 0) - lost!.subTickBefore) / balance.clock.subTicksPerTick;
+    expect(spent, `${where}\nthe blackout was free`).toBe(blackoutTicks(balance));
+    /*
+     * 4. …and the tape carries it, so `replay` reproduces the wake node and the restored party.
+     *    Read through `readBlackout` rather than by comparing `action.t`: `core/types.ts`
+     *    `GameAction` deliberately has no `blackout` member (see `core/save.ts` `blackoutAction`),
+     *    so a string comparison here does not even typecheck.
+     */
+    expect(h.scene.save.actionLog.some((e) => readBlackout(e.action) !== null), where).toBe(true);
+    // 5. THE RUN IS NOT BLOCKED: the next fight can actually be launched.
+    expect(wildBattleProblem(h.scene.save), where).toBeNull();
   });
 
   it("the derived encounter weight follows the catch — the cascade needs no extinction check", () => {
@@ -1326,7 +1546,7 @@ describe("§10.1 the act ladder can be CLIMBED by playing — the never-cut slic
     expect(data.input.playerParty.length).toBeGreaterThan(0);
 
     // The reducer's own outcome, handed back the way BattleScene hands it back.
-    data.onFinished({ state: { outcome: "win" } as never, caught: null });
+    data.onFinished({ state: settledState(data, "win"), caught: null });
     expect(h.scene.act()).toBe(2);
     // …and the act the badge opened is now travelable.
     expect(balance.acts.gates.find((g) => g.act === 2)?.nodes ?? []).not.toHaveLength(0);
@@ -1340,7 +1560,7 @@ describe("§10.1 the act ladder can be CLIMBED by playing — the never-cut slic
       h.press(KEY_G);
       h.frame();
       const data = h.parts.launches.find((l) => l.key === "Battle")?.data as BattleSceneData;
-      data.onFinished({ state: { outcome } as never, caught: null });
+      data.onFinished({ state: settledState(data, outcome), caught: null });
       expect(h.scene.act(), outcome).toBe(1);
     }
   });
@@ -1373,7 +1593,7 @@ describe("§10.1 the act ladder can be CLIMBED by playing — the never-cut slic
     h.press(KEY_G);
     h.frame();
     const data = h.parts.launches.filter((l) => l.key === "Battle").pop()?.data as BattleSceneData;
-    data.onFinished({ state: { outcome: "win" } as never, caught: null });
+    data.onFinished({ state: settledState(data, "win"), caught: null });
     expect(h.scene.act()).toBe(2);
 
     await h.scene.travelTo(r1 as string);
@@ -1688,7 +1908,8 @@ function playSlowRun(): SlowRun {
     h.frame();
     const launch = h.parts.launches.filter((l) => l.key === "Battle").pop();
     expect(launch, `[G] launched no battle at ${leader.town}`).toBeDefined();
-    (launch!.data as BattleSceneData).onFinished({ state: { outcome: "win" } as never, caught: null });
+    const slowData = launch!.data as BattleSceneData;
+    slowData.onFinished({ state: settledState(slowData, "win"), caught: null });
 
     save = h.scene.save;
     actsSeen.push(h.scene.act());
@@ -2065,7 +2286,8 @@ describe("§10.6 the battle corpus is selected, and the finale is resolved by th
     answerBox(h);
     const battle = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop()!;
 
-    (battle.data as BattleSceneData).onFinished({ state: { outcome: "win" } as never, caught: null });
+    const winData = battle.data as BattleSceneData;
+    winData.onFinished({ state: settledState(winData, "win"), caught: null });
     // The act moved on the BADGE, before the box was handed the leader's answer …
     expect(h.scene.act()).toBe(first.act + 1);
     expect(boxed(h).at(-1)).toBe(`${first.id}.post.win`);
@@ -2079,9 +2301,25 @@ describe("§10.6 the battle corpus is selected, and the finale is resolved by th
     h.frame();
     answerBox(h);
     const battle = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop()!;
-    (battle.data as BattleSceneData).onFinished({ state: { outcome: "loss" } as never, caught: null });
+    const lossData = battle.data as BattleSceneData;
+    lossData.onFinished({ state: settledState(lossData, "loss"), caught: null });
     expect(h.scene.act()).toBe(first.act);
     expect(boxed(h).at(-1)).toBe(`${first.id}.post.loss`);
+    /*
+     * …AND THEN THE BLACKOUT, WHICH IS NEW AND IS NOT A DETOUR AROUND THE ASSERTION ABOVE. A gym
+     * loss is a wiped party — `core/battle.ts` finishes on "loss" only when nothing on the player
+     * side is standing — so `OverworldScene.recoverFromBlackout` runs as the CONTINUATION of the
+     * leader's answer: her line, then the black screen, then the innkeeper of the town the player
+     * woke in. Asserted here rather than left to `tests/unit/recovery.test.ts`, because that file
+     * tests the decision and this one is the only place the WIRING is exercised.
+     */
+    expect(answerBox(h)).toBe(`${first.id}.post.loss`);
+    const wake = h.scene.save.currentNode;
+    expect(wake, "a wiped party did not wake at an inn").toBe(wakeNodeFor(first.town, content));
+    const rest = restBeatAt(wake, h.scene.dialogueCtx());
+    expect(rest, `no innkeeper speaks at ${wake}`).toBeDefined();
+    expect(answerBox(h)).toBe(BLACKOUT_ENTRY_ID);
+    expect(boxed(h).at(-1)).toBe(rest!.id);
   });
 
   it("BEATING GREAVES BY PLAYING writes story.greaves.beaten — the flag no code writes", () => {
@@ -2156,11 +2394,21 @@ describe("§10.6 the battle corpus is selected, and the finale is resolved by th
     answerBox(h, () => 0);
     const data = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop()!.data as BattleSceneData;
     // The reducer reports no catch — bible §4 makes this the common outcome.
-    data.onFinished({ state: { outcome: "loss" } as never, caught: null });
+    data.onFinished({ state: settledState(data, "loss"), caught: null });
 
     expect(h.scene.save.questFlags["story.vellsire.resolved"]).toBe(true);
     expect(h.scene.save.questFlags["story.vellsire.outcome"]).toBe("released");
     expect(boxed(h).at(-1)).toBe("maren.epilogue.released");
+    /*
+     * ⚠ AND THE EPILOGUE COMES BEFORE THE BLACKOUT, WHICH IS THE WHOLE REASON THE ORDER IS WHAT IT
+     * IS. A lost Ancient fight is a wiped party, and `recoverFromBlackout` carries the player two
+     * nodes off the ring — while both epilogues are `cutscene`s AT `sanctum`, keyed on the node
+     * `playPendingCutscene` reads. Taken first, the blackout left the released epilogue unplayed.
+     * So it runs as the ending's continuation, and this asserts that it still runs at all.
+     */
+    expect(answerBox(h)).toBe("maren.epilogue.released");
+    expect(answerBox(h)).toBe(BLACKOUT_ENTRY_ID);
+    expect(h.scene.save.currentNode).toBe(wakeNodeFor(balance.encounter.finaleGatedNode, content));
   });
 
   it("A SNARE THAT HOLDS records `caught`, moves the Sanctum's real number, and never ages", () => {
@@ -2177,7 +2425,7 @@ describe("§10.6 the battle corpus is selected, and the finale is resolved by th
     // which is the one thing `BattleScene` supplies and this rig cannot.
     const line = content.species.find((s) => s.id === spec.lineId)!;
     data.onFinished({
-      state: { outcome: "caught" } as never,
+      state: settledState(data, "caught"),
       caught: {
         uid: spec.uid,
         lineId: spec.lineId,
@@ -2259,8 +2507,13 @@ describe("§10.6 the battle corpus is selected, and the finale is resolved by th
     await lost.scene.travelTo(route);
     answerBox(lost);
     const a = lost.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop()!;
-    (a.data as BattleSceneData).onFinished({ state: { outcome: "loss" } as never, caught: null });
+    const aData = a.data as BattleSceneData;
+    aData.onFinished({ state: settledState(aData, "loss"), caught: null });
     answerBox(lost); // wick.act1.loss — "Come back when your team has slept."
+    // Losing to Wick is a wiped party, so his line is followed by the black screen and by the
+    // innkeeper of the town the player woke in — see `recoverFromBlackout`.
+    expect(answerBox(lost)).toBe(BLACKOUT_ENTRY_ID);
+    answerBox(lost); // the innkeeper's shipped rest beat
     expect(lost.scene.save.questFlags["rival.act1.fought"]).toBeUndefined();
     // …so walking away and coming back really does offer the rematch the copy promises.
     await lost.scene.travelTo(first.town);
@@ -2272,7 +2525,8 @@ describe("§10.6 the battle corpus is selected, and the finale is resolved by th
     await won.scene.travelTo(route);
     answerBox(won);
     const b = won.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop()!;
-    (b.data as BattleSceneData).onFinished({ state: { outcome: "win" } as never, caught: null });
+    const bData = b.data as BattleSceneData;
+    bData.onFinished({ state: settledState(bData, "win"), caught: null });
     answerBox(won); // wick.act1.win, which is what writes `rival.act1.fought`
     expect(won.scene.save.questFlags["rival.act1.fought"]).toBe(true);
     // B15: the entry records the PLAYER's result, and the kind name is the value.
@@ -2375,7 +2629,19 @@ describe("§10.6 the battle corpus is selected, and the finale is resolved by th
       expect(settleBattle(h, outcome), "closing the pre-fight box did not start the fight").toBe(true);
       expect(boxed(h).at(-1)).toBe(`wick.act6.${outcome}`);
       answerBox(h);
+      /*
+       * ⚠ THE SEND-OFF IS A `cutscene` AT `sanctum-approach`, so it only arrives while the player
+       * is standing there — which on a LOSS is only true because the blackout runs after Wick's
+       * line rather than before it. Taken first, the wipe would have carried the player to
+       * Duskhollow's inn and `playPendingCutscene` would have found nothing owed here.
+       */
       expect(boxed(h).at(-1), "the send-off never arrived after the fight").toBe("maren.finale");
+      if (outcome === "loss") {
+        // …and the black screen is what closes the sequence: his line, the send-off, the wipe.
+        answerBox(h);
+        expect(boxed(h).at(-1)).toBe(BLACKOUT_ENTRY_ID);
+        expect(h.scene.save.currentNode).toBe(wakeNodeFor(approach, content));
+      }
     });
   }
 });
@@ -2418,14 +2684,23 @@ describe("§10.7 a quest is offered, worked and closed BY PLAYING", () => {
     const r1 = h.scene.node.adjacency.find((id) => id !== town);
     expect(r1, "Hearthollow has no route out").toBeDefined();
     await h.scene.travelTo(r1 as string);
-    // Arrival opens the rival; the slice is walkable through a loss (see §10.6).
-    settleBattle(h, "loss");
+    /*
+     * Arrival opens the rival, and he is BEATEN here rather than lost to. A loss is a wiped party
+     * — `core/battle.ts` finishes a trainer fight on "loss" only when nothing on the player side is
+     * standing — and a wiped party is carried back to Hearthollow's inn, which would end the foray
+     * this test exists to walk before it starts. Winning writes `rival.act1.fought`, so he is not
+     * standing on the route again on every re-entry either. Which way the fight went is not what
+     * this measures; §10.6 owns that claim, on both outcomes.
+     */
+    settleBattle(h, "win");
 
     const distinct = (): number => new Set(linesMetAt(h.scene.save, r1 as string)).size;
     for (let i = 0; i < 3000 && distinct() < 3; i += 1) {
       walk(h, 1);
-      // A foray step can hand the scene over to a battle; settle it so walking can continue.
-      settleBattle(h, "loss");
+      // A foray step can hand the scene over to a battle; FLED, so the party stays on its feet and
+      // the walk continues from where it is. `core/battle.ts` `illegalActionReason` allows a flee
+      // against a wild enemy and refuses one in a trainer battle, and a foray meets the former.
+      settleBattle(h, "fled");
     }
     expect(distinct(), "three distinct lines were never met on Meadow Reach").toBeGreaterThanOrEqual(3);
 
@@ -2586,24 +2861,41 @@ describe("§11 a fight costs clock.battleTicks, and it is charged at LAUNCH", ()
     expect(per % COST.battle, "clock.battleTicks does not divide a whole tick").toBe(0);
     const fightsPerTick = per / COST.battle;
 
+    /*
+     * ⚠ EVERY LOSS IS ALSO A BLACKOUT, AND THE PRICE IS CARRIED EXPLICITLY RATHER THAN AVOIDED.
+     * A LOSS is charged (the fight happened) and leaves the leader challengeable — `gymBattleProblem`
+     * refuses a gym whose badge is already won, so a WIN cannot be fought twice and a loss is the
+     * only way this file can reach a second fight at one gym. But `core/battle.ts` finishes on
+     * "loss" only when nothing on the player side is standing, so each loss is a wiped party, and
+     * `OverworldScene.recoverFromBlackout` charges `core/recovery.ts` `BLACKOUT_COST` for it.
+     *
+     * That price is WHOLE ticks (`["inn","inn","travel"]`), which is exactly why it does not
+     * disturb what this test is about: the fraction the FIGHT costs still has to carry in the
+     * sub-tick. The premise is asserted rather than assumed, so a retune that made an inn or a
+     * travel fractional fails here instead of quietly turning the arithmetic below into fiction.
+     */
+    const perLoss = blackoutTicks(balance);
+    expect(Number.isInteger(perLoss), "a blackout costs a fraction of a tick, so the carry below is wrong").toBe(true);
+
     const h = mount({ save: atTheGym() });
     const openingTick = h.scene.save.tick;
     expect(h.scene.save.subTick ?? 0).toBe(0);
 
+    let blackedOut = 0;
     for (let fight = 0; fight < fightsPerTick; fight += 1) {
       h.press(KEY_G);
       h.frame();
-      // A LOSS is charged (the fight happened) and leaves the leader challengeable, which is what
-      // makes a second fight at the same gym reachable at all.
       expect(settleBattle(h, "loss"), `fight ${String(fight)} never started`).toBe(true);
+      blackedOut += perLoss;
       if (fight + 1 < fightsPerTick) {
-        // Mid-way: the whole-tick counter has NOT moved, because a fraction is owed and not yet due.
-        expect(h.scene.save.tick, "a fractional charge rounded up to a whole tick").toBe(openingTick);
+        // Mid-way: the whole-tick counter has moved by the BLACKOUTS and by nothing else, because
+        // the fight's own charge is a fraction that is owed and not yet due.
+        expect(h.scene.save.tick, "a fractional charge rounded up to a whole tick").toBe(openingTick + blackedOut);
         expect(h.scene.save.subTick).toBe(COST.battle * (fight + 1));
       }
     }
 
-    expect(h.scene.save.tick).toBe(openingTick + 1);
+    expect(h.scene.save.tick).toBe(openingTick + blackedOut + 1);
     expect(h.scene.save.subTick ?? 0).toBe(0);
   });
 
@@ -2758,9 +3050,15 @@ describe("§12 the foray odometer is banked in the save and survives travel and 
     const route = h.scene.node.adjacency.find((id) => id !== first.town);
     expect(route, `${first.town} is adjacent to nothing, so there is no travel to test`).toBeDefined();
     await h.scene.travelTo(route as string);
-    // bible §8's rival is triggered by ARRIVAL on the first route, so the travel hands a fight over.
-    // Answered with a loss: which way it went is not what this measures.
-    settleBattle(h, "loss");
+    /*
+     * bible §8's rival is triggered by ARRIVAL on the first route, so the travel hands a fight over.
+     * Answered with a WIN, and the change from a loss is not cosmetic: a lost trainer fight is a
+     * wiped party (`core/battle.ts` finishes on "loss" only when nothing is standing), and a wiped
+     * party is carried to an inn — which would move `currentNode` off the route and make the line
+     * below a test of the blackout rather than of travel. Which way the fight went is still not
+     * what this measures.
+     */
+    settleBattle(h, "win");
 
     expect(h.scene.save.currentNode, "the travel was refused, so nothing below is about travel").toBe(route);
     expect(h.scene.forayStepsSinceTick(), "travel gave the banked walk back").toBe(banked);

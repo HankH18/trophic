@@ -33,6 +33,20 @@
  * nothing else.
  *
  * No engine import: every module under test is engine-free on purpose (L11).
+ *
+ * ══ WHAT THIS FILE CANNOT SEE, SAID OUT LOUD ══
+ * It calls `applyBattleResult` ITSELF, so it binds the FUNCTION and not the WIRING. That is not a
+ * quibble: the four launchers in `game/scenes/OverworldScene.ts` did not call it at all, every test
+ * here passed identically with the wiring absent, and three docstrings — `game/gym-battle.ts`,
+ * `game/rival.ts`, `game/finale.ts` — described it as "the ONE writer all four launchers share"
+ * while zero launchers shared it. Measured then, driving the real scene through real fights: a
+ * snare was spent in the reducer and was still in the bag afterwards, and four battles produced no
+ * `battleAftermath` entry on the tape.
+ *
+ * The call sites are exercised in `tests/unit/overworld-scene.test.ts` §3.1, which walks REAL
+ * encounters, fights them through the real reducer and asserts the EFFECTS on the save — and §3.1
+ * is the only place in the repo where losing one of those four calls can go red. "The launcher
+ * writes it back" is a claim about that file, never about this one.
  */
 
 import { describe, expect, it } from "vitest";
