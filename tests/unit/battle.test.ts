@@ -705,6 +705,95 @@ describe("KO is a faint and nothing else (Hard Req 8)", () => {
     expect(out.state.battlers["loam"]?.curHp).toBe(0);
     expect(out.state.outcome).toBe("win");
   });
+
+  it("logs the HP an overkill actually removed, not the roll that overshot it", () => {
+    // WAS: `dealDamage` clamped the STATE at zero (`max(0, curHp - amount)`) and then logged the
+    // UNCLAMPED `amount`. A creature at 1 HP hit for 26 lost 1 HP and the log said 26, so the
+    // narration read "−26 HP" over a bar that moved one pixel — and build-doc §7.4's renderer
+    // contract ("replaying the log from the state at the start of the step reproduces the state at
+    // the end") was false for every knockout. `game/battle-view.ts` papered over it with a clamp of
+    // its own, which is the same defect one level up: two authorities on one number.
+    //
+    // The event carries the damage DEALT. The damage ROLLED is not lost — `computeDamage` is
+    // exported and returns it, which is where the balance harness and the formula tests read it
+    // (build-doc §7.4). Nothing outside the formula wants the overshoot, so no second field is
+    // added to carry it.
+    const ctx = NO_WEB;
+    const input: BattleInput = {
+      seed: 8,
+      kind: "wild",
+      playerParty: [{ uid: "moss", lineId: "mosslet-line", age: "A", level: 10, traits: [] }],
+      enemyParty: [{ uid: "nib", lineId: "nibbin-line", age: "A", level: 10, traits: [], curHp: 1 }],
+    };
+    const started = startBattle(input, ctx);
+    expect(started.state.battlers["nib"]?.curHp).toBe(1);
+    const out = step(started.state, { kind: "move", moveId: "bramble" }, cyclic([0.5, 0.99]), ctx);
+
+    // The roll is unchanged and still reachable at the formula's own boundary: Bramble into this
+    // defender on the mid roll with no crit is 26, four-and-twenty more than the target owns.
+    const roll = computeDamage(
+      battler("mosslet-line", "A", 10),
+      battler("nibbin-line", "A", 10, "enemy"),
+      move("bramble"),
+      scripted(MID_ROLL_NO_CRIT),
+      ctx,
+    );
+    expect(roll.amount).toBe(26);
+
+    // …and the log reports the one point of HP that actually left the creature.
+    const hit = out.events.find((e) => e.t === "damage" && e.uid === "nib");
+    expect(hit?.t === "damage" ? hit.amount : -1).toBe(1);
+    expect(out.state.battlers["nib"]?.curHp).toBe(0);
+  });
+
+  it("logs the HP an overkilling status chip actually removed", () => {
+    // The same arithmetic, at the other site that moves HP without going through `dealDamage`.
+    // loamunder-line at level 10 has 102 max HP and balance.status Burn chips 6% ⇒ floor(6.12) = 6.
+    // Standing at 2 HP, the tick removes 2.
+    const ctx = NO_WEB;
+    const input: BattleInput = {
+      seed: 9,
+      kind: "wild",
+      playerParty: [{ uid: "spore", lineId: "sporantle-line", age: "A", level: 10, traits: [] }],
+      enemyParty: [{ uid: "loam", lineId: "loamunder-line", age: "A", level: 10, traits: [], curHp: 1 }],
+    };
+    const started = startBattle(input, ctx);
+    const burning: BattleState = structuredClone(started.state);
+    const victim = burning.battlers["loam"];
+    if (!victim) throw new Error("no victim");
+    expect(victim.maxHp).toBe(102);
+    expect(Math.floor(victim.maxHp * statusChipFraction({ name: "Burn", turnsActive: 0 }, B))).toBe(6);
+    victim.status = { name: "Burn", turnsActive: 0 };
+    victim.curHp = 2;
+    const out = step(burning, { kind: "move", moveId: "regrow" }, scripted([0.5, 0.99]), ctx);
+    const tick = out.events.find((e) => e.t === "statusTick" && e.uid === "loam");
+    expect(tick?.t === "statusTick" ? tick.amount : -1).toBe(2);
+    expect(out.state.battlers["loam"]?.curHp).toBe(0);
+  });
+
+  it("BINDS — every HP-moving event in every fixture equals the HP that actually moved", () => {
+    // The standing reconstruction test (`carries enough in events[] to redraw every HP bar`) reads
+    // `faint` as "set the tally to 0", so it reconciles an overshoot instead of catching it: the
+    // gym fixture carried five overkills under a green suite. This walks the same logs with NO
+    // reconciliation, so the deltas have to close on their own.
+    for (const script of SCRIPTS) {
+      const ctx = makeBattleContext(content, predationOracleFromWebs([script.foodWeb]));
+      const hp = new Map<string, number>();
+      for (const [uid, b] of Object.entries(startBattle(script.input, ctx).state.battlers)) hp.set(uid, b.curHp);
+      const { state, events } = replay(script);
+      for (const e of events) {
+        if (e.t !== "damage" && e.t !== "statusTick" && e.t !== "heal") continue;
+        const before = hp.get(e.uid) ?? 0;
+        const after = e.t === "heal" ? before + e.amount : before - e.amount;
+        expect(after, `${script.id}: ${e.t} on ${e.uid} took ${String(e.amount)} from ${String(before)}`).toBeGreaterThanOrEqual(0);
+        hp.set(e.uid, after);
+      }
+      for (const [uid, battler] of Object.entries(state.battlers)) {
+        if (events.some((e) => e.t === "levelUp" && e.uid === uid)) continue; // maxHp moved; §15 C3
+        expect(hp.get(uid), `${script.id}: ${uid}`).toBe(battler.curHp);
+      }
+    }
+  });
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -1192,9 +1281,21 @@ describe("Burrow/Roost and the un-wired food web", () => {
     const hit = ducked.events.find((e) => e.t === "damage");
     expect(hit?.t === "damage" ? hit.amount : 0).toBe(46);
     // balance.additions.A3.json evadeTurns = 1 ⇒ it is gone by the next turn.
-    const after = step(ducked.state, { kind: "move", moveId: "trample" }, scripted([0.5, 0.99, 0.5, 0.99]), ctx);
+    //
+    // Polly's maximum is 98 and the ducked blow left it at 52, so the undodged 66 would be an
+    // OVERKILL — and `dealDamage` logs the HP it actually removes, so the event would read 52 and
+    // the fight would end in a loss here. That is the zero-clamp talking, not the evade, and the
+    // clamp has its own cases in the KO block. Topping the evader up removes the confound: the
+    // expected 66 is unchanged, still read off the damage event, and now genuinely dealt.
+    const healthy: BattleState = structuredClone(ducked.state);
+    const evader = healthy.battlers["polly"];
+    if (!evader) throw new Error("no evader");
+    expect(evader.curHp).toBe(52);
+    evader.curHp = evader.maxHp;
+    const after = step(healthy, { kind: "move", moveId: "trample" }, scripted([0.5, 0.99, 0.5, 0.99]), ctx);
     const full = after.events.filter((e) => e.t === "damage").find((e) => e.uid === "polly");
     expect(full?.t === "damage" ? full.amount : 0).toBe(66);
+    expect(after.state.battlers["polly"]?.fainted).toBe(false);
   });
 
   it("throws rather than quietly reporting 'no predation' when foodweb.ts is not wired", () => {

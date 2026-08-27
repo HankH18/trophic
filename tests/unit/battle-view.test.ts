@@ -2074,6 +2074,61 @@ describe("battle-view regressions (each reproduces a defect that shipped)", () =
     expect(hit?.caption).toBe(`${name} −5 HP`);
   });
 
+  it("BINDS — the bar's delta and the printed number are ONE number, and the view is not clamping it", () => {
+    // WAS: `drain` re-derived the bar's endpoint with a `Math.max(0, …)` of its own while the
+    // caption printed the log's raw amount, so an overkill drew a 3 HP drop over the words
+    // "−40 HP". Two authorities on one number is how they drift. The clamp belongs to
+    // core/battle.ts, which now logs the HP it actually removed (see tests/unit/battle.test.ts,
+    // "logs the HP an overkill actually removed"); this file is a replayer and reports the log.
+    //
+    // So a HAND-BUILT log that overshoots is shown as written rather than quietly absorbed — that
+    // is what proves there is only one clamp left, and it is not this one.
+    const wounded = structuredClone(openingState) as BattleState;
+    const target = wounded.battlers[enemyUid];
+    if (target === undefined) throw new Error("fixture has an enemy");
+    target.curHp = 3;
+    const view = snapshotOf(wounded);
+    const overshoot = compileBattleEvents(
+      [{ t: "damage", uid: enemyUid, amount: 40, effectiveness: "neutral", predation: false, crit: false }],
+      view,
+    ).steps[0];
+    if (overshoot?.kind !== "hit") throw new Error("no hit step");
+    expect(overshoot.hpFrom).toBe(3);
+    expect(overshoot.hpFrom - overshoot.hpTo).toBe(overshoot.amount);
+    expect(overshoot.caption).toContain("−40 HP");
+
+    // …and on a log core can actually emit, the bar lands exactly on empty with no clamp involved.
+    const exact = compileBattleEvents(
+      [
+        { t: "damage", uid: enemyUid, amount: 3, effectiveness: "neutral", predation: false, crit: false },
+        { t: "faint", uid: enemyUid },
+      ],
+      view,
+    ).steps[0];
+    if (exact?.kind !== "hit") throw new Error("no hit step");
+    expect(exact.hpTo).toBe(0);
+    expect(exact.hpFrom - exact.hpTo).toBe(exact.amount);
+  });
+
+  it("BINDS — every hit and chip in the fixtures moves the bar by exactly what it prints", () => {
+    // The end-to-end statement of the same rule, over real logs out of core/battle.ts rather than
+    // hand-built ones: the gym fight carried five overkills, and each drew a caption whose number
+    // no bar on screen ever matched.
+    for (const script of SCRIPTS) {
+      const { events, opening: open } = replay(script);
+      const { steps } = compileBattleEvents(events, open);
+      let checked = 0;
+      for (const s of steps) {
+        if (s.kind !== "hit" && s.kind !== "statusTick") continue;
+        expect(s.hpFrom - s.hpTo, `${script.id}: ${s.kind} on ${s.uid}`).toBe(s.amount);
+        expect(s.hpTo, `${script.id}: ${s.kind} on ${s.uid}`).toBeGreaterThanOrEqual(0);
+        expect(s.caption).toContain(`−${String(s.amount)} HP`);
+        checked += 1;
+      }
+      if (script === GYM) expect(checked).toBeGreaterThan(10);
+    }
+  });
+
   it("every step carries the display state of the fielded pair AS OF that step", () => {
     // WAS: the scene read `BattleView.snapshot` mid-playback, which `push(events, stateAfter)` had
     // already advanced to the end of the whole reducer step. Reproduced live: a self-buff step

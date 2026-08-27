@@ -1082,13 +1082,27 @@ function settleField(state: BattleState, events: BattleEvent[]): boolean {
 }
 
 function dealDamage(state: BattleState, events: BattleEvent[], target: BattleBattler, amount: number, ctx: BattleContext, meta: Omit<DamageResult, "amount">): void {
-  target.curHp = Math.max(0, target.curHp - amount);
+  // The event carries the damage DEALT, not the damage ROLLED — the two differ on every overkill.
+  //
+  // `curHp` floors at zero, so a creature at 1 HP hit for 26 loses 1. Logging the roll made
+  // build-doc §7.4's renderer contract ("replaying the log from the state at the start of the step
+  // reproduces the state at the end") FALSE for every knockout, and put a number on screen that no
+  // HP bar ever matched — `game/battle-view.ts` was re-deriving the bar with a second clamp of its
+  // own, so the caption said −26 over a one-pixel drop. Two authorities on one number.
+  //
+  // The overshoot is not lost by this: `computeDamage` is exported and returns the raw roll, which
+  // is where the formula tests and the balance harness read it. Nothing outside the formula wants
+  // it, so it is not carried here as a second field — see `heal` below, which has always logged the
+  // applied amount rather than the requested one, and is the sibling this now matches.
+  const before = target.curHp;
+  target.curHp = Math.max(0, before - amount);
+  const dealt = before - target.curHp;
   // Announced BEFORE the damage so a renderer can play the duck, then the (reduced) hit.
   if (meta.evadeMult !== ABSENT) events.push({ t: "evaded", uid: target.uid, reduction: meta.evadeMult });
   events.push({
     t: "damage",
     uid: target.uid,
-    amount,
+    amount: dealt,
     effectiveness: meta.effectiveness,
     predation: meta.predation,
     crit: meta.crit,
@@ -1401,8 +1415,11 @@ function tickStatus(state: BattleState, events: BattleEvent[], battler: BattleBa
   const fraction = statusChipFraction(status, ctx.balance);
   if (fraction > 0) {
     const amount = Math.max(ctx.balance.damage.minDamage, Math.floor(battler.maxHp * fraction));
-    battler.curHp = Math.max(0, battler.curHp - amount);
-    events.push({ t: "statusTick", uid: battler.uid, status: status.name, amount });
+    // The second site that moves HP, and it obeys `dealDamage`'s rule: the log carries the HP the
+    // chip actually removed. A 6% Burn on a 102 HP creature standing at 2 takes 2, not 6.
+    const before = battler.curHp;
+    battler.curHp = Math.max(0, before - amount);
+    events.push({ t: "statusTick", uid: battler.uid, status: status.name, amount: before - battler.curHp });
   }
   status.turnsActive += 1;
   // build-doc §7.4 — KO is a faint; chip damage can faint but never kills (Hard Req 8).

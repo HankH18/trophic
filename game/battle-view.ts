@@ -594,11 +594,26 @@ export function compileBattleEvents(
   const moveName = (moveId: string): string => names.move?.(moveId) ?? moveId;
   const itemName = (itemId: string): string => names.item?.(itemId) ?? itemLabel(itemId);
 
-  /** Apply a hit-shaped delta and report the tween's endpoints. The log's own number moves it. */
+  /**
+   * Apply a hit-shaped delta and report the tween's endpoints. The log's own number moves it, and
+   * it is the WHOLE delta: `core/battle.ts` clamps at zero before it logs, so `damage.amount` and
+   * `statusTick.amount` are the HP that actually left the creature.
+   *
+   * There is deliberately no `Math.max(0, …)` here. This used to clamp, and the caption printed
+   * `event.amount` while the bar moved by the clamped figure — an overkill drew "−66 HP" over a
+   * 3 HP drop. That is not a rounding difference; it is two authorities on one number, and a clamp
+   * at zero is a battle RULE, which this file is not allowed to hold (§7.4 / L11, see the header).
+   * Removing it means a HAND-BUILT log that overshoots is now shown as written rather than quietly
+   * absorbed — correct for a replayer, and unreachable from core.
+   *
+   * (`heal` keeps its clamp for a reason that does not apply here: it bounds against `maxHp`, an
+   * ABSOLUTE this file legitimately reads off the state, and it is skipped when that maximum is
+   * known to be stale. Zero is core's rule; maxHp is core's number.)
+   */
   const drain = (uid: string, amount: number): { hpFrom: number; hpTo: number; maxHp: number } => {
     const tally = tallyOf(uid);
     const hpFrom = tally.view.curHp;
-    const hpTo = Math.max(0, hpFrom - amount);
+    const hpTo = hpFrom - amount;
     tally.view.curHp = hpTo;
     return { hpFrom, hpTo, maxHp: tally.view.maxHp };
   };
