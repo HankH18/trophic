@@ -1,0 +1,64 @@
+{
+  "_shape": "core/interiors.ts InteriorBlueprint — an architectural floor plan, not a node. It has no populations, no mapAsset and no adjacency: ecology lives on the town. Colour, style, materials and decoration are deliberately absent; this is the footprint the art lane paints to. Every physical feature below is traced to a shipped line in _featureSource, and every gap is named in _canonSilent rather than filled with a guess.",
+
+  "id": "brackwater-inn",
+  "parentNode": "brackwater",
+  "name": "Brackwater Inn",
+
+  "_room": "12 cells wide by 7 cells tall including the walls, so 10 by 5 of open floor. One plan cell is exactly one movement tile. Wide and shallow, and the floor underfoot is plank decking on piles over open water — nothing in this town stands on ground. The doorway is cut into the SOUTH wall, seventh cell from the west corner; the player walks in heading north and lands on the floor cell directly inside it. The EAST wall is the partition between this room and the guest-room range, which is built out over the water on its own stilts and is not part of this plan; Elsbet stands against that partition, halfway down it.",
+
+  "plan": "############\n#..........#\n#..........#\n#.........@#\n#.........S#\n#..........#\n######D#####",
+
+  "_legend": {
+    "#": "SOLID — the player cannot walk through it. Every solid cell here is a wall: the outside walls of the common room, and the EAST wall, which is the partition between this room and the guest-room range hanging out over the water. There are no fixtures in this room, so nothing solid here is furniture. Note that the plan cannot distinguish a wall from a fixture; it does not need to in this room.",
+    ".": "Open floor of the common room, laid as plank decking over water.",
+    "D": "The doorway out to the boardwalk. This is the threshold cell; stepping onto it takes the player back to the town. There is exactly one, per the map-prompt rule that every building has one clearly visible door.",
+    "@": "A named person stands here — Elsbet, the innkeeper. The collision parser treats this cell as walkable floor; it is occupied in fact, and the scene layer stands her on it.",
+    "S": "The tile the player stands on to take a room for the night. It faces north, directly at Elsbet. There is no counter: the service is transacted with the person."
+  },
+
+  "door": {
+    "_note": "PROVISIONAL PLACEMENT — the canon gives no coordinate, no compass direction and no prop for this building; see _canonSilent. Units are map-native pixels in the 1024-square painted town, the same space data/nodes/brackwater.json props use. Placed west of the middle and above it, clear of the four things the town map does pin: the exact centre stays wide empty decking, the sunken idol sits at 388,726, the gym hall stands out on the east stilts, and the ferry landing and stone steps are at the bottom.",
+    "x": 296,
+    "y": 372,
+    "facing": "south"
+  },
+
+  "arrival": { "col": 6, "row": 5 },
+
+  "anchors": [
+    {
+      "id": "elsbet",
+      "kind": "speaker",
+      "target": "innkeeper-brackwater",
+      "col": 10,
+      "row": 3,
+      "_purpose": "Elsbet, the innkeeper, stands against the east partition, halfway down it — between the door the guest comes in by and the range of rooms she spends both her shipped lines talking about. She is the only person in this room."
+    },
+    {
+      "id": "rest",
+      "kind": "service",
+      "target": "innkeeper-brackwater.rest",
+      "col": 10,
+      "row": 4,
+      "faces": "north",
+      "_purpose": "The tile the player stands on to trigger the rest service — the full heal that costs inn ticks. It faces north, directly at Elsbet. Deliberately no counter between them: the canon gives this inn no counter, desk, register or key hook, and one would be invented furniture."
+    }
+  ],
+
+  "_featureSource": "THE BUILDING — tools/comfy/manifest.json _nodes.brackwater.feature lists 'an inn whose rooms overhang the water on brackets' among the town's five tarred timber buildings, sourced there to innkeeper-brackwater.rest. || IT STANDS ON PILES OVER OPEN WATER, NOT ON GROUND — docs/content-bible.md §6 row 2, Brackwater's unique feature, verbatim: 'stilt town'. tools/comfy/manifest.json _nodes.brackwater.feature opens 'a stilt town where nothing stands on dry land: five tarred timber buildings on tall piles over open brown water', and its featureSource records that clause as the repair of an earlier pass that put the buildings on a sand bank. The floor of this room is therefore plank decking over water. || THE GUEST ROOMS ARE A SEPARATE RANGE, BUILT OUT OVER THE WATER — innkeeper-brackwater.rest, when {} (unconditional base state), verbatim: 'The rooms are built out over the water on the stilts, so they move all night.' The rooms are CITED as built out over the water on stilts, which makes them a structure distinct from the room the guest is met in. They are drawn as the solid EAST partition and are not part of this floor plan. See _canonSilent. || THE ROOMS ARE A ROW, WITH AN END — same entry, when {}, verbatim: 'The man in the end room last week told me flat he'd not shut an eye.' 'The end room' establishes that the rooms are arranged so that one of them is the last. It establishes nothing about how many there are or which end is which. || A PLANK FLOOR THIN ENOUGH TO CARRY SOUND — same line, verbatim: 'and he was snoring through the floor by ten.' Sound travelling THROUGH THE FLOOR is cited, which is a property of the decking. Whether that floor separates two levels or two rooms on one level is not stated, so no stair and no upper storey is drawn. See _canonSilent. || THE ROOMS MOVE — innkeeper-brackwater.rest, when {}: 'so they move all night', and the second line entire: 'You'll say you won't sleep. They sway.' The motion belongs to the guest range out on the stilts, not to the room the player stands in. || ONE DOOR — tools/comfy/manifest.json map-town skeleton, the only sentence in the project that legislates doors: 'every building has one clearly visible door'. docs/build-doc.md's town-map class variant adds 'clear building entrances'. Neither places the door. || A DOOR IS MEANT TO BE USED — docs/content-bible.md's SFX set budgets 'door' and 'footsteps (grass, wood, stone)'. This is the closest the canon comes to sanctioning an interior; it sanctions the sound of a door and a wooden floor underfoot, and nothing more. || ELSBET — data/dialogue.json speaker innkeeper-brackwater: name 'Elsbet', portrait npc-innkeeper, home 'brackwater'. docs/CAST-AND-VOICE.md: 'Forties, rooms built over moving water and guests who arrive nervous about it.' Her entire shipped corpus is the two lines of innkeeper-brackwater.rest quoted above.",
+
+  "_canonSilent": [
+    "WHERE THIS BUILDING STANDS. The manifest gives Brackwater no coordinate and no prop for the inn. The only coordinate that exists in this town is 388,726 for the sunken idol, and the only placements the manifest fixes are the gym hall 'out on the east stilts' standing highest, the ferry landing with its rates post and barrels, the stone steps and low harbour wall at the bottom, and wide empty decking with nothing built on it at the exact middle. The door x/y above is provisional and must be re-pinned against the painted map.",
+    "WHICH SIDE THE GUEST-ROOM RANGE HANGS OFF. 'Built out over the water' is true of every side of every building in this town, so the line fixes no compass direction at all. East is an engineering choice.",
+    "WHETHER THE PLAYER MAY WALK THROUGH TO THE ROOMS. Nothing says the way through is open, shut, or that there is one. The east partition is drawn solid and the range is out of this plan. Whether it becomes a second room is the owner's call, not a gap to fill by guessing.",
+    "WHETHER THE INN HAS AN UPPER STOREY, OR A STAIR. 'Snoring through the floor' establishes that sound crosses a plank floor and nothing about levels. Every stair in the whole dialogue corpus is in Bowerdeep — Pell's eastern stair, the floor stair the elder came up, and the one innkeeper-bowerdeep.rest hangs a key at. Importing one here would be cross-town invention.",
+    "HOW MANY GUEST ROOMS THERE ARE. 'The end room' says the rooms form a row with a last one, and no more than that. Nothing counts them.",
+    "WHAT A GUEST ROOM CONTAINS, AND WHETHER THE BRACKETS SHOW. The manifest's 'on brackets' describes the exterior silhouette the town map paints. No room interior is described anywhere, and nothing in the corpus describes a bed in this town as a visible object.",
+    "WHETHER THERE IS A COUNTER, DESK, REGISTER OR KEY HOOK. No shop counter, desk or bar is described anywhere in the shipped content: every occurrence of the letters 'counter' under data/ is inside the word 'encounter'. The only key hook in the corpus is Bowerdeep's — innkeeper-bowerdeep.rest, 'The key's on the hook at the stair'. None is drawn, which is why the rest anchor faces the person and not a fixture.",
+    "HOW THE COMMON ROOM IS FURNISHED, AND WHETHER THERE IS A FIRE. Hearthollow's inn gets a fire because Aldis names one. Elsbet says nothing whatever about the room the player stands in — both her lines are about the guest range. Nothing is drawn on this floor.",
+    "WHAT IT IS THE PLAYER WALKS IN OFF. The manifest gives the town 'crooked plank boardwalks' that 'dog-leg between the piles, never straight', and does not say how any building meets one. No landing, step or rail is drawn at the threshold.",
+    "THE ROOM'S SIZE. The only size rule in the canon is exterior and relative, and the manifest's Brackwater block explicitly hands scale to the shared map-town skeleton. 12 by 7 cells is an engineering choice made to fit the cited features, not a sourced dimension.",
+    "WHETHER THE INN HAS WINDOWS, AND WHAT ANY INTERIOR SURFACE IS MADE OF. The manifest carries tarred black timber as an art choice in its 'concrete structure' class, explicitly not named content — the same is true inside. None of the four buildings in this set has a window in canon."
+  ]
+}

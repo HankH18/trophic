@@ -199,7 +199,11 @@ export interface InteriorBlueprint {
    */
   _room: string;
   door: InteriorDoor;
-  /** The cell the player stands on when they come through the door, carried explicitly. */
+  /**
+   * The cell the player stands on when they come through the door, carried explicitly. It is
+   * walkable and it is exactly one orthogonal step from the `D` cell — {@link blueprintProblems}
+   * refuses anything else, because "walkable" alone would let the player land across the room.
+   */
   arrival: PlanCell;
   /** The floor plan. See {@link PLAN_ALPHABET}. */
   plan: string;
@@ -288,7 +292,26 @@ const zInteriorDoor: z.ZodType<InteriorDoor> = z.strictObject({
   facing: zFacing,
 });
 
-const zServiceAnchor: z.ZodType<InteriorServiceAnchor> = z.strictObject({
+/*
+ * WHY THESE THREE ARE `satisfies` AND NOT `: z.ZodType<…>` — a zod 4 constraint, not a preference.
+ *
+ * `z.discriminatedUnion` takes members constrained to `$ZodTypeDiscriminable<"kind">`, an interface
+ * whose `_zod.propValues` records the literal values each member's discriminator can hold. A
+ * `ZodObject` carries that; the WIDENED alias `z.ZodType<T>` does not — its `propValues` is
+ * `PropValues | undefined`. So annotating a member as `z.ZodType<InteriorServiceAnchor>` erases
+ * exactly the property the union needs, the member no longer satisfies the constraint, and the
+ * union's inferred output collapses to `unknown` (which is the second half of the same failure:
+ * `ZodDiscriminatedUnion<…, "kind">` then will not fit `z.ZodType<InteriorAnchor>` either).
+ *
+ * `satisfies` checks the same assignability the annotation checked — the schema is still proven,
+ * at compile time, to produce exactly the declared interface — while leaving the expression's own
+ * type alone, so the `ZodObject` reaches `discriminatedUnion` intact. Nothing is loosened: drop a
+ * field from `InteriorServiceAnchor`'s schema and the `satisfies` still fails. `core/schemas.ts`'s
+ * `zMoveEffect` solves the same problem by leaving its members anonymous inside the union call;
+ * this keeps the per-member interface check that pattern gives up.
+ */
+
+const zServiceAnchor = z.strictObject({
   id: z.string().min(1),
   kind: z.literal("service"),
   target: z.string().min(1),
@@ -296,26 +319,28 @@ const zServiceAnchor: z.ZodType<InteriorServiceAnchor> = z.strictObject({
   row: z.int().min(0),
   faces: zFacing,
   _purpose: z.string().min(1),
-});
+}) satisfies z.ZodType<InteriorServiceAnchor>;
 
-const zSpeakerAnchor: z.ZodType<InteriorSpeakerAnchor> = z.strictObject({
+const zSpeakerAnchor = z.strictObject({
   id: z.string().min(1),
   kind: z.literal("speaker"),
   target: z.string().min(1),
   col: z.int().min(0),
   row: z.int().min(0),
   _purpose: z.string().min(1),
-});
+}) satisfies z.ZodType<InteriorSpeakerAnchor>;
 
-const zInteriorAnchor: z.ZodType<InteriorAnchor> = z.discriminatedUnion("kind", [
+const zInteriorAnchor = z.discriminatedUnion("kind", [
   zServiceAnchor,
   zSpeakerAnchor,
-]);
+]) satisfies z.ZodType<InteriorAnchor>;
 
 export const zInteriorBlueprint: z.ZodType<InteriorBlueprint> = z.strictObject({
+  _shape: z.string().min(1),
   id: z.string().min(1),
   parentNode: z.string().min(1),
   name: z.string().min(1),
+  _room: z.string().min(1),
   door: zInteriorDoor,
   arrival: zPlanCell,
   plan: z.string().min(1),
@@ -386,10 +411,20 @@ export function blueprintProblems(bp: InteriorBlueprint): string[] {
     }
   }
 
-  // Exactly one doorway. Two doors is two destinations and the model carries one.
+  // Exactly one doorway. Two doors is two destinations and the model carries one — and it is also
+  // what the canon says: tools/comfy/manifest.json's map-town skeleton, the only sentence in the
+  // project that legislates doors at all, reads "every building has one clearly visible door".
   const doors = planCellsWith(bp.plan, PLAN_DOOR);
   if (doors.length !== 1) {
     out.push(`${where}: the plan draws ${String(doors.length)} "${PLAN_DOOR}" cells — a blueprint carries exactly one doorway`);
+  }
+
+  // The art lane builds to `_room`, not to the picture, so a `_room` that has drifted from the
+  // plan is a room drawn to the wrong size. It must name the plan's real width and height.
+  for (const [label, value] of [["width", cols], ["height", rows]] as const) {
+    if (!bp._room.includes(String(value))) {
+      out.push(`${where}: the plan is ${String(cols)}x${String(rows)} cells but _room never says ${String(value)} — its stated ${label} has drifted from the drawing`);
+    }
   }
 
   // Arrival must be on the plan, and must not be solid. `chooseSpawnTile` cannot find this cell.
@@ -398,6 +433,22 @@ export function blueprintProblems(bp: InteriorBlueprint): string[] {
     out.push(`${where}: arrival (${String(bp.arrival.col)},${String(bp.arrival.row)}) is off a ${String(cols)}x${String(rows)} plan`);
   } else if (arrivalChar === PLAN_SOLID) {
     out.push(`${where}: arrival (${String(bp.arrival.col)},${String(bp.arrival.row)}) is solid — the player would stand inside geometry`);
+  }
+
+  // AND IT MUST BE AT THE DOOR. `arrival` exists at all because `chooseSpawnTile` cannot find a
+  // doorway (see the header); a cell that is merely walkable satisfies that badly. The player who
+  // steps onto a threshold has to appear ON THE OTHER SIDE OF IT, not somewhere else in the room —
+  // an arrival three cells away reads on screen as a teleport, and an arrival ON the door cell puts
+  // the player standing on the trigger that sends them straight back out. One orthogonal step.
+  const door = doors[0];
+  if (door !== undefined && arrivalChar !== null) {
+    const stepsAway = Math.abs(bp.arrival.col - door.col) + Math.abs(bp.arrival.row - door.row);
+    if (stepsAway !== 1) {
+      out.push(
+        `${where}: arrival (${String(bp.arrival.col)},${String(bp.arrival.row)}) is ${String(stepsAway)} cells from the doorway ` +
+          `(${String(door.col)},${String(door.row)}) — the player must land one step through the threshold they walked in by`,
+      );
+    }
   }
 
   // Every legend key must be a character the plan actually uses, and every character the plan uses

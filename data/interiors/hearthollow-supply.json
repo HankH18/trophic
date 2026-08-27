@@ -1,0 +1,62 @@
+{
+  "_shape": "core/interiors.ts InteriorBlueprint — an architectural floor plan, not a node. It has no populations, no mapAsset and no adjacency: ecology lives on the town. Colour, style, materials and decoration are deliberately absent; this is the footprint the art lane paints to. Every physical feature below is traced to a shipped line in _featureSource, and every gap is named in _canonSilent rather than filled with a guess.",
+
+  "id": "hearthollow-supply",
+  "parentNode": "hearthollow",
+  "name": "Hearthollow Supply",
+
+  "_room": "11 cells wide by 7 cells tall including the walls, so 9 by 5 of open floor, minus the one cell the bait crate stands on. One plan cell is exactly one movement tile. Nearly square, and smaller than the inn. The doorway is cut into the SOUTH wall, sixth cell from the west corner; the player walks in heading north and lands on the floor cell directly inside it. Kett stands at the far side of the room with her back to the NORTH wall, which is the wall her stock is behind; the player is served standing in front of her, with the open bait crate at their knee on the west side.",
+
+  "plan": "###########\n#....@....#\n#...#S....#\n#.........#\n#.........#\n#.........#\n#####D#####",
+
+  "_legend": {
+    "#": "SOLID — the player cannot walk through it. Two different things here, which the plan itself cannot distinguish: the outside walls of the shop, and THE BAIT CRATE, the single solid cell at column 4, row 2, which stands on the floor immediately west of the tile the player is served from. The crate is knee height, open at the top and not sorted — the player digs in it. Everything else solid is wall. The NORTH wall is the one Kett has her back to, and her stock stands against it.",
+    ".": "Open floor of the shop. Nothing stands on it.",
+    "D": "The doorway out to the green. This is the threshold cell; stepping onto it takes the player back to the town. There is exactly one, per the map-prompt rule that every building has one clearly visible door.",
+    "@": "A named person stands here — Kett, who keeps the shop. The collision parser treats this cell as walkable floor; it is occupied in fact, and the scene layer stands her on it.",
+    "S": "The tile the player stands on to buy. It faces north, directly at Kett, and the bait crate is the solid cell one step west of it. There is no counter: the service is transacted with the person."
+  },
+
+  "door": {
+    "_note": "PROVISIONAL PLACEMENT — the canon gives no coordinate, no compass direction and no prop for this building; see _canonSilent. Units are map-native pixels in the 1024-square painted town, the same space data/nodes/hearthollow.json props use. Placed east of the green and north of the middle, on the opposite side of the green from the inn at 296,392, and clear of the two things the town map does pin: the exact centre stays empty ground, and the survey board stands at 512,648.",
+    "x": 712,
+    "y": 372,
+    "facing": "south"
+  },
+
+  "arrival": { "col": 5, "row": 5 },
+
+  "anchors": [
+    {
+      "id": "kett",
+      "kind": "speaker",
+      "target": "vendor-hearthollow",
+      "col": 5,
+      "row": 1,
+      "_purpose": "Kett, who keeps the shop, stands at the far side of the room with her back to the north wall. Her own line puts her stock behind her: 'Tonic's behind me and it costs what it costs.' She is the only person in this room."
+    },
+    {
+      "id": "shop",
+      "kind": "service",
+      "target": "vendor-hearthollow.shop",
+      "col": 5,
+      "row": 2,
+      "faces": "north",
+      "_purpose": "The tile the player stands on to trigger the shop service. It faces north, directly at Kett. Deliberately no counter between them: the canon gives this shop no counter, table or trestle, and one would be invented furniture. The bait crate is the solid cell one step west, which is what 'the crate by your knee' means — the customer's knee, at the tile they are served from."
+    }
+  ],
+
+  "_featureSource": "THE BUILDING — tools/comfy/manifest.json _nodes.hearthollow.feature lists 'a supply shop with a green awning over its door and an open bait crate outside it' among the town's five buildings, and its own featureSource block sources that to vendor-hearthollow.shop, recording the correction that this is Kett's GENERAL store — 'snares, salve, tonic AND bait — matching bible §11's sinks' — and not a specialised bait shop. || THE STOCK BEHIND KETT — vendor-hearthollow.shop, when {} (unconditional base state), verbatim: 'Snares and salve. Tonic's behind me and it costs what it costs.' 'Behind me' puts stock at Kett's back, so she stands with her back to something solid and is approached from in front. Drawn as the NORTH wall because that is the wall away from the door; which wall it actually is, is not stated. See _canonSilent. || THE BAIT CRATE, AT THE CUSTOMER'S KNEE — vendor-hearthollow.shop, when {}, verbatim: 'Bait's in the crate by your knee, not sorted, so dig.' Read literally: 'your knee' is the CUSTOMER's knee, so the crate stands on the floor immediately beside the tile the player is served from; it is knee height, it is open enough to reach into, and its contents are loose. It is the one solid cell that is not a wall, at (4,2). || THE SERVICE IS TRANSACTED FACE TO FACE — the same two lines are spoken to someone standing in front of Kett with a crate at their knee, which is the arrangement the anchors draw. No counter is cited, and none is drawn. || ONE DOOR — tools/comfy/manifest.json map-town skeleton, the only sentence in the project that legislates doors: 'every building has one clearly visible door'. docs/build-doc.md's town-map class variant adds 'clear building entrances'. Neither places the door. || A DOOR IS MEANT TO BE USED — docs/content-bible.md's SFX set budgets 'door' and 'footsteps (grass, wood, stone)'. This is the closest the canon comes to sanctioning an interior; it sanctions the sound of a door and a wooden floor underfoot, and nothing more. || KETT — data/dialogue.json speaker vendor-hearthollow: name 'Kett', portrait npc-market-vendor, home 'hearthollow'. docs/CAST-AND-VOICE.md: 'Forties, sells snares, salve, tonic and bait mats to people about to walk into a meadow. No greeting, no wasted breath.' Her entire shipped corpus is the three lines of vendor-hearthollow.shop.",
+
+  "_canonSilent": [
+    "WHERE THIS BUILDING STANDS. The manifest places Hearthollow's five buildings 'well apart around one open grazing green' and gives no compass direction, no coordinate and no prop for the shop. Neither town has a prop for its inn or its shop: the only coordinates that exist in Hearthollow are 512,648 for the survey board. The door x/y above is provisional and must be re-pinned against the painted map.",
+    "WHETHER THE CRATE BY THE CUSTOMER'S KNEE AND THE CRATE OUTSIDE THE DOOR ARE THE SAME CRATE. The manifest paints 'an open bait crate outside it' on the town map, derived from the same line that puts a crate 'by your knee' while the player is being served. Nothing says whether there is one crate or two, or whether Kett works at the threshold. One crate is drawn inside, at the service tile, because that is where the line puts it; the manifest's exterior crate belongs to the town map and is not part of this plan. Whether they are the same object is the owner's call.",
+    "WHICH WALL KETT'S STOCK IS AGAINST. 'Tonic's behind me' establishes that there IS stock behind her and nothing at all about which wall she has her back to. North is an engineering choice, made because it is the wall furthest from the door.",
+    "WHETHER THERE IS A COUNTER, TABLE OR TRESTLE IN THIS SHOP. No shop counter, desk or bar is described anywhere in the shipped content: every occurrence of the letters 'counter' under data/ is inside the word 'encounter'. The one trestle in the corpus is Hild's, in Brackwater; importing it here would be cross-town invention. None is drawn, which is why the shop anchor faces the person and not a fixture.",
+    "WHAT THE STOCK LOOKS LIKE AS OBJECTS. Snares, salve and tonic are named as things Kett sells and 'behind me' is the only placement any of them gets — no shelf, rack, barrel, jar or hook is described. Nothing is drawn for them.",
+    "THE SMITH. 'The weighted ones want iron and the smith's had none since spring' names a smith who supplies iron for weighted snares. He has no speaker id, no line of his own, and no premises among the manifest's five buildings. No forge, anvil or delivery is drawn, here or anywhere.",
+    "WHETHER ANYONE ELSE IS IN THE SHOP. Kett is the only person the corpus puts in this building.",
+    "THE ROOM'S SIZE. The only size rule in the canon is exterior and relative — nothing standing on the ground may be wider than the lane is wide. 11 by 7 cells is an engineering choice made to fit the cited features, not a sourced dimension.",
+    "THE GREEN AWNING, AND WHETHER THE SHOP HAS WINDOWS. The manifest records the awning as an art colour choice and says so in its own words: 'unsourced, carried from the first draft'. It is exterior in any case. The manifest declares Hearthollow's roof pitches and wall materials to be art choices in its 'concrete structure' class, explicitly not named content — the same is true inside. None of the four buildings in this set has a window in canon."
+  ]
+}

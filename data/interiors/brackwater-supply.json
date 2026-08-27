@@ -1,0 +1,63 @@
+{
+  "_shape": "core/interiors.ts InteriorBlueprint — an architectural floor plan, not a node. It has no populations, no mapAsset and no adjacency: ecology lives on the town. Colour, style, materials and decoration are deliberately absent; this is the footprint the art lane paints to. Every physical feature below is traced to a shipped line in _featureSource, and every gap is named in _canonSilent rather than filled with a guess.",
+
+  "id": "brackwater-supply",
+  "parentNode": "brackwater",
+  "name": "Brackwater Supply",
+
+  "_room": "12 cells wide by 8 cells tall including the walls, so 10 by 6 of open floor, minus the four cells the trestle stands on. One plan cell is exactly one movement tile. The floor underfoot is plank decking on piles over open water — nothing in this town stands on ground. The doorway is cut into the SOUTH wall, sixth cell from the west corner; the player walks in heading north, lands on the floor cell directly inside it, and reaches the trestle two cells further in. The trestle is the free-standing solid run across the middle of the room, with floor on all four sides of it: Hild works on the north side and the player is served from the south side, across it.",
+
+  "plan": "############\n#..........#\n#...@......#\n#..####....#\n#...S......#\n#..........#\n#..........#\n#####D######",
+
+  "_legend": {
+    "#": "SOLID — the player cannot walk through it. Two different things here, which the plan itself cannot distinguish: the outside walls of the shop, and THE TRESTLE, the four solid cells from column 3 to column 6 on row 3, which stands free in the middle of the room with open floor on all four sides. The trestle is one of only three physical fixtures the shipped corpus gives these four buildings — Aldis's fire, Kett's bait crate and this trestle — and the only one that stands free of a wall. The reed-bait bundle sits on one end of it; which end is not established, so both ends are drawn the same. Everything else solid is wall.",
+    ".": "Open floor of the shop, laid as plank decking over water.",
+    "D": "The doorway out to the boardwalk. This is the threshold cell; stepping onto it takes the player back to the town. There is exactly one, per the map-prompt rule that every building has one clearly visible door.",
+    "@": "A named person stands here — Hild, who keeps the shop. She is on the north side of the trestle, facing across it toward the door. The collision parser treats this cell as walkable floor; it is occupied in fact, and the scene layer stands her on it.",
+    "S": "The tile the player stands on to buy. It is on the south side of the trestle and faces north, so the trestle — and the reed-bait bundle sitting on it — is between the player and Hild. This is the one service in the set transacted across a fixture rather than face to face."
+  },
+
+  "door": {
+    "_note": "PROVISIONAL PLACEMENT — the canon gives no coordinate, no compass direction and no prop for this building; see _canonSilent. Units are map-native pixels in the 1024-square painted town, the same space data/nodes/brackwater.json props use. Placed west of the middle and below it, on the opposite side of the middle from the inn at 296,372, and clear of the four things the town map does pin: the exact centre stays wide empty decking, the sunken idol sits at 388,726, the gym hall stands out on the east stilts, and the ferry landing and stone steps are at the bottom.",
+    "x": 300,
+    "y": 596,
+    "facing": "south"
+  },
+
+  "arrival": { "col": 5, "row": 6 },
+
+  "anchors": [
+    {
+      "id": "hild",
+      "kind": "speaker",
+      "target": "vendor-brackwater",
+      "col": 4,
+      "row": 2,
+      "_purpose": "Hild, who keeps the shop, works on the north side of the trestle with the reed-bait bundle in front of her — which is what her own line requires: the bundle 'has sat there since the thaw looking at me', so it is in her eyeline from where she stands all day. She is the only person in this room."
+    },
+    {
+      "id": "shop",
+      "kind": "service",
+      "target": "vendor-brackwater.shop",
+      "col": 4,
+      "row": 4,
+      "faces": "north",
+      "_purpose": "The tile the player stands on to trigger the shop service. It faces north, across the trestle, with Hild on the far side of it. This is the one service anchor in the set that transacts across a fixture instead of face to face, because this is the one service the canon puts an object between the two parties of: 'Reed bait's the bundle on the end of the trestle.'"
+    }
+  ],
+
+  "_featureSource": "THE BUILDING — tools/comfy/manifest.json _nodes.brackwater.feature lists 'a supply shop with bait bundles on a trestle' among the town's five tarred timber buildings, and its own featureSource block sources that phrase to vendor-brackwater.shop verbatim. || IT STANDS ON PILES OVER OPEN WATER, NOT ON GROUND — docs/content-bible.md §6 row 2, Brackwater's unique feature, verbatim: 'stilt town'. tools/comfy/manifest.json _nodes.brackwater.feature opens 'a stilt town where nothing stands on dry land: five tarred timber buildings on tall piles over open brown water'. The floor of this room is therefore plank decking over water. || THE TRESTLE, AND THE FACT THAT IT HAS AN END — vendor-brackwater.shop, when {} (unconditional base state), verbatim: 'Reed bait's the bundle on the end of the trestle, and it has sat there since the thaw looking at me.' A trestle is CITED, stock sits ON it, and it has an END — which requires a run long enough to have two. It is drawn as four solid cells standing free with floor on all sides. Of the three fixtures the corpus gives these four buildings — Aldis's fire, Kett's bait crate, this trestle — it is the only one that stands away from a wall, because 'the end of' requires a run with two of them. || THE BUNDLE IS IN HILD'S EYELINE — same line: 'it has sat there since the thaw looking at me' places the unsold bundle where Hild can see it from where she works, which is why she stands at the trestle rather than away from it. || SERVED ACROSS THE TRESTLE — the two facts above together: the bundle is on the trestle, and Hild looks at it all day from her side of it. The service anchor is drawn on the far side, so the trestle is between the customer and the shopkeeper. || STOCK, NOT FURNITURE — vendor-brackwater.shop, when {}, verbatim: 'Salve, though. Salve moves — everybody comes off that marsh cut about the hands. Tonic when I've got it in, and I've none this week.' This is what Hild sells and what she is out of. It places nothing in the room, and nothing is drawn for either. || ONE DOOR — tools/comfy/manifest.json map-town skeleton, the only sentence in the project that legislates doors: 'every building has one clearly visible door'. docs/build-doc.md's town-map class variant adds 'clear building entrances'. Neither places the door. || A DOOR IS MEANT TO BE USED — docs/content-bible.md's SFX set budgets 'door' and 'footsteps (grass, wood, stone)'. This is the closest the canon comes to sanctioning an interior; it sanctions the sound of a door and a wooden floor underfoot, and nothing more. || HILD — data/dialogue.json speaker vendor-brackwater: name 'Hild', portrait npc-market-vendor, home 'brackwater'. docs/CAST-AND-VOICE.md: 'Fifties, marsh stall, reed bait by the bundle, genuinely funny about the half of the year her stock sits dead.' Her entire shipped corpus is the three lines of vendor-brackwater.shop.",
+
+  "_canonSilent": [
+    "WHERE THIS BUILDING STANDS. The manifest gives Brackwater no coordinate and no prop for the shop. The only coordinate that exists in this town is 388,726 for the sunken idol, and the only placements the manifest fixes are the gym hall 'out on the east stilts' standing highest, the ferry landing with its rates post and barrels, the stone steps and low harbour wall at the bottom, and wide empty decking with nothing built on it at the exact middle. The door x/y above is provisional and must be re-pinned against the painted map.",
+    "WHETHER HILD'S PITCH IS A BUILDING OR A STALL. docs/CAST-AND-VOICE.md calls it a 'marsh stall'; tools/comfy/manifest.json counts it as one of Brackwater's five tarred timber buildings, which the map-town skeleton then gives a door. This plan follows the manifest, because an interior needs a building to be inside of, and the discrepancy is recorded rather than resolved. It is the owner's to settle.",
+    "WHICH END OF THE TRESTLE THE REED-BAIT BUNDLE IS ON. 'The end of the trestle' establishes that there is an end and says nothing about which. Both ends are drawn identically and the bundle is the art lane's to place on one of them.",
+    "HOW LONG THE TRESTLE IS, AND WHETHER THERE IS MORE THAN ONE. The line says 'the trestle', singular, and gives no length. Four cells is an engineering choice: it is the shortest run that reads as having two ends rather than as a block.",
+    "WHETHER THE TRESTLE STANDS FREE OR AGAINST A WALL. Nothing says. It is drawn free-standing with floor on all four sides, which is what lets Hild stand behind it and the player be served across it.",
+    "WHAT ELSE IS ON THE TRESTLE, AND WHERE THE SALVE IS KEPT. Salve is the stock that moves and tonic is out this week; neither gets a placement, a container or a surface anywhere in the corpus. Nothing is drawn for them.",
+    "WHETHER ANYONE ELSE IS IN THE SHOP. Hild is the only person the corpus puts in this building.",
+    "WHAT IT IS THE PLAYER WALKS IN OFF. The manifest gives the town 'crooked plank boardwalks' that 'dog-leg between the piles, never straight', and does not say how any building meets one. No landing, step or rail is drawn at the threshold.",
+    "THE ROOM'S SIZE. The only size rule in the canon is exterior and relative, and the manifest's Brackwater block explicitly hands scale to the shared map-town skeleton. 12 by 8 cells is an engineering choice made to fit the cited features, not a sourced dimension.",
+    "WHETHER THE SHOP HAS WINDOWS, AND WHAT ANY INTERIOR SURFACE IS MADE OF. The manifest carries tarred black timber as an art choice in its 'concrete structure' class, explicitly not named content — the same is true inside. None of the four buildings in this set has a window in canon."
+  ]
+}
