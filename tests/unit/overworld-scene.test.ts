@@ -387,7 +387,7 @@ import {
 import { validateContent } from "@core/schemas";
 import { EPILOGUE_SHOWN_FLAG, recordVellsireOutcome } from "@game/finale";
 import { linesMetAt } from "@game/quests";
-import { isNever } from "@core/lifecycle";
+import { isNever, newOwnedCreature } from "@core/lifecycle";
 import { propDialogueFor, runHeadless, talkEntryFor, transcript, type DialogueRunState } from "@game/dialogue-runner";
 import type { DialogueSceneData } from "@game/scenes/DialogueScene";
 import { encounterTable, stepsPerForay } from "@game/encounters";
@@ -416,13 +416,19 @@ import { deserialize, newSave, openStreams, readBlackout, serialize, type SaveEn
  * stream a battle must run off is the RUN's, which the scene hands over as `BattleSceneData.rng` —
  * see `fightWithSnares`. A fresh stream per fight is the exact thing `beginWildBattle` warns about.
  */
-import type { Balance, Content, NodeFile, NodeState, PropPlacement } from "@core/types";
+import type { Balance, Content, NodeFile, NodeState, OwnedCreature, PropPlacement, SpeciesLine } from "@core/types";
 import { OverworldScene, type OverworldSceneData } from "@game/scenes/OverworldScene";
 import type { BattleSceneData } from "@game/scenes/BattleScene";
 import { SCENE_KEYS } from "@game/scene-keys";
 import { finishYearTurn, type YearTurnSceneData } from "@game/scenes/YearTurnScene";
 import { buildGymBattle } from "@game/gym-battle";
-import { PROVISIONAL_STARTER_UID, liveNodeOf, provisionalStarter, wildBattleProblem } from "@game/wild-battle";
+import {
+  PROVISIONAL_STARTER_UID,
+  liveNodeOf,
+  provisionalStarter,
+  starterLines,
+  wildBattleProblem,
+} from "@game/wild-battle";
 import { interiorAssetPath, interiorTextureKey, maskTextureKey } from "@game/mapview";
 import { assetId, hasRealAsset, registerRealAsset } from "@game/placeholder";
 import { encounterWeights, indexSpecies } from "@core/foodweb";
@@ -1492,6 +1498,8 @@ describe("§9 reading the mask does not warn about a texture that was never crea
 const KEY_E = 69;
 const KEY_G = 71;
 const KEY_R = 82;
+/** The release verb's key. Never pressed anywhere in this file before §18 — see its header. */
+const KEY_X = 88;
 
 /** The leaders in act order — data/gyms.json's, never a list typed in here (G2). */
 const LADDER = [...content.gyms].sort((a, b) => a.act - b.act);
@@ -4881,5 +4889,336 @@ describe("§17.5 the year turn does not overwrite the room's provenance line wit
     expect(h.scene.save.year, "the rest did not turn the year — the rig missed the boundary").toBe(yearBefore + 1);
     expect(h.scene.currentInterior()?.id, "the year turn walked the player out of the room").toBe(bp.id);
     expect(h.hud(), "the year turn overwrote the room's note with the town's map").toContain(roomNote);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §18 [X] READS ITS REASON, AND THE HUD LINE READS THE SAME ONE
+ *
+ * ⚠ WHAT WAS TRUE BEFORE. Both halves of the release verb — the banner the key prints when it
+ * refuses, and the HUD line that advertises the key — spelled ONE sentence out by hand, and it was
+ * the wrong sentence for the state the never-cut Legacy beat produces. `core/lifecycle.ts` puts a
+ * starter-line heir at the BOX TAIL when its parent retired out of the box; the starter lines carry
+ * the `"starter"` habitat sentinel, so they appear in NO node's populations; and `applyRelease`
+ * throws for a line the node has no count for (Hard Req 2 makes it a real move of a real number).
+ * So after the retirement, [X] at the marsh offered back a creature the ecosim refused — at
+ * *Restock the Shallows*, the quest that INTRODUCES the verb. `game/quests.ts` `releaseRefusal`
+ * answers that question now, and BOTH sites read it rather than restating it.
+ *
+ * ⚠ WHY NOTHING CAUGHT IT, WHICH IS WHAT THIS SECTION IS SHAPED AGAINST. [X] had never been pressed
+ * in this file at all — measured by sabotage rather than assumed: the key's banner was replaced with
+ * a literal `SABOTAGE-WRONG-REASON` and every test here still passed. `releaseRefusal` has its own
+ * unit tests (`tests/unit/quests.test.ts` §14) and they are not the gap; what had no witness of any
+ * kind was the SCENE reaching them. That is the whole subject below, so every assertion here is
+ * placed on an OBSERVABLE of the running scene — the banner it wrote and the HUD line it rendered —
+ * and never on a second call to the function under test.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * The starter line the run is handed, read from the data (G2).
+ *
+ * It is what makes the second refusal reachable: bible §4 rows 1–3 are "not wild-spawning", spelled
+ * in the data as the `"starter"` habitat sentinel, so a starter-line creature has a count at no
+ * shipped node — and the Legacy beat puts exactly one of them in the box.
+ */
+function starterLine(): SpeciesLine {
+  const line = starterLines(content)[0];
+  if (!line) throw new Error("data ships no starter line — §18's Legacy fixture cannot be built");
+  return line;
+}
+
+/** An owned creature of a shipped line, built by `core/lifecycle.ts`'s own constructor (G2/G11). */
+function boxedCreature(uid: string, lineId: string): OwnedCreature {
+  const line = content.species.find((s) => s.id === lineId);
+  if (!line) throw new Error(`no species line "${lineId}"`);
+  return newOwnedCreature(
+    {
+      uid,
+      lineId,
+      age: "J",
+      level: balance.xp.starterLevel,
+      caughtYear: balance.clock.startYear,
+      boxed: true,
+    },
+    line,
+    balance,
+  );
+}
+
+/**
+ * The save the never-cut Legacy beat leaves behind, standing at `nodeId`: a starter-line heir in the
+ * BOX, and the party the run started with.
+ *
+ * Built with the constructor `core/lifecycle.ts` `applyRetirementChoice` builds it with — same
+ * `newOwnedCreature`, same `boxed: true`, same push onto `save.box` — rather than fought for over
+ * three year turns. That the year turn really produces this shape is `core/lifecycle.ts`'s own
+ * tests' to prove; what is under test HERE is what the overworld does when handed it.
+ */
+function withBoxedHeir(nodeId: string): SaveEnvelope {
+  const base = freshSave(nodeId);
+  return { ...base, box: [boxedCreature("legacy-heir", starterLine().id)] };
+}
+
+/**
+ * Every text object the action REWROTE — the banner, identified by what changed rather than by
+ * creation order.
+ *
+ * ⚠ `h.hud()` JOINS EVERY TEXT OBJECT, INCLUDING THE BANNER, so a `toContain` there cannot tell the
+ * HUD's own advertisement from the banner echo of the same sentence. §18.3 is precisely the
+ * assertion that those two agree, and it would be worth nothing if it could not tell them apart.
+ * Objects created DURING the action are ignored: a fresh object has no "before" to have changed from.
+ */
+function saidBy(h: Harness, act: () => void): string[] {
+  const before = new Map(h.parts.objects.filter((o) => o.kind === "text").map((o) => [o, o.text] as const));
+  act();
+  return h.parts.objects
+    .filter((o) => o.kind === "text" && before.has(o) && before.get(o) !== o.text)
+    .map((o) => o.text);
+}
+
+/** The HUD's `[X]` line as it reads RIGHT NOW — the advertisement, with no banner mixed into it. */
+function releaseLine(h: Harness): string {
+  const line = h.hud().split("\n").find((l) => l.startsWith("[X] "));
+  expect(line, "the HUD has no [X] line at all — the release verb is not advertised").toBeDefined();
+  return line as string;
+}
+
+/** The node's live count for a line, off the SAVE — which is the number the verb moves. */
+function countAt(h: Harness, nodeId: string, lineId: string): number {
+  const pop = h.scene.save.nodeStates[nodeId]?.populations[lineId];
+  if (!pop) throw new Error(`the save carries no count for "${lineId}" at "${nodeId}"`);
+  return pop.count;
+}
+
+/**
+ * A line one shipped node carries and another does not, with both node ids — the pair that makes
+ * "which node did [X] ask about" a question with two different answers. Derived, never typed in.
+ */
+function twoNodesThatDisagree(): { lineId: string; here: string; elsewhere: string } {
+  const here = SLICE_NODE;
+  const state = freshSave(here).nodeStates[here];
+  if (!state) throw new Error(`a fresh save carries no state for ${here}`);
+  const lineId = Object.keys(state.populations)[0];
+  if (lineId === undefined) throw new Error(`${here} ships no populations`);
+  const away = content.nodes.find((n) => n.id !== here && n.populations[lineId] === undefined);
+  if (!away) throw new Error(`every shipped node carries "${lineId}" — the two readings cannot differ`);
+  return { lineId, here, elsewhere: away.id };
+}
+
+describe("§18 [X] reads game/quests.ts releaseRefusal — the key and the line that advertises it", () => {
+  it("the Legacy beat's refusal reaches the banner at every shipped node, and nothing moves", () => {
+    /*
+     * THE LOOP IS THE TEST, on §17.3's terms: the sentence NAMES the node, so driving one fixture
+     * would leave "the node is interpolated at all" unwitnessed. Every shipped node, because the
+     * boxed heir is a state the player carries with them and the verb is refused at all twelve.
+     */
+    const seen: string[] = [];
+    for (const node of content.nodes) {
+      const h = mount({ save: withBoxedHeir(node.id) });
+      expect(h.scene.node.id, `${node.id}: the harness did not start where it was asked to`).toBe(node.id);
+      // Without this a refusal could be `isHandedOver()`'s rather than the one under test.
+      expect(h.scene.isHandedOver(), `${node.id}: something else had the screen before [X]`).toBe(false);
+
+      // THE RIG FIRST — the held stock really is stock this node has no count for, and it really is
+      // in the box, which is the half that tells this refusal from the empty-party one.
+      const populations = h.scene.save.nodeStates[node.id]?.populations;
+      expect(populations, `${node.id}: the save carries no state, so the verb cannot be asked`).toBeDefined();
+      expect(
+        populations?.[starterLine().id],
+        `${node.id} spawns the starter line, so the Legacy refusal is not reachable there`,
+      ).toBeUndefined();
+      expect(h.scene.save.box, `${node.id}: the heir is not in the box`).toHaveLength(1);
+
+      const sentence = `no release: nothing in the party or the box has a count at "${node.id}"`;
+      // 1. THE ADVERTISEMENT, read before anything has fired a banner.
+      expect(releaseLine(h), `${node.id}: the HUD does not say why [X] would refuse`).toBe(`[X] ${sentence}`);
+
+      const heldBefore = JSON.stringify([h.scene.save.party, h.scene.save.box]);
+      const statesBefore = JSON.stringify(h.scene.save.nodeStates);
+      const logBefore = h.scene.save.actionLog.length;
+
+      const said = saidBy(h, () => {
+        h.press(KEY_X);
+        frameAndSettle(h);
+      });
+
+      /*
+       * 2. THE BANNER, AND THE THREE THINGS THAT MUST NOT HAVE HAPPENED. A fix that only reworded
+       *    the banner would still hand the creature over; one that only stopped the hand-over would
+       *    still write the tape, and an entry written for a release that did not happen is a save
+       *    `core/save.ts` `replay` reproduces differently from the run that wrote it (L10).
+       */
+      expect(said, `${node.id}: [X] refused silently`).toContain(sentence);
+      expect(said, `${node.id}: [X] wrote something besides the refusal`).toHaveLength(1);
+      expect(
+        JSON.stringify([h.scene.save.party, h.scene.save.box]),
+        `${node.id}: a refused release still took the creature`,
+      ).toBe(heldBefore);
+      expect(
+        JSON.stringify(h.scene.save.nodeStates),
+        `${node.id}: a refused release still moved a count`,
+      ).toBe(statesBefore);
+      expect(
+        h.scene.save.actionLog.length - logBefore,
+        `${node.id}: an entry reached the tape for a refused release`,
+      ).toBe(0);
+      seen.push(node.id);
+    }
+    expect(seen, "the corpus ships no nodes — this loop asserted nothing").not.toHaveLength(0);
+  });
+
+  it("the OTHER refusal still reaches the banner — one sentence for both cases cannot pass here", () => {
+    /*
+     * The empty-party branch, and it is the reason this is a separate case: `releaseRefusal`
+     * distinguishes two states that the scene used to conflate, so a "fix" that always emitted the
+     * node sentence would pass §18.1 above and fail here. A brand-new save IS this state — one
+     * creature in the party, nothing in the box — so nothing is fabricated for it.
+     */
+    const h = mount();
+    expect(h.scene.save.box, "the fixture boxed something, so this is the wrong branch").toHaveLength(0);
+    expect(h.scene.save.party, "the empty-party branch needs a party of exactly one").toHaveLength(1);
+
+    const sentence = `no release: the party would be empty`;
+    const other = `no release: nothing in the party or the box has a count at "${h.scene.node.id}"`;
+    expect(releaseLine(h), "the HUD does not say why [X] would refuse").toBe(`[X] ${sentence}`);
+
+    const said = saidBy(h, () => {
+      h.press(KEY_X);
+      frameAndSettle(h);
+    });
+
+    expect(said, "[X] refused silently").toContain(sentence);
+    expect(said, "both refusals collapsed back into one sentence").not.toContain(other);
+    expect(h.scene.save.party, "the refusal emptied the party it exists to protect").toHaveLength(1);
+  });
+
+  it("the HUD advertises the SAME sentence the key prints, with no literal standing between them", () => {
+    /*
+     * ⚠ THE ASSERTION THAT PINS THE TWO READERS TOGETHER, and the only one here with no sentence
+     * written into it: the HUD line is read BEFORE anything fires a banner, the banner is read as
+     * the text the press REWROTE, and the two are compared to each other. It survives a rewording
+     * of either sentence and fails the moment the two sites stop coming from one reader.
+     *
+     * Both refusing shapes, so this is not one state asserted twice.
+     */
+    const cases: Array<{ what: string; make: () => Harness }> = [
+      { what: "an empty box and a party of one", make: () => mount() },
+      {
+        what: "the Legacy beat's boxed heir",
+        make: () => mount({ save: withBoxedHeir(SLICE_NODE) }),
+      },
+    ];
+    for (const { what, make } of cases) {
+      const h = make();
+      const advertised = releaseLine(h);
+      expect(advertised, `${what}: the HUD is not refusing to begin with`).toContain("no release");
+
+      const said = saidBy(h, () => {
+        h.press(KEY_X);
+        frameAndSettle(h);
+      });
+
+      expect(said, `${what}: the key wrote nothing, or wrote more than the banner`).toHaveLength(1);
+      expect(`[X] ${String(said[0])}`, `${what}: the HUD and the key have drifted apart`).toBe(advertised);
+    }
+  });
+
+  it("THE CONTROL — where release IS available the HUD offers it by name and [X] moves a real count", () => {
+    /*
+     * ⚠ WITHOUT THIS THE THREE CASES ABOVE PASS ON A SCENE WHERE [X] NEVER WORKS. Every one of them
+     * asserts a refusal; a `releaseCandidate` hard-wired to `null` satisfies all three. This is the
+     * state the other three are the complement of — a boxed creature of a line that DOES live where
+     * the player is standing — and it is asserted all the way to the number, because the release is
+     * the only thing that proves the verb was live rather than merely quiet.
+     */
+    const { lineId, here } = twoNodesThatDisagree();
+    const base = freshSave(here);
+    const h = mount({ save: { ...base, box: [boxedCreature("boxed-local", lineId)] } });
+    const pop = h.scene.save.nodeStates[here]?.populations[lineId];
+    expect(pop, `the save carries no count for "${lineId}" at ${here}`).toBeDefined();
+    expect(
+      pop?.count,
+      `${lineId} is already at carrying capacity at ${here} — a release cannot move it`,
+    ).toBeLessThan(pop?.carryCap ?? 0);
+
+    // 1. THE ADVERTISEMENT names the creature, and carries no refusal at all.
+    expect(releaseLine(h), "the HUD does not offer the release that is available").toBe(
+      `[X] release ${lineId} here`,
+    );
+    expect(releaseLine(h), "the HUD refuses in a state where the verb is live").not.toContain("no release");
+
+    const before = countAt(h, here, lineId);
+    const said = saidBy(h, () => {
+      h.press(KEY_X);
+      frameAndSettle(h);
+    });
+
+    // 2. …AND THE KEY DID IT: a real count moved, the creature left the box, and the banner is
+    //    identifiers and two integers (G7).
+    const after = countAt(h, here, lineId);
+    expect(after, "the release did not move the node's real count").toBe(before + 1);
+    expect(h.scene.save.box, "the released creature is still held").toHaveLength(0);
+    expect(said, "the release was silent").toContain(
+      `released ${lineId} at ${here} — ${String(before)} → ${String(after)}`,
+    );
+  });
+
+  it("BINDS — both sites ask about the node the player is STANDING IN, not the one the save names", () => {
+    /*
+     * ⚠ THE DIVERGENCE IS FABRICATED, AND IT HAS TO BE — SAY SO RATHER THAN IMPLY OTHERWISE.
+     * `enterNode` writes `this.node` and `save.currentNode` in the same breath, and its own comment
+     * calls the half-swapped state a hazard the scene exists to prevent; `init` rewrites
+     * `save.currentNode` to `startNode` when a mount asks for one. So the game cannot produce two
+     * different answers here, and with the two fields equal an argument that was dropped reads
+     * IDENTICALLY at every node in the corpus.
+     *
+     * What this pins is therefore not a reachable behaviour but WHICH field the two call sites read
+     * — `releaseCandidate(this.save, this.node.id)` and `releaseRefusal(this.save, this.node.id)`,
+     * where both functions default to `save.currentNode` when the argument is omitted. The save is
+     * written directly, the way §13 writes one, and the frame after the write is what re-renders the
+     * HUD (`hudDirty` is still set from `create`).
+     *
+     * Both directions, because they fail differently: dropping the argument turns direction 1 into a
+     * refusal at a node the player is not in, and direction 2 into a population WRITE at one.
+     */
+    const { lineId, here, elsewhere } = twoNodesThatDisagree();
+
+    // Direction 1 — standing where the line lives, save naming where it does not.
+    const a = mount({ save: { ...freshSave(here), box: [boxedCreature("boxed-local", lineId)] } });
+    a.scene.save = { ...a.scene.save, currentNode: elsewhere };
+    a.frame();
+    expect(a.scene.node.id, "the rig moved the player instead of only the save").toBe(here);
+    expect(releaseLine(a), "the HUD answered for the node the SAVE names").toBe(`[X] release ${lineId} here`);
+
+    const beforeA = countAt(a, here, lineId);
+    const saidA = saidBy(a, () => {
+      a.press(KEY_X);
+      frameAndSettle(a);
+    });
+    expect(countAt(a, here, lineId), "the release did not land in the node the player is standing in").toBe(
+      beforeA + 1,
+    );
+    expect(saidA, "the key answered for the node the SAVE names").toContain(
+      `released ${lineId} at ${here} — ${String(beforeA)} → ${String(beforeA + 1)}`,
+    );
+
+    // Direction 2 — the mirror: standing where the line does NOT live, save naming where it does.
+    const b = mount({ save: { ...freshSave(elsewhere), box: [boxedCreature("boxed-local", lineId)] } });
+    b.scene.save = { ...b.scene.save, currentNode: here };
+    b.frame();
+    expect(b.scene.node.id, "the rig moved the player instead of only the save").toBe(elsewhere);
+
+    const sentence = `no release: nothing in the party or the box has a count at "${elsewhere}"`;
+    expect(releaseLine(b), "the HUD offered a release at a node the player is not standing in").toBe(
+      `[X] ${sentence}`,
+    );
+
+    const beforeB = countAt(b, here, lineId);
+    const saidB = saidBy(b, () => {
+      b.press(KEY_X);
+      frameAndSettle(b);
+    });
+    expect(saidB, "the key answered for the node the SAVE names").toContain(sentence);
+    expect(countAt(b, here, lineId), "a count moved at a node the player is not standing in").toBe(beforeB);
   });
 });

@@ -195,6 +195,7 @@ import {
   questReports,
   recordLineMet,
   releaseCandidate,
+  releaseRefusal,
   releaseIntoNode,
   stillOwed,
   syncQuestFlags,
@@ -1812,9 +1813,13 @@ export class OverworldScene extends Phaser.Scene {
       this.flashBanner(`${this.interior.name} — step outside to release`);
       return;
     }
-    const candidate = releaseCandidate(this.save);
+    const candidate = releaseCandidate(this.save, this.node.id);
     if (!candidate) {
-      this.flashBanner(`no release: the party would be empty`);
+      // The reason is READ, not restated. `game/quests.ts` `releaseRefusal` distinguishes the two
+      // cases the old single sentence conflated: a party that would be emptied, and held stock that
+      // simply has no count at THIS node — which is the reachable one, because the Legacy beat boxes
+      // a starter-line heir and no starter line lives at r2.
+      this.flashBanner(releaseRefusal(this.save, this.node.id) ?? `no release`);
       return;
     }
     const applied = releaseIntoNode(this.save, this.content, candidate.uid, this.node.id);
@@ -3277,8 +3282,13 @@ export class OverworldScene extends Phaser.Scene {
         `chains ${chains.length > 0 ? chains.join(" ") : "none"}` +
           ` · flags owed ${String(stillOwed(this.save).length)}`,
       );
-      const candidate = releaseCandidate(this.save);
-      lines.push(candidate ? `[X] release ${candidate.lineId} here` : "[X] release · party would be empty");
+      const candidate = releaseCandidate(this.save, this.node.id);
+      // Same reader as the key, so the advertisement cannot drift from the behaviour.
+      lines.push(
+        candidate
+          ? `[X] release ${candidate.lineId} here`
+          : `[X] ${releaseRefusal(this.save, this.node.id) ?? "release unavailable"}`,
+      );
       if (this.lastSpoken.length > 0) lines.push(`said: ${this.lastSpoken}`);
     }
     /*
