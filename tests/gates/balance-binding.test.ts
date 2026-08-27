@@ -21,6 +21,11 @@
  * The pins prove themselves: `BINDS` below mutates a copy of `balance.json` one pin at a time and
  * asserts the checker reports that exact path. A pin nobody watched fail is not a pin.
  *
+ * The same reasoning reaches ACROSS files. `tools/comfy/manifest.json` holds a pixel size for every
+ * asset class, and four of them agreed with balance.json by coincidence — no comparison existed.
+ * Three were another key's number wearing a second face and are cross-pinned below (proven by
+ * mutating BOTH sides); the fourth is not a balance number and says so in its own describe.
+ *
  * The last two describes are the other half of finding: a budget with no measurement is decoration.
  * `perf.battleActionBudgetMs` and `perf.bootBudgetMs` were numbers with no consumer anywhere in the
  * repo (their sibling `perf.ecosimStepBudgetMs` has had one in tests/property/ecosim.test.ts all
@@ -28,6 +33,9 @@
  */
 
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { validateContent } from "../../core/schemas";
 import { createRng } from "../../core/rng";
 import { deriveFoodWeb, indexSpecies, toEcoNode } from "../../core/foodweb";
@@ -263,6 +271,314 @@ describe("build-doc §7.6 map identities hold in the shipped file", () => {
     const radii = new Set(content.nodes.flatMap((n) => n.props.map((p) => p.interactionRadius)));
     expect(radii.size, "props carry more than one radius").toBe(1);
     expect([...radii]).toEqual([balance.map.propInteractionRadiusDefault]);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * The art manifest's target sizes, held to the ONE place each number lives.
+ *
+ * `tools/comfy/manifest.json` carries a pixel size for every asset class and every row, and four of
+ * those classes agreed with data/balance.json by COINCIDENCE rather than by constraint — nothing
+ * anywhere compared them. Three of the four turned out to be another key's number wearing a second
+ * face, so the repair is a comparison, not a new tunable:
+ *
+ *   · `trainer-battle` 96×96 IS a battle sprite. Its `_targetSource` still reads "art-lane
+ *     constant, see deviation LB-M4" — true until `balance.map.battleSpritePx` existed to close
+ *     LB-M4, and a second declaration of one fact now that it does.
+ *   · `prop` 48×48 already names `balance.map.propInteractionRadiusDefault` as its source, but
+ *     tests/unit/manifest.test.ts compares `targetW` alone, so the HEIGHT could drift by itself.
+ *   · three `ui-frame` rows state a balance derivation in their own header block: `manifest._ui`
+ *     sizes the dialogue box "against balance.map.virtualWidth 480" and the menu panel "against
+ *     balance.map.virtualHeight 320", and the ledger panel's subject line says "full-screen" —
+ *     which is `virtualWidth × virtualHeight` or it is not full-screen. The other three ui frames
+ *     (battle-hud 240×64, dex-card 320×320, sign-card 240×160) are authored art sizes that claim no
+ *     balance source, and are deliberately NOT pinned: a fraction that happens to divide 480 is
+ *     numerology, and a pin invented for it would assert a constraint nobody chose.
+ *
+ * The fourth, `dex-painted` 1024², is not a balance number at all — see the workflow test below.
+ *
+ * `creature-battle` and `overworld-mini` are bound to `battleSpritePx`/`miniSpritePx` in
+ * tests/unit/balance-inv3.test.ts and are not repeated here.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+const ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
+
+interface ArtClassSpec {
+  targetW: number;
+  targetH: number;
+}
+interface ArtRow {
+  id: string;
+  class: string;
+  targetSize: string;
+}
+interface ArtManifest {
+  classes: Record<string, ArtClassSpec | undefined>;
+  rows: ArtRow[];
+}
+
+function readArtManifest(): ArtManifest {
+  return JSON.parse(readFileSync(join(ROOT, "tools", "comfy", "manifest.json"), "utf8")) as ArtManifest;
+}
+
+const ART: ArtManifest = readArtManifest();
+
+/** A row's `targetSize`, which the manifest ships as the string "WxH". */
+function rowSize(m: ArtManifest, id: string): readonly [number, number] | undefined {
+  const row = m.rows.find((r) => r.id === id);
+  if (row === undefined) return undefined;
+  const parts = row.targetSize.split("x").map(Number);
+  const w = parts[0];
+  const h = parts[1];
+  if (w === undefined || h === undefined || !Number.isFinite(w) || !Number.isFinite(h)) return undefined;
+  return [w, h];
+}
+
+interface SizePin {
+  /** Where the number sits in tools/comfy/manifest.json. */
+  where: string;
+  /** The balance key that is its single home. */
+  balancePath: string;
+  /** Read the manifest's copy of it. */
+  read: (m: ArtManifest) => number | undefined;
+  /** Move the manifest's copy of it, for the BINDS proof. */
+  drift: (m: ArtManifest) => void;
+  /** Why these are ONE fact and not two numbers that happen to agree today. */
+  cite: string;
+}
+
+const MANIFEST_SIZE_PINS: readonly SizePin[] = [
+  {
+    where: "classes['trainer-battle'].targetW",
+    balancePath: "map.battleSpritePx",
+    read: (m) => m.classes["trainer-battle"]?.targetW,
+    drift: (m) => {
+      const c = m.classes["trainer-battle"];
+      if (c) c.targetW += 8;
+    },
+    cite:
+      "build-doc §9.3 'nearest-neighbor downscale to target (battle 96²…)'. A gym leader's battle " +
+      "portrait is drawn on the same screen at the same scale as the creature facing it, so there is " +
+      "one battle-sprite target and `trainer-battle` must read it rather than restate 96",
+  },
+  {
+    where: "classes['trainer-battle'].targetH",
+    balancePath: "map.battleSpritePx",
+    read: (m) => m.classes["trainer-battle"]?.targetH,
+    drift: (m) => {
+      const c = m.classes["trainer-battle"];
+      if (c) c.targetH += 8;
+    },
+    cite: "build-doc §9.3 'battle 96²' — square, so the same one number on both axes",
+  },
+  {
+    where: "classes['prop'].targetW",
+    balancePath: "map.propInteractionRadiusDefault",
+    read: (m) => m.classes["prop"]?.targetW,
+    drift: (m) => {
+      const c = m.classes["prop"];
+      if (c) c.targetW += 8;
+    },
+    cite:
+      "the manifest's own `_targetSource`: 'balance.map.propInteractionRadiusDefault — a prop reads " +
+      "at roughly the scale of its own interaction radius'. tests/unit/manifest.test.ts asserts this " +
+      "half already; it is here so the pair is proven together and by a gate that is not red",
+  },
+  {
+    where: "classes['prop'].targetH",
+    balancePath: "map.propInteractionRadiusDefault",
+    read: (m) => m.classes["prop"]?.targetH,
+    drift: (m) => {
+      const c = m.classes["prop"];
+      if (c) c.targetH += 8;
+    },
+    cite:
+      "the same `_targetSource`, on the axis nothing checked: the prop class is square and only its " +
+      "WIDTH was compared, so 48×64 would have shipped green",
+  },
+  {
+    where: "rows['ui-dialogue-box'].targetSize width",
+    balancePath: "map.virtualWidth",
+    read: (m) => rowSize(m, "ui-dialogue-box")?.[0],
+    drift: (m) => {
+      const row = m.rows.find((r) => r.id === "ui-dialogue-box");
+      if (row) row.targetSize = "512x96";
+    },
+    cite:
+      "manifest._ui['dialogue-box'].source: 'bible §12 screens; sized against balance.map.virtualWidth " +
+      "480'. The manifest states the derivation; nothing enforced it. Its HEIGHT (96) claims no source " +
+      "and is not pinned",
+  },
+  {
+    where: "rows['ui-menu-panel'].targetSize height",
+    balancePath: "map.virtualHeight",
+    read: (m) => rowSize(m, "ui-menu-panel")?.[1],
+    drift: (m) => {
+      const row = m.rows.find((r) => r.id === "ui-menu-panel");
+      if (row) row.targetSize = "160x288";
+    },
+    cite:
+      "manifest._ui['menu-panel'].source: 'bible §12 screens; sized against balance.map.virtualHeight " +
+      "320'. Its WIDTH (160) claims no source and is not pinned",
+  },
+  {
+    where: "rows['ui-ledger-panel'].targetSize width",
+    balancePath: "map.virtualWidth",
+    read: (m) => rowSize(m, "ui-ledger-panel")?.[0],
+    drift: (m) => {
+      const row = m.rows.find((r) => r.id === "ui-ledger-panel");
+      if (row) row.targetSize = "512x320";
+    },
+    cite:
+      "its subject is 'a full-screen ledger panel frame with a ruled table recess' — a full-screen " +
+      "panel that is not the size of the screen is not full-screen. 480 appearing twice in two files " +
+      "is the same defect one level down from the class targets",
+  },
+  {
+    where: "rows['ui-ledger-panel'].targetSize height",
+    balancePath: "map.virtualHeight",
+    read: (m) => rowSize(m, "ui-ledger-panel")?.[1],
+    drift: (m) => {
+      const row = m.rows.find((r) => r.id === "ui-ledger-panel");
+      if (row) row.targetSize = "480x288";
+    },
+    cite: "the other axis of the same 'full-screen' claim — build-doc §7.6's 480×320 virtual screen",
+  },
+];
+
+/** One message per size that no longer agrees with the balance key it is a copy of. */
+function manifestSizeViolations(b: Balance, m: ArtManifest, pins: readonly SizePin[]): string[] {
+  const out: string[] = [];
+  for (const pin of pins) {
+    const found = pin.read(m);
+    const expected = at(b, pin.balancePath);
+    if (found !== expected) {
+      out.push(
+        `tools/comfy/manifest.json ${pin.where} = ${JSON.stringify(found)}, but balance.${pin.balancePath} ` +
+          `= ${JSON.stringify(expected)} — ${pin.cite}`,
+      );
+    }
+  }
+  return out;
+}
+
+describe("art manifest sizes are the balance keys they are copies of, not numbers of their own", () => {
+  it("pins something real: every location exists on both sides", () => {
+    for (const pin of MANIFEST_SIZE_PINS) {
+      expect(pin.read(ART), `tools/comfy/manifest.json ${pin.where} is missing — a pin against nothing`).toBeTypeOf(
+        "number",
+      );
+      expect(at(balance, pin.balancePath), `balance.${pin.balancePath} is missing`).toBeTypeOf("number");
+      expect(pin.cite.length, `${pin.where} has no citation`).toBeGreaterThan(20);
+    }
+    expect(new Set(MANIFEST_SIZE_PINS.map((p) => p.where)).size, "duplicate pin").toBe(MANIFEST_SIZE_PINS.length);
+  });
+
+  it.each(MANIFEST_SIZE_PINS.map((p) => [p.where, p] as const))("manifest %s", (_where, pin) => {
+    expect(manifestSizeViolations(balance, ART, [pin]), pin.cite).toEqual([]);
+  });
+
+  it("BINDS — each pin catches a drift on the MANIFEST side", () => {
+    for (const pin of MANIFEST_SIZE_PINS) {
+      const drifted = structuredClone(ART);
+      pin.drift(drifted);
+      expect(pin.read(drifted), `${pin.where}: drift() did not move the number it claims to move`).not.toBe(
+        pin.read(ART),
+      );
+      expect(
+        manifestSizeViolations(balance, drifted, MANIFEST_SIZE_PINS).join("\n"),
+        `${pin.where} drifted and the pin did not notice`,
+      ).toContain(pin.where);
+      // …and the shipped pair is clean, so the checker is not simply always red.
+      expect(manifestSizeViolations(balance, ART, MANIFEST_SIZE_PINS)).toEqual([]);
+    }
+  });
+
+  it("BINDS — each pin catches a retune on the BALANCE side", () => {
+    // The direction that matters for INV-3: a retune of balance.json must not leave the art lane
+    // generating the old size in silence.
+    for (const pin of MANIFEST_SIZE_PINS) {
+      const retuned = withOverride(balance, pin.balancePath, (at(balance, pin.balancePath) as number) + 8);
+      expect(
+        manifestSizeViolations(retuned, ART, MANIFEST_SIZE_PINS).join("\n"),
+        `balance.${pin.balancePath} was retuned and ${pin.where} did not notice`,
+      ).toContain(pin.where);
+      expect(manifestSizeViolations(balance, ART, MANIFEST_SIZE_PINS)).toEqual([]);
+    }
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * dex-painted — the one of the four that is NOT a balance number.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+interface ComfyNode {
+  class_type?: string;
+  inputs?: Record<string, unknown>;
+}
+
+const TXT2IMG_GRAPH = join(ROOT, "tools", "comfy", "pixel-txt2img-api.json");
+
+function readGraph(): Record<string, ComfyNode> {
+  return JSON.parse(readFileSync(TXT2IMG_GRAPH, "utf8")) as Record<string, ComfyNode>;
+}
+
+/** The size the §9.2 locked graph actually generates at — its empty-latent node. */
+function latentSize(graph: Record<string, ComfyNode>): readonly [number, number] | undefined {
+  for (const node of Object.values(graph)) {
+    if (node.class_type === undefined || !node.class_type.includes("LatentImage")) continue;
+    const w = node.inputs?.["width"];
+    const h = node.inputs?.["height"];
+    if (typeof w === "number" && typeof h === "number") return [w, h];
+  }
+  return undefined;
+}
+
+describe("the painted dex plate's 1024² is the generator's native size, not a tunable", () => {
+  /*
+   * Why this class gets NO key in data/balance.json, deliberately.
+   *
+   * `dex-painted`'s `_targetSource` says "retained at native size — §9.3 prescribes no chain for the
+   * painted class". "Native" is a real, locatable number: the empty-latent node of the §9.2 locked
+   * graph in tools/comfy/pixel-txt2img-api.json. So the rule is "no downscale is applied", and the
+   * only honest expression of it is `target === latent`.
+   *
+   * It equals `balance.map.mapNativePx` today, and binding it there would have been WRONG: that key
+   * is pinned by core/schemas.ts to the collision identity (`collisionCols × collisionCellPx`), so a
+   * retune of the map grid would drag the watercolour dex plates with it for no reason. Two facts,
+   * one value. A new balance key would have been the THIRD home of a number that already has two.
+   */
+  it("the target and the graph's latent are the same size", () => {
+    const latent = latentSize(readGraph());
+    expect(latent, `${TXT2IMG_GRAPH} has no latent-image node — this cross-check is aimed at nothing`).toBeDefined();
+    const dex = ART.classes["dex-painted"];
+    expect(dex, "the manifest has no dex-painted class").toBeDefined();
+    expect([dex?.targetW, dex?.targetH], "the painted class is downscaled after all, or the graph moved").toEqual([
+      latent?.[0],
+      latent?.[1],
+    ]);
+  });
+
+  it("BINDS — a moved latent is a moved plate, and the check says so", () => {
+    const drifted = structuredClone(readGraph());
+    let moved = false;
+    for (const node of Object.values(drifted)) {
+      const w = node.inputs?.["width"];
+      if (node.class_type?.includes("LatentImage") === true && typeof w === "number" && node.inputs) {
+        node.inputs["width"] = w + 128;
+        moved = true;
+      }
+    }
+    expect(moved, "nothing was mutated — the sabotage is aimed at nothing").toBe(true);
+    expect(latentSize(drifted)?.[0]).not.toBe(ART.classes["dex-painted"]?.targetW);
+  });
+
+  it("BINDS — a moved plate target is caught too", () => {
+    const drifted = structuredClone(ART);
+    const dex = drifted.classes["dex-painted"];
+    expect(dex).toBeDefined();
+    if (dex) dex.targetW += 128;
+    expect(dex?.targetW).not.toBe(latentSize(readGraph())?.[0]);
   });
 });
 
