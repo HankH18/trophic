@@ -1066,6 +1066,16 @@ const EXTERNAL_FLAGS = [
    */
   "quest.ferrymans-wager.lapsed",
   /*
+   * `story.blackout.woke` — the same shape as the lapse above, one layer down. `core/recovery.ts`
+   * `applyBlackoutRecovery` raises it when a fight leaves nothing in the party standing, and
+   * `narration.blackout` reads it and clears it (`false`), which is not a grant. It is a LATCH and
+   * not a record, and it has to be owed to the game for the beat to work at all: `kind: "service"`
+   * is walked by `game/dialogue-runner.ts` `talkEntryFor`, so an ungated black-screen line is
+   * reachable by anyone pressing [E] often enough in the town it sits in. Gated on a key only the
+   * recovery writes, it is eligible for exactly as long as a blackout is owed and no longer.
+   */
+  "story.blackout.woke",
+  /*
    * ⚠ `story.vellsire.resolved` and `story.vellsire.outcome` USED TO STAND HERE, and their standing
    * here was the defect rather than the contract: nothing in the repo wrote either one, so both
    * epilogues — build-doc §16's never-cut Vellsire beat — were unreachable while this list called

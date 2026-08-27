@@ -621,6 +621,139 @@ export function applyBattleAftermath(
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * The blackout — what a WIPED party leaves on the save (core/recovery.ts → §7.8)
+ *
+ * ⚠ THE SECTION ABOVE IS WHY THIS ONE EXISTS. While `curHp` had no writer outside
+ * `core/lifecycle.ts`, damage evaporated between fights and a wipe was not a state the game could
+ * reach. It is now: `applyBattleAftermath` writes zeroes back, `core/lifecycle.ts` keeps a zero at
+ * zero through the year turn (`creature.curHp <= 0 ? creature.curHp : …`), and the inn charges
+ * ticks and heals nothing — so a save whose party is entirely fainted could not act again, for ever.
+ *
+ * WHAT LIVES HERE AND WHAT LIVES IN core/recovery.ts. This module owns the TAPE: the entry, its
+ * shape check, and the one applier the live path and `replay` both come through. `core/recovery.ts`
+ * owns the DECISIONS — is the party down, where do they wake, what does it cost — because those
+ * read content (the inn nodes, the node graph) and this module reads none.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * One blackout, as the tape carries it. ABSOLUTE values, never deltas — the same rule
+ * {@link BattleAftermathMember} states and for the same reason: applied twice it must still say the
+ * same thing.
+ *
+ * `restored` is a list of uids and NOT a list of HP numbers, and that is the absolute form here:
+ * "full" is one value, and this codebase already spells it — `game/wild-battle.ts` `isStanding`,
+ * "`curHp === undefined` means full". So {@link applyBlackout} RESTORES by deleting `curHp`, which
+ * is exactly the state `core/lifecycle.ts` `newOwnedCreature` leaves a creature in and exactly what
+ * `core/battle.ts` `makeBattler` reads as `maxHp`. Writing numbers instead would mean a third
+ * spelling of build-doc §7.4's effective-stat formula living in a file that has no business
+ * knowing it.
+ */
+export interface BlackoutRecovery {
+  /** The node the player wakes in. A node with an inn — `core/recovery.ts` `wakeNodeFor` picks it. */
+  wakeNode: string;
+  /** Every party uid put back on its feet, at full. Absolute; re-applying it changes nothing. */
+  restored: readonly string[];
+}
+
+/**
+ * The `t` discriminant the blackout rides on the tape under.
+ *
+ * ⚠ NOT A MEMBER OF `core/types.ts` `GameAction`, on exactly the terms {@link BATTLE_AFTERMATH_ACTION}
+ * is not: `core/schemas.ts` `zSaveFileFor` validates `actionLog[].action` as
+ * `z.looseObject({ t: z.string().min(1) })`, so a save carrying this entry loads, round-trips and
+ * replays with no schema change; and {@link readBlackout} re-checks the SHAPE at replay time rather
+ * than trusting the discriminant. The one line that removes the cast below is, in `core/types.ts`:
+ *     | { t: "blackout"; recovery: BlackoutRecovery }
+ *
+ * ⚠ AND IT IS NOT A `ClockActionKind`. This entry is the CONSEQUENCE and carries no price: the
+ * price is levied as the priced entries `core/recovery.ts` `BLACKOUT_COST` names — two `inn`s and a
+ * `travel`, which `game/year-replay.ts` `clockFromLog` already prices out of `balance.clock`. An
+ * entry is a price or a consequence and never both, so a `blackout` entry that also moved the clock
+ * would be two answers to "what did the blackout cost".
+ */
+export const BLACKOUT_ACTION = "blackout";
+
+/** The tape entry for one blackout. */
+export function blackoutAction(recovery: BlackoutRecovery): GameAction {
+  const action = {
+    t: BLACKOUT_ACTION,
+    recovery: { wakeNode: recovery.wakeNode, restored: [...recovery.restored] },
+  };
+  // The ONE cast, and it is the `GameAction` union member that does not exist yet — see
+  // BLACKOUT_ACTION. Everything downstream re-validates the shape.
+  return action as unknown as GameAction;
+}
+
+/**
+ * The recovery carried by a tape entry, or null when the entry is not one.
+ *
+ * Takes `unknown` for the reason {@link readBattleAftermath} does: the tape reaches `replay`
+ * through a permissive schema, so this is the only place the record's shape is checked, and a
+ * malformed one falls through `replay`'s `default` arm changing nothing rather than making a
+ * corrupt tape unreadable.
+ */
+export function readBlackout(action: unknown): BlackoutRecovery | null {
+  if (action === null || typeof action !== "object") return null;
+  const raw = action as { t?: unknown; recovery?: unknown };
+  if (raw.t !== BLACKOUT_ACTION) return null;
+  const body = raw.recovery;
+  if (body === null || typeof body !== "object") return null;
+  const { wakeNode, restored } = body as { wakeNode?: unknown; restored?: unknown };
+  if (typeof wakeNode !== "string" || wakeNode.length === 0) return null;
+  if (!Array.isArray(restored)) return null;
+  const uids: string[] = [];
+  for (const uid of restored) {
+    if (typeof uid !== "string" || uid.length === 0) return null;
+    uids.push(uid);
+  }
+  return { wakeNode, restored: uids };
+}
+
+/**
+ * Apply one blackout to a save. Pure, idempotent, and the ONE writer both the live path and
+ * `replay` come through, so a replayed run cannot disagree with the run it is replaying about
+ * where the player woke up or how hurt the party still is (L10 / build-doc §8.1).
+ *
+ * THREE WRITES, and each of them is why a wiped save can act again:
+ *   • every uid in `restored` loses its `curHp`, which is "at full" (see {@link BlackoutRecovery});
+ *   • `currentNode` becomes the wake node — a node with an inn, which a route is not;
+ *   • `interiorId` is REMOVED. `core/types.ts` `SaveFile.interiorId` names a room in a town, and a
+ *     save whose `currentNode` has moved while `interiorId` still names the room it left is the
+ *     broken state `game/scenes/OverworldScene.ts` `travelTo` refuses travel to avoid. Absent is
+ *     the outdoor state and there is no other spelling of it — a key holding `undefined` is not the
+ *     same bytes through `canonicalize`.
+ *
+ * A uid the save does not have is a loud `SaveCorruptError`, on exactly the terms
+ * {@link applyBattleAftermath} refuses one: the tape does not belong to this save, and silently
+ * skipping it replays a party that is quietly more (or less) upright than the one that went down.
+ *
+ * It does NOT write `core/recovery.ts` `BLACKOUT_CUE_FLAG`. That is a corpus cue, and no corpus
+ * flag is on the tape — see `applyBlackoutRecovery` there for why the split is deliberate.
+ */
+export function applyBlackout(save: SaveEnvelope, recovery: BlackoutRecovery): SaveEnvelope {
+  const wanted = new Set(recovery.restored);
+  const seen = new Set<string>();
+  const party = save.party.map((creature) => {
+    if (!wanted.has(creature.uid)) return creature;
+    seen.add(creature.uid);
+    if (creature.curHp === undefined) return creature;
+    const full: OwnedCreature = { ...creature };
+    delete full.curHp;
+    return full;
+  });
+  for (const uid of recovery.restored) {
+    if (seen.has(uid)) continue;
+    throw new SaveCorruptError(
+      `a blackout names party member "${uid}", which this save does not have — ` +
+        `the log does not belong to this save`,
+    );
+  }
+  const next: SaveEnvelope = { ...save, party, currentNode: recovery.wakeNode };
+  if (next.interiorId !== undefined) delete next.interiorId;
+  return next;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
  * Deterministic replay (build-doc §8.1 / L10, test `det_replay`)
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -711,6 +844,11 @@ function adjustPopulation(
  *   battleAftermath — `applyBattleAftermath`: the curHp / level / xp a fight left on the party, and
  *                the bag it left behind. Dispatched from the `default` arm because the action is not
  *                a `GameAction` member yet; see BATTLE_AFTERMATH_ACTION.
+ *   blackout   — `applyBlackout`: the party back on its feet and the node the player woke in, after
+ *                a fight left nothing standing. Dispatched from `default` for the same reason;
+ *                see BLACKOUT_ACTION. Its PRICE is not here — it rides as the ordinary `inn` /
+ *                `travel` entries beside it, which cost this module nothing and cost
+ *                `game/year-replay.ts` `clockFromLog` exactly what `balance.clock` says.
  *   catch/release — ONLY the node-population delta build-doc §7.3 attributes to the action itself
  *                   ("Player catch/release directly increments/decrements count at action time").
  *                   The party/box side needs the individual's age, level and traits, which the
@@ -878,6 +1016,20 @@ export function replay(
          */
         const aftermath = readBattleAftermath(action);
         if (aftermath) save = applyBattleAftermath(save, aftermath);
+        /*
+         * THE BLACKOUT, and it arrives here for the same reason its sibling does: `blackout` is not
+         * a `GameAction` member yet (see BLACKOUT_ACTION), so a `case` label for it would not
+         * compile. `readBlackout` checks the shape instead.
+         *
+         * ⚠ WITHOUT THIS ARM A REPLAYED RUN WAKES UP SOMEWHERE ELSE. The blackout is the only
+         * action that moves `currentNode` without a `travel` of its own reaching a handler here —
+         * the priced `travel` entry beside it is a CHARGE, and `replay` deliberately applies no
+         * state for it (see `case "battle"`). So a tape replayed without this leaves the player
+         * standing on the route they went down on, with a party still at zero, which is the exact
+         * unactable save the recovery exists to prevent.
+         */
+        const blackout = readBlackout(action);
+        if (blackout) save = applyBlackout(save, blackout);
         if (deps.applyOther) save = deps.applyOther(save, entry);
         break;
       }

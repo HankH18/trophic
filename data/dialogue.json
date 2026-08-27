@@ -10,8 +10,8 @@
   },
   "_counts": {
     "speakers": 63,
-    "entries": 214,
-    "lines": 509
+    "entries": 215,
+    "lines": 512
   },
   "speakers": [
     {
@@ -4297,6 +4297,31 @@
         },
         {
           "text": "They had me read all twenty-two out loud before they'd let me sign. Third blanket's in the press if the room goes cold, which it will, because — shutters. That argument lives up the hill, and I'd walk it if I were you."
+        }
+      ]
+    },
+    {
+      "id": "narration.blackout",
+      "speaker": "narration",
+      "node": "hearthollow",
+      "kind": "service",
+      "when": {
+        "flagsSet": [
+          "story.blackout.woke"
+        ]
+      },
+      "setFlags": {
+        "story.blackout.woke": false
+      },
+      "lines": [
+        {
+          "text": "Nothing is standing, and the next part of the day is missing."
+        },
+        {
+          "text": "The first thing back is a ceiling with a beam across it, and a fire going somewhere behind it. Somebody has put the creatures along the wall in a row and covered them over."
+        },
+        {
+          "text": "The water on the stool by the bed has gone cold, and somebody comes in with wood for the fire and does not stop to talk."
         }
       ]
     },
