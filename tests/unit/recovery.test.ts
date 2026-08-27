@@ -26,8 +26,10 @@
  *      exactly while a blackout is owed and at no other time;
  *   §8 THE INN HEALS WHAT IT CHARGES FOR — the same selection and the same write as the blackout,
  *      at `clock.innTicks` and with no move; a full party resting is charged and not refused; the
- *      consequence rides its own absolute tape entry and carries no price; and the two recoveries
- *      stay coherent about what the blackout's extra ticks are buying.
+ *      consequence rides its own absolute tape entry and carries no price; the SHIPPED `replay`
+ *      applies that entry with no host helping it (§8.5, and see the note there — it did not, and
+ *      this section's own rig was what hid it); and the two recoveries stay coherent about what the
+ *      blackout's extra ticks are buying.
  *
  * ══ WHY NO FIXTURE NAMES A SPECIES, A TOWN, A TICK COUNT OR AN HP NUMBER ══
  * Every one of them is READ: the wipe is produced by playing a shipped matchup to a loss, the inn
@@ -84,7 +86,7 @@ import {
   type BlackoutRecovery,
   type SaveEnvelope,
 } from "@core/save";
-import type { BattleInput, BattleState, Content, NodeFile, OwnedCreature } from "@core/types";
+import type { BattleInput, BattleState, Content, GameAction, NodeFile, OwnedCreature } from "@core/types";
 import { TALK_KINDS, dialogueContext, talkEntryFor } from "@game/dialogue-runner";
 import type { Encounter } from "@game/encounters";
 import {
@@ -936,22 +938,24 @@ describe("§8.4 the tape carries the consequence, and carries no price", () => {
   });
 });
 
-describe("§8.5 L10 — the entry is enough to replay the rest", () => {
-  const deps = { gyms: content.gyms, species: content.species, balance, nodes: content.nodes };
-
-  /**
-   * The applier `core/save.ts` `replay` will make a named `case` of, injected here through the
-   * `applyOther` hook its `default` arm already calls for exactly this — "a host that DOES
-   * understand the entry can still act on it" (INV-2). It is the SAME `restoreParty` the live path
-   * writes through, so this proves the ENTRY is sufficient, not that a second writer agrees.
+describe("§8.5 L10 — THE SHIPPED `replay` APPLIES THE REST, with no host to help it", () => {
+  /*
+   * ⚠ THIS SECTION USED TO PROVE THE WRONG THING, AND IT IS WORTH SPELLING OUT BECAUSE THE SHAPE
+   * RECURS. It injected its OWN `applyOther` — `readInnRest` + `restoreParty`, carrying the comment
+   * "the applier `core/save.ts` `replay` WILL MAKE A NAMED `case` OF" — and then asserted that the
+   * replay matched the live save. So the test SUPPLIED the applier whose absence was the defect.
+   * `replay`'s switch had no arm for `innRest` and `core/save.ts` did not import `readInnRest` at
+   * all; the entry fell through `default`, applied nothing, and the assertion still passed on the
+   * strength of the rig's own hook. Meanwhile the one shipped `applyOther` in the repo,
+   * `game/year-replay.ts` `replayRegionHooks`, does not read the entry either — so nothing outside
+   * this file produced the precondition the green was evidence of. L10 was false for any run that
+   * slept and the suite said otherwise.
+   *
+   * EVERY REPLAY BELOW THEREFORE GOES THROUGH `deps` WITH NO `applyOther` AT ALL. The only injected
+   * hook left is the deliberately INERT one in the second test, whose entire job is to prove that a
+   * host contributing nothing cannot be what makes the restore land.
    */
-  const withTheInnRest = {
-    ...deps,
-    applyOther: (save: SaveEnvelope, entry: { action: unknown }): SaveEnvelope => {
-      const uids = readInnRest(entry.action);
-      return uids ? restoreParty(save, uids) : save;
-    },
-  };
+  const deps = { gyms: content.gyms, species: content.species, balance, nodes: content.nodes };
 
   it("replaying the tape reproduces the party the live rest produced", () => {
     const { before, after } = hurtAt(NODE);
@@ -960,9 +964,36 @@ describe("§8.5 L10 — the entry is enough to replay the rest", () => {
     // THE RIG FIRST: if the rest changed nothing, an empty replay would agree trivially.
     expect(canonicalStringify(live.party)).not.toBe(canonicalStringify(after.party));
 
-    const replayed = replay({ ...after, actionLog: [] }, live.actionLog, withTheInnRest);
+    const replayed = replay({ ...after, actionLog: [] }, live.actionLog, deps);
     expect(canonicalStringify(replayed.party)).toBe(canonicalStringify(live.party));
     expect(before.currentNode).toBe(after.currentNode); // a rest moves nobody, so neither does this
+    expect(replayed.currentNode).toBe(live.currentNode);
+  });
+
+  it("a host that understands NOTHING still gets the restore — the rig cannot be what applies it", () => {
+    /*
+     * The direct anti-regression on the false instrument described above. `applyOther` is present
+     * and is the identity, so if the `case "innRest"` arm in `core/save.ts` is removed or made a
+     * no-op, there is nothing else in the process that can put the party back and this goes red.
+     */
+    const { after } = hurtAt(NODE);
+    const live = applyInnRest(after, restOf(after));
+    const inert = { ...deps, applyOther: (save: SaveEnvelope): SaveEnvelope => save };
+    const replayed = replay({ ...after, actionLog: [] }, live.actionLog, inert);
+    expect(canonicalStringify(replayed.party)).toBe(canonicalStringify(live.party));
+    expect(replayed.party.every((c) => c.curHp === undefined)).toBe(true);
+  });
+
+  it("the WHOLE live save replays byte-identically, price entries and all", () => {
+    /*
+     * L10 verbatim — "identical (seed, actionLog) ⇒ byte-identical final save" — rather than a
+     * party-shaped slice of it. The tape here is the live one entire: the fight's own entries, the
+     * `innRest` consequence, and nothing renumbered.
+     */
+    const { after } = hurtAt(NODE);
+    const live = applyInnRest(after, restOf(after));
+    const replayed = replay({ ...after, actionLog: [] }, live.actionLog, deps);
+    expect(serialize(replayed)).toBe(serialize(live));
   });
 
   it("…and it is the ENTRY that carries it: drop the entry and the replay stays hurt", () => {
@@ -975,7 +1006,23 @@ describe("§8.5 L10 — the entry is enough to replay the rest", () => {
       stripped.length,
       "the rig's tape had no inn-rest entry to strip — the comparison below proves nothing",
     ).toBe(live.actionLog.length - 1);
-    const replayed = replay({ ...after, actionLog: [] }, stripped, withTheInnRest);
+    const replayed = replay({ ...after, actionLog: [] }, stripped, deps);
+    expect(canonicalStringify(replayed.party)).toBe(canonicalStringify(after.party));
+  });
+
+  it("a MALFORMED entry changes nothing rather than throwing — the shape is re-checked at replay", () => {
+    /*
+     * The tape reaches `replay` through `core/schemas.ts`'s permissive `looseObject`, so the `t`
+     * discriminant is a claim and not a proof. A hand-edited or later-build entry must leave the
+     * save alone (INV-2), which is why the arm dispatches through `readInnRest` instead of reading
+     * `action.restored` off the narrowed union.
+     */
+    const { after } = hurtAt(NODE);
+    const live = applyInnRest(after, restOf(after));
+    const corrupted = live.actionLog.map((e) =>
+      readInnRest(e.action) === null ? e : { ...e, action: { t: INN_REST_ACTION } as unknown as GameAction },
+    );
+    const replayed = replay({ ...after, actionLog: [] }, corrupted, deps);
     expect(canonicalStringify(replayed.party)).toBe(canonicalStringify(after.party));
   });
 });

@@ -681,7 +681,28 @@ export type GameAction =
    * `BLACKOUT_COST` names — two `inn`s and a `travel` — and an entry is a price or a consequence
    * and never both.
    */
-  | { t: "blackout"; recovery: BlackoutRecovery };
+  | { t: "blackout"; recovery: BlackoutRecovery }
+  /**
+   * ONE NIGHT AT AN INN — who it put at full, absolute, and applied by `core/save.ts`
+   * `restoreParty` on the live path and the replay path alike. `restored` is a uid list for the
+   * reason {@link BlackoutRecovery}'s is: "full" is the DELETED `curHp`, so the entry needs no
+   * predicate and no stat formula to be applied, and applying it twice is applying it once.
+   *
+   * ⚠ IT CARRIES NO PRICE, and here that is load-bearing rather than doctrinal. The rest's cost is
+   * the `{t:"inn", townId}` entry `game/scenes/OverworldScene.ts` `restAtInn` writes beside it,
+   * which `game/year-replay.ts` `clockFromLog` prices out of `balance.clock.innTicks`. Deriving the
+   * heal from that priced entry instead would fire it on the TWO `{t:"inn"}` entries
+   * `core/recovery.ts` `BLACKOUT_COST` levies as well — the blackout restored three times, by two
+   * rules that disagree the moment `balance.medicine.innRestFullHeal` is retuned to false.
+   *
+   * ⚠ IT NEEDS A NAMED `case` IN `replay` AND IT WENT WITHOUT ONE. `core/recovery.ts` minted this
+   * entry while `replay`'s switch had no arm for it, so an inn rest fell through `default` and
+   * applied NOTHING: live the party came back at full, replayed it stayed hurt, and L10 was false
+   * for any run that slept. Nothing player-facing broke only because `replay` has no production
+   * caller yet — the invariant was the casualty, and it is the invariant the demo's determinism
+   * tests stand on.
+   */
+  | { t: "innRest"; restored: readonly string[] };
 
 /** build-doc §8.1 / L10 — identical (seed, actionLog) ⇒ byte-identical final save. */
 export interface ActionLogEntry {

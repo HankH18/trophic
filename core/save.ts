@@ -719,6 +719,109 @@ export function applyBlackout(save: SaveEnvelope, recovery: BlackoutRecovery): S
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * The inn rest — the same restore, with no move (core/recovery.ts §5 → §7.8)
+ *
+ * ⚠ WHY THE TAPE HALF LIVES HERE AND NOT BESIDE THE DECISION THAT MINTS IT. It was written in
+ * `core/recovery.ts`, and the consequence was a defect of exactly the shape the section above
+ * exists to prevent: that module minted `{t:"innRest"}` onto the log while `replay`'s switch had no
+ * arm for it and this file never imported its reader, so an inn rest fell through `default` and
+ * applied NOTHING. Live the party came back at full; replayed it stayed hurt. L10 —
+ * "identical (seed, actionLog) ⇒ byte-identical final save" — was false for any run that slept.
+ *
+ * The header of `core/recovery.ts` already stated the rule the code did not follow: *"`core/save.ts`
+ * owns the TAPE — `BlackoutRecovery`, `blackoutAction`, `readBlackout`, `applyBlackout` — because
+ * that module owns the log and its appliers. This module owns the DECISIONS."* The four names below
+ * are the inn rest's tape half and they are here for that reason. What stayed over there is what
+ * needs CONTENT: `innRestFor` reads `balance.medicine.innRestFullHeal` and takes the `isStanding`
+ * predicate, and `applyInnRest` is the live composition. `core/recovery.ts` re-exports all four, so
+ * every existing importer — `game/scenes/OverworldScene.ts` and two test files — is untouched.
+ *
+ * ⚠ AND THE DIRECTION OF THE IMPORT IS THE POINT, NOT AN ACCIDENT OF STYLE. `core/recovery.ts`
+ * already imports this module; teaching this module to import IT instead would close a cycle, and
+ * would drag `core/dialogue-schema.ts` and the whole shipped corpus behind `core/save.ts` — which
+ * the balance harness, every test and `core/lifecycle.ts` load. Moving four content-free functions
+ * the other way costs nothing and closes it.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The `t` discriminant an inn rest rides on the tape under.
+ *
+ * ⚠ IT IS A CONSEQUENCE AND IT NEEDS ITS OWN ENTRY. `{t:"inn", townId}` is a PRICE — `replay`
+ * applies no state for it and `game/year-replay.ts` `clockFromLog` charges `balance.clock.innTicks`
+ * for it — and this module's contract is that an entry is a price or an absolute consequence and
+ * never both. Two concrete failures follow from breaking it here rather than one doctrinal one:
+ *   • `core/recovery.ts` `BLACKOUT_COST` levies TWO `{t:"inn"}` entries of its own. A heal derived
+ *     from the price entry would fire on those as well, so the blackout would be restored three
+ *     times by two different rules — and `applyBlackout` and a price-derived heal disagree the
+ *     moment `balance.medicine.innRestFullHeal` is retuned to false.
+ *   • the false branch of `core/recovery.ts` `restoredUids` needs `isStanding`, which `replay` does
+ *     not have and must not acquire: the one spelling lives in `game/wild-battle.ts` and `core/`
+ *     may not import `game/` (L11). An absolute uid list needs no predicate at replay time, which
+ *     is the same reason `BlackoutRecovery` carries uids instead of HP numbers.
+ *
+ * ⚠ IT IS A `GameAction` MEMBER NOW, and the `as unknown as GameAction` cast that used to stand
+ * below it is gone — the one line its docblock asked for landed in `core/types.ts` as
+ * `| { t: "innRest"; restored: readonly string[] }`. `core/schemas.ts` needed no change and must not
+ * get one: `zSaveFileFor` validates `actionLog[].action` as `z.looseObject({ t: z.string().min(1) })`,
+ * which hands the payload back intact, and {@link readInnRest} re-checks the SHAPE at replay time
+ * rather than trusting the discriminant.
+ */
+export const INN_REST_ACTION = "innRest";
+
+/** The tape entry for one inn rest. Absolute: the uids it puts at full. */
+export function innRestAction(restored: readonly string[]): GameAction {
+  return { t: INN_REST_ACTION, restored: [...restored] };
+}
+
+/**
+ * The uid list carried by a tape entry, or null when the entry is not an inn rest.
+ *
+ * Takes `unknown` for the reason {@link readBlackout} does: the tape reaches `replay` through a
+ * permissive schema, so this is the only place the record's shape is checked, and a malformed one
+ * is null — it then changes nothing — rather than making a corrupt tape unreadable.
+ */
+export function readInnRest(action: unknown): string[] | null {
+  if (action === null || typeof action !== "object") return null;
+  const raw = action as { t?: unknown; restored?: unknown };
+  if (raw.t !== INN_REST_ACTION) return null;
+  if (!Array.isArray(raw.restored)) return null;
+  const uids: string[] = [];
+  for (const uid of raw.restored) {
+    if (typeof uid !== "string" || uid.length === 0) return null;
+    uids.push(uid);
+  }
+  return uids;
+}
+
+/**
+ * PUT THE NAMED MEMBERS AT FULL, and change nothing else. The ONE writer the live path
+ * (`core/recovery.ts` `applyInnRest`) and `replay`'s `case "innRest"` both come through.
+ *
+ * ⚠ IT IS {@link applyBlackout}, DELIBERATELY, AND THE TWO ARGUMENTS IT IS GIVEN ARE WHAT NARROW IT
+ * TO THE PARTY. That function does three writes — the party, `currentNode`, and clearing
+ * `interiorId` — and only the first belongs to an inn rest:
+ *   • `wakeNode: save.currentNode` makes the move an IDENTITY. A rest does not relocate anybody; the
+ *     player is already standing in the town whose inn they are using.
+ *   • `interiorId` is PUT BACK. `applyBlackout` clears it because it MOVES the player, and a save
+ *     whose `currentNode` has changed while `interiorId` still names the room it left is the broken
+ *     state `game/scenes/OverworldScene.ts` `travelTo` refuses travel to avoid. Nothing moves here,
+ *     and [R] is live inside a room — `data/interiors/hearthollow-inn.json` is a room the player can
+ *     be standing in when they press it — so clearing it would put the save outdoors while the
+ *     scene still drew the inn floor.
+ *
+ * Routing through the shared writer is the point: it is the one place "restored" is spelled, and it
+ * is where the loud `SaveCorruptError` for a uid the save does not have already lives. A private
+ * copy of that four-line map is the defect class this repo has spent its night removing. STANDING
+ * HANDOFF: split `applyBlackout` into a party half and a relocation half, and this function becomes
+ * a call to the party half with no correction after it.
+ */
+export function restoreParty(save: SaveEnvelope, restored: readonly string[]): SaveEnvelope {
+  const healed = applyBlackout(save, { wakeNode: save.currentNode, restored });
+  if (save.interiorId === undefined) return healed;
+  return { ...healed, interiorId: save.interiorId };
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
  * The catch — the CREATURE half, which the tape used to drop (§7.3 → §7.8)
  *
  * ⚠ WHY THIS SECTION EXISTS. A `catch` entry carried `{nodeId, lineId, uid}` and nothing else, so
@@ -953,6 +1056,10 @@ function adjustPopulation(
  *                see BLACKOUT_ACTION. Its PRICE is not here — it rides as the ordinary `inn` /
  *                `travel` entries beside it, which cost this module nothing and cost
  *                `game/year-replay.ts` `clockFromLog` exactly what `balance.clock` says.
+ *   innRest    — `restoreParty`: the party back at full after a night at an inn, with no move. Its
+ *                price is the `inn` entry beside it, on exactly the terms the blackout's is. This
+ *                arm was MISSING while `core/recovery.ts` minted the entry, which made L10 false
+ *                for every run that slept; see INN_REST_ACTION and the arm itself.
  *   catch/release — BOTH halves. The node-population delta build-doc §7.3 attributes to the action
  *                   itself ("Player catch/release directly increments/decrements count at action
  *                   time"), AND the creature: `applyCaught` puts back the individual the `catch`
@@ -1153,6 +1260,37 @@ export function replay(
          */
         const blackout = readBlackout(action);
         if (blackout) save = applyBlackout(save, blackout);
+        if (deps.applyOther) save = deps.applyOther(save, entry);
+        break;
+      }
+      case "innRest": {
+        /*
+         * ONE NIGHT AT AN INN — the party back at full, and nothing else. `readInnRest` for the
+         * reason its siblings `case "blackout"` and `case "battleAftermath"` use theirs: this entry
+         * reaches us through `core/schemas.ts`'s permissive `looseObject`, so the discriminant is a
+         * claim and not a proof, and a malformed one changes nothing rather than throwing.
+         *
+         * ⚠ THIS ARM WAS MISSING AND L10 WAS FALSE FOR ANY RUN THAT SLEPT. `core/recovery.ts`
+         * `applyInnRest` has minted `{t:"innRest"}` since the inn began healing what it charges
+         * for; this switch had no arm for it and this module never imported its reader, so the
+         * entry fell through `default` and applied NOTHING. Live, the rest deletes `curHp` across
+         * the fieldable party; replayed, the party stayed exactly as hurt as the fight left it —
+         * on the tape build-doc §8.1 and L10 promise replays byte-identically. The single shipped
+         * `applyOther` (`game/year-replay.ts` `replayRegionHooks`) does not read it either, so
+         * there was no host quietly covering for the gap.
+         *
+         * ⚠ NO CLOCK HERE, AND THAT IS NOT AN OMISSION. The rest's PRICE is the `{t:"inn", townId}`
+         * entry `game/scenes/OverworldScene.ts` `restAtInn` writes beside this one, which
+         * `game/year-replay.ts` `clockFromLog` charges out of `balance.clock.innTicks` — an entry
+         * is a price or a consequence and never both. `replay` models no clock at all (see
+         * `case "battle"`).
+         *
+         * ⚠ AND NO MOVE. `restoreParty` is `applyBlackout` narrowed to the party: the wake node is
+         * this save's own `currentNode` and `interiorId` is put back, because the player is asleep
+         * in a room in the town they are already standing in.
+         */
+        const restored = readInnRest(action);
+        if (restored) save = restoreParty(save, restored);
         if (deps.applyOther) save = deps.applyOther(save, entry);
         break;
       }
