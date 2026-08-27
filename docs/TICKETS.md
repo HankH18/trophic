@@ -14,22 +14,36 @@ cannot be worked by an agent — **T-1's open decision** — is first.
 while several agents were editing it.** Where a ticket's own predicted number turned out to be wrong,
 the measurement is recorded and the prediction is marked as wrong rather than quietly replaced.
 
-**Re-verified again on 2026-08-27 across four complete runs between 09:03 and 09:25**, three of them
-forced by HEAD moving mid-pass. `npx tsc --noEmit` reads **exit 0**, re-run after the last move;
-`npm run test` reads **10 failed of 2,876, 2,866 passing, 3 files of 70** — **an identical failure set
-on all four runs**, each of the ten named individually in STATUS's verified-state section. **The
-passing total rose because tests were ADDED, not because anything regressed** (~2,848 → 2,876 over the
-same 70 files, the additions being the inn-rest cases). **`main` is in sync with `origin/main`.**
-**No commit hash is quoted here any more, and neither is the dirty-path count or a commit tally:**
-this file has named three different HEADs in as many hours, HEAD moved four more times during this
-single pass, and the dirty list read the same number twice over a different tree. "In sync with
-origin" stays true; a hash does not, and neither does a count. Every dirty path belongs to a lane
-working right now. ⚠ **Several lanes were writing to `tests/` and `tools/` throughout, so the passing
-total above is a reading at a timestamp** — re-run before quoting it, and remember that a lower
-failure count is the reading nobody re-checks (STATUS item 39 №11).
+**Re-verified again on 2026-08-27 at 14:57:54Z**, one complete run. `npm run test` reads **3 failed of
+2,915, 2,912 passing, 2 files of 70**; `npx tsc --noEmit` reads **exit 0** at 14:59:15Z. **The passing
+total rose because tests were ADDED, not because anything regressed** (2,876 → 2,915 over the same 70
+files). **`main` is in sync with `origin/main`.** **No commit hash is quoted here any more, and
+neither is the dirty-path count or a commit tally** — "in sync with origin" stays true; a hash does
+not, and neither does a count. Every dirty path belongs to a lane working right now.
+⚠ **THIS IS A READING AT A TIMESTAMP AND THE TREE WAS BEING WRITTEN TO WHILE IT WAS TAKEN.** The quest
+lane holds `core/quests.ts`, `game/quests.ts`, `tests/unit/quests.test.ts` and
+`tests/gates/quest-layer.test.ts` and **its work has not landed**; the art lane holds
+`tools/comfy/manifest.json`. `tests/unit/quests.test.ts` passed in this run and that is a fact about
+14:57, not a verdict on unlanded work. ⚠ **Seven of the ten failures this preamble used to carry are
+GONE, and a lower failure count is the reading nobody re-checks** (STATUS item 39 №11) — so it was
+checked: `tests/gates/player-art-contract.test.ts` passes because the committed sprites were rebuilt
+(T-24), not because the file stopped running.
 
-**Closing on this pass: T-12's clause 2.** The inn heals what it charges for, so T-28's largest
-unlanded clause is landed and T-12's remainder is the economy alone. **T-44, T-45 and T-46 were
+**Closing on the collision pass (2026-08-27, later): T-24.** The derived player views were rebuilt
+against the re-frozen palette and `tests/gates/player-art-contract.test.ts` reads **16 of 16** — the
+last of its three clauses. **T-20 is NOT closed with it**: its defect is the side view's geometry, and
+a palette gate cannot see legs. **T-12's clause 2 gains the replay arm and two recorded decisions on
+`[R]`** — where it may be pressed, and the one indoor exception. **T-53 through T-58 are new**: three
+are the `GameAction` replay union walked end to end after the inn-rest defect showed the shape, and
+three are the collision-mask seam. **T-57 is the owner's and is the prior question T-56 waits on.**
+⚠ **Two claims that arrived with this pass were CORRECTED before they were written down** — the
+"two shipped tests go red when a mask lands" (it is one test; the other is already red for an
+unrelated reason, and only `r1`'s mask touches it) and the round-trip sabotage evidence (two of the
+four cited sabotages do not exist in this repository). Both corrections are in STATUS items 41-42 and
+in T-56.
+
+**Closing on the progression pass: T-12's clause 2.** The inn heals what it charges for, so T-28's
+largest unlanded clause is landed and T-12's remainder is the economy alone. **T-44, T-45 and T-46 were
 re-read and ALL THREE ARE STILL OPEN** — none was closed by the commits in between, and T-45's own
 cited line has drifted. **T-39 and T-41 were re-read and are unchanged.** **T-47 through T-50 are
 new** — the interior and map-edge work becoming visible now that the maps exist. **T-51 was opened and
@@ -376,6 +390,61 @@ no earner anywhere in the repo, switching it on makes the inn unpayable forever 
 blockable run T-29 removed. **The owner's remaining question is therefore ordered: an earner first,
 then the sink.**
 
+**THE REST NOW REPLAYS.** The heal was minted onto the tape as `{t:"innRest"}` and `replay()` had no
+arm for it, so live the party healed and on replay it stayed hurt — **L10 was false for any run that
+rested.** `core/save.ts:1266` is the named `case`, and it calls **`restoreParty`**, the live path's own
+applier (`core/save.ts:818`), rather than restating the heal. The rest's **tape** half moved out of
+`core/recovery.ts` into `core/save.ts` — `core/recovery.ts:522` re-exports the four names — which
+enacts the ownership rule that module's own header at `:38-42` already stated: **`save.ts` owns the
+TAPE, `recovery.ts` owns the DECISIONS.** Note `{t:"inn"}` is a *different* entry, the price, and
+correctly has no arm. Because `replay()` still has **zero production callers**, this was a broken
+invariant rather than a live player-facing fault — which is what let it survive, and is the argument
+for T-53/T-54/T-55 auditing the union instead of waiting for the next symptom.
+
+### Two decisions recorded on the inn, because both are the kind someone later "simplifies"
+
+**These are readings, not Hank's sentences.** Marked as such deliberately, on this queue's own standing
+rule — the owner ruled on the wipe and its price, not on where `[R]` may be pressed.
+
+1. **`[R]` NOW ASKS WHERE THE PLAYER IS STANDING, AND THE PREMISE IT RESTORES IS ONE THIS QUEUE HAD
+   ALREADY PRICED AGAINST.** It previously healed the whole party **anywhere in the region** — on
+   routes, and inside the general store — for `innTicks` = 2. `restRefusal`
+   (`game/scenes/OverworldScene.ts:2044-2054`) is the guard, called before anything is spent at
+   `:2060`, and **the HUD reads the same function** at `:3302`, so what is advertised and what happens
+   have one reader. ⚠ **This matters to T-29's arithmetic, not just to tidiness:** `core/recovery.ts`
+   argues the blackout's `2 × innTicks + travelTicks` against a rest available *"only for a player
+   STANDING IN A TOWN"*, and while `[R]` worked everywhere that premise was false — so the owner's
+   ruling had been priced against a baseline the code did not implement.
+
+2. **`[R]` REFUSES INDOORS *EXCEPT* IN THE TOWN'S OWN INN — a blanket indoor refusal was briefed and
+   would have been WRONG.** `data/interiors/hearthollow-inn.json:38-46` ships a `service` anchor whose
+   `_purpose` reads, verbatim: *"The tile the player stands on to trigger the rest service — the full
+   heal that costs inn ticks."* **The room is authored to be rested in**; refusing there would have
+   made a shipped anchor unreachable and would have been caught, if at all, by a reachability gate
+   rather than by the change that caused it.
+
+   **Which room counts as the inn is read from CONTENT, never from an id.** The exception turns on
+   `inside.anchors.some(a => a.kind === "speaker" && a.target === keeper)` where
+   `keeper = innkeeperAt(townId)` (`core/recovery.ts:181-187`) scans `DIALOGUE.speakers` for
+   `role === "innkeeper" && home === nodeId`; the node-level list is `innNodeIds()`
+   (`core/recovery.ts:148`), the intersection of innkeeper-homed speakers with a `service` beat at that
+   node. **There is no second list and no hardcoded room name** — `hearthollow-supply` fails the test
+   for the right reason, which is that no innkeeper stands in it.
+
+   **Three tests pin the choice and it reverts by deleting one branch** — the `theirs` computation at
+   `OverworldScene.ts:2049-2052`. Two are the §17.3 per-room case expanded over the four shipped
+   interiors (`hearthollow-inn` and `brackwater-inn`: *"[R] works in the room the town's innkeeper
+   stands in, and nowhere else indoors"*), and the third is §17.5's *"resting in the inn across the
+   year boundary leaves the HUD describing the ROOM"*, which presses `[R]` indoors to cross the year
+   turn. A blanket refusal reds all three.
+
+**Two defects fixed in the same commit, recorded so neither is re-found:** the blackout could stack a
+dialogue on top of a year turn — now guarded at `OverworldScene.ts:2212-2215`, in `handOffToBattle`'s
+exact shape, placed **after** the charges so the price and the move still stand and the cue stays owed;
+and `yearBegin` overwrote a room's provenance line with the town's map note — it now ends
+`this.lastNote = this.viewNote()` (`:2814-2821`), and `viewNote()` (`:846-856`) returns the interior's
+line when the player is inside one.
+
 **❌ Clause 4 — items sold in the town shops.** No shop sells anything. `balance.economy` ships
 `innCost` 40, `trainerPayoutPerLevel` 12, and snare / bait / salve / tonic prices, and **every one of
 them has zero readers** outside `core/schemas.ts` and `core/types.ts`. The only `money` occurrence in
@@ -652,8 +721,10 @@ to a `player` row on the same contract; `TitleScene`'s `"ui/title-banner"` is do
 deliberately unbound because a row there would assert against the empty set and pass vacuously.
 
 ### T-20 · Player side view and walk cycle — in code, 0 images
-**Status:** TODO — **and it has regressed, see T-24** · **Hank:** *"fix the side view in code, then
-derive the walk frames the same way."*
+**Status:** TODO — **the T-24 regression is repaired and this is no longer blocked by it** ·
+**Hank:** *"fix the side view in code, then derive the walk frames the same way."*
+⚠ **A green `player-art-contract` is not this ticket's evidence.** That gate checks palette, star
+badge and freshness; the defect here is **geometry** — the legs — and nothing in the suite sees it.
 
 Back and side views were built in code from the approved front sprite. One real defect: the side
 view's legs still face the camera. Fix in code, then derive the walk frames the same way — 0 images.
@@ -708,7 +779,8 @@ believes it has found an IP issue, it records it in this file and does not ask.
 ## Opened by this session's measurements
 
 ### T-24 · The palette swap broke the derived player sprites, and nothing can see it
-**Status:** **code half DONE; asset half handed to the art session, which owns `assets/`**
+**Status:** **DONE — the asset half landed 2026-08-27 and the gate reads 16 of 16.** The ticket keeps
+its two findings; git holds the working detail.
 
 `tools/comfy/player-views.ts` hardcoded 18 hex literals, **every one of which T-15 deleted from the
 palette.** Regenerating the derived views from them wrote **8 off-palette pixels into
@@ -718,20 +790,31 @@ rear of the cap**.
 
 1. ✅ **The 21 dead hex literals now resolve through `data/palette.json` by slot id.** No palette
    constant survives in that file (G11 in spirit).
-2. ⏳ **Regenerate the three derived views and the acceptance detectors** — the art session's, because
-   the bytes are under `assets/`.
+2. ✅ **The derived views and the acceptance detectors are regenerated.** Commit
+   `fix(art): rebuild the derived player views against the re-frozen palette` rewrites
+   `derived/player-back-32x48.png`, `derived/player-side-32x48.png` and `_player-views/_acceptance.json`.
 3. ✅ **A gate that reads a committed PNG exists.** `tests/gates/player-art-contract.test.ts`, 16
    cases, decoding through `sharp` — **the first gate in this repo that opens an image.**
 
-**The gate is RED, and that is the correct state: 7 failed / 9 passed** against the committed sprites.
-It is reporting real defects in files another session owns, so it is not this ticket's job to green
-it. Verbatim from the run: `player-back-32x48.png` *"holds 8 px in 2 colour(s) that data/palette.json
-does not contain: #ec9a70×4 #eec092×4"*; the star badge fails on the cap rows and on the whole rear
-view; `back` and `side` each introduce swatches the approved front does not use; and the freshness
-assertion reports the committed back view disagreeing with a fresh derivation in **333 px**, first at
-(10,4). Five sabotages all read red, **including one that placed a legal palette colour as a star** —
-which reddened only the star assertions and left the palette ones green, i.e. the two checks are
-genuinely independent and neither is standing in for the other.
+**The gate now reads 16 of 16 GREEN**, re-run on 2026-08-27. Five sabotages all read red, **including
+one that placed a legal palette colour as a star** — which reddened only the star assertions and left
+the palette ones green, i.e. the two checks are genuinely independent and neither is standing in for
+the other.
+
+**The before/after was verified by decoding bytes, not by reading the commit message** — which matters,
+because the message was **understated**. Decoded off the parent commit: the back view held **8
+off-palette px in exactly the two named colours** (`#ec9a70`×4, `#eec092`×4), as advertised — but the
+**side view held 420 px in 11 colours**, still the whole pre-freeze B0 sprite including the deleted
+star yellow `#f9db10`. The message's "8 px in two colours" describes only the back. Both views now
+decode at **zero** off-palette pixels, and the approved front is byte-identical: it does not appear in
+the commit at all.
+
+⚠ **"7 red → 16 green" is a claim, not a measurement, and is marked as one.** Re-running the gate
+against the old bytes requires a checkout, which was not taken. **The two endpoints were decoded; the
+count between them was not.** — this queue's own rule, that a ticket's own number is not a measurement.
+
+**T-20 is NOT closed by this.** Its defect is the side view's legs facing the camera, which is geometry,
+not palette, and a green palette gate says nothing about it.
 
 **Two findings this ticket paid for, kept because they will otherwise be re-derived:**
 - **Two sprite roles collapse onto one swatch.** `hair` and `hairHi` both resolve to `c05`; the same
@@ -881,6 +964,12 @@ cited.
 | T-50 | The door facing↔wall check lives only in the test layer | The load-time validator does not make it | TODO |
 | T-51 | `tools/mapgrid` bypassed the engine's cross-check | Real, and **repaired in flight** — it parses through `zBalance` | **CLOSED** |
 | T-52 | `tools/` → `game/` has no guard, only a correct habit | 9 sites, 5 files; the dependency is fine, the gate is missing | TODO |
+| T-53 | `travel` does not restore `currentNode` on replay | An existing test pins it **on purpose** — a ruling, not a patch | TODO · **decision** |
+| T-54 | `foray` does not restore `forayStepsSinceTick` | Same shape; and an arm alone cannot close it | TODO |
+| T-55 | `{t:"battleAction"}` is a dead union member | Zero mint sites; unreachable, so no arm is owed | TODO |
+| T-56 | Landing a mask is a gate recalibration | One gate reds on any mask; one is already red for another reason | TODO · **behind T-57** |
+| T-57 | Painting or layout — which is authored first? | Nothing reconciles them; a mask today blocks the painted road | TODO · **Hank's** |
+| T-58 | A wall under half a cell wide blocks nothing | A property of the majority rule; bites only on a hand-edited mask | TODO · **record only** |
 
 ### T-28 · Wire the persistence spine — nothing calls `applyBattleResult`
 **Status:** **DONE for the wiring, and three of its own *done when* clauses did NOT land and go back
@@ -1702,6 +1791,235 @@ was the tidier one.** Re-derive with a multiline-aware read, not a line-anchored
 none of them transitively reaches Phaser, names the browser-hosted exceptions **explicitly rather than
 by a path prefix**, and **reds under a sabotage that adds a Phaser import to a module one of them
 already pulls in.** A gate that only lists today's imports is a snapshot, not a guard.
+
+---
+
+## Opened 2026-08-27 by the collision doc-currency pass — the replay union, and the mask seam
+
+**T-53, T-54 and T-55 are one audit, not three findings.** The inn-rest defect that landed this pass —
+a tape entry minted with no `replay()` arm — was found by symptom. The union was then walked end to
+end so the remaining instances would be found by enumeration instead. `GameAction` has **14** members;
+**ten have arms**, and the four that reach `default` are below. **One of the four (`inn`) is correct**
+and is recorded as correct, because a list of four gaps where one is not a gap is how a real one gets
+dismissed.
+
+**T-56, T-57 and T-58 are the mask seam.** None is a defect in shipped behaviour. T-57 is the owner's
+and is the prior question the other two wait on.
+
+### T-53 · Travel does not restore `currentNode` on replay — **A RULING IS OWED, NOT A PATCH**
+**Status:** TODO — **blocked on a decision. Do NOT open this by editing the test that pins it.**
+
+**The defect is structurally identical to the inn-rest one just fixed**, so L10 is false for
+`currentNode` on any run that travels and does not black out. `{t:"travel"}` is minted at
+`game/scenes/OverworldScene.ts:3118` and again by `core/recovery.ts:316` (the blackout's price, levied
+at `OverworldScene.ts:2179`). There is no `case "travel"` in `replay`; it lands in `default`
+(`core/save.ts:1297`), and the **only** write to `currentNode` anywhere inside `replay`'s reach is
+`applyBlackout` (`core/save.ts:716`).
+
+⚠ **AN EXISTING TEST PINS THE CURRENT BEHAVIOUR, AND IT PINS IT ON PURPOSE.**
+`tests/unit/recovery.test.ts:521` asserts
+
+    expect(replayed.currentNode).toBe(before.currentNode);
+
+inside *"and it is the BLACKOUT ENTRY that carries it — the priced entries beside it are only prices"*
+(`:501`), under `describe("§5 determinism (build-doc §8.1 / L10)")`. Adding a travel arm turns it red:
+the rig strips only the `blackout` entry, asserts the `travel` entry is still on the tape, and proves
+the travel's `to` is a **different** node from `before.currentNode`.
+
+**And the comment above it (`:502-509`) is the ruling this ticket needs overturned or upheld.** It
+records that teaching `replay` to move `currentNode` on a `travel` entry was measured **invisible**
+against a tape carrying only the consequence, and argues the position deliberately: **`travel` is a
+price; the `blackout` entry is the one authority on `currentNode`** (`core/types.ts:673-683`). So this
+is a design dispute between two coherent readings of the tape, not an oversight.
+
+**Weakening that assertion to land a change is forbidden here** — the standing rule, and
+`justify-test-edit`. The two readings:
+- **`travel` is a price.** Then `currentNode` is not on the tape at all, L10's scope excludes it, and
+  the thing to fix is the *claim*, not the code — the row in STATUS and the docblocks say so.
+- **`travel` is a move.** Then it gains an arm, `recovery.test.ts:521` is rewritten **through its own
+  protocol** rather than loosened, and the blackout stops being the only authority.
+
+Corroboration that callers already work around it: `tests/gates/quest-layer.test.ts:763` and `:767`
+both hand-write `{ ...appendAction(out, { t: "travel", to }), currentNode: hop }`.
+
+**Done when:** the reading is ruled, the losing side's text is corrected where it stands, and — if
+`travel` becomes a move — the pinning test is replaced under its own terms and a sabotage reds it.
+
+### T-54 · `{t:"foray"}` does not restore `forayStepsSinceTick` on replay
+**Status:** TODO — **same shape as T-53, smaller blast radius, and an arm alone cannot close it**
+
+Minted at `game/scenes/OverworldScene.ts:1311`; no arm; `default`. Inside `replay` the counter is only
+ever whatever `initial` carried (`core/save.ts:1090`), i.e. `0` for a fresh run.
+
+**The blast radius is small and saying so is part of the ticket.** The counter is zeroed the instant it
+crosses the threshold (`OverworldScene.ts:1310`), so it is always below `stepsPerForay` and feeds
+nothing but the next foray charge.
+
+⚠ **CORRECTION TO THE OBVIOUS FIX: a `case "foray"` cannot restore it.** The entry is
+`{t:"foray"; nodeId}` (`core/types.ts:643`) and **carries no odometer value**, and a plain walked step
+mints no tape entry at all. An arm could only set the counter to `0` — true at the mint instant, and
+blind to every step walked after the last foray entry. So the choice is a **new field on the entry**,
+or **accepting the counter as outside L10's scope and saying so where the claim is made.**
+
+**A stale citation found while measuring this, corrected in STATUS and named here so it is not
+re-introduced:** `forayStepsSinceTick` appears **nowhere in `tests/property/`**. The determinism test
+it was credited to covers it only vacuously, through a whole-save comparison in which both sides read
+`0`. The real coverage is the **serializer's** round trip (`tests/unit/save.test.ts:212`) and the scene
+reload and year turn (`tests/unit/overworld-scene.test.ts:3124`, `:3452`) — all true, and all a
+different round trip from `replay()`'s.
+
+**Done when:** either the entry carries the value and an arm applies it, with a test that reds when the
+arm is deleted; or the exclusion is written on the field and the STATUS row stops implying otherwise.
+
+### T-55 · `{t:"battleAction"}` is a dead union member — a deletion, not an arm
+**Status:** TODO — **unreachable rather than unapplied, so NO replay arm is owed**
+
+**Zero mint sites in `core/`, `game/` or `tools/`.** The identifier's only occurrences anywhere are the
+union member itself (`core/types.ts:651`) and two prose comments (`core/types.ts:646`,
+`game/scenes/OverworldScene.ts:1367`). **No test constructs one either** — the hits under `tests/` are
+`perf.battleActionBudgetMs`, a balance key, and a substring collision.
+
+**Nothing can put one on a tape, so `replay` can never receive one.** Even a hypothetical producer
+would owe no state: a fight's whole consequence already reaches the tape as `battleAftermath`, `catch`
+/ `release` and `gymVictory`. This is the opposite disposition from T-53 and T-54 and must not be
+filed with them — **the correct fix is deletion of the member**, and it belongs to whoever owns the
+battle tape. A stale tape from another build carrying one is handled correctly by `default` under
+INV-2.
+
+**Done when:** the member is deleted and `npx tsc --noEmit` stays at exit 0 — or, if it is kept as a
+reserved slot, the comment on it says that is what it is.
+
+### T-56 · Landing a collision mask is a GATE RECALIBRATION, not an art approval
+**Status:** TODO — **blocked behind T-57; the work here is the gates, and it is not optional**
+
+**Twelve masks already exist**, git-ignored, as `tools/mapgen` output at
+`assets/raw/_layouts/masks/mask-<id>.png`. Nothing in `data/`, `game/` or the Vite-served copy points
+at them. So "promote the masks" is a file move plus the two gate changes below — **and it must not be
+taken before T-57 is ruled**, because a mask that is geometrically exact against the wrong picture
+blocks the painted road and opens the painted house.
+
+**Gate 1 — `tests/unit/overlay-diff.test.ts:1086-1095` goes red on the FIRST mask, by design and by
+its own instruction.** Verbatim at `:1093`: *"a collision mask now exists — re-measure the residual
+limits against it and update this test"*, asserting `missing.length` equals `content.nodes.length`. It
+filters **every** node, so one mask reds it.
+
+**And the re-measure it asks for is real work, not a constant bump.** The overlay-diff IoU is
+restricted to the mask's walkable cells — `tools/overlay-diff/diff.ts:252` builds the restriction,
+`:268` discards every non-walkable pixel from the population — with `allWalkable`
+(`tools/overlay-diff/mask.ts:125-127`) as the no-mask fallback. **Landing a mask changes what that
+gate measures over**, so its residual limits were calibrated against a *luminance-derived stand-in*
+(`tools/overlay-diff/mask.ts:31-38`, which says so) and do not carry over.
+
+⚠ **Gate 2 — `tests/unit/manifest.test.ts` — THE BRIEFING FOR THIS TICKET WAS WRONG IN TWO WAYS AND IS
+CORRECTED HERE.** *"THE REAL GATE refuses a variant when the node has no collision mask on disk"* is
+**already RED, and not for a mask reason**: it fails at `:1414` on `existsSync(node.mapAsset)`, because
+ten base maps landed. That is **T-46**, and it is a separate ticket. The mask assertion is the *next*
+line, `:1415` — and the test hardcodes `n.id === 'r1'` at `:1413`, so **only `r1`'s mask touches it**;
+a mask for any of the other eleven leaves it alone. **The overlay-diff gate is the only one sensitive
+to any mask.** Two tests going red "by design" was one test, one already-red test, and one node.
+
+**Two stale comments found in the same file, recorded so they are fixed with the promotion rather than
+re-discovered:** `tools/overlay-diff/mask.ts:31-34` says *"neither do the twelve base maps"* (ten do),
+and `:11` says `tools/collision-editor/` is an empty directory — it ships an `index.html`, a `main.ts`
+and a `vite.config.ts`, which `:24` of the same header contradicts.
+
+**Done when:** T-57 is ruled; the masks are promoted for the nodes that ruling covers; the overlay-diff
+residual limits are **re-measured against a real mask** and the gate updated rather than relaxed;
+`manifest.test.ts`'s `r1` mask assertion is moved onto the temp dir the body already builds (with
+T-46); and the two stale header comments go with it.
+
+### T-57 · **OWNER'S DECISION** — when the painting and the collision layout disagree, which is authored first?
+**Status:** TODO — **Hank's. Recorded as the prior question T-56 and the map re-author both wait on.
+No answer is proposed here.**
+
+**The two artefacts have no shared source and nothing reconciles them.** The engine reads geometry from
+`tools/mapgen/layouts/*.txt`; the art lane is drawing composition from hand-made top-down control
+drawings. **The ten paintings on disk were not produced from the layouts** — `git show
+HEAD:tools/comfy/manifest.json` contains zero occurrences of "controlnet", and the ControlNet lane
+(`tools/comfy/controlnet-graph.ts`, `tools/comfy/hint-image.ts`) is untracked and has never been
+committed.
+
+**This is not a style question — it decides what a collision mask MEANS.** If the layout is authored
+first, the painting owes it a road where the layout puts one, and the mask is correct the moment it is
+generated. If the painting is authored first, the layout is downstream of a picture and must be traced
+back off it after every art round. **Nothing currently makes either true**, which is why a mask
+promoted today is worse than the all-open placeholder it replaces: the placeholder is visibly
+unfinished, and a wrong mask stops the player walking down a road they can see.
+
+**One in-tree sign that the two readings of a layout are already pulling apart**, from the art lane's
+own uncommitted `tools/comfy/hint-image.ts`: a layout's outer wall ring *"is doing a real job"* as a
+collision spec and is *"the defect"* as a composition brief, so the hint deliberately drops the ring
+the mask depends on. **The two readings of one file disagree, inside the file that reads it.**
+
+**Done when:** Hank rules which artefact is authored first; the losing side's pipeline is written down
+as derived from the winner; and T-56 proceeds under it.
+
+### T-59 · The layout→mask round trip is demonstrated but not protected
+
+**Status:** TODO — **no defect is known. The property holds today; nothing in the suite will notice
+when it stops.**
+
+**What is proven, and where it is NOT.** A scratchpad harness ran all twelve layouts end to end
+through the shipped `loadCollision` — the same call `game/scenes/OverworldScene.ts` makes inside
+`buildNodeView` — and reported **0 of 4096 cells differing on every node**, with sabotages that bit:
+one repainted cell reported exactly one mismatch at exactly that coordinate, a vertical flip
+**1274** cells and a horizontal flip **1434**, both independently matching truth-vs-flipped-truth
+(so the round trip is a real bijection, not a coincidence of these twelve); a truncated PNG and a
+byte-XORed PNG both threw; an all-black mask was refused. **That harness was briefed read-only and
+deliberately kept out of the repo. It expires with the scratchpad.**
+
+**What the suite protects is narrower.** `tests/unit/mapgen.test.ts` round-trips all twelve through
+`checkMaskRoundTrip` (`tools/mapgen/verify.ts:406`) — **in memory, at `readMask`**, never calling
+`loadCollision` (zero occurrences in that file). The equivalence to the shipped path is *argued* in
+comments at `:14-16` and `verify.ts:401-404`, and the argument is sound — `loadCollision` with no
+options delegates to `collisionFromMask` → `readMask` (`game/collision.ts:664-673`). **Sound argument
+is not assertion.** No committed test writes a damaged PNG, flips a mask, or repaints a single cell.
+
+**The work:** a committed test that round-trips at least one layout through the real `loadCollision`
+to a PNG on disk and back, plus the repaint and flip sabotages, so the bijection is pinned rather
+than remembered. It must prove it bites before it lands. Note it will need a fixture PNG or must
+generate one into a temp dir — `assets/final/maps/*-mask.png` do not exist (T-56).
+
+**Why this ticket exists at all**, and it is the transferable part: a doc pass auditing the claim
+grepped **the repository** for the evidence, found none, and reported the sabotages "unsourced" and
+the figure `1274` as "not occurring anywhere". Both true of the repo; both the wrong corpus. **An
+instrument pointed at the wrong corpus returns a confident absence**, and absence is the most
+persuasive clean answer there is. See `docs/build-doc.md` §16 on the pleasant reading being the one
+nobody re-derives.
+
+### T-58 · A hand-painted wall thinner than half a collision cell blocks nothing
+**Status:** TODO — **a property, not a defect. Relevant ONLY if a mask is ever hand-edited.**
+
+**Measured, live, through the shipping `walkableCells`.** A collision cell is **16 × 16 = 256 mask
+pixels** (`data/balance.json:500` `mapNativePx` 1024, `:502` `collisionCellPx` 16, `:503-504` 64 × 64;
+derived rather than trusted at `game/collision.ts:313-317`). The rule is a **majority**,
+`tools/overlay-diff/mask.ts:97`:
+
+    out[cy * grid.cols + cx] = total > 0 && walkable * 2 > total ? 1 : 0;
+
+So a cell flips at **128 of 256** ink, and nothing below it registers at all:
+
+| painted wall | verdict |
+|---|---|
+| 127 px of ink | walkable |
+| **128 px of ink** | **blocked** |
+| a 4 px-thick wall across the cell | **walkable — blocks nothing** |
+| a 7 px-thick wall | **walkable — blocks nothing** |
+| an 8 px-thick wall | blocked |
+
+**A full-height wall must be at least half the cell wide to exist.** Two things travel with this or it
+gets mis-filed:
+- **Generated masks are structurally immune** and this is not a latent bug in the pipeline.
+  `maskRasterFrom` (`game/collision.ts:279-295`) writes whole cells — 1024/64 is an exact integer, so
+  every cell is a uniform 16 × 16 block of pure 0 or pure 255, i.e. 0/256 or 256/256, never near the
+  boundary. `tools/collision-editor/main.ts:298` calls the same function rather than having a format
+  opinion of its own.
+- **It bites the first time somebody paints or retouches a mask by hand**, which T-56 makes plausible
+  for the first time. A hairline wall drawn at art resolution is invisible to the sampler, and nothing
+  goes red — the mask loads, it is `usable`, and the player walks through the wall.
+
+**Done when:** nothing, unless hand-editing is adopted. Recorded so it is not rediscovered by a session
+spent debugging a wall that loads correctly and does not work.
 
 ---
 
