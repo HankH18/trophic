@@ -99,6 +99,20 @@
  *    §8.2's Sobel is structurally blind to a one-pixel dither, so `edgePercent` defines its own
  *    operator and the control below proves both halves of that. Reuse an existing instrument, but
  *    measure that it can see the thing before you trust it.
+ *
+ * 7. **A third reading sits beside those two — THE GROUND READING — and it is THREE numbers, not
+ *    one, because every single-number version of it has a degenerate case that scores top marks.**
+ *    A patch reads as structured only if it holds a small palette, HELD DENSELY, and INTERLEAVED
+ *    rather than pooled. Drop any one of the three and something worthless passes: drop density and
+ *    a LoRA's 2,451 near-identical colours pass; drop plurality and a blank rectangle passes; drop
+ *    interleaving and a flat field with three regions in it passes. The GROUND READING section
+ *    below has the measurements for all three, the sampling rule, and its weaknesses.
+ *
+ * 8. **Every number this file emits prints the definition of the operator that produced it.** Two
+ *    figures for one property have been produced twice in this project's history, and both times
+ *    the cause was the same: a measurement quoted without its instrument attached. One of them —
+ *    Gold's whole-map edge density — is struck through in the GROUND-TEXTURE section below rather
+ *    than deleted, with the reason, because the trail is worth more than the tidiness.
  */
 
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -242,6 +256,14 @@ interface Census {
   swatches: Map<string, Swatch>;
   /** Percent of pixels on a §8.2 Sobel edge — see the GROUND TEXTURE section. */
   edgePct: number;
+  /** Median patch's effective colour count — see THE GROUND READING section. */
+  conc: number;
+  /** Median patch's alternation. The axis `conc` is blind to; neither is printed alone. */
+  altPct: number;
+  /** Median patch's top-three share, printed BESIDE those two and never instead of them. */
+  concTopThreePct: number;
+  /** How many patches the medians were taken over, so a one-patch reading is visible as one. */
+  concPatches: number;
 }
 
 const hexAt = (d: Buffer, i: number): string =>
@@ -288,6 +310,254 @@ function edgePercent(data: Buffer, width: number, height: number): number {
   return (100 * on) / total;
 }
 
+/* ────────────────────────────────────────────────────────────────────────────────────────────────
+ * THE GROUND READING — three numbers over one patch, because every one-number version has a
+ * degenerate case that scores top marks
+ *
+ * ── WHAT SETTLED THE FIRST HALF ──────────────────────────────────────────────────────────────────
+ * A 64×64 patch of open ground, the share held by the top three EXACT-RGB colours, and how many
+ * distinct colours the patch spends:
+ *
+ *     Gold new-bark              78.9%        8 colours
+ *     our postprocess dither     78.3%       12
+ *     C64 LoRA output             6.3%     2451
+ *     plain generation, no LoRA   4.9%     2385
+ *
+ * **That is the difference between a look and a structure.** The LoRA's ground is ~2,451 colours
+ * differing by about one per channel — continuous noise that reads as stipple to the eye and to any
+ * operator that counts neighbour differences. Gold uses EIGHT colours, three covering 79%.
+ *
+ * Neither edge operator can see it. `edgePercent` above counts colour CHANGES, and its own note
+ * already concedes the limit: an unquantized airbrushed image reads near 100% for the same reason a
+ * checkerboard does — so on raw generator output, which is precisely the case that matters here, it
+ * SATURATES and cannot rank. A luminance-threshold operator fails differently: it is at the mercy of
+ * the threshold. Gold's two grass greens differ by 28.2 luminance points and a slightly softer
+ * dither by 3.2, so a fixed threshold of 25 calls the first texture and the second nothing.
+ * Concentration is immune to both — no threshold, no gradient — and separates the cases by more than
+ * an order of magnitude. Measured on this repo's own gitignored generator output with the rule
+ * below: `assets/raw/map-town/map-hearthollow.png` reads **2059.85** effective colours and
+ * `map-brackwater.png` **258.87**, against a Gold band of 2.6–3.8.
+ *
+ * ── FIRST TRAP: CONCENTRATION ALONE REWARDS FLATNESS ─────────────────────────────────────────────
+ * **A single-colour field has a top-three share of 100% — better than Gold's 78.9%.** A reading that
+ * reported the share and nothing else would say a blank green rectangle is the best map in the
+ * project. So the share is NOT the reading. The reading is the share expressed as a COUNT: the
+ * **effective number of colours**, `1 / Σ pᵢ²` over the patch's exact-RGB shares — the reciprocal of
+ * the Herfindahl concentration index, which is what "concentration" means when it is measured rather
+ * than eyeballed. It is 1.0 for one colour and N for N colours used evenly, and in between it is the
+ * number of colours the patch *effectively* spends. Both degenerate cases fall off opposite ends:
+ *
+ *     a flat fill        → 1.00      (the mathematical floor, BELOW the band)
+ *     Gold-like ground   → 2.6–3.8   (the band, derived below)
+ *     continuous noise   → hundreds  (far ABOVE the band)
+ *
+ * ── SECOND TRAP, AND THE REASON THERE IS A THIRD NUMBER: A HISTOGRAM IS BLIND TO ARRANGEMENT ─────
+ * **Three colours in LARGE FLAT PATCHES score identically to three colours INTERLEAVED PER PIXEL.**
+ * One of those is Gold's dithered grass; the other is a flat field with three regions in it. This is
+ * not an argument — it is measured below, over two synthetics built from the SAME index function so
+ * their histograms are the same to three decimal places:
+ *
+ *     pooled (8px blocks)      concentration 2.9985   distinct 3   top-three 100.00%   alternation  11.11%
+ *     interleaved (per pixel)  concentration 3.0000   distinct 3   top-three 100.00%   alternation 100.00%
+ *
+ * Concentration cannot tell them apart because concentration is a histogram, and a histogram does
+ * not know where the pixels are. So a third axis, and the one Gold's ground actually differs on:
+ *
+ *     **ALTERNATION — the percent of adjacent opaque pixel pairs (each pixel against its right and
+ *     its below neighbour) whose exact RGB values differ.**
+ *
+ * A patch reads as structured only when all three hold: **a small palette, held densely, and
+ * interleaved rather than pooled.** Drop any one and something worthless passes.
+ *
+ * This operator was validated before it was trusted, which is the rule that has caught four bad
+ * instruments in this file's history. Independently of the art session's own measurement, the median
+ * 64² patch over the eight Gen-2 captures reads **48.73%** here, against the **48.7%** they report
+ * for Gold new-bark ground and **53.2%** for a source that dithers well. Two operators, two
+ * sessions, one number — which is what the withdrawn edge figure in the section above did NOT do.
+ *
+ * ── WHAT ALTERNATION IS *NOT* ────────────────────────────────────────────────────────────────────
+ * It is a close relative of `edgePercent` and shares that operator's blind spot: it counts colour
+ * changes, so continuous noise reads near 100% on it (map-hearthollow's raw output: **98.87%**).
+ * **Alternation on its own is therefore as gameable as edge density and means nothing alone** — it
+ * is the axis concentration is blind to, and concentration is the axis it is blind to. That is why
+ * they are printed as a pair and why neither is printed without the other. It differs from
+ * `edgePercent` in scope rather than in kind: `edgePercent` is a whole-image pixel aggregate and is
+ * what the GOLD_EDGE band is derived from, while alternation is the median of the SAME 64² patches
+ * concentration is measured over, so the three numbers describe one patch and can be reasoned about
+ * together. A useful cross-read: `1 − 1/concentration` is the alternation the same histogram would
+ * give if its pixels were scattered at random — 70.6% for Gold's 3.4 effective colours, against the
+ * 48.7% Gold actually reads, so Gold's grass is a REGULAR weave, not a random one.
+ *
+ * ── THE SAMPLING RULE, AND ITS WEAKNESSES ────────────────────────────────────────────────────────
+ * The 78.9% figure came from a HAND-PICKED patch of open ground. A gate cannot hand-pick, and the
+ * choice is not neutral: taking the most concentrated patch rewards flat areas, and taking one fixed
+ * location may land on a building. So, for all three numbers alike:
+ *
+ *   **Tile the image into non-overlapping 64×64 patches anchored at (0,0), measure each over its
+ *   opaque pixels, and report the MEDIAN of each reading across patches.**
+ *
+ * The median is the point of it: the extremes at both ends are exactly the patches a hand-picker
+ * would be accused of choosing, and half the image has to move before a figure does.
+ *
+ * **Weakness, stated rather than papered over: the median patch is the map's most typical material,
+ * so this reports the texture of whatever the map is mostly made of and says nothing about
+ * composition.** On a map that is two-thirds open water it reports the water. That is the right
+ * failure to have — Gold's discipline lives in the ground, and the ground is what a median finds —
+ * but a map holding a beautifully dithered town in the corner of a flat field reads flat, and a map
+ * of nothing but ground reads exactly as well as a map with a town on it. Second weakness, in the
+ * other direction: two large flat regions inside one patch look to CONCENTRATION like two colours
+ * used densely. Alternation is what catches that one, which is the whole reason it exists; the
+ * median is what keeps boundary patches from dominating either figure.
+ *
+ * Three more limits worth naming. The right and bottom remainder shorter than a full patch is NOT
+ * sampled, so a strip up to 63px is unmeasured; over dozens of patches that does not move a median,
+ * and clipping partial patches instead would bias them low by measuring fewer pixels. Alternation is
+ * measured only over pairs where BOTH pixels are opaque, so a sprite's silhouette edge is not
+ * counted as texture. And 64px is 4×4 Gold tiles but only 2×2 of ours (`balance.map.tileStepPx` is
+ * 32 against Gen 2's 16), so our maps are read through a window covering a quarter as much content —
+ * fewer materials per patch, which pushes OUR numbers toward the flat end, not toward the band. The
+ * figure is fixed in pixels because that is what the settling measurement used, and a per-image tile
+ * size is not knowable for a reference capture without asserting one.
+ *
+ * **A whole-image aggregate is not this measurement**, and the numbers below are not the hand-picked
+ * ones: under this rule the eight Gen-2 captures read 2.62–3.80 effective colours and 28.72–64.24%
+ * alternation, and both bands are re-derived from them here exactly as the colour and texture bands
+ * are.
+ *
+ * ── AND BOTH ARE ADVISORY, FOR THE REASON THE OTHER TWO READINGS ARE ─────────────────────────────
+ * Any target figure can be hit by turning a knob while the picture gets worse, and the art session
+ * has already made that error three times in one night in its own lane. What is asserted is the
+ * INSTRUMENT — that it separates the four cases below, that neither a flat fill nor a pooled field
+ * can reach the band, and that a broken reading cannot look like a pass. `1 / Σ pᵢ²` is ≥ 1 for any
+ * non-empty patch, so a concentration below 1 is not a flatter picture; it is a broken instrument,
+ * and the advisory asserts that floor per file.
+ * ──────────────────────────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The patch the settling measurement used. Not a gameplay constant, so G11 does not reach it — same
+ * standing as `MIN_DISTINCT_NATIVE` and the Gold bands, argued at the vacuity floors below.
+ */
+const GROUND_PATCH_PX = 64;
+
+interface PatchProfile {
+  /** `1 / Σ pᵢ²` over exact-RGB shares: the effective number of colours the patch spends. */
+  effective: number;
+  /** Percent of adjacent opaque pairs (right and below) whose exact RGB values differ. */
+  alternationPct: number;
+  /** Percent held by the three most common colours. A reading aid; see the first trap above. */
+  topThreePct: number;
+}
+
+/** One patch's ground profile over OPAQUE pixels, or `null` when the patch has none. */
+function patchProfile(
+  data: Buffer,
+  width: number,
+  height: number,
+  x0: number,
+  y0: number,
+  size: number,
+): PatchProfile | null {
+  const xEnd = Math.min(x0 + size, width);
+  const yEnd = Math.min(y0 + size, height);
+  const opaqueAt = (x: number, y: number): boolean => data[(y * width + x) * 4 + 3]! >= 128;
+  const rgbAt = (x: number, y: number): number => {
+    const i = (y * width + x) * 4;
+    return (data[i]! << 16) | (data[i + 1]! << 8) | data[i + 2]!;
+  };
+
+  const counts = new Map<number, number>();
+  let opaque = 0;
+  let pairs = 0;
+  let differing = 0;
+  for (let y = y0; y < yEnd; y += 1) {
+    for (let x = x0; x < xEnd; x += 1) {
+      if (!opaqueAt(x, y)) continue;
+      opaque += 1;
+      const c = rgbAt(x, y);
+      counts.set(c, (counts.get(c) ?? 0) + 1);
+      // Pairs stay INSIDE the patch, so a patch's alternation is a property of the patch and the
+      // grid cannot leak one patch's material into its neighbour's reading.
+      if (x + 1 < xEnd && opaqueAt(x + 1, y)) {
+        pairs += 1;
+        if (rgbAt(x + 1, y) !== c) differing += 1;
+      }
+      if (y + 1 < yEnd && opaqueAt(x, y + 1)) {
+        pairs += 1;
+        if (rgbAt(x, y + 1) !== c) differing += 1;
+      }
+    }
+  }
+  if (opaque === 0) return null;
+
+  let sumSquares = 0;
+  for (const n of counts.values()) {
+    const p = n / opaque;
+    sumSquares += p * p;
+  }
+  const ranked = [...counts.values()].sort((a, b) => b - a);
+  const topThree = (ranked[0] ?? 0) + (ranked[1] ?? 0) + (ranked[2] ?? 0);
+  return {
+    effective: 1 / sumSquares,
+    // A one-pixel opaque island has no pair to compare; 0% is the honest reading, not a divide.
+    alternationPct: pairs === 0 ? 0 : (100 * differing) / pairs,
+    topThreePct: (100 * topThree) / opaque,
+  };
+}
+
+const median = (vs: readonly number[]): number => {
+  if (vs.length === 0) return Number.NaN;
+  const s = [...vs].sort((a, b) => a - b);
+  const mid = s.length >> 1;
+  return s.length % 2 === 1 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
+};
+
+interface GroundReading {
+  /** Median patch concentration — `1 / Σ pᵢ²`, effective colours. */
+  effective: number;
+  /** Median patch alternation — percent of adjacent opaque pairs that differ. */
+  alternationPct: number;
+  /** Median patch top-three share. Printed beside the other two, never instead of them. */
+  topThreePct: number;
+  /** How many patches the medians were taken over, so a one-patch reading is visible as one. */
+  patches: number;
+}
+
+/**
+ * The median 64×64 patch's ground reading. An image too small for one whole patch is measured as a
+ * single patch covering all of it — a 32×48 sprite is legitimate art and must not read as "no
+ * measurement", which is the shape a vacuous pass takes.
+ */
+function groundReading(data: Buffer, width: number, height: number): GroundReading {
+  const profiles: PatchProfile[] = [];
+  if (width < GROUND_PATCH_PX || height < GROUND_PATCH_PX) {
+    const p = patchProfile(data, width, height, 0, 0, Math.max(width, height));
+    if (p) profiles.push(p);
+  } else {
+    for (let y = 0; y + GROUND_PATCH_PX <= height; y += GROUND_PATCH_PX) {
+      for (let x = 0; x + GROUND_PATCH_PX <= width; x += GROUND_PATCH_PX) {
+        const p = patchProfile(data, width, height, x, y, GROUND_PATCH_PX);
+        if (p) profiles.push(p);
+      }
+    }
+  }
+  return {
+    effective: median(profiles.map((p) => p.effective)),
+    alternationPct: median(profiles.map((p) => p.alternationPct)),
+    topThreePct: median(profiles.map((p) => p.topThreePct)),
+    patches: profiles.length,
+  };
+}
+
+/** The definitions that travel with every number this file prints — see header note 8. */
+const OPERATOR_LEGEND = [
+  '  operators, so no figure here is quotable without one:',
+  '    colours  = distinct exact-RGB colours over ALL opaque pixels of the whole image',
+  '    texture  = percent of whole-image pixels differing from the pixel to their right or below',
+  `    conc     = MEDIAN over non-overlapping ${GROUND_PATCH_PX}² patches of 1/Σpᵢ² (effective colours; 1.00 = flat)`,
+  `    alt      = MEDIAN over the same patches of the percent of adjacent opaque pairs that differ`,
+  '    top3     = MEDIAN over the same patches of the share held by the three commonest colours',
+].join('\n');
+
 /**
  * Decode one shipped PNG. Throws rather than returning an empty census for every way a file can be
  * absent or unreadable, so no caller can loop over nothing and call the silence a pass.
@@ -315,6 +585,7 @@ async function census(repoRelative: string): Promise<Census> {
     throw new Error(`${repoRelative} (${bytes} bytes) did not decode as a PNG: ${String(e)}`);
   }
 
+  const ground = groundReading(data, info.width, info.height);
   const c: Census = {
     path: repoRelative,
     bytes,
@@ -324,6 +595,10 @@ async function census(repoRelative: string): Promise<Census> {
     alphaValues: new Set(),
     swatches: new Map(),
     edgePct: edgePercent(data, info.width, info.height),
+    conc: ground.effective,
+    altPct: ground.alternationPct,
+    concTopThreePct: ground.topThreePct,
+    concPatches: ground.patches,
   };
   for (let i = 0; i < data.length; i += 4) {
     c.alphaValues.add(data[i + 3]!);
@@ -502,11 +777,23 @@ const MIN_DISTINCT_NATIVE = 8;
  * **Gold never uses a flat fill anywhere.** Grass is a dense checkerboard between two greens, paths
  * are a fine dot pattern, tree masses are a repeating dark/light weave — and their measurement is
  * that the texture is in the GROUND, not in the objects: a 32×32 tile of plain New Bark grass, seven
- * colours and not one keyline pixel, tiled to 1024², carries **43.59%** of their whole-map **47.51%**
- * on its own, against **8.83%** for our best output. **Those four figures are theirs and were taken
- * with a different operator from this file's** — do not compare them to the numbers printed below;
- * the band here is derived from the same reference PNGs re-measured with the operator above, so it is
- * internally consistent, which is the property that makes it readable.
+ * colours and not one keyline pixel, tiled to 1024², carries ~~43.59%~~ of their whole-map ~~47.51%~~
+ * on its own, against ~~8.83%~~ for our best output.
+ *
+ * ⚠ **THOSE FIGURES ARE WITHDRAWN AS UNSOURCED — struck rather than deleted, so the trail survives.**
+ * Their author cannot reproduce 47.51% at any threshold and has withdrawn it pending republication
+ * WITH THE OPERATOR ATTACHED. An independent re-measurement of the same eight captures reads
+ * **50.4–78.8% at 1:1 native** and **30.3–51.5% density-matched at 2×** — two answers for one
+ * property, which is what a figure quoted without its instrument always produces. It may come back
+ * sound; until it does, do not cite it, do not compare anything to it, and do not derive from it.
+ *
+ * **What survived and what did not, and why, is the lesson worth keeping:** the COLOUR figures over
+ * these same eight captures — 12–18, mean 16.0 — reproduce EXACTLY, and `GOLD_EDGE_LOW/HIGH/MEAN`
+ * below are derived from THIS FILE's own operator over the same PNGs and re-asserted against them
+ * every run, so they are unaffected and must not be touched. The derived constants survived and the
+ * quoted one did not, because one carries its instrument with it and the other does not. Every
+ * number this file emits therefore prints its operator's definition beside it.
+ *
  * `tools/artverify/ground-comparison.png` is 96 native pixels of Gold ground against ours at 6×, and
  * it is the one artefact in this finding a number cannot substitute for. Look at it.
  *
@@ -515,16 +802,17 @@ const MIN_DISTINCT_NATIVE = 8;
  *   **B — a per-map colour subset buys COLOUR DISCIPLINE.** It does nothing to edge density.
  * Measured by the art session, each disproving the other's sufficiency: dither at amplitude 45
  * without the subset → **40.02% in 43 colours**; the subset without dither → **16 colours at
- * 12.88%**; both together → **44.74% in 16**, against Gold's 47.51% in 17. Do one and the map is
- * still wrong in the other axis, and the number you were watching will have improved.
+ * 12.88%**; both together → **44.74% in 16**, against ~~Gold's 47.51% in 17~~ — that last comparison
+ * is the WITHDRAWN figure above and carries no weight; the colour half of it (17) still does. Do one
+ * and the map is still wrong in the other axis, and the number you were watching will have improved.
  *
  * ── AND IT IS ADVISORY, MORE FIRMLY THAN THE COLOUR COUNT IS ─────────────────────────────────────
  * **An edge-density figure is even more gameable than a colour count**, because the art session
  * measured the response to dither amplitude as near-linear — 0 → 12.88%, 24 → 24.09%, 40 → 40.02%,
  * 56 → 63.77% — so a generator can be tuned to ANY figure you name. They have already hit the failure
  * that implies: applied globally the dither speckles roofs and walls, so a thatched roof comes out
- * dirty rather than textured. **A map that reached 47% by ruining its buildings would pass a hard
- * assertion on this number.** That is the clearest worked example this project has of the §16
+ * dirty rather than textured. **A map that reached the band by ruining its buildings would pass a
+ * hard assertion on this number.** That is the clearest worked example this project has of the §16
  * standing caution — two numbers both moving the right way while the artefact gets worse — so this
  * reading fails nothing, and the control below binds the INSTRUMENT instead.
  * ──────────────────────────────────────────────────────────────────────────────────────────────── */
@@ -535,18 +823,22 @@ interface ReferenceCapture {
   colours: number;
   /** Percent of pixels differing from the pixel right or below — `edgePercent`, not §8.2's Sobel. */
   edge: number;
+  /** Median 64×64 patch's effective colour count — `groundReading().effective`. */
+  conc: number;
+  /** Median 64×64 patch's alternation percent — `groundReading().alternationPct`. */
+  alt: number;
 }
 
-/** Gen 2 (Gold/Silver/Crystal), native size, measured 2026-08-27. Both bands are derived from these. */
+/** Gen 2 (Gold/Silver/Crystal), native size, measured 2026-08-27. All four bands come from these. */
 const GOLD_CAPTURES: readonly ReferenceCapture[] = [
-  { file: 'assets/reference/gen2/johto-route-29-gsc.png', colours: 12, edge: 78.65 },
-  { file: 'assets/reference/gen2/johto-route-42-gsc.png', colours: 13, edge: 64.51 },
-  { file: 'assets/reference/gen2/azalea-town-gsc.png', colours: 15, edge: 71.32 },
-  { file: 'assets/reference/gen2/new-bark-town-gsc.png', colours: 17, edge: 58.88 },
-  { file: 'assets/reference/gen2/violet-city-gs.png', colours: 17, edge: 67.73 },
-  { file: 'assets/reference/gen2/cherrygrove-city-gsc.png', colours: 18, edge: 57.68 },
-  { file: 'assets/reference/gen2/johto-route-32-gsc.png', colours: 18, edge: 63.81 },
-  { file: 'assets/reference/gen2/olivine-city-gs.png', colours: 18, edge: 51.03 },
+  { file: 'assets/reference/gen2/johto-route-29-gsc.png', colours: 12, edge: 78.65, conc: 3.67, alt: 64.24 },
+  { file: 'assets/reference/gen2/johto-route-42-gsc.png', colours: 13, edge: 64.51, conc: 2.97, alt: 53.19 },
+  { file: 'assets/reference/gen2/azalea-town-gsc.png', colours: 15, edge: 71.32, conc: 3.8, alt: 61.04 },
+  { file: 'assets/reference/gen2/new-bark-town-gsc.png', colours: 17, edge: 58.88, conc: 3.59, alt: 36.57 },
+  { file: 'assets/reference/gen2/violet-city-gs.png', colours: 17, edge: 67.73, conc: 3.72, alt: 52.54 },
+  { file: 'assets/reference/gen2/cherrygrove-city-gsc.png', colours: 18, edge: 57.68, conc: 3.64, alt: 41.0 },
+  { file: 'assets/reference/gen2/johto-route-32-gsc.png', colours: 18, edge: 63.81, conc: 3.37, alt: 52.54 },
+  { file: 'assets/reference/gen2/olivine-city-gs.png', colours: 18, edge: 51.03, conc: 2.62, alt: 28.72 },
 ];
 
 /**
@@ -556,8 +848,8 @@ const GOLD_CAPTURES: readonly ReferenceCapture[] = [
  * fifteen" would satisfy the Gold rows and fail these.
  */
 const RSE_CAPTURES: readonly ReferenceCapture[] = [
-  { file: 'assets/reference/gen3/fortree-city-rs.png', colours: 49, edge: 73.25 },
-  { file: 'assets/reference/gen3/lavaridge-town-rs.png', colours: 49, edge: 50.50 },
+  { file: 'assets/reference/gen3/fortree-city-rs.png', colours: 49, edge: 73.25, conc: 5.98, alt: 53.22 },
+  { file: 'assets/reference/gen3/lavaridge-town-rs.png', colours: 49, edge: 50.50, conc: 6.27, alt: 34.29 },
 ];
 
 /**
@@ -579,8 +871,51 @@ const GOLD_EDGE_LOW = 51.0;
 const GOLD_EDGE_HIGH = 78.7;
 const GOLD_EDGE_MEAN = 64.2;
 
+/**
+ * The colour-concentration band, same eight captures, same day, same outward rounding — effective
+ * colours per median 64×64 patch, from the measured extremes 2.62 and 3.80.
+ *
+ * **This band is two-sided in a way the other two are not, and that is the whole design.** A number
+ * BELOW it is a flat fill — a single colour reads exactly 1.00, the mathematical floor of
+ * `1 / Σ pᵢ²` — and a number far above it is continuous noise wearing texture's clothes, which is
+ * what an unquantized generator returns (2059.85 measured on this repo's own raw map output). A
+ * naive concentration reading — "share held by the top three colours" — has only ONE bad end: a
+ * blank rectangle scores 100% and wins. Expressing the same concentration as an effective COUNT is
+ * what puts the blank rectangle at the bottom instead of the top, and it is the reason the reading
+ * is a count rather than the percentage every measurement above is quoted in.
+ *
+ * Same fossil risk as the other two bands and the same guard: the literals are asserted against
+ * `GOLD_CAPTURES` below, and the captures are re-measured against the band.
+ */
+const GOLD_CONC_LOW = 2.6;
+const GOLD_CONC_HIGH = 3.8;
+const GOLD_CONC_MEAN = 3.42;
+
+/**
+ * The alternation band, same eight captures, same rule, same outward rounding — percent of adjacent
+ * opaque pairs that differ, in the median 64² patch, from the measured extremes 28.72 and 64.24.
+ *
+ * **The mean is the corroborated number here, not the extremes.** 48.73 is what this operator makes
+ * of the eight Gen-2 captures; 48.7 is what the art session independently reports for Gold new-bark
+ * ground with an operator of their own. Two instruments agreeing to a tenth of a point is the thing
+ * the withdrawn edge figure never managed, and `the alternation operator reproduces the figure it
+ * was validated against` below holds them together so a silent drift in either cannot pass.
+ *
+ * The spread is wide (28.7–64.3) because these are whole maps, not hand-picked ground: Olivine is
+ * mostly flat sea and pier, Route 29 is almost all dithered grass. That width is why this band flags
+ * far less than the concentration one does, and why it is a reading aid rather than a target.
+ */
+const GOLD_ALT_LOW = 28.7;
+const GOLD_ALT_HIGH = 64.3;
+const GOLD_ALT_MEAN = 48.73;
+
+/** What the art session reports for Gold ground, measured with a different operator. */
+const REPORTED_GOLD_ALT = 48.7;
+
 const bandLabel = `${GOLD_BAND_LOW}–${GOLD_BAND_HIGH}`;
 const edgeBandLabel = `${GOLD_EDGE_LOW.toFixed(0)}–${GOLD_EDGE_HIGH.toFixed(0)}%`;
+const concBandLabel = `${GOLD_CONC_LOW.toFixed(1)}–${GOLD_CONC_HIGH.toFixed(1)}`;
+const altBandLabel = `${GOLD_ALT_LOW.toFixed(1)}–${GOLD_ALT_HIGH.toFixed(1)}%`;
 
 const outsideMark = (v: number, lo: number, hi: number): string => (v > hi ? ' ▲ ' : v < lo ? ' ▼ ' : ' = ');
 
@@ -594,12 +929,29 @@ function edgeFlag(c: Census, isMap: boolean): string {
   return isMap ? outsideMark(c.edgePct, GOLD_EDGE_LOW, GOLD_EDGE_HIGH) : '   ';
 }
 
+/** The same, for colour concentration. ▼ here means FLATTER than Gold, ▲ means mushier. */
+function concFlag(c: Census, isMap: boolean): string {
+  return isMap ? outsideMark(c.conc, GOLD_CONC_LOW, GOLD_CONC_HIGH) : '   ';
+}
+
+/** The same, for alternation. ▼ means POOLED into regions where Gold interleaves. */
+function altFlag(c: Census, isMap: boolean): string {
+  return isMap ? outsideMark(c.altPct, GOLD_ALT_LOW, GOLD_ALT_HIGH) : '   ';
+}
+
 /** A reference capture measured exactly the way `census` measures a shipped asset. */
 async function referenceColours(
   file: string,
-): Promise<{ colours: number; edge: number; width: number; height: number }> {
+): Promise<{ colours: number; edge: number; conc: number; alt: number; width: number; height: number }> {
   const c = await census(file);
-  return { colours: c.swatches.size, edge: c.edgePct, width: c.width, height: c.height };
+  return {
+    colours: c.swatches.size,
+    edge: c.edgePct,
+    conc: c.conc,
+    alt: c.altPct,
+    width: c.width,
+    height: c.height,
+  };
 }
 
 /** The map assets, by what `data/nodes/*.json` declares — never by directory name or by pixel size. */
@@ -719,6 +1071,72 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
       `the published edge-band mean ${GOLD_EDGE_MEAN} disagrees with the recorded captures ` +
         `(${edges.map((e) => e.toFixed(2)).join('/')})`,
     ).toBe(GOLD_EDGE_MEAN);
+
+    // The colour-concentration band, same table, same guard, same outward rounding.
+    const concs = GOLD_CAPTURES.map((r) => r.conc);
+    const concMean = concs.reduce((a, b) => a + b, 0) / concs.length;
+    expect(
+      Math.floor(Math.min(...concs) * 10) / 10,
+      `the published concentration floor ${GOLD_CONC_LOW} is not the lowest recorded capture, rounded down`,
+    ).toBe(GOLD_CONC_LOW);
+    expect(
+      Math.ceil(Math.max(...concs) * 10) / 10,
+      `the published concentration ceiling ${GOLD_CONC_HIGH} is not the highest recorded capture, rounded up`,
+    ).toBe(GOLD_CONC_HIGH);
+    expect(
+      Number(concMean.toFixed(2)),
+      `the published concentration mean ${GOLD_CONC_MEAN} disagrees with the recorded captures ` +
+        `(${concs.map((c) => c.toFixed(2)).join('/')})`,
+    ).toBe(GOLD_CONC_MEAN);
+
+    // The band must have somewhere to be wrong in BOTH directions. A floor at or below 1.0 would
+    // put a flat fill inside it — the first trap THE GROUND READING is built around — and the whole
+    // reason concentration is expressed as a count and not as the top-three share.
+    expect(
+      GOLD_CONC_LOW,
+      'the concentration floor is at or below 1.0, which is what a single flat colour reads. A band ' +
+        'a blank rectangle sits inside is the vacuous pass this reading exists to avoid.',
+    ).toBeGreaterThan(1);
+
+    // The alternation band, same table, same guard, same outward rounding.
+    const alts = GOLD_CAPTURES.map((r) => r.alt);
+    const altMean = alts.reduce((a, b) => a + b, 0) / alts.length;
+    expect(
+      Math.floor(Math.min(...alts) * 10) / 10,
+      `the published alternation floor ${GOLD_ALT_LOW} is not the lowest recorded capture, rounded down`,
+    ).toBe(GOLD_ALT_LOW);
+    expect(
+      Math.ceil(Math.max(...alts) * 10) / 10,
+      `the published alternation ceiling ${GOLD_ALT_HIGH} is not the highest recorded capture, rounded up`,
+    ).toBe(GOLD_ALT_HIGH);
+    expect(
+      Number(altMean.toFixed(2)),
+      `the published alternation mean ${GOLD_ALT_MEAN} disagrees with the recorded captures ` +
+        `(${alts.map((a) => a.toFixed(2)).join('/')})`,
+    ).toBe(GOLD_ALT_MEAN);
+
+    // A floor at or below zero would put a flat fill inside the alternation band too — the same
+    // vacuity in the other axis, and worth asserting separately because the two bands are derived
+    // independently and either could be re-derived without the other.
+    expect(
+      GOLD_ALT_LOW,
+      'the alternation floor is at or below 0%, which is what a flat fill and a pooled field read',
+    ).toBeGreaterThan(0);
+  });
+
+  it('the alternation operator reproduces the figure it was validated against', () => {
+    // Two operators, two sessions, one number — the property the withdrawn edge figure in the
+    // GROUND-TEXTURE section above never had. This asserts the AGREEMENT, not the value: if either
+    // side re-measures and the two stop matching, that is exactly when somebody needs to look,
+    // because a figure whose instrument has silently moved is how this project got two answers for
+    // one property twice already.
+    expect(
+      Math.abs(GOLD_ALT_MEAN - REPORTED_GOLD_ALT),
+      `this file's alternation operator makes ${GOLD_ALT_MEAN}% of the eight Gen-2 captures; the art ` +
+        `session independently reports ${REPORTED_GOLD_ALT}% for Gold ground with an operator of ` +
+        'their own. They no longer agree. Re-measure BOTH and republish each with its operator ' +
+        'attached before either figure is quoted anywhere — do not simply move this constant.',
+    ).toBeLessThan(2);
   });
 
   it('the ground-texture reading discriminates — and §8.2\'s Sobel, measured, does NOT', () => {
@@ -778,6 +1196,185 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     ).toBeLessThan(1);
   });
 
+  it('THE GROUND READING discriminates over four cases — flat, pooled, interleaved, and Gold', () => {
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    // THE MOST IMPORTANT TEST IN THIS FILE. It is the only part that proves the reading can see
+    // what it claims to measure, and it exists because FOUR instruments have now been proposed for
+    // this property and three of them were wrong:
+    //
+    //   1. §8.2's Sobel                — blind to a one-pixel dither (asserted, one test above)
+    //   2. luminance-threshold edges   — at the mercy of the threshold; 28.2 points vs 3.2
+    //   3. colour concentration alone  — blind to ARRANGEMENT, which is cases B and C below
+    //   4. the three together          — what ships, and what these four cases bind
+    //
+    // Case B against case C is the one that killed instrument 3, and it is built so that it cannot
+    // be argued with: both images come from the SAME index function over the same three colours,
+    // evaluated on 8px blocks for B and per pixel for C. Their histograms are therefore the same to
+    // three decimal places, so concentration, distinct count and top-three share are all IDENTICAL,
+    // and only the arrangement differs. One of them is a flat field with three regions in it; the
+    // other is what Gold's grass does.
+    // ═══════════════════════════════════════════════════════════════════════════════════════════
+    const N = 256;
+    const GROUND: ReadonlyArray<readonly [number, number, number]> = [
+      [58, 90, 42],
+      [86, 122, 60],
+      [40, 72, 32],
+    ];
+    /** Deterministic, never Math.random (G11). Each colour takes a third of any full period. */
+    const pick = (u: number, v: number): readonly [number, number, number] => GROUND[(u + 2 * v) % 3]!;
+    const BLOCK_PX = 8;
+    const paint = (kind: 'flat' | 'pooled' | 'interleaved'): Buffer => {
+      const b = Buffer.alloc(N * N * 4);
+      for (let y = 0; y < N; y += 1) {
+        for (let x = 0; x < N; x += 1) {
+          const c =
+            kind === 'flat'
+              ? GROUND[0]!
+              : kind === 'pooled'
+                ? pick(Math.floor(x / BLOCK_PX), Math.floor(y / BLOCK_PX))
+                : pick(x, y);
+          const i = (y * N + x) * 4;
+          b[i] = c[0];
+          b[i + 1] = c[1];
+          b[i + 2] = c[2];
+          b[i + 3] = 255;
+        }
+      }
+      return b;
+    };
+
+    // Case D is not a synthetic: it is the eight real Gen-2 captures, already re-measured against
+    // the published band by `the reference captures still measure what the band quotes them as
+    // measuring`. Here it enters as the recorded table, which that test holds to the live pixels.
+    const goldAlts = GOLD_CAPTURES.map((r) => r.alt);
+    const goldConcs = GOLD_CAPTURES.map((r) => r.conc);
+
+    const flat = groundReading(paint('flat'), N, N);
+    const pooled = groundReading(paint('pooled'), N, N);
+    const interleaved = groundReading(paint('interleaved'), N, N);
+
+    /* ── A. FLAT FILL — one colour ────────────────────────────────────────────────────────────── */
+    expect(flat.effective, 'A flat fill: one colour must read exactly 1.00 effective colours').toBeCloseTo(1, 6);
+    expect(flat.alternationPct, 'A flat fill: no two neighbours differ, so alternation must be 0%').toBeCloseTo(0, 6);
+    expect(
+      flat.effective,
+      `A flat fill reads ${flat.effective.toFixed(2)} effective colours, inside the Gold band ` +
+        `${concBandLabel}. A blank rectangle passing as Gold-like ground is the degenerate case this ` +
+        'reading exists to refuse.',
+    ).toBeLessThan(GOLD_CONC_LOW);
+    expect(flat.alternationPct, 'A flat fill sits inside the alternation band').toBeLessThan(GOLD_ALT_LOW);
+    // The inversion that is the whole reason the published reading is a COUNT and not the share the
+    // settling measurement was quoted in: on the SHARE the blank rectangle wins outright.
+    expect(
+      flat.topThreePct,
+      'a flat fill no longer scores higher than a real ground on the top-three SHARE. If that is ' +
+        'genuinely true the first trap has changed shape — re-measure before touching anything, ' +
+        'because the share being maximal on a blank field is why the reading is an effective COUNT.',
+    ).toBeGreaterThanOrEqual(interleaved.topThreePct);
+    expect(flat.effective, 'and on the published reading the blank field must come LAST').toBeLessThan(
+      interleaved.effective,
+    );
+
+    /* ── B vs C. SAME HISTOGRAM, OPPOSITE ARRANGEMENT ─────────────────────────────────────────── */
+    // First prove the premise: if these two did NOT share a histogram, the comparison after it would
+    // prove nothing at all.
+    expect(
+      Math.abs(pooled.effective - interleaved.effective),
+      `the pooled (${pooled.effective.toFixed(4)}) and interleaved (${interleaved.effective.toFixed(4)}) ` +
+        'synthetics no longer share a histogram, so they no longer isolate ARRANGEMENT. Rebuild them ' +
+        'from one index function before reading anything below.',
+    ).toBeLessThan(0.01);
+    expect(pooled.topThreePct, 'pooled and interleaved must have the same top-three share').toBeCloseTo(
+      interleaved.topThreePct,
+      6,
+    );
+
+    // …and now the failure that concentration alone cannot see. Three colours in large flat patches
+    // score as well as three colours interleaved per pixel on EVERY histogram measure; alternation
+    // is the only one of the three numbers that separates them, and it separates them by ~9×.
+    expect(
+      pooled.alternationPct,
+      `three colours pooled into ${BLOCK_PX}px blocks read ${pooled.alternationPct.toFixed(2)}% ` +
+        'alternation — a flat field with regions in it must read LOW, because its neighbours mostly ' +
+        'match. This is the case that disqualified concentration on its own.',
+    ).toBeLessThan(20);
+    expect(
+      interleaved.alternationPct,
+      `the same three colours interleaved per pixel read ${interleaved.alternationPct.toFixed(2)}%; a ` +
+        'weave whose every neighbour differs must read HIGH',
+    ).toBeGreaterThan(80);
+    expect(
+      interleaved.alternationPct / Math.max(pooled.alternationPct, 0.01),
+      'pooled and interleaved are not separated by a wide margin; alternation is not seeing ' +
+        'arrangement, and with it blind the reading is back to being a histogram',
+    ).toBeGreaterThan(4);
+
+    /* ── D. GOLD'S OWN CAPTURES ───────────────────────────────────────────────────────────────── */
+    // Gold must land between the two synthetic extremes on alternation — a real dithered ground is
+    // neither a pooled field nor a perfect checkerboard — and its concentration must sit in the
+    // small-palette regime rather than at the flat floor.
+    const goldAltMean = goldAlts.reduce((a, b) => a + b, 0) / goldAlts.length;
+    expect(
+      goldAltMean,
+      `Gold's eight captures average ${goldAltMean.toFixed(2)}% alternation, at or below the ` +
+        `${pooled.alternationPct.toFixed(2)}% a POOLED field reads. Either the captures moved or the ` +
+        'operator is not measuring arrangement.',
+    ).toBeGreaterThan(pooled.alternationPct);
+    expect(
+      goldAltMean,
+      `Gold averages ${goldAltMean.toFixed(2)}%, at or above the ${interleaved.alternationPct.toFixed(2)}% ` +
+        'of a per-pixel weave. Real ground is not a perfect checkerboard; a reading that says it is ' +
+        'has saturated.',
+    ).toBeLessThan(interleaved.alternationPct);
+    expect(
+      Math.min(...goldConcs),
+      'a Gold capture reads at or below the flat floor on concentration',
+    ).toBeGreaterThan(flat.effective);
+
+    /* ── AND A BROKEN READING MUST NOT LOOK LIKE A PASS ───────────────────────────────────────── */
+    // `1 / Σ pᵢ²` is ≥ 1 for any non-empty patch, so anything below 1 — 0.0 most of all — is the
+    // instrument having failed, never a flatter picture. The advisory asserts the same floor per
+    // file. Alternation has no such algebraic floor above zero, which is exactly why a constant 0.0
+    // there is caught by case C above instead.
+    for (const [label, r] of [['flat', flat], ['pooled', pooled], ['interleaved', interleaved]] as const) {
+      expect(Number.isFinite(r.effective), `${label}: concentration is not a finite number`).toBe(true);
+      expect(Number.isFinite(r.alternationPct), `${label}: alternation is not a finite number`).toBe(true);
+      expect(
+        r.effective,
+        `${label}: concentration below 1.0 is a broken instrument, not a flat image`,
+      ).toBeGreaterThanOrEqual(1);
+      expect(r.patches, `${label}: measured over zero patches`).toBeGreaterThan(0);
+    }
+
+    const row = (label: string, conc: number, alt: number, tail: string): string =>
+      `  ${label.padEnd(34)} conc ${conc.toFixed(4).padStart(8)}  alt ${alt.toFixed(2).padStart(6)}%  ${tail}\n`;
+    console.log(
+      '\nasset-palette-contract — GROUND READING, the four cases\n' +
+        row('A flat fill', flat.effective, flat.alternationPct, `top3 ${flat.topThreePct.toFixed(2)}%`) +
+        row(
+          `B three colours, ${BLOCK_PX}px blocks`,
+          pooled.effective,
+          pooled.alternationPct,
+          `top3 ${pooled.topThreePct.toFixed(2)}%`,
+        ) +
+        row(
+          'C the same three, interleaved',
+          interleaved.effective,
+          interleaved.alternationPct,
+          `top3 ${interleaved.topThreePct.toFixed(2)}%`,
+        ) +
+        row(
+          `D Gold, ${GOLD_CAPTURES.length} captures (means)`,
+          GOLD_CONC_MEAN,
+          goldAltMean,
+          `band ${concBandLabel} / ${altBandLabel}`,
+        ) +
+        '  B and C share a histogram to three decimals. Concentration cannot tell them apart;\n' +
+        '  alternation separates them ~9×. That is why the reading is three numbers and not one.\n' +
+        OPERATOR_LEGEND +
+        '\n',
+    );
+  });
   it('the reference captures still measure what the band quotes them as measuring', async () => {
     // THE ONE FAILURE THAT ACTUALLY HAPPENED. The first captures of these maps were browser
     // screenshots, resampled to 642×574 from a 320×288 source — not even a clean 2× — and they held
@@ -801,7 +1398,28 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
       const m = await referenceColours(ref.file);
       checked.push(
         `${ref.file} ${m.width}×${m.height} ${m.colours}c (rec ${ref.colours}) ` +
-          `edge ${m.edge.toFixed(2)}% (rec ${ref.edge.toFixed(2)}%)`,
+          `edge ${m.edge.toFixed(2)}% (rec ${ref.edge.toFixed(2)}%) ` +
+          `conc ${m.conc.toFixed(2)} (rec ${ref.conc.toFixed(2)}) ` +
+          `alt ${m.alt.toFixed(2)}% (rec ${ref.alt.toFixed(2)}%)`,
+      );
+      expect(
+        m.conc,
+        `${ref.file} reads ${m.conc.toFixed(2)} effective colours per median patch, outside the band ` +
+          `${concBandLabel} the eight Gold captures define. Same rule as the other two bands: either ` +
+          'this capture was refetched from a different source, or the band needs re-deriving.',
+      ).toBeGreaterThanOrEqual(GOLD_CONC_LOW);
+      expect(m.conc, `${ref.file}: ${m.conc.toFixed(2)} effective colours, above ${concBandLabel}`).toBeLessThanOrEqual(
+        GOLD_CONC_HIGH,
+      );
+      expect(
+        m.alt,
+        `${ref.file} reads ${m.alt.toFixed(2)}% alternation, outside the band ${altBandLabel} the eight ` +
+          'Gold captures define. This is also the guard on the cross-operator agreement: the band ' +
+          `mean ${GOLD_ALT_MEAN}% is what matches the ${REPORTED_GOLD_ALT}% reported independently, ` +
+          'so a capture drifting here moves a figure two sessions currently agree on.',
+      ).toBeGreaterThanOrEqual(GOLD_ALT_LOW);
+      expect(m.alt, `${ref.file}: ${m.alt.toFixed(2)}% alternation, above ${altBandLabel}`).toBeLessThanOrEqual(
+        GOLD_ALT_HIGH,
       );
       expect(
         m.edge,
@@ -835,7 +1453,9 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
       const m = await referenceColours(ref.file);
       checked.push(
         `${ref.file} ${m.width}×${m.height} ${m.colours}c (rec ${ref.colours}) ` +
-          `edge ${m.edge.toFixed(2)}% (rec ${ref.edge.toFixed(2)}%)`,
+          `edge ${m.edge.toFixed(2)}% (rec ${ref.edge.toFixed(2)}%) ` +
+          `conc ${m.conc.toFixed(2)} (rec ${ref.conc.toFixed(2)}) ` +
+          `alt ${m.alt.toFixed(2)}% (rec ${ref.alt.toFixed(2)}%)`,
       );
       expect(
         m.colours,
@@ -843,16 +1463,37 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
           'times the Gold mean. If this one reads inside the Gold band, the counter is not ' +
           'discriminating and every figure in the advisory is suspect.',
       ).toBeGreaterThan(GOLD_BAND_HIGH);
+      // The same control for the concentration reading, on the same footing. Gen 3 spends more
+      // colour per patch than Gen 2 does; an instrument that answered "about three" for every piece
+      // of pixel art would satisfy all eight Gold rows and be worthless.
+      expect(
+        m.conc,
+        `${ref.file} reads ${m.conc.toFixed(2)} effective colours, inside the Gold band ` +
+          `${concBandLabel}. Gen 3 was measured at ${ref.conc.toFixed(2)}; if it now reads Gold-like, ` +
+          'this reading is not discriminating on real art and the advisory column is suspect.',
+      ).toBeGreaterThan(GOLD_CONC_HIGH);
+      // **Gen 3 is NOT a control for ALTERNATION, and pretending otherwise would be the same defect
+      // this file keeps catching.** RSE reads 34.29% and 53.22% — squarely inside the Gold band —
+      // because RSE dithers its ground too; the two generations differ in how much COLOUR they
+      // spend, not in whether they interleave it. So nothing is asserted here on that axis, and the
+      // control for alternation is the pooled-vs-interleaved synthetic pair instead, which isolates
+      // arrangement by holding the histogram fixed. A control that does not discriminate is not a
+      // weaker control, it is a false one.
     }
 
     console.log(
       `\nasset-palette-contract — reference band ${bandLabel} (mean ${GOLD_BAND_MEAN.toFixed(1)}), ` +
+        `texture ${edgeBandLabel} (mean ${GOLD_EDGE_MEAN.toFixed(1)}%), ` +
+        `concentration ${concBandLabel} (mean ${GOLD_CONC_MEAN.toFixed(2)}), ` +
+        `alternation ${altBandLabel} (mean ${GOLD_ALT_MEAN.toFixed(2)}%), ` +
         `${checked.length} capture(s) verified, ${missing.length} absent\n` +
         checked.map((l) => `  ${l}`).join('\n') +
         (missing.length > 0
           ? `\n  ABSENT, so the band is uncorroborated by them: ${missing.join(' ')}\n` +
             '  (assets/reference/ is the art lane\'s reference corpus, not shipped art; absence is not a defect)'
           : '') +
+        '\n' +
+        OPERATOR_LEGEND +
         '\n',
     );
   }, 60_000);
@@ -931,6 +1572,9 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
         `  ${path.padEnd(44)} ${`${d.width}×${d.height}`.padStart(9)} ` +
           `${String(d.swatches.size).padStart(3)}c${bandFlag(d, isMap)}` +
           `texture ${d.edgePct.toFixed(1).padStart(5)}%${edgeFlag(d, isMap)}` +
+          `conc ${d.conc.toFixed(2).padStart(6)}${concFlag(d, isMap)}` +
+          `alt ${d.altPct.toFixed(1).padStart(5)}%${altFlag(d, isMap)}` +
+          `top3 ${d.concTopThreePct.toFixed(1).padStart(5)}%  ` +
           `meanΔE ${mean.toFixed(3)}  off ${offPixels}px/${offenders.length}c` +
           (offenders.length > 0 ? `  worst ${describeOffenders(offenders, 3)}` : ''),
       );
@@ -942,6 +1586,20 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
       if (d.opaque > 0) {
         expect(Number.isFinite(mean), `${path}: mean ΔE is not a finite number`).toBe(true);
         expect(mean, `${path}: mean ΔE is negative`).toBeGreaterThanOrEqual(0);
+        // Same guard for the concentration column, and it is a real one rather than a formality:
+        // `1 / Σ pᵢ²` cannot be below 1 for a patch that holds a pixel, so a 0.0 or a NaN in this
+        // column is the measurement having broken — which, left unasserted, prints as the flattest
+        // possible reading and reads exactly like a picture that needs work.
+        expect(Number.isFinite(d.conc), `${path}: colour concentration is not a finite number`).toBe(true);
+        expect(
+          d.conc,
+          `${path}: concentration ${d.conc} is below 1.0, which no image can be. The reading is broken, ` +
+            'not the art — a flat fill reads exactly 1.00.',
+        ).toBeGreaterThanOrEqual(1);
+        expect(Number.isFinite(d.altPct), `${path}: alternation is not a finite number`).toBe(true);
+        expect(d.altPct, `${path}: alternation ${d.altPct}% is outside 0–100`).toBeGreaterThanOrEqual(0);
+        expect(d.altPct, `${path}: alternation ${d.altPct}% is outside 0–100`).toBeLessThanOrEqual(100);
+        expect(d.concPatches, `${path}: the ground reading was taken over zero patches`).toBeGreaterThan(0);
       }
     }
     const maps = COVERED.filter((p) => DECLARED_MAPS.has(p))
@@ -957,15 +1615,28 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
         `${palette.length}-colour palette\n${lines.join('\n')}\n` +
         `  ▼ below / = inside / ▲ above the measured Gold bands, over ${GOLD_CAPTURES.length} ` +
         `native-size Gen-2 maps: ${bandLabel} colours (mean ${GOLD_BAND_MEAN.toFixed(1)}), ` +
-        `${edgeBandLabel} ground texture (mean ${GOLD_EDGE_MEAN.toFixed(1)}%).\n` +
-        `  ${maps.length} shipped map(s) run ${spreadOf(maps.map((d) => d.swatches.size), 0)} colours ` +
-        `and ${spreadOf(maps.map((d) => d.edgePct), 1)}% texture.\n` +
-        '  BOTH ARE READING AIDS AND FAIL NOTHING, and they are two facts, not one: dither buys\n' +
-        '  texture and does nothing to the colour count; a per-map subset buys colour discipline and\n' +
-        '  does nothing to texture. A cap on either is a number a generator can be tuned to hit while\n' +
-        '  the picture gets worse — see the GOLD BAND and GROUND-TEXTURE sections at the top of this\n' +
-        '  file, and `tools/artverify/ground-comparison.png`, which a number cannot substitute for.\n' +
-        '  The palette CONTAINS the region; one map USES a subset of it.\n',
+        `${edgeBandLabel} ground texture (mean ${GOLD_EDGE_MEAN.toFixed(1)}%), ` +
+        `${concBandLabel} effective colours per median 64² patch (mean ${GOLD_CONC_MEAN.toFixed(2)}), ` +
+        `${altBandLabel} alternation (mean ${GOLD_ALT_MEAN.toFixed(2)}%).\n` +
+        `  ${maps.length} shipped map(s) run ${spreadOf(maps.map((d) => d.swatches.size), 0)} colours, ` +
+        `${spreadOf(maps.map((d) => d.edgePct), 1)}% texture, ` +
+        `${spreadOf(maps.map((d) => d.conc), 2)} concentration ` +
+        `and ${spreadOf(maps.map((d) => d.altPct), 1)}% alternation.\n` +
+        '  ALL OF THESE ARE READING AIDS AND FAIL NOTHING, and they are separate facts, not one:\n' +
+        '  dither buys texture and does nothing to the colour count; a per-map subset buys colour\n' +
+        '  discipline and does nothing to texture; concentration separates a small palette used densely\n' +
+        '  from continuous noise that merely LOOKS dithered, and is blind to arrangement; alternation\n' +
+        '  is the arrangement axis and is blind to everything else. A patch reads as structured only\n' +
+        '  with all three: a small palette, held densely, INTERLEAVED rather than pooled. A cap on any\n' +
+        '  one is a number a generator can be tuned to hit while the picture gets worse — see the GOLD\n' +
+        '  BAND, GROUND-TEXTURE and GROUND READING sections at the top of this file, and\n' +
+        '  `tools/artverify/ground-comparison.png`, which a number cannot substitute for.\n' +
+        '  ▼ on conc means FLATTER than Gold, ▲ mushier; ▼ on alt means POOLED where Gold interleaves.\n' +
+        '  `top3` is printed beside conc and never instead of it — a blank rectangle scores 100% on the\n' +
+        '  share, 1.00 on the count and 0.0% on alternation.\n' +
+        '  The palette CONTAINS the region; one map USES a subset of it.\n' +
+        OPERATOR_LEGEND +
+        '\n',
     );
   });
 
