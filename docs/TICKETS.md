@@ -14,6 +14,13 @@ cannot be worked by an agent — **T-1's open decision** — is first.
 while several agents were editing it.** Where a ticket's own predicted number turned out to be wrong,
 the measurement is recorded and the prediction is marked as wrong rather than quietly replaced.
 
+**Re-verified again on 2026-08-27, against a tree that has settled.** `npx tsc --noEmit` reads
+**exit 0**; `npm run test` reads **12 failed / 2548 passed, 4 files of 61**; HEAD is `461169c`, `main` is
+**in sync with `origin/main`**, and the only uncommitted paths are the art lane's in-flight
+`tools/mapgen/` (deliberately not checkpointed at its owner's request) and a lock file. **T-2, T-25, T-26 and T-27 close on this pass. T-8 and T-17 are amended. T-24 loses
+its code half. T-28–T-42 are new.** Every line number cited below was re-read before it was cited,
+and the ones that had drifted are corrected in place rather than carried.
+
 ---
 
 ## T-1 · Revise the tick system — RULED, BUILT, one decision outstanding
@@ -90,7 +97,7 @@ G6 forbids answering it with a chosen seed set or a chosen node.
 ## Content and spec
 
 ### T-2 · Cascade clause — amend §10.2 to describe what the food web produces
-**Status:** IN PROGRESS — **doc half DONE, test half NOT DONE** · **Hank:** *"letting the biomes gain
+**Status:** DONE — **both halves closed 2026-08-27** · **Hank:** *"letting the biomes gain
 a mind of their own and not forcing any particular outcomes"* … *"keep that how it is"*
 
 **The ruling: do not force it.** The simulation stays as it is. The specification stops promising a
@@ -99,14 +106,27 @@ guaranteed outcome and describes what the §7.3 rules actually produce. Guardrai
 - ✅ **build-doc §10.2 amended** (`docs/build-doc.md:370`): *"That collapse is the assertion.
   Mesopredator release is reported, not required"*, with the 12.5% / 0–13% measurements and the G6
   clause. Supporting edits at §7.3 step 6 and §1 beat 1.
-- ❌ **`tests/integration/demo-beats.test.ts` was NOT rewritten.** Its diff is 23 lines of T-1
-  `subTick` plumbing and nothing else. `:252-281` still argues against the *old* clause — it quotes
-  "strictly rising within 4 seasons" and says the shortfall "is not a licence to ship the beat as
-  is." The test is green while describing a spec that no longer exists.
-- ❌ **`tools/harness/fixture.ts:142`'s one-line mesopredator filter is still undefended.** The file
-  is unmodified. `grep -rn "isMesoLine\|releasedLineId" tests/` returns zero, and at `r4` the filter
-  is provably a no-op. **Bind it with a test or record it as undefended** — the ticket asked for one
-  of the two and neither happened.
+- ✅ **`tests/integration/demo-beats.test.ts` rewritten, and no predicate moved.** The comment block
+  at `:252-281` now describes the amended clause instead of arguing against the deleted one, and the
+  assertions around it are **byte-identical** to what stood before. Green before, green after — the
+  rewrite changed what the file *says*, not what it *checks*.
+- ✅ **`tools/harness/fixture.ts`'s mesopredator filter is bound.** `isMesoLine`
+  (`tools/harness/fixture.ts:110`, applied at `:115`) is covered by the new
+  `tests/unit/harness-fixture.test.ts` — 5 tests, whose count assertion at `:216` names the **eight**
+  sites where the filter actually bites (`bowerdeep, brackwater, duskhollow, hearthollow, r1, r2, r3,
+  r5`) against the two where it is a no-op (`cindershelf`, `r4`). Twelve node files ship, but
+  `sanctum` and `sanctum-approach` carry no top-of-web predator at all, so **the honest denominator is
+  8 of 10 sites, not 8 of 12.** Dropping the role test reddens **3 of the 5**, and the pre-existing
+  suite stayed **fully green** under the same sabotage — the direct proof the filter had been
+  undefended. Note *which* two nodes are the no-ops: `r4` is the over-catch fixture's own node, which
+  is why nothing ever saw it.
+
+**A figure this ticket paid for, recorded rather than quietly dropped.** The comment block used to
+publish *"16% of seeds at 4 seasons, measured on the SIM"* — **a number sourced nowhere in this repo.**
+The real figure is **12.5%, being 3 of 24 seeds**, which is exactly what §10.2
+(`docs/build-doc.md:373`) and `core/foodweb.ts:242` already publish. The test **is** that measurement,
+not a second opinion agreeing with one. The deleted line is in git:
+`git show af82c46 -- tests/integration/demo-beats.test.ts`.
 
 ### T-3 · G7 read — scope it, then retire the item
 **Status:** DONE · **Hank:** *"Scope the read to the 77 entries / 173 lines; re-check only the ones
@@ -170,6 +190,35 @@ the R1 quest row were corrected with it. No effect was fabricated.
 Recorded in both canonical docs: `docs/content-bible.md:170` and `docs/build-doc.md:377` (§10.5),
 the latter naming the raid-suppressed **control run** as the instrument that separates intended from
 unintended extinction.
+
+**The control run now exists, and the claim it was hedging is now true (2026-08-27).** It was built as
+an **orthogonal flag, not a fourth profile**: `CATCH_PROFILES` (`tools/harness/full-run.ts:250`) ×
+`RAID_POLICIES` (`:265`) is a **3×2 matrix**. Suppression deep-copies `rawBalance`
+(`raidSuppressedContent`, `:335`; the copy at `:338`), empties `yearEvents.raids` (`:348`) and
+re-loads — **`data/balance.json` is never touched**, and the function throws rather than silently
+no-op'ing if the raid group is absent (`:340-346`).
+
+- **Measured over 32 seeds: with no player and the raid suppressed, NOTHING reaches zero at any
+  node — zero unintended extinctions.** `dex` with the raid suppressed also reaches zero nowhere.
+- **The two `collector` extinctions persist under suppression**, so they are the player's. That is
+  what proves the instrument is not merely blind: an instrument that reported "nothing died" under
+  every condition would be reporting its own silence.
+- `tools/harness/report.ts` now attributes by measurement — `attributeExtinction` (`:525`, called at
+  `:567`). The `raidNodes` lookup it replaced is **gone from the repo entirely** (zero hits).
+
+**The old classifier had two latent bugs that happened to cancel**, and both are recorded so the
+cancellation is not mistaken for correctness: it credited a node to the raid **without ever asking
+whether the raid mattered**, and its emergent test was **a year late**. Two wrongs reading right is
+not a working instrument.
+
+⚠ **Both canonical docs still describe the gap as open, and are now wrong.** Correcting them is the
+remainder of this ticket, and the wording is constrained: **any restored §10 claim must cite
+`baseline-no-raid` over 32 seeds, not "the baseline".**
+- `docs/build-doc.md:377` — *"A control run with the raid suppressed has not been run and no such
+  mode exists in the harness"*, and, in the same sentence, that an extinction is attributed to the
+  raid *"by the node the raid script names, not by measurement"*. Both halves are now false.
+- `docs/content-bible.md:176-178` — *"The raid-suppressed control that would show the raid is the
+  whole cause has not been run, and the harness has no mode for it."* Same correction.
 
 ### T-9 · Close the raid list at one
 **Status:** DONE · **Hank:** *"Close the raid list at one."*
@@ -240,9 +289,14 @@ them** (G14).
 ## Systems
 
 ### T-12 · Close the progression loop, and give money a purpose
-**Status:** TODO — **all four sub-claims re-verified still true 21:58** · **Hank:** *"Close the loop,
-Health persists, plus an explicit penalty. Set up the new items to be sold in towns, giving a purpose
-for the money."*
+**Status:** IN PROGRESS — **the persistence spine landed 2026-08-27; the wiring did not. The remainder
+is T-28, and it ships with T-29.** · **Hank:** *"Close the loop, Health persists, plus an explicit
+penalty. Set up the new items to be sold in towns, giving a purpose for the money."*
+
+**What landed:** `applyBattleResult` (`game/wild-battle.ts:471`), `applyBattleAftermath`
+(`core/save.ts:601`), the `battleAftermath` action-log entry, and
+`tests/unit/battle-persistence.test.ts`. **What did not:** anything calling it. The four sub-claims
+below were all true when written; the first two are now true only because the spine is unwired.
 
 **The largest build ticket here.** Today, losing a battle costs nothing:
 
@@ -325,18 +379,25 @@ cascade runs min 30 / mean 49.2 / max 85.5 ticks and **9 of 24 seeds exceed the 
 ## Art and spend
 
 **Billing has started.** The Art-and-spend preamble used to say nothing had been billed; that is now
-false. **24 trial PNGs** exist across four map-trial rounds under `assets/raw/_trials/`, generated
-through the new supervised trial runner. `.gitignore:8` excludes `assets/raw/**`, so **no commit
-records any of them.** `assets/final/` still holds one empty file and `tools/comfy/manifest.json` is
+false. Trial PNGs exist under `assets/raw/_trials/` across **nine trial specs** now in
+`tools/comfy/trials/`, generated through the supervised trial runner. `.gitignore:8` excludes
+`assets/raw/**`, so **no commit records any of them.** `tools/comfy/manifest.json` is
 `{pending: 287, approved: 1}` of 288 rows. Every rename and every palette swap is still cheap and
 becomes expensive after the first real batch.
 
-**Nobody still knows what one image costs** — `tools/comfy/manifest.json:9` records
-`perImageCredits: null` and the platform exposes no credit-balance endpoint. **24 generations have
-now run past a dashboard that could have been read.** See T-26.
+**What an image costs is now measured, and the scarcity framing this section used to carry was
+wrong.** `tools/comfy/manifest.json:9` reads `perImageCredits: 1.12` — dashboard 4,147 → 4,127 across
+18 images at 1024² (T-26). **The entire 288-row manifest therefore costs roughly 323 credits against
+a 4,081 balance — about 8%.** Nothing in this project is budget-constrained by image count. Wherever
+a doc, a comment or a ticket argues from image scarcity, it is arguing from a figure nobody had.
 
-Guardrail G13 still binds: **no batch of 20 or more images without Hank's explicit `--confirm`**, and
-the pre-batch estimate is a *measured* per-image figure or the runner says "never measured".
+Two things that survive the correction:
+- **1.12 is the 1024² figure specifically.** A later mixed batch including 256² health probes read
+  near **0.53**. Cost scales with pixels, so a per-image number is only meaningful beside its size.
+- **G13 still binds, as a *review* discipline and not a budget one.** No batch of 20 or more images
+  without Hank's explicit `--confirm`, and the pre-batch estimate is a *measured* per-image figure or
+  the runner says "never measured". The gate is there so twenty images are looked at before they are
+  made, which is a reason that never depended on the price.
 
 ### T-15 · Swap the palette to the class-equal fit
 **Status:** DONE — **two consequences are unrepaired, see T-24** · **Hank:** *"class-equal"*
@@ -373,18 +434,51 @@ result back before editing it.
 **`tools/comfy/trial.ts` now exists** and is the right vehicle: it holds graph and seed constant,
 varies one authored string, caps a trial at 20 rows for G13, and refuses to write `manifest.json`.
 
-### T-17 · Town map — fix scale, keep isometric
-**Status:** IN PROGRESS — **24 images spent across four rounds; check it is still answering the
-ruling** · **Hank:** *"fix scale, keep isometric"*
+### T-17 · Town map — fix scale, and **top-down** (AMENDED)
+**Status:** IN PROGRESS — **the projection is amended; the map lane re-authors against it**
+· **Hank, originally:** *"fix scale, keep isometric"*
+· **Hank, amending 2026-08-27:** *"I was actually trying to match Gold when I said isometric, but if
+Gold is actually top down, then let's do top down."*
 
-Four trial specs are in `tools/comfy/trials/` (`map-town-style`, `map-style-round2`,
-`map-style-round3`, `map-route-shape`) with 24 PNGs on disk. Round 1's recorded conclusion, carried in
-round 2's own `question` field: *"the SUBJECT enumeration is the whole lever and the negative prompt
-is inert at cfg 1.0 (t3 vs t4 were pixel-identical)."*
+**This is an amendment, and the reason is the point of it. The ruling was not wrong — the word was.**
+He named the projection he wanted by naming the game he wanted to look like; Gold is top-down, so
+"isometric" was a mis-transcription of an intent that never changed. Recorded this way on purpose: a
+silent swap to "top-down" would leave the next reader believing the isometric call had been a
+mistake, and it was not one. **The target was always Gold.**
 
-⚠ **Possible drift from the ruling.** The trial questions are about building count, street grid and
-edge exits. The ruling was **fix scale, keep isometric**. Before spending more, state in the spec
-which round answered the scale question and which answered isometry, or say plainly that neither did.
+**Three of the nine map rejects retire at the root.** Each was isometry failing to render vertical
+levels, and top-down cannot produce the failure:
+- **Bowerdeep** — came back a floating diorama island with a Minecraft-style earth cross-section
+  filling the lower half of the frame, 13.6% pure-white background, zero of the two required edge
+  exits (transcribed in `tools/comfy/manifest.json`'s `bowerdeep` `featureSource`).
+- **Cindershelf** — came back a **side-on mine cutaway**: three shelves stacked in the picture plane,
+  every building in flat front elevation, no ground plane anywhere (same field, `cindershelf` row).
+- **Sanctum** — came back a diorama on a plinth.
+
+**`r5`'s blocking defect inverts.** It was flagged for coming back **flat top-down**. That is now the
+correct output, not the defect.
+
+**Multi-level towns are back ON**, at Hank's own suggestion and referenced to Ruby/Sapphire:
+elevation expressed **top-down** through cliff bands, ledges, stairs and ladders rather than through a
+projected vertical axis. **Fortree City is structurally Bowerdeep; Lavaridge Town is structurally
+Cindershelf** — both reference maps are on disk at `assets/reference/gen3/`.
+⚠ This also amends the earlier single-level ruling (*"Re-author those two towns at a single level."*),
+which was made because the model rendered vertical stacking **as a cross-section under isometry**.
+Top-down + cliff bands is a different mechanism, so the constraint that forced it is gone. Both
+`featureSource` strings in `tools/comfy/manifest.json` still argue "ONE LEVEL" from the isometric
+premise and from *"Isometry stays — T-17 is 'fix scale, keep isometric'"*; **that is now stale text in
+a file the map lane owns.**
+
+**This ticket's own text was stale and is corrected here.** It claimed four rounds and 24 PNGs; there
+are **nine** trial specs in `tools/comfy/trials/`. More to the point, it implied the projection
+question had been put and answered. It had not: the `map-isometric` round — six rows, `x1`–`x6`,
+isolating the scale clause, a flat control at the same seed, a second biome, a route and the Sanctum
+— **returned six all-black frames.** Measured: every PNG in `assets/raw/_trials/map-isometric/` is
+1024×1024 with mean and max `[0,0,0]` on every channel. **The round was well-specified and answered
+neither axis. It returned nothing.** Do not cite it as evidence for or against anything.
+
+See also the Closed table below on `MAP-PROMPT-RULES.md` R2: the negative prompt's inertness is a
+property of **cfg 1.0**, not of the pipeline, and R2 stands as a decision regardless.
 
 ### T-18 · Field-guide plates — trial it
 **Status:** TODO · **Hank:** *"you said this is listed in the spec, so why are you asking me about
@@ -462,27 +556,44 @@ believes it has found an IP issue, it records it in this file and does not ask.
 ## Opened by this session's measurements
 
 ### T-24 · The palette swap broke the derived player sprites, and nothing can see it
-**Status:** TODO — **evidence: raw pixel audit of the committed PNGs against the live palette**
+**Status:** **code half DONE; asset half handed to the art session, which owns `assets/`**
 
-`tools/comfy/player-views.ts:213-219` hardcodes 18 hex literals, **every one of which T-15 deleted
-from the palette.** Regenerating the derived views from them wrote **8 off-palette pixels into
-`player-back-32x48.png` and 420 into `player-side-32x48.png`** (11 dead hexes), and the star-removal
-filter at `player-views.ts:262` compares against `#f9db10`, which no longer exists — so it never
-fires and **the star badge is back on the rear of the cap**, which is defect #1 in that file's own
-header list. `_acceptance.json`'s identity detectors read `0` / `[]` / `null` as a result.
+`tools/comfy/player-views.ts` hardcoded 18 hex literals, **every one of which T-15 deleted from the
+palette.** Regenerating the derived views from them wrote **8 off-palette pixels into
+`player-back-32x48.png` and 420 into `player-side-32x48.png`**, and the star-removal filter compared
+against `#f9db10`, which no longer exists — so it never fired and **the star badge came back on the
+rear of the cap**.
 
-Deliver:
-1. Resolve those colours through `data/palette.json` instead of literals (G11 in spirit: no palette
-   constant in code).
-2. Regenerate the three derived views and the acceptance detectors.
-3. **A gate that reads a committed PNG.** None of the seven files in `tests/gates/` opens an image,
-   which is exactly why a full green suite says nothing about this. Without it the next re-freeze
-   does the same damage silently.
+1. ✅ **The 21 dead hex literals now resolve through `data/palette.json` by slot id.** No palette
+   constant survives in that file (G11 in spirit).
+2. ⏳ **Regenerate the three derived views and the acceptance detectors** — the art session's, because
+   the bytes are under `assets/`.
+3. ✅ **A gate that reads a committed PNG exists.** `tests/gates/player-art-contract.test.ts`, 16
+   cases, decoding through `sharp` — **the first gate in this repo that opens an image.**
 
-Depends on nothing. Blocks T-20, whose side-view fix regenerates the same files.
+**The gate is RED, and that is the correct state: 7 failed / 9 passed** against the committed sprites.
+It is reporting real defects in files another session owns, so it is not this ticket's job to green
+it. Verbatim from the run: `player-back-32x48.png` *"holds 8 px in 2 colour(s) that data/palette.json
+does not contain: #ec9a70×4 #eec092×4"*; the star badge fails on the cap rows and on the whole rear
+view; `back` and `side` each introduce swatches the approved front does not use; and the freshness
+assertion reports the committed back view disagreeing with a fresh derivation in **333 px**, first at
+(10,4). Five sabotages all read red, **including one that placed a legal palette colour as a star** —
+which reddened only the star assertions and left the palette ones green, i.e. the two checks are
+genuinely independent and neither is standing in for the other.
+
+**Two findings this ticket paid for, kept because they will otherwise be re-derived:**
+- **The class-equal fit has no swatch between `c05` and `c07`.** `c05` is `#642c16` and `c07` is
+  `#8c5230`; there is nothing in between, so `hair` and `hairHi` collapse onto one another and the
+  nape band loses a tone. The same collapse hits the cap greens on `c17` (`#054114`). This is the
+  T-15 lesson arriving in pixels: **a palette id is a slot, and a class-equal fit does not owe any
+  role a neighbour.**
+- **A dead ternary meant every "derived" row in `_acceptance.json` was describing a re-stretched copy
+  rather than the shipped bytes.** The detectors were honest about a file nobody ships.
+
+Blocks T-20, whose side-view fix regenerates the same files.
 
 ### T-25 · Stale instruments and comments, each of which will be believed
-**Status:** TODO — **three remain (1, 2, 5); items 3, 4 and 6 are DONE.** Each was verified stale by
+**Status:** DONE — **all six closed; 1, 2 and 5 closed 2026-08-27.** Each was verified stale by
 reading the line and the thing it describes, and each closure was verified the same way.
 
 None blocks a beat; each is a misreading this repo has already paid for once. Items 4 and 6 closed
@@ -490,11 +601,16 @@ because the artifact was repaired *and* its generator was made incapable of reve
 see STATUS.md, "a derived artifact carrying a hand-written claim". Prose alone would not have closed
 either.
 
-1. `tests/unit/transcription.test.ts:1297-1300` — says "nothing in `game/` ever spends it … As WIRED,
-   battles are free and the real budget is 112.32." `game/scenes/OverworldScene.ts:879` spends it.
-   The arithmetic above the comment is correct; only the comment is wrong.
-2. `game/scenes/OverworldScene.ts:1921` — "`seasonBoundary` fires at ticks 4, 8 and 12 only." It fires
-   at 13, 26 and 39. Its own header calls it "THE SEAM MOST LIKELY TO BE RE-BROKEN."
+1. ~~`tests/unit/transcription.test.ts:1297-1300` — says battles are unwired~~ — **DONE.** The
+   arithmetic above it was always correct; only the comment was wrong, and it now names
+   `game/scenes/OverworldScene.ts` as the spender.
+2. ~~`game/scenes/OverworldScene.ts:1921` — "`seasonBoundary` fires at ticks 4, 8 and 12 only."~~ —
+   **DONE, and structurally.** Re-read: no comment anywhere in `game/` or `core/` says "4, 8 and 12".
+   The `seasonBoundary` docblock is now at `game/scenes/OverworldScene.ts:1973-1985` and states the
+   cadence as *"the first `seasonOrder.length - 1` multiples of `clock.ticksPerSeason`"* — naming the
+   balance keys rather than the ticks, with `:1980-1982` saying in as many words that it does so
+   "because a comment quoting the ticks goes stale in silence". That is the T-25 lesson written into
+   the fix. **A sibling of this defect survives elsewhere — see T-42.**
 3. ~~`tests/unit/lifecycle.test.ts:1646` — says the age multipliers are 0.75 → 1.0 → 1.15~~ —
    **DONE.** Re-read: it now says "0.875 → 1.0 → 1.075, plus the metamorphic ×1.15", and the old
    triple survives two lines below only as the recorded T-10 before/after.
@@ -508,38 +624,480 @@ either.
    `51a95b06…`) instead of by a literal. `--self-test` covers the refusal and the derivation, so a
    rebuild can no longer revert the correction. Both claims verified by reading the JSON and the
    generator.
-5. `tools/harness/full-run.ts:368` — `const year = clock.year;` is dead; nothing in the loop reads it.
+5. ~~`tools/harness/full-run.ts:368` — `const year = clock.year;` is dead~~ — **DONE.** The binding is
+   gone, and a comment at `tools/harness/full-run.ts:490-491` stands where it was, recording that the
+   calendar/act leak was closed by threading `act` and that the binding it left behind read nothing.
+   The loop now opens `const act = balance.acts.first + 1 + y;` at `:492`.
 6. ~~`tests/unit/__repro-battle-clock.test.ts`~~ — **DONE at ~22:11.** The temporary repro was
    deleted; `tests/unit/clock-subtick.test.ts` is the real test that binds the defect.
 
 ### T-26 · Calibrate `perImageCredits` before the 150-sprite batch
-**Status:** TODO — **evidence: `tools/comfy/manifest.json:9` is `null`; 24 images have been generated**
+**Status:** DONE — **measured 2026-08-27**
 
 Build-doc §9.1 and G13 both require a **measured** per-image figure before any batch of 20 or more,
 and the platform exposes no credit-balance endpoint, so the only instrument is the account dashboard
-read immediately before and after a batch of known size. Four trial rounds have now run past it
-without a reading. Attach the reading to the next trial — it is free.
+read immediately before and after a batch of known size. That reading was taken.
 
-Blocks the 150-sprite batch (T-16's follow-on), which is the largest spend in the project.
+**`perImageCredits` is `1.12`** (`tools/comfy/manifest.json:9`) — dashboard **4,147 → 4,127 across 18
+images at 1024²**.
+
+Two things must travel with the number or it will be misused:
+- **It is the 1024² figure.** A later mixed batch that included 256² health probes read near **0.53**.
+  Cost tracks pixels, so a per-image credit figure means nothing without its size beside it.
+- **It retires the scarcity argument, not G13.** The whole 288-row manifest is **≈323 credits against
+  a 4,081 balance, about 8%** — the 150-sprite batch was never the largest *spend* in this project,
+  only the largest *batch*. G13's 20-row gate stands as a **review** discipline: twenty images get
+  looked at before they are made, which was never a claim about price. Correct the scarcity framing
+  wherever it still appears.
 
 ### T-27 · The enemy AI's tie-break is decided by floating-point rounding, and its docblock says otherwise
-**Status:** TODO — **evidence: measured over all six shipped gym rosters**
+**Status:** DONE — **landed 2026-08-27, and the result contradicts this ticket's own prediction**
 
-`core/battle.ts:1318` promises "ties to the earliest move in the pool". The comparison is strict
-(`score > bestScore`), so bit-identical doubles do keep pool order — but the score is
-`((atk × power) / def) × mult × predation × midRoll`, so a tie **on paper** rarely produces equal
-doubles and the last bit decides. Measured over 2160 shipped enemy/opponent pairs: 59 tie on paper,
-20 disagree as doubles, and in **13 the AI picks a move that is not earliest in pool** — throwing a
-neutral move where the docblock promises the earlier super-effective one. Example: Odo's
-`mirefin-line(A,L14)` vs `cindril-line(A,L14)`, `dous` 93.63636363636362603 against `ambush`
-93.63636363636364024.
+The docblock promised "ties to the earliest move in the pool" while the score was
+`((atk × power) / def) × mult × predation × midRoll` — so a tie **on paper** rarely produced equal
+doubles and the last bit decided. Measured over 2160 shipped enemy/opponent pairs: 59 tied on paper,
+20 disagreed as doubles, and in **13 the AI picked a move that was not earliest in pool.**
 
-This is the **game's** AI, not only the harness — it changes fights the player actually has.
-`tools/harness/player.ts:275-303` already documents the same instability for the player-side scorer.
+**The fix ranks on `movePowerVs × typeMultiplier` alone** — `moveRank`, `core/battle.ts:1364-1369`,
+consumed by `chooseEnemyAction` at `:1371`. The dropped factors (`atk`, `def`, `predation`, the mid
+roll) are **common to every move in a pool and cannot reorder it in exact arithmetic**, so this is not
+a simplification that trades accuracy for stability — it is the removal of terms that never carried
+information. Result: **13 → 0 divergences; exactly 13 of 2160 choices changed.** The reasoning is
+written at `core/battle.ts:1331-1359`, and the docblock at `:1327` is now true rather than aspirational.
 
-Decide the tie deliberately and say so in the docblock, then bind it with a test that constructs one
-of the 13 measured cases. **Do not "fix" it by loosening a comparison** — the determinism contract
-(no rng draws in the enemy policy) depends on the argmax staying exact.
+**The prediction in this ticket's own text was wrong, and is recorded as wrong rather than replaced.**
+It said the AI was "throwing a neutral move where the docblock promises the earlier super-effective
+one" — i.e. that honouring pool order would make the enemy **stronger**. It made the enemy **weaker**:
+
+| | before | after |
+|---|---|---|
+| Odo, full party | 91.6% | **95.2%** |
+| Odo, matched party | — | **+9.8 pp** |
+| Sable | — | **−1.4 pp** |
+
+**All 13 flips trade `ambush`'s entry-turn priority for equal damage.** The rounding had been picking
+the priority move by accident, and pool order does not know priority exists — which is the whole of
+Odo's swing, and is now its own open question (**T-37**). Sable moved when the harness player model
+took the same key. **Nothing was tuned.**
+
+The player-side change is backed by an exhaustive sweep over **8.1 million pairings**: zero real
+reorders, and all **11,602** divergences were exact ties. **The comparison was not loosened** — the
+argmax is still a strict `>` over an exact key, so the determinism contract (no rng draws in the enemy
+policy) is intact.
+
+⚠ **Two clause-7 tests in `tests/unit/harness.test.ts` went red as a direct consequence, exactly as
+their own docblock said they would. See T-32 — do not green them by loosening anything.**
+
+---
+
+## Opened 2026-08-27 — T-28 onward
+
+**Ranked on what it costs when it bites, then on whether the tree currently asserts something false.**
+A defect that ends a *run* outranks one that ends a *fight*; a test that is red in the tree now
+outranks a latent defect; and a ticket blocked on Hank sits where its answer is needed rather than at
+the bottom where it is comfortable. Every file:line below was re-read on 2026-08-27 before it was
+cited.
+
+| # | Ticket | In one line | Status |
+|---|---|---|---|
+| T-28 | Wire the persistence spine | `applyBattleResult` exists and nothing calls it | TODO |
+| T-29 | Party-wipe recovery | Ruled by Hank, on disk nowhere; T-28 makes a wipe terminal | TODO |
+| T-30 | XP is written out, never read back | `makeBattler` zeroes it every fight | TODO |
+| T-31 | `ensureNodeArt` can soft-lock travel | An unsettled promise strands `travelling` forever | TODO |
+| T-32 | Two clause-7 tests are RED | T-27 removed the state dependence they pinned | TODO |
+| T-33 | `GameAction` needs `battleAftermath` | One line; deletes the repo's only `as GameAction` | TODO |
+| T-34 | `replay()` loses a caught creature | L10 is false for any run containing a catch | TODO |
+| T-35 | Interiors, phase 2 — the scene layer | Doors, arrival cell, indoor guards, save field | TODO |
+| T-36 | `node.walkable` gates nothing | Two canonical docs describe a path `game/` does not have | TODO · **Hank's** |
+| T-37 | The enemy AI is blind to move `priority` | A design call, not a defect | TODO · **Hank's** |
+| T-38 | The level-5 starter is one-shot on Route 1 | 78 damage against 58 HP, and a loss now persists | TODO |
+| T-39 | `sanctum-antler-ring` is on the spawn cell | Two map rules land on the same cell | TODO |
+| T-40 | `DexScene` / `SummaryScene` optional `onClose` | The epilogue-survey shape, one supplier from repeating | TODO |
+| T-41 | `fit: true` vs `nearestResample` | The batch pipeline and the derived views disagree | TODO |
+| T-42 | Three comments call a season four ticks long | T-25 item 2's sibling, found while closing it | TODO |
+
+### T-28 · Wire the persistence spine — nothing calls `applyBattleResult`
+**Status:** TODO — **T-12's remainder. Ships together with T-29; read that one before starting.**
+
+T-12's spine landed: `applyBattleResult` (`game/wild-battle.ts:471`) appends a `battleAftermath` action
+and applies it (`:476`), and `applyBattleAftermath` (`core/save.ts:601`) is the only writer of
+`save.party[].curHp`, level and xp outside creation and the year turn. **What is missing is the
+wiring.**
+
+- **Zero production callers.** Every caller in the repo is a test —
+  `tests/unit/battle-persistence.test.ts:293, 336, 394, 418, 457, 482, 529`.
+- **Three docblocks already advertise it as *"the ONE writer all four launchers share"***:
+  `game/rival.ts:184`, `game/gym-battle.ts:165`, `game/finale.ts:313`. **All three are false today** —
+  the derived-artifact-carrying-a-hand-written-claim shape, arriving in a docblock.
+- The four handlers, re-read (the `:1033 / :1559 / :1646 / :1716` this queue used to carry are each
+  about four lines high): wild `onFinished` at `game/scenes/OverworldScene.ts:1006` →
+  `finishWildBattle` `:1024` (body `:1029`, `applyWildBattleOutcome` `:1035`); gym inline
+  `:1555-1567`; rival inline `:1642-1653`; finale inline `:1712-1731`.
+- **The inn heals nothing.** `restAtInn` (`game/scenes/OverworldScene.ts:1423`) spends two ticks and
+  prints a banner (`:1424-1427`). No party HP write at all.
+
+Each of the four is one line — `this.save = applyBattleResult(this.save, result.state);` — but landing
+only that is the dangerous half: the moment `curHp` persists, an unhealed party has no recovery.
+
+**Done when:** all four handlers call it; the inn heals what it charges for; a loss penalty reads its
+constant from `data/balance.json` (G11 — never a literal); the five town shops sell items so money has
+a sink and the penalty bites; the three docblocks above are true; and **T-29 ships in the same
+change.**
+
+### T-29 · Party-wipe recovery — Hank has ruled this and it exists nowhere on disk
+**Status:** TODO — **urgent, and paired with T-28** · **Hank:** *"When your team is wiped, a dialogue
+shows up with a black background saying you passed out or something like that, and then you wake up
+at the inn."* · on the cost: *"it should use twice the inn ticks, in addition to the cost of one fast
+travel"*
+
+**The cost composes from existing keys, so no new balance key and no literal in code (G11):**
+`2 × balance.clock.innTicks + 1 × balance.clock.travelTicks`. On the shipped file
+(`data/balance.json:321` and `:319`) that is **2 × 2 + 1 = 5 ticks**.
+
+**Nothing like it exists.** Grep across `game/` and `data/dialogue.json` for wipe / blackout / "passed
+out" / whiteout returns zero recovery paths. What exists is **refusal**, not recovery:
+
+- `partyProblem` — `game/wild-battle.ts:201`, the one shared clause; `:206` returns *"nothing in the
+  party is standing — nothing can be sent out"*.
+- Four launcher guards reach it: `game/wild-battle.ts:218`, `game/gym-battle.ts:75`,
+  `game/rival.ts:99`, `game/finale.ts:280`; called from `game/scenes/OverworldScene.ts:975, 1477,
+  1604, 1673, 2377`.
+- Last-ditch `unfieldableProblem` at `game/scenes/OverworldScene.ts:951`, from `handOffToBattle`
+  (`:897`) at `:921-925`.
+- Pinned by `tests/unit/battle-launch-guards.test.ts` §1 `:137`, §2 `:187` (`:205` pins the exact
+  string), §3 `:219`, §4 `:246`.
+- `game/rival.ts:94` and `game/scenes/OverworldScene.ts:1465` **already note** that an
+  arrival-triggered fight can strand a fainted party on a route.
+
+**Net: the game refuses every fight forever and never offers a way to un-wipe.** It is unreachable
+today only because HP never persists — the inn heals nothing and the year turn keeps a zero at zero.
+**T-28 makes it reachable and terminal**, which contradicts the closed ruling that a forced choice
+exists *"so the game cannot block"*.
+
+**G7 binds hard on the copy.** Black screen, passed out, wake at the inn. No line may tell the player
+they did wrong, imply guilt, or draw a lesson from the wipe.
+
+**Done when:** a wipe is detected at battle end; the blackout dialogue is authored in
+`data/dialogue.json` and reachable through the existing selector path, so the reachability gate can
+see it; the party wakes healed at the inn; the clock is charged `2 × innTicks + 1 × travelTicks` read
+from `balance.clock`; and a test drives a real wipe end to end and asserts the run continues.
+
+### T-30 · XP is written out and never read back in
+**Status:** TODO — **depends on T-28; without the writeback there is nothing to carry**
+
+`core/battle.ts:529` — `makeBattler` (`:487-492`) hard-codes `xp: 0`. `BattlerSpec`
+(`core/types.ts:299-313`) has **no `xp` field**, so `battlerSpecOf` (`game/wild-battle.ts:113`) cannot
+carry one even in principle. Banked XP is reset to zero at the start of every fight.
+
+Measured on shipped balance:
+- `xpGain` (`core/battle.ts:882`) against a level-5 enemy = `floor(12 + 4 × 5 × 1.0)` = **32**.
+- `xpToNext` (`core/battle.ts:887`) at level 5 = `15 × 5^1.4` = **142.77**.
+
+So at the level the starter is granted at, a creature needs about **4.5 wins to level and banks none
+of them**: no wild fight can ever level a level-5 creature.
+
+⚠ **One claim to correct while you are in there.** `core/save.ts:509-511` states this as *"no
+single-enemy wild fight can ever level anything"*. **That is too strong.** At level 1, `xpGain` = 16
+against `xpToNext(1)` = 15.0, so a level-1 creature **does** level off a single kill; the crossover is
+immediate after that (L2: 20 vs 39.59). The claim is true at level 5 and false at level 1, and a
+docblock that overstates is the thing T-25 exists for.
+
+**Done when:** `BattlerSpec` carries `xp?`, `makeBattler` reads it instead of zeroing it,
+`battlerSpecOf` sets it, the `core/save.ts` docblock states the level-dependent truth, and a test
+carries XP across two consecutive fights and levels a creature on the second.
+
+### T-31 · `ensureNodeArt` can permanently soft-lock travel
+**Status:** TODO — **on the never-cut walkable slice**
+
+`ensureNodeArt` (`game/mapview.ts:130`) builds its promise at `:137-141`, and its **only** settle path
+is `scene.load.once(Phaser.Loader.Events.COMPLETE, () => resolve())` at `:139`. No
+`FILE_LOAD_ERROR` listener, no `reject`, no timer. (There is an early-out at `:136` when nothing is
+pending, which is why this has never been noticed.)
+
+`travelTo` (`game/scenes/OverworldScene.ts:2225`) sets `this.travelling = true` at `:2249`, opens
+`try {` at `:2250`, awaits `ensureNodeArt` at `:2252`, and clears the flag in `finally` at `:2266`.
+**If the promise never settles, the `finally` never runs.** Seven sites early-return on that flag —
+`:1087, :1126, :1266, :1424, :1595, :1750`, plus `travelTo`'s own guard at `:2226` — so travel, foray,
+inn and menu actions are **silently refused for the rest of the session**. No error, no message, no
+way back.
+
+**Not live today**, because Phaser emits `COMPLETE` even when a file 404s. Three paths stall it anyway:
+1. **`XHRSettings.timeout` defaults to `0`** — no timeout — so a hung connection fires neither `load`
+   nor `error` and the loader never completes.
+2. **`start()` is a silent no-op unless the loader is IDLE or COMPLETE**, so two overlapping travels
+   can leave the second waiting on a `COMPLETE` that already fired.
+3. **Teardown mid-load.**
+
+**Done when:** the promise has both an error branch and a bounded timeout, each of which settles it;
+`travelling` cannot outlive the await (cleared on any settle, not only on success); and a test that
+deliberately never fires `COMPLETE` proves travel still recovers.
+
+### T-32 · Two clause-7 tests are RED because T-27 stabilised the tie-break
+**Status:** TODO — **red in the tree now, and failing by doing their job**
+
+From `npm run test` on 2026-08-27, `tests/unit/harness.test.ts`, 2 failed of 77:
+- `:519` — *"clause 7: the key scores the creature that is FIELDED — its own age, not a stand-in"*,
+  fails at `:541`.
+- `:573` — *"clause 7: the greedy pick CAN turn on the attacker's own stats — the finding that forces
+  the above"*, fails at `:622`.
+
+The second asserts `stateDependent > 0` with the message *"no shipped pairing's greedy pick depends on
+the attacker's age — the scorer's tie-break is now stable, so `coverageScore` no longer needs ages and
+traits; remove them deliberately"*. **T-27 removed the state dependence it was pinning.** Its docblock
+at `:574-585` writes the protocol out in advance: this goes green-to-red, you delete it *deliberately*,
+and only then may `coverageScore` drop ages and traits. Follow that, not around it.
+
+Two changes are written and waiting to land:
+1. **An exhaustive enemy/player agreement test**, replacing the sampled one at `:742-761` — six shipped
+   gyms × six seeds, closing on `expect(checked).toBeGreaterThan(20)` at `:760`. **That sample stayed
+   green while the two scorers disagreed on 13 of 2160 choices.** It is the instrument T-27 walked
+   past, and a bigger sample is not the fix — exhaustiveness is.
+2. **A clause-7 replacement** asserting that `coverageScore`'s ages and traits are **currently inert**,
+   rather than live.
+
+**Record why the parameters stay, because the obvious move is to delete them.** Removing them was
+measured safe — **1.71M calls, zero variance** — and was **deliberately not done.** They stay as a
+guard: the next scorer that starts reading the attacker goes **red**, instead of moving published win
+rates in silence, which is exactly how T-13 happened.
+
+**Done when:** both changes land, the file is green, the sampled agreement test is gone, and the
+deletion of the `:573` test is justified in writing against its own protocol — **never by loosening an
+assertion.**
+
+### T-33 · `GameAction` needs a `battleAftermath` member
+**Status:** TODO — **one line, and it unblocks T-34's named case**
+
+`core/types.ts:565` declares the `GameAction` union — `travel`, `foray`, `inn`, `battle`,
+`battleAction`, `catch`, `release`, `seasonStep`, `gymVictory`, `yearTurn`, `retirement`. **No
+`battleAftermath`.** Two consequences, both documented in place:
+
+- `battleAftermathAction` (`core/save.ts:537`) ends in the repo's **only** `as GameAction` cast, at
+  `core/save.ts:547`, under a comment naming the missing member.
+- `replay` has to consume the entry in its `default` arm (`core/save.ts:864-882`) instead of a named
+  `case`, for the reason written at `:866-869`: a `case` label will not compile without the member.
+
+The exact line is already written out at `core/save.ts:531-532`:
+
+    | { t: "battleAftermath"; aftermath: BattleAftermath }
+
+**No `core/schemas.ts` change is needed.** `actionLog[].action` is
+`z.looseObject({ t: z.string().min(1) })` at `core/schemas.ts:824`, permissive by design — the
+rationale is at `:783`.
+
+**Done when:** the member is in the union, the cast at `core/save.ts:547` is deleted, `replay` reads it
+in a named `case`, and `npx tsc --noEmit` still reads exit 0.
+
+### T-34 · `replay()` loses a caught creature — L10 is false for any run containing a catch
+**Status:** TODO — **measured: live party `[starter, wild-loamunder]` replays to `[starter]`**
+
+`replay()` is `core/save.ts:719`. The party half of a catch is delegated to `ReplayDeps.applyOther`,
+declared **optional** at `core/save.ts:651` and called at `:829, :834, :839, :861, :881`. The only
+implementor is `replayRegionHooks(...).applyOther` at `game/year-replay.ts:135-139`, which resyncs the
+ecosim population mirror and **adds no creature to the party**; the inner `deps.applyOther` it
+delegates to has no production supplier anywhere (the sole implementation in the repo is a test stub,
+`tests/unit/save.test.ts:948`). `core/save.ts:716-717` says so in prose.
+
+**The `battleAftermath` entry added on 2026-08-27 is exactly the pattern this needs** —
+`applyBattleResult` appends one (`game/wild-battle.ts:476`) and `replay` re-applies it
+(`core/save.ts:879-880`). Do the same for the catch.
+
+⚠ **Scope this honestly: `replay()` has ZERO production callers.** Every call site is a test —
+`tests/unit/year-turn-ux.test.ts:3131, 3153, 3203, 3363`, `tests/unit/wild-battle.test.ts:241`,
+`tests/unit/battle-persistence.test.ts:491, 513, 517, 540, 612`. **L10 is a property the suite
+asserts, not a load path the game takes.** That is what made a false L10 survivable, and it is also
+the thing to notice: the determinism tests are certifying less than their name suggests.
+
+**Done when:** a replayed run containing a catch reproduces the live party exactly, and the thing that
+proves it is a determinism test that actually catches a creature.
+
+### T-35 · Interiors, phase 2 — the scene layer
+**Status:** TODO — **phase 1 is in flight; do not start inside its files**
+
+Phase 1 (model + blueprints) is the eleven dirty paths in the tree: `core/interiors.ts`,
+`data/interiors/*.json`, `tests/unit/interiors.test.ts`.
+
+**Decided architecture, recorded so phase 2 does not relitigate it: an interior is NOT a node.**
+`save.currentNode` keeps naming the town and a **new declared save field** says which room. A 13th
+node would demand a painted base map (`tests/unit/manifest.test.ts:556-557`) and trip every hard-pinned
+node count in the suite. **Five such pins, measured:** `tests/gates/schemas.test.ts:57`,
+`tests/gates/guardrails.test.ts:558`, `tests/unit/manifest.test.ts:557`,
+`tests/unit/transcription.test.ts:922`, `tests/property/ecosim.test.ts:1490`. *(An earlier count of
+six is corrected to five — `manifest.test.ts:556` is the map-row assertion, not a count pin.)*
+
+Phase 2 needs four things:
+1. **Door entry and exit.**
+2. **An explicit arrival cell.** `chooseSpawnTile` (`game/collision.ts:716`) delegates to
+   `firstWalkableTile` (`:673-693`), which spirals in Chebyshev rings from the fixed 64×64 lattice
+   centre. That is right for a 64×64 outdoor map and lands in a far corner of a small room.
+3. **Guards so no wild encounter rolls and no foray tick accrues indoors.**
+   `game/scenes/OverworldScene.ts:783` calls `rollForayStep` **unconditionally on every completed
+   step** (`onStepCompleted`, `:777`). `:849` writes the odometer unconditionally; the charge at
+   `:850` is conditional on `chargingForay` (computed `:840`). **Both need an indoor guard — note the
+   asymmetry: the tick charge is conditional, the odometer write is not**, so an indoor step still
+   walks the player toward a foray tick even if it never spends one. *(This queue previously described
+   both as unconditional; only the roll and the odometer are.)*
+4. **The save field declared in `zSaveFileFor`** — or zod silently deletes it on the next load.
+
+**Done when:** the player can enter and leave a room from the town map, arrives on an authored cell,
+walks indoors without rolling an encounter or accruing a foray tick, and the room survives a save/load
+round trip.
+
+### T-36 · `node.walkable` gates nothing, and two canonical docs say otherwise
+**Status:** TODO — **blocked on Hank's decision; an agent may not pick a side**
+
+`travelTo` (`game/scenes/OverworldScene.ts:2225`) refuses on exactly two things — adjacency at `:2227`
+and the act ladder at `:2243-2247`. **It never reads `node.walkable`.** The only read of the flag
+anywhere in `game/` or `core/` is `game/scenes/OverworldScene.ts:564`, inside `firstWalkableNodeId()`
+at `:563`, choosing a default node. Everything else is a declaration (`core/types.ts:160`) or a zod
+field (`core/schemas.ts:216`).
+
+**So the player walks all twelve nodes, all of them on `synthesiseBorderCollision`.** Four carry
+`walkable: true` — `hearthollow`, `r1`, `brackwater`, `r2` — and eight carry `false`.
+
+**Three canonical sentences describe a path that does not exist in `game/`:**
+- `docs/build-doc.md:202` — `walkable: boolean; // false => vignette card fallback`
+- `docs/build-doc.md:428` — cut line **C-1**, *"acts 5–6 towns walkable → vignettes (already
+  default)"*. It is not the default and it is not implemented.
+- `docs/content-bible.md:162` — *"later nodes fall back to vignette cards."*
+
+And `tests/unit/transcription.test.ts:949` pins which nodes carry the flag —
+`expect(nodes.filter((n) => n.walkable).map((n) => n.id).sort()).toEqual(["brackwater","hearthollow","r1","r2"])`
+— **a test certifying a field's value while nothing outside the test reads the field.** That is the
+§8.5 shape ("a precondition is only real if something outside the test produces it") arriving on a
+data field instead of a dialogue flag.
+
+**The two options, and Hank picks:**
+- **Build the fallback.** Non-walkable nodes render a vignette card instead of a walkable map — what
+  both canonical docs already promise and what C-1 assumes exists.
+- **Drop the claim.** Delete the fallback language from both docs, retire C-1, and either delete
+  `walkable` or give it a real reader.
+
+**Done when:** Hank rules; the chosen side is implemented; and the losing side's text is corrected in
+the canonical doc rather than left standing.
+
+### T-37 · The enemy AI is blind to move `priority` — a design call, not a defect
+**Status:** TODO — **blocked on Hank; it moves published win rates either way**
+
+Now that ties resolve by pool order (T-27), **every damage-tie between a priority move and a
+non-priority one resolves against the priority move.** `moveRank` (`core/battle.ts:1364-1369`) is
+`movePowerVs × typeMultiplier` and reads nothing else. `priority` appears in `core/battle.ts` only in
+turn-order code — `movePriority` (`:1290-1305`), consumed by `resolveOrder` (`:1307-1322`) — and in an
+effect-switch arm that deliberately no-ops at `:1177`.
+
+**That is the whole of Odo's 9.8 pp swing.** All thirteen T-27 flips traded `ambush`'s entry-turn
+priority for equal damage; floating-point rounding had been picking the priority move *by accident*.
+
+**This is not a defect** — the AI does exactly what its docblock now promises. Whether a "reasonable"
+enemy should value moving first is a design question:
+- **Leave it.** Pool order is authored order, so a leader who should open with `ambush` gets it by
+  listing it first. The roster is the lever and no code changes.
+- **Rank priority in.** Deliberate, and it re-opens every gym band measured under T-13.
+
+**Done when:** Hank rules. If priority is ranked in, the docblock says so and a test constructs one of
+the thirteen measured ties. **Do not slip it in as a tie-break tweak** — it changes what the AI
+values, and it has to be measured as that.
+
+### T-38 · The level-5 starter is one-shot on Route 1
+**Status:** TODO — **measurement and consequence only; retuning is a separate deliberate call**
+
+A level-1 `loamunder-line` lands **78 super-effective damage** against a level-5 Juvenile starter's
+**58 HP**, and **four of Route 1's six lines beat the starter one-on-one at level 1.**
+
+Inputs, re-read:
+- The starter is granted at `balance.xp.starterLevel` = **5**, age **J**. HP by `effectiveStats`
+  (`core/battle.ts:390`; level term `:396`; write `:414`): `60 × 0.875 × 1.1 = 57.75 → **58**` for
+  Cindril and Thornlet, **63** for Puddlisk.
+- Route 1 ships **six** lines (`data/nodes/r1.json:17-48`): `loamunder-line` 32 head, `nibbin-line` 11,
+  `skir-line` 8, `bramblehog-line` 7, `pollywisp-line` 6, `carricrow-line` 3 — 67 head.
+- `loamunder-line` (`data/species.json:337`) is Earth/Plant, base **85/60/85/30/40** after T-11's
+  Producer re-spend. At level 1 only `type1` unlocks (`data/balance.json:175-179`), so it fields
+  `sunder` (Earth, power 40). Earth is strongVs Fire and `superEffective` is 1.5, so against the Fire
+  starter: `61 × 40 / 43 × 1.5 ≈ 85`, × roll 0.9–1.1 → **77–94**.
+
+⚠ **The 78 is starter-specific.** Against Thornlet (Plant) that move is not super-effective. Name the
+starter whenever this figure is quoted.
+
+Loamunder is **47.8% of Route 1's encounter weight**, and T-11 recorded the cost it accepted at the
+time: a level-5 adult starter's loss rate against one went **6.5% → 38.0%**. That was tolerable while
+a loss cost nothing. **T-28 makes the loss persist and T-29 charges five ticks to recover from a
+wipe** — the same number now buys a different game.
+
+**Nothing here is a licence to retune.** G2 binds on species values and T-11's re-spend is Hank's.
+
+**Done when:** the four losing matchups are enumerated from a real harness run rather than from this
+text, the figure is recorded per starter, and the result goes to Hank beside T-28 and T-29.
+
+### T-39 · `sanctum-antler-ring` sits exactly on the Sanctum's spawn cell
+**Status:** TODO — **a genuine data conflict, not a generator bug**
+
+`data/nodes/sanctum.json:30` places the node's **only** prop at `x: 512` (`:32`), `y: 512` (`:33`),
+`interactionRadius: 48` (`:34`).
+
+That is the spawn cell, and the arithmetic is worth writing down because the units differ at every
+hop. Prop coordinates are authored in **native px** and scaled to world at `game/props.ts:47-48`; the
+spawn is returned in **tiles** by `chooseSpawnTile` (`game/collision.ts:716`), which spirals from the
+lattice centre `Math.floor(64/2)` = tile **(32,32)**. Tile (32,32) at `tileStepPx` 32 is world
+(1024,1024), which at `mapRenderScale` 2 is native **(512,512)** — the prop's exact position. The
+radius is 96 world px, so the player does not land *near* it, they land **inside** it.
+
+**Two map rules meet on one cell**: *"keep the centre clear"* and *"mark every prop in the painting"*.
+The Sanctum is where they coincide, because it has exactly one prop and it is the centrepiece.
+
+**Done when:** the conflict is resolved in `data/nodes/sanctum.json` — the prop moves off centre, or
+the Sanctum's spawn is authored away from the lattice centre — and whichever rule yields is written
+down where the map lane will read it. The map lane owns the painting; this ticket owns the node file.
+
+### T-40 · `DexScene` and `SummaryScene` take an optional `onClose`
+**Status:** TODO — **not broken today; one supplier away from repeating a defect just repaired**
+
+`game/scenes/DexScene.ts:61` and `game/scenes/SummaryScene.ts:50` both declare
+`onClose?: () => void;` — the same shape as the epilogue-survey defect, where an optional close
+handler meant a screen with no way out.
+
+Each has **exactly one supplier**, both in `MenuScene.ts` (dex `:587`, summary `:599`), and both pass
+one, so nothing is stranded now. But nothing structurally prevents a second launcher omitting it, and
+`SurveyScene` has already paid for that: `game/scenes/SurveyScene.ts:101-102` carries the note, `:105`
+made its own `onClose` **required**, and `:227-233` added a runtime fallback these two do not have.
+
+**Done when:** both are required, or both carry the same runtime fallback `SurveyScene` has, and a
+test proves a launcher that forgets it cannot strand the player.
+
+### T-41 · The manifest says `fit: true`; `toSprite()` calls `nearestResample`
+**Status:** TODO — **pre-existing at HEAD; not introduced by T-24's repair**
+
+`tools/comfy/manifest.json:345` sets `classes.player.postprocess.fit: true`, and the honest chooser at
+`tools/postprocess/chain.ts:104-105` reads that recipe (`recipe.fit ? fitResample : nearestResample`).
+But `toSprite()` — `tools/comfy/player-views.ts:553`, resample at `:557` — calls **`nearestResample`
+unconditionally**:
+
+    removeFlatBackground(quantize(nearestResample(trimBackground(src, bg), W, H), palette), bg)
+
+So the shipping batch pipeline and the derived player views disagree about how the player is
+resampled. They are not interchangeable: `nearestResample` is `tools/postprocess/steps.ts:147`, and
+`fitResample` (`:176`) calls it at `:181` after letterboxing to the target.
+
+**Done when:** `toSprite()` honours the recipe, or the manifest row is corrected to `fit: false` —
+whichever matches the approved front sprite's actual geometry, **decided by decoding it rather than by
+reading either file.** `tests/gates/player-art-contract.test.ts` is where the answer gets bound.
+
+### T-42 · Three comments still call a season four ticks long
+**Status:** TODO — **T-25 item 2's sibling, found while closing it**
+
+`balance.clock.ticksPerSeason` is **13**, and `data/balance.json:410` already says a regional-event
+window *"stays open for clock.ticksPerSeason ticks"*.
+
+- `game/scenes/OverworldScene.ts:1405` — *"bible §9's regional events open right now — each one a
+  4-tick season window."* **Stale as a statement of the current rule.**
+- `game/scenes/OverworldScene.ts:1915` — the same figure, as historical narration.
+- `core/regional-events.ts:415` — the same figure, the same shape.
+
+This is precisely the defect T-25 item 2 closed and then made unrepeatable: **a comment that quotes
+ticks goes stale in silence.** The repaired `seasonBoundary` docblock
+(`game/scenes/OverworldScene.ts:1973-1985`) is the model — it names the balance keys and refuses to
+name the number, and says at `:1980-1982` that it does so for this reason.
+
+**Done when:** all three name `clock.ticksPerSeason` rather than a figure, and the two that are
+genuinely historical say so explicitly instead of reading as the current rule.
 
 ---
 
@@ -559,6 +1117,8 @@ of the 13 measured cases. **Do not "fix" it by loosening a comparison** — the 
 | **The per-speaker dialogue-line ceiling** | Withdrawn by its own author's instruction (T-5). Floors and medians stay because they describe a distribution; a cap is a different claim. Do not reintroduce one. |
 | **The two prose-lint corpus structural failures** | Fixed. `G8-ASSERT-CHOP` and `G9-SHAPE-SIG` both read CLEAN. Note the linter still exits 1 on advisory per-beat flags alone (`prose-lint.py:1085`), so a non-zero exit is not evidence of a structural failure. |
 | **`manifest.json`'s `_deviations[]` rows as dead provenance** | **Struck; the finding was wrong.** The rows are `LB-M1…LB-M9` and their ids are cited by `_targetSource`, `_derivedFormRule` and `_concepts[].source` inside the same file. They are load-bearing, not orphaned. |
+| **"No ControlNet exists for this model family", and the L4 amendment it implied** | **Withdrawn as false, and L4 needs NO amendment.** Nine Z-Image-Turbo ControlNets are installed; they load through `ModelPatchLoader` rather than `ControlNetLoader`, which is why a search for the latter found nothing. Union variants built for 8 steps are among them. **Every field L4 locks (`docs/build-doc.md:42` — z_image_turbo, 8 steps, cfg 1.0, res_multistep/simple, 1024², fixed seed per asset) is unchanged.** Do not re-raise a ControlNet-shaped amendment to L4. |
+| **`tools/comfy/MAP-PROMPT-RULES.md` R2 — "the negative prompt is INERT"** | **Overturned as a FACT, upheld as a DECISION. Record it; do not edit that file.** The fact: inertness is a property of **cfg 1.0**, not of the pipeline. At cfg 1.0 two graphs differing only in the negative prompt produced a **0-byte difference over 3,145,728**; re-run at **25 steps / cfg 4.0**, the same experiment moved **98.4% of bytes**. So "nothing can be fixed by adding a term" is true only while cfg stays at 1.0 — which L4 locks, so R2's *practical* instruction holds. The decision: raising cfg was tried and **rejected anyway** — it fixed no defect class, lost the projection, and degraded mean CIEDE2000 palette fit **4.185 → 5.402 (~29% worse)**. **A defect is still fixed in the positive prompt or it is not fixed.** |
 
 ---
 
@@ -568,9 +1128,14 @@ of the 13 measured cases. **Do not "fix" it by loosening a comparison** — the 
 - **Do not frame work around the demo video.** Features are argued on their own merits.
 - **Never express effort in human hours** (G12).
 - A date inside a document is context, not a constraint.
-- **A ticket's own predicted number is not a measurement.** Three of T-13's were wrong, and one of
-  T-1's named the wrong knob. Re-measure before you act on a figure written here, and when it
-  disagrees, record that it was wrong rather than replacing it silently.
+- **A ticket's own predicted number is not a measurement.** Three of T-13's were wrong, one of T-1's
+  named the wrong knob, and **T-27's predicted the wrong direction outright** — it argued the AI was
+  throwing away super-effective moves, and honouring pool order made the enemy *weaker*, not
+  stronger. Re-measure before you act on a figure written here, and when it disagrees, record that it
+  was wrong rather than replacing it silently.
+- **A ticket's own file:line is not a measurement either.** On the 2026-08-27 pass, `ensureNodeArt`,
+  the mesopredator filter, four battle handlers, both foray hooks and the enemy-AI docblock had all
+  drifted from the lines this file cited. Re-read the line before you cite it.
 - **Green tests prove only what they exercise.** Before trusting a metric, ask what produced it and
   sabotage it to see whether it bites. This repo has had a cascade metric that counted the wrong
   animal, a prose linter whose checks were fossils, a gym harness measuring a party size the game

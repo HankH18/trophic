@@ -70,46 +70,44 @@ cannot see it.
 
 ## Verified state
 
-**Measured 2026-08-26, 21:43–22:11, against a working tree that several agents were editing while
-it was being measured. It never settled.** Committed HEAD is `ca9d073`; **nothing below is
-committed.** `git status` went 55 → 74 → 78 → 80 dirty paths inside half an hour; `data/species.json`
-changed at 22:00:20 between consecutive test runs; a failing `tests/unit/battle-view.test.ts`
-assertion was repaired by another agent between the 21:59 and 22:03 runs; and `tsc` read clean at
-22:03 and dirty at 22:10 on a *different* file each time. **Every figure here is a snapshot.
-Re-measure before quoting one.**
+**Measured 2026-08-27 against a tree that has settled.** The 2026-08-26 measurement this section used
+to carry was taken while several agents were editing, and it never held still: `git status` went
+55 → 74 → 78 → 80 dirty paths inside half an hour, and four `tsc` runs produced three different error
+sets. **That is over.** The tree was committed at `af82c46` at Hank's instruction, and the numbers
+below repeat across consecutive runs.
 
-- `npx tsc --noEmit` — **exit 1 at 22:10**, two errors, both
-  `tests/unit/overworld-scene.test.ts:543` (`'tick'` / `'subTick'` not on `AdvanceYearResult`).
-  The same command read **exit 0 at 22:03** and exit 1 at 21:46 and 21:52 with errors in
-  `game/scenes/YearTurnScene.ts` / `tests/unit/year-turn-ux.test.ts`. Four runs, three different
-  error sets: an agent mid-refactor, not a settled defect.
+- `npx tsc --noEmit` — **exit 0.** Silence, which is clean.
   Note `cmd | tail; echo $?` reports **tail's** status, not the command's — that mistake has already
   reported this repo's prose linter as exit 0 when it is exit 1.
-- `npm run test` — **12 failed / 2401 passed at 22:11, 5 files of 53.** The same command read
-  2 failed at 21:43, 16 at 21:59 and 18 at 22:03. **Exactly one is a settled defect:**
-  - **`transcription.test.ts:1358`** — the cascade feasibility gate, the section at the top of this
-    file. It fails on `data/balance.json` + node counts and has read the same numbers in every run.
-  - The other **11 are in-flight work**. **7** are downstream of T-11's `data/species.json` Producer
-    re-spend, whose pinned tables are being re-derived as this is written — `battle-view.test.ts` (2
-    fixture replays + 1 caption), `battle.test.ts` (2 fixture replays), `catch.test.ts` (2 Instinct
-    tables). Several of those tests carried the **old** Producer template as a hand-typed literal,
-    and the count has been falling run over run as they are corrected. **4** are `manifest.test.ts`
-    ("the committed rows equal a fresh derivation"), which went red between 21:59 and 22:03 as the
-    art lane edited `tools/comfy/manifest.json`. **None of these is evidence of a defect and none
-    should be quoted as one.**
-- `npm run build` — **did not complete at 21:52**: its `tsc --noEmit` gate failed on the in-flight
-  refactor. No current bundle-size figure; the stale one has been dropped rather than carried.
-- `python3 tools/prose/prose-lint.py data/dialogue.json` (22:00) — **exit 1**, 214 entries,
-  63 speakers, 509 lines. 27 control assertions green over 7 structural checks. **0 corpus
-  structural failures** — the two this file previously carried, `G8-ASSERT-CHOP` and `G9-SHAPE-SIG`,
-  are both **CLEAN** now. 3 per-beat advisory flags, all `R1-SUBJECT-SWITCH`, 3 speakers.
+- `npm run test` — **12 failed / 2548 passed, 4 files of 61.** Every one of the twelve is accounted
+  for, and **none of them is an unknown**:
+  - **`tests/unit/transcription.test.ts:1358` — 1 failure.** The cascade feasibility gate, the
+    section at the top of this file. Settled, and it is the owner's decision, not a defect to fix.
+  - **`tests/gates/player-art-contract.test.ts` — 7 of 16.** *Correctly* red: the first gate in this
+    repo that decodes a PNG, reporting real defects in committed sprites the art session owns
+    (T-24). Verbatim: `player-back-32x48.png` *"holds 8 px in 2 colour(s) that data/palette.json does
+    not contain: #ec9a70×4 #eec092×4"*; the star badge fails on the cap rows and on the whole rear
+    view; and the freshness assertion reports the committed back view disagreeing with a fresh
+    derivation in **333 px**, first at (10,4).
+  - **`tests/unit/harness.test.ts` — 2 of 77.** Both clause-7 (`:519` failing at `:541`, `:573`
+    failing at `:622`), and both **red because they are working**: T-27 removed the state dependence
+    they were pinning, exactly as `:574-585` said it would. T-32.
+  - **`tests/unit/manifest.test.ts` — 2 of 118.** The art lane mid-flight in
+    `tools/comfy/manifest.json`. Not a defect and not to be quoted as one.
+- `python3 tools/prose/prose-lint.py data/dialogue.json` — **exit 1**, 214 entries, 63 speakers, 509
+  lines. 27 control assertions green over 7 structural checks. **0 corpus structural failures.**
+  3 per-beat advisory flags, all `R1-SUBJECT-SWITCH`, 3 speakers.
   **The non-zero exit is not evidence of a structural failure**: `tools/prose/prose-lint.py:1085`
   exits on `beat_total + fails ≠ 0`, so three advisory flags alone produce exit 1.
-- `git status --porcelain | wc -l` — **80** (22:11); it read 55 at 21:43. Seven untracked paths:
-  `tests/gates/dex-path-contract.test.ts`, `tests/unit/clock-subtick.test.ts`,
-  `tests/unit/battle-launch-guards.test.ts`, `tools/comfy/trial.ts`, `tools/comfy/trials/`,
-  `tools/comfy/MAP-PROMPT-RULES.md`, `tools/artverify/`. The temporary
-  `tests/unit/__repro-battle-clock.test.ts` was deleted at ~22:11, which closes one of T-25's items.
+- `git` — HEAD is **`461169c`**, and **`main` is in sync with `origin/main` — everything is pushed.**
+  The exposure this file carried all night (a machine that had already lost power once holding the
+  only copy) is closed. One session owns the index by Hank's instruction; the art lane does not commit.
+  `git status --porcelain` is **11 paths**: the interiors lane (`core/interiors.ts`,
+  `data/interiors/*.json`, `tests/unit/interiors.test.ts`), `assets/reference/`, `tools/mapgen/`, and
+  a lock file. The commit captured the whole tree at Hank's instruction, which is why the previous
+  80-path snapshot has no successor. **The dirty-path count is the one figure here that still moves
+  under you** — the interiors and map lanes are both live, and it changed while this was being
+  written. The test and typecheck numbers above repeated across consecutive runs; that one does not.
 
 ## What is built
 
@@ -139,6 +137,10 @@ Re-measure before quoting one.**
 | Rival | One encounter per act, each with pre/win/loss copy | `game/rival.ts`, `data/dialogue.json` |
 | Survey | Real per-node counts plus run history | `game/survey-view.ts`, `game/survey-history.ts` |
 | Balance harness | Gym sim, type round-robin, full-run cascade; now pays travel/foray/battle ticks and rolls the grass-gated rate | `tools/harness/` |
+| Harness control run | **`CATCH_PROFILES` × `RAID_POLICIES` = a 3×2 matrix**, raid suppression as an orthogonal flag rather than a fourth profile. Deep-copies `rawBalance` and empties `yearEvents.raids` in memory — `data/balance.json` is never touched. Extinctions attributed by measurement (`attributeExtinction`), not by a node lookup | `tools/harness/full-run.ts:250`/`:265`/`:335`, `report.ts:525` |
+| Battle persistence | The **spine** exists — `applyBattleResult` appends a `battleAftermath` action and `applyBattleAftermath` writes `curHp`/level/xp. **Nothing in `game/` calls it**, so no fight persists yet (T-28) | `game/wild-battle.ts:471`, `core/save.ts:601` |
+| Enemy AI tie-break | Ranks on `movePowerVs × typeMultiplier` alone — the dropped factors are common to a pool and cannot reorder it. 13 → 0 divergences; the argmax is still an exact strict `>` | `core/battle.ts:1364` |
+| Player art contract | **The first gate here that decodes a PNG** (via `sharp`): palette exactness, star-badge absence, no new swatches, and a freshness check against a live re-derivation. Currently and correctly RED | `tests/gates/player-art-contract.test.ts` |
 | Art pipeline | Comfy Cloud client, batch runner, postprocess, overlay diff; **plus a supervised trial runner** (`tools/comfy/trial.ts`, `TRIAL_ROW_CAP` 20 for G13) | `tools/comfy/`, `tools/postprocess/` |
 | Palette | 32 positional swatches, **re-frozen 2026-08-26 to the class-equal fit** — all 32 hex values changed, ids/count/`frozen` intact | `data/palette.json` |
 | Dex art path | `dexArtId()` produces `dex-painted/dex-<name>`; bound by a 9-test set-identity gate | `game/survey-view.ts:828`, `tests/gates/dex-path-contract.test.ts` |
@@ -179,13 +181,16 @@ Re-measure before quoting one.**
    `menu-model.ts` / `survey-view.ts` followed. — `game/ui/Palette.ts:178`, `game/menu-model.ts:76`,
    `game/survey-view.ts:253`
 
-3. **The derived player sprites are now off-palette, and the star badge is back on the cap's rear.**
-   *(T-24)*
-   `tools/comfy/player-views.ts:213-219` hardcodes 18 hex literals, **every one of which the swap
-   deleted**. Regenerating from them wrote 8 off-palette pixels into the back view and 420 into the
-   side view, and the star-removal filter compares against `#f9db10`, which no longer exists, so it
-   never fires. `_acceptance.json`'s identity detectors read `0` / `[]` / `null` as a result.
-   **No gate reads a committed PNG**, so this is invisible to a green suite.
+3. **The derived player sprites are off-palette, and the star badge is back on the cap's rear —
+   the code half is repaired and a gate now sees it.** *(T-24)*
+   The 21 dead hex literals in `tools/comfy/player-views.ts` now resolve through `data/palette.json`
+   by slot id, and `tests/gates/player-art-contract.test.ts` decodes the committed PNGs. The
+   **assets** are still wrong, and the gate reads RED reporting exactly that. Two findings kept:
+   - **The class-equal fit has no swatch between `c05` (`#642c16`) and `c07` (`#8c5230`)**, so `hair`
+     and `hairHi` collapse onto one another and the nape band loses a tone. Same for the cap greens
+     on `c17` (`#054114`). A palette id is a slot, and a class-equal fit owes no role a neighbour.
+   - **A dead ternary meant every "derived" row in `_acceptance.json` was describing a re-stretched
+     copy rather than the shipped bytes.** The detectors were honest about a file nobody ships.
 
 ### The shape behind most of what follows: a derived artifact carrying a hand-written claim
 
@@ -213,7 +218,11 @@ a generated artifact must say something, compute it from the artifacts it descri
 the palette promotion is a sha256 comparison, not a sentence), and make the generator refuse to write
 rather than write something it cannot support.
 
-### Stale instruments and dead comments — items 5, 6, 7, 11, 12, 13 are T-25 (7, 11 and 13 now closed); items 8 and 9 are T-2
+### Stale instruments and dead comments — all closed 2026-08-27
+
+Items 5, 6, 7, 11, 12 and 13 were T-25, now **DONE in full**; items 8 and 9 were T-2, now **DONE**.
+They are kept, not deleted, because the shape recurs — **item 26 is where it recurred next**, found
+while closing item 6.
 
 4. **A hex fossil can hide inside a test named for a standard.** `tests/unit/battle-view.test.ts`'s
    "BINDS — the contrast maths agrees with WCAG's own anchors" carried three assertions: two real
@@ -222,11 +231,14 @@ rather than write something it cannot support.
    because legibility broke, but because the fossil moved. **Repaired by another agent at ~22:01**
    while this file was being written; recorded here because the shape recurs and the name of the
    test is what hid it.
-5. **`tests/unit/transcription.test.ts:1297-1300` says battles are unwired.** It states "nothing in
-   `game/` ever spends it … As WIRED, battles are free and the real budget is 112.32."
-   `game/scenes/OverworldScene.ts:879` spends it. The comment is stale; the arithmetic above it is not.
-6. **`game/scenes/OverworldScene.ts:1921` says `seasonBoundary` fires at ticks 4, 8 and 12.** It now
-   fires at 13, 26 and 39. Its own header calls it "THE SEAM MOST LIKELY TO BE RE-BROKEN."
+5. **CLOSED — `tests/unit/transcription.test.ts` no longer says battles are unwired.** The arithmetic
+   above the comment was always correct; only the comment was wrong, and it now names the spender.
+6. **CLOSED, and structurally.** No comment anywhere in `game/` or `core/` says `seasonBoundary`
+   fires at "4, 8 and 12". The docblock is now `game/scenes/OverworldScene.ts:1973-1985` and states
+   the cadence as *"the first `seasonOrder.length - 1` multiples of `clock.ticksPerSeason`"* — naming
+   the balance keys instead of the ticks, and saying at `:1980-1982` that it does so "because a
+   comment quoting the ticks goes stale in silence." **That is the fix generalised, and it is why
+   item 26 was found.**
 7. **CLOSED — the manifest-palette freeze prose is corrected AND can no longer revert.** It asserted
    `data/palette.json` was "FROZEN and UNTOUCHED" after the class-equal promotion had touched it.
    Re-verified by reading both artifacts: `tools/comfy/manifest-palette.json` now says the palette
@@ -238,14 +250,20 @@ rather than write something it cannot support.
    `palettes.frozen.colorsSha256` against `palettes.classEqual.colorsSha256` computed from the bytes
    on disk (both `51a95b06…` today) rather than by a literal. A `--self-test` covers the refusal, the
    unpromoted wording and a moved `frozenAt`. The generator is the reason this stays closed.
-8. **`tests/integration/demo-beats.test.ts:252-281` argues against a §10.2 that no longer exists.**
-   It quotes "strictly rising within 4 seasons" and calls the shortfall "not a licence to ship the
-   beat as is"; §10.2 was amended under T-2 to assert the collapse and *report* release. The test is
-   green while describing a superseded spec.
-9. **`tools/harness/fixture.ts:142`'s one-line mesopredator filter is still undefended.** `grep` for
-   `isMesoLine` / `releasedLineId` in `tests/` returns zero. At `r4` it is provably a no-op, so
-   deleting it changes nothing and every test still passes. Bind it or record it as undefended —
-   T-2 asked for one of the two and neither happened.
+8. **CLOSED — the comment block at `tests/integration/demo-beats.test.ts:252-281` describes the
+   amended §10.2, and no predicate moved.** The assertions are byte-identical to what stood before;
+   green before, green after. It also **dropped a figure sourced nowhere in this repo** — *"16% of
+   seeds at 4 seasons"* — for the published **12.5%** (3 of 24 seeds), which §10.2
+   (`docs/build-doc.md:373`) and `core/foodweb.ts:242` both carry. The test **is** that measurement.
+   The deleted line is in git: `git show af82c46 -- tests/integration/demo-beats.test.ts`.
+9. **CLOSED — the mesopredator filter is bound.** `isMesoLine` (`tools/harness/fixture.ts:110`,
+   applied `:115`) is covered by `tests/unit/harness-fixture.test.ts`, 5 tests, whose count assertion
+   at `:216` names the **eight** sites where it bites against the two where it is a no-op
+   (`cindershelf`, `r4`). Twelve node files ship, but `sanctum` and `sanctum-approach` have no
+   top-of-web predator, so **the honest denominator is 8 of 10 sites, not 8 of 12.** Dropping the role
+   test reddens 3 of the 5; the pre-existing suite stayed **fully green** under the same sabotage.
+   Note *which* two nodes are the no-ops: **`r4` is the over-catch fixture's own node**, which is
+   exactly why nothing ever saw this.
 10. **`tools/comfy/manifest.json`'s 9 `_deviations[]` rows are no longer dead provenance.** This file
     previously recorded them as indexing a ledger the repo no longer keeps. They are now `LB-M1…LB-M9`
     and cited by `_targetSource`, `_derivedFormRule` and `_concepts[].source` inside the same file.
@@ -253,8 +271,10 @@ rather than write something it cannot support.
 11. **RESOLVED at ~22:11 while this was written.** `tests/unit/__repro-battle-clock.test.ts` was
     untracked debris whose own header said "TEMPORARY reproduction — deleted once the defect is bound
     by a real test"; `tests/unit/clock-subtick.test.ts` is that test, and the repro has been deleted.
-12. **`tools/harness/full-run.ts:368` `const year = clock.year;` is dead** — nothing in the loop body
-    reads it. Vestige of the closed calendar→act coupling.
+12. **CLOSED — the dead `const year` binding is gone.** A comment at `tools/harness/full-run.ts:490-491`
+    stands where it was, recording that the calendar→act leak was closed by threading `act` and that
+    the binding it left behind read nothing. The loop opens `const act = balance.acts.first + 1 + y;`
+    at `:492`.
 13. **CLOSED — re-read, and it no longer says that.** `tests/unit/lifecycle.test.ts:1646` now reads
     "0.875 → 1.0 → 1.075, plus the metamorphic ×1.15", with the old triple kept two lines below as
     the recorded T-10 before/after rather than as the rule. The item outlived the defect; struck.
@@ -281,35 +301,43 @@ rather than write something it cannot support.
 20. **The seed is not randomised.** `game/boot.ts:333` `requestedSeed()` returns
     `balance.rng.defaultSeed` (**1337**) unless `?seed=N` is in the URL, so every new game gets the
     same region. This is the prior question T-14 must answer before seed *guardrails* mean anything.
-21. **`core/battle.ts`'s enemy-AI tie-break is decided by floating-point rounding, and shipped
-    content hits it.** *(T-27)* The docblock at `core/battle.ts:1318` promises "ties to the earliest move in
-    the pool", and the loop's `score > bestScore` is strict, so *bit-identical* doubles do keep pool
-    order. But the score is `((atk × power) / def) × mult × predation × midRoll` — so a tie on paper
-    (40 × 1.5 = 60 × 1.0) generally does **not** produce equal doubles, and the last bit decides.
-    Measured over all six shipped gym rosters as the enemy, every non-Ancient line × J/A/E at the
-    slot's level, calling the real `chooseEnemyAction`:
+21. **CLOSED — the enemy-AI tie-break is exact, and the fix moved the game the opposite way from the
+    prediction.** *(T-27)* It used to score
+    `((atk × power) / def) × mult × predation × midRoll`, so a tie **on paper** rarely produced equal
+    doubles: over 2160 shipped pairs, 59 tied on paper, 20 disagreed as doubles, and **13 chose a
+    move that was not earliest in pool.** The key is now `movePowerVs × typeMultiplier` alone
+    (`moveRank`, `core/battle.ts:1364-1369`) — the dropped factors are common to every move in a pool
+    and cannot reorder it in exact arithmetic, so nothing was traded away. **13 → 0 divergences;
+    exactly 13 of 2160 choices changed.** The comparison was **not** loosened: the argmax is still a
+    strict `>` on an exact key, so no rng enters the enemy policy.
 
-        2160 pairs · 59 tie on paper · 39 also equal as doubles (pool order holds)
-                                     · 20 disagree (rounding decides)
-                                     · 13 chose a move that is NOT earliest in pool
+    **The prediction was that the enemy would get stronger. It got weaker.** Odo 91.6% → **95.2%**
+    full party, **+9.8 pp** at matched party; Sable **−1.4 pp** once the harness player model took
+    the same key. **Nothing was tuned.** The cause: **all 13 flips trade `ambush`'s entry-turn
+    priority for equal damage** — the rounding had been selecting the priority move *by accident*,
+    and pool order does not know priority exists. That is now its own open question (T-37). The
+    player-side change is backed by an exhaustive sweep over **8.1 million pairings**: zero real
+    reorders, all 11,602 divergences exact ties.
 
-    In all 13 the AI throws a neutral move where the docblock promises the earlier super-effective
-    one. Example, Odo's gym: `mirefin-line(A,L14)` vs `cindril-line(A,L14)`, `dous` paper 60 /
-    actual 93.63636363636362603 against `ambush` paper 60 / actual 93.63636363636364024 — pool order
-    says `dous`, the AI picks `ambush`. This is the **game's** AI. `tools/harness/player.ts:275-303`
-    already documents the same instability for the player-side scorer; `core/battle.ts` does not.
+    ⚠ **Two clause-7 tests in `tests/unit/harness.test.ts` went red as a direct consequence** —
+    `:519` (failing `:541`) and `:573` (failing `:622`) — exactly as `:574-585` predicted in writing.
+    They are red because they work. T-32.
 
 ### Art and audio
 
 22. **No art is on disk.** `assets/final/` holds a `.gitkeep`. `tools/comfy/manifest.json` is 288
     rows, `{pending: 287, approved: 1}`. The B1 reproduction gate has never been run.
-23. **Billing has started, and it is not being calibrated.** *(T-26)* At least **24 trial PNGs** have been
-    generated across four map-trial rounds (`assets/raw/_trials/map-town-style`, `map-style-round2`,
-    `map-style-round3`, and a `map-route-shape` spec), and the count was still rising at 22:00.
-    `.gitignore:8` excludes `assets/raw/**`, so **no commit records any of them.**
-    `tools/comfy/manifest.json:9` `perImageCredits` is still `null` — the dashboard was not read
-    before or after a batch of known size, which is the one way build-doc §9.1 says the figure can
-    be obtained.
+23. **Billing is now calibrated, and the scarcity framing this file used to carry was wrong.**
+    *(T-26, DONE)* `tools/comfy/manifest.json:9` reads **`perImageCredits: 1.12`** — dashboard
+    **4,147 → 4,127 across 18 images at 1024²**. **The entire 288-row manifest costs roughly 323
+    credits against a 4,081 balance, about 8%.** Nothing in this project is constrained by image
+    count, and any argument that reasons from image scarcity is reasoning from a figure nobody had.
+    Two qualifications: **1.12 is the 1024² figure specifically** — a later mixed batch including
+    256² health probes read near **0.53**, because cost tracks pixels — and **G13 still binds as a
+    *review* discipline**, not a budget one: twenty images get looked at before they are made, which
+    never depended on the price. Trial PNGs live under `assets/raw/_trials/` across **nine** trial
+    specs in `tools/comfy/trials/`; `.gitignore:8` excludes `assets/raw/**`, so **no commit records
+    any of them.**
 24. **No audio exists.** `assets/audio/` holds a `.gitkeep`; zero `this.sound` calls in `game/`.
     The 11-row track list is corrected (T-21 doc half); no composer family has been shopped and there
     is no `ATTRIBUTION.md`.
@@ -318,22 +346,108 @@ rather than write something it cannot support.
     lifecycle, so nothing measures it. A gym run seeded with a post-retirement party is the mode to
     add. — `tools/harness/gym-sim.ts`
 
+### Found on the 2026-08-27 pass
+
+26. **Three comments still call a season four ticks long** — the sibling of item 6, found while
+    closing it. `balance.clock.ticksPerSeason` is **13**, and `data/balance.json:410` already says a
+    regional-event window *"stays open for clock.ticksPerSeason ticks"*. The stale figure survives at
+    `game/scenes/OverworldScene.ts:1405` (stated as the current rule), `:1915` (as narration) and
+    `core/regional-events.ts:415`. *(T-42)*
+
+27. **Layouts must be AUTHORED, not derived — and this was reached twice, independently.** Once from
+    the schema side, asking what an interior could be generated from; once from the pixel side,
+    asking what a map deriver could produce. Both arrived at the same wall.
+    - `zNodeFile` (`core/schemas.ts:211-226`) carries exactly **two spatial fields**: `collisionMask`,
+      which is a path, and `props[]`, which is a list of x/y/radius. There is nothing else in a node
+      from which a layout could be inferred.
+    - **The best layout that data can justify differs from what `synthesiseBorderCollision`
+      (`game/collision.ts:624`) already produces by 7–14 cells out of 4096** — a fraction of a percent.
+      A deriver would be a large amount of machinery to move about ten cells.
+
+    **That convergence is the argument, and it is recorded here so nobody rebuilds a deriver later
+    on the reasoning that nobody tried.** Two independent routes reached it; the answer is to author
+    the layout.
+
+28. **The G7 word-matcher has real blind spots, and this is a recorded limit — not a reopening.**
+    Hank ruled the matcher sufficient under T-3 (*"declare the word-matcher sufficient and drop the
+    item"*), and that ruling stands. What it cannot do is written down so nobody mistakes green for
+    proof. `MORALIZING_PATTERNS` (`tests/gates/guardrails.test.ts:789-831`) is **40 fixed regexes**,
+    consumed by `firstMoralizingHit` at `:833`. Probed directly against that list:
+    - *"You could put the net down any time you liked."* — **clean.** (`could-have` requires the
+      literal words "could have".)
+    - *"Nobody made you empty the shallows."* — **clean.**
+
+    Both plainly tell the player they did wrong. There is also a gap inside the list's own
+    vocabulary: `hope-youre-happy` is `/\bhope you'?re (happy|proud|pleased)\b/i`, so **"I hope you
+    are happy" passes clean** — the expanded contraction escapes the rule written for it. The gate
+    catches a vocabulary, not a stance. **Do not re-raise this as a finding; it is a property.**
+
+29. **`SCREEN_SWATCH_ID.inkFlag` is `c13` where the re-picked house `accent` is `c16`.** The flag
+    swatch lives at `game/survey-view.ts:280` (table at `:272`, with the divergence noted in the
+    block comment at `:265-267`); the house `accent` is `c16` in both `game/menu-model.ts:79` and
+    `game/ui/Palette.ts:208`. **Every other shared role aligns** — backdrop/bg `c00`, ink/text `c03`,
+    inkDim/dim `c01`, inkCollapsed/danger `c09`, vertexLive/ok `c24`. Five of six, one divergence.
+    `game/survey-view.ts:270` states that `Palette.ts`'s `UI_SWATCH` "is not an alignment target and
+    never was", so this is recorded as a fact about the tables, not as a defect in either.
+
+30. **`assets/reference/` now holds seven Gen 2 / Gen 3 maps — inspiration only.** Five under
+    `gen2/` (`azalea-town`, `cherrygrove-city`, `new-bark-town`, `route-29`, `violet-city-partial`)
+    and two under `gen3/` (`fortree-city`, `lavaridge-town`), plus a `README.md` that says so.
+    **Never shipped, never quantized, never fed to the pipeline.** Hank directed the folder
+    explicitly. The two Gen 3 maps are T-17's structural references: Fortree is Bowerdeep, Lavaridge
+    is Cindershelf.
+
+31. **SETTLED — Hild's pitch is a building, and the doc prose was the outlier.** `CAST-AND-VOICE.md`
+    called it a *"marsh stall"* while `tools/comfy/manifest.json` counted it among Brackwater's five
+    tarred timber buildings and gave it a door. A stall needs no interior, so the blueprint count
+    hung on it: four plans or three. Hank asked first whether the phrase appears in any shipped
+    dialogue. **It does not — zero occurrences in `data/dialogue.json`; it existed in exactly one
+    place in this repo, that one character brief.** His ruling: *"Assuming it isn't, you can consider
+    that to be like a barn, basically."* **The blueprint stands and the plan count stays four.** The
+    doc is already corrected (`docs/CAST-AND-VOICE.md:187`, *"a supply barn out on the piles"*), and
+    only the two contradicted words moved — the over-explainer voice, the tic of naming what she
+    cannot sell first, and the "that's Odo's figure, not mine" refusal are untouched. Note "stall"
+    survives correctly in two other places and neither is a defect: `CAST-AND-VOICE.md:104` lists
+    "stallholders" as a name-tier category, and Bowerdeep's night market genuinely has stalls.
+
+    **The useful part is where the disproof came from: it was already sitting inside the blueprint's
+    own `_featureSource`.** Hild's shipped lines describe a **trestle** with a run long enough to have
+    an end — *"Reed bait's the bundle on the end of the trestle, and it has sat there since the thaw
+    looking at me"* — plus salve and tonic as stock, standing on piles over open water. None of that
+    is a stall. **The evidence had been assembled by the discipline of tracing every feature back to a
+    shipped line, before anybody thought to ask the question.** That is the argument for the
+    `_featureSource` convention itself: it is not provenance decoration, it is the thing that settles
+    a contradiction between two documents without a new measurement — and here it settled one against
+    the doc that everybody would have assumed was canonical.
+
 ## What is next
+
+The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
 
 1. **Get a ruling on the cascade budget** (the section at the top). Nothing about beat 1 is settled
    until a knob moves or the beat's site changes, and no agent may pick either under G6/G14.
-2. **Finish T-11's re-derivation.** 12 tests are red behind an in-flight `data/species.json` edit.
-   Pinned tables get re-derived, never loosened (G14).
-3. **Repair the palette fallout** — `tools/comfy/player-views.ts`'s 18 dead hex literals, and a gate
-   that reads a committed PNG so item 3 above cannot recur silently.
-4. **Close the stale instruments in items 4–13.** Each is a comment, a delete, a pin or a binding
-   test; none blocks a beat, and each is one of the misreadings this repo keeps paying for.
-5. **Run the B1 reproduction gate** (build-doc §15, Lane B) — one asset per pixel class reproduced
+2. **Close the progression loop — T-28 and T-29 together, and not separately.** The persistence spine
+   exists and nothing calls it; the moment it is called, a wiped party has no way forward, because
+   the inn heals nothing and the year turn keeps a zero at zero. Hank has already ruled the recovery
+   (blackout dialogue, wake at the inn, `2 × innTicks + 1 × travelTicks`) and it exists nowhere on
+   disk. **Landing the wiring without the heal makes the game blockable**, which contradicts a closed
+   ruling.
+3. **Land T-30 behind it** — XP is written out and never read back, so nothing the player owns gets
+   stronger across six in-game years.
+4. **Land T-32.** Two tests are red in the tree right now, and they are red because they work.
+5. **Repair the player-sprite assets** (T-24's remaining half). The code half and the gate are done;
+   the committed PNGs are not, and the gate is correctly RED against them.
+6. **Interiors phase 2** (T-35), once phase 1 settles.
+7. **Re-author the maps top-down** (T-17, amended). Three of the nine rejects retire at the root and
+   `r5`'s defect inverts, so the reject list is smaller than it looks.
+8. **Run the B1 reproduction gate** (build-doc §15, Lane B) — one asset per pixel class reproduced
    from `manifest.json` byte-identically. Nothing multi-version starts before it passes.
-6. **Give the harness a lifecycle mode** so the Legacy beat is measured rather than asserted.
-7. **Batch the vertical-slice art** (B3/B4) — G13 still binds: no batch of 20 or more without an
-   explicit `--confirm` and a *measured* per-image figure.
-8. **Audio** (C8): retirement cue first, then the pack, then the DSP season presets.
+9. **Give the harness a lifecycle mode** so the Legacy beat is measured rather than asserted.
+10. **Batch the vertical-slice art** (B3/B4). G13 still binds — no batch of 20 or more without an
+    explicit `--confirm` — but it binds as a *review* gate now, not a budget one: the whole manifest
+    is about 8% of the balance.
+11. **Audio** (C8): retirement cue first, then the pack, then the DSP season presets.
+12. **Push.** Eight commits are ahead of `origin/main` and nothing has been pushed.
 
 ## Waiting on the owner
 
@@ -354,6 +468,19 @@ rather than write something it cannot support.
 - Whether `r4` gets a content edit to put the cascade beat on the walkable slice. Under G2 an agent
   may not decide it. Note this is now entangled with the budget question above: `r4` is the fixture's
   node and is `walkable: false`, and the feasibility gate measures `brackwater` and `r2`.
+- **Whether `node.walkable` gets a real reader, or the claim gets dropped** (**T-36**). The flag gates
+  nothing: `travelTo` refuses only on adjacency and the act ladder, so the player walks all twelve
+  nodes. `docs/build-doc.md:202`, cut line **C-1** (`:428`) and `docs/content-bible.md:162` all
+  describe a vignette-card fallback that **does not exist in `game/`**. Either build it or delete the
+  language — an agent may not pick, because C-1 is a cut line and the content half is G2's.
+- **Whether the enemy AI should value moving first** (**T-37**). T-27 made the tie-break exact, and
+  the exact key is blind to move `priority` — which is the whole of Odo's +9.8 pp. Leaving it means
+  the roster is the lever (pool order is authored order); ranking priority in re-opens every gym band
+  measured under T-13. It moves published win rates either way.
+- **Whether the starter's opening matchup is acceptable** (**T-38**). A level-1 Loamunder lands ~78
+  super-effective damage on the level-5 **Fire** starter's 58 HP, and Loamunder is 47.8% of Route 1's
+  encounter weight. That was tolerable while a loss cost nothing; T-28 and T-29 make it cost. G2 and
+  T-11's ruling both forbid an agent retuning it.
 
 **Struck from this file, having been checked and found false:** the claim that
 `tools/comfy/manifest.json`'s `_deviations[]` rows index a ledger the repo no longer keeps (item 10);
@@ -362,3 +489,18 @@ the "seven dialogue lines state a six-year run length" item — all seven were r
 `tests/unit/dialogue.test.ts:2338` was inverted to assert that **no** line states a run length; and
 the "cascade beat is not on the walkable slice" item as previously worded, which described a content
 mismatch and not the arithmetic shortfall that now gates it.
+
+**Struck on 2026-08-27, same standard:** the claim that **no ControlNet exists for this model
+family** — nine Z-Image-Turbo ControlNets are installed, loading through `ModelPatchLoader` rather
+than `ControlNetLoader`, which is why a search for the latter found nothing; **locked decision L4
+therefore needs no amendment** and every field it locks (`docs/build-doc.md:42`) is unchanged. The
+claim that **nobody knows what one image costs** — it is 1.12 credits at 1024², measured (item 23),
+and with it the *scarcity framing* that this file and TICKETS both carried. The **"16% of seeds"**
+release figure that lived in `tests/integration/demo-beats.test.ts`, which was sourced nowhere in
+this repo; the published number is 12.5%. And `tools/comfy/MAP-PROMPT-RULES.md` **R2 as a statement
+of fact** — the negative prompt's inertness is a property of **cfg 1.0**, not of the pipeline: at
+cfg 1.0 two graphs differing only in the negative produced a 0-byte difference over 3,145,728, and
+at 25 steps / cfg 4.0 the same experiment moved **98.4% of bytes**. **R2 stands as a decision
+anyway** — raising cfg fixed no defect class, lost the projection, and degraded mean CIEDE2000
+palette fit 4.185 → 5.402 (~29% worse). Do not edit that file; the correction lives in TICKETS'
+Closed table.
