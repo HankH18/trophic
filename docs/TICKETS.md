@@ -582,11 +582,15 @@ which reddened only the star assertions and left the palette ones green, i.e. th
 genuinely independent and neither is standing in for the other.
 
 **Two findings this ticket paid for, kept because they will otherwise be re-derived:**
-- **The class-equal fit has no swatch between `c05` and `c07`.** `c05` is `#642c16` and `c07` is
-  `#8c5230`; there is nothing in between, so `hair` and `hairHi` collapse onto one another and the
-  nape band loses a tone. The same collapse hits the cap greens on `c17` (`#054114`). This is the
-  T-15 lesson arriving in pixels: **a palette id is a slot, and a class-equal fit does not owe any
-  role a neighbour.**
+- **Two sprite roles collapse onto one swatch.** `hair` and `hairHi` both resolve to `c05`; the same
+  happens to `capOutline` and `capRim` on `c17`. The nape band and the cap edge each lose a tone.
+  **CORRECTED — the reason this ticket first gave was false.** It read "there is nothing in between
+  `c05` and `c07`". There is: `c06` (`#74564e`) at L\*39, against `c05` L\*25 and `c07` L\*41. `c06`
+  is a low-chroma mauve-brown, so it is not in the hair ramp by *hue* — which is a different claim
+  from a gap in lightness, and only the second one was checked. The collapse is real; the
+  explanation was asserted from a nearest-hex reading and disproved in CIE-Lab by the art session.
+  This is the T-15 lesson arriving in pixels: **a palette id is a slot, and a class-equal fit owes no
+  role a neighbour** — but name the axis that is missing, and measure it before writing it down.
 - **A dead ternary meant every "derived" row in `_acceptance.json` was describing a re-stretched copy
   rather than the shipped bytes.** The detectors were honest about a file nobody ships.
 

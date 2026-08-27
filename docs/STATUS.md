@@ -186,9 +186,14 @@ below repeat across consecutive runs.
    The 21 dead hex literals in `tools/comfy/player-views.ts` now resolve through `data/palette.json`
    by slot id, and `tests/gates/player-art-contract.test.ts` decodes the committed PNGs. The
    **assets** are still wrong, and the gate reads RED reporting exactly that. Two findings kept:
-   - **The class-equal fit has no swatch between `c05` (`#642c16`) and `c07` (`#8c5230`)**, so `hair`
-     and `hairHi` collapse onto one another and the nape band loses a tone. Same for the cap greens
-     on `c17` (`#054114`). A palette id is a slot, and a class-equal fit owes no role a neighbour.
+   - **Two sprite roles collapse onto one swatch:** `hair` and `hairHi` both resolve to `c05`, and
+     `capOutline` and `capRim` both resolve to `c17`, so the nape band and the cap edge each lose a
+     tone. **The reason first recorded here was wrong and is corrected:** it said the fit had "no
+     swatch between `c05` and `c07`". It does — `c06` (`#74564e`) sits between them at L\*39 against
+     `c05` L\*25 and `c07` L\*41. `c06` is a low-chroma mauve-brown, so it is not in the hair ramp
+     by *hue*; the collapse is real and the explanation was not. Measured by the art session in
+     CIE-Lab after this file asserted it from a nearest-hex reading. A palette id is a slot, and a
+     class-equal fit owes no role a neighbour — but say which axis is missing, and measure it.
    - **A dead ternary meant every "derived" row in `_acceptance.json` was describing a re-stretched
      copy rather than the shipped bytes.** The detectors were honest about a file nobody ships.
 
