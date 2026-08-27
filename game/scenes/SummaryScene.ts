@@ -28,7 +28,7 @@ import {
   type SummaryCard,
 } from "../survey-view";
 import { SCENE_KEYS } from "../scene-keys";
-import { drawArtSlot } from "./DexScene";
+import { closeScreen, drawArtSlot } from "./DexScene";
 import type { Content, OwnedCreature } from "../../core/types";
 
 /**
@@ -47,7 +47,14 @@ export interface SummarySceneData {
   box?: readonly OwnedCreature[];
   currentYear: number;
   startUid?: string;
-  onClose?: () => void;
+  /**
+   * WHERE ESC GOES — required, for the reason spelled out on `DexSceneData.onClose`: an optional
+   * closer is how the epilogue survey came to be a finished run the player could not leave, and this
+   * card is the same shape. One supplier today (`game/scenes/MenuScene.ts`), which supplies one; the
+   * type is what stops a second from omitting it, and `closeScreen` covers the untyped hole Phaser
+   * leaves by starting scenes with `unknown` data.
+   */
+  onClose: () => void;
 }
 
 // One home for the screen's colours, in game/survey-view.ts — see DexScene. These four WERE
@@ -91,8 +98,13 @@ export class SummaryScene extends Phaser.Scene {
     keyboard?.on("keydown-RIGHT", () => this.step(1));
     keyboard?.on("keydown-UP", () => this.step(-1));
     keyboard?.on("keydown-DOWN", () => this.step(1));
-    keyboard?.on("keydown-ESC", () => this.args.onClose?.());
+    keyboard?.on("keydown-ESC", () => this.close());
     this.redraw();
+  }
+
+  /** ESC. See `DexScene`'s {@link closeScreen} for what happens with no way back supplied. */
+  close(): void {
+    closeScreen(this, this.args.onClose, "summary");
   }
 
   current(): OwnedCreature | null {

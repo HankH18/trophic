@@ -36,7 +36,8 @@ import {
   type DexEntry,
 } from "../survey-view";
 import { placeholderImage } from "../placeholder";
-import { SCENE_KEYS } from "../scene-keys";
+import { SCENE_KEYS, sceneRegistered } from "../scene-keys";
+import type { MenuRequest } from "../menu-model";
 import type { Content, NodeState, Season } from "../../core/types";
 
 /**
@@ -58,7 +59,60 @@ export interface DexSceneData {
   /** Sign-chains the player has completed — the gate flag reads them (bible §4). */
   unlockedSignChains?: ReadonlySet<string>;
   startDexId?: string;
-  onClose?: () => void;
+  /**
+   * WHERE ESC GOES. Required, like `BattleSceneData.onFinished`, `DialogueSceneData.onDone`,
+   * `YearTurnSceneData.onDone`, `RetirementSceneData.onDone` and — since the epilogue defect —
+   * `SurveySceneData.onClose`. Optional was how that one happened: nothing in the type system asked
+   * the caller where the way back was, so one caller never answered and a full-screen card had no
+   * exit. This scene has one supplier today (`game/scenes/MenuScene.ts`) and it supplies one; the
+   * type is what stops a second supplier from repeating it. {@link closeScreen} keeps a last resort
+   * anyway, because Phaser starts scenes with `unknown` data and a required field is erased at run
+   * time.
+   */
+  onClose: () => void;
+}
+
+/**
+ * The in-run menu, respelled here ONLY because there is nowhere shared to read it from: the
+ * constant lives privately in `game/scenes/MenuScene.ts` and again in `game/boot.ts`, and this file
+ * cannot import either (both pull the engine in at module scope). Typed against `MenuRequest` so a
+ * third spelling cannot drift into a shape `isMenuRequest` rejects.
+ */
+const SESSION_MENU_REQUEST: MenuRequest = { mode: "session" };
+
+/**
+ * Leave a full-screen card, with a last resort for the caller that did not say where to go.
+ *
+ * NOT `this.scene.stop()`, which is what `game/scenes/SurveyScene.ts` does — and the difference is
+ * the launch pattern, checked rather than assumed. The survey's broken caller used
+ * `scene.launch`, so it was always drawn OVER a scene that was still there and stopping it uncovered
+ * one. These two are opened by `MenuScene`'s `screen()` helper with `scene.start`, and
+ * `Phaser.Scenes.ScenePlugin.start` queues `stop` on the CALLING scene before it starts the new one
+ * — so by the time this card is on screen the menu is shut down, and the overworld before it was
+ * shut down the same way. Nothing is underneath. Stopping here would take the last live scene down
+ * and leave a black screen taking no input, which is worse than the defect being prevented.
+ *
+ * So the last resort reopens the one door these cards have. It is said out loud because a hand-off
+ * that arrived without its way back is a wiring defect, not a mode; and the menu is ASKED FOR first
+ * (`sceneRegistered`), because `scene.start` on an unregistered key is a console warning and a
+ * silent no-op — which would strand the player exactly the way this is here to prevent. If even the
+ * menu is not registered there is genuinely nowhere to go, and taking the card down at least stops
+ * it eating input.
+ */
+export function closeScreen(scene: Phaser.Scene, onClose: unknown, label: string): void {
+  // Named rather than inlined, because it is TWO exits and which one is right is a fact about what
+  // `game/main.ts` registered — so the choice between them is worth reading on its own.
+  const lastResort = (): void => {
+    if (sceneRegistered(scene, SCENE_KEYS.menu)) {
+      console.warn(`[${label}] closed with no onClose — reopening "${SCENE_KEYS.menu}" instead`);
+      scene.scene.start(SCENE_KEYS.menu, SESSION_MENU_REQUEST);
+      return;
+    }
+    console.warn(`[${label}] closed with no onClose and no "${SCENE_KEYS.menu}" to return to`);
+    scene.scene.stop();
+  };
+  const closer = typeof onClose === "function" ? (onClose as () => void) : lastResort;
+  return closer();
 }
 
 // The screen's colours have one home, in game/survey-view.ts, for the reason its text metrics do:
@@ -134,8 +188,13 @@ export class DexScene extends Phaser.Scene {
     keyboard?.on("keydown-RIGHT", () => this.step(1));
     keyboard?.on("keydown-UP", () => this.step(-1));
     keyboard?.on("keydown-DOWN", () => this.step(1));
-    keyboard?.on("keydown-ESC", () => this.args.onClose?.());
+    keyboard?.on("keydown-ESC", () => this.close());
     this.redraw();
+  }
+
+  /** ESC. See {@link closeScreen} for what happens when the caller supplied no way back. */
+  close(): void {
+    closeScreen(this, this.args.onClose, "dex");
   }
 
   current(): DexEntry | null {

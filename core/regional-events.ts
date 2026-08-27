@@ -27,7 +27,8 @@
  *     is a level, and under the shipped ecosim every node's flora climbs to `floraMax` and stays
  *     there. Driven honestly (four `stepRegionStates` a year for ten years, seeded), the derived
  *     reading was open at **12 nodes of 12, every season from year 3 to year 10 and onward** — one
- *     unbroken 150-tick run per node, never the 4 ticks this module claims. So the
+ *     unbroken 150-tick run per node, never the single `clock.ticksPerSeason` window this module
+ *     claims. (150 is the measurement; the window's length is that key and is not respelled.) So the
  *     bloom LATCHES on the RISE: a node crossing the threshold upward opens one season-long window,
  *     and no second window opens until its producers have been pushed back under. `syncEventFlags`
  *     is the latcher, exactly as act entry is the raid's.
@@ -412,9 +413,11 @@ export function regionalEventFlags(
  * ⚠ CALL IT AFTER ANY WRITE THAT MOVES THE CLOCK OR THE FLORA, not only at a season boundary. The
  * clock deliberately emits NO `seasonBoundary` on the year-filling tick (integration defect I4), so
  * a caller that synced only on that cue left `event.festival.open` true through the whole first
- * season of the NEXT year — measured at 8 consecutive open ticks against a 4-tick window, with
- * dialogue reading the flag. The retraction this function performs is only as current as its last
- * call site.
+ * season of the NEXT year — two consecutive windows open as one, with dialogue reading the flag.
+ * THE READING IS HISTORY, NOT THE RULE: it was 8 consecutive open ticks, taken under the
+ * then-shipped 16-tick year where a season was four ticks. A window is `clock.ticksPerSeason` ticks
+ * long, whatever that key holds today, and this line will not respell it. The retraction this
+ * function performs is only as current as its last call site.
  */
 export function syncEventFlags<S extends Pick<SaveFile, "questFlags">>(
   save: S,
