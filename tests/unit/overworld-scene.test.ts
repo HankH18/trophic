@@ -363,7 +363,16 @@ vi.mock("phaser", () => {
 /* ── imports that must come AFTER vi.mock ─────────────────────────────────── */
 
 import { RUN_COMPLETE_SHOWN_FLAG, actOf, nodeUnlockedAt, runIsComplete } from "@core/acts";
-import { BLACKOUT_ENTRY_ID, blackoutTicks, readInnRest, restBeatAt, wakeNodeFor } from "@core/recovery";
+import {
+  BLACKOUT_CUE_FLAG,
+  BLACKOUT_ENTRY_ID,
+  blackoutTicks,
+  innNodeIds,
+  innkeeperAt,
+  readInnRest,
+  restBeatAt,
+  wakeNodeFor,
+} from "@core/recovery";
 import { startBattle, step as battleStep, caughtIndividual } from "@core/battle";
 import { seasonOf, subTicksForAction, ticksForAction } from "@core/clock";
 import {
@@ -4573,5 +4582,304 @@ describe("§17.2 a wipe moves the SCENE, not only the save", () => {
       `every shipped node wakes where it fell, so this loop compared a value with itself ` +
         `twelve times:\n${seen.join("\n")}`,
     ).toBeGreaterThan(0);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §17.3 [R] ASKS WHERE THE PLAYER IS STANDING
+ *
+ * ⚠ WHAT WAS TRUE BEFORE. `restAtInn` guarded on `isHandedOver() || travelling` and nothing else,
+ * while `innKey` is bound unconditionally and polled every frame. Traced: [R] on Route 4 with the
+ * party at 1 HP healed it whole for `clock.innTicks` and printed `inn at r4 · 2 ticks · 1 restored`,
+ * and [R] at a shop counter did the same — `save.currentNode` keeps naming the TOWN while the
+ * player is indoors. The inn was therefore a cheaper cure for a wipe than the wipe cure, which is
+ * the premise `core/recovery.ts` prices the blackout's extra `innTicks + travelTicks` against.
+ *
+ * ⚠ WHY NOTHING CAUGHT IT, WHICH IS WHAT THESE TESTS ARE SHAPED AGAINST. [R] is pressed at nine
+ * sites above and again in §17.1, and EVERY one of them mounts a save from `freshSave()`, whose
+ * default node is `SLICE_NODE` — a town with an inn. The blind spot was structural: the key had
+ * never been pressed anywhere else. So the loop below presses it at every shipped node and in every
+ * shipped room, and its vacuity guards go red if either group ever empties.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/** The nodes the CORPUS says have an inn — `core/recovery.ts`'s derivation, never a list here. */
+const INN_NODES = innNodeIds();
+
+/** True where the town's own innkeeper is the speaker standing in this room. */
+function isTheInn(bp: InteriorBlueprint): boolean {
+  const keeper = innkeeperAt(bp.parentNode);
+  return keeper !== null && bp.anchors.some((a) => a.kind === "speaker" && a.target === keeper);
+}
+
+/**
+ * A save standing at `nodeId` whose whole party carries an explicit, non-zero HP number.
+ *
+ * Written directly rather than fought for, and for §17.2's reason: this section is about WHERE the
+ * key works, and walking twelve nodes into twelve real fights would be testing the encounter tables.
+ * That a shipped matchup leaves the party in exactly this state is §17.1's, played through the real
+ * reducer. Non-zero, so the party is HURT and not WIPED — `isStanding` is `curHp > 0`, and a wiped
+ * party would be answered by the blackout instead of by the inn.
+ */
+function hurtAt(nodeId: string): SaveEnvelope {
+  const base = freshSave(nodeId);
+  return { ...base, party: base.party.map((c) => ({ ...c, curHp: 1 })) };
+}
+
+describe("§17.3 [R] rests where the corpus puts an inn, and refuses where it does not", () => {
+  it("at every shipped node — and the refusal costs nothing, writes nothing and is SAID", () => {
+    const rested: string[] = [];
+    const refused: string[] = [];
+
+    for (const node of content.nodes) {
+      const h = mount({ save: hurtAt(node.id) });
+      expect(h.scene.node.id, `${node.id}: the harness did not start where it was asked to`).toBe(node.id);
+      // Without this a refusal could be `isHandedOver()`'s rather than the one under test, and the
+      // whole loop would pass for a scene that had stopped accepting [R] anywhere at all.
+      expect(h.scene.isHandedOver(), `${node.id}: something else had the screen before [R]`).toBe(false);
+
+      // The HUD as it reads with no banner yet fired — this is the READOUT, not the refusal.
+      const readout = h.hud();
+      const spentBefore = subTicksSpent(h.scene.save);
+      const logBefore = h.scene.save.actionLog.length;
+
+      h.press(KEY_R);
+      frameAndSettle(h);
+
+      const healed = h.scene.save.party.every((c) => c.curHp === undefined);
+      const charged = subTicksSpent(h.scene.save) - spentBefore;
+      const taped = h.scene.save.actionLog.length - logBefore;
+
+      if (INN_NODES.includes(node.id)) {
+        expect(healed, `${node.id} has an inn and [R] left the party carrying a number`).toBe(true);
+        expect(charged, `${node.id}: the rest was not charged clock.innTicks`).toBe(COST.inn);
+        expect(readout, `${node.id} has an inn and the HUD does not offer it`).toContain("[R] inn");
+        rested.push(node.id);
+      } else {
+        /*
+         * THE FOUR OBSERVABLES OF A REFUSAL. A fix that only stopped the heal would still charge the
+         * clock and still write the tape; one that only hid the banner would still do all three. The
+         * tape matters most of the four: an entry written for a rest that did not happen is a save
+         * `core/save.ts` `replay` reproduces differently from the run that wrote it (L10).
+         */
+        expect(healed, `${node.id} has no inn and [R] healed the party anyway`).toBe(false);
+        expect(charged, `${node.id}: ticks were spent on a rest that cannot happen`).toBe(0);
+        expect(taped, `${node.id}: an entry reached the tape for a refused rest`).toBe(0);
+        expect(h.hud(), `${node.id}: the refusal was silent`).toContain(`no inn at ${node.id}`);
+        expect(readout, `${node.id} has no inn and the HUD advertises one`).not.toContain("[R] inn");
+        expect(readout, `${node.id}: the HUD does not say why [R] would refuse`).toContain(
+          `[R] no inn at ${node.id}`,
+        );
+        refused.push(node.id);
+      }
+    }
+
+    // The vacuity guards. Either list going empty turns this loop into an assertion about nothing.
+    expect(rested, "no shipped node has an inn — the rest half of this loop asserted nothing").not.toHaveLength(0);
+    expect(
+      refused,
+      "every shipped node has an inn — the defect this section pins would be unreachable",
+    ).not.toHaveLength(0);
+  });
+
+  it.each(ROOMS.map((bp) => [bp.id, bp] as const))(
+    "%s — [R] works in the room the town's innkeeper stands in, and nowhere else indoors",
+    (_id, bp) => {
+      /*
+       * WALKED IN THROUGH THE DOOR, not placed: `save.currentNode` naming the town while the player
+       * is inside is the state the defect rode on, and it is only real once the player has actually
+       * crossed the threshold.
+       */
+      const base = saveAtTown(bp);
+      const h = mount(
+        { save: { ...base, party: base.party.map((c) => ({ ...c, curHp: 1 })) }, startNode: bp.parentNode },
+      );
+      goInside(h, bp);
+      expect(h.scene.save.currentNode, "the save stopped naming the town while indoors").toBe(bp.parentNode);
+
+      const readout = h.hud();
+      const spentBefore = subTicksSpent(h.scene.save);
+      const logBefore = h.scene.save.actionLog.length;
+
+      h.press(KEY_R);
+      frameAndSettle(h);
+
+      const healed = h.scene.save.party.every((c) => c.curHp === undefined);
+      const charged = subTicksSpent(h.scene.save) - spentBefore;
+      const taped = h.scene.save.actionLog.length - logBefore;
+
+      if (isTheInn(bp)) {
+        /*
+         * ⚠ THE ONE ROOM [R] IS LIVE IN, and it is deliberate rather than an oversight in the guard.
+         * `core/recovery.ts` `restoreParty` puts `interiorId` BACK after the write and says why in
+         * its own words — "[R] is live inside a room" — so a blanket indoor refusal would make that
+         * branch dead code; and this room ships a `service` anchor whose `_purpose` calls it "the
+         * tile the player stands on to trigger the rest service — the full heal that costs inn
+         * ticks". Refusing here would contradict both.
+         */
+        expect(healed, `${bp.id} is the town's inn and [R] did not restore the party`).toBe(true);
+        expect(charged, `${bp.id}: the rest was not charged clock.innTicks`).toBe(COST.inn);
+        expect(h.scene.save.interiorId, `${bp.id}: the rest put the save outdoors`).toBe(bp.id);
+        expect(h.scene.currentInterior()?.id, `${bp.id}: the rest moved the player out of the room`).toBe(bp.id);
+        expect(readout, `${bp.id} is the town's inn and the HUD does not offer [R]`).toContain("[R] inn");
+      } else {
+        expect(healed, `${bp.id} is not an inn and [R] healed the party at its counter`).toBe(false);
+        expect(charged, `${bp.id}: ticks were spent resting in a room with no beds`).toBe(0);
+        expect(taped, `${bp.id}: an entry reached the tape for a refused rest`).toBe(0);
+        expect(h.hud(), `${bp.id}: the refusal was silent`).toContain(`${bp.name} — step outside to rest`);
+        expect(readout, `${bp.id} is not an inn and the HUD advertises one`).not.toContain("[R] inn");
+      }
+    },
+  );
+
+  it("the rooms really are of both kinds — the case split above is not one-sided", () => {
+    // `it.each` over a list that is all one kind asserts half of what it reads as asserting.
+    expect(ROOMS.filter(isTheInn).map((bp) => bp.id), "no shipped room is an inn").not.toHaveLength(0);
+    expect(
+      ROOMS.filter((bp) => !isTheInn(bp)).map((bp) => bp.id),
+      "every shipped room is an inn — the indoor refusal is never exercised",
+    ).not.toHaveLength(0);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §17.4 THE BLACKOUT DOES NOT LAUNCH A BEAT ON TOP OF THE YEAR TURN
+ *
+ * ⚠ WHAT WAS TRUE BEFORE. `recoverFromBlackout` charges three ticks through `spendTicks`, which can
+ * reach `beginYearTurn` — a synchronous `scene.launch` + `scene.pause` — and then went straight on
+ * to `playEntry`, which reads `dialogueRunning` and knew nothing about the year turn. A wipe on the
+ * last ticks of a year therefore put TWO full-screen scenes up for one lost fight and paused the
+ * overworld twice, against a `scene.resume` that is not ref-counted.
+ *
+ * ⚠ WHY NOTHING CAUGHT IT. §11 pins this hazard for the BATTLE hand-off and only for that one
+ * (`handOffToBattle` re-reads the flag and says "the year turned first"); and
+ * `tests/unit/recovery.test.ts` §4's "charged once" case measures a loop written inside the test,
+ * which does not model `spendTicks`'s refusal at all. Nothing drove the real path with the clock
+ * against the boundary. These two do, in both directions.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("§17.4 a wipe on the year boundary turns the year OR plays the beat, never both", () => {
+  /** A node the wake rule really moves the player off, so the whole of the recovery is exercised. */
+  const AWAY = content.nodes.find((n) => wakeNodeFor(n.id, content) !== n.id);
+
+  /**
+   * A wiped save `ticks` whole ticks into the year, with everything else the shipped default.
+   *
+   * The position is composed from `balance.clock` (G11): `ticksPerYear - innTicks` is the last
+   * position at which the FIRST of the blackout's three charges fills the meter.
+   */
+  function wipedAt(nodeId: string, tick: number): SaveEnvelope {
+    const base = freshSave(nodeId);
+    return { ...base, tick, party: base.party.map((c) => ({ ...c, curHp: 0 })) };
+  }
+
+  it("on the boundary: the year turn takes the screen, and nothing is launched on top of it", () => {
+    const node = AWAY;
+    expect(node, "no shipped node wakes anywhere but itself — this section cannot be set up").toBeDefined();
+    const h = mount({ save: wipedAt(node!.id, balance.clock.ticksPerYear - balance.clock.innTicks) });
+    /*
+     * THE BOX IS REGISTERED AFTER `create`, DELIBERATELY. Registered at construction it would take
+     * the node's arrival beat and pause the overworld before the test began; registered here, the
+     * arrival played headlessly and the only launch that can follow is the one under test. And it
+     * MUST be registered: with no box `playEntry` plays headlessly and pauses nothing, so the
+     * hazard cannot happen and this test would pass against the defect.
+     */
+    withDialogueBox(h);
+    expect(h.parts.paused, "something had already paused the overworld").toBe(0);
+    const spentBefore = subTicksSpent(h.scene.save);
+
+    h.scene.recoverFromBlackout();
+
+    // The rig really did reach the boundary — without this the assertions below are about a wipe
+    // that turned no year, which is the ordinary case §17.4's second test covers.
+    expect(
+      h.parts.launches.filter((l) => l.key === SCENE_KEYS.yearTurn),
+      "the charge did not fill the year meter — the rig is not on the boundary",
+    ).toHaveLength(1);
+
+    expect(boxed(h), "the blackout beat was launched on top of the year turn").toEqual([]);
+    expect(h.parts.paused, "the overworld was paused twice for one wipe").toBe(1);
+    expect(h.scene.isSpeaking(), "the scene thinks a box is open behind the year turn").toBe(false);
+    expect(h.hud(), "the beat was dropped silently").toContain("the year turned first");
+
+    // THE CONSEQUENCE AND THE PRICE BOTH STAND — this is a refusal to SPEAK, not a refusal to
+    // recover. A blackout that gave the party back for free would pass every assertion above.
+    expect(h.scene.save.currentNode, "the wake did not happen").toBe(wakeNodeFor(node!.id, content));
+    expect(h.scene.save.party.every((c) => c.curHp === undefined), "the party is still down").toBe(true);
+    expect(subTicksSpent(h.scene.save) - spentBefore, "nothing was charged").toBeGreaterThan(0);
+    /*
+     * …and the beat is still OWED rather than lost: `BLACKOUT_CUE_FLAG` is a latch that only the
+     * beat lowers, so the corpus still holds it eligible and the HUD's own `flags owed` count says
+     * so. This is the assertion that would go red if the fix ever became "lower the cue and move on".
+     */
+    expect(h.scene.save.questFlags[BLACKOUT_CUE_FLAG], "the wake cue was spent on a beat nobody saw").toBe(true);
+
+    // The year turn itself is untouched by any of this: it still runs, and it still commits.
+    settleYearTurn(h);
+    expect(h.scene.save.year, "the year turn did not commit").toBe(balance.clock.startYear + 1);
+  });
+
+  it("away from the boundary: the very same wipe DOES hand the beat to the box", () => {
+    /*
+     * THE OTHER DIRECTION, and the test above is worth nothing without it: "no dialogue was
+     * launched" passes trivially against a scene that never plays the blackout beat at all.
+     */
+    const node = AWAY;
+    const h = mount({ save: wipedAt(node!.id, 0) });
+    withDialogueBox(h);
+
+    h.scene.recoverFromBlackout();
+
+    expect(
+      h.parts.launches.filter((l) => l.key === SCENE_KEYS.yearTurn),
+      "the rig turned a year it was not supposed to reach",
+    ).toHaveLength(0);
+    expect(boxed(h), "the blackout beat was not played").toEqual([BLACKOUT_ENTRY_ID]);
+    expect(h.parts.paused, "the beat did not take the screen").toBe(1);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §17.5 A YEAR THAT TURNS INDOORS LEAVES THE ROOM'S NOTE ON SCREEN
+ *
+ * `handleClockEvents` wrote the TOWN's map note over `lastNote` on every `yearBegin`, spelled out
+ * a second time rather than asked of `viewNote()` — the one reader that knows about rooms. Outdoors
+ * the two are the same string, which is why it went unseen; indoors the provenance line started
+ * describing a map that is not on screen. It is reachable because the inn's own [R] is the one
+ * action a room affords, which is the same key §17.3 is about.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("§17.5 the year turn does not overwrite the room's provenance line with the town's", () => {
+  it("resting in the inn across the year boundary leaves the HUD describing the ROOM", () => {
+    const inn = ROOMS.find(isTheInn);
+    expect(inn, "no shipped room is an inn — this section cannot be set up").toBeDefined();
+    const bp = inn!;
+    /*
+     * MOUNTED INSIDE, through `save.interiorId` — `init` → `adoptInterior` is the shipped reload
+     * path into a room, and it is used here rather than `goInside` because the walk to the door
+     * spends foray ticks and this test needs the clock parked exactly on the boundary.
+     */
+    const base = saveAtTown(bp);
+    const h = mount({
+      save: {
+        ...base,
+        interiorId: bp.id,
+        tick: balance.clock.ticksPerYear - balance.clock.innTicks,
+      },
+      startNode: bp.parentNode,
+    });
+    expect(h.scene.currentInterior()?.id, "the save did not put the player inside the room").toBe(bp.id);
+
+    // The room's note, as it reads before anything has happened. Both branches of `viewNote` —
+    // painted and footprint — carry this, so a painting landing tomorrow does not break the test.
+    const roomNote = `interior ${bp.id} —`;
+    expect(h.hud(), "the HUD is not describing the room to begin with").toContain(roomNote);
+
+    const yearBefore = h.scene.save.year;
+    h.press(KEY_R);
+    frameAndSettle(h);
+
+    expect(h.scene.save.year, "the rest did not turn the year — the rig missed the boundary").toBe(yearBefore + 1);
+    expect(h.scene.currentInterior()?.id, "the year turn walked the player out of the room").toBe(bp.id);
+    expect(h.hud(), "the year turn overwrote the room's note with the town's map").toContain(roomNote);
   });
 });

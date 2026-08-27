@@ -126,7 +126,9 @@ import {
   blackoutCharges,
   blackoutRecoveryFor,
   blackoutTicks,
+  innNodeIds,
   innRestFor,
+  innkeeperAt,
   restBeatAt,
 } from "../../core/recovery";
 import {
@@ -1997,8 +1999,64 @@ export class OverworldScene extends Phaser.Scene {
    * the party is in, because a price that depended on how hurt the party was would be a second
    * pricing rule beside `core/clock.ts`'s.
    */
+  /**
+   * WHY [R] WOULD BE REFUSED WHERE THE PLAYER IS STANDING, as the sentence it is refused with —
+   * or null, meaning rest. The HUD reads the same answer, so the key and the readout cannot drift.
+   *
+   * ⚠ THERE WAS NO SUCH QUESTION, AND ITS ABSENCE WAS A LIVE DEFECT. {@link restAtInn} guarded on
+   * `isHandedOver() || travelling` and nothing else, while `innKey` is bound unconditionally and
+   * polled every frame: [R] on Route 4 with the party at 1 HP healed it whole for `clock.innTicks`
+   * and printed `inn at r4 · 2 ticks · 1 restored`, and [R] at a shop counter did the same, because
+   * `save.currentNode` keeps naming the TOWN while the player is indoors. Every other
+   * place-sensitive verb here already asks — {@link releaseHere}, {@link challengeGym},
+   * {@link travelTo} and {@link playPendingCutscene} each refuse indoors out loud — so this was the
+   * one omission, not a decision. It also priced the blackout against a baseline that was not true:
+   * `core/recovery.ts`'s header argues the extra `innTicks + travelTicks` on the premise that an inn
+   * is a way back to full "only for a player who is STANDING IN A TOWN", and an inn that works on a
+   * route is a cheaper wipe cure than the wipe cure.
+   *
+   * THE INN NODES ARE `core/recovery.ts` `innNodeIds()`, IMPORTED AND NEVER RESTATED. That function
+   * is the corpus's own authority — a speaker tagged `innkeeper` and homed to a node, INTERSECTED
+   * with that speaker having a `service` beat there, refusing loudly when the two readings disagree
+   * — and until this guard it had exactly one consumer, the blackout's `wakeNodeFor`. A list of inn
+   * nodes written out in this file would be the second table G3 forbids. It is not
+   * `content.gyms[].town` either, and that near miss is why the derivation is worth importing:
+   * `greaves` stands at `sanctum`, which has no inn, no innkeeper and no beds.
+   *
+   * ⚠ INDOORS IS REFUSED EXCEPT IN THE TOWN'S OWN INN — the one room where "step outside" would be
+   * the wrong sentence, and the exception is read out of shipped content rather than out of a name:
+   *   • `data/interiors/hearthollow-inn.json` ships a `service` anchor whose `_purpose` is "the tile
+   *     the player stands on to trigger the rest service — the full heal that costs inn ticks", so
+   *     the room is authored to be rested in;
+   *   • `core/recovery.ts` `restoreParty` PUTS `interiorId` BACK after the write, and says why in
+   *     its own words: "[R] is live inside a room — `data/interiors/hearthollow-inn.json` is a room
+   *     the player can be standing in when they press it". A blanket indoor refusal here would make
+   *     that branch dead code and this file the reason another module's comment had gone false.
+   * The test is the INNKEEPER: `innkeeperAt` names the speaker who keeps the inn at this node, and
+   * the room is theirs when they are the speaker standing in it. A supply store has a shopkeeper
+   * standing in it and is refused, which is the case that was traced.
+   */
+  private restRefusal(townId: string): string | null {
+    if (!innNodeIds().includes(townId)) return `no inn at ${townId}`;
+    const inside = this.interior;
+    if (inside === null) return null;
+    const keeper = innkeeperAt(townId);
+    const theirs =
+      inside.parentNode === townId &&
+      keeper !== null &&
+      inside.anchors.some((a) => a.kind === "speaker" && a.target === keeper);
+    return theirs ? null : `${inside.name} — step outside to rest`;
+  }
+
   restAtInn(townId: string = this.save.currentNode): void {
     if (this.isHandedOver() || this.travelling) return;
+    // WHERE, before what: see {@link restRefusal}. Said rather than silently ignored, on the same
+    // terms every other refusal in this scene is said.
+    const refusal = this.restRefusal(townId);
+    if (refusal !== null) {
+      this.flashBanner(refusal);
+      return;
+    }
     const rest = innRestFor(this.save, this.balance, isStanding);
     if (rest !== null) this.save = applyInnRest(this.save, rest);
     this.spendTicks("inn", { t: "inn", townId });
@@ -2127,6 +2185,29 @@ export class OverworldScene extends Phaser.Scene {
     // G7 — identifiers and arithmetic, exactly as `restAtInn`'s banner is. The prose says nothing
     // about ticks and the banner says nothing about the player.
     this.flashBanner(`${recovery.wakeNode} · ${String(blackoutTicks(this.balance))} ticks`);
+
+    /*
+     * ⚠ THE PRICE MAY HAVE TAKEN THE SCREEN, AND THE BEAT MAY NOT BE LAUNCHED ON TOP OF IT. This is
+     * {@link handOffToBattle}'s guard, in the same shape and for the same reason: `spendTicks` can
+     * reach `beginYearTurn`, which is a synchronous `scene.launch` + `scene.pause`, and step 4 below
+     * asks {@link playEntry} — which reads `dialogueRunning` and knew nothing about the year turn.
+     * Losing a fight on the last tick or two of a year therefore put TWO full-screen scenes up for
+     * one wipe and paused the overworld twice, against a `scene.resume` that is not ref-counted, so
+     * the overworld came back while the second scene was still drawing. The window is any position
+     * from which one of the THREE charges fills the meter — the last `blackoutTicks` ticks of a
+     * year, not only the last one — and it was traced at tick 50 of 52, where the first fills it.
+     *
+     * THE CHARGE STANDS AND THE CONSEQUENCE STANDS — steps 1 to 3 have already happened and the year
+     * really did turn. What is given up is the SPEECH, which is the only part of this that can be
+     * given up: `BLACKOUT_CUE_FLAG` is a latch and only the beat lowers it, so the corpus still says
+     * the beat is owed and the HUD's own `flags owed` count says so too. The alternative — holding
+     * the beat across the turn — would play a wake-up written for the party as it stood BEFORE
+     * build-doc §7.5 retired creatures out of it.
+     */
+    if (this.yearTurnRunning) {
+      this.flashBanner(`${recovery.wakeNode} — the year turned first`);
+      return;
+    }
 
     // 4. the black screen, and then the room.
     const rest = restBeatAt(recovery.wakeNode, this.dialogueCtx());
@@ -2727,7 +2808,12 @@ export class OverworldScene extends Phaser.Scene {
         this.runSeasonStep(event.seasonEnded);
       } else if (event.t === "yearBegin") {
         this.mapView.setYear(this.node, event.year);
-        this.lastNote = `${this.mapView.status.note} · ${this.collision.note}`;
+        // {@link viewNote}, not the town's map note spelled out again: indoors the note describes
+        // the ROOM the player is standing in, and this line overwrote it with the town's the moment
+        // a year began — the same provenance line reading `PLACEHOLDER map` for a map that is not on
+        // screen. Outdoors the two are the same string, which is why it went unseen; a year can turn
+        // indoors because the inn's own [R] is the one action a room affords.
+        this.lastNote = this.viewNote();
       }
     }
     this.mapView.setSeason(this.currentSeason());
@@ -3195,7 +3281,16 @@ export class OverworldScene extends Phaser.Scene {
       lines.push(candidate ? `[X] release ${candidate.lineId} here` : "[X] release · party would be empty");
       if (this.lastSpoken.length > 0) lines.push(`said: ${this.lastSpoken}`);
     }
-    lines.push("[C] collision overlay · [R] inn");
+    /*
+     * [R] IS ADVERTISED ONLY WHERE IT WORKS, on the terms the two context-dependent verbs above are:
+     * [G] is absent at a node with no leader, and [X] prints the reason it would refuse. This line
+     * promised the inn unconditionally — on a route, and at a shop counter — and while
+     * {@link restAtInn} did not ask where the player was standing the HUD was accurately
+     * advertising a defect. It is the SAME sentence the key prints, from the same reader
+     * ({@link restRefusal}), so the readout and the refusal cannot drift apart.
+     */
+    const restHere = this.restRefusal(this.save.currentNode);
+    lines.push(`[C] collision overlay · [R] ${restHere ?? "inn"}`);
     this.hud.setText(lines);
   }
 
