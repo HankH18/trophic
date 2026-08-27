@@ -211,6 +211,13 @@ import {
   seasonMeterModel,
   type SeasonMeterStyle,
 } from "../ui/SeasonMeter";
+/*
+ * THE BLACKOUT CURTAIN'S ONE COLOUR. `void` is the palette's own name for it — "deepest shade —
+ * screen letterbox, the field behind the combatants" — so the black screen is the same black every
+ * other letterbox in the game is, and a re-freeze of `data/palette.json` moves all of them at once.
+ * A `0x000000` typed here would be the one colour on this screen the palette does not own.
+ */
+import { roleColor } from "../ui/Palette";
 import {
   actEntryBeats,
   beatLines,
@@ -337,6 +344,16 @@ export interface OverworldSceneData {
   msPerTile?: number;
 }
 
+/** A beat the overworld has taken responsibility for and not yet put on screen. */
+interface PendingEntry {
+  entryId: string;
+  /** The name the flags it writes are reported under — {@link OverworldScene.finishDialogue}. */
+  who: string;
+  then?: (() => void) | undefined;
+  /** Whether this beat is read against a blacked-out screen. See `curtainWanted`. */
+  curtain: boolean;
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * The scene
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -416,6 +433,41 @@ export class OverworldScene extends Phaser.Scene {
   private battleRunning = false;
   /** True while the dialogue box has the screen. Same contract again. */
   private dialogueRunning = false;
+  /**
+   * True for exactly as long as a box's `onDone` is running — i.e. while a beat is HANDING BACK.
+   *
+   * ⚠ A `scene.launch` MADE IN THIS WINDOW IS UNDONE BY THE BOX THAT IS CLOSING, AND THAT ENDED
+   * EVERY RUN A PARTY WIPE HAPPENED IN. `game/scenes/DialogueScene.ts` `finish()` is two
+   * statements — `this.onDone(this.state)` and then `this.scene.stop()` — and Phaser applies
+   * `ScenePlugin` calls as an ordered queue (`SceneManager.processQueue`), so everything the
+   * overworld does inside `onDone` is queued AHEAD of the box's own teardown. A chained
+   * {@link playEntry} therefore queued `start(Dialogue, next)` and `pause(Overworld)`, and the
+   * closing box then queued `stop(Dialogue)` behind both: the new box was shut down the instant it
+   * started and the overworld was left paused with nothing alive to resume it. Traced on the wipe
+   * path — the blackout narration played, the innkeeper's beat never appeared, and arrows, [C],
+   * [E] and ESC were all dead with the game loop still running at ~110fps and no console error.
+   *
+   * `pause`/`resume` are NOT ref-counted (Phaser `Systems.pause` flips a boolean and warns
+   * "Cannot pause non-running Scene" on a second one — no such warning was ever logged, which is
+   * what ruled the double-pause reading out), so a balanced count is no defence: the run ended
+   * `…resume, pause` and the last operation is the one the player lives with.
+   */
+  private handingBack = false;
+  /**
+   * The beat asked for during that window, waiting for a frame of its own — see {@link openBox}.
+   *
+   * Held rather than launched, and drained at the top of {@link update}: by then `onDone` has
+   * returned, the closing box has queued its own `stop`, and the launch lands after it. The
+   * overworld is un-paused for that one frame and deliberately does nothing else with it.
+   */
+  private pendingEntry: PendingEntry | null = null;
+  /**
+   * The full-screen black a blackout beat is read against, or null while the map is up.
+   *
+   * A display-list object, so a restart destroys it and the FIELD would still point at the corpse —
+   * the same asymmetry {@link create} nulls `interiorArt` for.
+   */
+  private curtain: Phaser.GameObjects.Rectangle | null = null;
   /** The last line a player actually read, for the HUD. Empty before anything has been said. */
   private lastSpoken = "";
 
@@ -558,6 +610,15 @@ export class OverworldScene extends Phaser.Scene {
     this.yearTurnRunning = false;
     this.battleRunning = false;
     this.dialogueRunning = false;
+    // …and the beat that was one frame from opening. It is dropped rather than replayed on the
+    // other side of the restart: `dialogueRunning` is cleared on the line above for the reason the
+    // comment gives, and a queued entry outliving that would open a box over a scene that has just
+    // rebuilt its whole display list. Every autoplay entry closes itself with a flag, so a cutscene
+    // lost here is still pending; a `then` continuation is not, and this is the only path that can
+    // drop one — a restart taken inside the single frame between a beat closing and the next
+    // opening, which needs the in-run menu to be keyed in that frame.
+    this.pendingEntry = null;
+    this.handingBack = false;
     this.autoplayed = new Set<string>();
     this.spokenHere = new Set<string>();
     this.heldLastFrame = new Set<Direction>();
@@ -592,6 +653,9 @@ export class OverworldScene extends Phaser.Scene {
     // The image is the display list's, so a restart destroyed it and this field would otherwise
     // still be pointing at the corpse. `syncViewMode` remakes it if a painted room is up.
     this.interiorArt = null;
+    // Same asymmetry, same fix — and there is nothing to remake: `init` has already dropped the
+    // queued beat the curtain would have been raised for.
+    this.curtain = null;
     this.syncViewMode();
 
     const camera = this.cameras.main;
@@ -1134,6 +1198,19 @@ export class OverworldScene extends Phaser.Scene {
   /* ── frame ────────────────────────────────────────────────────────────── */
 
   override update(_time: number, delta: number): void {
+    /*
+     * ⚠ FIRST, AND THE FRAME IS SPENT ON IT. A beat asked for while the previous box was handing
+     * back could not be launched then ({@link handingBack} says why), so it is opened here — one
+     * frame later, with the closing box's own `stop` already applied. Nothing else happens in this
+     * frame: no key is read, no step is taken and no encounter is rolled, so the single un-paused
+     * frame between two beats of a chain cannot be walked or fought through.
+     */
+    const pending = this.pendingEntry;
+    if (pending !== null) {
+      this.pendingEntry = null;
+      this.openBox(pending);
+      return;
+    }
     if (this.overlayKey && Phaser.Input.Keyboard.JustDown(this.overlayKey)) this.toggleOverlay();
     if (this.innKey && Phaser.Input.Keyboard.JustDown(this.innKey)) this.restAtInn();
     if (this.gymKey && Phaser.Input.Keyboard.JustDown(this.gymKey)) this.challengeGym();
@@ -1685,12 +1762,6 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    const finish = (state: DialogueRunState): void => {
-      this.dialogueRunning = false;
-      if (then) this.afterDialogue = then;
-      this.finishDialogue(state, who);
-    };
-
     if (!sceneRegistered(this, SCENE_KEYS.dialogue)) {
       let state: DialogueRunState;
       try {
@@ -1703,24 +1774,90 @@ export class OverworldScene extends Phaser.Scene {
         `[overworld] "${SCENE_KEYS.dialogue}" is not registered — ${entryId} played headlessly, ` +
           `${String(state.choicesTaken.length)} choice(s) answered with the first option`,
       );
-      finish(state);
+      // Not inside a box, so nothing is about to tear one down behind this — see {@link handBack}.
+      this.handBack(state, who, then, false);
       if (state.choicesTaken.length > 0) {
         this.flashBanner(`${entryId} played headlessly · ${state.choicesTaken.map((c) => c.text).join(" / ")}`);
       }
       return;
     }
 
+    this.dialogueRunning = true;
+    const pending: PendingEntry = { entryId, who, then, curtain: this.curtainWanted(entryId) };
+    /*
+     * ⚠ NOT LAUNCHED FROM INSIDE THE CLOSING BOX'S `onDone` — see {@link handingBack} for the
+     * softlock that was. The latch is raised here and NOT lowered until {@link update} opens the
+     * box, which is what keeps the rest of `finishDialogue` reading "a beat is up": the guard on
+     * `afterDialogue` (`next && !this.dialogueRunning`) is how a cutscene chained out of
+     * {@link playPendingCutscene} keeps its place in front of a queued continuation, and a latch
+     * that stayed false across the gap would run both of them in the same frame.
+     */
+    if (this.handingBack) {
+      this.pendingEntry = pending;
+      return;
+    }
+    this.openBox(pending);
+  }
+
+  /**
+   * Put a beat on screen: raise its curtain, hand it to the box, and give the box the screen.
+   *
+   * The tail of {@link playEntry}, split out because {@link update} opens the queued one and the
+   * two must be the same act — a second spelling of "launch the box" is how one of them comes to
+   * pause the overworld and the other not to.
+   */
+  private openBox(pending: PendingEntry): void {
+    if (pending.curtain) this.raiseCurtain();
     const data: DialogueSceneData = {
-      entryId,
+      entryId: pending.entryId,
       file: DIALOGUE,
       onDone: (state) => {
         this.scene.resume();
-        finish(state);
+        // `true`: this callback IS `DialogueScene.finish()`, one statement ahead of that scene's
+        // own `this.scene.stop()`.
+        this.handBack(state, pending.who, pending.then, true);
+        // The curtain comes down when the CHAIN ends, not when this beat does: the blackout's
+        // narration hands straight on to the innkeeper, and a screen that flashed the map back
+        // between the two would be the black screen going out in the middle of the sentence it
+        // exists to carry.
+        if (!this.dialogueRunning) this.dropCurtain();
       },
     };
-    this.dialogueRunning = true;
     this.scene.launch(SCENE_KEYS.dialogue, data);
     this.scene.pause();
+  }
+
+  /**
+   * Adopt what a finished run wrote, then run whatever was chained behind it.
+   *
+   * ONE SPELLING FOR BOTH WAYS A BEAT CAN END — the box's `onDone` and {@link playEntry}'s headless
+   * answer. They used to be two, three lines apart, and `afterDialogue` is set in both: a
+   * continuation that reached one and not the other is a fight that never starts or an ending that
+   * never plays, silently.
+   *
+   * `insideTheBox` is the one thing the two do NOT share, and it is the whole of the softlock: see
+   * {@link handingBack}. The `finally` matters — `finishDialogue` runs the act ladder, the quest
+   * sync and the finale check, and a throw out of any of them would otherwise leave the latch up
+   * and every later beat queued for a frame that never comes.
+   */
+  private handBack(
+    state: DialogueRunState,
+    who: string,
+    then: (() => void) | undefined,
+    insideTheBox: boolean,
+  ): void {
+    this.dialogueRunning = false;
+    if (then) this.afterDialogue = then;
+    if (!insideTheBox) {
+      this.finishDialogue(state, who);
+      return;
+    }
+    this.handingBack = true;
+    try {
+      this.finishDialogue(state, who);
+    } finally {
+      this.handingBack = false;
+    }
   }
 
   /**
@@ -1761,6 +1898,49 @@ export class OverworldScene extends Phaser.Scene {
       this.afterDialogue = null;
       next();
     }
+  }
+
+  /* ── the black screen (T-29) ─────────────────────────────────────────────── */
+
+  /**
+   * Whether this beat is read against a blacked-out screen.
+   *
+   * ⚠ T-29 SAYS "A DIALOGUE WITH A BLACK BACKGROUND SAYING YOU PASSED OUT", AND THE BUILD DREW THE
+   * ORDINARY BOX OVER THE LIVE MAP. `core/recovery.ts` names the entry and this file draws it; the
+   * note that used to stand at {@link recoverFromBlackout} step 4 — that a `narration` speaker is a
+   * single space, "which is what makes it read as a black screen" — was a claim about the NAME
+   * PLATE, and an empty name plate over a sunlit town with the debug HUD on top of it is not a
+   * black screen. Traced on a real wipe: the map, the props and sixteen lines of diagnostics were
+   * all still on screen behind the narration.
+   *
+   * The identity is the ENTRY, not the speaker: `narration` is a general-purpose voice the corpus
+   * uses elsewhere, and blacking the screen out for all of it would take the map away from lines
+   * that are about the map.
+   */
+  private curtainWanted(entryId: string): boolean {
+    return entryId === BLACKOUT_ENTRY_ID;
+  }
+
+  /**
+   * Black out the whole virtual screen, above everything this scene draws including the HUD.
+   *
+   * Screen space, not world space — `setScrollFactor(0)`, the same as the HUD and the banner — so
+   * it does not slide off with the camera. The box is a SEPARATE scene launched on top of this one,
+   * so it draws over the curtain whatever depth this is given.
+   */
+  private raiseCurtain(): void {
+    if (this.curtain !== null) return;
+    this.curtain = this.add
+      .rectangle(0, 0, this.balance.map.virtualWidth, this.balance.map.virtualHeight, roleColor("void"))
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(CURTAIN_DEPTH);
+  }
+
+  /** Take it down. Safe to ask when there is none — every beat's hand-back does. */
+  private dropCurtain(): void {
+    this.curtain?.destroy();
+    this.curtain = null;
   }
 
   /**
@@ -2045,12 +2225,33 @@ export class OverworldScene extends Phaser.Scene {
     if (!innNodeIds().includes(townId)) return `no inn at ${townId}`;
     const inside = this.interior;
     if (inside === null) return null;
+    return this.isInnRoom(townId, inside) ? null : `${inside.name} — step outside to rest`;
+  }
+
+  /**
+   * Whether this room is the one the town's innkeeper keeps — the test {@link restRefusal} makes
+   * and the one {@link innRoomAt} searches with, written once.
+   *
+   * `innkeeperAt` names the speaker; the room is theirs when that speaker stands in it. Not a name
+   * match on the id: `hearthollow-supply` would pass a name match on nothing but a hyphen.
+   */
+  private isInnRoom(townId: string, bp: InteriorBlueprint): boolean {
     const keeper = innkeeperAt(townId);
-    const theirs =
-      inside.parentNode === townId &&
+    return (
+      bp.parentNode === townId &&
       keeper !== null &&
-      inside.anchors.some((a) => a.kind === "speaker" && a.target === keeper);
-    return theirs ? null : `${inside.name} — step outside to rest`;
+      bp.anchors.some((a) => a.kind === "speaker" && a.target === keeper)
+    );
+  }
+
+  /**
+   * The room the town's innkeeper keeps, or null where the town ships no interior at all.
+   *
+   * Null is the ordinary answer at three of the five inn towns — see {@link recoverFromBlackout}
+   * step 2, which degrades to waking in the town rather than inventing a room (G2).
+   */
+  private innRoomAt(townId: string): InteriorBlueprint | null {
+    return interiorsOf(townId).find((bp) => this.isInnRoom(townId, bp)) ?? null;
   }
 
   restAtInn(townId: string = this.save.currentNode): void {
@@ -2132,15 +2333,20 @@ export class OverworldScene extends Phaser.Scene {
    *      rebuilt IF the wait actually produced a texture: a wake node whose map has never been
    *      loaded would otherwise keep its placeholder and its synthesised collision grid until the
    *      next travel, which is a walkable map the mask does not agree with.
+   *      …AND THEN INTO THE ROOM, where the town ships one — see the body. `enterNode` alone moves
+   *      the player to the TOWN, and at every town that keeps an inn that is the town they were
+   *      already standing in, so for five of the twelve nodes step 2 was the identity.
    *   3. the charges — one `spendTicks` per element of `core/recovery.ts` `BLACKOUT_COST`, which is
    *      `["inn", "inn", "travel"]`. They are ORDINARY priced entries, and that is what makes the
    *      blackout cost the same on the replay path (`game/year-replay.ts` `clockFromLog` prices
    *      them straight out of `balance.clock`) with nothing added to `ClockActionKind`, to
    *      `GameAction`, to `TICK_COSTING` or to `actionCosts`.
-   *   4. the beat, by ID. The corpus gates `narration.blackout` on the cue step 1 raised, and
-   *      `finishDialogue` -> `applyRunFlags` lowers it again with the entry's own `setFlags`.
-   *      `DialogueScene` draws the name plate from the speaker and `narration`'s is a single
-   *      space, which is what makes it read as a black screen rather than as somebody talking.
+   *   4. the beat, by ID, ON A BLACKED-OUT SCREEN. The corpus gates `narration.blackout` on the cue
+   *      step 1 raised, and `finishDialogue` -> `applyRunFlags` lowers it again with the entry's own
+   *      `setFlags`. `DialogueScene` draws the name plate from the speaker and `narration`'s is a
+   *      single space, so nobody appears to be talking — ⚠ but that is ALL an empty name plate does,
+   *      and this line used to claim it "is what makes it read as a black screen". It is not:
+   *      {@link curtainWanted} is, and until it existed the narration was read over the live map.
    *      The innkeeper's SHIPPED rest beat follows it, so "you wake up at the inn" is her own
    *      voice and not a word of new copy.
    *
@@ -2169,6 +2375,26 @@ export class OverworldScene extends Phaser.Scene {
     const keys = nodeArtKeys(target, this.save.year, this.balance);
     const artMissing = !this.textures.exists(keys.mapKey) || !this.textures.exists(keys.maskKey);
     this.enterNode(target);
+    /*
+     * …AND INTO THE ROOM, WHICH IS THE HALF THE RULING NAMES AND THE MOVE USED TO STOP SHORT OF.
+     * T-29 is "a dialogue with a black background saying you passed out, and then you wake at the
+     * inn"; `wakeNodeFor` answers the TOWN, and at the five towns that keep one that town is the
+     * one they already stood in — so for a wipe in Hearthollow step 2 was the identity and the
+     * player woke on the tile they fell on, with the prose describing a ceiling and a fire they
+     * were nowhere near. Traced: tile 18,29 before the fight and 18,29 after the whole recovery,
+     * with the inn door at 18,24 and its interior never entered.
+     *
+     * ⚠ AFTER `enterNode`, NEVER BEFORE: {@link adoptInterior}'s own rule is that a room belongs to
+     * `save.currentNode`, and `enterNode` is what moves it. The room is derived the way
+     * {@link restRefusal} derives the same fact — {@link innRoomAt} is the one spelling of it.
+     *
+     * ⚠ THREE OF THE FIVE INN TOWNS SHIP NO INTERIOR AT ALL (`data/interiors/` holds Hearthollow's
+     * and Brackwater's and no others), so at those the player wakes standing in the town. That is a
+     * content gap and not a decision this file may close by inventing a room (G2); it degrades to
+     * exactly the old behaviour and nowhere else changes.
+     */
+    const room = this.innRoomAt(target.id);
+    if (room !== null) this.enterInterior(room);
     if (artMissing) {
       void ensureNodeArt(this, keys).then(() => {
         // Guarded on all three counts: the player may have moved on, the fetch may have found
@@ -2177,6 +2403,10 @@ export class OverworldScene extends Phaser.Scene {
         if (this.node.id !== target.id) return;
         if (!this.textures.exists(keys.mapKey) && !this.textures.exists(keys.maskKey)) return;
         this.enterNode(target);
+        // `enterNode` rebuilds the TOWN's view and does not know which of the two is on screen —
+        // travel is always outdoors, this is not any more. Without it the town's map would be
+        // remade visible under a player who is standing in a room.
+        this.syncViewMode();
       });
     }
 
@@ -3365,6 +3595,12 @@ const BANNER_FADE_MS = 400;
  * overlay (10) and the player (20). Presentation, like every other depth in this file.
  */
 const INTERIOR_DEPTH = 1;
+
+/**
+ * Where the blackout curtain sits: above the HUD (100) and the banner, because a black screen with
+ * the diagnostics still legible on top of it is not one. Presentation, like every other depth here.
+ */
+const CURTAIN_DEPTH = 200;
 
 /**
  * Where the L8 meter sits. Presentation only — the tick counts, the season boundaries and the pip

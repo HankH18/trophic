@@ -82,6 +82,30 @@ interface FakeParts {
   stops: string[];
   paused: number;
   resumed: number;
+  /**
+   * Whether THIS scene would be running in Phaser — and therefore whether it gets an `update` and
+   * a live `InputPlugin` at all.
+   *
+   * ⚠ A COUNTER CANNOT ANSWER THAT QUESTION, AND FOR A WHILE THIS FILE ONLY HAD THE COUNTER.
+   * `Systems.pause`/`Systems.resume` (node_modules/phaser/src/scene/Systems.js) flip a BOOLEAN
+   * `settings.active`: the last operation to reach the scene wins, and pausing an already-paused
+   * scene is not a second pause, it is a `console.warn('Cannot pause non-running Scene')`. So
+   * `paused === resumed` is not evidence that anybody has the screen back — the run that ends
+   * `…resume, pause` is balanced by count and DEAD on screen, which is exactly the shape the
+   * softlock had. This field is the thing the player experiences; the counters stay for the tests
+   * that are about how many times a scene was handed over.
+   */
+  active: boolean;
+  /**
+   * `launch`ed / `stop`ped, per scene key — the OTHER half of the same question.
+   *
+   * Phaser processes `ScenePlugin` calls as an ordered queue (`SceneManager.processQueue`), so a
+   * `stop` that arrives after a `launch` on the same key shuts the freshly started scene down. That
+   * ordering is not decoration: `DialogueScene.finish()` calls `onDone(state)` and THEN
+   * `this.scene.stop()`, so every box closes with a trailing self-stop that lands after whatever
+   * the overworld did inside `onDone`. `answerBox` replays both halves.
+   */
+  sceneStatus: Map<string, "running" | "shutdown">;
   keysByCode: Map<number, FakeKey>;
   cursors: Record<string, FakeKey>;
   /** Pixels `readMaskPixels` will find for a mask texture key. */
@@ -133,6 +157,18 @@ vi.mock("phaser", () => {
         o.displaySize = { w, h };
         return o.self as FakeObj;
       },
+      /*
+       * RECORDED RATHER THAN LEFT TO THE PROXY, for `displaySize`'s reason one layer up: WHERE in
+       * the display list an object sits is a correctness property when the object's whole job is
+       * to cover what is under it. A blackout curtain drawn below the HUD is a black screen with
+       * sixteen lines of diagnostics legible on top of it, which is not a black screen — and a
+       * chainable no-op records nothing, so that assertion would pass against a depth never set.
+       */
+      depth: 0,
+      setDepth(d: number): FakeObj {
+        o.depth = d;
+        return o.self as FakeObj;
+      },
       destroy(): void {
         o.destroyed = true;
         const at = bag.indexOf(o.self as FakeObj);
@@ -174,6 +210,8 @@ vi.mock("phaser", () => {
         stops: [],
         paused: 0,
         resumed: 0,
+        active: true,
+        sceneStatus: new Map<string, "running" | "shutdown">(),
         keysByCode: new Map(),
         cursors: {
           up: { isDown: false, justDown: false },
@@ -206,7 +244,22 @@ vi.mock("phaser", () => {
           return o;
         }) as unknown as (...args: never[]) => unknown,
         graphics: ((): FakeObj => make("graphics", parts.objects)) as unknown as (...args: never[]) => unknown,
-        rectangle: ((): FakeObj => make("rect", parts.objects)) as unknown as (...args: never[]) => unknown,
+        /*
+         * ⚠ SIZE AND FILL ARE RECORDED, because on THIS screen a rectangle is not one thing.
+         * `game/ui/SeasonMeter.ts` builds one small cell per `clock.ticksPerYear` — fifty-two of
+         * them — so "a rectangle exists" says nothing at all here. What the blackout curtain is
+         * can only be stated as a shape: the whole virtual screen, filled with the palette's
+         * `void`. A recorder that dropped the constructor arguments could not tell the two apart.
+         */
+        rectangle: ((x: number, y: number, w: number, h: number, fill?: number): FakeObj => {
+          const o = make("rect", parts.objects);
+          o.x = x;
+          o.y = y;
+          o.rectW = w;
+          o.rectH = h;
+          o.fillColor = fill ?? null;
+          return o;
+        }) as unknown as (...args: never[]) => unknown,
       };
 
       this.cameras = {
@@ -313,18 +366,22 @@ vi.mock("phaser", () => {
         manager: { keys: parts.registeredScenes },
         launch: (key: string, data: unknown): void => {
           parts.launches.push({ key, data });
+          parts.sceneStatus.set(key, "running");
         },
         start: (key: string, data: unknown): void => {
           parts.starts.push({ key, data });
         },
         stop: (key: string): void => {
           parts.stops.push(key);
+          parts.sceneStatus.set(key, "shutdown");
         },
         pause: (): void => {
           parts.paused += 1;
+          parts.active = false;
         },
         resume: (): void => {
           parts.resumed += 1;
+          parts.active = true;
         },
         get: (): unknown => undefined,
       };
@@ -431,6 +488,9 @@ import {
 } from "@game/wild-battle";
 import { interiorAssetPath, interiorTextureKey, maskTextureKey } from "@game/mapview";
 import { assetId, hasRealAsset, registerRealAsset } from "@game/placeholder";
+// §17.6's curtain colour, resolved through the SAME role the scene paints it with — a hex typed
+// here would agree with itself and with nothing else after a palette re-freeze.
+import { roleColor } from "@game/ui/Palette";
 import { encounterWeights, indexSpecies } from "@core/foodweb";
 
 const content: Content = validateContent();
@@ -512,6 +572,17 @@ function mount(over: Partial<OverworldSceneData> = {}, prepare?: (parts: FakePar
     parts,
     data: full,
     frame(ms = MS_PER_TILE) {
+      /*
+       * ⚠ A PAUSED SCENE GETS NO FRAME, AND THAT IS THE WHOLE INSTRUMENT.
+       * Phaser's `SceneManager.update` skips any scene whose `settings.active` is false, and its
+       * `InputPlugin` disarms itself on the PAUSE event — so a paused overworld neither runs
+       * `update()` nor sees a keypress. This rig used to call `update()` unconditionally, which
+       * made every key it pressed work whether or not the scene had the screen: the ONE symptom a
+       * softlock has (the map draws, the loop runs, nothing answers a key) was the one thing the
+       * rig could not express. Calling straight through is not a convenience, it is a lie about
+       * the platform.
+       */
+      if (!parts.active) return;
       scene.update(0, ms);
     },
     restart(next = {}) {
@@ -520,6 +591,8 @@ function mount(over: Partial<OverworldSceneData> = {}, prepare?: (parts: FakePar
       // fields survive, the objects do not. The stub has to reproduce both halves or §5 would read
       // the previous visit's Graphics and pass for the wrong reason.
       parts.objects.length = 0;
+      // `scene.start` boots the scene RUNNING — a restart is how a paused scene comes back.
+      parts.active = true;
       scene.init({ ...full, save: scene.save, ...next });
       scene.create();
     },
@@ -938,12 +1011,16 @@ describe("§3 a wild encounter becomes a battle, and a catch moves a real number
     // Launches the scene made during `create()` are not ours to fight.
     let consumed = h.parts.launches.length;
     for (let attempt = 0; attempt < ENCOUNTERS_TO_TRY; attempt += 1) {
+      // A fight lost on the way is a wipe, and a wipe wakes the party in the inn — see
+      // `stepOutside`. The walk carries on outdoors, which is where the encounters are.
+      if (stepOutside(h)) seen.push(`— woke in the inn and stepped back outside`);
       walk(h, WALK_BUDGET, () => h.parts.launches.length > consumed);
       const launch = h.parts.launches[consumed];
       if (!launch) {
         seen.push(
           `— walked ${String(WALK_BUDGET)} steps and the scene launched nothing` +
-            ` (handed over: ${String(h.scene.isHandedOver())})`,
+            ` (handed over: ${String(h.scene.isHandedOver())}, indoors: ` +
+            `${h.scene.currentInterior()?.id ?? "no"})`,
         );
         break;
       }
@@ -1087,10 +1164,16 @@ describe("§3 a wild encounter becomes a battle, and a catch moves a real number
     const seen: string[] = [];
     let consumed = h.parts.launches.length;
     for (let attempt = 0; attempt < ENCOUNTERS_TO_TRY; attempt += 1) {
+      // See `stepOutside`: a fight lost on the way wakes the party in the inn, and there are no
+      // wild encounters on an inn's floor.
+      if (stepOutside(h)) seen.push(`— woke in the inn and stepped back outside`);
       walk(h, WALK_BUDGET, () => h.parts.launches.length > consumed);
       const launch = h.parts.launches[consumed];
       if (!launch) {
-        seen.push(`— walked ${String(WALK_BUDGET)} steps and the scene launched nothing`);
+        seen.push(
+          `— walked ${String(WALK_BUDGET)} steps and the scene launched nothing (indoors: ` +
+            `${h.scene.currentInterior()?.id ?? "no"})`,
+        );
         break;
       }
       consumed += 1;
@@ -1604,6 +1687,16 @@ describe("§10.1 the act ladder can be CLIMBED by playing — the never-cut slic
     expect(rivalLaunch, "arriving on the first route launched no rival battle").toBeDefined();
     expect((rivalLaunch?.data as BattleSceneData).input.kind).toBe("trainer");
     expect(settleBattle(h, "loss")).toBe(true);
+    /*
+     * …AND LOSING IT IS A WIPE, WHICH CARRIES THEM TO THE INN AND PUTS THEM INSIDE IT (T-29). That
+     * is the whole of `recoverFromBlackout`'s move: the route is behind them, the wake town is the
+     * one the leader stands in, and the door is the next thing a player touches. Without this step
+     * the badge below is challenged from an inn's floor, which the scene refuses out loud.
+     */
+    expect(h.scene.save.currentNode, "the wipe did not carry the player to the wake town").toBe(
+      wakeNodeFor(r1 as string, content),
+    );
+    stepOutside(h);
 
     // Back to town, win the badge, and the second town opens.
     await h.scene.travelTo(first.town);
@@ -2261,14 +2354,54 @@ function boxed(h: Harness): string[] {
     .map((l) => (l.data as DialogueSceneData).entryId);
 }
 
-/** Answer the box the way `DialogueScene` answers it: play the run out, then hand the state back. */
+/**
+ * Answer the box the way `DialogueScene` answers it: play the run out, hand the state back — and
+ * THEN let the box stop itself, which is the half this rig used to leave out.
+ *
+ * ⚠ `game/scenes/DialogueScene.ts` `finish()` IS TWO STATEMENTS, `this.onDone(this.state)` and then
+ * `this.scene.stop()`, and the order between them is load-bearing. Everything the overworld does
+ * inside `onDone` — including launching the NEXT box — happens before that trailing stop, and
+ * Phaser's operation queue applies them in exactly that order. A rig that replayed only `onDone`
+ * could not see a chained beat being shut down by the beat it was chained to, which is precisely
+ * the softlock every party wipe ended a run with.
+ */
 function answerBox(h: Harness, pick: (state: DialogueRunState, choices: readonly string[]) => number = () => 0): string {
   const launch = h.parts.launches.filter((l) => l.key === SCENE_KEYS.dialogue).pop();
   if (!launch) throw new Error("nothing was handed to the dialogue box");
+  /*
+   * ⚠ A BOX THAT IS NOT RUNNING HAS NO `onDone` TO CALL, and answering one anyway is how this rig
+   * used to walk straight past a softlock. `launches` records what was HANDED to the box; it does
+   * not record whether the box survived being handed it. A `scene.stop` queued after the `launch`
+   * — which is precisely what `DialogueScene.finish()` does one statement after `onDone` returns —
+   * shuts the new box down before it ever draws, and nothing will ever call back. Reading the
+   * launch out of the list regardless made that indistinguishable from a beat the player answered.
+   */
+  if (!boxIsUp(h)) {
+    throw new Error(
+      `the box was handed "${(launch.data as DialogueSceneData).entryId}" and then shut down before ` +
+        `anybody could answer it — in the game that is a beat nobody sees and a screen nobody gets back`,
+    );
+  }
   h.parts.launches.splice(h.parts.launches.indexOf(launch), 1);
   const data = launch.data as DialogueSceneData;
   data.onDone(runHeadless(data.file ?? DIALOGUE, data.entryId, pick));
+  h.parts.stops.push(SCENE_KEYS.dialogue);
+  h.parts.sceneStatus.set(SCENE_KEYS.dialogue, "shutdown");
+  /*
+   * A CHAINED BEAT OPENS ON THE NEXT FRAME, and the rig has to give it one or it is asserting
+   * against a game that never ran. `OverworldScene.playEntry` cannot launch from inside this
+   * callback — the stop two lines above is exactly what would undo it — so it queues, and
+   * `update()` opens it. `isSpeaking()` is the scene's own answer to "is a beat still owed": it
+   * stays true across the gap, and it is false when this box was the end of the chain, so no test
+   * is handed a frame of real play it did not ask for.
+   */
+  if (h.scene.isSpeaking()) h.frame();
   return data.entryId;
+}
+
+/** Whether a box is on screen right now — launched, and not stopped since. */
+function boxIsUp(h: Harness): boolean {
+  return h.parts.sceneStatus.get(SCENE_KEYS.dialogue) === "running";
 }
 
 describe("§10.6 the battle corpus is selected, and the finale is resolved by the game", () => {
@@ -2532,6 +2665,12 @@ describe("§10.6 the battle corpus is selected, and the finale is resolved by th
     expect(answerBox(lost)).toBe(BLACKOUT_ENTRY_ID);
     answerBox(lost); // the innkeeper's shipped rest beat
     expect(lost.scene.save.questFlags["rival.act1.fought"]).toBeUndefined();
+    // …and they are standing IN her inn, because that is what T-29's wake is. Travel refuses from
+    // indoors, out loud, so the rematch below starts where a player would start it: on the step.
+    expect(lost.scene.currentInterior()?.parentNode, "the wake left the player outdoors").toBe(
+      lost.scene.save.currentNode,
+    );
+    stepOutside(lost);
     // …so walking away and coming back really does offer the rematch the copy promises.
     await lost.scene.travelTo(first.town);
     await lost.scene.travelTo(route);
@@ -2900,6 +3039,14 @@ describe("§11 a fight costs clock.battleTicks, and it is charged at LAUNCH", ()
 
     let blackedOut = 0;
     for (let fight = 0; fight < fightsPerTick; fight += 1) {
+      /*
+       * ⚠ AND THE PREVIOUS LOSS PUT THEM IN THE INN. T-29's wake is into the room, and the leader
+       * is not in it — `challengeGym` refuses indoors, out loud, so the second fight would never
+       * start. The step out is a step and not a teleport, and it is deliberately taken BEFORE the
+       * assertions below: it happens indoors, where `onStepCompleted` charges no foray tick (§14),
+       * so it cannot move the arithmetic this test is about.
+       */
+      stepOutside(h);
       h.press(KEY_G);
       h.frame();
       expect(settleBattle(h, "loss"), `fight ${String(fight)} never started`).toBe(true);
@@ -3582,6 +3729,25 @@ function goInside(h: Harness, bp: InteriorBlueprint): void {
     stepOnto(h, door, "down");
   }
   expect(h.scene.currentInterior()?.id, `the rig never got the player into ${bp.id}`).toBe(bp.id);
+}
+
+/**
+ * Walk back out of whatever room the player is standing in, and say so if there was none.
+ *
+ * ⚠ A WIPE PUTS THEM IN ONE NOW. T-29 is "you wake up at the inn", and `recoverFromBlackout` wakes
+ * the party INSIDE the wake town's inn where one is shipped — so a rig that loses a fight and then
+ * carries on walking is walking a floor plan: the overworld refuses travel, the gym and the wild
+ * encounter roll while it is indoors, out loud and by design. Every caller below is a place a
+ * PLAYER would step outside, and the step is the plan's own `D` cell rather than a teleport.
+ *
+ * Returns whether there was a room to leave, so a caller can tell "walked out" from "was never in".
+ */
+function stepOutside(h: Harness): boolean {
+  const bp = h.scene.currentInterior();
+  if (bp === null) return false;
+  stepOnto(h, planDoor(bp), "down");
+  expect(h.scene.currentInterior(), `the rig could not walk out of ${bp.id}`).toBeNull();
+  return true;
 }
 
 /** A save standing in a room's parent town, with that town's populations wiped to zero. */
@@ -4889,6 +5055,241 @@ describe("§17.5 the year turn does not overwrite the room's provenance line wit
     expect(h.scene.save.year, "the rest did not turn the year — the rig missed the boundary").toBe(yearBefore + 1);
     expect(h.scene.currentInterior()?.id, "the year turn walked the player out of the room").toBe(bp.id);
     expect(h.hud(), "the year turn overwrote the room's note with the town's map").toContain(roomNote);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §17.6 THE OVERWORLD IS STILL PLAYABLE ON THE OTHER SIDE OF A WIPE
+ *
+ * ⚠ WHAT WAS TRUE BEFORE, AND IT ENDED EVERY RUN A PARTY WIPE HAPPENED IN. `playEntry` launched
+ * the chained beat from INSIDE the closing box's `onDone`, and `game/scenes/DialogueScene.ts`
+ * `finish()` runs `this.onDone(state)` and THEN `this.scene.stop()`. Phaser applies `ScenePlugin`
+ * calls as an ordered queue, so the ops for one wipe came out:
+ *
+ *     resume(Overworld) · stop(Dialogue) · start(Dialogue, the innkeeper) · pause(Overworld)
+ *                                                                       · stop(Dialogue)
+ *
+ * — the innkeeper's box shut down the frame it opened, and the overworld left PAUSED with nothing
+ * alive to resume it. Measured in a browser on all three routes into a wipe (wild, rival, gym):
+ * the map still drew, the loop still stepped at ~110fps, and the arrows, [C], [E] and ESC were all
+ * dead. No exception, no Phaser warning — `Systems.pause` only warns when it is asked to pause an
+ * already-paused scene, and it never was: the pause was the LAST operation, not a second one.
+ *
+ * ⚠ WHY 2,900 GREEN TESTS DID NOT SEE IT, WHICH IS WHAT THESE ARE SHAPED AGAINST. The rig called
+ * `scene.update()` whether or not the scene had been paused, and counted pauses and resumes rather
+ * than tracking which came last — so the one symptom a softlock has could not be expressed here,
+ * and a run ending `…resume, pause` read as balanced. Both halves are fixed in the stub (see
+ * `FakeParts.active` and `answerBox`), and every assertion below is placed on the PLAYER's
+ * observables: a key pressed after the beat, and the tile the player is standing on.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("§17.6 the keys still work after a wipe", () => {
+  /** The wake town of a wipe suffered where the player is standing. */
+  function wakeOf(nodeId: string): string {
+    return wakeNodeFor(nodeId, content);
+  }
+
+  /** A save standing at `nodeId` with nothing on its feet — the state a lost fight leaves. */
+  function wipedAt(nodeId: string): SaveEnvelope {
+    const base = freshSave(nodeId);
+    return { ...base, party: base.party.map((c) => ({ ...c, curHp: 0 })) };
+  }
+
+  /**
+   * Play the whole wipe out through the BOX — every beat answered the way `DialogueScene` answers
+   * one — and report the entries the player read, in order.
+   *
+   * Bounded, and the bound is what makes a chain that never ends a red rather than a hang.
+   */
+  function playTheWipeOut(h: Harness): string[] {
+    const read: string[] = [];
+    for (let guard = 0; guard < 8 && h.scene.isSpeaking(); guard += 1) read.push(answerBox(h));
+    expect(h.scene.isSpeaking(), `the beat chain never closed: ${read.join(" → ")}`).toBe(false);
+    return read;
+  }
+
+  /** The one rectangle that covers the whole virtual screen — the blackout curtain, or none. */
+  function curtain(h: Harness): FakeObj | undefined {
+    return h.parts.objects.find(
+      (o) =>
+        o.kind === "rect" &&
+        o.rectW === balance.map.virtualWidth &&
+        o.rectH === balance.map.virtualHeight,
+    );
+  }
+
+  it("the arrow keys move the player again once the last beat closes", () => {
+    /*
+     * THE SOFTLOCK TEST. Not "is some flag false" — the flag was fine. The scene was PAUSED, which
+     * in Phaser means `update()` is never called and the InputPlugin is disarmed, so the only
+     * question that could have caught this is the one the player asked: does a key still do
+     * anything. `Harness.frame` refuses to step a paused scene for exactly that reason.
+     */
+    const h = mount({ save: wipedAt(SLICE_NODE) });
+    withDialogueBox(h);
+
+    h.scene.recoverFromBlackout();
+    const read = playTheWipeOut(h);
+    // The beat really happened — without this the assertions below pass against a wipe that said
+    // nothing at all, which is the OTHER way this could go wrong.
+    expect(read[0], `the blackout beat was not played: ${read.join(" → ")}`).toBe(BLACKOUT_ENTRY_ID);
+
+    expect(h.parts.active, "the overworld was left paused with nothing able to resume it").toBe(true);
+    const before = { ...h.scene.movement.tile };
+    const stepped = walk(h, 1);
+    expect(stepped, "the arrow keys did nothing after the wipe").toBe(1);
+    expect(h.scene.movement.tile, "the player did not move").not.toEqual(before);
+  });
+
+  it("…and so does a key that is not a direction: [C] still draws the collision overlay", () => {
+    /*
+     * A SECOND KEY, ON A DIFFERENT PATH. Movement is polled through `cursors`; [C] is an `addKey`
+     * handle read with `JustDown` at the top of `update`. Both were dead in the browser, and a
+     * fix that resumed the scene without giving it a frame would revive neither.
+     */
+    const h = mount({ save: wipedAt(SLICE_NODE) });
+    withDialogueBox(h);
+    const overlay = (): FakeObj | undefined => h.parts.objects.find((o) => o.kind === "graphics");
+    expect(overlay()?.visible, "the overlay was already on before the wipe").toBe(false);
+
+    h.scene.recoverFromBlackout();
+    playTheWipeOut(h);
+
+    h.press(67);
+    h.frame();
+    expect(overlay()?.visible, "[C] was dead after the wipe").toBe(true);
+  });
+
+  it("the innkeeper's beat reaches the box — the chain is not shut down by the beat before it", () => {
+    /*
+     * THE MECHANISM, NAMED. `boxed` is every entry HANDED to the box; `sceneStatus` is whether the
+     * box is still running. Before the fix the innkeeper's entry appeared in the first list and the
+     * second said "shutdown" in the same instant: the launch was undone by the closing box's own
+     * `scene.stop()`, so the player read the narration and then nothing, ever again.
+     */
+    const h = mount({ save: wipedAt(SLICE_NODE) });
+    withDialogueBox(h);
+    const rest = restBeatAt(wakeOf(SLICE_NODE), h.scene.dialogueCtx());
+    expect(rest, `no innkeeper speaks at ${wakeOf(SLICE_NODE)} — this test cannot be set up`).toBeDefined();
+
+    h.scene.recoverFromBlackout();
+    expect(boxed(h).at(-1)).toBe(BLACKOUT_ENTRY_ID);
+    expect(boxIsUp(h), "the blackout beat was launched and shut down in the same breath").toBe(true);
+
+    answerBox(h);
+    expect(boxed(h).at(-1), "the innkeeper's beat never reached the box").toBe(rest!.id);
+    expect(boxIsUp(h), "the innkeeper's box was shut down the frame it opened").toBe(true);
+    expect(h.scene.isSpeaking(), "the scene does not think anybody is speaking").toBe(true);
+  });
+
+  it("the blackout beat is read against a BLACK SCREEN, and the map comes back with the keys", () => {
+    /*
+     * T-29, verbatim: "a dialogue shows up with a black background saying you passed out". What
+     * shipped was the ordinary box over the LIVE MAP — the town, its props and sixteen lines of
+     * debug HUD all still legible behind the narration. The curtain is asserted as a SHAPE and a
+     * DEPTH rather than as an object count, because `game/ui/SeasonMeter.ts` builds one rectangle
+     * per tick of the year on this very screen.
+     */
+    const h = mount({ save: wipedAt(SLICE_NODE) });
+    withDialogueBox(h);
+    expect(curtain(h), "something blacked the screen out before the wipe").toBeUndefined();
+
+    h.scene.recoverFromBlackout();
+    const drawn = curtain(h);
+    expect(drawn, "the blackout beat drew no black screen").toBeDefined();
+    expect(drawn?.fillColor, "the curtain is not the palette's `void`").toBe(roleColor("void"));
+    expect(
+      Number(drawn?.depth),
+      "the curtain is drawn under the HUD, which leaves the diagnostics legible on a black screen",
+    ).toBeGreaterThan(100);
+
+    // IT STAYS UP FOR THE WHOLE CHAIN. The narration hands straight on to the innkeeper, and a
+    // screen that flashed the map back between the two would drop the black mid-sentence.
+    answerBox(h);
+    expect(curtain(h), "the black screen went out between the two halves of the beat").toBeDefined();
+
+    playTheWipeOut(h);
+    expect(curtain(h), "the black screen outlived the beat it was raised for").toBeUndefined();
+  });
+
+  it("the wake is INTO the inn, not onto the tile they fell on", () => {
+    /*
+     * THE OTHER HALF OF T-29 — "and then you wake up at the inn". `wakeNodeFor` answers the TOWN,
+     * and at a wipe suffered in a town that keeps an inn that town is the one they were already
+     * standing in, so step 2 was the identity: traced in a browser at tile 18,29 before the fight
+     * and 18,29 after the whole recovery, with the inn door at 18,24 and its interior never
+     * entered, while the prose described a ceiling with a beam across it.
+     */
+    const room = INTERIORS.find(isTheInn);
+    expect(room, "no shipped room is an inn — this test cannot be set up").toBeDefined();
+    const town = room!.parentNode;
+    // The premise: a wipe HERE wakes HERE, so nothing but the room can account for the move.
+    expect(wakeOf(town), "this town is not its own wake node — the test would prove the node move").toBe(town);
+
+    const h = mount({ save: wipedAt(town) });
+    withDialogueBox(h);
+    expect(h.scene.currentInterior(), "the rig started indoors").toBeNull();
+
+    h.scene.recoverFromBlackout();
+    playTheWipeOut(h);
+
+    expect(h.scene.currentInterior()?.id, "the wipe left the player standing where they fell").toBe(room!.id);
+    expect(h.scene.save.interiorId, "the save does not agree with the scene about the room").toBe(room!.id);
+    // …and they can walk out of it, which is the only thing that makes waking inside one legal.
+    stepOutside(h);
+    expect(h.scene.save.currentNode, "walking out did not put them back in the town").toBe(town);
+  });
+
+  it("a wake town that ships no interior leaves the player outdoors rather than nowhere", () => {
+    /*
+     * THE DEGRADATION, ASSERTED. `data/interiors/` ships two towns' rooms and `core/recovery.ts`
+     * names five inn towns, so three of the five have no inn to wake into. That is a content gap
+     * and not this scene's to close by inventing a room (G2) — but a silent one would be a wipe
+     * that put the player in a room that does not exist. It degrades to the node, exactly as it
+     * behaved before the room was entered at all.
+     */
+    const roomless = innNodeIds().filter((id) => !INTERIORS.some((bp) => bp.parentNode === id));
+    expect(roomless, "every inn town ships a room now — delete this test, it asserts nothing").not.toHaveLength(0);
+    const town = roomless[0]!;
+    expect(wakeOf(town)).toBe(town);
+
+    const h = mount({ save: wipedAt(town) });
+    withDialogueBox(h);
+    h.scene.recoverFromBlackout();
+    playTheWipeOut(h);
+
+    expect(h.scene.currentInterior(), `${town} ships no room and the wake claimed one anyway`).toBeNull();
+    expect(h.scene.save.currentNode).toBe(town);
+    expect(h.parts.active, "the overworld was left paused at a town with no inn room").toBe(true);
+    expect(walk(h, 1), "the arrow keys did nothing after a wipe at a town with no inn room").toBe(1);
+  });
+
+  it("a wipe LOST TO THE LEADER ends the same way — the whole path, fought", () => {
+    /*
+     * ⚠ THE END-TO-END ONE, and it is a different path into the same recovery: the gym's answer is
+     * a `battle-loss` beat, so `recoverFromBlackout` runs as ITS continuation — a chained
+     * `playEntry` from inside a chained `playEntry`, which is where the ordering hazard is worst.
+     * The browser trace lost this fight for real and found the overworld dead afterwards.
+     */
+    const first = LADDER[0]!;
+    const h = mount({ save: { ...freshSave(first.town), currentNode: first.town } });
+    withDialogueBox(h);
+
+    h.press(KEY_G);
+    h.frame();
+    expect(answerBox(h), "the leader did not speak").toBe(`${first.id}.pre`);
+    const battle = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop();
+    expect(battle, "the leader spoke and no fight started").toBeDefined();
+    const data = battle!.data as BattleSceneData;
+    data.onFinished({ state: settledState(data, "loss"), caught: null });
+
+    expect(answerBox(h), "the leader did not answer the loss").toBe(`${first.id}.post.loss`);
+    const read = playTheWipeOut(h);
+    expect(read, "the black screen never followed her line").toContain(BLACKOUT_ENTRY_ID);
+
+    expect(h.parts.active, "the overworld was left paused after a lost gym battle").toBe(true);
+    expect(curtain(h), "the black screen outlived the beat").toBeUndefined();
+    expect(walk(h, 1), "the arrow keys did nothing after a lost gym battle").toBe(1);
   });
 });
 
