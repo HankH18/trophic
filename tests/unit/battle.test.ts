@@ -771,6 +771,74 @@ describe("KO is a faint and nothing else (Hard Req 8)", () => {
     expect(out.state.battlers["loam"]?.curHp).toBe(0);
   });
 
+  it("BINDS — Scrounge heals for the damage DEALT, so an overkill heals LESS (bible §3)", () => {
+    // WAS: `performMove` set `dealt = result.amount` — the ROLL, taken before `dealDamage`'s
+    // zero-clamp — and handed that to the `heal` effect. bible §3 spells the move out as "40 power,
+    // heal for damage dealt", and the roll is not the deal: swinging 32 into a creature standing at
+    // 1 HP removes 1. Measured on this exact setup before the repair: `damage` 1, `heal` 32.
+    //
+    // That made an overkill the most rewarding hit in the game — the less meat left on the target,
+    // the better the Scavenger ate — and it put a `heal` in the log that no `damage` in the same log
+    // could account for. `dealDamage` now RETURNS the clamped figure and `performMove` heals by it.
+    const ctx = NO_WEB;
+    const overkill: BattleInput = {
+      seed: 12,
+      kind: "wild",
+      // Carricrow is the Scavenger: its role move is Scrounge. Wounded, so there is room to heal —
+      // `heal` logs the APPLIED amount, and a creature at full HP would report 0 for either reading.
+      playerParty: [{ uid: "crow", lineId: "carricrow-line", age: "A", level: 10, traits: [], curHp: 10 }],
+      // TWO enemies: a KO that ends the battle returns before the effects run at all (see "does not
+      // fire a KO'ing move's self-heal after the battle is already over"), which would hide this.
+      enemyParty: [
+        { uid: "moss", lineId: "mosslet-line", age: "A", level: 10, traits: [], curHp: 1 },
+        { uid: "moss2", lineId: "mosslet-line", age: "A", level: 10, traits: [] },
+      ],
+    };
+
+    // The roll, read at the formula's own boundary — this is the number the heal USED to be, and it
+    // is 32× the HP the target owns.
+    const roll = computeDamage(
+      battler("carricrow-line", "A", 10),
+      battler("mosslet-line", "A", 10, "enemy"),
+      move("scrounge"),
+      scripted(MID_ROLL_NO_CRIT),
+      ctx,
+    );
+    expect(roll.amount).toBe(32);
+
+    const started = startBattle(overkill, ctx);
+    expect(started.state.battlers["moss"]?.curHp).toBe(1);
+    expect(started.state.battlers["crow"]?.curHp).toBe(10);
+    const out = step(started.state, { kind: "move", moveId: "scrounge" }, scripted([0.5, 0.99, 0.5, 0.99]), ctx);
+
+    const hit = out.events.find((e) => e.t === "damage" && e.uid === "moss");
+    expect(hit?.t === "damage" ? hit.amount : -1).toBe(1);
+    const gain = out.events.find((e) => e.t === "heal" && e.uid === "crow");
+    expect(gain?.t === "heal" ? gain.amount : -1).toBe(1);
+    // …and the state agrees: one point of HP crossed the field, not thirty-two.
+    expect(out.state.battlers["moss"]?.curHp).toBe(0);
+    expect(out.state.battlers["crow"]?.curHp).toBe(11);
+    expect(out.state.outcome).toBeNull(); // the fight carried on, so the effects really did run
+
+    // The control, on the SAME roll into a target that can absorb all of it: nothing is clamped, so
+    // the heal is the whole 32. Without this the case above would also pass for "Scrounge heals 1".
+    const survivable: BattleInput = {
+      ...overkill,
+      enemyParty: [
+        { uid: "moss", lineId: "mosslet-line", age: "A", level: 10, traits: [] },
+        { uid: "moss2", lineId: "mosslet-line", age: "A", level: 10, traits: [] },
+      ],
+    };
+    const full = startBattle(survivable, ctx);
+    expect(full.state.battlers["moss"]?.curHp).toBe(96);
+    const fed = step(full.state, { kind: "move", moveId: "scrounge" }, scripted([0.5, 0.99, 0.5, 0.99]), ctx);
+    const bite = fed.events.find((e) => e.t === "damage" && e.uid === "moss");
+    expect(bite?.t === "damage" ? bite.amount : -1).toBe(32);
+    const meal = fed.events.find((e) => e.t === "heal" && e.uid === "crow");
+    expect(meal?.t === "heal" ? meal.amount : -1).toBe(32);
+    expect(fed.events.some((e) => e.t === "faint" && e.uid === "moss")).toBe(false);
+  });
+
   it("BINDS — every HP-moving event in every fixture equals the HP that actually moved", () => {
     // The standing reconstruction test (`carries enough in events[] to redraw every HP bar`) reads
     // `faint` as "set the tally to 0", so it reconciles an overshoot instead of catching it: the

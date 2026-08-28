@@ -1081,7 +1081,13 @@ function settleField(state: BattleState, events: BattleEvent[]): boolean {
   return false;
 }
 
-function dealDamage(state: BattleState, events: BattleEvent[], target: BattleBattler, amount: number, ctx: BattleContext, meta: Omit<DamageResult, "amount">): void {
+/**
+ * Moves HP off `target` and logs it. **Returns the HP that actually left the creature**, which is
+ * the roll minus whatever the zero-clamp ate — the number every caller that says "damage dealt"
+ * must use. It is the single authority on that quantity: the clamp lives here and nowhere else, so
+ * a caller that recomputes it from `computeDamage(...).amount` is by construction reading the roll.
+ */
+function dealDamage(state: BattleState, events: BattleEvent[], target: BattleBattler, amount: number, ctx: BattleContext, meta: Omit<DamageResult, "amount">): number {
   // The event carries the damage DEALT, not the damage ROLLED — the two differ on every overkill.
   //
   // `curHp` floors at zero, so a creature at 1 HP hit for 26 loses 1. Logging the roll made
@@ -1108,6 +1114,7 @@ function dealDamage(state: BattleState, events: BattleEvent[], target: BattleBat
     crit: meta.crit,
   });
   if (target.curHp <= 0) handleFaint(state, events, target, ctx);
+  return dealt;
 }
 
 function heal(events: BattleEvent[], target: BattleBattler, amount: number): void {
@@ -1136,11 +1143,21 @@ function performMove(
   const move = moveOf(ctx, moveId);
   events.push({ t: "moveUsed", uid: actor.uid, moveId });
 
+  // The damage DEALT, which is `dealDamage`'s return and not `result.amount`. bible §3 gives
+  // Scrounge as "40 power, heal for damage dealt", and the roll is not the deal: `curHp` floors at
+  // zero, so a 32-point swing into a creature standing at 1 removes 1. Reading the roll here paid
+  // the Scavenger a 32 HP heal for 1 HP of meat — an overkill was the most rewarding hit in the
+  // game, which is backwards, and it also meant a `heal` event no `damage` event could account for.
+  //
+  // This is the same defect as the one `dealDamage` documents above, one level up, and it is the
+  // reason that function returns the clamped figure rather than leaving each caller to re-derive
+  // it. The roll stays reachable at the formula's own boundary — `computeDamage` is exported and
+  // the balance harness reads it there (build-doc §7.4) — but nothing downstream of the clamp may
+  // read it as "dealt".
   let dealt = 0;
   if (move.power > 0) {
     const result = computeDamage(actor, defender, move, rng, ctx, state.nodeId);
-    dealt = result.amount;
-    dealDamage(state, events, defender, result.amount, ctx, {
+    dealt = dealDamage(state, events, defender, result.amount, ctx, {
       effectiveness: result.effectiveness,
       predation: result.predation,
       crit: result.crit,
