@@ -8,6 +8,17 @@ build/
 assets/raw/**
 !assets/raw/manifest.json
 !assets/raw/.gitkeep
+
+# Reference captures — Nintendo's own sprite, tile and UI bitmaps. They are PIPELINE INPUT
+# (img2img init images, things to measure against) and are never shipped, never quantized into
+# assets/final/, and never redistributed. Keep them out of the repository entirely.
+#
+# ⚠ TEN OF THESE ARE ALREADY COMMITTED and a .gitignore rule does not untrack a tracked file.
+# They need `git rm --cached` — see assets/reference/README.md, which stays tracked because it
+# records what the set is and how to re-fetch it, and contains no third-party art itself.
+assets/reference/**
+!assets/reference/.gitkeep
+!assets/reference/README.md
 coverage/
 .vite/
 public/assets/
