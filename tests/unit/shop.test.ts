@@ -36,7 +36,7 @@ import {
 import { validateContent } from "../../core/schemas";
 import { SNARE_TIERS } from "../../core/types";
 import type { Balance, GymLeader, SnareTier } from "../../core/types";
-import { buy, shopRows, type ShopRow } from "../../game/shop";
+import { ShopError, buy, shopRows, type ShopRow } from "../../game/shop";
 
 const content = validateContent();
 const balance: Balance = content.balance;
@@ -109,6 +109,29 @@ function rowById(rows: readonly ShopRow[], id: string): ShopRow | undefined {
  * the save untouched), so this accepts either and the assertions are made about the STATE, which is
  * the thing that must not move. What it must never do is reach `applyPayout`'s overdraw throw with
  * a half-written save, or put a `payout` on the tape it cannot pay.
+ *
+ * ⚠ THIS TOLERANCE IS A STALE HEDGE, AND ON ITS OWN IT IS A HOLE. This file was written test-first
+ * against the seam, deliberately without reading `game/shop.ts`, so at authoring time it genuinely
+ * could not know which refusal shape would be chosen. The implementation landed and chose: it
+ * THROWS `ShopError` (game/shop.ts:229-230). While the hedge stood alone, rewriting both refusals
+ * as `return save` — a silent no-op — left 111 tests across shop, overworld-shop, economy-wiring
+ * and economy-primitives GREEN. Measured, by doing it. That is precisely the failure
+ * `game/shop.ts`'s own docblock names: "a silent no-op is the shape of a purchase that looks like
+ * it happened", and under it `OverworldScene.buySelected` falls past its `catch`, re-renders, fires
+ * `onSaveChanged` and banners "bought base · 3 · purse 0" against an unmoved purse, bag and tape.
+ *
+ * The refusal shape is now pinned explicitly in §6, so this helper is no longer the only thing
+ * standing there. It is KEPT rather than deleted because the two readings catch DIFFERENT damage,
+ * measured by mutating `game/shop.ts` five ways and running all four shop files each time:
+ *
+ *   • Rewrite a refusal as `return save` (a no-op). The save does not move, so every
+ *     `if (!attempt.threw)` branch here passes and §6 is the ONLY thing that reddens — for the
+ *     `row === undefined` arm, the only thing in the repo that reddens at all.
+ *   • DELETE a refusal outright, so `buy` runs on. Now the save DOES move: the locked weighted
+ *     snare is sold to an unbadged player, and these branches redden alongside §6.
+ *
+ * So neither reading subsumes the other. Two readings of one refusal is reasonable. One reading
+ * that accepts either answer is not.
  */
 type Attempt = { readonly threw: true } | { readonly threw: false; readonly save: SaveEnvelope };
 function attemptBuy(save: SaveEnvelope, id: string): Attempt {
@@ -499,5 +522,99 @@ describe("the master snare is not on the shelf", () => {
       expect(attempt.save.items[bogus]).toBeUndefined();
       expect(serialize(attempt.save)).toBe(serialize(save));
     }
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * 6. THE REFUSAL SHAPE ITSELF. Every section above asks what a refused purchase leaves BEHIND;
+ * this one asks whether the refusal happens at all.
+ *
+ * Measured, by doing it: rewriting both refusals in `buy()` as `return save` — a silent no-op —
+ * left 111 tests across shop, overworld-shop, economy-wiring and economy-primitives GREEN, because
+ * "the save did not move" is exactly what a no-op produces. Not one `toThrow` existed in the two
+ * shop files. That is the failure `game/shop.ts`'s own docblock names: "a silent no-op is the shape
+ * of a purchase that looks like it happened."
+ *
+ * It reaches the screen because the caller is written against a throw. `OverworldScene.buySelected`
+ * (game/scenes/OverworldScene.ts:1400-1417) wraps `buy` in `catch (err) { … err instanceof ShopError
+ * … return; }`; a no-op never trips it, so control falls through to `refreshHud()`,
+ * `hooks.onSaveChanged` and the banner `bought <id> · <price> · purse <n>` — announced over an
+ * unmoved purse, bag and tape.
+ *
+ * The three refusal CLASSES, read off game/shop.ts:227-230 and enumerated here so a fourth cannot be
+ * added without this list going stale:
+ *   A. `row === undefined` — the shelf is not offering this id at all. Two routes in: an id
+ *      `shelf()` never lists, and a tier `UNSOLD_TIER` filters off it. (A third — `priceOf`
+ *      returning null so `shopRows` skips the row — has no subject today: every id `shelf()` yields
+ *      is priced by `balance.economy`, which §1 proves by checking each row's price is defined.)
+ *   B. `row.disabled` because the row is LOCKED — a gate whose badge the save lacks.
+ *   C. `row.disabled` because the row is UNAFFORDABLE — the purse is short of the price.
+ * B and C are one branch in `buy` but two different walls in `shopRows`, and §2 already proves they
+ * report different reasons; both are exercised because a mutation can reach one and not the other.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("a refused purchase THROWS — it does not return the save untouched", () => {
+  it("REFUSES BY THROWING — the shape the scene's catch is written against", () => {
+    const bogus = "not-a-shop-item";
+
+    /* ── A(i): an id the shelf has never carried ───────────────────────────── */
+    const rich = afterSecondGym(withPurse(RICH));
+    expect(SELLABLE_VOCABULARY).not.toContain(bogus);
+    expect(rowById(shopRows(rich, balance), bogus)).toBeUndefined();
+    expect(() => buy(rich, bogus, balance), "class A(i): an unknown id was not refused").toThrow(
+      ShopError,
+    );
+
+    /* ── A(ii): a tier core's vocabulary names that the shop filters off the shelf ─ */
+    // NOT the disabled class: `shopRows` emits no master row at all, so this takes the SAME branch
+    // as A(i) by a different route — a tier the rest of the game knows about. Asserted, so the case
+    // cannot quietly become a duplicate of B or C if master were ever shelved-and-greyed instead.
+    expect(rowById(shopRows(rich, balance), MASTER), "master is on the shelf").toBeUndefined();
+    expect(() => buy(rich, MASTER, balance), "class A(ii): master was not refused").toThrow(ShopError);
+
+    /* ── B: a row that IS on the shelf, disabled because it is locked ──────── */
+    // A rich unbadged purse, so the only wall is the badge. If `buy` stopped checking `disabled`
+    // this purchase would SUCCEED — the purse covers it — which is why the case is not redundant
+    // with C, where an unchecked `disabled` merely reaches `applyPayout`'s overdraw throw instead.
+    const unbadged = withPurse(RICH);
+    const lockedRow = rowById(shopRows(unbadged, balance), WEIGHTED);
+    expect(lockedRow, "the weighted row is absent — class B has no subject").toBeDefined();
+    expect((lockedRow as ShopRow).disabled, "weighted is not locked on an unbadged save").toBe(true);
+    expect(() => buy(unbadged, WEIGHTED, balance), "class B: a locked row was not refused").toThrow(
+      ShopError,
+    );
+
+    /* ── C: a row that is on the shelf and unlocked, disabled only by the purse ─ */
+    // Both badges held, so nothing is locked and the ONLY reason left is the money. Pinned to a
+    // named row rather than `rows.find(disabled)`, which would silently re-test class B whenever the
+    // locked row happens to sort first.
+    const broke = afterSecondGym(withPurse(0));
+    const brokeRow = rowById(shopRows(broke, balance), BASE);
+    expect(brokeRow, "the base row is absent — class C has no subject").toBeDefined();
+    expect((brokeRow as ShopRow).disabled, "base is buyable at a zero purse").toBe(true);
+    // The discriminator that makes this class C and not class B: the same row on the same save with
+    // money is open, so the badge is not what shut it.
+    const solvent = rowById(shopRows(afterSecondGym(withPurse(RICH)), balance), BASE);
+    expect((solvent as ShopRow).disabled, "base is shut even when affordable — this is not class C").toBe(
+      false,
+    );
+    expect(() => buy(broke, BASE, balance), "class C: an unaffordable row was not refused").toThrow(
+      ShopError,
+    );
+  });
+
+  it("the refusal is a ShopError carrying a message, not a bare throw", () => {
+    // `OverworldScene.buySelected` prints `err.message` into the banner when `err instanceof
+    // ShopError`, and falls back to a generic `describe(err)` otherwise. An empty message is a
+    // banner that says the item id and then nothing.
+    let caught: unknown = null;
+    try {
+      buy(afterSecondGym(withPurse(RICH)), "not-a-shop-item", balance);
+    } catch (err) {
+      caught = err;
+    }
+    expect(caught, "buy() returned instead of throwing").toBeInstanceOf(ShopError);
+    expect((caught as ShopError).message.length).toBeGreaterThan(0);
+    expect((caught as ShopError).name).toBe("ShopError");
   });
 });
