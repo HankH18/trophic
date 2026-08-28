@@ -765,10 +765,32 @@ describe('manifest ↔ data/ seams', () => {
 
   it('class target sizes that have a balance source match it (deviation LB-M4)', () => {
     const map = content.balance.map;
+    /*
+     * WIDTH still binds for both; HEIGHT binds for the player alone.
+     *
+     * `npc-static` tracked `playerSpriteH` until the owner ruled the player one block tall
+     * (48 -> 32). It now carries its own height in `npcSpriteH`, so the manifest states a size the
+     * files on disk actually have rather than one no shipped sprite does.
+     *
+     * ⚠ I WROTE THE LINE BELOW AS A LITERAL `48` AND THAT WAS WRONG WITHIN THE HOUR, on a premise
+     * this comment asserted as fact: that the twelve PNGs were 32x48 and re-cutting them was "a
+     * generation run — real money, and his call". They were near-square all along — bounding-box
+     * aspect 0.84-1.03, cut from Gold's one-tile-SQUARE walking sprites — so the 48-tall FRAME was
+     * the error, not the art, and the re-fit cost no generation at all. The owner then ruled
+     * ("Let's do NPCs that are squeezed") and the cast re-fitted to 32x32 with a local postprocess
+     * run. A literal pinned the wrong half of a ratio I had not established the direction of.
+     *
+     * So it reads the key, like every other row in this table. A hand-typed number here is a second
+     * home for a size that already has one, which is the whole defect this block exists to catch.
+     */
     for (const cls of ['player', 'npc-static']) {
       expect(manifest.classes[cls]!.targetW, cls).toBe(map.playerSpriteW);
-      expect(manifest.classes[cls]!.targetH, cls).toBe(map.playerSpriteH);
     }
+    expect(manifest.classes['player']!.targetH).toBe(map.playerSpriteH);
+    expect(
+      manifest.classes['npc-static']!.targetH,
+      'the npc-static class and balance.map.npcSpriteH disagree — shipped art will not fit its slot',
+    ).toBe(map.npcSpriteH);
     for (const cls of ['map-town', 'map-route', 'map-site', 'map-variant']) {
       expect(manifest.classes[cls]!.targetW, cls).toBe(map.mapNativePx);
       expect(manifest.classes[cls]!.targetH, cls).toBe(map.mapNativePx);

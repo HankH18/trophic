@@ -255,7 +255,18 @@ describe("GATE N1 — every npc-static row is drawn in the world", () => {
   });
 
   it("every placement is a VISIBLE object, at its own cell, in the balance box", () => {
-    const box = { w: balance.map.playerSpriteW, h: balance.map.playerSpriteH };
+    /*
+     * THE NPC'S OWN BOX. This read `playerSpriteW/H`, which was the same defect this gate exists to
+     * catch, sitting in the gate. It was invisible while the two keys agreed at 32x48; the owner
+     * ruled the player one block tall, they diverged, and this gate then asserted that fifty
+     * portraits must fit a box 16px shorter than the art — passing only because `placeholderImage`
+     * had squeezed every one of them to 21x32.
+     *
+     * REVERT CHECK: yes — measuring an NPC against the player's size is wrong independently of any
+     * change of mine. The gate was holding the squeeze in place rather than reporting it.
+     * NOT WEAKENED: the same two exact bounds, against the right subject.
+     */
+    const box = { w: balance.map.npcSpriteW, h: balance.map.npcSpriteH };
     let drawnCount = 0;
     for (const view of VIEWS) {
       const { scene, layer, placements } = draw(view.node, view.interior);
@@ -315,6 +326,15 @@ describe("GATE N1b — the layer behaves on screen", () => {
     const { layer, placements } = draw(node, null);
     const subject = placements[0] as NpcPlacement;
     const foot = npcFootY(subject, balance);
+    /*
+     * The PLAYER's half-height, deliberately — `half` converts the player stub's CENTRE y into its
+     * feet, and the stub's `displayHeight` is `playerSpriteH`. It is not measuring the NPC.
+     *
+     * I changed this to `npcSpriteH` while repointing the NPC geometry above and the gate caught it:
+     * at 48 the player stub landed 8px high, its feet above the NPC's, so "standing ON a person"
+     * became "standing behind them" and the depth assertion read 20.003 where it wanted < 20. Two
+     * subjects in one file, and only one of them moved.
+     */
     const half = balance.map.playerSpriteH / 2;
 
     // Player one tile FURTHER DOWN the map than the NPC ⇒ the NPC is behind.
@@ -342,6 +362,15 @@ describe("GATE N1b — the layer behaves on screen", () => {
     const bp = INTERIORS[0] as InteriorBlueprint;
     const { layer, placements } = draw(nodeOf(bp.parentNode), bp);
     const subject = placements[0] as NpcPlacement;
+    /*
+     * The PLAYER's half-height, deliberately — `half` converts the player stub's CENTRE y into its
+     * feet, and the stub's `displayHeight` is `playerSpriteH`. It is not measuring the NPC.
+     *
+     * I changed this to `npcSpriteH` while repointing the NPC geometry above and the gate caught it:
+     * at 48 the player stub landed 8px high, its feet above the NPC's, so "standing ON a person"
+     * became "standing behind them" and the depth assertion read 20.003 where it wanted < 20. Two
+     * subjects in one file, and only one of them moved.
+     */
     const half = balance.map.playerSpriteH / 2;
     layer.sync({
       node: nodeOf(bp.parentNode),

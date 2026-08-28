@@ -560,8 +560,31 @@ export class NpcLayer {
     this.placed = npcPlacementsFor(view.node, view.interior, view.grid, this.balance, this.file);
     this.viewKey = key;
 
-    const boxW = this.balance.map.playerSpriteW;
-    const boxH = this.balance.map.playerSpriteH;
+    /*
+     * THE NPC BOX IS THE NPC'S OWN, NOT THE PLAYER'S — and this line was the last consumer still
+     * reading the player's.
+     *
+     * It was `playerSpriteW/H`, which was harmless only while the two agreed. The owner ruled the
+     * player one block tall (`playerSpriteH` 48 → 32) and they stopped agreeing, so a 32x48 portrait
+     * was fitted into a 32x32 box: `placeholderImage` preserves aspect and never enlarges, so every
+     * one of the fifty drew at 21x32 — two thirds the player's WIDTH at the same height. Thin people,
+     * measured on the shipped build, not inferred.
+     *
+     * `npcSpriteW/H` is the size the twelve shipped `npc-static` files actually are, so the art lands
+     * at scale 1.0 with no fit and no distortion. Read the key, never the figure (G11).
+     *
+     * ⚠ THIS COMMENT SAID 32x48 AND THAT THE REAL FIX WAS "a generation run and the owner's call".
+     * Both were wrong, within the hour, and the correction is worth more than the line it replaces.
+     * The twelve figures were near-square ALL ALONG — bounding-box aspect 0.84-1.03, because they
+     * were cut from Gold's one-tile-SQUARE walking sprites — so the 48-tall FRAME was the error and
+     * not the artwork. A bad ratio never says which of its two terms is wrong, and the recently
+     * generated term got blamed because recent things feel provisional and constants feel settled.
+     * The owner then ruled "Let's do NPCs that are squeezed", the class retargeted to 32x32, and a
+     * LOCAL postprocess re-fit the cast at 81-100% of the box (mean 90%, against 66% drawn before).
+     * No generation, no permission, no spend.
+     */
+    const boxW = this.balance.map.npcSpriteW;
+    const boxH = this.balance.map.npcSpriteH;
     for (const placement of this.placed) {
       const sprite = placeholderImage(this.scene, 0, 0, portraitAssetId(placement.portrait), boxW, boxH, {
         note: "not post-processed into assets/final/",

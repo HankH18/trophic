@@ -18,7 +18,9 @@
  *       cell scoring under the threshold is "drifted"; drifted cells are grouped into 8-connected
  *       REGIONS, and a region fails if EITHER
  *         · it holds as many JUDGED cells as the player's own footprint
- *           (`ceil(playerSpriteW / collisionCellPx) × ceil(playerSpriteH / collisionCellPx)` = 6), OR
+ *           (`driftFootprintCells`, a FLOOR that must never sit under
+ *           `ceil(playerSpriteW / collisionCellPx) × ceil(playerSpriteH / collisionCellPx)`; the
+ *           player is 2×2 cells since the one-block ruling, the configured tolerance is 2×3 = 6), OR
  *         · the base's edge pixels that have GONE inside it reach `driftLimit × (2·dilatePx+1)²`
  *           — one dilated edge blob per cell of that footprint (6 × 25 = 150 px).
  *       LOST edges, not total disagreement: what a collision mask cannot survive is structure

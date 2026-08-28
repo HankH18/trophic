@@ -1,11 +1,25 @@
 # Player back + side views — DERIVED, not generated
 
+> ⛔ **RETIRED. THE VIEWS THIS DIRECTORY IS ABOUT NO LONGER SHIP, AND NEITHER DOES THE FIGURE IN THEM.**
+> Read [`derived/RETIRED.md`](./derived/RETIRED.md) BEFORE anything else here. Six PNGs were deleted:
+> the three derived 32×48 views and their three ×12 previews. The owner ruled the player forward-facing
+> only, then ruled it one block tall, and the shipped sprite is now a different drawing entirely —
+> `assets/final/player/player-front.png`, from wave 11, not a derive of `player-APPROVED.png`.
+> **Everything below describes the superseded lineage.** It is kept as method and measurement, not as
+> a description of the game.
+
 **Nothing here is approved.** `_player-views/` is an evidence directory in the same sense as
 `_palette-freeze/`; it holds candidates and the measurements behind them. Only Hank promotes
 anything into `assets/approved-trials/` proper.
 
-**Open this first:** [`_CONTACT-SHEET.png`](./_CONTACT-SHEET.png) — the three shipping views on the
-left, and the img2img attempts that failed on the right, at the same scale.
+**`_CONTACT-SHEET.png` is kept for its RIGHT-HAND HALF ONLY.** Its three left panels — SIDE (derived),
+FRONT (approved), BACK (derived) — are large, legible pictures of a figure that no longer ships, and
+they are the reason this banner exists: a reader who opens the sheet first will believe the picture
+over the prose, every time. Its three right panels are the ones worth keeping — `back img2img 0.92`
+and `side img2img 0.92` both *turned* and lost identity, `back img2img 0.80` held identity and never
+turned. That is the evidence behind build-doc §9.5's spec limit, *"img2img on this model is for deltas
+WITHIN a view and cannot turn one"*, which is still live and still binds. Deleting the sheet would have
+taken a canonical doc's evidence with it; deleting the pointer that sent people to it first is enough.
 
 ## The short version
 

@@ -3783,3 +3783,49 @@ correct at its own job. The hand-off needs its own binding, and now has one.
 
 **Done when:** *(met)* the field reaches `DexScene` from the real `MenuScene` construction site, derived
 rather than hardcoded, with a test that drives that hand-off rather than the key grammar beneath it.
+
+## T-80 — a class retarget is a no-op wherever a row pins its own size, and nothing says so
+
+**The ruling behind it.** Two of Hank's rulings this session moved a sprite target: *"we're switching to
+the player character always being facing forward"* landed a one-block player (`playerSpriteH` 48 → 32),
+and *"Let's do NPCs that are squeezed"* moved the whole cast to 32×32. Both are done. This ticket is the
+trap both of them fell into on the way.
+
+**The defect.** `tools/postprocess/chain.ts:59`:
+
+```ts
+const size = row?.targetSize ?? `${spec.targetW}x${spec.targetH}`;
+```
+
+**The ROW's `targetSize` silently shadows the CLASS target.** The art lane retargeted
+`classes["npc-static"].targetW/H` to 32×32, re-ran postprocess, and got twelve files still at 32×48 —
+because all twelve rows carried `"targetSize": "32x48"`. No warning, no error, no diagnostic: the class
+figure is a default that any row overrides, and a class-level retarget is a **no-op** wherever rows pin
+their own size. The same trap caught the `player` class retarget; both needed two edits, and both were
+found by measuring the emitted PNGs rather than by anything in the pipeline.
+
+**Why this is worth a gate rather than a comment.** The failure is silent and its symptom is *art that
+looks slightly wrong*, which is the hardest kind of wrong to attribute — the art lane's first reading of
+the resulting 66%-width NPCs was that the twelve sprites had been cut at the wrong aspect and needed a
+**generation run behind a paid permission**. They did not; the frame was wrong. A pipeline that answered
+"you changed a class target that 12 rows override" would have cost nothing and pointed straight at it.
+
+**Not a bug in the override itself.** A per-row size is a legitimate feature and some rows should differ
+from their class. What is missing is that the override is *invisible* — a class target can be edited to
+a value the pipeline will never use, and nothing at any layer says the edit had no effect.
+
+**Shape of the fix (not decided — this is the ticket, not the ruling).** Cheapest useful version: when
+`recipeFor` takes a row whose `targetSize` differs from its class's `targetW × targetH`, that divergence
+is *stated* — either as a required `_targetSizeReason` on the row (so an override is deliberate and
+explains itself, the way this repo already treats `_source` and `_targetSource`), or as a gate that
+lists every row shadowing its class and fails unless the shadow is declared. Either makes "I retargeted
+the class and nothing happened" impossible to miss.
+
+**Evidence to hand the implementer.** `tools/comfy/manifest.json` npc-static rows before the fix (twelve
+rows at `"32x48"` under a class at 32×32); `tools/postprocess/chain.ts:59`; and the measurement that the
+re-fit needed no generation at all — the twelve figures' bounding-box aspects are 0.84–1.03, near-square,
+because they were cut from Gold's one-tile-square walking sprites.
+
+**Done when:** a class-level target change that no row will honour cannot pass silently — it either
+fails, or names every row shadowing it — with a test that drives the real `recipeFor` and reddens on a
+class/row divergence that carries no declared reason.

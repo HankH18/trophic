@@ -596,8 +596,14 @@ describe("BF-15 — the §9.5 drift tolerance is reachable from balance.json", (
   /**
    * THE FLOOR, which is what the old derivation was really asserting and is worth keeping as a law:
    * a tolerance smaller than the player's own footprint accepts a year variant whose walkable mask
-   * drifted by more than the player is wide — i.e. one that can strand him. The shipped value IS
-   * the player's footprint; a retune may raise it (that is the point) and must not go under it.
+   * drifted by more than the player is wide — i.e. one that can strand him. A retune may raise it
+   * (that is the point) and must not go under it.
+   *
+   * The shipped value USED to be exactly the player's footprint and no longer is: the owner ruled
+   * the player one block tall (`playerSpriteH` 48 → 32), so the floor fell to 2 × 2 while the
+   * configured tolerance stayed 2 × 3, which this test permits and `tools/overlay-diff/config.ts`
+   * explains (the published 32px residual was characterised at 2 × 3 and 20 of its 25 pairs cannot
+   * be re-measured off that disk). Nothing below moved — the sentence above is what was wrong.
    */
   it("the configured tolerance is never smaller than the player's own footprint", () => {
     const floor = playerFootprintCells(balance);

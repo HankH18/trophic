@@ -228,12 +228,43 @@ describe('overlay_diff — build-doc §8.2 / §10.4', () => {
     expect(CFG.sobelThreshold).toBe(content.balance.overlayDiff.sobelThreshold);
     expect(CFG.dilatePx).toBe(content.balance.overlayDiff.dilatePx);
     expect(GRID).toEqual({ cols: MAP.collisionCols, rows: MAP.collisionRows });
-    // The drift footprint is the player's own, in cells — a division of balance.map, not a new knob.
+    // The drift footprint is a STORED tunable, exactly as its five siblings above are.
     expect(CFG.driftFootprint).toEqual(driftFootprint(content.balance));
-    expect(CFG.driftFootprint).toEqual({
+    expect(CFG.driftFootprint).toEqual(content.balance.overlayDiff.driftFootprintCells);
+    /*
+     * ⚠ THIS USED TO ASSERT EQUALITY WITH `ceil(playerSpriteW/collisionCellPx) ×
+     * ceil(playerSpriteH/collisionCellPx)`, AND THAT ASSERTION WAS WRONG — not too strict, wrong.
+     *
+     * ORIGIN: the equality was written in 2e5a25c, when `driftFootprint` really was that division,
+     * computed inside `tools/overlay-diff/config.ts`. It was a tautology restating the code. BF-15
+     * (53b2678) then moved the value into `balance.overlayDiff.driftFootprintCells` for the stated
+     * reason that "loosening this one after a supervised run meant editing this file", added the
+     * `toEqual(driftFootprint(...))` row above — and left the old derivation row standing beneath
+     * it. That leftover re-imposes the very coupling BF-15 removed: any §9.5 retune of the one
+     * §8.2 criterion the key exists to make tunable reds a test whose subject is G11 sourcing.
+     *
+     * REVERT CHECK — would it still be wrong with every change of mine reverted? YES, and it was
+     * already wrong before the owner's ruling: on 2026-08-26 balance.json could carry `{3,4}` and
+     * this row would have refused it while `tools/overlay-diff/config.ts` and
+     * `tests/unit/balance-inv3.test.ts` BF-15 both state the contract as a FLOOR ("a retune may
+     * raise it — that is the point", "must not go under it"). Two independent statements of the
+     * contract against one; the odd one out is this row. The `playerSpriteH` 48 → 32 ruling only
+     * made a standing defect visible by moving the divisor.
+     *
+     * NOT WEAKENED, AND NOT VACUOUS: the exact value is still pinned — twice, above, against the
+     * configured key — so the tool cannot invent a footprint. What changed is the claim about where
+     * that value may sit, from "exactly the player's" to "never under the player's", which is the
+     * law a tolerance smaller than the player would break by accepting a variant that can strand
+     * him. A footprint of `{1,1}` or `{2,1}` still reds here.
+     */
+    const floor = {
       cols: Math.ceil(MAP.playerSpriteW / MAP.collisionCellPx),
       rows: Math.ceil(MAP.playerSpriteH / MAP.collisionCellPx),
-    });
+    };
+    expect(CFG.driftFootprint.cols, `drift tolerance ${CFG.driftFootprint.cols} cols is under the player's ${floor.cols}`)
+      .toBeGreaterThanOrEqual(floor.cols);
+    expect(CFG.driftFootprint.rows, `drift tolerance ${CFG.driftFootprint.rows} rows is under the player's ${floor.rows}`)
+      .toBeGreaterThanOrEqual(floor.rows);
   });
 
   it('RUNS AT THE PRODUCTION SCALE — one fixture cell is one collision cell', () => {

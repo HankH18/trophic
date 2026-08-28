@@ -77,6 +77,63 @@ anyone — item 41, and the reason it is not simply fixed is item 43.
 
 ---
 
+## ✅ RESOLVED — "none of the doors work": the doors were never on the buildings
+
+**The owner played the deployed build (`05b7c4c`) and reported, verbatim: *"none of the doors
+work."*** He was right about all four, and the cause is DATA, not the step machine.
+
+`data/interiors/*.json` `door.x/y` still carried the placeholder each file was authored with. Every
+one of the four says so in its own `_note`: *"PROVISIONAL PLACEMENT … The door x/y above is
+provisional and must be re-pinned against the painted map."* **It never was.** Measured against the
+shipped masks in `assets/final/maps/` through `loadCollision` — `OverworldScene.buildNodeView`'s own
+call:
+
+    hearthollow-inn     tile (18,24)  standable · nearest building 3 tiles north · not a threshold
+    hearthollow-supply  tile (44,23)  standable · 10 rows from Kett's shop, against the FIELD STATION
+    brackwater-inn      tile (18,23)  BLOCKED — open water. Unstandable, unreachable, at any frame rate
+    brackwater-supply   tile (18,37)  standable · bare decking, no building on any side
+
+Meanwhile the map has known where its doors are the whole time. `tools/mapgen/layouts/*.txt` — the one
+document the painting and the mask are both stamped from — draws a `D` door-anchor cell per building
+(legend kind `door-anchor`, *"the walkable cell a building is entered from"*) and its header names
+which building each belongs to. **FIXED** by pinning all four to those anchors:
+
+    hearthollow-inn     296,392 → 216,392   tile 13,24   layout "inn (9,18)-(16,23) … door (13,24)"
+    hearthollow-supply  712,372 → 600,216   tile 37,13   layout "supply shop (35,7)-(40,12) … door (37,13)"
+    brackwater-inn      296,372 → 312,568   tile 19,35   layout "inn (16,27)-(22,34) … door (19,35)"
+    brackwater-supply   300,596 → 712,776   tile 44,48   layout "supply shop (41,41)-(46,47) … door (44,48)"
+
+**HOW FIFTEEN GREEN DOOR TESTS MISSED IT — the same shape as the catching headline above.**
+`tests/unit/overworld-scene.test.ts` mounts the scene against a stub that loads no textures, so
+`readMaskPixelsSafe` hands `loadCollision` a null and the town it walks is
+`synthesiseBorderCollision`'s open rectangle. That file says so itself, twice — §15's header
+(*"the grid the scene walks is `synthesiseBorderCollision`'s"*) and `goInside` (*"the synthesised town
+grid is open everywhere but its border"*). On that grid **every** coordinate inside the border is
+standable, so no door coordinate can fail there. The suite's green about doors was evidence about a
+null pointer.
+
+**The new gate is `tests/unit/doorway-threshold.test.ts`** — 25 assertions, all against the shipped
+layout and the shipped mask PNG, never a fixture. It holds every shipped door to four things: it
+lands on a door anchor the layout draws; it is standable in the authored mask; a flood fill from
+`chooseSpawnTile` reaches it; and the cell it backs onto is the building's blocked footprint. §5
+then walks it — `game/movement.ts` at 60fps over the authored grid, door question asked exactly where
+`onStepCompleted` asks it. **10 of the 25 failed on the pre-fix coordinates; all 25 pass now.**
+
+**RULED OUT, with measurement — the held-key / long-frame hypothesis.** `enterThroughDoorway`'s own
+comment concedes *"a frame long enough to land two steps can walk OVER a threshold without going
+in"*, so a held key skating past every door was the obvious suspect. It is not the cause: §4 of the
+new file drives `game/movement.ts` through the scene's per-frame shape and a held direction lands on
+**every** tile it crosses at 60, 50, 30, 24, 20 and 15fps. Two landings cannot share a frame until the
+frame exceeds one whole tile step — `walkMsPerTile` 160, so **below ~6fps**. Real, documented, and not
+what the owner hit.
+
+**Still open, and separable:** `05b7c4c` moved the `tile c,r facing d` readout behind `?debug=1` while
+leaving `door <id> at tile c,r` player-facing, so the player is shown a coordinate with no way to know
+their own. That mattered when the doors were off the buildings; with them pinned, the painted door is
+the affordance. Worth a look next time the HUD is open, not a blocker.
+
+---
+
 ## ✅ RESOLVED — the over-catch gate was measuring wrong, and the beat was reachable all along
 
 **The gate was not reporting a balance gap. It was a THIRD instrument error, of exactly the family
@@ -3816,3 +3873,70 @@ so real art picks itself up on arrival.
 `assets/approved-trials/_palette-refreeze/` (obliges a colorsSha256 rebuild + sync-assets
 + player-views derive), `tools/comfy/npcs-contact-sheet.mjs`,
 `tools/comfy/trials/sheet-b2-evidence.mjs`.
+
+---
+
+## Opened 2026-08-28 by the difficulty pass — the XP curve outran the gym ramp
+
+Hank, playing the deployed build: **"Also, the first battles need to be a lot easier."** Then,
+widening it: **make the whole game easier, keep the curve's shape, don't trivialise it.**
+
+**The finding, which is the substantive result and not the tuning.** XP income per win is
+`base + perEnemyLevel × enemyLevel` — **linear** in the act, because the enemy level follows
+`encounter.levelByYear`, a +6 ladder. The cost of a level was `15 × l^1.4` — **super-linear**. So
+the player's level fell further behind the gym ramp at *every* act and the gap was widest at the
+last rung: **the game got harder the longer it was played, which is the opposite of the intended
+curve.** Measured end to end (the level a player actually *arrives* at each gym with, from the
+curve, the `encounter._throughput` budget of 54 encounters an act-year and the win rate measured
+at that act, fed to the shipped `runOneGym`): arrival L10/16/20/25/30/**32** against leaders
+L8/14/20/26/32/**40**, winning 90.0 / 82.5 / 54.5 / 70.5 / 52.0 / **17.0 %** against the §10.5
+bands. **The fight that missed by 28 points is Magnate Greaves — the league finale the never-cut
+Legacy beat ends on, and the fight that sets `acts.runCompleteFlag`.**
+
+Fixed in `data/balance.json` alone: `xp.toNextExponent` 1.4 → 1.0, `xp.toNextCoefficient` 15 → 38,
+`xp.starterLevel` 5 → 14. Arrival is now L17/21/26/31/36/40 and the same instrument reads
+98.5 / 94.0 / 81.0 / 93.0 / 90.5 / **61.5 %**. The first Route 1 encounter on the shipped act-1
+save went **76.0 % → 52.7 %** lost over 400 seeds. Full arithmetic is at the keys themselves
+(`xp._curveOutranTheLadder`, `xp._starterLevel`, `xp._gymBandsNowExceeded`).
+
+### Waiting on the owner — three content decisions this pass could not make
+
+1. **The gym ramp's last rung is +8 where every other is +6.** `data/gyms.json` steps
+   8/14/20/26/32/38 with Greaves' ace at 40 = `xp.levelCap`, so Greaves can only be beaten by a
+   player who has reached the cap — and any XP curve generous enough to get them there also
+   carries them past Sable and Noct, which is why **gyms 4 and 5 now sit +13.0 and +25.5 pp above
+   their §10.5 bands.** Measured alternatives: `toNextCoefficient` 54 puts gyms 1–5 almost exactly
+   in band (97.0 / 93.0 / 67.0 / 81.0 / 64.0) but leaves Greaves at 24.5 %. The clean fix is
+   content — lower Greaves or raise Noct so the last rung is +6 — and that is G2, not a tunable.
+2. **`balance.harness.gymWinRateTargets` now encode the difficulty the game had BEFORE these
+   rulings.** They were deliberately *not* retuned: moving the target to meet the measurement is
+   the one thing a balance report must not do. They need a ruling, not an edit.
+3. **The first battle is bounded below by CONTENT, not by balance.** The first starter line spends
+   its 300 base points as hp 60 / def 45 (bulk 2700) while Route 1's Producers and Grazers carry
+   75–85 / 70–85 (bulk 5250–7225), so one 40-power Sunder takes the whole health bar and
+   `xp.starterLevel` saturates: L8 reads 68.0 %, L12 61.3 %, L14 52.7 %, L16 45.0 % — and L16 puts
+   the player eight levels over Maribel. Going below ~50 % needs a decision to restat the starter
+   or change which lines Route 1 carries.
+
+### Owed doc correction, not made here because another lane holds the file
+`docs/build-doc.md:251` still reads `xpToNext(l) = 15 × l^1.4`. It is now
+`toNextCoefficient × l^toNextExponent` = **38 × l^1.0**. The build doc is canonical and this line
+is wrong until someone with the file corrects it.
+
+### Measured and rejected, recorded so it is not retried
+- **`damage.scale`** — a symmetric factor on §7.4's product, added across all three INV-3 files and
+  swept 1.0 / 0.7 / 0.55 / 0.42 / 0.3 / 0.22, then **fully reverted**. Every fight in the game
+  resolves in ~1 exchange (a *resisted* 70-power hit took 58 of a level-8 starter's 61 hp), which
+  makes small stat differences total outcome differences — the harness's own age control is the
+  proof, an all-Juvenile party winning 0.0–4.2 % at every gym against an all-Adult party's 77–95 %,
+  a 0-to-90-point swing bought by a 12.5 % stat difference. Scaling the hit does **not** fix it: it
+  cannot flip a matchup (the ratio is untouched) and it *removes* the player's structural seat
+  advantage, because `fieldNextEnemy`'s free hit on a knockout is worth a whole kill at one
+  exchange and a fraction of one at six. Measured: Maribel untrained 72.0 % → 30.7 %, the finale
+  34.0 % → 20.7 %. It makes the game **harder**.
+- **`encounter.levelByYear` at leader−4** — the most direct first-battle lever (47.7 % vs 61.3 %
+  from `starterLevel` alone) and it cannot ship. It craters the shipped harness's untrained
+  Maribel row to **1.8 %**, it breaks `tests/unit/rival.test.ts`'s G2 rule binding Wick's authored
+  roster to the wild band, and `transcription.test.ts` hard-pins the gym ramp so the relation
+  cannot be satisfied from the other side either. Recorded at
+  `encounter._levelByYearStaysAtLeaderMinusTwo`.

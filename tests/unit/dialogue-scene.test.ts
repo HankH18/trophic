@@ -1351,8 +1351,30 @@ describe("§7 the portrait slot", () => {
   });
 
   it("the slot takes its size from balance.map, never from a literal (G11)", () => {
-    expect(STYLE.portraitW).toBe(balance.map.playerSpriteW);
-    expect(STYLE.portraitH).toBe(balance.map.playerSpriteH);
+    /*
+     * REPOINTED from `playerSpriteW/H` to `npcSpriteW/H`, and the second assertion below is why.
+     *
+     * REVERT CHECK — would the old rows still be wrong with every code change reverted? YES. This
+     * slot draws npc-static art and has never drawn the player; the two keys were equal by
+     * coincidence. The owner then ruled the player one block tall (`playerSpriteH` 48 → 32) while
+     * the twelve shipped npc-static PNGs were still 32×48, and `expect(STYLE.portraitH).toBe(
+     * playerSpriteH)` and the manifest row below could no longer both hold — not because a lane
+     * broke something, but because one key was standing for two different sizes. The test was
+     * asserting a coincidence as a contract.
+     *
+     * ⚠ THE CAST HAS SINCE BEEN RE-FITTED TO 32×32 ("let's do NPCs that are squeezed"), SO THE TWO
+     * KEYS ARE NUMERICALLY EQUAL AGAIN — AND THIS ROW MUST STILL NAME `npcSprite*`. A row reading
+     * `playerSpriteH` would pass today and go on passing right up to the next ruling on either
+     * sprite, which is precisely how the first fault reached the screen. The equality is the
+     * hazard; naming the right owner is the fix.
+     *
+     * NOT WEAKENED: still two exact `toBe`s and an exact `toEqual`, and the cross-lane claim is
+     * genuinely two-sided — `tools/comfy/manifest.json`'s `npc-static._targetSource` names this
+     * balance key and says "MUST EQUAL". This row is what makes that true: a re-cut on either side
+     * alone reds here rather than shipping art that does not fit its slot.
+     */
+    expect(STYLE.portraitW).toBe(balance.map.npcSpriteW);
+    expect(STYLE.portraitH).toBe(balance.map.npcSpriteH);
     // …which is the size the npc-static class is generated at, so shipped art lands at scale 1.
     const npc = MANIFEST.classes["npc-static"];
     expect([npc?.targetW, npc?.targetH]).toEqual([STYLE.portraitW, STYLE.portraitH]);

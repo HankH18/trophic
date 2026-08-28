@@ -889,7 +889,16 @@ export function xpGain(defeated: Battler, balance: Balance): number {
   return Math.floor(balance.xp.base + balance.xp.perEnemyLevel * defeated.level * balance.xp.ageBonus[defeated.age]);
 }
 
-/** build-doc §7.4 — xpToNext(l) = 15 × l^1.4. */
+/**
+ * build-doc §7.4 — `xpToNext(l) = toNextCoefficient × l^toNextExponent`, which on shipped balance is
+ * 38 × l^1.0. It was 15 × l^1.4, and this docstring said so long after it stopped being true.
+ *
+ * The exponent is the whole point and is why it moved: xp INCOME is linear in the act (`xpGain` is
+ * `base + perEnemyLevel × enemyLevel`, and enemy level follows a +6 ladder), so a super-linear COST
+ * meant the player fell further behind the gym ramp at every act — the game got harder the longer it
+ * was played. See `data/balance.json` `xp._curveOutranTheLadder` for the measurement. Do not restate
+ * the figures here; they are balance's (G11).
+ */
 export function xpToNext(level: number, balance: Balance): number {
   return balance.xp.toNextCoefficient * Math.pow(level, balance.xp.toNextExponent);
 }

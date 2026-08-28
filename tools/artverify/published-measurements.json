@@ -252,7 +252,8 @@
   },
 
   "overlayDiff32pxResidual": {
-    "claim": "The overlay_diff gate's own false-ACCEPT limit: a 32px feature (2x2 collision cells, smaller than the 32x48 player) displaced by one collision cell is ACCEPTED at 8 of the 25 (map, position) pairs. Characterisation, not approval — the number is held still so a retune cannot move it in silence.",
+    "claim": "The overlay_diff gate's own false-ACCEPT limit: a 32px feature (2x2 collision cells, inside the 2x3-cell drift tolerance this was measured at) displaced by one collision cell is ACCEPTED at 8 of the 25 (map, position) pairs. Characterisation, not approval — the number is held still so a retune cannot move it in silence.",
+    "_claimUsedToSayTheBlockWasSmallerThanThePlayer": "It said '(2x2 collision cells, smaller than the 32x48 player)', naming the player because the drift tolerance WAS the player's own footprint when this was measured. The owner has since ruled the player one block tall (balance.map.playerSpriteH 48 -> 32), so the player is now 2x2 cells — the same size as the block, not larger — while the tolerance stayed 2x3. Two different quantities had been sharing one sentence. The clause now names the tolerance, which is the quantity that actually decides the verdict, and measuredWith below pins it. NOTHING WAS RE-MEASURED AND measuredOn HAS NOT MOVED: the conditions this record depends on are the nine in measuredWith, every one of them is unchanged, and the ruling touched none of them. See measuredWith._playerHeightRuling.",
     "publishedBy": "tests/unit/overlay-diff.test.ts",
     "measuredOn": "2026-08-28",
 
@@ -331,6 +332,7 @@
 
     "measuredWith": {
       "_why": "In a clean clone only 5 of these 25 pairs can be re-measured, so what makes the other 20 still worth anything is that the CONDITIONS are unchanged. These are asserted equal to what data/balance.json produces through tools/overlay-diff/config.ts; a retune reds here and names itself instead of surfacing as a moved count with no cause attached.",
+      "_playerHeightRuling": "balance.map.playerSpriteH went 48 -> 32 under the owner's one-block-tall ruling and THIS RECORD DID NOT MOVE, because none of the nine conditions below is the player's height. driftFootprintCols/Rows is the only one that was ever downstream of it: it was DERIVED from the sprite until BF-11/BF-15 made it the stored balance.overlayDiff.driftFootprintCells, and it was left at 2x3 rather than lowered to the new 2x2 division precisely so these 25 verdicts keep their subject. That decision is recorded at the key itself and in tools/overlay-diff/config.ts; the arrangement that catches it if anyone reverses it is the equality below, which reds the moment config.ts stops producing 2x3.",
       "collisionCellPx": 16,
       "mapNativePx": 1024,
       "gridCols": 64,

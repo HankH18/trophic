@@ -628,10 +628,16 @@ const zBalanceShape = {
       playerSpriteH: zInt.min(1),
       tileStepPx: zInt.min(1),
       propInteractionRadiusDefault: z.number().positive(),
-      // build-doc §9.3 downscale targets — "battle 96², overworld chars 32×48, minis 32²". The
-      // overworld pair has been playerSpriteW/H all along; these are the other two.
+      // build-doc §9.3 downscale targets — "battle 96², player 32², other overworld chars 32×48,
+      // minis 32²". battleSpritePx/miniSpritePx are square, so one number each; the player's pair is
+      // playerSpriteW/H above; npcSpriteW/H is the non-player overworld cast, which was ALSO
+      // playerSpriteW/H until the owner ruled the player one block tall and the two sizes parted.
+      // Declared here or zBalance strips them and DialogueScene's portrait slot silently reads
+      // undefined at boot (INV-3) — which is the whole reason this comment is on the schema.
       battleSpritePx: zInt.min(1),
       miniSpritePx: zInt.min(1),
+      npcSpriteW: zInt.min(1),
+      npcSpriteH: zInt.min(1),
       // Presentation pace (game/movement.ts). A step that takes zero ms is not a step, so min 1.
       walkMsPerTile: zInt.min(1),
       /*

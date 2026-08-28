@@ -230,7 +230,18 @@ let grindRosterCache: BattlerSpec[] | null = null;
  */
 function grindRoster(): BattlerSpec[] {
   if (grindRosterCache) return grindRosterCache;
-  const count = 12;
+  // FIXTURE RE-FOUND, exactly as the throw below instructs, and NO assertion moved: the checks at
+  // the call sites still demand a win AND a level gained. 12 -> 48 because the fixture is sized
+  // against the cost of leaving `xp.starterLevel`, and both terms moved under Hank's "make the
+  // whole game easier": the starter is handed over at 14 rather than 5, and the curve is
+  // 38 × l^1.0 rather than 15 × l^1.4, so the first level-up costs 38 × 14 = 532 where it used to
+  // cost 15 × 5^1.4 = 142.8. A level-1 Elder of a Route 1 line pays 12 + 4 × 1 × 1.3 = 17, so 12
+  // of them bank 204 — short of 532, which is exactly what the throw was reporting. 48 banks 816,
+  // a 1.53x margin over the threshold (the shipped 12 carried 1.43x over the old one), so the
+  // fixture is no more marginal than it was. The starter survives the roster for the reason it
+  // always did: it one-shots each enemy, and core/battle.ts `fieldNextEnemy` does not let a
+  // replacement act on the turn it enters.
+  const count = 48;
   for (const lineId of NODE_LINES) {
     const save = saveWith([starter()]);
     const enemies = roster(lineId, count);

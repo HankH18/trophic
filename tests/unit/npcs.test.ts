@@ -321,8 +321,26 @@ describe("§4 one convention for where a character stands", () => {
      * suddenly a head taller than everyone else and nothing would say so.
      */
     const code = npcModuleCode();
-    expect(code).toContain("playerSpriteW");
-    expect(code).toContain("playerSpriteH");
+    /*
+     * `player…` → `npc…`, and the contract is unchanged: the box is read from balance, never written
+     * down here. Only WHICH key is right moved.
+     *
+     * REVERT CHECK: yes, this would still be wrong with my change reverted — reading the PLAYER's
+     * size for an NPC box is the defect itself, not a consequence of fixing it. It was invisible only
+     * while the two keys happened to agree at 32x48. The owner ruled the player one block tall, they
+     * diverged, and every one of the fifty NPCs drew at 21x32 — two thirds the player's width — on
+     * the shipped build. This assertion was PINNING the bug in place.
+     *
+     * NOT WEAKENED: still two exact `toContain`s naming exact keys, and the literal scan below is
+     * untouched. The comment above this method still describes the old danger ("a person suddenly a
+     * head taller"); the danger now is a person suddenly two thirds as wide, and it is the same rule.
+     */
+    expect(code).toContain("npcSpriteW");
+    expect(code).toContain("npcSpriteH");
+    expect(
+      code,
+      "the NPC box reads the player's size again — that is the 21x32 squeeze coming back",
+    ).not.toContain("playerSprite");
     expect(code, "a sprite dimension is written down here").not.toMatch(/\b(32|48)\b/);
   });
 });

@@ -200,10 +200,11 @@ first five had **already been applied** and the answer was still wrong.
 | 7 | `art-slot-fit.test.ts` — does `fitWithin` preserve aspect? | real | real | **every fixture was a square texture in a square slot.** On a square, preserving the aspect and plainly stretching produce identical output. The implementation had been changed to stretch and the suite stayed green. |
 | 9 | every human review of the 75 creature sprites | real | the eye | **they were looked at on WHITE.** The defect was a pale cast-shadow puddle that quantizes to `c02 #d2e0e2`. On white it is invisible; on mid-grey it is obvious. ~5,092 stray opaque pixels shipped, worst sprite 554. |
 | 10 | `season-tint-onscreen.test.ts` — does the tint reach the screen? | real | real | **it measures SEPARATION, not PROVENANCE.** Pointed back at the wrong source, the four seasons still separated, so the wrong input produced a right-looking answer and the test stayed green. |
+| 11 | "are the door tiles walkable and reachable from every side?" | real | real | **the reader returned an ALL-WALKABLE grid** — 0 blocked of 4096, on a town whose own HUD reports 2467 blocked — because it was handed a buffer shape it does not accept, behind an `as any` that hid the mismatch. "Is this tile walkable" answers *yes* for every tile on an empty grid, so the check could only ever pass. Fifteen door tests passed on it. The doors were meanwhile not on the buildings at all: every `data/interiors/*.json` still held the placeholder coordinate its own `_note` said must be re-pinned, and Brackwater's inn door was sitting on open water. |
 
-**None of these is a bad test, a bad instrument, or a careless look.** In all three the subject was real
+**None of these is a bad test, a bad instrument, or a careless look.** In all four the subject was real
 and the method was sound. What failed was the *case they ran on*: a square, a white ground, a metric
-blind to where its input came from. So:
+blind to where its input came from, an empty grid. So:
 
 > **THE INPUT MUST BE ABLE TO TELL THE ANSWERS APART.** Before trusting a check, ask what its case
 > would look like if the thing were broken — and if that is the same picture, the case is the bug, not
@@ -213,6 +214,74 @@ blind to where its input came from. So:
 
 This is the eye's version of the corpus rule. "Name the corpus" asks *what did you run it over*; this
 one asks *could that corpus have shown you the failure*.
+
+### A RATIO NEVER SAYS WHICH TERM IS WRONG — and the cheap-looking term gets blamed
+
+The measurement was right. The conclusion drawn from it was a coin-flip nobody noticed flipping.
+
+**The case.** The twelve `npc-static` figures measure aspect **0.84–1.03** — near square — inside a
+32×48 frame that wants 0.67. That number is correct, reproducible, and was reported here as
+*"the cast has been the wrong shape since it was generated"*, with the fix named as a regeneration run
+behind a paid permission the owner had not granted.
+
+**It says no such thing.** A disagreement between a sprite and its frame is a disagreement. The figure
+does not carry a sign telling you which side to move. The sprites were cut from Gold's 16×16 overworld
+walking sprites, which are **one tile square** — so 0.84–1.03 is exactly what a correct sprite of that
+lineage measures, and the 48-tall frame was the error the whole time. When the owner ruled the player
+one block tall, re-targeting the class to 32×32 landed the same untouched art at 84–100% of its box,
+mean 91%, against 66% before. **No generation, no spend, no permission.** The blocked work was never
+needed; only the frame had to move.
+
+**Why the wrong side got blamed, which is the part worth guarding against:** the art was the recently
+generated thing, and recently generated things feel provisional while constants feel settled. That is a
+prior about *history*, not about *correctness*, and it was applied without being stated.
+
+> **WHEN TWO NUMBERS DISAGREE, NAME BOTH CANDIDATES BEFORE PICKING ONE.** Write down what changing each
+> side would cost and what evidence would distinguish them. If one side is a constant somebody typed
+> and the other is measured from an artefact, the constant is at least as likely to be wrong — and it
+> is always the cheaper thing to test. Check the constant's provenance before commissioning work on the
+> artefact.
+
+### A different failure, and worse: an instrument that answers confidently OUTSIDE ITS RANGE
+
+The four above are checks whose *case* could not tell pass from fail. This one is a tool whose **domain
+was never stated**, so nothing could notice it had left it — and it does not fail, it answers.
+
+- `deriveBack` / `deriveSide` in `tools/comfy/player-views.ts` place features by ABSOLUTE row index —
+  cap 12-15, hair 16-20, neck to 23, belt `for (y = 30; y <= 37)`. Authored for a 48-row sprite. When
+  the player went to 32 rows they **did not crash**: `setPx` bounds-checks, so the belt pass addressed
+  rows 30-37 of a sprite ending at 31 and quietly wrote nothing. The output would have been a sprite
+  with the belt half gone and the neck taper in the torso — and it would have rendered.
+- The door-mask reader answered *walkable* for all 4096 cells of a map with 2467 blocked ones, because
+  it was handed a buffer shape it does not accept. It did not throw. It answered.
+
+**THE BOUNDS CHECK IS WHAT MAKES IT SILENT.** The very thing that stops a crash is what converts a
+crash into a wrong picture that ships. So:
+
+> **A FUNCTION WHOSE CORRECTNESS DEPENDS ON A PRECONDITION MUST ASSERT THE PRECONDITION.**
+> Not check your instrument — *state its domain, in the function, and throw outside it*. Not clamp,
+> not skip, not silently emit. A guard that refuses is worth more than the output it guards, because
+> the alternative is not an error: it is a plausible wrong answer with nothing attached to say so.
+>
+> And prove the guard BOTH WAYS: that it fires on the bad input **and does not fire on the good one**.
+> A guard that refuses everything looks identical to a correct one until the day you need the output.
+
+Note what separates the two cases above, because it is the whole argument for putting the assertion in
+the FUNCTION rather than in a review. `deriveBack` is now caught — `assertDerivableHeight` names the
+48-row precondition and throws at 32. `readMask` was not, because nothing anywhere said which buffer
+shapes it accepts, and an `as any` at the call site erased the one complaint the type system would have
+made. Both tools were correct functions handed input outside their range. The difference is entirely
+whether the range was ever written down.
+
+**And #11 gives the rule its cheapest possible form, which is why it is worth having as its own line:**
+
+> **RUN THE NON-VACUITY CONTROL FIRST — one question, before the real one.**
+> *Does this reader see ANY blocked cell? Does this filter match ANY line? Does this sweep visit ANY
+> file? Does this operator return a DIFFERENT number on a case I know is broken?*
+> Every one of the four above dies to a control that takes a single command. The door reader answered
+> "walkable" for all 4096 cells of a map whose HUD says 2467 are blocked — a fact available before any
+> door was checked, and one that would have retired the instrument instead of certifying it fifteen
+> times.
 
 ### But looking is a CHECK, not the answer — the eye failed here too
 

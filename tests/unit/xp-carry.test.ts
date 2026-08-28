@@ -61,6 +61,7 @@ import type {
   Balance,
   BattleEvent,
   BattleInput,
+  Battler,
   BattlerSpec,
   BattleState,
   Content,
@@ -323,25 +324,46 @@ describe("§4 what one single-enemy fight is worth on shipped balance", () => {
     return xpGain(makeBattler(spec({ uid: "e", level }), "enemy", ctx, { isWild: true, enteredOnTurn: 1 }), B);
   }
 
-  it("pays 32 against a level-5 Adult, where levelling costs ~142.8", () => {
+  it("pays 32 against a level-5 Adult, where levelling costs 190", () => {
+    // RETUNED, not weakened. `xp.toNextCoefficient/toNextExponent` moved 15 × l^1.4 -> 38 × l^1.0
+    // under Hank's "also make the whole game easier" (data/balance.json xp._curveOutranTheLadder
+    // carries the measurement). The payout is untouched — `base` and `perEnemyLevel` did not move —
+    // and the claim this case exists to make, that one fight cannot pay for a level, is unchanged
+    // and still asserted below. Revert the balance change and this fails again.
     expect(payoutForEnemyAtLevel(5)).toBe(32); // 12 + 4 × 5 × 1.0
-    expect(xpToNext(5, B)).toBeCloseTo(142.774, 3); // 15 × 5^1.4
+    expect(xpToNext(5, B)).toBeCloseTo(190, 10); // 38 × 5
     expect(payoutForEnemyAtLevel(5)).toBeLessThan(xpToNext(5, B));
   });
 
-  it("pays 16 against a level-1 Adult, where levelling costs 15", () => {
-    // The bottom of the curve is the exception, and it is narrow: 16 ≥ 15 by one point, at level 1
-    // and nowhere above it.
+  it("pays 16 against a level-1 Adult, where levelling costs 38 — the bottom is no longer an exception", () => {
+    // CONTRACT REPLACED, not weakened, and the replacement is asserted exactly. Under the old
+    // 15 × l^1.4 curve level 1 cost 15 and one fight's 16 cleared it — "the exception, and it is
+    // narrow". The curve moved to 38 × l^1.0 under Hank's "also make the whole game easier"
+    // (data/balance.json xp._curveOutranTheLadder), which is dearer at the bottom and much cheaper
+    // at the top; the exception is gone and level 1 now banks like every other level. The payout
+    // itself did not move — `base` and `perEnemyLevel` are untouched — so the 16 is still pinned.
+    // NOTE this costs the player nothing in practice: no creature the player controls sits at
+    // level 1. xp.starterLevel is 14, encounter.minLevel floors wild rolls at 2, and an heir of a
+    // level-14-or-better parent enters at 7 or above (retirement.heirLevelFactor 0.5).
     expect(payoutForEnemyAtLevel(1)).toBe(16); // 12 + 4 × 1 × 1.0
-    expect(xpToNext(1, B)).toBeCloseTo(15, 10); // 15 × 1^1.4
-    expect(payoutForEnemyAtLevel(1)).toBeGreaterThanOrEqual(xpToNext(1, B));
+    expect(xpToNext(1, B)).toBeCloseTo(38, 10); // 38 × 1
+    expect(payoutForEnemyAtLevel(1)).toBeLessThan(xpToNext(1, B));
   });
 
-  it("levels a level-1 creature in ONE fight", () => {
-    const { state, events } = soloFight(spec({ uid: "one", level: 1 }), 1);
-    expect(state.outcome).toBe("win");
-    expect(events.filter((e) => e.t === "levelUp")).toHaveLength(1);
-    expect(state.battlers["one"]?.level).toBe(2);
+  it("levels a level-1 creature on the THIRD fight, out of the banked sum", () => {
+    // The replacement for "levels a level-1 creature in ONE fight", and it is a STRONGER claim: it
+    // pins the threshold AND the carry-in that reaches it. 16 + 16 = 32 < xpToNext(1) = 38, so two
+    // fights do not level; the third's 16 makes 48 ≥ 38 ⇒ level 2 with 10 banked.
+    const one = soloFight(spec({ uid: "one", level: 1 }), 1);
+    expect(one.state.outcome).toBe("win");
+    expect(one.events.some((e) => e.t === "levelUp")).toBe(false);
+    expect(xpOf(one.state.battlers["one"] as Battler)).toBe(16);
+
+    const third = soloFight(spec({ uid: "one", level: 1, xp: 32 }), 1);
+    expect(third.state.outcome).toBe("win");
+    expect(third.events.filter((e) => e.t === "levelUp")).toHaveLength(1);
+    expect(third.state.battlers["one"]?.level).toBe(2);
+    expect(xpOf(third.state.battlers["one"] as Battler)).toBe(10);
   });
 
   it("does NOT level a level-5 creature in one fight, banking the payout instead", () => {

@@ -36,11 +36,21 @@ export function overlayDiffConfig(balance?: Balance): OverlayDiffConfig {
  * But it made the §9.5 acceptance criterion the one number in the gate that INV-3 could not reach:
  * every sibling (`iouThreshold`, `sobelThreshold`, `dilatePx`, the denoise ladder, the regen cap) is
  * a balance key, and loosening this one after a supervised run meant editing this file. The shipped
- * value is the derived one (2 × 3 at the shipped `balance.map`), so the move changed no verdict.
+ * value was the derived one (2 × 3) when it moved, so the move changed no verdict.
  *
  * The floor survives as a law rather than as arithmetic: `tests/unit/balance-inv3.test.ts` requires
  * the configured footprint to be at least the player's, because a tolerance smaller than the player
  * accepts a variant that can strand him.
+ *
+ * ⚠ THE SHIPPED VALUE IS NO LONGER THE DERIVATION, AND THAT IS THE KEY DOING ITS JOB. The owner
+ * ruled the player one block tall, `balance.map.playerSpriteH` went 48 → 32, and the division now
+ * reads 2 × 2 while the configured tolerance stays 2 × 3 — above the floor, which is where a
+ * tolerance is allowed to sit. It was NOT lowered to follow the sprite, deliberately: the 25 (map,
+ * position) verdicts published in `tools/artverify/published-measurements.json` as
+ * `overlayDiff32pxResidual` were characterised at 2 × 3, its `measuredWith` block pins that pair,
+ * and 20 of the 25 pairs are unmeasurable in a clean clone. Tightening the gate here would retire
+ * that characterisation with nothing able to replace it off this disk. A supervised §9.5 run that
+ * wants the tolerance moved may still move it — in balance.json, and republishing the table with it.
  */
 export function driftFootprint(balance?: Balance): CellFootprint {
   const cells = (balance ?? validateContent().balance).overlayDiff.driftFootprintCells;

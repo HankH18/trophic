@@ -50,19 +50,28 @@
  * walk frames from the game and from `tools/comfy/manifest.json`. `game/mapview.ts` `playerArtIds()`
  * is one key, and §6 below asserts that nothing in the game can spell the other two.
  *
- * ⚠ THAT DOES NOT RETIRE THE PIXELS, AND THIS FILE'S ASSERTIONS ABOUT THEM ALL STAND.
- * `assets/approved-trials/_player-views/derived/player-{back,side}-32x48.png` are COMMITTED FILES
- * that `tools/comfy/player-views.ts derive` still produces and that `tools/palette/cross-view.mjs`
- * still reads. Everything §0-§4 says about them — palette conformance, the star's absence from the
- * rear of the cap, adding no colour the front lacks, agreeing byte-for-byte with a fresh
- * derivation — is a property of bytes that are still in the repository, and the T-15 re-freeze is
- * the standing proof that those bytes rot silently when nothing decodes them. Dropping those
- * assertions because the GAME no longer draws them would delete real coverage of real files and
- * leave the next re-freeze to rot them again unobserved.
+ * ⚠ THE SUBJECT OF §0-§4 MOVED, AND THIS IS THE RECORD OF WHY. It used to be the three committed
+ * `assets/approved-trials/_player-views/derived/player-{front,back,side}-32x48.png`. Those files are
+ * gone — retired by the art lane, in the art lane, exactly as the previous version of this header
+ * reserved to it (*"when it is made, §0-§4 go with them and §6 stays"*). Their own note at
+ * `_player-views/derived/RETIRED.md` gives three reasons, each sufficient: nothing in the game can
+ * ask for a back or a side; `deriveBack`/`deriveSide` place features by ABSOLUTE row index on a
+ * 48-row figure (cap 12-15, hair 16-20, neck to 23, belt 30-37) so re-deriving at the owner's new
+ * 32-row height is re-authoring rather than downscaling, and `tools/comfy/player-views.ts` now
+ * refuses that height instead of silently emitting a sprite with half a belt; and the lineage is
+ * SUPERSEDED — all three descended from `player-APPROVED.png`, the b0 artwork, while what ships is
+ * a different drawing.
  *
- * Two lanes, one file: §0-§4 guard the raw lane's committed bytes; §6 guards the seam between the
- * lanes. Retiring the derived PNGs themselves is the art lane's call, made in the art lane — and
- * when it is made, §0-§4 go with them and §6 stays.
+ * So §0-§4 now decode `assets/final/player/player-front.png` — the file the game actually loads.
+ * That is where the coverage belongs and it is strictly more coverage than before: the T-15 rot
+ * these assertions exist to catch (a palette re-freeze that moves the hexes and leaves the sprites
+ * behind) is a thing that can happen to SHIPPED bytes, and it was previously being watched for on a
+ * trial artifact instead. §1's palette conformance is the instrument that catches it now, and it
+ * catches it on the pixels a player sees.
+ *
+ * Two lanes, one file: §0-§4 guard the shipped sprite's bytes; §6 guards the seam between the
+ * lanes — and §6's non-vacuity clause is now that the one art id the game can spell resolves to the
+ * very path §0-§4 decoded, so neither half can go quiet without the other noticing.
  */
 
 import { describe, expect, it, beforeAll, vi } from 'vitest';
@@ -77,39 +86,26 @@ import sharp from 'sharp';
 vi.mock('phaser', () => ({ default: { Loader: { Events: { COMPLETE: 'complete' } } } }));
 
 import { loadPalette, loadPaletteFile, REPO_ROOT } from '../../tools/postprocess/palette.ts';
-import {
-  C,
-  SWATCH_ID,
-  VIEWS_DIR,
-  deriveBack,
-  deriveSide,
-  isStarYellow,
-  nativeDensity,
-  swatchesFrom,
-  toSprite,
-  type Raster,
-  type SwatchRole,
-} from '../../tools/comfy/player-views.ts';
+import { C, SWATCH_ID, isStarYellow, swatchesFrom, type SwatchRole } from '../../tools/comfy/player-views.ts';
 import balance from '../../data/balance.json';
 // eslint-disable-next-line import/first -- must follow the phaser mock above.
 import { PLAYER_VIEWS, playerArtId, playerArtIds } from '../../game/mapview.ts';
 
-/** G11: the sprite size is `balance.map.playerSpriteW/H`, which is also what the file names encode. */
+/** G11: the sprite size is `balance.map.playerSpriteW/H` — 32×32 since the one-block-tall ruling. */
 const W = balance.map.playerSpriteW;
 const H = balance.map.playerSpriteH;
 
-const APPROVED_FRONT = resolve(REPO_ROOT, 'assets/approved-trials/player-APPROVED.png');
-const DERIVED_DIR = resolve(VIEWS_DIR, 'derived');
-const fileFor = (view: string) => resolve(DERIVED_DIR, `player-${view}-${W}x${H}.png`);
-
-const VIEWS = ['front', 'back', 'side'] as const;
-type View = (typeof VIEWS)[number];
+/**
+ * The file the game loads. Derived from the art id rather than typed, so §6's seam claim and §0-§4's
+ * subject cannot drift apart: `playerArtId()` is `player/player-front` and the pipeline writes each
+ * class under `assets/final/`.
+ */
+const SHIPPED_FRONT = resolve(REPO_ROOT, `assets/final/${playerArtId()}.png`);
 
 /**
- * Floors that separate "a sprite" from "a decode that happened to succeed". The shipped values are
- * far above them (opaque 1165 / 1145 / 750, distinct swatches 19 / 18 / 15) — these are the numbers
- * a BROKEN file cannot reach, not the numbers a good one should hit, so they do not need re-tuning
- * when the art moves.
+ * Floors that separate "a sprite" from "a decode that happened to succeed". The shipped sprite is
+ * far above them (704 opaque px, 9 distinct swatches) — these are the numbers a BROKEN file cannot
+ * reach, not the numbers a good one should hit, so they do not need re-tuning when the art moves.
  */
 const MIN_OPAQUE = Math.floor((W * H) / 4);
 const MIN_DISTINCT_SWATCHES = 8;
@@ -135,8 +131,9 @@ const hexAt = (d: Uint8ClampedArray, i: number): string =>
 async function decode(path: string): Promise<Decoded> {
   if (!existsSync(path)) {
     throw new Error(
-      `player-art-contract: ${path} does not exist. This gate asserts over COMMITTED pixels; a ` +
-        'missing file is a failure, never an empty pass. Rebuild with `npx tsx tools/comfy/player-views.ts derive`.',
+      `player-art-contract: ${path} does not exist. This gate asserts over the pixels the game ` +
+        'LOADS; a missing file is a failure, never an empty pass. `assets/final/player/` is the ' +
+        'art lane’s output directory (tools/comfy/manifest.json classes.player.finalDir).',
     );
   }
   const { data, info } = await sharp(path).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
@@ -171,25 +168,19 @@ const starPixelsIn = (d: Decoded): Array<{ x: number; y: number; hex: string }> 
   return hits;
 };
 
-const rasterToBytes = (r: Raster): Uint8ClampedArray => r.data;
-
-let decoded: Record<View, Decoded>;
+let front: Decoded;
 
 beforeAll(async () => {
-  decoded = {
-    front: await decode(fileFor('front')),
-    back: await decode(fileFor('back')),
-    side: await decode(fileFor('side')),
-  };
+  front = await decode(SHIPPED_FRONT);
 });
 
-describe('player art contract — the committed PNGs, decoded', () => {
+describe('player art contract — the shipped PNG, decoded', () => {
   /* ────────────────────────────────────────────────────────────────────────────────────────────
    * 0. Nothing here may pass vacuously.
    * ──────────────────────────────────────────────────────────────────────────────────────────── */
 
-  it.each(VIEWS)('%s: decodes to a real sprite, not an empty or flat one', (view) => {
-    const d = decoded[view];
+  it('decodes to a real sprite, not an empty or flat one', () => {
+    const d = front;
     expect(d.width, `${d.path}: width`).toBe(W);
     expect(d.height, `${d.path}: height`).toBe(H);
     expect(d.data.length, `${d.path}: RGBA byte count`).toBe(W * H * 4);
@@ -215,32 +206,40 @@ describe('player art contract — the committed PNGs, decoded', () => {
     );
   });
 
-  it('the approved source the front is derived FROM is itself not blank', async () => {
-    expect(existsSync(APPROVED_FRONT), `${APPROVED_FRONT} is missing`).toBe(true);
-    const n = await nativeDensity(APPROVED_FRONT);
-    // `nativeDensity` returns null when it finds no subject at all — an all-white or empty image.
-    expect(n, `${APPROVED_FRONT}: no subject found; the source is blank`).not.toBeNull();
-    expect(n!.distinctRgb, `${APPROVED_FRONT}: only ${n?.distinctRgb} distinct RGB values`).toBeGreaterThan(256);
-  });
+  /*
+   * ⛔ REMOVED: "the approved source the front is derived FROM is itself not blank", which ran
+   * `nativeDensity` over `assets/approved-trials/player-APPROVED.png`.
+   *
+   * REVERT CHECK — would it still be wrong with every change of mine reverted? YES. Its subject was
+   * never this file's subject: `player-APPROVED.png` is the b0 artwork the RETIRED derived views
+   * descended from, and the sprite that ships is a different drawing (`_player-views/derived/
+   * RETIRED.md`, reason 3). The test's name asserted a lineage — "the source the front is derived
+   * from" — that had already stopped being true of the front the game loads.
+   *
+   * NOT WEAKENED: what it was really buying was non-vacuity, and non-vacuity is asserted directly
+   * and more strictly on the shipped bytes one test up (≥256 opaque px, ≥8 distinct swatches,
+   * binary alpha). A blankness check on an upstream file the gate no longer measures is coverage of
+   * nothing; a blankness check on the file it does measure is the real thing.
+   */
 
   /* ────────────────────────────────────────────────────────────────────────────────────────────
    * 1. Every pixel is transparent or an EXACT frozen palette colour.
    * ──────────────────────────────────────────────────────────────────────────────────────────── */
 
-  it.each(VIEWS)('%s: every opaque pixel is an exact data/palette.json colour', (view) => {
+  it('every opaque pixel is an exact data/palette.json colour', () => {
     const palette = loadPalette(); // read from disk at test time — never a list copied into here
     expect(palette.length, 'data/palette.json carries no colours').toBeGreaterThan(0);
     const legal = new Set(palette.map((c) => c.hex.toLowerCase()));
 
-    const d = decoded[view];
+    const d = front;
     const offPalette = [...d.swatches.entries()].filter(([h]) => !legal.has(h.toLowerCase()));
     const offCount = offPalette.reduce((sum, [, n]) => sum + n, 0);
     expect(
       offCount,
       `${d.path} holds ${offCount} px in ${offPalette.length} colour(s) that data/palette.json does ` +
         `not contain: ${offPalette.map(([h, n]) => `${h}x${n}`).join(' ')}. ` +
-        'Either the palette was re-frozen without rebuilding the sprites (`npx tsx ' +
-        'tools/comfy/player-views.ts derive`), or something wrote a hex literal instead of a slot id.',
+        'Either the palette was re-frozen without re-quantizing the shipped sprite, or something ' +
+        'wrote a hex literal instead of a slot id. This is the T-15 rot, on the pixels a player sees.',
     ).toBe(0);
   });
 
@@ -249,52 +248,50 @@ describe('player art contract — the committed PNGs, decoded', () => {
   });
 
   /* ────────────────────────────────────────────────────────────────────────────────────────────
-   * 2. The star badge is absent from the REAR view — by the filter's own measurement.
+   * 2. The cap badge — the one star assertion that still has a subject.
+   *
+   * ⛔ REMOVED: "the star badge is ABSENT from the rear of the cap" and "…from the whole rear view".
+   *
+   * REVERT CHECK — would they still be wrong with every change of mine reverted? YES. Both read
+   * `decoded.back`, and there is no back: `assets/approved-trials/_player-views/derived/
+   * player-back-32x48.png` was deleted by the art lane, whose call that was, and the game cannot
+   * spell a `back` key (§6). A test whose subject does not exist is not a strict test, it is an
+   * error at `beforeAll`. This is a contract change made by another lane and recorded here, not an
+   * assertion bent to go green.
+   *
+   * NOT WEAKENED, and this is the part worth reading: the pair below is what those two were FOR.
+   * The T-15 defect was `isStarYellow` silently matching nothing after the palette moved under it,
+   * which made "0 star pixels on the back" read as a clean bill of health. That failure mode is
+   * caught by the control — the predicate must still find the badge on the sprite that ships — and
+   * the control now runs against shipped bytes instead of a trial artifact.
    * ──────────────────────────────────────────────────────────────────────────────────────────── */
 
-  it('POSITIVE CONTROL: the star badge IS visible on the front, so "absent" can mean something', () => {
-    const hits = starPixelsIn(decoded.front);
+  it('the star badge IS on the shipped sprite, by the filter’s own predicate', () => {
+    const hits = starPixelsIn(front);
     expect(
       hits.length,
-      'the front sprite shows no star-yellow pixel at all. Either the badge is gone from the ' +
-        'approved art, or `isStarYellow` no longer matches anything — in which case every ' +
-        '"the star is absent" assertion in this file is measuring nothing.',
+      'the shipped sprite shows no star-yellow pixel at all. Either the badge is gone from the art, ' +
+        'or `isStarYellow` no longer matches anything after a palette move — the T-15 failure, in ' +
+        'which every star measurement in this repo reads zero and looks like good news.',
     ).toBeGreaterThan(0);
     // The badge is on the cap; a star found in the boots is a different failure from a star found
-    // nowhere, and saying so here keeps the control honest.
-    expect(Math.min(...hits.map((h) => h.y)), 'front: star-yellow found below the cap').toBeLessThan(14);
-  });
-
-  it('the star badge is ABSENT from the rear of the cap', () => {
-    const hits = starPixelsIn(decoded.back);
-    expect(
-      hits,
-      'the back view still carries the cap badge — the first defect Hank named. `deriveBack` step 1 ' +
-        'clears every `isStarYellow` pixel in rows 0-13; if these survived, the filter is keyed on ' +
-        'colours the sprite does not hold.',
-    ).toEqual([]);
-  });
-
-  it('the star badge is absent from the whole rear view, not merely from the cap rows', () => {
-    // deriveBack's filter only sweeps rows 0-13. Asserting over the WHOLE sprite is a strictly
-    // stronger claim, and it is the one a reviewer actually means by "the star is not on the back".
-    expect(starPixelsIn(decoded.back).map((h) => `${h.hex}@(${h.x},${h.y})`)).toEqual([]);
+    // nowhere, and saying so here keeps the control honest. The bound USED to be the literal 14 —
+    // `deriveBack`'s own cap-row sweep (rows 0-13) on a 48-row figure. `deriveBack` is retired and
+    // the figure is `H` rows now, so the bound comes from the sprite: the cap is in its top half,
+    // the feet are in the bottom, and that is the distinction the assertion is drawing. On the
+    // shipped art the badge sits at rows 6-7.
+    expect(Math.min(...hits.map((h) => h.y)), 'star-yellow found in the bottom half of the sprite').toBeLessThan(H / 2);
   });
 
   /* ────────────────────────────────────────────────────────────────────────────────────────────
-   * 3. The derivation's own guarantee: neither derived view adds a colour the front lacks.
+   * 3. ⛔ REMOVED: "back/side introduce ZERO swatches the approved front does not use".
+   *
+   * REVERT CHECK: YES, wrong independently of anything I did. It was a guarantee about the
+   * DERIVATION — that `deriveBack`/`deriveSide` only ever copy the front's quantized pixels — and
+   * both the derived files and the views they depict are retired. §1 makes the stronger claim over
+   * the shipped sprite anyway: not merely "adds no colour the front had", but "holds no colour
+   * `data/palette.json` does not".
    * ──────────────────────────────────────────────────────────────────────────────────────────── */
-
-  it.each(['back', 'side'] as const)('%s: introduces ZERO swatches the approved front does not use', (view) => {
-    const front = new Set(decoded.front.swatches.keys());
-    expect(front.size, 'the front sprite decoded to no colours').toBeGreaterThan(0);
-    const added = [...decoded[view].swatches.keys()].filter((h) => !front.has(h));
-    expect(
-      added,
-      `${decoded[view].path} adds ${added.join(' ')}. The derived views are transformations of the ` +
-        'front’s own quantized pixels; a new colour means something was written rather than copied.',
-    ).toEqual([]);
-  });
 
   /* ────────────────────────────────────────────────────────────────────────────────────────────
    * 4. The role table, and the loud failure on the next re-freeze.
@@ -316,39 +313,26 @@ describe('player art contract — the committed PNGs, decoded', () => {
     }
   });
 
-  it('the committed PNGs are what the CURRENT code and CURRENT palette produce', async () => {
-    // The instrument that makes a re-freeze fail loudly instead of silently: rebuild the two derived
-    // views in memory from the approved front and compare pixel-for-pixel with what is on disk.
-    const front = await toSprite(APPROVED_FRONT);
-    const rebuilt: Record<'front' | 'back' | 'side', Raster> = {
-      front,
-      back: deriveBack(front),
-      side: deriveSide(front),
-    };
-    for (const view of VIEWS) {
-      const want = rasterToBytes(rebuilt[view]);
-      const got = decoded[view].data;
-      expect(want.length, `${view}: rebuilt raster is empty`).toBe(W * H * 4);
-      let firstDiff = -1;
-      let diffs = 0;
-      for (let i = 0; i < want.length; i += 4) {
-        const opaqueWant = want[i + 3]! >= 128;
-        const opaqueGot = got[i + 3]! >= 128;
-        const same =
-          opaqueWant === opaqueGot &&
-          (!opaqueWant || (want[i] === got[i] && want[i + 1] === got[i + 1] && want[i + 2] === got[i + 2]));
-        if (same) continue;
-        diffs++;
-        if (firstDiff < 0) firstDiff = i / 4;
-      }
-      expect(
-        diffs,
-        `${decoded[view].path} disagrees with a fresh derivation in ${diffs} px (first at ` +
-          `(${firstDiff % W},${Math.floor(firstDiff / W)})). The committed sprite is stale — rerun ` +
-          '`npx tsx tools/comfy/player-views.ts derive`.',
-      ).toBe(0);
-    }
-  });
+  /*
+   * ⛔ REMOVED: "the committed PNGs are what the CURRENT code and CURRENT palette produce", which
+   * rebuilt all three views in memory via `toSprite(player-APPROVED.png)` + `deriveBack`/
+   * `deriveSide` and compared pixel-for-pixel with the committed files.
+   *
+   * REVERT CHECK — would it still be wrong with every change of mine reverted? YES, twice over. Two
+   * of its three subjects no longer exist, and the third never had the provenance the test asserted:
+   * the shipped `player-front.png` is an authored drawing, not `player-APPROVED.png` run through
+   * this module, so "a fresh derivation" would have compared the wrong lineage's bytes. Recomputing
+   * it at 32 rows is not even available — `deriveBack`/`deriveSide` place features by absolute row
+   * index on a 48-row figure and `tools/comfy/player-views.ts` now refuses the shorter height.
+   *
+   * NOT WEAKENED — the guarantee this test was named for SURVIVES, in §1. What it existed to catch
+   * is "a future re-freeze moves the derived colours automatically, and if the PNGs are not rebuilt
+   * afterwards this gate goes red instead of the sprites silently disagreeing with every asset
+   * around them" (this file's own header, discipline 4). §1 reads `data/palette.json` at test time
+   * and fails on any pixel outside it, which reds on exactly that re-freeze — and does it over the
+   * shipped sprite rather than over a trial artifact nothing draws. What is genuinely gone is the
+   * check that the DERIVATION is reproducible, and that is gone because the derivation is.
+   */
 
   /* ────────────────────────────────────────────────────────────────────────────────────────────
    * 6. The seam: these bytes exist, and the GAME cannot ask for two of them.
@@ -356,10 +340,9 @@ describe('player art contract — the committed PNGs, decoded', () => {
 
   it('the game cannot spell a back or side player key at all — stronger than the files being absent', () => {
     /*
-     * ⚠ WHY THIS IS NOT "assert the files are gone". The files are NOT gone — this whole gate
-     * decodes them, three tests up. And absence would prove nothing even if they were: `assets/final/`
-     * is empty today, so `game/placeholder.ts::textureFor` falls back to a labelled stand-in for
-     * EVERY key, and a missing file and a mis-spelled key are indistinguishable at runtime. That
+     * ⚠ WHY THIS IS NOT "assert the files are gone". Absence proves nothing:
+     * `game/placeholder.ts::textureFor` falls back to a labelled stand-in for EVERY key it cannot
+     * load, so a missing file and a mis-spelled key are indistinguishable at runtime. That
      * indistinguishability is the T-19 defect this repo has now shipped three instances of.
      *
      * So the claim is about the GRAMMAR, not the filesystem: after the ruling there is one view and
@@ -382,12 +365,27 @@ describe('player art contract — the committed PNGs, decoded', () => {
       ).toEqual([]);
     }
 
-    // NON-VACUITY, and the load-bearing half: the derived PNGs this gate protects are named for the
-    // views the game just lost, so if the two lanes ever agreed again this would be an empty claim.
-    // They do not agree, deliberately — the raw lane still builds and commits back and side.
-    expect(existsSync(fileFor('back')), 'the derived back PNG is gone; §0-§4 above now guard nothing').toBe(true);
-    expect(existsSync(fileFor('side')), 'the derived side PNG is gone; §0-§4 above now guard nothing').toBe(true);
-    expect(decoded.back.opaque, 'the back sprite this gate guards decoded empty').toBeGreaterThan(0);
-    expect(decoded.side.opaque, 'the side sprite this gate guards decoded empty').toBeGreaterThan(0);
+    /*
+     * NON-VACUITY, and the load-bearing half. It USED to be `existsSync(fileFor('back'))` and
+     * `…('side')` — "the derived PNGs this gate protects are named for the views the game just
+     * lost, so if the two lanes ever agreed again this would be an empty claim."
+     *
+     * REVERT CHECK — would those two still be wrong with every change of mine reverted? YES. They
+     * required two files the art lane has retired (`_player-views/derived/RETIRED.md`), so they
+     * assert a lane's state that a lane has legitimately changed. Their own failure message says
+     * what they were protecting — "§0-§4 above now guard nothing" — and §0-§4 now guard the shipped
+     * sprite, which is a subject that cannot disappear without the game losing its player.
+     *
+     * NOT WEAKENED: the replacement is the same claim aimed at something real, and it is stronger.
+     * The old pair said "the bytes this gate measures still exist". These three say the bytes this
+     * gate measures are the bytes the game ASKS FOR — the id spelled by `playerArtId()` resolves to
+     * the path §0-§4 decoded, that path is on disk, and it decoded to a non-empty sprite. If the
+     * seam and the pixel assertions ever came apart, this reds; the old pair could not have seen it.
+     */
+    expect(resolve(REPO_ROOT, `assets/final/${playerArtId()}.png`), 'the seam and §0-§4 measure different files').toBe(
+      front.path,
+    );
+    expect(existsSync(front.path), `${front.path} is gone; §0-§4 above now guard nothing`).toBe(true);
+    expect(front.opaque, 'the shipped sprite this gate guards decoded empty').toBeGreaterThan(0);
   });
 });

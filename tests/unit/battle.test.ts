@@ -580,11 +580,19 @@ describe("XP curve and the level cap (build-doc §7.4)", () => {
     expect(xpGain(battler("mosslet-line", "J", 1, "enemy"), B)).toBe(16);
   });
 
-  it("computes xpToNext = 15 × level^1.4", () => {
-    expect(xpToNext(1, B)).toBeCloseTo(15, 10); // 15 × 1 = 15
-    expect(xpToNext(2, B)).toBeCloseTo(39.5852, 3); // 15 × 2^1.4 = 15 × 2.63902 = 39.5852
-    expect(xpToNext(10, B)).toBeCloseTo(376.783, 3); // 15 × 10^1.4
-    expect(xpToNext(40, B)).toBeCloseTo(2624.069, 3); // 15 × 40^1.4
+  it("computes xpToNext = 38 × level^1.0", () => {
+    // RETUNED, not weakened. The curve moved from 15 × l^1.4 to 38 × l^1.0 under Hank's ruling
+    // "also make the whole game easier"; the four cases below are the same four levels, still
+    // pinned to the exact product, still to the same precision. Reverting the balance change makes
+    // these fail again, which is the point: they describe the shipped curve and nothing else.
+    // WHY THE EXPONENT MOVED (data/balance.json xp._curveOutranTheLadder carries the measurement):
+    // XP income is linear in the act while cost was super-linear, so the player fell further behind
+    // the gym ramp every act and arrived at the league finale eight levels under, winning it 17.0%
+    // against a 45-65% band. A linear cost tracks a linear ladder.
+    expect(xpToNext(1, B)).toBeCloseTo(38, 10); // 38 × 1 = 38
+    expect(xpToNext(2, B)).toBeCloseTo(76, 10); // 38 × 2 = 76
+    expect(xpToNext(10, B)).toBeCloseTo(380, 10); // 38 × 10
+    expect(xpToNext(40, B)).toBeCloseTo(1520, 10); // 38 × 40
   });
 
   it("opens a battler on the XP its spec carries, and on zero when it carries none", () => {
@@ -603,7 +611,10 @@ describe("XP curve and the level cap (build-doc §7.4)", () => {
   it("levels up from a faint, banking the remainder", () => {
     const ctx = NO_WEB;
     // A level-1 Mosslet finishing an Adult level-10 Nibbin banks 52 XP.
-    // 52 ≥ xpToNext(1) = 15 ⇒ level 2 with 37 left; 37 < xpToNext(2) = 39.585 ⇒ it stops there.
+    // 52 ≥ xpToNext(1) = 38 ⇒ level 2 with 14 left; 14 < xpToNext(2) = 76 ⇒ it stops there.
+    // The banked figure moved 37 -> 14 with the xp curve retune (15 × l^1.4 -> 38 × l^1.0, Hank's
+    // "make the whole game easier"). The CLAIM is unchanged and is still exact: one level is taken
+    // and the remainder is banked rather than dropped.
     const input: BattleInput = {
       seed: 5,
       kind: "wild",
@@ -619,7 +630,7 @@ describe("XP curve and the level cap (build-doc §7.4)", () => {
     expect(levelUps[0]).toMatchObject({ t: "levelUp", uid: "moss", level: 2 });
     const moss = out.state.battlers["moss"];
     expect(moss?.level).toBe(2);
-    expect(xpOf(moss as Battler)).toBeCloseTo(37, 10);
+    expect(xpOf(moss as Battler)).toBeCloseTo(14, 10);
     expect(out.state.outcome).toBe("win");
   });
 
@@ -633,7 +644,7 @@ describe("XP curve and the level cap (build-doc §7.4)", () => {
     };
     const started = startBattle(input, ctx);
     const primed: BattleState = structuredClone(started.state);
-    // 100 banked + 52 from the faint = 152 ≥ xpToNext(4) = 15 × 4^1.4 = 104.5 ⇒ level 5,
+    // 100 banked + 52 from the faint = 152 ≥ xpToNext(4) = 38 × 4 = 152 ⇒ level 5,
     // which is the type2 unlock: mosslet-line's movePool.type2 is "overgrow".
     Object.assign(primed.battlers["moss"] as Battler, { xp: 100 });
     const out = step(primed, { kind: "move", moveId: "bramble" }, cyclic([0.5, 0.99]), ctx);

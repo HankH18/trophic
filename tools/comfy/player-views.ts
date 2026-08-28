@@ -54,6 +54,7 @@ import sharp from 'sharp';
 import { ComfyClient, loadEnv, type Graph } from './client.ts';
 import { buildImg2ImgGraph, uploadInitImage } from './img2img.ts';
 import { loadPalette, type PaletteRgb } from '../postprocess/palette.ts';
+import balanceJson from '../../data/balance.json' with { type: 'json' };
 import { trimBackground, nearestResample, quantize, removeFlatBackground } from '../postprocess/steps.ts';
 import { backgroundForClass } from '../postprocess/chain.ts';
 
@@ -209,8 +210,50 @@ export async function sweep(views: string[], denoises: number[]): Promise<SweepR
  *           "derived" is doing some work, and it is called out in the manifest too.
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-const W = 32;
-const H = 48;
+/**
+ * The sprite raster, from `data/balance.json` — G11, and not a copy of it.
+ *
+ * These were `const W = 32; const H = 48;`, and the literal was the bug: the gate that validates this
+ * file's output (`tests/gates/player-art-contract.test.ts`) reads `balance.map.playerSpriteW/H` and
+ * names its expected files from them, while the tool producing those files did not. The moment the
+ * owner ruled the player one block tall and `playerSpriteH` went 48 -> 32, the gate began asking for
+ * `player-front-32x32.png` and this file could not emit one at any size. A validator and the thing it
+ * validates must read the same source or the disagreement is invisible until the constant moves.
+ */
+const W = balanceJson.map.playerSpriteW;
+const H = balanceJson.map.playerSpriteH;
+
+/**
+ * The height {@link deriveBack} and {@link deriveSide} were AUTHORED against, and the only height at
+ * which their geometry means anything.
+ *
+ * ⛔ NOT A DEFAULT AND NOT A TARGET — a precondition. Both functions place features by explicit row
+ * index: the cap band at rows 12-15, `HAIR_TOP = 16`, `HAIR_BOTTOM = 20`, `NECK_BOTTOM = 23`, the ears
+ * at 16-17, the belt pass at `for (let y = 30; y <= 37; ...)`, and on the side the head clear at rows
+ * 0-23 and the far-arm run at 29-38. Those are proportions of a 48-row figure written as absolutes.
+ *
+ * On a 32-row raster the belt pass addresses rows 30-37 of a sprite that ends at 31 — `setPx` bounds-
+ * checks, so it would not crash; it would silently emit a sprite with the belt half missing and the
+ * neck taper landing in the torso. THAT is why the guard below throws instead of clamping: a wrong
+ * picture that renders is worse than a refusal, and this project has shipped enough of the former.
+ *
+ * Re-deriving at another height is not a rescale. It is re-authoring both view geometries by hand,
+ * and whoever does it should change these constants deliberately rather than discover the need from a
+ * mangled sprite.
+ */
+const DERIVED_VIEW_H = 48;
+
+/** Refuse a raster the derived-view geometry was not authored for. Loud, and it names the fix. */
+function assertDerivableHeight(fn: string, r: Raster): void {
+  if (r.height === DERIVED_VIEW_H) return;
+  throw new Error(
+    `${fn}: authored for a ${String(DERIVED_VIEW_H)}-row sprite, got ${String(r.height)}. ` +
+      `Its feature rows (cap 12-15, hair 16-20, neck to 23, belt 30-37) are absolute, not proportional, ` +
+      `so at this height it would emit a mangled sprite rather than fail. ` +
+      `balance.map.playerSpriteH is ${String(H)}. If the derived back/side views are wanted at that ` +
+      `height, their geometry has to be re-authored — see DERIVED_VIEW_H.`,
+  );
+}
 type Px = [number, number, number, number];
 export interface Raster { width: number; height: number; data: Uint8ClampedArray }
 
@@ -376,6 +419,7 @@ export const isStarYellow = (p: Px) => eq(p, C.star) || eq(p, C.starHi) || eq(p,
  * pixels) and four 1px ear marks. Nothing here draws a new silhouette.
  */
 export function deriveBack(front: Raster): Raster {
+  assertDerivableHeight('deriveBack', front);
   const b = mirrorH(front);
 
   // 1. the star badge is on the cap FRONT — from behind it is not visible at all.
@@ -502,6 +546,7 @@ const GLYPH: Record<string, Px | null> = {
 
 /** SIDE = global squeeze of the front's body + the authored profile head + three profile edits. */
 export function deriveSide(front: Raster): Raster {
+  assertDerivableHeight('deriveSide', front);
   const s = squeezeH(front, 21, 6);
 
   for (let y = 0; y <= 23; y++) for (let x = 0; x < W; x++) setPx(s, x, y, [0, 0, 0, 0]);
@@ -826,8 +871,12 @@ if (isEntrypoint()) {
     const back = deriveBack(front);
     const side = deriveSide(front);
     for (const [n, r] of [['front', front], ['back', back], ['side', side]] as const) {
-      await writePng(r, `${VIEWS_DIR}/derived/player-${n}-32x48.png`);
-      await upscale(`${VIEWS_DIR}/derived/player-${n}-32x48.png`, `${VIEWS_DIR}/x12/player-${n}-x12.png`);
+      // The size is READ, never spelled: `tests/gates/player-art-contract.test.ts` names the file it
+      // expects as `player-<view>-${W}x${H}.png` from balance.map, and a literal here is how the tool
+      // and its gate came to disagree about which file this command even produces.
+      const derivedPath = `${VIEWS_DIR}/derived/player-${n}-${String(W)}x${String(H)}.png`;
+      await writePng(r, derivedPath);
+      await upscale(derivedPath, `${VIEWS_DIR}/x12/player-${n}-x12.png`);
     }
 
     // Everything measured on the same footing: derived, previously rejected, and the img2img sweep.

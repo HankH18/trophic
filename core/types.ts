@@ -312,10 +312,13 @@ export interface BattlerSpec {
    * always written `OwnedCreature.xp` OUT after a fight; with no field to carry one back IN,
    * `core/battle.ts` `makeBattler` started every battler at 0 and the banked total was discarded at
    * the next fight's first frame. Measured on shipped balance, that made levelling nearly
-   * unreachable from wild fights: a level-5 creature needs `xpToNext(5)` ≈ 142.8 and one level-5
-   * Adult enemy pays `xpGain` = 32, so only a long roster in a single fight could cover it. (It was
-   * not literally impossible — at level 1 the first enemy pays 16 against a threshold of 15 — but
-   * every level above the first was.)
+   * unreachable from wild fights: a level-5 creature needed `xpToNext(5)` ≈ 142.8 and one level-5
+   * Adult enemy paid `xpGain` = 32, so only a long roster in a single fight could cover it. (It was
+   * not literally impossible — at level 1 the first enemy paid 16 against a threshold of 15 — but
+   * every level above the first was.) ⚠ THOSE FIGURES ARE THE 15 × l^1.4 CURVE, kept because they
+   * are the evidence for this field existing. The curve is now 38 × l^1.0, so the level-1 threshold
+   * is 38 rather than 15 and the first enemy no longer covers it — which makes the carry-in
+   * load-bearing at every level, including the first.
    *
    * Carried, never derived: `game/wild-battle.ts` `battlerSpecOf` copies the owned creature's field
    * verbatim, so what a battler enters a fight with is a pure function of the save and a replay
@@ -1336,6 +1339,27 @@ export interface Balance {
     battleSpritePx: number;
     /** build-doc §9.3 downscale target — "minis 32²". Square, so one number. */
     miniSpritePx: number;
+    /**
+     * build-doc §9.3's third downscale target — "other overworld chars 32²". The size the
+     * `npc-static` class is generated at, and therefore the size of the DialogueScene portrait slot:
+     * shipped NPC art lands there at scale 1 rather than letterboxed.
+     *
+     * ⚠ SPLIT OUT OF `playerSpriteW/H`, AND IT STAYS SPLIT THOUGH THE NUMBERS ARE EQUAL AGAIN —
+     * that equality is the hazard, not the reason to merge them. The portrait draws npc-static art
+     * and has never drawn the player, so one key sizing both was one key meaning two things. It
+     * broke when the owner ruled the player one block tall (`playerSpriteH` 48 → 32) while the cast
+     * was still 32×48, and the slot became a third shorter than the art it framed. The cast has
+     * since been re-fitted to 32×32 ("let's do NPCs that are squeezed"), so the two agree once more
+     * — by two decisions landing on one number, not by one key. Re-binding the portrait to
+     * `playerSpriteH` would restore the exact coupling that failed.
+     *
+     * `tools/comfy/manifest.json`'s `npc-static` target is the art lane's own; its `_targetSource`
+     * names this key and says MUST EQUAL, and `tests/unit/dialogue-scene.test.ts` §7 asserts it —
+     * so a re-cut on one side that is not mirrored on the other reds instead of shipping art that
+     * does not fit its slot.
+     */
+    npcSpriteW: number;
+    npcSpriteH: number;
     /**
      * Presentation walk pace, ms per tile. NOT a simulation number — a foray is counted in steps
      * (`encounter.stepsPerForay`), so a faster walk costs the same ticks and moves no population —

@@ -246,11 +246,21 @@ export interface DialogueStyle {
    */
   advanceArmFrames: number;
   /**
-   * The speaker portrait's slot, in virtual px. `balance.map.playerSpriteW`/`playerSpriteH` — the
-   * size the `npc-static` class is generated at, which `tools/comfy/manifest.json` states in so many
-   * words (`_targetSource`: "balance.map.playerSpriteW × balance.map.playerSpriteH"). Read from
+   * The speaker portrait's slot, in virtual px. `balance.map.npcSpriteW`/`npcSpriteH` — the size the
+   * `npc-static` class is generated at, so a shipped NPC PNG lands here at scale 1. Read from
    * balance rather than typed here for the reason `width`/`height` are: it is the same number two
    * lanes have to agree on.
+   *
+   * ⚠ IT USED TO BE `playerSpriteW`/`playerSpriteH`, AND THAT WAS ONE KEY DOING TWO JOBS. This slot
+   * draws npc-static art; it has never drawn the player. The two sizes were equal by coincidence
+   * until the owner ruled the player one block tall (`playerSpriteH` 48 → 32) while the cast was
+   * still 32×48 — at which point the portrait slot silently became a third shorter than the art it
+   * frames and every face in the game rendered ~21×32.
+   *
+   * They are equal again now (the cast was re-fitted to 32×32 under "let's do NPCs that are
+   * squeezed"), and that is exactly why this must not be quietly folded back into `playerSpriteH`:
+   * the coincidence is what hid the fault the first time. The manifest broke the same coupling on
+   * the art lane's side (`npc-static._targetSource`, which names this key); this is the game's side.
    */
   portraitW: number;
   portraitH: number;
@@ -298,8 +308,8 @@ export function defaultDialogueStyle(balance: Balance): DialogueStyle {
     charWidth: 6,
     bodyLines: 3,
     advanceArmFrames: 4,
-    portraitW: balance.map.playerSpriteW,
-    portraitH: balance.map.playerSpriteH,
+    portraitW: balance.map.npcSpriteW,
+    portraitH: balance.map.npcSpriteH,
     frameSlice: FRAME_CHROME_PX,
     // Resolved through `game/ui/Palette.ts`, never typed — see {@link DIALOGUE_SWATCH_ID}. Two
     // forms because Phaser takes `0xRRGGBB` for a fill and a CSS string for text, and a style block

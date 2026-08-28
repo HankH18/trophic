@@ -542,8 +542,11 @@ export function appendYearTurn(
  * XP CARRY-IN IS THE OTHER HALF OF THIS RECORD AND IT HAS LANDED: `core/types.ts` `BattlerSpec`
  * carries `xp`, and `core/battle.ts` `makeBattler` reads it back in as `xp: spec.xp ?? 0`. So the
  * `xp` written OUT here is the same number the next fight starts from, and levelling no longer needs
- * ONE fight to cover a whole `xpToNext(level)` — which it could not, on shipped balance: `xpGain`
- * against a level-5 enemy is 32 against an `xpToNext(5)` of ~143. Nothing in this module moved for
+ * ONE fight to cover a whole `xpToNext(level)` — which it could not, on the balance shipped AT THE TIME:
+ * `xpGain` against a level-5 enemy was 32 against an `xpToNext(5)` of ~143. (Those two figures are
+ * kept as the record of why the carry-in was needed; the curve has since moved to 38 × l^1.0 under
+ * the owner's difficulty rulings, so `xpToNext(5)` is now 190 and the argument holds more strongly,
+ * not less.) Nothing in this module moved for
  * it, which is what the record being ABSOLUTE bought.
  */
 export type { BattleAftermath, BattleAftermathMember } from "./types";

@@ -79,8 +79,23 @@ const SPEC_PINS: readonly Pin[] = [
   { path: "map.collisionCellPx", expected: 16, cite: "§7.6 'sampled on a 16px grid (64×64 cells)'" },
   { path: "map.collisionCols", expected: 64, cite: "§7.6 'sampled on a 16px grid (64×64 cells)'" },
   { path: "map.collisionRows", expected: 64, cite: "§7.6 'sampled on a 16px grid (64×64 cells)'" },
-  { path: "map.playerSpriteW", expected: 32, cite: "§7.6 'Player logical sprite 32×48'" },
-  { path: "map.playerSpriteH", expected: 48, cite: "§7.6 'Player logical sprite 32×48'" },
+  { path: "map.playerSpriteW", expected: 32, cite: "§7.6 'Player logical sprite 32×32'" },
+  /*
+   * 48 -> 32 UNDER THE OWNER'S RULING, and build-doc §7.6 moved with it in the same commit.
+   *
+   * REVERT CHECK: this would still be wrong with every code change reverted — the pinned figure
+   * disagrees with a decision the owner made, not with anything a lane did. That is what makes it a
+   * legitimate edit rather than a test bent to fit new behaviour.
+   *
+   * ORIGIN: §7.6 "Player logical sprite 32×48", which this row exists to hold `data/balance.json` to.
+   * The contract is unchanged and is still the point of the row: the doc and the data must agree.
+   * What moved is the figure BOTH now state, because he asked for a one-block-tall character and one
+   * block is `tileStepPx` = 32. The art lane cut the sprite; this is the constant catching up.
+   *
+   * NOT WEAKENED: still an exact `toBe` against a cited sentence. A range here would have made the
+   * next drift invisible, which is the failure this whole table exists to prevent.
+   */
+  { path: "map.playerSpriteH", expected: 32, cite: "§7.6 'Player logical sprite 32×32'" },
   { path: "map.tileStepPx", expected: 32, cite: "§7.6 'tile step 32px, grid movement Gold-style.'" },
   {
     path: "map.propInteractionRadiusDefault",
