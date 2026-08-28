@@ -634,6 +634,17 @@ const zBalanceShape = {
       miniSpritePx: zInt.min(1),
       // Presentation pace (game/movement.ts). A step that takes zero ms is not a step, so min 1.
       walkMsPerTile: zInt.min(1),
+      /*
+       * The skip — build-doc §9.6 step 4's bob, all three of its terms (game/movement.ts
+       * `skipOffsetPx` / `skipSwayOffsetPx` / `skipFlipped`). Every floor is min 1 and every floor
+       * is deliberate: a hop of zero pixels, a sway of zero, or zero hops per tile is not a retune
+       * of the "always forward-facing, always skipping" ruling — it is a silent reversal of it, and
+       * data must not be able to cancel a decision the code was written to carry out. Integers,
+       * because the bob is drawn in whole world pixels and its phase divides the step exactly.
+       */
+      skipHopPx: zInt.min(1),
+      skipSwayPx: zInt.min(1),
+      skipHopsPerTile: zInt.min(1),
     })
     .superRefine((m, ctx) => {
       // "at map native res, sampled on a 16px grid (64×64 cells)" — the cell count IS the division.

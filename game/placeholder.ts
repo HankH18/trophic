@@ -44,7 +44,10 @@
  * and `textureFor()` returns the real texture the moment the loader has it.
  *
  * NEVER fake art by stretching an unrelated image. `textureFor()` returns the real texture at its
- * natural size and only the PLACEHOLDER is drawn to a requested size.
+ * natural size, and `placeholderImage()` then scales it DOWN — one factor on both axes, never up —
+ * until it sits inside the slot the caller asked for. Fitting is not stretching, and the distinction
+ * had teeth: while this file refused to size real art at all, a 1024² `dex-painted` plate drew seven
+ * canvas widths across the dex, the team card and the retirement well. See `fitWithin` at the bottom.
  */
 
 import type Phaser from "phaser";
@@ -123,20 +126,84 @@ const GLOBBED_FINAL = import.meta.glob("../assets/final/**/*.png", {
   import: "default",
 }) as Record<string, string>;
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * Files under assets/final/ that are NOT art
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  A FILE EXISTING AND A FILE BEING ART ARE TWO DIFFERENT QUESTIONS
+ * ─────────────────────────────────────────────────────────────────────────────
+ * `tools/postprocess/run.ts placeholders` writes a generated block — flat colour, a border, the
+ * asset id in a 3×5 bitmap font, and at map-native size a strip of the whole frozen palette — to
+ * every manifest row's `finalFile` that has no raw art yet, so Lane C has a file at every path the
+ * data references. Those files are real PNGs at real paths, and the glob above cannot tell them
+ * apart from a painted plate.
+ *
+ * Letting them through would make the game LESS honest, not more, and this is measured rather than
+ * argued: the offline placeholder is written at the class's own target size, so a `dex-painted`
+ * stand-in is 1024². Fitted into the 128² dex slot its label is a two-pixel smear — an unreadable
+ * dark square with a colour strip — while the stand-in THIS file draws is generated at 128² with a
+ * label `wrapLabel` has already fitted, and says which asset is missing. Registering the offline
+ * file would replace the legible answer with the illegible one, silence `standInCensus()` (the
+ * loader would have a texture, so `textureFor` would return early), and stop the "drawing a
+ * stand-in" warning — all while a readout that counts files on disk started reporting the class
+ * as built.
+ *
+ * So a directory of placeholders declares itself, in a `stand-ins.json` beside them, and nothing
+ * declared there is ever registered as real art. `tests/gates/stand-in-declaration.test.ts` derives
+ * the true set back out of the PIXELS — a file is a stand-in exactly when it is byte-for-byte what
+ * `tools/postprocess/placeholder.ts::makePlaceholder` produces for its path — and fails if a
+ * declaration disagrees, in either direction. That is what stops this list being a place to hide a
+ * missing asset, or a place to forget one once the real plate lands.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const GLOBBED_STAND_INS = import.meta.glob("../assets/final/**/stand-ins.json", {
+  eager: true,
+  import: "default",
+}) as Record<string, unknown>;
+
+const declaredStandIns = new Set<string>();
+for (const declaration of Object.values(GLOBBED_STAND_INS)) {
+  const listed = (declaration as { standIns?: unknown } | null)?.standIns;
+  if (!Array.isArray(listed)) continue;
+  for (const entry of listed) if (typeof entry === "string") declaredStandIns.add(assetId(entry));
+}
+
+/** Is the file at this path a generated stand-in rather than finished art? */
+export function isDeclaredStandIn(idOrPath: string): boolean {
+  return declaredStandIns.has(assetId(idOrPath));
+}
+
+/** Every asset id declared a generated stand-in, sorted. */
+export function declaredStandInIds(): string[] {
+  return [...declaredStandIns].sort();
+}
+
 const realAssets = new Map<string, string>();
 
 /**
  * Register an asset that exists but is not a PNG under `assets/final/` — an audio pack file, an
  * atlas produced at build time, anything a later lane loads by URL. Keeps one answer to "is this
  * real" instead of a second private list.
+ *
+ * A declared stand-in is REFUSED, and refused here rather than at each call site, so no route into
+ * this module can register one: the glob below, a lane calling this directly, a future loader. It
+ * returns whether the id was taken so a caller that cares can say so.
  */
-export function registerRealAsset(idOrPath: string, url: string): void {
-  realAssets.set(assetId(idOrPath), url);
+export function registerRealAsset(idOrPath: string, url: string): boolean {
+  const id = assetId(idOrPath);
+  if (declaredStandIns.has(id)) return false;
+  realAssets.set(id, url);
+  return true;
 }
 
 for (const [path, url] of Object.entries(GLOBBED_FINAL)) registerRealAsset(path, url);
 
-/** Does finished art exist for this asset id (or `assets/final/...` path)? */
+/**
+ * Does FINISHED ART exist for this asset id (or `assets/final/...` path)?
+ *
+ * Not "is there a file there" — a declared stand-in is a file there and is not art. See the block
+ * above for why the two questions had to be separated.
+ */
 export function hasRealAsset(idOrPath: string): boolean {
   return realAssets.has(assetId(idOrPath));
 }
@@ -718,15 +785,96 @@ export function textureFor(
   if (!standInKeys.has(id)) {
     standInKeys.add(id);
     // Once per KEY, never once per call: a scene redrawing every frame must not flood the console.
-    if (warnOnStandIn) console.warn(`[assets] no texture "${id}" — drawing a stand-in`);
+    // The two reasons are worth telling apart: "nothing at that path" is a missing or misspelled
+    // asset, while "a generated placeholder is at that path" is a row the art lane has not run yet
+    // and is the state a reviewer must not read as built.
+    if (warnOnStandIn) {
+      console.warn(
+        declaredStandIns.has(id)
+          ? `[assets] "${id}" is a generated placeholder, not art — drawing a stand-in`
+          : `[assets] no texture "${id}" — drawing a stand-in`,
+      );
+    }
   }
   return placeholderTexture(scene, id, width, height, opts);
 }
 
 /**
- * Add an image for an asset. Real art is drawn at its NATURAL size — never scaled to fit a slot,
- * because a stretched image is the one failure mode that reads as finished-but-wrong. Only the
- * placeholder is generated at the requested size.
+ * Scale an image DOWN, aspect preserved, until it sits inside `width` × `height`.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  THE DEFECT THIS EXISTS TO PREVENT — the one that shipped fully green
+ * ─────────────────────────────────────────────────────────────────────────────
+ * `placeholderImage` used to be `scene.add.image(x, y, key)` and nothing else, under a header
+ * saying real art "is drawn at its NATURAL size — never scaled to fit a slot, because a stretched
+ * image is the one failure mode that reads as finished-but-wrong". That sentence is right about
+ * STRETCHING and wrong about FITTING, and it cost the three creature screens:
+ *
+ *   · `tools/comfy/manifest.json`'s `dex-painted` class generates at 1024², `fit:false`,
+ *     `quantize:false` — "retained at native size".
+ *   · The slots asking for it are `DEX_ART_BOX` 128², `SUMMARY_ART_BOX` 96² and
+ *     `RetirementSceneStyle.portrait` 48², on a 480×320 virtual canvas.
+ *
+ * So the day the plates land, each one draws about seven canvas widths across — 21× oversize in the
+ * retirement well, which is the never-cut Legacy beat — covering the dex, the team card and the
+ * Legacy card entirely. Nothing in the suite was red, because nothing in the suite had ever asked an
+ * art slot what size the thing in it was drawn at. `tests/unit/art-slot-fit.test.ts` now does, on
+ * all three real scenes.
+ *
+ * TWO PROPERTIES, both deliberate, neither negotiable:
+ *
+ *   1. **Aspect is preserved.** One scale on both axes, so this can never become the squash the
+ *      header is right to forbid. Fitting is not stretching: a plate drawn at 128×128 out of 1024²
+ *      is the same picture, and a plate drawn at 480×320 out of 1024² would not be.
+ *   2. **It only ever shrinks.** `Math.min(1, …)` — art SMALLER than its slot keeps its natural
+ *      size rather than being blown up, because upscaling pixel art to fill a box is the other half
+ *      of the failure the header names. This is also what leaves the STAND-IN PATH untouched:
+ *      `placeholderTexture` builds the stand-in at exactly the requested size, so its scale is
+ *      1 and nothing here fires. Not a special case for placeholders — a consequence of the rule.
+ *
+ * The box comes from the CALLER, which is the only place that knows it (G11: nothing here is a
+ * dimension written down in code). `1` is a unit scale, not a tunable.
+ *
+ * Defensive about the numbers on purpose. Several stub scenes in the suite hand back an `add.image`
+ * that answers every property with a function, and a fit computed from `NaN` would silently set a
+ * display size of `NaN` — an invisible image, which is worse than an oversize one. When the natural
+ * size is not two positive finite numbers there is nothing to fit against, so the image is returned
+ * exactly as Phaser made it.
+ */
+function fitWithin<T extends { width: number; height: number }>(
+  image: T,
+  width: number,
+  height: number,
+): T {
+  const naturalW = image.width;
+  const naturalH = image.height;
+  if (!Number.isFinite(naturalW) || !Number.isFinite(naturalH)) return image;
+  if (naturalW <= 0 || naturalH <= 0) return image;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return image;
+
+  const scale = Math.min(1, width / naturalW, height / naturalH);
+  if (scale >= 1) return image;
+
+  const sized = image as T & { setDisplaySize?: (w: number, h: number) => unknown };
+  if (typeof sized.setDisplaySize !== "function") return image;
+  sized.setDisplaySize(naturalW * scale, naturalH * scale);
+  return image;
+}
+
+/**
+ * Add an image for an asset, drawn INSIDE the `width` × `height` slot the caller asked for.
+ *
+ * Real art keeps its aspect ratio and is never enlarged — see {@link fitWithin} for the defect that
+ * rule replaces and for why the stand-in path is unaffected by it (the stand-in is generated at the
+ * slot size, so it is already a 1:1 fit).
+ *
+ * THE FIX LIVES HERE RATHER THAN IN THE SCENES because this is the single call every art slot in the
+ * game already goes through, and every one of them already passes its box: the dex, the team card,
+ * the retirement portrait (via `DexScene.drawArtSlot` and `RetirementScene`'s `defaultPlaceholder`),
+ * the battle combatant sprites (`game/ui/BattleHud.ts`) and the title banner. Putting it in the
+ * three screens the defect was found on would have been three copies of the same arithmetic and
+ * would have left the other two callers oversize for exactly the same reason. `game/mapview.ts` is
+ * the one art path that does NOT come through here, and it sizes its image itself.
  */
 export function placeholderImage(
   scene: Phaser.Scene,
@@ -738,5 +886,5 @@ export function placeholderImage(
   opts: PlaceholderOpts = {},
 ): Phaser.GameObjects.Image {
   const key = textureFor(scene, idOrPath, width, height, opts);
-  return scene.add.image(x, y, key);
+  return fitWithin(scene.add.image(x, y, key), width, height);
 }

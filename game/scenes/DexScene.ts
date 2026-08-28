@@ -142,9 +142,15 @@ export interface ArtBox {
 
 /**
  * Draw one art slot through the shared helper: the real texture when it has loaded, a labelled
- * stand-in of exactly this size when it has not. Real art is never scaled to fit — `placeholder.ts`
- * draws it at its natural size, because a stretched image is the failure that reads as
- * finished-but-wrong.
+ * stand-in of exactly this size when it has not.
+ *
+ * This comment used to say "real art is never scaled to fit — `placeholder.ts` draws it at its
+ * natural size", and that was the bug, not the contract. The `dex-painted` class is generated at
+ * 1024² (manifest, `fit:false`), `box` here is 128², and unscaled meant every plate would have
+ * covered the whole 480×320 screen the day the art landed. `placeholderImage` now scales real art
+ * DOWN into the box with one factor on both axes — a fit, never a stretch — and the stand-in, being
+ * generated at the box size already, is untouched. See `fitWithin` in `game/placeholder.ts`;
+ * `tests/unit/art-slot-fit.test.ts` holds it.
  *
  * Top-left anchored, so a caller thinks in boxes rather than in centres.
  */

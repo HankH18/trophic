@@ -145,6 +145,7 @@ import {
 } from "../../core/recovery";
 import {
   MapView,
+  PLAYER_FORWARD_VIEW,
   drawCollisionOverlay,
   drawInteriorFootprint,
   ensureNodeArt,
@@ -152,8 +153,10 @@ import {
   nodeArtKeys,
   paintedInteriorKey,
   playerPlaceholderKey,
+  playerSkipStep,
   queueNodeArt,
   readMaskPixels,
+  type PlayerStep,
 } from "../mapview";
 import { seasonTintLabel } from "../season-tint";
 import { SCENE_KEYS, sceneRegistered } from "../scene-keys";
@@ -251,11 +254,15 @@ import {
   newlyPressed,
   placeAt,
   queueInput,
+  skipConfig,
+  skipHopIndex,
+  skipOffsetPx,
   spriteWorldPosition,
   update as updateMovement,
   type Direction,
   type MovementConfig,
   type MovementState,
+  type SkipConfig,
   type TilePosition,
 } from "../movement";
 // TYPE ONLY. `game/scenes/BattleScene.ts` value-imports Phaser, and so does this file — but the
@@ -462,6 +469,15 @@ export class OverworldScene extends Phaser.Scene {
   mapView!: MapView;
   movement!: MovementState;
   movementCfg!: MovementConfig;
+  /**
+   * The skip's amplitude and cadence (`balance.map.skipHopPx` / `skipHopsPerTile`).
+   *
+   * PRESENTATION ONLY, and separate from {@link movementCfg} on purpose: nothing in this scene
+   * outside {@link syncPlayerSprite} may read it. The moment a rule consults it, the hop stops being
+   * a picture and starts being a gameplay effect — see {@link propUnderPlayer}, which asks
+   * `spriteWorldPosition` (never the hopped position) which prop the player is standing at.
+   */
+  skipCfg!: SkipConfig;
 
   /**
    * The building the player is standing inside, or null outdoors.
@@ -531,6 +547,17 @@ export class OverworldScene extends Phaser.Scene {
   private simContext!: SimContext;
 
   private player!: Phaser.GameObjects.Image;
+  /**
+   * The skip frame the player sprite is currently showing, so {@link syncPlayerSprite} resolves a
+   * texture key only when the frame actually changes rather than sixty times a second.
+   *
+   * ⚠ RE-SEEDED IN `create()`, and that is not tidiness. This is an INSTANCE FIELD and the image is
+   * a DISPLAY-LIST object: a restart tears the image down and rebuilds it while every field here
+   * survives — the same asymmetry that left `overlayVisible` and its Graphics disagreeing (see the
+   * comment on the overlay in `create`). A stale phase here would match the fresh image's frame by
+   * luck and skip the first `setTexture` after a restart.
+   */
+  private playerStep: PlayerStep | null = null;
   private overlay!: Phaser.GameObjects.Graphics;
   private overlayVisible = false;
   private hud!: Phaser.GameObjects.Text;
@@ -701,6 +728,11 @@ export class OverworldScene extends Phaser.Scene {
     // and lands the player on the room's arrival cell when it is not.
     this.adoptInterior(this.save.interiorId ?? null);
     this.movementCfg = movementConfig(this.balance, this.msPerTile);
+    // The skip is read from balance.json here for the same reason the movement config is, and it is
+    // deliberately NOT overridable by `OverworldSceneData`: `msPerTile` has an override because the
+    // tests need to make one frame one whole step, and the hop is a pure function of PROGRESS, so it
+    // needs no equivalent — it is already whatever the pace makes it.
+    this.skipCfg = skipConfig(this.balance);
     /*
      * THE FORAY ODOMETER IS THE SAVE'S, and it is read back here.
      *
@@ -751,8 +783,19 @@ export class OverworldScene extends Phaser.Scene {
   create(): void {
     this.buildNodeView();
 
+    /*
+     * THE PLAYER FACES THE VIEWER, ALWAYS. Hank's ruling: *"we're switching to the player character
+     * always being facing forward and doing the skipping movement as it moves around."* The view is
+     * `PLAYER_FORWARD_VIEW` here and in {@link syncPlayerSprite}, and it is the only view either
+     * one names — there is no direction-to-view table in this file to fall out of date.
+     *
+     * Built on whatever frame the player is standing on — the resting one, because `buildNodeView`
+     * has just run and `placeAt` drops any step in flight. `playerStep` is re-seeded to match rather
+     * than assumed: the field survives a restart and this object does not.
+     */
+    this.playerStep = this.skipStepNow();
     this.player = this.add
-      .image(0, 0, playerPlaceholderKey(this, this.balance))
+      .image(0, 0, playerPlaceholderKey(this, this.balance, PLAYER_FORWARD_VIEW, this.playerStep))
       .setDisplaySize(this.balance.map.playerSpriteW, this.balance.map.playerSpriteH)
       .setDepth(20);
 
@@ -1569,9 +1612,49 @@ export class OverworldScene extends Phaser.Scene {
     return tileWalkable(this.activeGrid(), tile.col, tile.row, this.balance);
   }
 
+  /** The skip frame the player is on right now — the resting one while standing still. */
+  private skipStepNow(): PlayerStep {
+    return playerSkipStep(skipHopIndex(this.movement, this.skipCfg));
+  }
+
+  /**
+   * Put the player sprite where the picture says, on the frame the skip says.
+   *
+   * ═════════════════════════════════════════════════════════════════════════════════════════════
+   * THE PLAYER FACES THE VIEWER AND SKIPS. Hank's ruling: *"we're switching to the player character
+   * always being facing forward and doing the skipping movement as it moves around."*
+   * ═════════════════════════════════════════════════════════════════════════════════════════════
+   *
+   * TWO THINGS THIS METHOD IS THE ONLY PLACE FOR, and both are the whole of the change:
+   *
+   *   1. **The view is `PLAYER_FORWARD_VIEW` and nothing else.** `this.movement.facing` is a live,
+   *      correct movement fact — Gold's bump sets it, an interior arrival reads it — and it reaches
+   *      no texture. There is no direction-to-view table anywhere in this file, so reinstating a
+   *      directional sprite is an edit here rather than a value that drifts.
+   *
+   *   2. **The hop is added to the DRAW POSITION and to nothing else.** `spriteWorldPosition` is
+   *      left exactly as it is, deliberately: it is not only where the sprite goes, it is also the
+   *      point {@link propUnderPlayer} measures a prop's interaction radius from, and
+   *      `game/collision.ts` `chooseSpawnTile` asks the same function whether a spawn is clear.
+   *      Folding `skipOffsetPx` into it would make a sign talkable at the top of a bounce and not at
+   *      the bottom — a hop that changes where the player IS. Subtracting it here, at the last
+   *      moment before the pixels, cannot: the logical tile, the collision question and the prop
+   *      question never see it. `tests/unit/skip-walk.test.ts` and §18 of
+   *      `tests/unit/overworld-scene.test.ts` both assert that separation rather than trusting it.
+   *
+   * `setTexture` is called only when the frame CHANGES — at most twice a tile — because resolving
+   * the key runs `game/placeholder.ts`'s stand-in builder, and a per-frame rebuild is the one
+   * avoidable allocation on the walkability path build-doc §12 budgets 60fps for.
+   */
   private syncPlayerSprite(): void {
     const pos = spriteWorldPosition(this.movement, this.movementCfg);
-    this.player.setPosition(pos.x, pos.y);
+    // MINUS: the offset is a height above the resting position, and world y grows downward.
+    this.player.setPosition(pos.x, pos.y - skipOffsetPx(this.movement, this.skipCfg));
+
+    const step = this.skipStepNow();
+    if (step === this.playerStep) return;
+    this.playerStep = step;
+    this.player.setTexture(playerPlaceholderKey(this, this.balance, PLAYER_FORWARD_VIEW, step));
   }
 
   private toggleOverlay(): void {

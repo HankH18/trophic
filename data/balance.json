@@ -513,7 +513,14 @@
     "battleSpritePx": 96,
     "miniSpritePx": 32,
     "_walkMsPerTile": "PRESENTATION pace, not a simulation number: a foray is counted in STEPS (balance.encounter.stepsPerForay), so a faster walk costs exactly the same ticks and moves no population. It is here because it was a literal in game/movement.ts and INV-3 says a retune touches this file only. 160ms/tile is four tiles a second at the §7.6 virtual resolution.",
-    "walkMsPerTile": 160
+    "walkMsPerTile": 160,
+    "_skip": "THE PLAYER ALWAYS FACES THE VIEWER AND SKIPS (Hank's ruling: 'we're switching to the player character always being facing forward and doing the skipping movement as it moves around'). The motion is build-doc §9.6 step 4's bob, which has THREE terms and is quoted verbatim: 'y = 2px sine per tile step, 1px lateral sway, horizontal flip alternation'. The flip is the load-bearing one — a pure vertical sine on a static sprite reads as a FLOAT, and mirroring on alternate hops is what makes the eye read a change of weight instead. All of it is PRESENTATION ONLY: game/movement.ts's skipOffsetPx / skipSwayOffsetPx / skipFlipped are read by OverworldScene.syncPlayerSprite and by nothing else, so retuning any of them cannot move the player one pixel as far as collision, the logical tile or propUnderPlayer are concerned. Retune here and nowhere else (INV-3).",
+    "_skipHopPx": "Peak height of one hop above the resting draw position. §9.6 step 4 says '2px' and this is that number, in WORLD pixels — RECONCILED, because the two are the same here and the arithmetic is worth writing down: mapRenderScale 2× is a property of the painted MAP (1024² native shown at 2048²) and NOT of characters. The player is authored at playerSpriteW×playerSpriteH (32×48, build-doc §9.3 'overworld chars 32×48', manifest classes.player.targetW/H) and drawn at exactly that size by OverworldScene's setDisplaySize, so one sprite pixel is one world pixel is one screen pixel at the §7.6 virtual resolution. 2 sprite px is therefore 2 world px, not 4. The schema floor is 1 because a hop of zero is a reversal of the ruling, not a retune.",
+    "skipHopPx": 2,
+    "_skipSwayPx": "§9.6 step 4's '1px lateral sway' — the screen-x half of the bob, at its widest, in the same world pixels as skipHopPx. It leans the way the sprite is mirrored, so the sway and the flip are one gesture rather than two; on the same sine envelope as the hop, so it starts and ends the tile step at zero and consecutive steps chain instead of snapping.",
+    "skipSwayPx": 1,
+    "_skipHopsPerTile": "How many hops one tile step is spent on, and therefore how often the sprite mirrors. §9.6 says 'per tile step', i.e. 1: at walkMsPerTile 160 that is 6.25 hops a second, which reads as a skip; 2 would be 12.5 and reads as a vibration. Also the divisor of the arc's phase, so a whole number is the only value that lands the sprite back on the ground exactly at the tile boundary.",
+    "skipHopsPerTile": 1
   },
   "party": {
     "_source": "build-doc §3 L12 / §7.8 — versioned JSON in localStorage, 3 slots.",

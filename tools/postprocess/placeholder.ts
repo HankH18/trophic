@@ -46,6 +46,9 @@ import type { Raster } from './raster.ts';
 import { blankRaster, idx } from './raster.ts';
 import { hashSeed } from '../../core/rng.ts';
 import type { PaletteRgb } from './palette.ts';
+// G11 — the one number this file needs from outside is read, never written down. Same import form
+// as `tools/ui-frames/frames.ts`, which reads the virtual screen from the same file.
+import balanceJson from '../../data/balance.json' with { type: 'json' };
 
 const FINAL_DIR = 'assets/final/';
 const ASSET_EXT = /\.(png|jpe?g|webp|gif|json|mp3|ogg|wav)$/i;
@@ -106,6 +109,58 @@ export interface PlaceholderOptions {
   label?: string;
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * The palette strip — how a native-size placeholder passes the SHIPPED gate honestly
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Map-native size, from `data/balance.json` (build-doc §7.6). NOT a copy of it: G11, and
+ * `tests/gates/asset-palette-contract.test.ts` reads `balance.map.mapNativePx` for the very same
+ * threshold, so the two sides move together or not at all.
+ */
+const NATIVE_PX = (balanceJson as { map: { mapNativePx: number } }).map.mapNativePx;
+
+/**
+ * The strip's height, as a divisor of the block's. Small on purpose: it has to be unmistakably an
+ * instrument reading and never enough area to read as composition.
+ */
+const SWATCH_BAND_DIVISOR = 16;
+
+/**
+ * How tall the palette strip is for a block of this size — zero when there is to be no strip.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  WHY A NATIVE-SIZE PLACEHOLDER SPENDS COLOUR AND A SPRITE-SIZE ONE DOES NOT
+ * ─────────────────────────────────────────────────────────────────────────────
+ * `tests/gates/asset-palette-contract.test.ts` covers every PNG the repo ships out of
+ * `assets/final/`, and it applies a distinct-opaque-colour FLOOR to each one — a low one at any
+ * size (two: an all-black 1024² is what the art session has measured coming back from the cloud),
+ * and a much stronger one at or above `balance.map.mapNativePx`, where "fewer than eight colours"
+ * means the generator returned something that is not a picture.
+ *
+ * A flat block plus its ink is exactly two colours. That is right for a 96² battle frame and it is
+ * BELOW the native floor — so the 35 `dex-painted` placeholders, which the manifest generates at
+ * 1024² ("retained at native size"), would have arrived as 35 red assertions in a shipped gate.
+ *
+ * The two dishonest ways out are both refused: weakening the floor or exempting placeholders would
+ * throw away the check that catches an all-black return, and writing the placeholders at 128²
+ * instead would hide the one property that matters about them — that a `dex-painted` file is 1024²,
+ * which is what makes an unfitted slot draw seven canvas widths across.
+ *
+ * So the placeholder SPENDS the colour, and spends it in the one arrangement that could never be
+ * mistaken for a picture: the whole frozen palette, laid out as hard-edged equal bars along the
+ * foot of the block, under a rule. That is a swatch card. It satisfies the floor by being MORE
+ * obviously an instrument, not less — and the count is not tuned to the gate's number, because the
+ * strip spends `palette.length` colours, which is every colour there is.
+ */
+export function swatchBandHeight(width: number, height: number, paletteSize: number): number {
+  if (width < NATIVE_PX || height < NATIVE_PX) return 0;
+  if (paletteSize < 2) return 0;
+  const band = Math.floor(height / SWATCH_BAND_DIVISOR);
+  // A strip has to leave the border and the label somewhere to live; below that, no strip.
+  return band >= 1 && band < height - 2 ? band : 0;
+}
+
 function put(r: Raster, x: number, y: number, c: PaletteRgb): void {
   if (x < 0 || y < 0 || x >= r.width || y >= r.height) return;
   const i = idx(r, x, y);
@@ -159,6 +214,25 @@ export function makePlaceholder(id: string, width: number, height: number, opts:
   const ink = lum(fill) > 127 ? sorted[0]! : sorted[sorted.length - 1]!;
 
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) put(r, x, y, fill);
+
+  /*
+   * The palette strip, at native size only — see {@link swatchBandHeight} for why it is here and
+   * why the alternatives were refused. Equal hard-edged bars, the WHOLE palette, rotated to start
+   * at the block's own hashed colour so the strip is still a fingerprint of the id rather than a
+   * fixture every placeholder shares. A 1px rule separates it from the block above.
+   */
+  const bandH = swatchBandHeight(width, height, palette.length);
+  if (bandH > 0) {
+    const bandTop = height - bandH;
+    for (let i = 0; i < palette.length; i++) {
+      const swatch = palette[(pick + i) % palette.length]!;
+      const x0 = Math.floor((i * width) / palette.length);
+      const x1 = Math.floor(((i + 1) * width) / palette.length);
+      for (let y = bandTop; y < height; y++) for (let x = x0; x < x1; x++) put(r, x, y, swatch);
+    }
+    for (let x = 0; x < width; x++) put(r, x, bandTop - 1, ink);
+  }
+
   for (let x = 0; x < width; x++) {
     put(r, x, 0, ink);
     put(r, x, height - 1, ink);
@@ -168,13 +242,16 @@ export function makePlaceholder(id: string, width: number, height: number, opts:
     put(r, width - 1, y, ink);
   }
 
+  // The label owns everything the strip does not, so it is centred in what is left rather than in
+  // the whole block — otherwise the id would sit on top of its own swatch card.
+  const contentH = height - (bandH > 0 ? bandH + 1 : 0);
   const label = (opts.label ?? id).toUpperCase();
-  const scale = fontScale(label, width, height);
+  const scale = fontScale(label, width, contentH);
   const lines = wrapLabel(label, width, scale);
   const lineH = (GLYPH_H + GLYPH_GAP) * scale;
-  const maxLines = Math.max(1, Math.floor((height - 2) / lineH));
+  const maxLines = Math.max(1, Math.floor((contentH - 2) / lineH));
   const shown = lines.slice(0, maxLines);
-  const top = Math.max(1, Math.floor((height - shown.length * lineH + GLYPH_GAP * scale) / 2));
+  const top = Math.max(1, Math.floor((contentH - shown.length * lineH + GLYPH_GAP * scale) / 2));
   for (const [li, line] of shown.entries()) {
     const textW = line.length * (GLYPH_W + GLYPH_GAP) * scale - GLYPH_GAP * scale;
     const left = Math.max(1, Math.floor((width - textW) / 2));
@@ -183,4 +260,49 @@ export function makePlaceholder(id: string, width: number, height: number, opts:
     }
   }
   return r;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * How a placeholder declares itself as NOT art
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Is the image at `path` a generated stand-in rather than finished art?
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  THE HONESTY COST THIS PAYS, AND WHY THE ANSWER IS IN THE PIXELS
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Writing a placeholder to a row's `finalFile` makes the file EXIST, and existence is what several
+ * readouts count. `tests/gates/asset-palette-contract.test.ts`'s coverage advisory prints
+ * `<class> N/N built` off `existsSync(row.finalFile)`, and `game/placeholder.ts`'s stand-in census
+ * stops listing a key the moment the loader has a texture for it. So landing 35 honest placeholders
+ * would silently turn "nothing painted yet" into "dex-painted 35/35 built" beside 35 rows whose
+ * status is still `pending`. A stand-in that erases the record of being a stand-in is worse than no
+ * stand-in at all.
+ *
+ * The marker is therefore the FILE'S OWN BYTES, not a flag beside them. `makePlaceholder` is a pure
+ * function of `(label, width, height, palette)`, `placeholderLabel` derives the label from the path,
+ * and the size comes from the decode — so "is this a stand-in" is answered by regenerating the
+ * placeholder that path would get and comparing. There is nothing to keep in sync, nothing to
+ * forget to update when real art lands, and no way to mark a file as art by editing an index: drop
+ * a painted plate at that path and this returns false on the next call, for free.
+ *
+ * (Ties the two halves together honestly, too — a file this says yes to is a file `makePlaceholder`
+ * would produce today, so a palette re-freeze that leaves stale placeholders on disk reads as "no
+ * longer a current stand-in" rather than passing silently.)
+ */
+export function isStandInRaster(
+  raster: Raster,
+  label: string,
+  palette: readonly PaletteRgb[],
+): boolean {
+  if (palette.length === 0) return false;
+  // Called exactly as `writePlaceholders` calls it — the label IS the id there, and a second
+  // spelling of that call here is a second thing that can drift.
+  const expected = makePlaceholder(label, raster.width, raster.height, { palette });
+  if (expected.data.length !== raster.data.length) return false;
+  for (let i = 0; i < expected.data.length; i++) {
+    if (expected.data[i] !== raster.data[i]) return false;
+  }
+  return true;
 }

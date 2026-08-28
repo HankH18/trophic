@@ -1083,14 +1083,141 @@ describe('collision-mask encoding — mask.ts is the single declaration', () => 
     expect(() => cellsToRaster(authored(), GRID, 1.5)).toThrow(/bad scale/);
   });
 
-  it('STATES THE GAP: no mask any node names exists, so the gate is unmeasured against real art', () => {
-    // Deliberately asserted rather than left in a comment: the day someone authors these, this test
-    // goes red and whoever is here has to come and re-measure the claims in diff.ts's header
-    // against a real mask instead of a luminance-derived stand-in.
-    const missing = content.nodes.filter((n) => !existsSync(resolve(REPO_ROOT, n.collisionMask)));
-    expect(
-      missing.length,
-      'a collision mask now exists — re-measure the residual limits against it and update this test',
-    ).toBe(content.nodes.length);
+  /* ══════════════════════════════════════════════════════════════════════════════════════════════
+   * THE RE-MEASUREMENT THE STATED GAP DEMANDED. It is not a constant bump; it is a finding.
+   *
+   * What stood here, verbatim:
+   *
+   *     it('STATES THE GAP: no mask any node names exists, so the gate is unmeasured against real
+   *        art', () => {
+   *       const missing = content.nodes.filter((n) => !existsSync(resolve(REPO_ROOT,
+   *                                                                       n.collisionMask)));
+   *       expect(
+   *         missing.length,
+   *         'a collision mask now exists — re-measure the residual limits against it and update
+   *          this test',
+   *       ).toBe(content.nodes.length);
+   *     });
+   *
+   * It asserted a fact about the REPOSITORY — that no mask file existed — as a tripwire, and its own
+   * message names the work it was holding: re-measure the residual limits against a real mask
+   * instead of a luminance-derived stand-in. Twelve masks now ship, each stamped from the same
+   * 64×64 layout as the painting beside it, so the tripwire has fired and this block is what it
+   * fired for. The absence assertion is replaced, not deleted: the inverse is asserted below, by
+   * name, so the scope cannot shrink silently.
+   *
+   * ⚠ AND THE RE-MEASUREMENT FOUND SOMETHING. `maskFromLuminance` — the stand-in every real-map
+   * case in this file uses — leaves 98.5%–100% of the frame walkable on eleven of the twelve
+   * composed maps (cindershelf, whose ground is dark basalt, is the outlier at 14.5%). It was
+   * therefore barely a restriction at all, and §8.2's restriction is what diff.ts's header calls
+   * "not free": "the cells the restriction throws away are the cells that carry the structure".
+   * An AUTHORED mask throws away 36%–80% of the frame instead of 0%–1.5%, and criterion (2) is
+   * measurably less sensitive through it — an 8-cell building displaced by one cell, which this
+   * file asserts is REJECTED on all five stand-in maps, is ACCEPTED on three of the twelve. That is
+   * recorded as an assertion below rather than as prose, because it is exactly the kind of number
+   * this file exists to stop anyone from remembering wrong.
+   * ══════════════════════════════════════════════════════════════════════════════════════════════ */
+  describe('THE GAP IS CLOSED — the restriction, measured against the shipped masks', () => {
+    it('every node ships the mask it declares, so nothing here runs on a stand-in by default', () => {
+      const missing = content.nodes.filter((n) => !existsSync(resolve(REPO_ROOT, n.collisionMask)));
+      expect(content.nodes.length).toBeGreaterThan(0);
+      expect(
+        missing.map((n) => n.id),
+        'a node no longer ships its collision mask — the gate falls back to `allWalkable` for it, ' +
+          'which is the whole-frame comparison §8.2 says not to make. Re-run `npx tsx tools/mapgen/land.ts`.',
+      ).toEqual([]);
+    });
+
+    it(
+      'the authored mask is a REAL restriction, and a much tighter one than the luminance stand-in',
+      async () => {
+        const rows: string[] = [];
+        for (const node of content.nodes) {
+          const map = await readRaster(resolve(REPO_ROOT, node.mapAsset));
+          const mask = await readRaster(resolve(REPO_ROOT, node.collisionMask));
+          const total = map.width * map.height;
+          const authoredWalk = walkableMaskFor(mask, GRID, map.width, map.height).reduce((n, v) => n + v, 0);
+          const standInWalk = walkableMaskFor(maskFromLuminance(map), GRID, map.width, map.height).reduce(
+            (n, v) => n + v,
+            0,
+          );
+          const authoredPct = (100 * authoredWalk) / total;
+          const standInPct = (100 * standInWalk) / total;
+          rows.push(`${node.id} authored ${authoredPct.toFixed(1)}% / stand-in ${standInPct.toFixed(1)}%`);
+          // A restriction that discards nothing is `allWalkable` wearing a mask file, and one that
+          // discards everything scores an empty union, which the gate REJECTS rather than scoring.
+          expect(authoredPct, `${node.id}: the mask restricts nothing`).toBeLessThan(100);
+          expect(authoredPct, `${node.id}: the mask leaves nowhere to measure`).toBeGreaterThan(0);
+        }
+        console.info(`  overlay-diff walkable population per node:\n    ${rows.join('\n    ')}`);
+      },
+      60_000,
+    );
+
+    it(
+      'through a real mask on real art: identical scores 1.0 and a linear tint still PASSES',
+      async () => {
+        for (const node of content.nodes) {
+          const map = await readRaster(resolve(REPO_ROOT, node.mapAsset));
+          const mask = await readRaster(resolve(REPO_ROOT, node.collisionMask));
+          const same = run(map, { ...map, data: new Uint8ClampedArray(map.data) }, mask);
+          expect(same.iou, `${node.id} identical`).toBe(1);
+          expect(same.accepted).toBe(true);
+          // Contrast invariance is the property that kept the gate from rejecting every year
+          // variant; it is asserted here through an authored mask rather than only a derived one.
+          const dimmed = blankRaster(map.width, map.height);
+          for (let i = 0; i < map.data.length; i += 4) {
+            dimmed.data[i] = Math.round(map.data[i]! * 0.94);
+            dimmed.data[i + 1] = Math.round(map.data[i + 1]! * 0.94);
+            dimmed.data[i + 2] = Math.round(map.data[i + 2]! * 0.94);
+            dimmed.data[i + 3] = 255;
+          }
+          const r = run(map, dimmed, mask);
+          expect(r.accepted, `${node.id} tint 0.94: ${r.reason}`).toBe(true);
+          expect(r.iou, `${node.id} tint 0.94`).toBeGreaterThan(0.98);
+        }
+      },
+      120_000,
+    );
+
+    it(
+      'THE FINDING: criterion (2) is weaker through an authored mask — three nodes accept a moved building',
+      async () => {
+        /*
+         * ⛔ THIS IS NOT A CONTRACT ANYONE WANTS. It is a MEASUREMENT, pinned by name so that it
+         * cannot be forgotten and cannot change in silence — the same discipline this file applies
+         * to the 32px count in `diff.ts`'s RESIDUAL section.
+         *
+         * The case is the file's own headline: a 128px (8 collision cells) block of the painting,
+         * displaced by exactly one cell, with the vacated area filled from open ground. Through the
+         * luminance stand-in it is asserted REJECTED on all five real maps above. Through the
+         * shipped authored masks it is ACCEPTED on bowerdeep, r4 and r5, because those maps'
+         * displaced structure lands mostly in cells the mask calls blocked, and the restriction
+         * discards them before the ratio is taken.
+         *
+         * If this set changes, the gate's reach changed. That may be because the composer's tiles
+         * changed (the paintings are recomposed by `tools/mapgen/land.ts`), because the layouts
+         * changed, or because `balance.overlayDiff` was retuned. In every one of those cases the
+         * right response is to re-measure and re-decide it here — NOT to widen the expectation
+         * until the observed set fits inside it. §9.5 gates no shipped variant today
+         * (`yearVariants` is empty on all twelve nodes), so nothing is being waved through; what is
+         * being recorded is the sensitivity the gate WILL have on the day one is generated.
+         */
+        const accepted: string[] = [];
+        for (const node of content.nodes) {
+          const map = await readRaster(resolve(REPO_ROOT, node.mapAsset));
+          const mask = await readRaster(resolve(REPO_ROOT, node.collisionMask));
+          const moved = run(map, moveBlock(map, 300, 300, 8 * CELL, CELL, 20, 900), mask);
+          if (moved.accepted) accepted.push(node.id);
+        }
+        expect(
+          accepted,
+          'the set of nodes on which §8.2 criterion (2) FAILS to catch a player-scale displacement ' +
+            'through the shipped collision mask has changed. Go and re-measure the residual limits ' +
+            'in tools/overlay-diff/diff.ts against the new masks before touching this line.',
+        ).toEqual(['bowerdeep', 'r4', 'r5']);
+      },
+      120_000,
+    );
   });
 });

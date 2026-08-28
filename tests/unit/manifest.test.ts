@@ -1413,23 +1413,38 @@ describe('the §8.2 layout gate runs on the live path (G4)', () => {
   });
 
   it('THE REAL GATE refuses a variant when the node has no collision mask on disk — "no mask" is not a pass', async () => {
-    // The repo's true state today: TEN of the twelve base maps are on disk and NOT ONE of the twelve
-    // collision masks is, so the honest verdict for every year variant is still REFUSE. Falling back
-    // to "every pixel is walkable" would compare the whole frame and quietly turn a gate into
-    // decoration.
+    // The claim this test owns is about a ROOT, not about the repo: given a root where the base map
+    // is present and the collision mask is not, the honest verdict for every year variant is REFUSE.
+    // Falling back to "every pixel is walkable" would compare the whole frame and quietly turn a
+    // gate into decoration. Everything below runs against the scratch `maskless` root, so the
+    // subject is unchanged by anything in `assets/`.
     //
-    // This precondition used to assert the BASE MAP was absent too. That claim expired the day the
-    // map lane committed ten paintings (af82c46) and the setup went red for a reason that has nothing
-    // to do with masks — T-46. The map half is gone; the MASK half is the claim this test owns, and it
-    // is now made over ALL TWELVE nodes instead of r1 alone, so promoting a mask for ANY node reds
-    // this line rather than only a mask for r1. That is deliberate, and it is T-56: landing a mask is
-    // a gate RECALIBRATION, not an art approval — the overlay-diff IoU is restricted to the mask's
-    // walkable cells, and its residual limits were calibrated against a luminance-derived stand-in
-    // that a real mask replaces. The day a mask ships, this line must stop and be re-decided with the
-    // rest of that recalibration; it must not quietly keep passing.
+    // ⚠ THIS PRECONDITION HAS NOW EXPIRED TWICE, AND BOTH EXPIRIES ARE KEPT SO THE PATTERN IS
+    // VISIBLE. It first asserted the BASE MAP was absent too; that died the day the map lane
+    // committed ten paintings (af82c46) — T-46. The MASK half, which replaced it, read:
+    //
+    //     const masked = content.nodes.filter((n) => existsSync(resolve(REPO_ROOT, n.collisionMask)));
+    //     expect(masked.map((n) => n.id),
+    //            'a collision mask shipped — see T-56 before touching this').toEqual([]);
+    //
+    // …made over ALL TWELVE nodes so that promoting a mask for ANY of them would red it. It has now
+    // done exactly its job: twelve masks shipped, each stamped from the same 64×64 layout as the
+    // painting beside it, landed together by `tools/mapgen/land.ts`. T-56's recalibration is what
+    // that line was holding open, and it has been carried out — the residual limits were re-measured
+    // against the real masks in `tests/unit/overlay-diff.test.ts`'s
+    // "THE GAP IS CLOSED" block, which records the finding that criterion (2) is measurably less
+    // sensitive through an authored mask than through the luminance stand-in.
+    //
+    // The line is REPLACED, not dropped: the inverse is asserted by name below, so if a node ever
+    // stops shipping its mask the fallback it would silently return to is named here rather than
+    // discovered in a year-variant run.
     const node = content.nodes.find((n) => n.id === 'r1')!;
-    const masked = content.nodes.filter((n) => existsSync(resolve(REPO_ROOT, n.collisionMask)));
-    expect(masked.map((n) => n.id), 'a collision mask shipped — see T-56 before touching this').toEqual([]);
+    const maskless12 = content.nodes.filter((n) => !existsSync(resolve(REPO_ROOT, n.collisionMask)));
+    expect(
+      maskless12.map((n) => n.id),
+      'a node stopped shipping its collision mask. `overlayDiff` falls back to `allWalkable` for it, ' +
+        'which is the whole-frame comparison §8.2 exists to avoid — re-run `npx tsx tools/mapgen/land.ts`.',
+    ).toEqual([]);
 
     const maskless = await mkdtemp(join(tmpdir(), 'trophic-nomask-'));
     try {

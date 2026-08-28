@@ -1342,6 +1342,29 @@ export interface Balance {
      * but it was a literal in `game/movement.ts` and INV-3 says a retune touches balance.json alone.
      */
     walkMsPerTile: number;
+    /**
+     * Peak height of one skip hop above the sprite's resting draw position, in world pixels —
+     * build-doc §9.6 step 4's "y = 2px sine per tile step".
+     *
+     * The player always faces the viewer and SKIPS as they move (Hank's ruling), and §9.6's bob is
+     * the motion. PRESENTATION ONLY: `game/movement.ts::skipOffsetPx` is read by
+     * `OverworldScene.syncPlayerSprite` and by nothing else — not by collision, not by the logical
+     * tile, not by `spriteWorldPosition` (which is also how `propUnderPlayer` decides which prop the
+     * player is standing at, and would therefore have made the hop a gameplay effect).
+     */
+    skipHopPx: number;
+    /**
+     * Widest lateral lean of the bob, in world pixels — §9.6 step 4's "1px lateral sway". Screen-x,
+     * signed by which way the sprite is currently mirrored, so the sway and the flip read as one
+     * gesture. Presentation only, on the same terms as {@link skipHopPx}.
+     */
+    skipSwayPx: number;
+    /**
+     * Hops per tile step — how often the sprite mirrors. §9.6 says "per tile step", so 1. A whole
+     * number, because the arc's phase is `stepProgress × this` and only an integer lands the sprite
+     * back on the ground exactly at the tile boundary.
+     */
+    skipHopsPerTile: number;
   };
   party: {
     maxPartySize: number;

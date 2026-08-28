@@ -14,6 +14,9 @@
  *     step lands, so holding a key walks continuously and a turn at a corner never drops a frame.
  *   • Pressing into a wall TURNS you and does not move you (the Gold "bump"). That is a real
  *     mechanic, not a failure: it is how you face a sign or a prop to interact with it.
+ *   • `facing` IS NOT WHAT IS DRAWN. The player always faces the viewer and skips as they move —
+ *     see "The skip" at the bottom of this file for the ruling and for why the hop is deliberately
+ *     not folded into {@link spriteWorldPosition}.
  *
  * **Grid-locked in WORLD space regardless of the painted art's projection.** The maps are painted
  * three-quarter overhead (build-doc §9.2), which is a look, not a coordinate system. This module
@@ -385,11 +388,118 @@ export function spriteWorldPosition(
   return { x: feet.x + cfg.tileStepPx / 2, y: feet.y + cfg.tileStepPx - cfg.spriteH / 2 };
 }
 
-/** 0..1 through the current step — the walk-cycle frame picker and the bob (build-doc §9.6). */
+/**
+ * 0..1 through the current step — the skip's PHASE (build-doc §9.6 step 4's bob).
+ *
+ * It used to say "the walk-cycle frame picker and the bob". There is no frame picker: §9.6's bob is
+ * procedural and the player is ONE sprite (`game/mapview.ts` {@link playerArtIds}). That sentence is
+ * corrected rather than deleted because it is what made a three-frame walk cycle look like the
+ * shipped plan to more than one reader.
+ */
 export function stepProgress(state: MovementState): number {
   const step = state.step;
   if (!step) return 0;
   return Math.min(1, step.elapsedMs / step.durationMs);
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The skip
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  THE PLAYER DOES NOT TURN. Hank's ruling, verbatim: *"we're switching to the player character
+ *  always being facing forward and doing the skipping movement as it moves around."*
+ * ─────────────────────────────────────────────────────────────────────────────
+ *
+ * So {@link MovementState.facing} survives as a MOVEMENT fact and stops being a DRAWING one. It is
+ * still what Gold's bump sets, still what {@link placeAt} carries through a door, and still what the
+ * `turned` event reports — every one of those is about where the player is pointed in the model, and
+ * `game/scenes/OverworldScene.ts` uses it to orient an interior arrival. Nothing reads it to pick a
+ * texture any more; the view is always the forward one (`game/mapview.ts` `PLAYER_FORWARD_VIEW`).
+ *
+ * WHY THE HOP LIVES HERE AND NOT IN {@link spriteWorldPosition}. Because that function is not only
+ * the draw position: `OverworldScene.propUnderPlayer()` asks it where the player is standing, and
+ * `game/collision.ts` `chooseSpawnTile` asks it whether a spawn is clear of props. A hop folded into
+ * it would move the point a prop's interaction radius is measured from — a sign you could talk to at
+ * the top of a bounce and not at the bottom. The hop is therefore a SEPARATE offset that only the
+ * scene's sprite-sync adds, and `tests/unit/skip-walk.test.ts` asserts the separation directly.
+ *
+ * PURE, and a function of movement PROGRESS rather than of any clock. `Math.random` is banned
+ * repo-wide (G11) and a wall clock would make the sprite's position depend on when the frame landed,
+ * which is the same defect wearing a different hat: replaying a seed would not replay the picture.
+ * Everything below is decided by `(stepsTaken, elapsedMs / durationMs)` and nothing else, so a
+ * frame long enough to resolve eight steps lands on exactly the offset the eight short frames would
+ * have — see {@link skipHopIndex} on why the index is counted from `stepsTaken` rather than
+ * incremented per landing.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export interface SkipConfig {
+  /** Peak hop height above the resting draw position, in world px — `balance.map.skipHopPx`. */
+  hopPx: number;
+  /** Widest lateral lean, in world px — `balance.map.skipSwayPx`. */
+  swayPx: number;
+  /** Hops per tile step — `balance.map.skipHopsPerTile`. A whole number ≥ 1. */
+  hopsPerTile: number;
+}
+
+/** The skip's three numbers, from balance.json. No literal here is a tunable (G11). */
+export function skipConfig(balance: Balance): SkipConfig {
+  return {
+    hopPx: balance.map.skipHopPx,
+    swayPx: balance.map.skipSwayPx,
+    hopsPerTile: wholeHops(balance.map.skipHopsPerTile),
+  };
+}
+
+/**
+ * At least one whole hop per tile.
+ *
+ * `core/schemas.ts` already refuses anything else at boot, so this can never fire on shipped data.
+ * It is here because these functions are called with a hand-built {@link SkipConfig} in tests and in
+ * the balance harness, and a fractional or zero divisor would silently produce a hop that never
+ * lands rather than a loud failure.
+ */
+function wholeHops(hopsPerTile: number): number {
+  const whole = Math.trunc(hopsPerTile);
+  return whole < 1 ? 1 : whole;
+}
+
+/**
+ * Which hop of the whole walk is in the air right now — a monotone counter, `-1` while standing.
+ *
+ * COUNTED, NEVER INCREMENTED. `stepsTaken × hopsPerTile + the hop within this step` is a pure
+ * function of the movement state, so the multi-step frame costs nothing: `game/movement.ts::update`
+ * can land up to `MAX_STEPS_PER_UPDATE` steps between two draws, and an index kept as a mutable
+ * counter ticked once per `stepCompleted` would have to be replayed event by event to stay in phase.
+ * This cannot fall out of phase, because there is nothing to fall out of phase WITH.
+ *
+ * Its parity is which foot leads (`game/mapview.ts` `playerSkipStep`).
+ */
+export function skipHopIndex(state: MovementState, skip: SkipConfig): number {
+  if (!state.step) return -1;
+  const hops = wholeHops(skip.hopsPerTile);
+  // `stepProgress` is clamped to 1, so the floor can reach `hops`; the last hop of the step owns it.
+  const within = Math.min(hops - 1, Math.floor(stepProgress(state) * hops));
+  return state.stepsTaken * hops + within;
+}
+
+/**
+ * How far ABOVE its resting position the sprite is drawn, in world px. Never negative.
+ *
+ * Zero while standing still and zero at every landing, which is what makes the motion a skip rather
+ * than a drift: `4p(1−p)` is the ballistic arc a thrown thing follows — 0 at both ends, `hopPx` at
+ * the top — evaluated on `p`, the fraction through the CURRENT hop. Because `hopsPerTile` is a whole
+ * number, `p` returns to 0 exactly on the tile boundary, so consecutive steps chain into one
+ * continuous skip instead of jerking at each tile.
+ *
+ * A parabola rather than a sine on purpose: a hop is a ballistic arc, and this needs no trig, so the
+ * offset is exact float arithmetic that replays bit-for-bit from the same movement state.
+ */
+export function skipOffsetPx(state: MovementState, skip: SkipConfig): number {
+  if (!state.step) return 0;
+  const hops = wholeHops(skip.hopsPerTile);
+  const t = stepProgress(state) * hops;
+  const p = t - Math.floor(t);
+  return skip.hopPx * 4 * p * (1 - p);
 }
 
 /** Teleport (a node transition): drop any step in flight and land clean on a tile. */

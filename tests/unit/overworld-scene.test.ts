@@ -158,6 +158,20 @@ vi.mock("phaser", () => {
         return o.self as FakeObj;
       },
       /*
+       * RECORDED, for `displaySize`'s reason a third time, and this one is the sharpest of the
+       * three. `add.image(x, y, key)` captures the key an object was BORN with; the key it is
+       * CURRENTLY showing is whatever the last `setTexture` said. Left to the chainable-no-op proxy,
+       * `setTexture` records nothing at all — so §21's whole claim ("the player never turns: the
+       * drawn texture is the forward-facing one whichever way they walk") would have been asserted
+       * against the constructor argument, and a directional swap reinstated in `syncPlayerSprite`
+       * would have passed it without a murmur. Verified by sabotage: with this method left to the
+       * proxy, swapping the view per `movement.facing` keeps §21 green.
+       */
+      setTexture(key: string): FakeObj {
+        o.texture = key;
+        return o.self as FakeObj;
+      },
+      /*
        * RECORDED RATHER THAN LEFT TO THE PROXY, for `displaySize`'s reason one layer up: WHERE in
        * the display list an object sits is a correctness property when the object's whole job is
        * to cover what is under it. A blackout curtain drawn below the HUD is a black screen with
@@ -463,11 +477,25 @@ import {
   type InteriorBlueprint,
 } from "@core/interiors";
 import { chooseSpawnTile, loadCollision } from "@game/collision";
-import { createMovement, movementConfig, placeAt, spriteWorldPosition } from "@game/movement";
+import {
+  DIRECTIONS,
+  createMovement,
+  delta,
+  movementConfig,
+  placeAt,
+  skipConfig,
+  skipHopIndex,
+  skipOffsetPx,
+  spriteWorldPosition,
+  type Direction,
+  type SkipConfig,
+  type TilePosition,
+} from "@game/movement";
 // §15's reach question is asked through the SAME helpers `interact()` asks it through, so the
 // fixture and the scene cannot disagree about where a player standing on a tile actually is.
 import { propAt, propLabel, propsOf, type WorldPoint } from "@game/props";
 import {
+  captureStreams,
   deserialize,
   newSave,
   openStreams,
@@ -495,8 +523,18 @@ import {
   starterLines,
   wildBattleProblem,
 } from "@game/wild-battle";
-import { interiorAssetPath, interiorTextureKey, maskTextureKey } from "@game/mapview";
-import { assetId, hasRealAsset, registerRealAsset } from "@game/placeholder";
+import {
+  PLAYER_FORWARD_VIEW,
+  PLAYER_STEPS,
+  PLAYER_VIEWS,
+  interiorAssetPath,
+  interiorTextureKey,
+  maskTextureKey,
+  playerArtId,
+  playerArtIds,
+  playerSkipStep,
+} from "@game/mapview";
+import { assetId, hasRealAsset, placeholderKey, registerRealAsset } from "@game/placeholder";
 // §17.6's curtain colour, resolved through the SAME role the scene paints it with — a hex typed
 // here would agree with itself and with nothing else after a palette re-freeze.
 import { roleColor } from "@game/ui/Palette";

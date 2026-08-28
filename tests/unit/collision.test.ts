@@ -19,7 +19,7 @@ import { validateContent } from "../../core/schemas";
 import type { Balance, CollisionGrid } from "../../core/types";
 import { createRng } from "../../core/rng";
 import { walkableCells } from "../../tools/overlay-diff/mask";
-import type { Raster } from "../../tools/postprocess/raster";
+import { readRaster, type Raster } from "../../tools/postprocess/raster";
 import {
   blockedCount,
   cellAtWorld,
@@ -107,6 +107,48 @@ function normalise(ascii: string): string {
     .map((l) => l.trim())
     .filter((l) => l.length > 0)
     .join("\n");
+}
+
+/**
+ * The collision CELLS a player standing on `tile` can walk to, 4-connected, as row-major indices.
+ *
+ * The spawn is a movement TILE and the flood is over collision CELLS, so the start is converted
+ * through world space rather than by assuming the two grids are the same shape — `worldCellPx` and
+ * `tileStepPx` are separate numbers in `balance.map` and only happen to be equal today.
+ */
+function reachableCells(
+  grid: CollisionGrid,
+  tile: { col: number; row: number },
+  bal: Balance,
+): Set<number> {
+  const stepPx = bal.map.tileStepPx;
+  const cellPx = worldCellPx(grid, bal);
+  const start = {
+    col: Math.floor((tile.col * stepPx) / cellPx),
+    row: Math.floor((tile.row * stepPx) / cellPx),
+  };
+  const seen = new Set<number>();
+  if (isBlocked(grid, start.col, start.row)) return seen;
+  seen.add(start.row * grid.cols + start.col);
+  const stack = [start];
+  while (stack.length > 0) {
+    const at = stack.pop() as { col: number; row: number };
+    for (const [dc, dr] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ] as const) {
+      const col = at.col + dc;
+      const row = at.row + dr;
+      if (!inBounds(grid, col, row) || isBlocked(grid, col, row)) continue;
+      const key = row * grid.cols + col;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      stack.push({ col, row });
+    }
+  }
+  return seen;
 }
 
 /** Executable source with comments stripped — for the structural assertions. */
@@ -467,28 +509,91 @@ describe("Hard Req 5 — ONE collision mask serves all six years", () => {
   });
 });
 
-describe("no authored mask exists yet — the stand-in says so and cannot be mistaken for one", () => {
-  it("STATES THE GAP: not one node's declared mask is on disk, so the synthesised branch IS the game", () => {
-    /*
-     * ⚠ THE BLOCK TITLE USED TO BE THE ONLY RECORD OF THIS, AND A TITLE CANNOT FAIL.
-     *
-     * Every test below hands `loadCollision` a `null` pixel buffer or an ascii grid, so all of them
-     * drive the branch they name whatever the repo actually holds — the day someone authors a mask,
-     * they would all have gone on passing while the heading claimed none existed, and nobody would
-     * have gone back to check that the real pixels decode, that `firstWalkableTile` finds a legal
-     * spawn on them, or that a player is not sealed into a corner of a real map.
-     *
-     * Asserted the way `tests/unit/overlay-diff.test.ts` asserts the same fact: when a mask lands,
-     * this goes red and whoever authored it has to come and re-measure this block against it.
-     */
-    const onDisk = content.nodes.filter((n) => existsSync(resolve(ROOT, n.collisionMask)));
+describe("the synthesised stand-in — no longer what a shipped node loads, and still unmistakable", () => {
+  /*
+   * ⚠ THE HEADING USED TO READ "no authored mask exists yet". IT WAS REWRITTEN BECAUSE THE FACT
+   * CHANGED, AND THE TEST BELOW IS THE RE-MEASUREMENT THE OLD ONE DEMANDED IN ITS OWN WORDS.
+   *
+   * What stood here, verbatim, and why it is gone:
+   *
+   *     it("STATES THE GAP: not one node's declared mask is on disk, so the synthesised branch IS
+   *        the game", () => {
+   *       const onDisk = content.nodes.filter((n) => existsSync(resolve(ROOT, n.collisionMask)));
+   *       expect(content.nodes.length, "no nodes at all — the fixture is wrong").toBeGreaterThan(0);
+   *       expect(
+   *         onDisk.map((n) => `${n.id} → ${n.collisionMask}`),
+   *         "a collision mask now EXISTS. The synthesised stand-in is no longer what the game loads
+   *          for this node: re-measure this block against the real pixels and rewrite the heading.",
+   *       ).toEqual([]);
+   *     });
+   *
+   * It asserted a fact about the REPOSITORY, not about the product: that no mask file existed. It
+   * was built as a tripwire — its own comment says the day someone authors a mask "this goes red and
+   * whoever authored it has to come and re-measure this block against it", and it names the three
+   * re-measurements: that the real pixels decode, that `firstWalkableTile` finds a legal spawn on
+   * them, and that a player is not sealed into a corner of a real map. All three are asserted below,
+   * against the shipped bytes, and the twelve-are-absent claim is replaced by its inverse asserted
+   * BY NAME so the scope cannot silently shrink.
+   *
+   * NOTHING WAS WEAKENED. Every other test in this block hands `loadCollision` a `null` buffer or an
+   * ascii grid on purpose — the synthesised branch is still reachable and still has to behave, for
+   * an interior, a test node, or a node whose mask fails to decode — so all of them stay exactly as
+   * they were. What changed is that the branch is no longer what the twelve SHIPPED nodes load, and
+   * that is now measured rather than titled.
+   *
+   * The cell-by-cell contract between each mask and its layout lives in
+   * `tests/gates/map-mask-layout-contract.test.ts`; this block owns the loader's side of it.
+   */
+  it("THE GAP IS CLOSED: every node's declared mask is on disk and loads as AUTHORED geometry", async () => {
+    const missing = content.nodes.filter((n) => !existsSync(resolve(ROOT, n.collisionMask)));
     expect(content.nodes.length, "no nodes at all — the fixture is wrong").toBeGreaterThan(0);
     expect(
-      onDisk.map((n) => `${n.id} → ${n.collisionMask}`),
-      "a collision mask now EXISTS. The synthesised stand-in is no longer what the game loads for " +
-        "this node: re-measure this block against the real pixels and rewrite the heading.",
+      missing.map((n) => `${n.id} → ${n.collisionMask}`),
+      "a node declares a collision mask that is not on disk. That node is back on the synthesised " +
+        "open rectangle — buildings, water and treeline all walkable — and the game will not say so " +
+        "on screen. Re-run `npx tsx tools/mapgen/land.ts`.",
     ).toEqual([]);
-  });
+
+    for (const node of content.nodes) {
+      // THE REAL PIXELS, through the call OverworldScene.buildNodeView makes. Not `maskRasterFrom`:
+      // comparing the encoder with itself would be green on a mask that describes the wrong map.
+      const raster = await readRaster(resolve(ROOT, node.collisionMask));
+      const loaded = loadCollision(
+        node.id,
+        node.collisionMask,
+        { width: raster.width, height: raster.height, data: raster.data, channels: 4 },
+        balance,
+      );
+      expect(loaded.source, `${node.id}: ${loaded.note}`).toBe("authored");
+      expect(loaded.synthetic).toBe(false);
+      expect(loaded.health?.usable, `${node.id}: ${loaded.health?.problems.join(" · ") ?? ""}`).toBe(true);
+
+      // `firstWalkableTile` finds a legal spawn on the real pixels — the second re-measurement the
+      // old assertion asked for, and the one that turns "the mask decoded" into "the player can
+      // stand up in it".
+      const choice = chooseSpawnTile(loaded.grid, balance, { props: node.props });
+      expect(choice.problem, `${node.id}: ${choice.problem ?? ""}`).toBeNull();
+      expect(tileWalkable(loaded.grid, choice.tile.col, choice.tile.row, balance)).toBe(true);
+
+      // …and the player is not sealed into a corner: the spawn can reach a cell on every side of
+      // the map. The full one-region flood is in tests/gates/map-mask-layout-contract.test.ts; this
+      // is the loader-side statement that a real mask did not close the map in.
+      const reach = reachableCells(loaded.grid, choice.tile, balance);
+      const cols = loaded.grid.cols;
+      const rows = loaded.grid.rows;
+      const xs = [...reach].map((k) => k % cols);
+      const ys = [...reach].map((k) => Math.floor(k / cols));
+      expect(reach.size, `${node.id}: the spawn reaches only ${String(reach.size)} cell(s)`).toBeGreaterThan(
+        cols + rows,
+      );
+      expect(Math.max(...xs) - Math.min(...xs), `${node.id}: the reachable region is a narrow column`).toBeGreaterThan(
+        cols / 2,
+      );
+      expect(Math.max(...ys) - Math.min(...ys), `${node.id}: the reachable region is a narrow band`).toBeGreaterThan(
+        rows / 2,
+      );
+    }
+  }, 30_000);
 
   it("a node with no mask pixels gets a SYNTHESISED grid, flagged three ways", () => {
     const node = content.nodes.find((n) => n.id === "r1");

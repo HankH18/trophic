@@ -618,9 +618,52 @@ export function playerArtId(view: PlayerView, step: PlayerStep = "stand"): strin
   return `${PLAYER_ART_DIR}/${PLAYER_ROW_ID_PREFIX}${view}${suffix}`;
 }
 
-/** Every key this module can ask the loader for — the nine the manifest can produce, and no more. */
+/**
+ * Every key this module can ask the loader for — the nine the manifest can produce, and no more.
+ *
+ * ⚠ NINE IS STILL THE KEY GRAMMAR, AND IT IS NO LONGER WHAT THE GAME DRAWS. Since the ruling below
+ * ({@link PLAYER_FORWARD_VIEW}) the overworld asks for the three FRONT keys only. The six `back` and
+ * `side` keys are, today, art the screen has no route to. They are deliberately still listed here,
+ * and their manifest rows are deliberately still committed, because this function's contract is
+ * "what the pipeline may be asked for", which is what `tests/gates/dex-path-contract.test.ts` holds
+ * to set identity with the manifest — and narrowing it would silently delete six rows of art-lane
+ * work off the back of a presentation decision. Retiring them is an ART-LANE call, made once, in
+ * `tools/comfy/manifest.json` and here together; it is not a side effect of this file.
+ */
 export function playerArtIds(): string[] {
   return PLAYER_VIEWS.flatMap((view) => PLAYER_STEPS.map((step) => playerArtId(view, step)));
+}
+
+/**
+ * The one view the player is ever drawn in.
+ *
+ * Hank's ruling, verbatim: *"we're switching to the player character always being facing forward and
+ * doing the skipping movement as it moves around."* The sprite faces the viewer whichever way the
+ * player walks; `MovementState.facing` survives as a movement fact (Gold's bump, an interior
+ * arrival's orientation) and is read by nothing that picks a texture.
+ *
+ * It is a NAMED CONSTANT rather than the string "front" spelled out at the call site because the
+ * decision has exactly one home: whoever reverses it edits this line, and
+ * `tests/unit/overworld-scene.test.ts` §18 fails the moment a direction reaches the drawn key.
+ */
+export const PLAYER_FORWARD_VIEW: PlayerView = PLAYER_VIEWS[0];
+
+/**
+ * Which step frame a hop is drawn on — `stand` at rest, otherwise the moving frames in turn.
+ *
+ * DERIVED FROM {@link PLAYER_STEPS}, never from a written-out pair: `PLAYER_STEPS[0]` is the resting
+ * frame by construction and everything after it is a moving one, so a fourth phase added to the
+ * grammar joins the cycle instead of being silently ignored by a hand-written `left`/`right` swap.
+ *
+ * `hopIndex` is `game/movement.ts` {@link skipHopIndex}'s monotone counter — negative while standing
+ * still — so the lead foot alternates once per hop and keeps alternating across a frame long enough
+ * to land several steps.
+ */
+export function playerSkipStep(hopIndex: number): PlayerStep {
+  const resting = PLAYER_STEPS[0];
+  const moving = PLAYER_STEPS.slice(1);
+  if (hopIndex < 0 || moving.length === 0) return resting;
+  return moving[Math.abs(Math.trunc(hopIndex)) % moving.length] ?? resting;
 }
 
 /**
@@ -633,10 +676,12 @@ export function playerArtIds(): string[] {
  * derive` builds — is UPSTREAM of that census and never satisfies it on its own; only a file under
  * `assets/final/` counts as real.
  *
- * `view`/`step` default to the standing front because that is what `game/scenes/OverworldScene.ts`
- * asks for today — it draws one static image and has no walk cycle. The other eight keys are
- * reachable through this function rather than merely declared, so when build-doc §9.6's walk cycle
- * lands the caller changes and the key grammar does not.
+ * `view`/`step` default to the standing front, which is also what the overworld draws at rest.
+ * §9.6's cycle has since landed as a SKIP rather than a walk: `OverworldScene.syncPlayerSprite`
+ * passes {@link PLAYER_FORWARD_VIEW} always and {@link playerSkipStep}'s phase while moving, so the
+ * three keys the game can reach are the front three. The other six stay reachable through this
+ * function's arguments rather than being deleted — see {@link playerArtIds} for why that is an
+ * art-lane decision and not this file's to take.
  */
 export function playerPlaceholderKey(
   scene: Phaser.Scene,
