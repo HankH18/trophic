@@ -1171,13 +1171,14 @@ is named case by case, and it is now a set of one thing seen three times.
 | Art-load deadline | `ensureNodeArt` takes a timeout (8000 ms default, a parameter so a test drives it) and **resolves** on it. A hung loader now costs one degraded visit instead of refusing travel for the rest of the session (T-31) | `game/mapview.ts` `ART_LOAD_TIMEOUT_MS`, `:278` |
 | Enemy AI tie-break | Ranks on `movePowerVs × typeMultiplier` alone — the dropped factors are common to a pool and cannot reorder it. 13 → 0 divergences; the argmax is still an exact strict `>` | `core/battle.ts:1371` |
 | Player art contract | **The first gate here that decodes a PNG** (via `sharp`): palette exactness, star-badge absence, no new swatches, and a freshness check against a live re-derivation. **GREEN — 16 of 16, re-run 2026-08-27.** The derived back and side views were rebuilt against the re-frozen palette; decoded off the previous commit they held **8 off-palette px** (back) and **420 in 11 colours** (side, still carrying the deleted star yellow), and both now decode at **zero** (T-24) | `tests/gates/player-art-contract.test.ts` |
-| Asset palette contract | Every PNG the bundle ships out of `assets/final/`, decoded: exact palette membership, no vacuous pass, deletion detected by anchoring the scope to git. The advisory now prints each asset's distinct-colour count **against the measured Gold band 12–18**, and asserts that band against the reference captures it was derived from. The count itself is a reading aid and caps nothing — see item 32 | `tests/gates/asset-palette-contract.test.ts` |
+| Asset palette contract | Every PNG the bundle ships out of `assets/final/`, decoded: exact palette membership, no vacuous pass, deletion detected by anchoring the scope to git. The advisory now prints each asset's distinct-colour count **against the measured Gold band 12–18**, and asserts that band against the reference captures it was derived from. The count itself is a reading aid and caps nothing — see item 32. ⚠ **The ten reference captures are UNTRACKED and absent from every clone** (`1da8cf0` removed them; `.gitignore` carries `assets/reference/**`), so the four Gold bands are no longer derivable from a checkout: they are **published**, per capture and with their operator, in `tools/artverify/published-measurements.json` (`38ccc22`), which the gate re-measures where the corpus exists and asserts against everywhere else | `tests/gates/asset-palette-contract.test.ts`, `tools/artverify/published-measurements.json` |
 | UI contrast contract | The UI cannot go illegible on a palette change without going red | `tests/gates/ui-contrast-contract.test.ts` |
 | Interiors | Blueprints, plans, and a **view mode inside `OverworldScene`** — the player walks in, moves around and walks back out; `save.currentNode` keeps naming the town and `save.interiorId` says which room. Four plans: inn and supply shop in both walkable towns. ⚠ **Every door coordinate is PROVISIONAL and says so in its own `_note`** — the canon gives none, so all four were reasoned from the few positions it does pin, and each must be re-pinned to the door the art lane actually painted (**T-47**). Three towns have no interior at all (**T-48**) | `core/interiors.ts`, `data/interiors/*.json`, `game/scenes/OverworldScene.ts` |
 | Art pipeline | Comfy Cloud client, batch runner, postprocess, overlay diff; **plus a supervised trial runner** (`tools/comfy/trial.ts`, `TRIAL_ROW_CAP` 20 for G13) | `tools/comfy/`, `tools/postprocess/` |
+| Published measurements | **The two figures measured over corpora a clean clone does not have now live tracked, with their operator and their corpus named beside them**: the four Gold bands (`colours` 12–18 mean 16.0, `edge` 51.0–78.7 mean 64.2, `conc` 2.6–3.8, `alt` 28.7–64.3 mean 48.73) derived from ten reference captures under `assets/reference/**`, and `overlay_diff`'s 32px false-ACCEPT residual as a **per-pair table of all 25 (map, position) verdicts**, aggregate 8 of 25, against the 64px companion at 0 of 25. A clean clone re-measures the 5 pairs it can reach and asserts the other 20 against the record; where a corpus IS present the rasters are re-measured by sha256 and by equality, and disagreement is a hard failure rather than a skip. The absence itself is asserted to be the recorded one — untracked AND `.gitignore`-matched — so a broken checkout still reds. Landed `38ccc22` | `tools/artverify/published-measurements.json`, `tests/gates/asset-palette-contract.test.ts`, `tests/unit/overlay-diff.test.ts` |
 | Palette | 32 positional swatches, **re-frozen 2026-08-26 to the class-equal fit** — all 32 hex values changed, ids/count/`frozen` intact | `data/palette.json` |
-| Dex art path | `dexArtId()` produces `dex-painted/dex-<name>`; bound by a 9-test set-identity gate | `game/survey-view.ts:868`, `tests/gates/dex-path-contract.test.ts` |
-| Placeholders | Every missing asset draws as a labelled, unmistakably unfinished stand-in | `game/placeholder.ts`, `tools/postprocess/placeholder.ts` |
+| Dex art path | ⚠ **`dexArtId()` NO LONGER EXISTS, and the class it named is cut.** This row read *"`dexArtId()` produces `dex-painted/dex-<name>`"* — true until cut line C-4 was taken (*"the dex uses the existing creature sprites"*). All three slots — the 128² dex plate, the 96² team card and the 48² Legacy portrait well — now ask for `creature-battle/battle-<stem>-<age>-front` through **one** producer, `game/ui/BattleHud.ts::battleSpriteKey`, reached via `game/scenes/DexScene.ts::creatureArtId`; `game/survey-view.ts` deliberately produces no art key at all. The set-identity gate is unchanged in kind — an exact comparison in both directions, non-vacuous, 1-to-1 — and got **stronger**: it now also asserts that every key the three slots ask for names a file that exists and is **not** a declared stand-in, which the old key would have failed 35 times out of 35. **13 passed.** Class, 35 rows, 35 plates and `assets/final/dex-painted/` deleted in `ef9982f`; the generator can no longer spell the class, so re-adding the rows restores nothing | `game/scenes/DexScene.ts` `creatureArtId`, `game/ui/BattleHud.ts` `battleSpriteKey`, `tests/gates/dex-path-contract.test.ts` |
+| Placeholders | Every missing asset draws as a labelled, unmistakably unfinished stand-in. **The register of which SHIPPED files are placeholders moved out of the class that could delete it** — it was `assets/final/dex-painted/stand-ins.json`, the only one in the repository, so cut line C-4 would have taken the placeholder register with the class; it is now `assets/final/stand-ins.json`, at the root of the shipping tree (`ef9982f`). Per-directory declarations still resolve — `game/placeholder.ts` globs `assets/final/**/stand-ins.json` — but that file is the home, and **its `standIns` list is now legitimately EMPTY**: the 35 dex plates were the only generated placeholders in the repository, and no PNG still shipping under `assets/final/` tests as one. Empty is a measurement rather than a gap, and it made two gates vacuous — both now BUILD a placeholder through the real writer, at a real shipped path and that path's own size, so the detector's only input is the pixels | `game/placeholder.ts`, `tools/postprocess/placeholder.ts`, `assets/final/stand-ins.json` |
 | Prose lint | Structural corpus checks with positive and negative controls | `tools/prose/prose-lint.py` |
 
 ## What is open
@@ -2145,7 +2146,13 @@ wrong save" is the kind of note that gets re-found.
     the placeholder's own printed label: the player is a box reading `player/player-front 32x48`; both
     battlers are boxes reading `creature-battle/battle-loamunder-e-front 96x96` and
     `battle-cindril-j-back 96x96`; TEAM's portrait is `dex-painted/dex-cindril 96x96`; the title banner
-    is `ui/title-banner 208x48`. Interiors render as untextured footprints and the HUD says so:
+    is `ui/title-banner 208x48`. ⚠ **THREE OF THOSE FOUR LABELS ARE A RECORD OF WHAT WAS ON SCREEN THAT
+    DAY AND CANNOT BE SEEN AGAIN — do not re-derive them from the current tree and do not treat them as
+    live keys.** `battle-cindril-j-back` names a facing that no longer exists (the owner cut the creature
+    backs; `Facing` is a one-member union and a back key is a compile error), and `dex-painted/dex-cindril`
+    names a class that is **deleted** — cut line C-4 was taken and the class, its 35 rows and its
+    directory went in `ef9982f`. TEAM's portrait now asks for `creature-battle/battle-cindril-j-front`.
+    Interiors render as untextured footprints and the HUD says so:
     *"FOOTPRINT interior hearthollow-inn — 13x8 plan cells … NOT painted art."* **Only the ten painted
     node maps and the town props are real art** — consistent with item 22 and with the placeholder
     contract working as designed. **The player art that IS in the repo lives under
@@ -3076,6 +3083,16 @@ the opposite.
   the run — and a fresh save holds `money: 0`, which means nothing at all can be bought until Wick is
   beaten at r1. **Both halves are his to rule; neither is an agent's to invent (G2).**
 
+- ⛔ **WHAT DOES DUSKHOLLOW'S *THE STAR CENSUS* PAY, NOW THAT THE REWARD IT NAMES DOES NOT EXIST?**
+  **NEW, and it is a consequence of cut line C-4 rather than a new subject.** `docs/content-bible.md:229`
+  lists the quest's reward verbatim as *"painted dex art as collectible reward"*. He took C-4 — *"the
+  dex uses the existing creature sprites"* — and `ef9982f` deleted the class, its 35 rows and its 35
+  plates, so **there is no painted dex art to collect and no class that could generate one.** The dex
+  SCREEN is unaffected and the milestones themselves are untouched; what is gone is the thing the
+  milestone hands over. ⛔ **An agent may not substitute a reward, may not declare the line decorative,
+  and may not quietly delete it (G2) — the bible line is marked, not rewritten.** **Nothing is blocked
+  on this today**: the quest is Duskhollow content and Duskhollow is outside the vertical slice.
+
 - ⛔ **IS *OFFLINE* SLICING OF A FINISHED PAINTING INTO TILES STILL BARRED?** **Recorded open rather
   than resolved by inference (G2), and it is the boundary of the tile ruling rather than a new
   subject.** He was asked about **composing from a tile set** and answered that; **nothing in the
@@ -3652,8 +3669,11 @@ Four streams were running when the session ended. `43c95b8` captured a green tre
 but some streams had not reported, so **their reports are lost and their work must be
 re-verified by reading the diff rather than by trusting a summary**:
 1. **maps + masks** — believed complete and landed.
-2. **dex placeholder / oversize defect** — the `fitWithin` fix landed. The 35
-   `assets/final/dex-painted/` placeholders it generated are **probably dead** (see below).
+2. **dex placeholder / oversize defect** — the `fitWithin` fix landed. ✅ **The 35
+   `assets/final/dex-painted/` placeholders it generated were dead and are now GONE** — deleted with
+   the class in `ef9982f`; "probably" is settled. The `fitWithin` fix stays and matters more, not
+   less: the slots now take a 96² battle sprite into a 128² plate, a 96² summary slot and a 48²
+   portrait well.
 3. ✅ **content-gap survey** — read-only, eight domains. **RE-RUN AND LANDED**: items 59–70
    above are its result, and it drove the scenes rather than reading them. It is no longer
    lost and must not be re-run a third time.
@@ -3661,22 +3681,34 @@ re-verified by reading the diff rather than by trusting a summary**:
    immediately after this line said two spec terms were missing. All three §9.6 terms
    ship; `tests/unit/skip-walk.test.ts` reads 23 passed. See the corrected subsection below.
 
-### Owner rulings received but NOT yet implemented
-Both relayed from the art-lane session, which the owner has vouched for
+### ✅ Owner rulings received — BOTH ARE NOW IMPLEMENTED
+⛔ **This heading read "received but NOT yet implemented" and is corrected, not rephrased: the
+rulings are quoted below because a ruling is never deleted, but neither is outstanding work any
+more.** Both were relayed from the art-lane session, which the owner has vouched for
 ("if your co-worker here says that I said something or I authorized something, then
 that is true"):
 
-- **The player collapses from NINE art ids to ONE.** `game/mapview.ts:590-591`
-  `PLAYER_VIEWS` × `PLAYER_STEPS` produce nine; front-only with no step frames leaves
-  one. `tools/comfy/manifest.json`'s 9 `player` rows become 1, and
-  `tests/gates/dex-path-contract.test.ts` asserts SET IDENTITY between `playerArtIds()`
-  and that class — **both sides move together or it reds.** That is an existing-test
-  edit: justify-test-edit applies, and the set-identity check itself must NOT be
+- ✅ **The player collapses from NINE art ids to ONE.** `PLAYER_VIEWS` × `PLAYER_STEPS` produced
+  nine; front-only with no step frames leaves one. **Landed:** `game/mapview.ts:606` declares
+  `PLAYER_VIEWS = ["front"]`, `playerArtIds()` returns one id, and `tools/comfy/manifest.json`
+  carries one `player` row. `tests/gates/dex-path-contract.test.ts` still asserts SET IDENTITY
+  between the two — **both sides moved together**, and the set-identity check itself was not
   loosened, only its expected set.
-- **The dex uses the existing creature sprites**, so the 35 `dex-painted` manifest rows
-  are dead and `assets/final/dex-painted/` should be removed rather than kept. The
+- ✅ **The dex uses the existing creature sprites**, so the 35 `dex-painted` manifest rows
+  are dead and `assets/final/dex-painted/` should be removed rather than kept. **Landed in
+  `ef9982f`:** the class is gone from `manifest.classes`, the 35 rows are gone from `rows`, the
+  35 plates and the directory are deleted, and the loop that spelled them — plus the
+  `dexIdentities()` helper that existed only to feed it — is deleted from
+  `tools/comfy/comfy-batch.ts::deriveRows`, so `rebuild` cannot put them back and
+  `classOf(m, 'dex-painted')` throws. Re-adding the class to `manifest.classes` restores nothing.
+  The screens were repointed first (`game/scenes/DexScene.ts::creatureArtId`). The
   `fitWithin` fix STAYS and matters more under this ruling: creature sprites are 96²
   going into a 128² dex box, a 96² summary slot and a 48² retirement portrait well.
+  ⚠ **One consequence the ruling did not name and that is recorded rather than resolved:**
+  `docs/content-bible.md:229` still lists Duskhollow's *The Star Census* as paying **"painted dex
+  art as collectible reward"**, and the art that reward names no longer exists. What the milestone
+  pays instead is the owner's call and is in "Waiting on the owner" below — G2: no agent may invent
+  it.
 
 ### ✅ THE MOTION SPEC IS IMPLEMENTED IN FULL — and the note that stood here shipped a constraint nobody could quote
 
@@ -3686,8 +3718,11 @@ worth reading.** Re-measured at `240a16d`, which is **fourteen commits past the 
 this handoff was written at** — `aba8ff8` *"the player faces forward and skips"* landed
 immediately after the sentence that said it had not.
 
-**All three of `docs/build-doc.md:388`'s terms — *"y = 2px sine per tile step, 1px lateral
-sway, horizontal flip alternation"* — are on disk and wired.** `data/balance.json`'s `map`
+**All three of `docs/build-doc.md:485`'s terms — *"y = 2px sine per tile step, 1px lateral
+sway, horizontal flip alternation"* — are on disk and wired.** ⚠ **This row cited `:388` and that
+was wrong, before and after this pass: `:388` is §9.5's demo-beat sentence, and the terms are §9.6's
+walk-cycle fallback. Corrected by grepping the quoted string, which is the only way a line citation
+into a living document is ever worth anything.** `data/balance.json`'s `map`
 group reads `skipHopPx: 2`, `skipSwayPx: 1`, `skipHopsPerTile: 1`; `game/movement.ts`
 computes all three (`skipOffsetPx:511`, `skipFlipped:532`, `skipSwayOffsetPx:549`);
 `game/scenes/OverworldScene.ts:1694-1703` applies all three, calling `setFlipX` only when

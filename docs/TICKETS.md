@@ -939,6 +939,13 @@ density, and it reproduces; and the palette gate's own band constants
 `GOLD_EDGE_LOW / HIGH / MEAN` = **51.0 / 78.7 / 64.2** are computed by its own, published, operator
 over the same PNGs. **The general rule is in build-doc §16: an edge-density percentage means nothing
 without its definition** — threshold, channels, neighbours, denominator.
+✅ **AND THE OPERATOR-PLUS-CORPUS HALF IS NOW A TRACKED FILE.** The ten Gold captures are untracked
+and in no clone (`1da8cf0`; `.gitignore` carries `assets/reference/**`), so as of `38ccc22` the four
+bands, their ten per-capture rows with sha256s, and the operator for each reading **named by region
+and by implementation** live in `tools/artverify/published-measurements.json`. Quote the bands from
+there, not from a doc — `tests/gates/asset-palette-contract.test.ts` re-measures the rasters where
+the corpus exists and asserts the record everywhere else, and greps build-doc §8.4 for the figures it
+derives so the document cannot drift from its own evidence.
 ⛔ **AND A SECOND RULE, LEARNED FROM `28.2` ITSELF: A FIGURE MEASURED FOR ONE JOB IS NOT A TARGET FOR
 ANOTHER.** `28.2` is sound as the separation between Gold's two grass greens, and it was reused as the
 bar for telling a **walkable** material from a **blocking** one, where it is wrong by about a factor of
@@ -964,23 +971,47 @@ came from an inherited five coordinates that proved four-fifths trees, ledges an
 hand-picked open ground reads **3-4**.
 
 ### T-18 · Field-guide plates — trial it
-**Status:** TODO · **Hank:** *"you said this is listed in the spec, so why are you asking me about
-it? Trial 1-3 images"*
+**Status:** CLOSED — **not by being worked. The owner took the fallback this ticket's own text names,
+and the class is deleted.** · **Hank:** *"you said this is listed in the spec, so why are you asking me
+about it? Trial 1-3 images"* — and later, taking cut line C-4: *"the dex uses the existing creature
+sprites, so the 35 `dex-painted` manifest rows are dead and `assets/final/dex-painted/` should be
+removed rather than kept."*
 
-Trial the painted style: 1–3 images, being the three age-forms of **one** creature line, testing style
-consistency — not three species. The spec already writes the fallback (cut line C-4: pixel sprites on
-parchment frames if it cannot reach approval in one supervised loop), so this did not need asking.
+⛔ **DO NOT TRIAL THE PAINTED STYLE. There is nothing left to trial it with.** `ef9982f` removed
+`dex-painted` from `manifest.classes`, its 35 rows from `rows`, the 35 plates and
+`assets/final/dex-painted/` from disk, and the loop that spelled the class — with the
+`dexIdentities()` helper that fed it — from `tools/comfy/comfy-batch.ts::deriveRows`. **The generator
+can no longer spell the class**, so re-adding it to `manifest.classes` restores nothing and
+`classOf(m, 'dex-painted')` throws. build-doc §9.4 carries the same record.
+
+**Kept as the ask that was made:** *trial the painted style — 1–3 images, being the three age-forms of
+**one** creature line, testing style consistency, not three species. The spec already writes the
+fallback (cut line C-4: pixel sprites on parchment frames if it cannot reach approval in one
+supervised loop), so this did not need asking.* The trial never ran; the fallback was taken directly.
 
 ### T-19 · Fix the dex wiring bug
-**Status:** DONE · **Hank:** *"yeah, no shit, fix it."*
+**Status:** DONE — **and the key it fixed has since been superseded by a ruling, not by a second bug.**
+· **Hank:** *"yeah, no shit, fix it."*
 
-`game/survey-view.ts:828` `dexArtId()` now produces `dex-painted/dex-<name>`; no `dex/` literal
-survives in `game/` or `core/`. Bound by `tests/gates/dex-path-contract.test.ts`, which asserts **set
-identity between two independent derivations** — the manifest's rows and the screen's asks — refuses
-to pass on an empty set, round-trips through the loader's own key transform, and drives the real
-`buildDexEntries`. Reverting the old shape fails five of its assertions at once. The gate was extended
-to a `player` row on the same contract; `TitleScene`'s `"ui/title-banner"` is documented as
-deliberately unbound because a row there would assert against the empty set and pass vacuously.
+The ship-time defect was `dexArtId()` returning `dex/<name>` against a pipeline that could only ever
+produce `dex-painted/dex-<name>` — measured intersection with the committed rows: **zero**. The fix
+repointed the screen at the manifest's shape. ⚠ **Both of those keys are now history: `dexArtId()` no
+longer exists and neither does the `dex-painted` class** (cut line C-4, `ef9982f` — T-18). The three
+slots ask for `creature-battle/battle-<stem>-<age>-front` through the single producer
+`game/ui/BattleHud.ts::battleSpriteKey`, reached via `game/scenes/DexScene.ts::creatureArtId`;
+`game/survey-view.ts` deliberately produces no art key at all, because a second producer of that
+grammar is this ticket's own defect wearing a new class name.
+
+**What this ticket bought is the GATE, and the gate outlived both keys.**
+`tests/gates/dex-path-contract.test.ts` asserts **set identity between two independent derivations** —
+the manifest's rows and the screen's asks — refuses to pass on an empty set, round-trips through the
+loader's own key transform, and drives the real `buildDexEntries`. It was **not** loosened when the
+class was cut: only the class the row names moved, both sides together, and the row got **stronger** —
+it now also asserts that every key names a file that EXISTS and is **not** a declared stand-in, which
+the old key would have failed 35 of 35 times, since all 35 plates were generated placeholders. **13
+passed.** The gate was extended to a `player` row on the same contract (9 ids → 1, both sides moving
+together); `TitleScene`'s `"ui/title-banner"` is documented as deliberately unbound because a row
+there would assert against the empty set and pass vacuously.
 
 ### T-20 · Player side view and walk cycle — in code, 0 images
 **Status:** TODO — **the T-24 regression is repaired and this is no longer blocked by it** ·
@@ -2320,6 +2351,13 @@ that have a COMPOSED painting the mask corresponds to**, one commit per node; th
 residual limits are **re-measured against a real mask** and the gate updated rather than relaxed;
 **all three** stated-gap assertions are re-decided rather than quietly left passing; and the two stale
 header comments go with it.
+⚠ **ONE MORE ARTEFACT MOVES WITH THAT RE-MEASURE, and it did not exist when this ticket was written:**
+`tools/artverify/published-measurements.json` (`38ccc22`) publishes the 32px false-ACCEPT residual as
+a table of all 25 (map, position) verdicts, and its `operator` block records that the mask used was
+**"the map's own luminance thresholded at 0.45"** — the same luminance-derived stand-in this ticket
+says does not carry over. A real mask therefore invalidates that table too, not only the gate's
+constants. Re-measure it in the same commit; do not leave a published record standing on a corpus
+condition that has changed.
 
 ### T-57 · **DISSOLVED** — when the painting and the collision layout disagree, which is authored first?
 **Status:** CLOSED — **not answered, DISSOLVED, on the route this ticket's own *done when* named.**

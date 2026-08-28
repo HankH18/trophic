@@ -30,6 +30,13 @@ decided, not open — do not re-ask them.
 A reason that must not be lost belongs in a comment on the code it governs, not in a
 document. A comment is read by whoever edits that line; a document is read never.
 
+Same rule for a **measurement**: it belongs with the operator that produced it. Where the
+corpus it was measured over is not in the clone — third-party reference captures,
+gitignored generator output — the figure lives in `tools/artverify/published-measurements.json`
+with its operator, its corpus and its parameters beside it, and CI re-asserts it. A doc may
+quote such a figure; it may never be the only copy. `tools/artverify/EVAL-STANDARD.md` is the
+standard a figure has to meet before it may be quoted at all.
+
 ## History
 
 There is no archive directory. Everything ever removed from `docs/` is in git, and that

@@ -150,11 +150,17 @@ export interface ArtBox {
  *
  * ⚠ THIS IS A BATTLE SPRITE, AND THAT IS THE RULING, NOT A SHORTCUT. build-doc §9.4's painted dex
  * class is cut line C-4, and C-4 has been taken: *"the dex uses the existing creature sprites"*
- * (docs/STATUS.md, "Owner rulings received but NOT yet implemented", relayed from the art-lane
- * session and vouched for). Under the old `dex-painted/dex-<name>` key all 35 plates on disk are
- * declared stand-ins (`assets/final/dex-painted/stand-ins.json`), so none of these three slots had
- * real art for ANY line — including the one picture on the never-cut Legacy beat. All 75
+ * (docs/STATUS.md, relayed from the art-lane session and vouched for). Under the old
+ * `dex-painted/dex-<name>` key all 35 plates were declared stand-ins, so none of these three slots
+ * had real art for ANY line — including the one picture on the never-cut Legacy beat. All 75
  * `creature-battle` sprites are real files and none of them is declared a stand-in.
+ *
+ * ⚠ THE CLASS IS DELETED (`ef9982f`), SO DO NOT GO LOOKING FOR EITHER PATH. `assets/final/dex-painted/`
+ * and its 35 plates are gone, and the declaration that listed them moved from
+ * `assets/final/dex-painted/stand-ins.json` to `assets/final/stand-ins.json` — a register of which
+ * SHIPPED files are placeholders has repository scope, and it was the only one in the tree, so
+ * deleting the class would have taken it. `game/placeholder.ts` still globs
+ * `assets/final/**\/stand-ins.json`, so per-directory declarations resolve; that file is the home.
  *
  * THE KEY IS NOT BUILT HERE. `game/ui/BattleHud.ts::battleSpriteKey` is the ONE producer of the
  * `creature-battle/battle-<stem>-<age>-<facing>` grammar and is bound to the committed manifest
@@ -187,11 +193,17 @@ export function creatureArtId(lineId: string, age: AgeClass, ancient: boolean): 
  *
  * This comment used to say "real art is never scaled to fit — `placeholder.ts` draws it at its
  * natural size", and that was the bug, not the contract. The `dex-painted` class was generated at
- * 1024² (manifest, `fit:false`), `box` here is 128², and unscaled meant every plate would have
- * covered the whole 480×320 screen the day the art landed. `placeholderImage` now scales real art
- * DOWN into the box with one factor on both axes — a fit, never a stretch — and the stand-in, being
- * generated at the box size already, is untouched. See `fitWithin` in `game/placeholder.ts`;
+ * 1024² (`fit:false`), `box` here is 128², and unscaled meant every plate would have covered the
+ * whole 480×320 screen the day the art landed. `placeholderImage` now scales real art DOWN into the
+ * box with one factor on both axes — a fit, never a stretch — and the stand-in, being generated at
+ * the box size already, is untouched. See `fitWithin` in `game/placeholder.ts`;
  * `tests/unit/art-slot-fit.test.ts` holds it.
+ *
+ * ⚠ THE 1024² PLATE IS NO LONGER IN `tools/comfy/manifest.json` TO LOOK UP — the class went with cut
+ * line C-4 (`ef9982f`). The fix it motivated is NOT dead with it: `art-slot-fit` now asserts against
+ * a REAL shipped oversize, 160x320, which is oversized on both axes against all three slots and,
+ * unlike 1024², is non-square. Do not "simplify" the fit away because the plate that exposed it is
+ * gone.
  *
  * ⚠ `fitWithin` IS NOT WHAT MADE THE PIXELS SOFT, and it must not be "fixed" for that. What the
  * slots ask for now is the 96² battle sprite ({@link creatureArtId}), and the RATIO is what

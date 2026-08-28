@@ -117,8 +117,8 @@ elder forms and Gloomgrub — see Rules):
 **Ancient Apexes (3).** Returned legendaries: they **do not age and do not evolve** — permanently Elder stage, implied centuries-to-millennia old. One form each. Caught Ancients are exempt from year-turn aging: the single exception to the everything-ages rule, which is what makes them worth the hunt. Very hard catches, gated behind rare sign-card chains unlocked by side content (Kilnback via Cindershelf mine lore, Undermere via ferryman Sel's tales, Vellsire via the finale). Each exerts a presence effect on the sim: Vellsire buffs all breeding rates in adjacent nodes (keystone), Kilnback keeps the steppe vents warm (Fire spawns active), Undermere steadies the marsh water table (Water breeding). **Lore surfaces (required content):** NPC dialogue — Sel's serpent tales, Bram and the miners on "the warm shell below," Maren's keystone lectures, Duskhollow astronomers on the Vellsire's vanishing — plus environmental decorations: antler standing-stones on routes, shell-kiln shrines in the mine, sunken idols visible in the marsh shallows. These props double as the sign-chain trailheads.
 
 Asset count (derived in `tools/comfy/manifest.json`): 24 aging lines × 3 forms + 3 Ancients × 1 form =
-75 forms × (front + back) = **150 battle sprites**, + **35** painted dex identities, + overworld
-mini-sprites for encounterable species.
+**75 forms ⇒ 75 battle sprites**, + overworld mini-sprites for encounterable species.
+⚠ **This line read *"75 forms × (front + back) = 150 battle sprites, + 35 painted dex identities"* and BOTH halves are now false — corrected in place, and build-doc §9.7 is canonical for the counts. Nothing else on this page moves; the line count here is held so that citations into this file do not drift.** The owner cut the creature backs (*"we're not going to have the backs of any of the creatures"*), so a form ships **ONE front sprite — 75, not 150**: `tools/comfy/manifest.json` carries 75 `creature-battle` rows and zero back rows, `game/ui/BattleHud.ts`'s `Facing` is a one-member union so a back key is a compile error, and the two tests build-doc cites bind 75 — `tests/unit/manifest.test.ts:526` is titled *"75 creature battle sprites — ONE front per form (not §9.7's 154, and no longer 150)"*. And the owner took cut line **C-4** (*"the dex uses the existing creature sprites"*), so the painted dex class, its 35 rows and its 35 plates are **deleted** (`ef9982f`) — the dex draws the creature's own battle sprite and adds no manifest rows of its own.
 
 **Rules**
 
@@ -226,7 +226,7 @@ Roster sizes (signature included): **3 / 4 / 5 / 6 / 6 / 6** (`core/schemas.ts` 
 | Bowerdeep | *Lanternless Night* — escort through the Gloomoth migration | seasonal event mechanics |
 | Cindershelf | *After the Crash* — survey of wrecked R4 | reading a collapsed web; unlocks scavenger lore |
 | Cindershelf | *Forge a Legacy* — craft your first retirement relic | relic system tutorial |
-| Duskhollow | *The Star Census* — dex milestones | painted dex art as collectible reward |
+| Duskhollow | *The Star Census* — dex milestones | ⚠ painted dex art as collectible reward — **THE REWARD THIS NAMES NO LONGER EXISTS.** The owner took cut line C-4 and `ef9982f` deleted the painted dex class, its 35 rows and its 35 plates. The milestones are untouched; what the milestone *hands over* is unruled and is his — registered in `docs/STATUS.md` "Waiting on the owner". **Marked, not rewritten: no agent may substitute a reward (G2).** |
 | Duskhollow | *Vellsire's Trail* — follow ancient sign-cards | finale setup, Instinct checks |
 
 **Regional events:** Annual Festival (the year's closing celebration); Great Migration (Gloomoth flocks shift spawns region-wide); Cullbrand Harvest raids (scripted per act, populations visibly drop at a named node); Bloom Year (a node whose producers cross into thriving — a season-long window, and nothing else).

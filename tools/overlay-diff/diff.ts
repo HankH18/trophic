@@ -70,7 +70,9 @@
  * positions each: a 64px feature displaced by ONE collision cell is rejected at 25 of 25 pairs
  * (worst-region LOST edges 151–1550 px against the 150 px limit), while a linear tint of any depth
  * (≤ 40 lost), a synthetic weathering pass (≤ 112 lost) and 24 hard 5×5 rot blotches (≤ 25 lost,
- * 227–259 GAINED) are all accepted.
+ * 227–259 GAINED) are all accepted. ⚠ FOUR OF THOSE FIVE MAPS ARE NOT IN A CLONE — see the residual
+ * section below; the 64px `0 of 25` accept count is published with its corpus and its parameters in
+ * `tools/artverify/published-measurements.json`, and the LOST-edge ranges quoted here are not.
  *
  * ─────────────────────────────────────────────────────────────────────────────
  * AND THE RESIDUAL, WHICH IS THE OTHER HALF OF THAT SENTENCE.
@@ -83,6 +85,27 @@
  * it does not reliably catch one below that, and it is one pixel from not catching the smallest
  * case it does. `tests/unit/overlay-diff.test.ts` pins the 32px count so a retune of
  * `balance.overlayDiff` cannot move that boundary in silence — in either direction.
+ *
+ * ⚠ AND THAT `8 of 25` IS NOT DERIVABLE FROM A CLEAN CLONE, SO IT IS PUBLISHED RATHER THAN ONLY
+ * PINNED. Four of the five maps are `assets/raw/palette-trials/pt-map-*.png` — generator output,
+ * which `.gitignore` excludes — and only `assets/approved-trials/town-map.png` is tracked. On that
+ * one map a 32px displacement is REJECTED at all five positions, so a clone reaches 5 of the 25
+ * pairs and 0 of the accepts; CI used to die three lines before the aggregate, on
+ * `expect(acceptedAt.length).toBeGreaterThan(0)`. The record now lives at
+ * **`tools/artverify/published-measurements.json`** (`38ccc22`): every one of the 25 verdicts
+ * individually, each map's sha256, the operator (block copied from open ground at (900,20) and
+ * re-stamped d px down-and-right; mask = the map's own luminance thresholded at 0.45), and the
+ * `balance.overlayDiff` / `balance.map` values it was measured at — asserted equal to what
+ * `config.ts` produces from data/balance.json, so a retune reds and NAMES ITSELF instead of
+ * surfacing as a moved count with no cause attached. The 5 reachable pairs are re-measured for real
+ * every run; the other 20 are asserted against the record rather than skipped, and the skip
+ * condition is itself asserted to be the recorded absence. The 64px companion sits beside it at
+ * **0 of 25** and must stay there: a retune that tightens 32px by loosening 64px is exactly what
+ * the pair of claims is arranged to catch.
+ * ⛔ CHANGE THE FIGURES IN THIS HEADER ONLY TOGETHER WITH THAT FILE AND WITH build-doc §8.2.
+ * ⚠ AND NOTE WHAT THE PUBLISHED MASK IS: a luminance threshold, not a real collision mask. When a
+ * node ships an authored mask (T-56) this table is measured over a different population and must be
+ * re-measured with the gate's own limits — a published record is not exempt from the re-measure.
  *
  * The OTHER direction is unmeasured and is the bigger unknown: the false-REJECT rate on real aged
  * variants. The largest drift seen on real material ran 7–18 cells against a limit of 6 on

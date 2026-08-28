@@ -833,12 +833,20 @@ export function renderSurveyPage(page: SurveyPage): string[] {
  * ⚠ THE PAINTED PLATE KEY USED TO LIVE HERE, AND THE CLASS IT NAMED IS CUT.
  *
  * `dexArtId(dexId)` returned `dex-painted/dex-<name>` — the key of build-doc §9.4's painted class.
- * The owner's ruling, relayed from the art-lane session and recorded in docs/STATUS.md ("Owner
- * rulings received but NOT yet implemented"), is cut line C-4 taken: **"the dex uses the existing
- * creature sprites"**. All 35 `dex-painted` plates on disk are declared stand-ins
- * (`assets/final/dex-painted/stand-ins.json`), so the dex, the team card and the retirement
- * portrait well had NO real art for any line under the old key — Cindril included, on the
- * never-cut Legacy beat.
+ * The owner's ruling, relayed from the art-lane session and recorded in docs/STATUS.md, is cut line
+ * C-4 taken: **"the dex uses the existing creature sprites"**. Every one of the 35 `dex-painted`
+ * plates was a declared stand-in, so the dex, the team card and the retirement portrait well had NO
+ * real art for any line under the old key — Cindril included, on the never-cut Legacy beat.
+ *
+ * ⚠ THE CLASS IS NOW DELETED, NOT MERELY UNUSED (`ef9982f`), and two paths in the sentence above are
+ * history rather than places to look: `assets/final/dex-painted/` and its 35 plates are gone, and the
+ * declaration that listed them — `assets/final/dex-painted/stand-ins.json` — has MOVED to
+ * `assets/final/stand-ins.json`. It moved because it was the only `stand-ins.json` in the repository:
+ * a register of which SHIPPED files are placeholders has repository scope, so parking it inside one
+ * asset class made an unrelated ruling capable of destroying it. Its `standIns` list is now empty,
+ * which is a measurement — those 35 were the only generated placeholders here. `dex-painted` is also
+ * gone from `manifest.classes` and from `deriveRows`, so the generator cannot spell it and re-adding
+ * the class restores nothing.
  *
  * The three slots now ask for `creature-battle/battle-<stem>-<age>-front`, built by the ONE key
  * builder that owns that grammar — `game/ui/BattleHud.ts::battleSpriteKey` — through
