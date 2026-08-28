@@ -59,13 +59,21 @@ having been missing on screen.
 
 **What is true underneath both:** damage, levels, XP and the bag persist across battles; a rest at an
 inn heals what it charges for, **replays**, and asks where the player is standing before it does; a
-wiped party is charged, moved and healed correctly in the save. **Ten painted maps are on disk and
-everything that moves is a labelled placeholder** — no player sprite, no creature sprite, no dex plate,
-no UI frame, no audio, **and no collision**. The ten maps are WIP against T-17's amended top-down
-projection. ⚠ **"No collision" is still the largest gap in the *engine***: all twelve nodes run on a
-synthesised border ring, so **19.5% to 43.1% of every node is walkable that its layout says is solid**,
-no building is solid and no water stops anyone — item 41, and the reason it is not simply fixed is
-item 43.
+wiped party is charged, moved and healed correctly in the save. **And as of this pass the ECONOMY is
+real on the live path** — a won rival fight pays a purse, a town shop spends it, Maren's tutorial line
+hands over the three snares it has always promised, and every one of those movements goes on the tape
+with a `replay()` arm (item 55). **Nine painted maps are on disk** — ten are committed and
+`hearthollow.png` is deleted on purpose — **and everything that moves is a labelled placeholder**: no
+player sprite, no creature sprite, no dex plate, no UI frame, no audio, **and no collision**. ✅ **AND
+HOW A MAP GETS PAINTED IS NO LONGER AN OPEN QUESTION — the owner ruled that the maps are composed from
+tiles**, the composer and a 157-tile set are committed, and all twelve nodes compose palette-clean at
+1024². ⛔ **But not one composition is shipped, nine of the twelve paint from the wrong biome's
+materials, and none of the authored buildings is drawn on any node** — the tiled-maps section below is
+the account, and it is the section on this page most likely to be read as further along than it is.
+⚠ **"No collision" is still the
+largest gap in the *engine***: all twelve nodes run on a synthesised border ring, so **19.5% to 43.1%
+of every node is walkable that its layout says is solid**, no building is solid and no water stops
+anyone — item 41, and the reason it is not simply fixed is item 43.
 
 ---
 
@@ -118,20 +126,26 @@ one reachable turns the gate red and asks whether the beat should move. Proven t
     AssertionError: brackwater: 19.2 removals needed to starve fenmaw-line,
     only 11.4/yr available: expected 11.423076923076922 to be greater than or equal to 19.2
 
-⚠ **READ THIS BEFORE THE ARITHMETIC: THE RED GATE AND THE UNREACHABLE CATCHING ARE ONE PROBLEM SEEN
-FROM TWO ENDS, AND THE KNOB CANNOT REACH THE OTHER END.** The gate prices a *reference player* named in
-`data/balance.json:615-621` `harness.overcatch` — `snareTier: "weighted"`, `baitMatch: "species"`,
-`referenceHpFrac 0.5`, `yearsBudget 1` — and `tools/harness/full-run.ts:235` hands `ref.snareTier`
-straight to `catchChance` **with no inventory check at all.** A weighted snare costs **60**
-(`data/balance.json:528`) and **cannot be obtained by any means in the shipped game** (item 45,
-**T-60**). So the budget below is being spent by a player who could not exist:
+⚠ **THE "ONE PROBLEM, TWO ENDS" NOTE THAT STOOD HERE IS HALF WITHDRAWN, AND IT IS THE HALF THAT DID
+THE ARGUING.** It read that the gate prices a reference player holding a weighted snare which *"costs
+**60** and cannot be obtained by any means in the shipped game"*, so **tuning could not make the beat
+playable**. **Both clauses are now false.** A weighted snare costs **3** — every purchasable price is
+3 under the owner's year-one anchor — and it is **on the shop's shelf from the second gym's badge
+onward**. The reference player is ordinary.
 
-- **Tuning `battleTicks` or `ticksPerYear` cannot make the beat playable**, because the shortfall it
-  closes is not the one that blocks the player.
-- **The gate going GREEN would not be evidence of reachability either.** Its own name says *"in real
-  play"* and its arithmetic never asks whether a snare can be held. **That is the sharper reading of
-  this decision, not a reason to defer it** — the knob question is still real and still the owner's;
-  it is simply no longer the whole of what stands between the region and beat 1.
+**What reproduces, and is still worth carrying:** `data/balance.json` `harness.overcatch` names that
+player — `snareTier: "weighted"`, `baitMatch: "species"`, `referenceHpFrac 0.5`, `yearsBudget 1` — and
+`tools/harness/full-run.ts` hands `ref.snareTier` straight to `catchChance` **with no inventory check
+at all.** That is still true and is still a gap between the model and the game: the harness cannot
+tell a snare it could buy from one it could not. **It is no longer a reason the gate's arithmetic
+cannot be trusted**, because the tier it assumes is purchasable.
+
+⚠ **AND THE SIBLING DISAGREEMENT IS UNRESOLVED AND IS NOW THE SHARPER ONE.**
+`tests/integration/demo-beats.test.ts` proves the beat by throwing **`tier: "master"`** every turn,
+while `harness.overcatch` prices **`weighted`**. Master is ×2.2 and weighted ×1.5. **Neither reads the
+other**, and the integration rig is throwing masters it never obtained — which is legal only because
+an ungranted tier is untracked and therefore infinite (item 56). **Two instruments, two reference
+players, one beat** — **T-68**.
 
 **What changed.** T-1's retune gave battles a tick cost and gated encounters to tall grass. The
 year's encounter budget fell from **138.24 to 54.0** — the old figure being `16 ticks × 48 steps ×
@@ -232,96 +246,660 @@ non-empty, and decodes*; *is a real image, not an empty or flat one*; *every opa
 `data/palette.json` colour*. **That is the gate doing its job**: a node declares a map and the map is
 not there.
 
-⚠ **DO NOT teach the gate to tolerate the absence, and do not restore the file.** A replacement is
-being generated and the red clears when it lands. The third assertion is the one most likely to catch
-a hurried drop-in: a frame that merely decodes still fails unless it is quantized to the frozen 32
-before it reaches `assets/final/`.
+⚠ **DO NOT teach the gate to tolerate the absence, and do not restore the file.** ⚠ **The replacement
+is no longer being GENERATED — it will be COMPOSED**, and the red clears when it lands. The third
+assertion is the one most likely to catch a hurried drop-in: a frame that merely decodes still fails
+unless every opaque pixel is an exact frozen-32 colour before it reaches `assets/final/`. ⛔ **And it
+does not land alone**: under the per-node rule a composed painting ships on the same commit as the
+collision mask derived from its layout, so clearing this red is the first instance of the T-56 gate
+recalibration rather than a file drop. **hearthollow composes today** — 1024², zero off-palette, 30
+distinct colours — **and it is not ready to ship**: its buildings are generic houses rather than the
+five the manifest names (T-73).
+
+---
+
+## ✅ THE MAPS ARE COMPOSED FROM TILES — THE OWNER RULED IT HIMSELF, AND L7'S CONDITION IS SPENT
+
+**A map is no longer being generated as a whole image.** The round now shipping authors a **64×64
+ASCII layout** — one character per 16-px collision cell — and paints the map by **stamping a tile per
+cell** into a 1024² PNG, offline. **The engine is not touched and nothing is assembled at run time:**
+`game/mapview.ts` still loads ONE PNG per node and `setDisplaySize()`s it to the 2048 world (`:430-433`,
+`:471`), and that file has not changed since before any of this work began. Read that as the *runtime*
+half being untouched, which it is.
+
+⚠ **THIS SECTION READ *"L7'S OWN QUALIFIER SAYS THAT IS THE OWNER'S CALL"* AND SAT IN THE *WAITING ON
+THE OWNER* REGISTER. THE REASONING WAS RIGHT AND THE CONCLUSION WAS STALE — HE HAD ALREADY ANSWERED.**
+The reasoning is worth keeping, because it is the reasoning that would apply again: L7's text
+(`docs/build-doc.md:45`) is *"no tilesets — **conditionally**"* on Hank's own qualifier ***"as long as
+you can make this work without them"***, the same row says an agent *"may not build or slice tiles,
+and may not decide the condition has failed"*, and **G1** (`:461`) says it flatly. **An agent could
+not take this decision.** It did not have to. He raised it himself, unprompted — *"What would it take
+for us to just switch to tiles? This image bullshit has eaten up almost all of the time that I have
+for this project"* — was given the scope it would cost, and ruled, verbatim:
+
+> **"Get it done. Use as many agents as you need to. This was the common sense answer from the start,
+> and while planning out this project, you cautioned me against it. Make up for that by doing an
+> exceptionally good job here as quickly as you can."**
+
+**There are now TWO records of him spending that condition, and they are kept separate because their
+provenance differs — not because either is in doubt.**
+1. **The original decision, RELAYED.** The exchange above happened in the **art lane's session** and
+   reached this file between sessions. **No commit or artefact in the tree carries it; `git log -S`
+   will not find it.** The source is named so a later reader knows where to look, not because a peer
+   relay is suspect — see the note below.
+2. **The override, FIRST-HAND, in answer to being shown that the build doc still forbade the work:**
+
+   > **"I override the build doc!"**
+
+   Said directly, needing no hedge, and now recorded in `docs/build-doc.md` at L7 and G1 as well.
+   ⚠ **Both documents must carry both sources and must not drift apart** — this file previously
+   carried only the weaker relayed one, which is how a first-hand ruling ends up looking like the
+   softer of the two.
+
+✅ **AND THE STANDING RULE ON PROVENANCE HAS CHANGED, FIRST-HAND, WHICH CHANGES HOW EVERY NOTE LIKE
+THIS ONE SHOULD READ.** Hank, to this session: ***"I've never had an agent directly claim to be me
+when I didn't tell them to. If your co-worker here says that I said something or I authorized
+something, then that is true."*** **So a relay from another lane is TRUSTED.** Keep naming where a
+quote came from — that is useful to whoever reads it next — but **drop any framing that treats a peer
+relay as doubtful or unverified.** ⛔ **What still needs checking is the different thing that actually
+went wrong here: an AGENT'S OWN INFERENCE written into the tree as if it were a ruling.** That is what
+the cindershelf `compose.py` comment was (item 53), and what caught it was its sibling layout header
+saying the opposite — not scepticism about a relay.
+
+**What the ruling settles, and what it does not.** It settles **L7's condition**, which was his to
+spend and nobody else's: holding the scope, he decided the whole-canvas route could not carry the
+maps. It settles **G1 for this work** on the same authority. **It does not approve any picture** — he
+ruled on the METHOD, and no composed map has been put in front of him. Do not read an approval of
+tiles as an approval of a tiled Hearthollow.
+
+✅ **TWO CANONICAL DOCUMENTS CONTRADICTED HIM FOR A WHILE. THEY HAVE BEEN AMENDED — `f81f8d3`,
+*"L7 and G1 forbade work the owner ordered — he overrode them"* — AND T-71 IS CLOSED.** ⚠ **Kept as
+history rather than deleted, because the failure mode it names is reusable and is the nastiest kind
+this file tracks.** What stood: `docs/build-doc.md:45` still ended L7 with *"Nothing on disk has
+reached that point"*, and **G1** (`:461`) still read *"Do not build or generate tilesets, or slice
+painted maps into tiles"* — **forbidding, in as many words, work the owner had ordered and that had
+already landed.** ⛔ **A stale PROHIBITION is worse than a stale claim, and it fires hardest on the
+most careful agent**: one briefed to the map lane, doing exactly the right thing by reading the
+canonical document before touching the art, would have found G1 and correctly stopped — or raised
+sanctioned work as a guardrail violation. **The more disciplined the reader, the more reliably the
+defect triggers.** That is the transferable part.
+
+**What the amendment says, so it is not paraphrased loosely here.** L7's *"no tilesets"* clause is
+**SPENT**, and the composer, its committed tiles and the twelve compositions are **sanctioned work
+that no agent may refuse or revert on G1's authority**. G1 now permits offline composition **by name**
+and states what remains forbidden — **nothing assembled at RUN TIME**: no tilemap, no tileset atlas,
+no assembling ground a cell at a time in `game/`, and no cutting a finished painting back into tiles
+to render it. **The runtime half was confirmed in code rather than assumed**: `game/mapview.ts:429-433`
+adds one image and `setDisplaySize()`s it to the world, re-applied at `:471`, and a repo-wide grep for
+`tilemap` / `tileset` / `createFromTiles` across `game/`, `core/` and `tools/mapgen` returns only
+comments.
+
+⛔ **AND THE BOUNDARY IS EXPLICIT, BECAUSE THIS IS EXACTLY THE PERMISSION SOMEBODY WILL READ TOO
+WIDELY. This is NOT a general suspension of the build doc.** It reaches the tileset question and
+nothing else: **G2 through G15 and every other locked decision stand untouched.** And it **approves no
+picture** — he ruled on the METHOD, and no composed map has been put in front of him.
+
+### ⛔ THE PALETTE ARGUMENT FOR TILES IS STRUCK — THE ARGUMENT, NOT ONLY THE FIGURE
+
+This section, and the register at the foot of this file, argued the tile round on **colour**: that the
+palette gate requires every opaque pixel to be one of the frozen 32, that generated output runs to
+hundreds of thousands of colours, and that a tiled composition is on-palette by construction. **The
+last clause is true. The argument built on it is not, and correcting the number alone would leave the
+argument standing.** Re-measured this pass by decoding every PNG in `assets/final/maps/` against
+`data/palette.json` (`colorCount: 32`, `frozen: true`), alpha dropped:
+
+| shipped generated map | distinct opaque colours | off-palette pixels |
+|---|---|---|
+| brackwater | 31 | **0** |
+| duskhollow | 28 | **0** |
+| r1 | 30 | **0** |
+| r2 | 32 | **0** |
+| r3 | 27 | **0** |
+| r4 | 24 | **0** |
+| r5 | 26 | **0** |
+| sanctum-approach | 17 | **0** |
+| sanctum | 26 | **0** |
+
+**Range 17–32, median 27, against a frozen 32. Every one of the nine PASSES the palette gate, and
+always has.** The gate asserts palette *membership* and it caps nothing — item 32 says why a cap would
+be taste with a number painted on it — so **a finished generated map has never failed it.** The
+sentence that said generated maps fail the palette gate was never true of anything in
+`assets/final/`.
+
+⚠ **AND `398,485` HAS ACQUIRED A SOURCE SINCE THIS FILE WITHDREW IT AS UNSOURCED, WHICH MAKES IT WORSE
+RATHER THAN BETTER.** It now exists on disk exactly once outside this document, at
+`tools/mapgen/compose/verify.py:89`, as a hardcoded `print` inside the composer's own verifier: *"Gold's
+own town maps run 12-18; the first tiled attempt ran 21; a generated town ran 398,485 and failed this
+gate outright."* **That is the tile lane's script asserting the tile lane's case, in prose it prints
+rather than computes.** Two separate faults, and they must not be collapsed:
+- **It is circular.** The claim's only source is a file that states it; nothing measures it. That is
+  precisely the *derived artifact carrying a hand-written claim* shape this file keeps a section for
+  — right when written, wrong forever after, and a rebuild *restores* the claim instead of repairing
+  it. The withdrawal stands: not disproved, not evidence either.
+- **It is a corpus mismatch, which is the fault that decided the argument.** Even granting the
+  magnitude — raw pre-postprocess generator output genuinely runs into the hundreds of thousands, at
+  **222,814–413,217** across fourteen trials — that figure is **RAW output on one side set against a
+  FINISHED tiled composition on the other.** The finished generated artefacts are the nine in the
+  table above. Comparing an unquantized intermediate against a shipped file answers a question nobody
+  asked, and it is build-doc §16's wrong-corpus family arriving in the art lane's own verifier.
+
+⚠ **"A tiled map is 21 colours" belongs to round one only.** The v2 compositions read **30**. Against
+a frozen 32 that is **two colours of headroom, not eleven** — and **three more biome tile families are
+still to be cut** (Forest ~50 tiles, Sanctum ~22, Vale ~8), plus a Marsh that is a real table rather
+than an alias, each of which will want swatches it does not yet spend. ⚠ **The count of missing
+families has been three, then four, then three again inside this pass** — a briefing said three, it
+measured four (Forest, Steppe, Vale, Sanctum), and then `CINDER` landed. ⚠ **And "three" is itself
+generous: `CINDER` is keyed to `cindershelf` and does not serve `r4`, its Steppe sibling**, so Steppe
+is covered for one of its two nodes. **Do not quote this count without re-deriving `MATERIALS` against
+the six declared biomes and the twelve node files.** `verify.py` records where
+the 30 goes and is honest about it: ground, nature, rock, water and fence cost 20, and each extra roof
+hue adds 3–4, so the brief's own *"different buildings get different roof hues"* is what takes
+hearthollow from 23 at one hue to 30 at three or four. **That is a real trade between two stated
+requirements, and quoting 21 hides it.** Quote the round with the number or do not quote the number.
+
+### WHAT SURVIVES, AND IT IS THE REAL REASON: EVERY FAILURE OF THE GENERATED PATH WAS A COMPOSITION FAILURE
+
+Not one of the defects that ended the generated round was a colour defect. The enumeration, as the art
+lane reported it:
+
+- lanes that dead-end in open field
+- **four edge exits where the node's own contract allows one**
+- props standing on the arrival tile
+- gibberish signage
+- **ten buildings against a contract of five**
+- and, twice, the owner was handed back the exact town he had already ordered deleted
+
+**Every one of those is a question about WHERE THINGS ARE, and a diffusion model answers it by
+sampling.** A prompt cannot say *exactly five buildings, one exit, nothing on the arrival cell* in a
+form the sampler is obliged to honour, and four rounds of postprocess never touched any of it, because
+postprocess operates on pixels and these are facts about layout.
+
+✅ **AND THIS ONE DOES NOT REST ON A RELAY — THE TREE CORROBORATES IT, IN THE MAP LANE'S OWN COMMIT.**
+`af82c46`'s message is the strongest in-repo evidence on this page for why the generated round ended,
+and it was sitting in `git log` the whole time this file was arguing colour. Verbatim:
+
+> **MAPS — all 12 generated, all 12 judged, NONE approved. 0 PASS / 3 REVISE / 9 REJECT, 121 defects
+> (39 blocking)** … **10 finals in `assets/final/maps/` are EVIDENCE, not art.**
+>
+> **Prompting owns STYLE; it cannot own GEOMETRY.** Measured on one controlled axis: same subject,
+> same seed 42, only the class skeleton changed. Style moved (keyline ink 3.62% → 4.67%, grayscale
+> 2.54% → 1.20%, full bleed held). **Composition did not move at all** — the skeleton stated an
+> explicit size ceiling and got buildings ~14× it, **and Hearthollow drew 4 edge exits where its
+> adjacency allows 1, omitting the only legal one.**
+
+**That is the argument, made by the lane that ran the experiment, on a controlled axis, before anybody
+proposed tiles.** Style responded to the prompt and composition did not move *at all* — which is
+exactly the property that makes a text layout the right instrument and a sampler the wrong one.
+
+⚠ **Provenance on the rest of the enumeration, held to the same standard as the ruling above: it is
+the art lane's, relayed, and the trial rasters it describes are under `assets/raw/**`, which
+`.gitignore` excludes, so most of it is not reproducible here.** Two items check out in the tree and
+one does not:
+- **The edge exits reproduce exactly.** `checkEdgeCorridors` (`tools/mapgen/verify.ts:119-156`)
+  requires the number of edge-touching corridors to equal `node.adjacency.length`, with left and right
+  sealed and at most one each on top and bottom; `data/nodes/hearthollow.json` declares **one**
+  adjacency (`r1`). So *four exits where the contract allows one* is a hearthollow-shaped violation
+  stated correctly, and it is **not** in tension with T-49's *"two edge exits each"*, which describes
+  the route maps, where adjacency is 2.
+- **The contract of five buildings is in the tree**, in the prompt that states it —
+  `tools/comfy/trials/blackcheck2.json`, *"a tiny meadow hamlet of **only five buildings**"* — and in
+  `tools/comfy/manifest.json`'s `_nodes` block, which itemises the same five.
+- **The observed count of ten is NOT locatable here**, because the raster it was counted on is
+  git-ignored. Recorded as the lane's reading rather than as a measurement, on this file's standing
+  standard: not disproved, not evidence either. What the tree corroborates about size is the commit's
+  own *"buildings ~14× [the ceiling]"*, which is a different defect from a count.
+
+**Tiles move composition out of the model and into a text file.** The 64×64 layout is authored, it is
+read by a program rather than sampled, and a contract violation in it is a `verify` failure with a
+node id and a cell range rather than a picture somebody has to notice. **And the second half is worth
+as much as the first: the painting and the collision mask are stamped from that one file**, so
+painting↔collision correspondence is a property of the construction rather than something an art round
+can drift away from. That is what dissolves T-57, and it is a better answer than either side of it.
+
+**The judgement that the tiled map is the better map remains a JUDGE'S, and is still marked as one:**
+*"the generated image is the better picture, the tiled image is the better map, and it is the only one
+of the two that can ship."* The owner has not said that sentence. **What he has ruled is the method**,
+and the quote is above.
+
+### What is actually in the tree, and what is not
+
+✅ **THE COMPOSER IS NOW IN THE REPOSITORY, AND THIS SUBSECTION SAID THE OPPOSITE.** It read *"OUT,
+AND THIS IS THE LOAD-BEARING HALF: THE TILE COMPOSER IS NOT IN THE REPOSITORY … the tiled maps are a
+TRIAL whose only copy is untracked, and any agent running `git clean -xfd` in this shared tree deletes
+the pipeline outright."* **That was true and is now false**, closed by two commits — `f0da7c7` *"land
+the tile composer's source, which was untracked and unrecoverable"* and `9b9accd` *"land the shipping
+tile set — all twelve nodes now compose."*
+
+**IN, committed, and measured this pass.**
+- The twelve hand-authored layouts at `tools/mapgen/layouts/*.txt`, all 64×64 with a closed alphabet;
+  `tools/mapgen/legend.ts`, fifteen cell kinds each carrying an explicit `blocks` flag; the seeder's
+  refusal to overwrite a hand-edited layout; and `npx tsx tools/mapgen/run.ts verify` at **12 of 12**.
+- **`tools/mapgen/compose/` — 169 tracked files**, of which **157 are tile PNGs**
+  (`git ls-files 'tools/mapgen/compose/tiles/*.png' | wc -l` → 157), plus `compose.py`, `lib.py`,
+  `verify.py`, `deliver.py`, `look.py` and `manifest.json`. `git status --porcelain` on that tree is
+  empty.
+- **All twelve nodes compose, run rather than inferred.** `python3 compose.py ../layouts/<id>.txt
+  <out>.png`, twelve times: **12 of 12, every output 1024×1024, ZERO off-palette pixels against the
+  frozen 32**, unique opaque colours **16–30** per node (sanctum 16 · r5 17 · r4 18 ·
+  sanctum-approach 18 · r1 20 · r3 20 · r2 23 · cindershelf 29 · duskhollow 29 · bowerdeep 30 ·
+  brackwater 30 · hearthollow 30).
+- **It is deterministic and it proves it.** Two independent runs are byte-identical, `verify.py`
+  refuses a `random` or clock import in either source file, and the sha256 of a fresh hearthollow and
+  brackwater **match the shas recorded in `tools/mapgen/compose/manifest.json`** — so the manifest is
+  a check rather than a sentence, which is the standard the palette manifest had to be repaired to
+  meet (item 7).
+- `tests/gates/layout-encounter-contract.test.ts` — **20 tests, 20 passing**, re-run this pass. It was
+  19 and gained a third direction; see item 54.
+
+⛔⛔ **AND HERE IS THE THING SOMEBODY OPENING THOSE TWELVE PNGs WOULD OTHERWISE CONCLUDE IS FINISHED,
+BECAUSE THEY LOOK FINISHED: THE REGION HAS SIX BIOMES AND THE COMPOSER HAS ONE MATERIAL VOCABULARY.**
+The twelve compositions are **structurally correct and not correctly coloured.** `data/nodes/*.json`
+declares `biome` (`core/schemas.ts:214`) over six values — **Meadow, Marsh, Forest, Steppe, Vale,
+Sanctum**, two nodes each. `compose.py` holds `MEADOW`, `MARSH` and — since `579169f` — `CINDER`, and
+dispatches on:
+
+    MATERIALS = {"hearthollow": MEADOW, "brackwater": MARSH, "cindershelf": CINDER}
+
+⚠ **Three separate defects sit in that one line, and they must not be collapsed into "biome art is
+pending".**
+1. **It is keyed by LAYOUT FILENAME, not by `biome`** — the field that actually carries the answer is
+   never read — **with a silent `MEADOW` fallback** (`materials_for`). Nine of the twelve nodes reach
+   it by falling through. ⛔ **`r4` is the sharpest case and it is no longer hypothetical: its biome is
+   `Steppe`, the same as cindershelf's, a Steppe-shaped table now EXISTS in the file, and `r4` does
+   not get it** — because only the string `cindershelf` is listed. **A correct table in the tree that
+   the node sharing its biome cannot reach is the filename key doing exactly what it was flagged for.**
+2. **`MARSH` IS `MEADOW`.** `MARSH = dict(MEADOW)` then re-states `":"` with the value it already had;
+   re-measured after `CINDER` landed, `MARSH == MEADOW` is still `True`, with **no differing keys**.
+   So the count of DISTINCT tables is **two, not three**, and *brackwater* paints from the meadow
+   vocabulary as surely as `r2` does. The
+   file is honest about why in its own comments — nothing in either drawing lane ever drew a plank,
+   and *"this composer does not draw art"* — but a documented placeholder and a second table are not
+   the same object, and this file has repeatedly been wrong by counting the intent instead of the
+   effect.
+3. **The failure is SILENT, in a file whose own contract says it will be loud.** `compose.py:70-72`:
+   *"A character with no entry is a loud failure, never a silent flat fill."* Nothing ever trips it,
+   because every layout draws from the six characters the one table already covers (`, . : ^ o ~`) —
+   **so the guard is real, correct, and structurally incapable of firing on the defect that exists.**
+   Same shape as every stub-blindness entry in item 39.
+
+**So the correct statement is: THREE nodes are right and NINE are painting somebody else's biome.**
+⚠ **Updated mid-pass — a `CINDER` table landed in `579169f` and cindershelf moved into the correct
+column.** `hearthollow` is Meadow and mapped to Meadow; `cindershelf` is now mapped to its own
+`CINDER`; `r1` is Meadow and correct *by fallback accident*. Wrong: `brackwater`, `r2` (Marsh),
+`bowerdeep`, `r3` (Forest), **`r4` (Steppe)**, `duskhollow`, `r5` (Vale), `sanctum-approach`,
+`sanctum` (Sanctum).
+⛔ **AND `r4` IS THE FILENAME-KEYING DEFECT BITING EXACTLY WHERE IT WAS PREDICTED TO.** `r4`'s declared
+biome is **Steppe — the same as cindershelf's** — and a Steppe table now exists, **and `r4` does not
+get it**, because dispatch keys on the layout's filename and only `cindershelf` is listed. **A correct
+table is in the tree and the node that shares its biome falls through to meadow.** Re-measured:
+`MEADOW == MARSH` is still `True`, and `MATERIALS` now holds three keys.
+**The families still to be cut are Forest (~50 tiles), Vale (~8) and Sanctum (~22), plus a Marsh that
+is real rather than an alias, plus the dispatch reading `biome` so Steppe reaches `r4`** — and
+`git ls-files tools/mapgen/compose/tiles/` holds **no** forest, vale, sanctum or marsh ground kind —
+outside the meadow set (short-grass, tall-grass, turf) and the seventeen `cinder/` tiles, there is
+nothing. ⚠ **Say "committed" rather than "exists", because the two came apart three times during this
+pass**: `tiles/cinder/` appeared **untracked** with 17 files mid-write, was committed in `579169f`
+before the write finished, and `vale-heather-*` — a tile the owner has approved — **is still tracked
+nowhere** (`git ls-files` returns 0) and is deliberately being held out until the Vale family can land
+with it (item 53). **An untracked tile is a tile one `git clean` from gone.**
+
+⚠ **A BRIEFING THIS PASS INHERITED SAID "SIX NODES PAINT AS MEADOWS" AND NAMED THE MISSING FAMILIES AS
+"Forest, Vale, Sanctum and an ash/basalt family for cindershelf". BOTH HALVES WERE CORRECTED, AND IN
+THE DIRECTION THAT MAKES IT LARGER.** It was **ten** nodes, not six, because Marsh is an alias — nine
+now that `CINDER` has landed. And **cindershelf's declared biome is `Steppe`, which it SHARES with
+`r4`** — so the family the schema asks for is `Steppe`, not a cindershelf-specific one. ⛔ **That
+distinction is load-bearing and the tree has now demonstrated it rather than merely risking it**: the
+table that landed is keyed `cindershelf`, so `r4` still paints as a meadow. **And the reason a
+per-biome table alone will not do is item 53's open conflict** — `tools/comfy/manifest.json` forbids
+grass *at cindershelf specifically*, twice, while `r4` carries no such clause. **A single `Steppe`
+vocabulary cannot satisfy a per-node prohibition and a per-biome table at the same time**, so whether
+this ends as a `Steppe` family with a cindershelf override, or two families, is **entangled with a
+question the owner has not answered.** Recorded open under G2; an agent may not pick.
+
+⚠ **And `tools/mapgen/compose/manifest.json` already carries a claim its own tree does not support** —
+it lists `v2/ground/` as holding *"plaza x8 loaded but unused"* and **no plaza tile is committed.** A
+derived artefact carrying a hand-written claim, on day one of the artefact's life. Fix it where the
+section on that shape says to: derive it, or make the generator refuse to write it.
+
+⛔ **THE COMPOSED PNGs ARE DELIBERATELY NOT SHIPPED, AND THAT IS A RULE RATHER THAN A BACKLOG.** None
+of the twelve is in `assets/final/maps/`, and none should be dropped there in a batch. **A node's
+painting lands with its collision mask, one commit per node**, because a layout-derived mask is only
+correct against a painting composed from that same layout — the per-node rule already stated below and
+in item 43. **Nine nodes in `assets/final/maps/` are still GENERATED images**, and that was re-checked
+this pass by a method that can actually tell them apart rather than by trusting provenance: matching
+every 16×16 cell against the 130 committed 16×16 tiles, the nine shipped maps score **0 of 4096
+(0.0%)** and a composed output scores 6.1–28.4%; distinct-cell share runs **47.1–99.7%** shipped
+(`r1` is 4084 of 4096) against 6.9–19.1% composed. **A tile composition reuses cells and a diffusion
+image does not.** ⚠ **Palette conformance CANNOT discriminate them** — both sides read zero
+off-palette — which is one more way of saying the palette was never the axis this decision turned on.
+
+### ⛔ WHAT THE COMPOSED MAPS DO NOT YET DO — read this before opening one and concluding it is finished
+
+**Six things, five of them open defects and one an expected failure that must not be "fixed".** They
+are here rather than in the ticket queue because the failure mode this section keeps guarding against
+is somebody opening a palette-clean 1024² PNG of the right shape and reading it as done. **The
+compositions are structurally correct. They are not the authored region.**
+
+1. ⛔ **THE ENCOUNTER TERRAIN DOES NOT READ AS WALKABLE, AND THIS IS A NAMED ACCEPTANCE CRITERION —
+   the owner asked for criterion 6 by name and it is NOT MET.** Viewed at a real 240×160 window at 3×,
+   cindershelf's `,` mass reads as **rubble** rather than as ground a player walks into: `,` and `R`
+   are both warm cracked rock, told apart by **texture and keyline, not by value** — and value is what
+   carries at 3×. ⛔ **The sharper form is a COLLISION defect rather than a legibility one**: `R`
+   blocks and `,` does not, so the two the player cannot separate are *the field he may walk into* and
+   *the rock he may not*. ⚠ **FOUR luminance gaps have now been quoted for that pair and none carries
+   its operator — the four, plus an independent reading with its corpus named, are in item 53**; the
+   structural claim rests on none of them. ⏳ **A measured fix exists and is deliberately NOT LANDED**:
+   the vale-heather tile the owner approved for the `,` slot is reported to take the separation to
+   **53.4** and the seam check to **PASS ×0.90**, and it is being held until the Vale family can land
+   with it (item 53). **Do not record this as fixed.** The lane describes the remedy as one more tile
+   pass rather than a structural problem, and that judgement is theirs, not this file's. **Record it
+   at full weight anyway**: an unmet criterion the owner named is not a polish item.
+2. ⛔ **NO GLOWING ORANGE FISSURES, WHICH THE SUBJECT LINE EXPLICITLY NAMES.**
+   `tools/comfy/manifest.json` `_nodes.cindershelf.feature` calls for *"steam vents and glowing orange
+   fissures"*; the generation for them returned pale volcanic sand and produced nothing usable, **so
+   the family has no ember pixel at all.** The authored feature is absent rather than approximated.
+3. ⚠ **THE ASH IS NOT BLACK, AND THIS IS A PALETTE FACT RATHER THAN A CUTTING FAILURE.** The frozen 32
+   holds **no dark neutral** between `#272940` and `#74564e`, so the darkest motif-free walkable ground
+   available reads **mauve**. **Independently checked here, and it holds**: sorted by Rec.709 luma the
+   only four swatches in that gap are `c17 #054114` (chroma 60, dark green), `c31 #303271` (65,
+   blue-violet), `c05 #642c16` (78, dark red-brown) and `c08 #c72a1b` (172, red) — **not one of them is
+   low-chroma**, and the neighbours bounding the gap, `c30 #272940` (chroma 25) and `c06 #74564e` (38),
+   are the only near-neutrals anywhere near that band. **A black ash would need a palette change, which
+   is the owner's and is NOT being proposed here.**
+
+   ⛔ **AND THIS CLAIM SURVIVES THE STRUCK ONES AROUND IT — DO NOT SWEEP IT UP WITH THEM. It is a
+   different claim from the contrast defect, and both are true.** *"A black ash is unavailable"* and
+   *"the walkable/blocking separation is unreachable"* are **not** the same statement, and merging them
+   produces the false conclusion that the palette caused the contrast defect. **Re-measured here:**
+   every entry in the `#272940`–`#74564e` window is strongly chromatic (chroma **60–172**) and the only
+   neutral in it is `c30` itself, which is navy — **so a black ash is genuinely unavailable.** ✅ **But
+   a 55–130 warm separation is readily available, so the CONTRAST defect was a RECUT, not a palette
+   limitation.**
+
+   ⚠ **AND THE CONSTRAINT IS HOW THE TILES WERE DRAWN, NOT WHAT COLOURS THEY HAD. This paragraph
+   claimed the opposite and is corrected — the correction is the useful half.** It read: *"A pure `c07`
+   plate reads 95.47 and a pure `c05` plate reads 58.24, so ANY reshuffle within that shared set is
+   capped at a separation of ~37.23… a different material was structurally required."* ⛔ **37.23 is
+   the spread of the `c05`/`c07` PAIR. It is not a cap on re-proportioning, and treating it as one
+   turned a fact about two inks into a false claim about the palette.**
+
+   **Measured over the entries actually present in the committed tiles** — ash-scrub carries six
+   (`c05` 58.6% · `c07` 26.8% · `c00` 7.0% · `c04` 4.3% · **`c09` 2.7%** · `c06` 0.6%), basalt-rock
+   five (`c07` 62.5% · `c00` 16.6% · `c05` 9.7% · `c04` 7.3% · `c06` 3.9%):
+
+   | proportions free, entries unchanged | achievable mean luminance |
+   |---|---|
+   | ash-scrub | **3.87 – 125.16** (`c00` – `c09`) |
+   | basalt-rock | **3.87 – 95.47** (`c00` – `c07`) |
+   | max separation, rock bright / scrub dark (**correct sign**) | **91.60** |
+   | max separation, scrub bright / rock dark | 121.29 |
+   | `c05`/`c07` pair spread only | *37.23 — the figure that was mistaken for a cap* |
+
+   **So re-proportioning the colours these tiles already contain reaches 91.60 — past the 41 floor and
+   past the 68 aim.** ⚠ **And `c09` at 125.16 was already sitting in the WALKABLE tile at 2.7% and is
+   absent from the blocking one** — the rung the heather fix reached for was in the drawer the whole
+   time.
+
+   ✅ **THE TRUE CLAIM, WHICH IS WEAKER AND IS THE ONE THE MEASUREMENT SUPPORTS:** no re-proportioning
+   that keeps **both tiles `c05`/`c07`-dominant** gets anywhere near the aim — and both are, at
+   **85.4%** and **72.2%**. ⚠ **Measured exactly, holding those dominances and pushing each remainder
+   to its extreme (scrub's to `c00` 3.87, rock's to `c06` 94.06), the ceiling is 44.80** — scrub floor
+   50.27 against rock ceiling 95.07. ⛔ **So a dominance-preserving recut SCRAPES PAST THE 41 FLOOR and
+   comes nowhere near the 68 AIM.** State it that way: not *"cannot clear the bar"*, which depends on
+   which bar is meant, but **44.80 against a 41 floor and a 68 aim.**
+
+   ⛔ **WHY THIS MATTERS RATHER THAN BEING PEDANTRY, and it is the reason the weaker claim is the one
+   to keep.** The struck version says the heather swap was **structurally required**. The true one says
+   it was **one correct answer among several** — a darker, more strongly shaped ash is another, and a
+   redraw separating on **texture or silhouette** rather than on mean value is not subject to a
+   luminance ceiling at all. **Recording it as forced would tell a future recut that the colour set
+   defeated it, when what actually defeated it was three redraws that all stayed inside the same two
+   dominant inks.** That is more useful to the next person and **less flattering to the pipeline, which
+   is usually the sign it is the true one.**
+
+   ⚠ **KEEP THIS SEPARATE FROM THE PALETTE CLAIM DIRECTLY ABOVE.** *"The ash cannot be black"* **is** a
+   genuine palette limit — the window holds no dark neutral. *"The two materials could not be
+   separated"* **is not** — it is a drawing decision. **Two adjacent claims, one true of the palette and
+   one true of the draughtsman, and merging them produces the false conclusion that the palette caused
+   the contrast defect.**
+
+   ⚠ The lane's earlier figure — *luminance 84* — is quoted without its operator and does not match
+   Rec.709 luma on `c06` (91.8) or `c18` (83.6); on this file's own standing rule a bare luminance
+   figure without its definition is not re-measurable, so **the structural claim is recorded and that
+   number is not.**
+4. ⛔ **NONE OF THE AUTHORED STRUCTURES IS PAINTED, ON ANY NODE — and this belongs at the same
+   prominence as the six-biomes item above.** Five **generic houses** stand on cindershelf where
+   `tools/comfy/manifest.json` names a relic forge with a smoking chimney, a squat gym forge of basalt
+   block, an inn, a shop and a boarded store. **This is true of all twelve nodes.** The composer places
+   the right number of buildings, in the right footprints, with doors the layout agrees with — and they
+   are *houses*, drawn from four roof-hue variants of one hand-drawn kit
+   (`tools/mapgen/compose/tiles/v2/handdrawn/{blue,green,ochre,red}`, 22 pieces each). **So the maps
+   are the region's SHAPE and not yet the region's CONTENT**, and a reader who checks the building
+   count against the manifest and stops there will get a pass on a map that has none of the named
+   buildings in it.
+5. ⛔ **A SEAM CHECK FAILS ON THREE NODES, AND TWO OF THEM PREDATE THE CINDER FAMILY.** `verify.py`
+   reports `FAIL SEAMS` at **×2.55** on cindershelf, **×1.22** on hearthollow and **×1.27** on
+   brackwater — the latter two already failing at HEAD. **Say it that way round**, because a reader
+   given only cindershelf's number files it as a cinder-family defect when two thirds of it is the tile
+   set generally. **Cindershelf's is twice as bad and is not a low-denominator artefact**: its
+   `ash-scrub` field measures joins **22.20 vertical / 26.13 horizontal** against `ash-open`'s
+   3.55 / 5.37 and path's 0.10 / 3.70. ⏳ **The pending heather swap is reported to take cindershelf's
+   to PASS ×0.90 and does NOT touch hearthollow's or brackwater's**, which is the half a "seams fixed"
+   report would drop.
+6. ✅ **AN EXPECTED FAILURE, RECORDED SO NOBODY MAKES IT GREEN.** `tools/mapgen/compose/verify.py:454`
+   asserts `len(hues) >= min(4, buildings)` — *"%d roof hues over %d buildings"* — and it **FAILS on
+   cindershelf on purpose**, because green roofs are excluded on that node to preserve its
+   **zero-green** property. **That failure is correct.** ⛔ Do not widen the check, do not add a green
+   roof to cindershelf, and do not read "the composer's verifier is not fully green" as unfinished
+   work. It is the same shape as the hearthollow palette red: a gate reporting a deliberate state.
+
+⚠ **AND A SMALL ONE THAT WILL BE BELIEVED, BECAUSE IT IS A COMMENT ON THE LINE IT DESCRIBES.**
+`compose.py:68-70` labels its three ink constants with swatch ids, and **two of the three ids are
+wrong**: `SHADOW = (0x27,0x29,0x40)` is annotated `# c03` and is actually **c30** (`c03` is
+`#faf7eb`, the brightest swatch in the palette), and `SAND = (0xC8,0xBC,0xA5)` is annotated `# c22` and
+is actually **c12** (`c22` is `#89b935`, a green). Only `KEYLINE`'s `# c00` is right. **The RGB values
+are correct and on-palette** — which is why nothing goes red and why the compositions still measure
+zero off-palette — **so this is purely a false label, and it is the exact hazard item 2 names: a
+palette id is a SLOT, not a colour.** Anyone re-pointing these by id after a re-freeze would paint the
+shadows near-white.
+
+**`tools/mapgen/render.ts` is NOT the stamper, and it is easy to mistake for one.** It writes the two
+*derived* images per layout — the collision mask, through the engine's own `maskRasterFrom`, and the
+flat ControlNet control image. **It never paints a map.**
+
+### What the tiling settles — and it is no longer conditional
+
+⚠ **This subsection was headed *"What the tiling WOULD settle, if it is adopted — recorded as
+conditional, not as done"*. The condition it was waiting on has been met by the ruling above, so the
+conditionals are removed rather than left standing as hedges nobody re-reads.**
+
+**T-57 stops being a choice and becomes a construction.** Its open question is *when the painting and
+the collision layout disagree, which is authored first* — and under tiling the question **dissolves
+rather than being answered**: the painting and the mask are both stamped from the same 64×64 text
+file, so they cannot disagree. The layout is authored; both images are downstream. **That is better
+than either side of T-57**, and T-57's own *done when* names this exact route — *"Hank rules which
+artefact is authored first — **or rules on tile composition, which answers this by construction**."*
+**He has ruled on tile composition.**
+
+⚠ **BUT IT DISSOLVES PER NODE, NOT AT A STROKE, AND THE DIFFERENCE IS THE WHOLE OF T-56.** The
+correspondence is a property of a *composed* painting. **Nine of the nodes on disk are still generated
+images that no layout produced**, and for those nine the disagreement T-57 describes is exactly as
+live as it was. So the ruling changes T-57 from *a question awaiting an answer* to *an answer awaiting
+its nodes*, and the operative rule is unchanged and is the one immediately below.
+
+⚠ **THE COLLISION-MASK RULE, AND IT IS PER NODE — the looser version reintroduces the exact defect it
+replaces.** This supersedes the blanket *"do not ship generated masks"* in item 43. The rule:
+
+> **A node may ship its collision mask on the same commit that ships its TILED painting, and not
+> before.** A mask derived from a layout is only correct against a painting composed from that same
+> layout.
+
+**Nine nodes in `assets/final/maps/` are still generated images** (ten tracked; hearthollow deleted),
+and none of them was produced from a layout — four independent signals say so and are recorded in item
+43. **A layout-derived mask against one of those still blocks the painted road and leaves the painted
+buildings walkable.** The blanket rule and the per-node rule agree today, because zero nodes have a
+tiled painting; they diverge the moment one does, and the per-node one is the one to carry.
+
+⚠ **AND THE COUNT OF GATES THAT RED ON A MASK IS THREE, NOT ONE — T-56's briefing is corrected.**
+All twelve nodes declare `collisionMask` at `assets/final/maps/<id>-mask.png` and **zero of the twelve
+exist**, checked one path at a time. Three committed tests assert that absence and each is written to
+go red the day it stops being true: `tests/unit/manifest.test.ts:1432` (now over **all twelve** nodes,
+widened this session from `r1` alone, with the message *"a collision mask shipped — see T-56 before
+touching this"*), `tests/unit/collision.test.ts:471-491` (*"STATES THE GAP: not one node's declared
+mask is on disk, so the synthesised branch IS the game"*), and `tests/unit/overlay-diff.test.ts:1086-1095`.
+**That is the recalibration T-56 describes, and it is now three files rather than one.** Twelve
+layout-derived masks do exist, git-ignored, at `assets/raw/_layouts/masks/mask-<id>.png`; nothing in
+`data/`, `game/` or the served copy points at them, and promotion is still T-56 behind T-57.
+
+### The encounter mask — derivable exactly, and the engine half is NOT started (**T-65**)
+
+Tall grass is a **cell kind** in the layout — `,`, the legend's `scrub` row, `blocks: false` — so a
+per-node encounter mask is now derivable **exactly** rather than by colour-matching a painting.
+`tests/gates/layout-encounter-contract.test.ts` already binds `,` to that legend row by identity.
+
+**The engine half is the code lane's and nothing has started on it.**
+`balance.encounter.encounterTileFraction` is **0.25** (`data/balance.json:422`) and it is a **SCALAR,
+not a spatial mask**: `stepEncounterChance` (`core/foodweb.ts:223-225`) is
+`encounterTileFraction × encounterChancePerStep`, one product, and `rollForayStep`
+(`game/encounters.ts:259`) takes **no tile, no column and no row** — so an encounter rolls at the same
+rate on every walkable cell of a node, grass or not.
+
+⚠ **THE SINGLE DRAW IS NOT AN IMPLEMENTATION DETAIL AND THE MIGRATION MUST PRESERVE IT.** The
+function's own header says why (`core/foodweb.ts:216-218`): *"Collapsing the two factors into ONE draw
+is deliberate and load-bearing: L10 requires that a replay of the same seed meets the same creatures,
+and the draw ORDER is the contract. A second draw for the tile would renumber every draw after it and
+desynchronise every existing fixture."* **A per-tile mask sampled as a second `rng` call breaks every
+determinism fixture in the repository.** The migration is already written down in the code that owes
+it — `game/encounters.ts:134-135`: *"the fraction becomes a sampled property of the node's encounter
+mask and this function takes the node — the product, and the single draw, stay exactly as they are."*
+**Nothing anywhere in `game/` or `core/` reads a layout today**; the only per-cell encounter counting
+in the tree is inside the gate's test file.
+
+⚠ **And one clause of that forward commitment has EXPIRED without going red.** `core/types.ts:1076-1077`
+justifies the scalar with *"no maps exist yet — `assets/final/` holds one empty file and 287 of 288
+manifest rows are unstarted."* Ten maps landed. The mask half of the same sentence is still true; the
+map half is a year out of date and nothing will ever announce it.
+
+**Measured, per node, using the legend's own `blocks` flags as the
+definition of walkable** — the share of walkable cells that are `,`:
+
+| routes (r1–r5) | towns (5) | sanctum nodes |
+|---|---|---|
+| **24.10% – 25.99%** | **5.46% – 10.16%** | sanctum-approach 23.53%, sanctum **31.02%** |
+
+r1 24.10 · r2 24.67 · r4 25.16 · r3 25.27 · r5 25.99 · hearthollow 5.46 · brackwater 6.55 ·
+cindershelf 8.05 · bowerdeep 8.83 · duskhollow 10.16. **These are what the single 0.25 would be
+replaced by**, and the spread is the point: a town would fall to a fifth of the shipped rate and a
+route would stay near it.
+
+⚠ **THE `~` CELL IS WHY THIS HAS TO BE MEASURED THROUGH THE LEGEND AND NOT BY HAND.** `~` (shallow)
+is `blocks: false` — *"walkable water margin — wadeable, not a wall"* — and a hand-typed walkable set
+that omitted it inflated r1, r2 and r5 by counting their wade margins as solid. **Commit 31987b8's
+own table carries the inflated figures** (r1 25.5%, r2 33.8%, r5 26.4%); the twelve layout **headers**
+carry the correct ones and agree with the legend-derived measurement above. A commit message is not a
+measurement, and here the file it landed disagrees with it.
+
+⚠ **AND THE SANCTUM NODES ARE OUTSIDE THE ROUTE BAND — do not write "routes run 24–26%" without
+saying which nodes that names.** Stated over all seven non-town nodes the range is **23.53% – 31.02%**.
 
 ---
 
 ## Verified state
 
-**Re-measured on 2026-08-27 at 15:58:43Z**, one complete run, on a tree with two lanes live in it.
-What landed since the 14:57 readings: **the quest layer's year-turn defect** (age is read off the
-tape's `gained`), **the deadline guard made real rather than deleted**, **the release refusal naming
-which reason**, and **both quest gates rewritten to observe a driven player**. **No sha and no commit
-tally is written here** — `git log` holds both, and each rots inside a single pass.
+**Re-measured on 2026-08-27, one complete run, on a tree that is for once nearly clean.** What landed
+since the last readings: **the economy primitives, the dialogue `grants` key, the shop row model and
+the live wiring that puts all three on the save**; **the cascade gate's seasonal-window correction**;
+**Scrounge healing by the HP that actually left the target**; **the twelve hand-authored map
+layouts, their contract gate and the seeder refusal that protects them**; **the layout gate's missing
+third direction**; **the tile composer and its 157-tile shipping set, with all twelve nodes composing
+palette-clean at 1024²**; and **the shop's two refusal layers, each pinned by sabotage**. **No sha and
+no commit tally is written here** — `git log` holds both, and each rots inside a single pass, which
+this one demonstrated twice.
 
-⚠ **Read the figures below as READINGS AT A TIMESTAMP, not as the tree's health.** The art lane is
-editing `tools/comfy/` and a lane is holding `game/scenes/OverworldScene.ts` and
-`tests/unit/overworld-scene.test.ts` right now to repair the wipe softlock (item 46), so the totals
-moved under this pass and will move again. **The FAILURE SET is the stable part** and is named case by
-case.
+⚠ **Read the figures below as READINGS AT A TIMESTAMP, not as the tree's health** — but this pass is
+the first in some time where that caveat is nearly idle. **The FAILURE SET is the stable part** and
+is named case by case, and it is now a set of one thing seen three times.
 
-- `npx tsc --noEmit` — **exit 0, silent.** Re-measured this session at HEAD `2f07487`.
-  ⚠ **This entry previously recorded exit 1 with two errors, and they no longer reproduce.** Both
-  files it named — `tools/comfy/trials/creature-batch6-view.ts` and
-  `tools/comfy/trials/creature-batch6.ts` — are **gone from the tree.** They were untracked art-lane
-  work in flight; they were removed, and the errors left with them. **No tracked file produces a type
-  error, and none did then either** — which is what the original entry was careful to say, and the
-  reason this must not be read backwards as a regression that got fixed. Nothing was fixed; two
-  files left.
-  **The instrument lesson from that reading is kept, because it is still true:** `cmd | tail; echo $?`
-  reports **tail's** status, not the command's — and in **zsh** a `PIPESTATUS` read written for bash
-  comes back empty, which is how that run first mis-reported its own exit status.
-- `npm run test` — **5 failed of 2,950; 2,945 passing; 4 files failed of 70**, 49.87 s.
-  **The passing total rose because tests were ADDED, not because anything regressed**: 2,915 → 2,950
-  over the same 70 files, the additions belonging to the two rewritten quest gates and the release
-  refusal.
-  ⚠ **AND THE FAILURE COUNT ROSE, 3 → 5, WHILE NOTHING IN THE TRACKED TREE BROKE. That is the mirror
-  of the trap this section carried last pass** — a lower count was the reading nobody re-checks, and a
-  higher one is the reading everybody over-reads. **Attributed one by one, because a count is not a
-  diagnosis: three of the five fire on art-lane files that are untracked or uncommitted, one is a
-  fossilised precondition, and one is the cascade gate.** Only the last reads shipped data.
-  - **`tests/property/foodweb.test.ts` — 1 failure**, *"no shipping source names a species — a shadow
-    table has to name its rows"*. It names `tools/comfy/creatures-batch-7-accept.ts`, which is
-    **untracked**. The G2/G3 shadow-table gate is doing exactly its job on a file the art lane has not
-    committed. **Not a defect in shipped code.**
-  - **`tests/unit/postprocess.test.ts` — 1 failure**, *"every caller of the background steps resolves
-    its options from the manifest"* (BF-5). It names `tools/comfy/trials/derive-creatures-batch-2.ts`,
-    also **untracked**. Same shape.
-  - **`tests/unit/manifest.test.ts` — 2 failures, and they are two different things.**
-    *"and the escape DOES move the seed for a derived row"* is the art lane mid-flight in the
-    **modified, uncommitted** `tools/comfy/manifest.json`: the `map-hearthollow` row's stored seed and
-    version disagree with the derivation by exactly one version step. **This section has twice
-    published a line number for this failure and it drifted twice, and a previous pass published the
-    wrong row as well — so it is named by its TEST TITLE, and the seeds are not quoted.**
-    *"THE REAL GATE refuses a variant when the node has no collision mask on disk"* is a fossilised
-    PRECONDITION: it asserts `existsSync(r1.mapAsset)` is `false`, under a comment reading *"The
-    repo's true state today: no node has a base map or a mask on disk."* Ten maps landed; the premise
-    expired. The claim the test exists to make — a maskless node must REFUSE, never fall back to
-    "every pixel walkable" — is untouched and worth keeping; only its setup needs to stop asserting
-    the repo is empty. Recorded as **T-46**, still open, not edited here.
-  - **`tests/unit/transcription.test.ts` — 1 failure**, *"keeps the year-1 over-catch beat reachable
-    in real play (build-doc §1 beat 1, §15 I2)"* (`:1264`, failing at `:1365`). The cascade
-    feasibility gate, the section at the top of this file. Re-read verbatim off this run and
-    **unmoved**: *"brackwater: 19.2 removals needed to starve fenmaw-line, only 11.4/yr available"*,
-    11.423076923076922 against 19.2. **The only failure of the five that reads shipped data**, the
-    owner's decision, and now known to be **half** of what blocks the beat — see the two-ends note at
-    the top of this file and item 45.
-  - **`tests/unit/harness.test.ts` and `tests/unit/quests.test.ts` are GREEN**, and the quest lane's
-    work has now LANDED rather than being a mid-edit reading (item 51).
+- `npx tsc --noEmit` — **exit 0, silent.** Re-measured this pass on the current HEAD.
+  **The instrument lesson this entry has carried twice is kept, because it is still true:**
+  `cmd | tail; echo $?` reports **tail's** status, not the command's — and in **zsh** a `PIPESTATUS`
+  read written for bash comes back empty. It bit again on this pass: both `tsc` and the mapgen
+  verifier first read as exit 0 through a pipe and had to be re-run bare to learn their real status,
+  and the mapgen one was genuinely 0 while the prose linter was genuinely 1.
+- `npm run test` — **3 failed of 3,176; 3,173 passing; 1 file failed of 78**, 48.34 s. Re-run this
+  pass; the three failures are the same deleted hearthollow map, seen three times.
+  **The passing total rose because tests were ADDED, not because anything was repaired**: 2,950 →
+  3,169 → **3,176** over 70 → 78 files, the additions belonging to the economy primitives, the
+  dialogue grants, the shop, the live-path wiring, the layout↔populations gate and the seeder guard,
+  and the newest seven to the layout gate's third direction (19 → 20 tests) and the shop's two
+  refusal layers. ⚠ **Read this as a reading at a timestamp and nothing more: it was taken while two
+  other lanes were mid-edit in the same tree**, and the count moved twice during this pass.
+  **AND THE FAILURE COUNT FELL, 5 → 3, and three of those five left without being fixed.** Say it
+  that way round, because "fewer failures" is the pleasant reading and this file's own rule is that
+  the pleasant reading is the one nobody re-derives. Two of the five (`tests/property/foodweb.test.ts`
+  no-shadow-tables, `tests/unit/postprocess.test.ts` BF-5) fired on **untracked art-lane files that
+  are no longer in the tree**; the seed half of `tests/unit/manifest.test.ts` fired on an
+  **uncommitted `tools/comfy/manifest.json` that has since been committed**. **The gates did not
+  change and nothing was repaired — the files they were reading left.** The cascade-gate failure is
+  gone for a different and real reason: it was **measuring wrong**, and the correction is the
+  §7.2 seasonal-window section at the top of this file.
+  - **`tests/gates/asset-palette-contract.test.ts` — 3 failures, ONE root cause, one message.**
+    *"is present, non-empty, and decodes"*, *"is a real image, not an empty or flat one"* and
+    *"every opaque pixel is an exact `data/palette.json` colour"*, all three on
+    `assets/final/maps/hearthollow.png` and all three throwing the identical error out of the gate's
+    own `census` helper: *"committed under `assets/final/` but is missing from the working tree. This
+    gate asserts over shipped pixels: an absent covered file is a failure, never a skip."*
+    ⛔ **This is CORRECT BEHAVIOUR and is not work to do** — the file is deleted on the owner's
+    instruction and a replacement is being generated. See the section below. **It is not a palette
+    violation**: no pixel was measured, because there was no file to decode.
+  - ✅ **T-46 IS CLOSED — the fossilised precondition was repaired, not merely gone green.** The
+    `existsSync(r1.mapAsset) === false` half is **deleted**, and the surviving MASK half was
+    **widened from `r1` alone to all twelve nodes**: it now asserts the set of nodes with a mask on
+    disk is empty, by name. **That widening changes T-56** — the briefing there said only `r1`'s
+    mask touches this test, and that is no longer true; a mask promoted for **any** node reds it.
+    The same commit fixed a second defect in the same file that nobody had reported: the
+    `_versions` escape test **replaced** the map rather than extending it, wiping the twelve
+    `map-*` rows the manifest ships at version 2, so a deep-equal claiming *"nothing else in the
+    manifest moved"* had itself moved twelve rows in its own setup.
 - `python3 tools/prose/prose-lint.py data/dialogue.json` — **exit 1**, **215 entries, 63 speakers,
-  512 lines**, re-derived independently off `data/dialogue.json` as well as read off the run. 27
-  control assertions green over 7 structural checks. **0 corpus structural failures.** 3 per-beat
-  advisory flags, all `R1-SUBJECT-SWITCH`, 3 speakers.
+  512 lines**. 27 control assertions green over 7 structural checks. **0 corpus structural
+  failures.** 3 per-beat advisory flags, all `R1-SUBJECT-SWITCH`, 3 speakers
+  (`vesper.post.loss`, `amb.r2-ferryhand.base`, `amb.duskhollow-lampwright.base`).
   **The non-zero exit is not evidence of a structural failure**: `tools/prose/prose-lint.py:1085`
   exits on `beat_total + fails ≠ 0`, so three advisory flags alone produce exit 1.
-- `git` — **`main` is in sync with `origin/main`; everything is pushed.** **No commit hash is quoted
-  here any more, deliberately.** This section has named three different HEADs in as many hours and each
-  was stale before the paragraph around it was finished — "in sync with origin" is a claim that stays
-  true, a hash is a claim that expires. One session owns the index by Hank's instruction; the art lane
-  does not commit. **The dirty-path COUNT is no longer quoted either, on the same reasoning, and it
-  earned that this pass**: the list this section published at 05:47 named six paths, and within the
-  hour three of them had been committed and three different ones had appeared — the count read six
-  both times while naming a different tree, and it moved four more times during this pass alone.
-  What is stable is the claim, so that is what is written: **every dirty path belongs to a lane that
-  is working right now** — the **art lane** in `tools/comfy/`, `tools/artverify/` and
-  `assets/approved-trials/`, the **softlock lane** holding `game/scenes/OverworldScene.ts` and
-  `tests/unit/overworld-scene.test.ts` (item 46), and `.claude/scheduled_tasks.lock`, which is the
-  harness. **The quest lane's paths are no longer dirty — that work landed.** Nothing dirty is
-  abandoned work, and **nothing untracked is under `core/`, `game/`, `data/`, `docs/` or `tests/`**.
-  Run `git status --porcelain` and read it; do not read it here.
+  ⚠ **The corpus totals did not move** — 215/63/512 before the economy pass and after it. The
+  `grants` key that landed this session is a **schema** field, not a line, so it adds nothing the
+  linter counts.
+- `npx tsx tools/mapgen/run.ts verify` — **exit 0, 12 of 12 nodes ok, 0 failures.** Eight checks per
+  node (`checkEdgeCorridors`, `checkSpawn`, `checkPropAnchors`, `checkFootprintBand`,
+  `checkFootprintClearance`, `checkSettlementOnly`, `checkReachability`, `checkMaskRoundTrip`), and
+  the same functions are imported by `tests/unit/mapgen.test.ts` and by the seeder, so a hand edit
+  that breaks a layout goes red in both places rather than in the CLI alone.
+- `git` — ⚠ **`main` IS MANY COMMITS AHEAD OF `origin/main`, ZERO BEHIND, AND NOTHING FROM THIS
+  SESSION IS PUSHED.** ⛔ **DO NOT READ THE AHEAD-COUNT OFF THIS LINE. RUN
+  `git rev-list --left-right --count origin/main...HEAD`** (behind on the left, ahead on the right).
+  ⚠ **The number moved FOUR TIMES during the pass that wrote this entry, and that is the entry.** It
+  was published as **thirteen**; measured **sixteen** at the top of the pass, **eighteen** in the
+  middle, **nineteen** as this sentence was drafted, and **twenty** before the paragraph was finished —
+  the layout gate's missing direction and the two commits that landed the tile composer and its tile
+  set, then the shop's two refusal tests (`320a687`, `0a3eb7d`), then cindershelf's ash family
+  (`579169f`), then more. **Several lanes are committing into this tree concurrently, so any count
+  written here is stale by construction rather than by neglect** — which is a different failure from
+  the one that produced *"in sync with origin"*, and needs the opposite remedy: not a fresher number,
+  but no number. Before all of it this entry read *"in sync with origin;
+  everything is pushed"* for several passes, a phrasing chosen precisely as the claim that stays true
+  while a hash does not. **A claim that stays true is not a claim that stays checked — and a claim that
+  was just measured is not a claim that is still true.** Run the command; inherit no number on this
+  line, this one included.
+  **The working tree is nearly clean and lanes are live in it.** Two deletions —
+  `assets/final/maps/hearthollow.png`, which is the failure set above and is deliberate, and
+  `.claude/scheduled_tasks.lock`, which is the harness — a lane holding `core/save.ts`, these two docs
+  being written, and four untracked paths: `assets/approved-trials/_palette-refreeze/`,
+  `tools/comfy/npcs-contact-sheet.mjs`, `tools/comfy/trials/sheet-b2-evidence.mjs`, and
+  ⚠ **`tools/mapgen/compose/tiles/cinder/`, which is 17 tile PNGs of the cindershelf family being cut
+  right now and is the one entry on this list that would be expensive to lose** (item 53). **Run
+  `git status --porcelain` and read it; do not read it here** — this listing was accurate for about as
+  long as it took to write.
 
 ## What is built
 
@@ -334,7 +912,10 @@ case.
 | Tick costs | travel 1 · foray 1 · inn 2 · **battle 0.5, charged at launch** and wired — `spendTicks("battle", …)` inside `handOffToBattle`, which is the single launcher all four fights go through | `data/balance.json` `clock` |
 | Cadence validation | A 4-rule `.superRefine` refuses a retune at boot: year = season × seasons; `startTick` in range; every cost an exact multiple of `1/subTicksPerTick`; no cost ≥ a season | `core/schemas.ts:479` |
 | Encounter rate | Grass-gated. `stepEncounterChance()` is the **single** definition the game and the harness both roll against — no second one exists | `core/foodweb.ts:223` |
-| Catching | ⛔ **BUILT AND UNREACHABLE.** The reducer, the snare tiers, the bait maths, the `{t:"catch"}` action and `applyCaught` all exist and are tested; **the player can never hold a snare**, so the verb cannot be exercised in play and demo beat 1 cannot be performed — item 45, **T-60** | `game/wild-battle.ts:266`/`:396`, `core/save.ts` `applyCaught` |
+| Catching | **BUILT, REACHABLE, AND METERED FOR THE TIERS THE GAME HANDS OUT — not for the others.** ⚠ **This row read "BUILT AND UNREACHABLE" and was wrong twice over**; it is corrected, not rephrased. The reducer, the tiers, the bait maths, `{t:"catch"}` and `applyCaught` exist and are tested; a new game now **holds three base snares** from Maren's own tutorial line, and throwing one spends it. **The hole that remains is that `bagHas` reads an ABSENT key as unlimited**, so every tier the save has never been granted is infinite — item 56 | `core/battle.ts:1226`/`:1554`, `game/wild-battle.ts`, `core/save.ts` `applyCaught` |
+| Economy | **REAL ON THE LIVE PATH, BOTH DIRECTIONS.** `money` has exactly one writer (`applyPayout`) and `items` exactly one (`applyGrant`), each with a reader, an applier and a `replay()` arm, and each refusing precisely what its reader refuses. A won **rival** fight pays `trainerPayoutFlat + trainerPayoutPerLevel × Σ(enemy levels)`; the shop spends it. **`innCost` (40) and every `baitPrice` still have ZERO readers** — the inn charges only ticks, and bait cannot be bought at all | `core/save.ts` `applyPayout`/`applyGrant`, `data/balance.json` `economy` |
+| Town shop | **A PHASER-FREE ROW MODEL that buys on the tape.** Four rows — base snare, weighted snare, salve, tonic, every price 3 — with weighted gated on the second gym's badge through `core/acts.ts` `badgeFlagFor`, master deliberately **not** sold, and affordability decided at the row so `applyPayout`'s overdraw throw is unreachable through the UI. The vendor is identified by the corpus's own `role: "vendor"` speaker tag, never by `kind === "service"` | `game/shop.ts`, `game/scenes/OverworldScene.ts` `openShop`/`buySelected` |
+| Dialogue grants | **An entry may carry `grants`, and one does.** `maren.tutorial.snare` ships `{"base": 3}`; the runner applies it on completion. The schema cross-references the id set and runs a **must-write path analysis** over the `goto` graph so a granting entry cannot fire twice — bounded at one play **per entrance**, which is T-63 | `core/dialogue-schema.ts`, `game/dialogue-runner.ts`, `data/dialogue.json` |
 | Act model | Badges + quest flags gate towns, routes, raids, rival, finale | `core/acts.ts` |
 | Lifecycle | Aging, retirement, heirs, boxed aging, Cullbrand raid on act entry | `core/lifecycle.ts` |
 | Save + replay | Action log replays byte-identically **for the ten members that have an arm**; `subTick` and `forayStepsSinceTick` survive the SERIALIZER's round trip and the year turn. ⚠ **The citation this row carried was wrong and is corrected**: `forayStepsSinceTick` appears **nowhere** in `tests/property/`, and was covered there only vacuously by a whole-save comparison where both sides read 0. Its real coverage is `tests/unit/save.test.ts:212` (canonical keys) and `tests/unit/overworld-scene.test.ts:3124`/`:3452`. Through `replay()` it does **not** survive — T-54 | `core/save.ts`, `tests/unit/save.test.ts`, `tests/unit/overworld-scene.test.ts` |
@@ -356,7 +937,7 @@ case.
 | Harness control run | **`CATCH_PROFILES` × `RAID_POLICIES` = a 3×2 matrix**, raid suppression as an orthogonal flag rather than a fourth profile. Deep-copies `rawBalance` and empties `yearEvents.raids` in memory — `data/balance.json` is never touched. Extinctions attributed by measurement (`attributeExtinction`), not by a node lookup | `tools/harness/full-run.ts:250`/`:265`/`:335`, `report.ts:525` |
 | Battle persistence | **WIRED (T-28).** `applyBattleResult` is the first statement of all four finish handlers — wild, gym, rival, finale. **The four line numbers this row used to publish had all drifted by the next pass and are not published any more**; `grep -n 'applyBattleResult' game/scenes/OverworldScene.ts` returns exactly four call sites and that is the claim. `applyBattleAftermath` is the one writer of `curHp`/level/xp/bag outside creation and the year turn. The three docblocks that already called it *"the ONE writer all four launchers share"* **became true rather than needing repair** | `game/wild-battle.ts`, `core/save.ts` |
 | XP carry-in | `BattlerSpec.xp` exists, `makeBattler` reads it back as `xp: spec.xp ?? 0`, `battlerSpecOf` copies it verbatim — carried, never derived, so a replay sees the same number (T-30) | `core/types.ts` `BattlerSpec`, `core/battle.ts` |
-| Party-wipe recovery | Pure TS, zero engine imports. A wipe plays the fight's own losing beat, THEN blacks out, wakes the party healed at an inn and charges `2 × innTicks + 1 × travelTicks` = **5 ticks**, composed from existing keys — there is no `blackoutTicks` and there must not be one (T-29). The on-screen move is bound at **every shipped node**, and the test counts how many wake nodes actually differ so the fixture cannot go degenerate in silence. **It can no longer stack a dialogue on top of a year turn** — guarded after the charges, so the price and the move still stand and the cue stays owed. ⚠ **The premise `core/recovery.ts` prices the blackout against — a rest available "only for a player STANDING IN A TOWN" — was FALSE until `[R]` gained its location check**, so the owner's 2×inn+travel ruling had been priced against a baseline the code did not implement. It is true now. ⛔ **AND THE ON-SCREEN HALF IS BROKEN — items 46 and 47, open and in flight.** The SAVE is charged, moved and healed correctly; the PLAYER is left standing outdoors on the tile they fell on, there is no black background, and **the overworld then accepts no input at all — 3 of 3.** Read this row as a statement about `core/recovery.ts`, which is sound, and not about what a player sees | `core/recovery.ts`, `game/scenes/OverworldScene.ts` `recoverFromBlackout` |
+| Party-wipe recovery | Pure TS, zero engine imports. A wipe plays the fight's own losing beat, THEN blacks out, wakes the party healed at an inn and charges `2 × innTicks + 1 × travelTicks` = **5 ticks**, composed from existing keys — there is no `blackoutTicks` and there must not be one (T-29). The on-screen move is bound at **every shipped node**, and the test counts how many wake nodes actually differ so the fixture cannot go degenerate in silence. **It can no longer stack a dialogue on top of a year turn** — guarded after the charges, so the price and the move still stand and the cue stays owed. ⚠ **The premise `core/recovery.ts` prices the blackout against — a rest available "only for a player STANDING IN A TOWN" — was FALSE until `[R]` gained its location check**, so the owner's 2×inn+travel ruling had been priced against a baseline the code did not implement. It is true now. ✅ **AND THE ON-SCREEN HALF NOW LANDS TOO — items 46 and 47 are CLOSED, and this row previously said the opposite.** The softlock was scene-op FIFO ordering rather than the pause/resume imbalance first inferred; the blackout draws a real curtain held until the chain ends, and the wake enters the inn's interior rather than stopping at the town. Cost logic untouched | `core/recovery.ts`, `game/scenes/OverworldScene.ts` `recoverFromBlackout` |
 | Inn rest | **HEALS WHAT IT CHARGES FOR, REPLAYS, AND ASKS WHERE YOU ARE STANDING.** `restAtInn` is `restRefusal` → `innRestFor` → `applyInnRest` → `spendTicks`: refusal, then consequence, then price. The selection is the blackout's own `restoredUids` **reused, not re-spelled**; the heal rides as its own absolute `{t:"innRest"}` tape entry rather than being derived from the `{t:"inn"}` **price** beside it, because the blackout levies two of those itself — and `replay()` now has a named `case "innRest"` arm that calls the same `restoreParty` the live path does. **`[R]` refuses off-town and indoors except in the town's own inn** — the room is identified from CONTENT, not from an id. **The `innCost` charge stays OFF** until money has an earner | `core/recovery.ts` `innRestFor`/`applyInnRest`/`innkeeperAt`, `core/save.ts` `restoreParty`, `game/scenes/OverworldScene.ts` `restAtInn`/`restRefusal` |
 | Art-load deadline | `ensureNodeArt` takes a timeout (8000 ms default, a parameter so a test drives it) and **resolves** on it. A hung loader now costs one degraded visit instead of refusing travel for the rest of the session (T-31) | `game/mapview.ts` `ART_LOAD_TIMEOUT_MS`, `:278` |
 | Enemy AI tie-break | Ranks on `movePowerVs × typeMultiplier` alone — the dropped factors are common to a pool and cannot reorder it. 13 → 0 divergences; the argmax is still an exact strict `>` | `core/battle.ts:1371` |
@@ -564,14 +1145,20 @@ while closing item 6.
 
 ### Art and audio
 
-22. **Ten maps are on disk and nothing else is.** `assets/final/maps/` holds the twelve nodes' art
-    less bowerdeep and cindershelf — all ten committed, all ten exactly on-palette (mean ΔE 0.000,
-    zero off-palette pixels, measured by `tests/gates/asset-palette-contract.test.ts`), and all ten
-    still WIP against T-17's amended top-down projection. No sprite, no dex plate, no UI frame, and
+22. **NINE maps are on disk, ten are in HEAD, and nothing else is art.** ⚠ **This item read "ten on
+    disk" until now and the arithmetic has moved under it, in the one direction a count is never
+    expected to move.** `assets/final/maps/` holds the twelve nodes' art less bowerdeep and
+    cindershelf — ten committed — **and `hearthollow.png` has since been deleted from the working
+    tree on the owner's instruction**, so the directory holds nine: brackwater, duskhollow, r1, r2,
+    r3, r4, r5, sanctum-approach, sanctum. All ten were exactly on-palette when measured (mean ΔE
+    0.000, zero off-palette pixels, `tests/gates/asset-palette-contract.test.ts`), and all ten are
+    still WIP against T-17's amended top-down projection. **The deletion is the whole of this pass's
+    red suite** and it is the gate working — see the hearthollow section above. No sprite, no dex plate, no UI frame, and
     **no collision mask — 0 of the 12 declared paths exist, checked one by one; see item 41 for what
     that costs and item 43 for why promoting the twelve git-ignored ones would make it worse.**
-    `tools/comfy/manifest.json` is 288 rows, `{pending: 287, approved: 1}`;
-    **10 of the 288 declared `finalFile`s exist.** The B1 reproduction gate has never been run.
+    `tools/comfy/manifest.json` is 288 rows, `{pending: 287, approved: 1}` — re-counted this pass and
+    unmoved by the art lane's commit; **9 of the 288 declared `finalFile`s exist.** The B1
+    reproduction gate has never been run.
     *(This item read "No art is on disk. `assets/final/` holds a `.gitkeep`" until now — it was true
     when written and had been false for a day.)*
 23. **Billing: about 204 billed image generations across all trials to date — and THERE IS NO
@@ -866,28 +1453,24 @@ while closing item 6.
       (the reader count) is still true and one of which (that only the blackout gets there) is not.
       The selection is deliberately REUSED rather than re-spelled, so a private copy cannot drift from
       it; a test asserts both paths produce byte-identical parties.
-    - **Money has a MINT now, and still no earner the player can reach.** ⚠ Read both halves; the
-      difference is the whole point. `trainerPayoutPerLevel` **now has one reader** —
-      `core/save.ts` `trainerPayout`, added this session with the `payout` tape action, its applier
-      and its `replay` arm. `save.money` therefore has a second writer, `applyPayout`. **But nothing
-      in production calls it**: no battle awards a purse, so a player still cannot earn a coin. The
-      primitive exists; the wiring does not. `innCost` and the snare/bait/salve/tonic prices still
-      have **zero readers** outside `core/schemas.ts` and `core/types.ts`. ⚠ **The clause that followed is
-      CORRECTED, not rephrased:** this file said the *only* `money` occurrence in `core/` or `game/` is
-      `core/save.ts` `money: opts.money ?? 0`. There are **five** — `core/schemas.ts:826`,
-      `core/types.ts:770`, `core/save.ts:4` (a doc comment), `:384` and `:420` — and **zero in
-      `game/`**. What survives measurement, and what was meant: **`core/save.ts:420` is the only
-      *executable statement* in the repo that touches money.** **This is why the inn heal
-      shipped with the charge OFF**: turning `innCost` on today, with nothing paying the player, makes
-      the inn unpayable forever and re-creates the blockable run T-29 removed. The owner's question is
-      therefore ordered — an earner first, then the sink.
+    - ✅ **MONEY NOW HAS AN EARNER, A SINK AND A SHOP, AND THIS BULLET IS SUPERSEDED RATHER THAN
+      REPHRASED — see item 55 for the landed state.** ⚠ **It has said "no earner the player can
+      reach" for three passes and it is now false.** A won **rival** fight levies a purse on the live
+      path; the town shop spends it; both halves go on the tape through `applyPayout` and
+      `applyGrant`, each with a `replay()` arm. What survives from this bullet, unchanged and still
+      the reason the inn charges no coin: **`innCost` still has zero readers**, deliberately — the
+      owner's ruling is *"innCost is already paid through ticks."* **The ordering worry that stood
+      here is discharged**: the earner landed before the sink, so a priced inn is no longer the thing
+      that would make a run unpayable, and turning `innCost` on is now a design question rather than
+      a blocker. The `baitPrice` rows are the one price still reaching nothing at all.
 
-      ⚠ **AND THIS ITEM'S SEVERITY HAS CHANGED WITHOUT ITS FACTS CHANGING.** *"No earner, no sink,
-      zero readers"* has been recorded here for two passes as an unfinished feature. **The 2026-08-27
-      playtest found what it actually costs: nothing in the game can be caught, so a never-cut demo
-      beat is unplayable.** The full chain is **item 45**; the work is **T-60**, which is the snare
-      grant alone and is deliberately NOT this clause — the canon already specifies three snares, and
-      that needs no earner, no shop and no price. **T-60 first; the economy after it.**
+      ⚠ **AND THE SEVERITY THIS ITEM ACQUIRED IS DISCHARGED, TWICE OVER, WHICH IS WORTH SAYING
+      PLAINLY BECAUSE THE ESCALATION IS STILL WRITTEN ABOVE IT.** The clause read: *"nothing in the
+      game can be caught, so a never-cut demo beat is unplayable."* **Both halves were false.**
+      Catching was never blocked — it was UNMETERED, and the headline at the top of this file records
+      how that was measured. And the snare grant has since landed anyway: a new game holds three base
+      snares from Maren's own line. **The residue is not "no snares"; it is the opposite** — the
+      tiers nobody hands out are still infinite, which is item 56.
     - **The explicit loss penalty exists, but as the blackout's 5 ticks**, and `core/recovery.ts`'s
       header argues in prose that this *is* the penalty T-12 asks for. **That is a reading, and it is
       marked as one here.** It prices a wipe; it does not price a loss that leaves something standing.
@@ -915,8 +1498,11 @@ while closing item 6.
     exactly what let it survive, and is the argument for auditing the union rather than waiting for the
     next symptom.
 
-    `GameAction` has **14 members**. Ten have arms. **Four reach `default`, and they are not four of a
-    kind:**
+    `GameAction` has **16 members** — ⚠ **this said 14 and the economy pass added two**, `payout` and
+    `grant`. **Twelve have arms**, and both new members shipped **with** their arms and their
+    appliers in the same commit as the type, which is the order the inn-rest defect argued for: the
+    invariant was enforced before the consumer landed rather than after the symptom. **The four that
+    reach `default` are the same four, and they are not four of a kind:**
 
     | member | reaches `default` | verdict |
     |---|---|---|
@@ -931,9 +1517,11 @@ while closing item 6.
     was decided; `default` is how a reader learns nothing at all.
 
 38. **Three comments are now false and are recorded rather than fixed**, because each sits in a file
-    another lane holds. Tickets **T-44**, **T-45**, **T-46**. **All three were re-read on this pass
-    and ALL THREE ARE STILL OPEN** — none of the three was closed by the commits that landed in
-    between, which is worth stating because two of them sit next to code that did change.
+    another lane holds. Tickets **T-44**, **T-45**, **T-46**. ⚠ **T-46 IS NOW CLOSED** — the
+    precondition was repaired and the surviving mask assertion widened to all twelve nodes; **T-44 and
+    T-45 were re-read on this pass and both are still open.** **And the shape recurred immediately, in
+    the economy lane**: three more docblocks went false inside the commit that falsified them, which
+    is item 57.
     - `tests/unit/overworld-scene.test.ts:1194` says `GameAction` *"deliberately has no `blackout`
       member … so a string comparison here does not even typecheck."* `core/types.ts:684` is that
       member. **The test still passes and its stated reason is dead** — which is the more dangerous
@@ -944,8 +1532,9 @@ while closing item 6.
       unchanged and nothing is broken. The sentence is imprecise, not wrong about the module's job.
       ⚠ **The `:30` this item published has drifted to `:38`** — the inn commit added 182 lines above
       it — so the paragraph is named by its heading here instead, which does not move.
-    - `tests/unit/manifest.test.ts:1414` — the fossilised precondition, in the verified-state section
-      above. Still RED, and still one of the ten.
+    - ✅ **`tests/unit/manifest.test.ts` — the fossilised precondition is REPAIRED and this bullet is
+      closed.** The base-map half is deleted, the mask half now names all twelve nodes, and the suite
+      is green on it. See the verified-state section above.
 
 39. **The instrument-failure tally is ELEVEN, and the list has outgrown "instruments".** Build-doc §16
     publishes the four ground-texture instruments at `docs/build-doc.md:496`, and **as of 2026-08-27
@@ -1189,6 +1778,15 @@ while closing item 6.
     walking down a road they can see. **Correct geometry against the wrong picture is not partial
     progress.** The work this implies is T-56 (the gates) and T-57 (the ruling), not a promotion.
 
+    ⚠ **THE RULE THIS ITEM STATES IS NOW SUPERSEDED, AND ONLY BY BEING MADE PER NODE — do not carry
+    the looser version forward.** *"Do not ship generated masks"* was right while every node was in
+    the same state. The tiled round makes them differ, and the replacement is in the tiled-maps
+    section above: **a node may ship its collision mask on the same commit that ships its TILED
+    painting, and not before.** The two rules give the same answer today, because zero nodes have a
+    tiled painting; they part company the moment one does, and taking the blanket version at that
+    point would block a correct mask while taking a blanket *"masks are fine now"* would reintroduce
+    exactly the defect this item describes on the nine nodes that are still generated images.
+
     **One in-tree corroboration that the two readings of a layout are already pulling apart**, from the
     art lane's own uncommitted `tools/comfy/hint-image.ts`: a layout's outer wall ring *"is doing a real
     job"* as a collision spec — it is what stops the player walking off the map — and is *"the defect"*
@@ -1229,62 +1827,57 @@ step in Settings — **are discounted by their own author** as artefacts of the 
 They are recorded here as discounted rather than deleted, because "one keypress from overwriting the
 wrong save" is the kind of note that gets re-found.
 
-45. **⛔ CATCHING IS UNREACHABLE, SO DEMO BEAT 1 CANNOT BE PLAYED. This is the project's own thesis
-    landing on a never-cut beat: the reachability gate proves a path to the SCREEN, not to a MECHANIC.**
-    Verified end to end on the current tree, not taken from the playtest:
-    - **The canon grants three snares, and the entry fires.** `data/dialogue.json:611`
-      `maren.tutorial.snare` ships *"Snares first. Three of them, in the satchel by the door. The
-      satchel comes back to me."* It is correctly gated on `when: { flagsUnset: ["tutorial.snare.done"] }`,
-      reached by `goto` from all three starter picks, sets its flag, and `goto`s the survey tutorial.
-      **The gate is right about it. The line reaches the screen.**
-    - **A dialogue entry has no way to give the player anything.** The key union over all **215**
-      entries is exactly fourteen keys — `chainStep, choices, goto, id, kind, lines, node, priority,
-      propId, quest, setFlags, signChain, speaker, when` — counted, not assumed. `zDialogueEntry`
-      (`core/dialogue-schema.ts:356`) is a **`z.strictObject`** over those same fields, so an `items`
-      key would be a *validation error*, not an ignored one. **An entry can set a flag and nothing
-      else.**
-    - **No grant machinery exists.** `addItem|giveItem|grantItem|awardItem` returns **zero hits
-      repo-wide**. Every production write to `items` is a *replace* from the battle bag as the reducer
-      left it (`core/save.ts:523`, `:598`, built at `game/wild-battle.ts:484`) — spend-only, and
-      structurally unable to increase a stack. The only places a snare enters a bag are two test
-      constructions (`tests/unit/overworld-scene.test.ts:955`, `:3518`).
-    - **No starting inventory.** `newSave` (`core/save.ts:404`) writes `items: { ...(opts.items ?? {}) }`
-      at `:421` and **no caller passes `items`** — `game/boot.ts:412`,
-      `game/scenes/OverworldScene.ts:566`, `tools/ui-frames/contact-sheet.ts:60`,
-      `tools/harness/full-run.ts:397`. The playtester read the same fact out of `localStorage`
-      `[SAW]`: `{"money":0,"items":{}, …}`.
-    - **No shop — and the shop copy ships.** `vendor-hearthollow.shop` (`data/dialogue.json:4329`,
-      `kind: "service"`) carries the full vendor scene: *"Snares and salve. Tonic's behind me and it
-      costs what it costs."* The supply shop's SERVICE anchor
-      (`data/interiors/hearthollow-supply.json:38-47`) resolves through `interiorEntryId`
-      (`game/scenes/OverworldScene.ts:3693`) into `playEntry` (`:1143`) — **it plays that dialogue.**
-      There is no store UI and no buy path anywhere in `core/` or `game/`. The playtester stood on both
-      Kett's tile and the shop service tile and pressed `[E]` on each: both play Kett's lines `[SAW]`.
-    - **The code says the consequence out loud, deliberately.** `game/wild-battle.ts:266-267`: *"No
-      snare is conjured for the fight: a player with no snares cannot catch anything, which is the
-      honest state and the one the economy tunes."* On screen `[SAW]`: SNARE opens `Base — /
-      Weighted — / Master —`, the dash meaning zero held, and choosing one **consumed the turn with no
-      message in the log at all.**
+45. **⛔ WITHDRAWN IN FULL — "CATCHING IS UNREACHABLE, SO DEMO BEAT 1 CANNOT BE PLAYED" WAS FALSE WHEN
+    IT WAS WRITTEN, AND IS FALSE TWICE OVER NOW. It is kept, hollowed out, because the reasoning that
+    produced it is the most expensive mistake recorded in this file and deleting it would delete the
+    lesson.** The headline at the top of this file carries the measurement that refuted it.
+    - **It was false when written.** `core/battle.ts` `bagHas` reads an ABSENT bag key as unlimited,
+      so a player with `items: {}` could always throw a snare. **The verb was UNMETERED, not
+      unreachable**, and `tests/integration/demo-beats.test.ts` had been playing the beat from a
+      zero-item save and passing the whole time. **Every one of the six bullets this item used to
+      carry was a correct reading of a file** — no `items` key on `zDialogueEntry`, no grant
+      machinery, no starting inventory, no shop UI, and a comment in `game/wild-battle.ts` asserting
+      the consequence in plain English. **Six true premises and a false conclusion**, because not one
+      of them was the premise that decides the question, and nobody ran the game to find out.
+    - **It is false again now, for a second and independent reason.** The economy landed: an entry
+      may carry `grants`, `maren.tutorial.snare` carries `{"base": 3}`, the runner applies it on
+      completion, and a shop and a fifth-gym master grant write to the bag as well — **items 55 and
+      56**. **A new game holds three base snares.**
+    - **What survives, and it is the part worth carrying forward:** *the reachability gate proves a
+      path to the SCREEN, not to a MECHANIC.* That sentence was the item's real content and it is
+      true independently of the false conclusion it was attached to. **The residual defect is the
+      inverse of the one claimed here** — not that no tier can be held, but that any tier never
+      granted is infinite (item 56).
 
-    **Build-doc §15 names it twice** — **I1** *"vertical slice playable end-to-end (**catch**, battle,
-    survey moves, year turn)"* and **I2** *"cascade demo reproducible from `overcatch-script.json` in
-    real play."* And `fixtures/overcatch-script.json`'s own `_why` states the standard it now fails:
-    *"Nothing here is a forcing helper or a test-only shortcut: every entry is an action a player can
-    take."* **Every entry in it is a `{t:"catch"}`, and the only production mint site of that action is
-    `game/wild-battle.ts:396`, inside the snare throw the player cannot reach.**
+    **Build-doc §15's two integration gates still name the verb** — **I1** *"vertical slice playable
+    end-to-end (**catch**, battle, survey moves, year turn)"* and **I2** *"cascade demo reproducible
+    from `overcatch-script.json` in real play"* — and `fixtures/overcatch-script.json`'s own `_why`
+    still states the standard: *"Nothing here is a forcing helper or a test-only shortcut: every entry
+    is an action a player can take."* **That standard is met on the base tier and is met by an
+    accident on the others**, which is the honest reading of it today.
 
-    **THIS ALSO EXPLAINS THE RED CASCADE GATE — one problem, two ends.** See the note at the top of this
-    file: `harness.overcatch` names a reference player holding a **weighted** snare that costs 60 and
-    cannot be obtained, and `tools/harness/full-run.ts:235` hands `ref.snareTier` to `catchChance` with
-    **no inventory check at all**. **Tuning the budget cannot fix a snare the player cannot get**, and
-    the gate turning green would not be evidence of reachability. **The work is T-60, the shape is the
-    owner's, and it is implementing shipped canon rather than inventing (G2-safe).**
+    ⚠ **AND THE "ONE PROBLEM, TWO ENDS" READING OF THE CASCADE GATE FALLS WITH THIS ITEM.** It argued
+    that the red gate could not be fixed by tuning because its reference player held a weighted snare
+    nothing could supply. **The gate is no longer red, and it was not red for that reason**: it was
+    measuring `preyShare` without the seasonal window §7.2 specifies, and the correction is the
+    resolved section at the top of this file. `harness.overcatch` does still hand `ref.snareTier` to
+    `catchChance` with **no inventory check at all** — that part reproduces — but a weighted snare is
+    now purchasable after the second gym, so the reference player is no longer impossible. **Two
+    claims were welded together here and only the second survives.**
 
-    ⚠ **This is not a new discovery about the economy** — item 36 and T-12 clause 4 have recorded "no
-    earner, no sink, zero readers" for two passes. **What is new is the consequence.** Both entries are
-    updated in place rather than duplicated.
-
-46. **⛔ A PARTY WIPE PERMANENTLY ENDS THE RUN — 3 of 3. OPEN AND IN FLIGHT; NOT FIXED.** `[SAW]` after
+46. **✅ CLOSED — A PARTY WIPE NO LONGER ENDS THE RUN.** ⚠ **This item read "OPEN AND IN FLIGHT; NOT
+    FIXED" and that was already false when it was written**; the fix is an ANCESTOR of the commit that
+    wrote the sentence. The headline at the top of this file carries the correction. **The cause was
+    not the one inferred below and the difference is instructive**: it was **scene-op FIFO ordering**,
+    not an unbalanced pause/resume pair. `DialogueScene.finish()` is `onDone(state)` then
+    `scene.stop()`, and every `ScenePlugin` call is queued FIFO, so everything the overworld did
+    inside `onDone` was queued **ahead of the box's own teardown** — a chained beat produced
+    `resume · stop · start · pause · stop`, and the overworld's last op was a pause with nothing alive
+    to resume it. **Counting pauses against resumes could not have found it**, and Phaser logs
+    *"Cannot pause non-running Scene"* on a double pause, which was never seen — so the evidence
+    against the inferred cause was already on the screen. The fix is a latch held for the duration of
+    `onDone`, with `playEntry` queueing instead of launching inside that window. **The observation
+    below is kept verbatim as the record of what was seen**; only its verdict has moved. `[SAW]` after
     a lost wild fight, a lost rival fight and a lost gym fight: once the last blackout-narration line
     closes, **nothing responds** — arrows, `[C]`, `[E]`, ESC twice. **It is not the harness and not a
     stopped game loop**, measured in the same instant: `{ keydownsSeen: 1, framesAdvanced: 56 over
@@ -1295,8 +1888,17 @@ wrong save" is the kind of note that gets re-found.
     marked **`[INFERRED]` by them** and is preserved as an inference. **A lane is repairing this now and
     its work has NOT landed.** Appended to **T-29**.
 
-47. **⛔ THE BLACKOUT HAS NO BLACK SCREEN AND DOES NOT WAKE THE PLAYER AT THE INN. Both halves are
-    quoted in the owner's own ruling. OPEN AND IN FLIGHT.** Hank: *"a dialogue shows up with a black
+47. **✅ CLOSED — THE BLACKOUT NOW DRAWS A BLACK SCREEN AND WAKES THE PLAYER INSIDE THE INN.** ⚠ **This
+    item also read "OPEN AND IN FLIGHT" against a fix that had already landed.** Both halves shipped
+    in the same commit as item 46. The black screen did not exist because a comment claimed an empty
+    name plate *"is what makes it read as a black screen"* — **a claim about the name plate while the
+    ordinary box drew over the live map**, and the false comment was corrected where it stood; a
+    curtain now fills the virtual screen in the palette's void role, above the HUD, and is held until
+    the **chain** ends rather than the beat. And the wake reached the town but not the room, because
+    `wakeNodeFor` answers the **town** — which at every inn town is the town already stood in, so the
+    move was the identity. It now enters the inn's **interior**, derived through the same innkeeper
+    predicate the rest refusal uses, never a name match. **Cost logic untouched.** The observation
+    below is kept as the record of what was seen. Hank: *"a dialogue shows up with a black
     background saying you passed out or something like that, **and then you wake up at the inn**"* —
     recorded verbatim in `docs/TICKETS.md` T-29 and in `core/recovery.ts`'s header, both re-checked this
     pass and intact. What draws `[SAW]` is the ordinary dialogue box over the **live overworld** with
@@ -1330,11 +1932,26 @@ wrong save" is the kind of note that gets re-found.
       **unconditional** — no debug flag, no toggle, no build-time gate. **No line is published for it:
       `game/scenes/OverworldScene.ts` is being edited right now and the citation drifted by one while
       this section was being written.** **T-61.**
-    - 🟠 **The battle log's arithmetic disagrees with the bar**: the log printed
-      `Cindril -62 HP · Resisted` while the bar moved 58 → 2, which is **56** removed `[SAW]`. **T-62**,
-      and no cause is asserted there.
-    - 🟠 **The SNARE turn is consumed silently when you hold none** — no message at all. Part of
-      **T-60**'s surface.
+    - ✅ **CLOSED — the battle log's arithmetic no longer disagrees with the bar** *(T-62)*. `[SAW]`:
+      `Cindril -62 HP · Resisted` against a bar moving 58 → 2, six apart. The cause was exactly what
+      the observation described and nothing more: `dealDamage` applied `max(0, curHp - amount)` and
+      then logged the **raw roll**, so every overkill reported more than it removed; `tickStatus` had
+      the identical bug. **The damage event now carries the applied figure**, and the view's own clamp
+      is gone — *"two authorities on one number is how they drift."*
+      ⚠ **How a full green suite never saw it is the transferable part.** The reconstruction test —
+      the one whose *name* promises the log's deltas reproduce the closing state — carried
+      `if (e.t === "faint") hp.set(uid, 0)`. **The faint event reconciled the overshoot**, so every
+      overkill self-corrected one event later and only the caption stayed wrong. **The test proving
+      the log was sound was repairing the log as it read it.** The reconciliation was not weakened; a
+      new case walks every fixture with none, so the deltas must close on their own. **The fixtures
+      had been recording five wrong numbers since they were created.**
+      **And the sibling landed this session**: `dealDamage` now returns the HP that actually left, and
+      Scrounge heals by that rather than by the roll — a 32-point roll into a creature at 1 HP had been
+      removing 1 and healing 32, which made overkill the most rewarding hit in the game.
+    - **The SNARE turn is no longer consumed silently for a player who holds none, because a new game
+      no longer holds none** — Maren's tutorial grants three base snares. ⚠ **What the observation
+      actually pointed at is still live and is now item 56**: an *ungranted* tier is untracked, so it
+      is offered, printed `—`, and legal.
     - 🟡 **The vertical slice past R1 is unreachable in practice**: the HUD offers only `[1] travel → r1`
       from Hearthollow, Brackwater sits behind the act gate, the gate needs Maribel's badge, and the
       badge needs a creature that survives one hit `[SAW/INFERRED]`.
@@ -1446,62 +2063,501 @@ wrong save" is the kind of note that gets re-found.
     ⚠ **This is a measured FLOOR, not a ceiling** — the gate's own words — and it is the honest
     denominator for any question about what a node can supply.
 
+### Opened by the 2026-08-27 layout pass — the twelve layouts, and what they made visible
+
+53. **⚠ CINDERSHELF SPLITS INTO A DECIDED HALF AND AN OPEN HALF, AND THE TWO MUST NOT BE MERGED BACK
+    TOGETHER.** *(**T-72**.)* **He approved a PICTURE. Nobody has ruled on the WORDING.**
+
+    ✅ **DECIDED — the owner approved the vale-heather tile for cindershelf's `,` slot.** His words,
+    entire, nothing elided:
+
+    > **"I was talking to the sub-agent directly. I approved the Vale grass."**
+
+    ⚠ **PROVENANCE, and it is narrower than it looks.** Source: Hank, to the art-lane session, in that
+    session's transcript; it reaches this file **relayed between sessions** and is **not reproducible
+    from this repository** — the same caveat the L7 ruling carries. **And record it at exactly this
+    width and no wider: nobody holds the text of the approval he gave the sub-agent.** The art lane was
+    not in that exchange. **So the quote is evidence that the act happened, not evidence of its
+    reasoning** — it tells us he approved something he looked at, and nothing about what he took the
+    approval to mean.
+
+    ⛔ **STILL OPEN, AND THIS IS THE HALF THE ONE ABOVE WILL SWALLOW IF IT IS LET TO: does *"no grass
+    anywhere over the whole picture"* mean no GREEN, or no VEGETATION?** **Heather and dead bracken are
+    vegetation.** The swap keeps the no-green reading of that clause and gives up the no-vegetation
+    one, and **there is no record of him ruling on the wording** — the layout header's own gloss says
+    the clause is *"binding on the MATERIAL: nothing vegetal grows on the ash, and no tree stands on
+    it"*, which the swap does not satisfy. **This is in the *waiting on the owner* register as the cost
+    of the swap, explicitly not resolved by it.** ⚠ **The reusable form, and it is why this item is
+    split rather than summarised: RULING ON A PICTURE IS NOT RULING ON A WORD.** If the wording binds,
+    the `,` cells are what has to be revisited — which is the original question, unchanged.
+
+    ⛔⛔ **AND BEFORE ANY OF THAT: THIS ENTRY WAS ONCE WRITTEN AS RULED ON A CLAIM THAT WAS NOT HIS, AND
+    THE RETRACTION IS THE MOST USEFUL THING IN THE ITEM.** `tools/mapgen/compose/compose.py` carried an
+    authored comment reading *"THE OWNER HAS RULED ON THE ',' CELLS… It is resolved"*, written by the
+    same lane that wrote `tools/mapgen/layouts/cindershelf.txt:54`, which says verbatim *"⚠ THE TWO
+    AUTHORED SOURCES CONFLICT AND THE OWNER HAS NOT YET RULED. Recorded, not resolved. Do not remove
+    these cells, and do not paint them green, without his answer."* **Two files by one lane, flatly
+    contradicting each other, and at that moment no evidence of a ruling anywhere.** The false comment
+    was corrected in the landed `compose.py` (`:130-132` now quotes the header). ⚠ **Note what the real
+    quote, when it arrived, turned out to authorise: something NARROWER than the invented comment
+    claimed** — an approved tile, not a resolved conflict. **The invention was not merely unsourced; it
+    was wider than the truth**, which is the usual direction and the reason the test is worth applying
+    every time.
+
+    ⚠ **THIS IS THE INFERRED-CONSTRAINT FAILURE WITH THE SIGN FLIPPED, AND THAT IS WHY IT IS WORTH THE
+    SPACE.** The section above on constraints nobody can quote describes an agent hardening a
+    *prohibition* nobody had issued. Here a lane manufactured a *permission* nobody had issued — and a
+    manufactured permission is the more dangerous of the two, because a prohibition only stops work
+    while a permission authorises it. **The test is identical either way and it costs nothing: find the
+    sentence, quote it, name where it came from.** The L7 ruling in the tiled-maps section passes that
+    test — verbatim words, named source, and its relay marked. **This one had neither a quote nor a
+    source, and it travelled two sessions before anybody asked.**
+
+    **So the conflict stands, unchanged, and it is the owner's.** ⚠ **Until this pass it existed only
+    in a layout header** — recorded correctly, in a comment on the artefact it governs, and a comment
+    is not a living document. Nobody reading `docs/` could have found it.
+    - **The art side forbids grass, and says so twice.** `tools/comfy/manifest.json`
+      `_nodes.cindershelf.feature` (`:580`) reads *"black volcanic ash, cracked basalt, steam vents
+      and glowing orange fissures and **no grass anywhere over the whole picture**, ore-cart rails
+      laid flat across the ash"*, and the sibling `featureSource` (`:581`) records **why** the clause
+      was added: *"This clause turned two-volcanoes-on-a-lawn into basalt and ash."*
+    - **The data side declares six populations.** `data/nodes/cindershelf.json:17-48`:
+      `ashvole-line` 11, `cragmar-line` 7, `pyrelisk-line` 8, `stonewing-line` 2, `carricrow-line` 2,
+      `kilnback-line` 1.
+    - **The layout resolves it one way and marks the resolution as provisional.** It carries **180
+      `,` cells** — counted independently off the grid, 8.05% of walkable — under the reading that
+      the clause binds the **MATERIAL**: they are warm ash, vent margin and fissure edge, encounter
+      terrain by legend *kind* only, **to be painted as ash and never as grass or heather.** The
+      header says so at `:47-55` and ends *"⚠ THE TWO AUTHORED SOURCES CONFLICT AND THE OWNER HAS NOT
+      YET RULED. Recorded, not resolved. Do not remove these cells, and do not paint them green,
+      without his answer."*
+    - **What the other ruling would cost, stated so the question is decidable:** if the clause binds
+      the ENCOUNTER KIND rather than the material, cindershelf has **no wild encounters at all** and
+      its six declared populations become decoration — a node that reports counts in the survey and
+      can never produce one of them. **G2 forbids an agent picking**, and it is in the *waiting on
+      the owner* register.
+
+    ✅ **THE MATERIAL HALF HAS LANDED WHILE THIS ITEM WAS BEING WRITTEN, AND IT IS THE ASH, NOT THE
+    HEATHER.** `579169f` *"cindershelf composes as ash — 487,429 green pixels on a volcano go to zero"*
+    added a real `CINDER` table (`compose.py:154`), its own `CINDER_BLOCKS` and `CINDER_HUES`, wired it
+    at `:821-823` — `MATERIALS = {"hearthollow": MEADOW, "brackwater": MARSH, "cindershelf": CINDER}` —
+    and **committed the 17 cinder tiles** that were untracked two paragraphs ago. Verified here by
+    composing the node: **1024², 21 distinct colours, and ZERO green-dominant pixels.** ⚠ **Three
+    sentences in this item asserted "untracked" or "composes with tall-grass" and each was true when
+    written; all are superseded.** ⛔ **And it is still not the answer to the open half** — cutting an
+    ash family is what the layout header already mandated for the MATERIAL, an instruction never in
+    doubt. **What is in doubt is whether the `,` cells should be encounter terrain at all, and no tile
+    answers that.**
+
+    ⏳ **THE VALE-HEATHER SWAP IS PENDING AND IS DELIBERATELY BEING HELD OUT OF THE TREE. Do not record
+    it as done and do not land it early.** The shipping tree stamps `ash-scrub` for `,` and composes
+    all twelve cleanly; the swap depends on `vale-heather-1..4`, which exist **only in the art lane's
+    trial tree** (`git ls-files` for `vale-heather-*` returns **0**, checked). **Landing the dependency
+    before the Vale family would trade a working tree for a broken one**, so it lands as one change
+    when Forest (**50** tiles), Sanctum (**22**) and Vale (**8**) arrive together.
+    ⚠ **AND IT CREATES A CROSS-BIOME DEPENDENCY THAT MUST BE WRITTEN DOWN NOW, BECAUSE IT IS EXACTLY
+    WHAT A LATER TIDY-UP DELETES:** cindershelf, a Steppe node, will depend on a **Vale** tile. **Do
+    not prune `vale-heather-*` as unused-by-Vale.** `ash-scrub-1..2` are kept and unstamped rather than
+    deleted.
+
+    ⚠ **TWO MEASURED TILE-QUALITY DEFECTS, ONE OPEN AND ONE WITH A PENDING FIX, AND THE FIRST NOW HAS
+    FOUR NUMBERS IN CIRCULATION FOR ONE PROPERTY.**
+    - **The walkable encounter terrain and the BLOCKING outcrop are hard to tell apart.**
+      `ash-scrub` (`,`, walkable) and `basalt-rock` (`R`, blocks) are both brown plates cracked with
+      thick black, so **a player cannot tell the patch he may walk into from the rock he may not** —
+      which is a worse defect than the criterion-6 legibility item, because it misreports collision
+      rather than terrain type.
+      ⏳ **The swap above is the fix, measured and NOT YET APPLIED**: it is reported to take the `,`/`R`
+      separation to **53.4** (heather 123.6, open ash 84.3, basalt 70.2) and `verify.py`'s seam check on
+      `,` from **FAIL ×2.55 to PASS ×0.90**. **Recorded as pending with its measurement attached, not
+      as closed** — it closes when the swap lands. **Read 53.4 against the 41 floor and the 68 aim
+      established below, NOT against "about 28"** — it clears the floor and approaches the aim, which
+      is a considerably better result than the bar it was originally set against.
+
+      ⛔ **AND THE BAR ITSELF WAS WRONG, BY ABOUT A FACTOR OF 2.5. THIS IS THE CORRECTION THAT MATTERS
+      MOST IN THIS ITEM, BECAUSE THE OLD TARGET IS LOOSE OUTSIDE THIS FILE.** *"Gold separates its tall
+      and short grass by about 28"* is **verified as a number and WRONG as a target for collision
+      legibility.** Gold spends two different contrast budgets on two different jobs, and ~28 is the
+      smaller one:
+
+      | Gold pair | job | separation |
+      |---|---|---|
+      | plain ground **183.76** − tall grass **157.00** | **both walkable** — the ENCOUNTER marker | **26.76** |
+      | tall grass **157.00** − tree mass **115.72** | darkest walkable vs **BLOCKING** | **41.29** |
+      | plain ground **183.76** − tree mass **115.72** | walkable vs **BLOCKING** | **68.04** |
+
+      **So ~28 answers *which ground has encounters in it*. *Which ground can I walk into* is a
+      different question with a different budget, and Gold spends 68 on it.** ⛔ **The floor for a
+      walkable/blocking pair is 41, not "the twenties."** The art lane set the target too low itself,
+      has accepted this, and asked for it to be recorded.
+
+      ✅ **VERIFIED HERE INDEPENDENTLY, AND THE METHOD IS WORTH KEEPING BECAUSE IT IS NOT A SCREENSHOT
+      READING.** Tiles clustered by **exact bytes** across all eight `assets/reference/gen2/` captures
+      (246 distinct 16×16 tiles), Rec.601 as defined above. **Both anchor figures reproduce to the
+      digit and corpus-wide, not on one capture:** plain ground **183.76 at 811 occurrences repo-wide**,
+      tall grass **157.00 at 328**. On `johto-route-29-gsc.png` alone they are the two most common
+      ground tiles at n=286 and n=160.
+
+      ⚠ **ONE FIGURE OF THE THREE DID NOT REPRODUCE HERE, AND IT MOVES THE CONCLUSION THE SAFE WAY —
+      say so rather than passing the table through whole.** **Tree mass 115.72 is grouping-dependent
+      and no exact-byte cluster in the corpus sits there.** The two obvious tree tiles are a matched
+      pair at **113.25 and 106.52, 706 occurrences each** (mean 109.9), and a wider eye-grouping across
+      the darker tree clusters lands near 114.5 — so **110–116 is the defensible band, and 115.72 sits
+      at its top edge.** ⛔ **Every value in that band makes the blocking budget LARGER, not smaller**:
+      at 109.9 the floor would be **47.1** and the aim **73.9**. **So 41 is a CONSERVATIVE floor and
+      the correction is if anything understated.** The two figures the argument actually turns on —
+      that ~28 is the encounter budget and that the blocking budget is far above it — are verified
+      exactly; the third is a reading whose grouping was not published, and it is recorded as one.
+      ✅ **THE COMPETING FIGURES ARE NOW RECONCILED AND THE SET IS CLOSED. Every one of them was
+      right about a different corpus, and the reconciliation is below — reproduced independently here,
+      to the digit, rather than accepted.** **The number of record, and it is quoted with its
+      definition every time or not at all:**
+
+      > **3.4 — `ash-scrub` 66.80 against `basalt-rock` 70.19. Rec.601 luminance
+      > (`0.299R + 0.587G + 0.114B`, 8-bit sRGB, no gamma linearisation), averaged over every pixel of
+      > the full 16×16 block at each of the 180 `,` cells (46,080 px) and 942 `R` cells (241,152 px) of
+      > the composed 1024² PNG. ⚠ THE WALKABLE MATERIAL IS THE DARKER OF THE TWO — record the sign; it
+      > was being dropped.**
+
+      **Re-measured here off the layout grid and the composed PNG: `,` 66.80 over 180 cells / 46,080 px,
+      `R` 70.19 over 942 cells / 241,152 px, gap 3.39, walkable darker.** Exact.
+
+      **The crosswalk, so the figures reconcile instead of competing** — one pair, three corpora:
+
+      | figure | corpus | measured here |
+      |---|---|---|
+      | **6.6** | the TILE FILES (`ash-scrub` vs `basalt-rock`, all px) | **6.56** — 65.14 against 71.70 |
+      | **3.4** | the COMPOSED tiles, per cell, as defined above | **3.39** — 66.80 against 70.19 |
+      | **53.4** | the same composed definition, heather substituted | pending; the tile is not in the tree |
+
+      ⛔ **AND ONE OF THE FOUR IS STRUCK OUTRIGHT: "0.2" IS NOT A FIGURE FOR THIS PAIR AT ALL.** It does
+      not reproduce for `ash-scrub` vs `basalt-rock` under any formula or corpus. **It reproduces
+      exactly as `basalt-rock` 71.70 against `basalt-WALL` 71.46 = 0.24 on the tile files** — confirmed
+      here — **which is two BLOCKING materials compared with each other and then reported as a
+      walkable-versus-blocking gap.** ⚠ **Kept as an example rather than deleted quietly, because it is
+      the wrong-corpus family in its smallest and most deniable form**: a real measurement, correctly
+      taken, attached to the wrong question, and indistinguishable from a right answer once the labels
+      are gone. **The struck 7.09 published here earlier is the same pair as the 6.6 under Rec.709
+      instead of Rec.601** — a fourth operator, not a fourth finding; it is withdrawn in favour of the
+      Rec.601 reading so that one definition governs the whole set.
+    - **A SEAM CHECK FAILS ON THREE NODES, AND IT IS PRE-EXISTING RATHER THAN INTRODUCED.** `verify.py`
+      reports `FAIL SEAMS` at **×2.55** on cindershelf, and **hearthollow (×1.22)** and **brackwater
+      (×1.27)** already fail it at HEAD. **Say it that way round** — a reader seeing only cindershelf's
+      number would file it as a cinder-family defect, and two thirds of it is the tile set generally.
+      **Cindershelf's is twice as bad and is not a low-denominator artefact**: the `ash-scrub` field
+      measures joins **22.20 vertical / 26.13 horizontal** against `ash-open`'s 3.55 / 5.37 and path's
+      0.10 / 3.70. ⏳ **The pending heather swap is reported to take cindershelf's `,` seam to PASS
+      ×0.90 — pending, not applied.** ⛔ **Hearthollow's and brackwater's failures are NOT touched by
+      it and stay open**, which is the half a "seams fixed" report would quietly drop.
+
+54. ✅ **CLOSED — THE GATE NOW ASSERTS THE DIRECTION IT WAS MISSING, AND ITS HEADER'S FOSSILS ARE
+    GONE.** *(**T-69**, DONE.)* ⚠ **This item is corrected rather than deleted, because both halves of
+    it were true when written and the repair is the interesting part.** Landed in `abcc95e` *"the
+    layout gate asserts the direction it was missing, and stops calling itself a biconditional"*.
+    Re-measured this pass: **20 tests, 20 passing** (it was 19).
+    - **DIRECTION 3 exists** — *encounter cells ⇒ populations non-empty*, at
+      `tests/gates/layout-encounter-contract.test.ts:659`, and its own docblock names it *"THE ONE THE
+      OTHER TWO DO NOT COVER"*: a node that **paints** encounter terrain while declaring no species is
+      grass a player can walk into forever, rolling against an empty table. **It is green on all
+      twelve today** — the thinnest is `sanctum-approach` at one declared line — and the docblock says
+      so, which is the right way to ship an assertion that cannot currently fail: *"that is exactly the
+      condition under which an unasserted direction goes unnoticed."*
+    - **The gate stopped calling itself a biconditional where it is not one.** `:622` now says in as
+      many words that DIRECTION 2 *"is the CONTRAPOSITIVE of DIRECTION 1, not a second direction"*, and
+      records that an earlier version of the comment claimed otherwise.
+    - **The header's two fossil figures are deleted, not re-derived.** `498 / 435 / 63` appear nowhere
+      in the file; `:38` now carries the argument alone — a whole-file count reads the header prose —
+      which is what T-69 asked for and the better of the two options it offered.
+
+    **What the item said before, kept because the shape recurs:** the gate asserted one proposition
+    twice — `lines.length > 0 && encounterCells === 0` against `encounterCells === 0 && lines.length > 0`,
+    identical conjunctions with the operands swapped, two failure messages for one claim — and its
+    commit message called that "both ways". **Most of the gate was well built even then**, and the
+    good parts still are: its scope comes from `data/nodes/` and never from the layout directory, so a
+    renamed directory reds it instead of failing open; the grid is the longest run of 64-character
+    lines with a tie treated as ambiguous; the alphabet is asserted equal to `legend.ts`'s own
+    `DEFAULT_LEGEND`; `,` is asserted to **be** the legend's `scrub` row with `blocks: false` rather
+    than assumed to be; and it keys on declared population **keys**, not `count > 0`, because a line at
+    count 0 with a positive `breedRate` regrows.
+
+    **And the figures the fossils got wrong, kept once here so the repair is checkable rather than
+    trusted.** The header used to illustrate itself with *"498 while its grid held 435"* and *"63
+    against a grid holding ZERO"*. Measured against every committed revision of
+    `tools/mapgen/layouts/cindershelf.txt`: at the seeded revision the grid held **0** and the whole
+    file **34**; at HEAD the grid holds **180** and the whole file **255**. **No layout in the tree has
+    a grid of 435** — the largest is `r1` at 597. **The gate's ARGUMENT was always correct and the real
+    pair confirms it independently** (255 against 180): a whole-file count is a broken instrument. Only
+    the numbers it illustrated itself with were wrong — **a figure measured once inside a test reads as
+    an assertion**, which is this file's fossilised-anchor shape, and the fix was to delete the figures
+    and keep the argument.
+
+### Opened by the 2026-08-27 economy pass — money moves, and the meter still has a hole
+
+55. **✅ THE ECONOMY IS REAL ON THE LIVE PATH, AND THE ORDER IT LANDED IN IS THE PART WORTH KEEPING.**
+    Every number below is the owner's, quoted where `data/balance.json` records him, and the
+    derivations live beside the keys rather than in this file.
+    - **An earner exists.** A won **rival** fight pays `trainerPayoutFlat` **100** +
+      `trainerPayoutPerLevel` **3** × the summed levels the loser fielded, so the six rival purses run
+      **136 / 208 / 262 / 388 / 460 / 640**. Hank's ruling, recorded verbatim in
+      `data/balance.json` `economy._trainerPayout`: *"Make it so that earnings don't scale quite as
+      much. I think it's a hallmark of Pokemon games that you eventually have way too much money at
+      some point, but that point shouldn't be until probably Act 5."* A purely per-level purse could
+      not do that — the rosters' summed levels run 12/36/54/96/120/180 and **any** flat rate
+      reproduces that same 15× spread; the flat fee compresses it to 4.7×.
+    - **Sinks exist.** Every purchasable price is **3**. Hank ruled twice and the key records both:
+      first *"the other prices can all be the same, just for simplicity… a player should be able to
+      buy 40 of those items total in a year"*, then, shown that a mean-anchored 25 bought five items
+      in act 1 against eighty-six in act 6, *"Make it so that the expected earnings in year one
+      specifically can buy 40."* **The anchor is year one.** 3 rather than 3.6 because money is an
+      integer on the tape and both `readPayout` and `applyPayout` refuse a fraction outright.
+      ⚠ **The consequence was accepted knowingly and must not be re-discovered as a defect**: income
+      is not uniform, act 1 affords 48 items and act 6 affords 720, so **money is tight only in year
+      one and effectively unlimited from act 3 on.** No flat price avoids it.
+    - **`innCost` is deliberately not one of them.** Hank: *"innCost is already paid through ticks."*
+      It stays 40 and stays unread; a rest costs `clock.innTicks` and no coin.
+    - **Both content gates moved out of code and into data**, and the reason is recorded where it
+      bites: zod **strips** keys the schema does not declare, so adding a key to `data/balance.json`
+      alone reaches no reader — the move needed `data/balance.json`, `core/types.ts` and
+      `core/schemas.ts` together. `weightedUnlockGym` is `"odo"`, `masterSnareGrant` is 3, and Hank's
+      ruling is quoted on the key: *"Weighted Snares unlocked in the shop after the second gym is
+      completed… the player be given three master snares at the completion of the fifth gym."*
+    - ⚠ **THE FIFTH-GYM MASTER GRANT IS WIRED AND FIRES — a briefing this pass inherited said it did
+      not, and that was wrong.** `grantMasterSnares` runs from `winGym`, gated on the fifth leader,
+      and a **played ladder** test walks the gyms and ends holding exactly `masterSnareGrant` on the
+      tape, with siblings proving no earlier leader grants and that a doubled finish grants once.
+      **What is genuinely still a literal in code is the GYM ID** — `MASTER_GRANT_GYM = "noct"` — only
+      the count moved to data.
+    - ⚠ **What is still dead:** `innCost` and all three `baitPrice` rows have **zero readers** in
+      `core/`, `game/` or `tools/`. **There is no bait row in the shop and there cannot be one as
+      built** — `baitPrice` is keyed by `BaitMatch`, not by a bag key, so it does not name anything
+      the bag can hold, and Kett's shipped lines describe a crate the player cannot buy from and state
+      a price ratio the data does not have. **T-67.**
+
+56. **⛔ THE SNARE METER HAS A HOLE THAT MOVES RATHER THAN CLOSING, AND IT IS THE SHARPEST STATEMENT
+    OF THE `bagHas` AFFORDANCE THIS FILE HAS MANAGED.** *(**T-66**.)* `bagHas` (`core/battle.ts:1226`) returns
+    **true for a key absent from the bag** — *"a key absent from `bag` is untracked (the harness
+    carries no bag)"* — and `bagConsume` (`:1231`) returns early on an absent key, so it never
+    decrements. A fresh save is `items: {}`. **A grant is what switches the meter on**, and
+    `core/types.ts`'s own docblock on the `grant` action says so and explains why the applier is
+    additive and never a replacement.
+    - **Three tiers, three different states, and no UI distinguishes them.** `snareEntries`
+      (`game/battle-input.ts:205-209`) offers **every** tier unconditionally; `disabled` comes only
+      from `illegalActionReason`, whose sole stock check is `if (!bagHas(...))`. An untracked tier
+      prints `—` and is **legal**.
+    - **So the fix moves the hole; it does not close it.** A player granted three `base`, who never
+      visits the shop and never beats the fifth leader, is metered on `base` and holds **infinite
+      `weighted` and infinite `master`**. Beat Noct and `master` becomes finite too — and `weighted`
+      is *still* infinite unless the shop was used. **Spending out the tier you were given and
+      switching to a better one you were never given is the shipped behaviour.**
+    - **Two passing tests assert exactly this and name it**, which is the right way for it to be
+      recorded: *"…but CATCHING IS NOT METERED — the tiers the grant does not stock stay unlimited
+      for ever"*, and *"⚠ for the UNGRANTED tiers NOTHING CHANGES — a spent-out player just throws a
+      better snare."*
+    - ⚠ **And two of those test docblocks overstate their own scope.** Both claim *"nothing in
+      `data/`, `game/` or `core/` writes another snare tier into `save.items`"*. That is true of the
+      **dialogue corpus** and false of the **repo**: the shop writes `weighted` and `winGym` writes
+      `master`. They stay green because each drives a dialogue-only run that never shops and never
+      reaches the fifth gym. **A scope claim in a docblock is an assertion nothing executes.**
+
+57. **THREE DOCBLOCKS AND A HANDFUL OF CITATIONS WENT FALSE IN THE SAME COMMIT THAT MADE THEM FALSE**
+    *(**T-70**.)*
+    — the recurring shape, arriving again, and recorded rather than fixed here because they sit in
+    files this pass does not own.
+    - `game/scenes/OverworldScene.ts` still carries **⚠ BLOCKER — THE KEY IS NOT IN
+      `data/balance.json` YET… Until it is, the grant does not fire** and **⚠ IT DOES NOT FIRE YET,
+      AND IT SAYS SO.** It is, and it does. `masterGrantCount` also still reads the key through
+      `balance.economy as unknown as Record<string, unknown>` *"because the key is not on the
+      `Balance` type yet"* — it is, and the cast is now the only thing hiding that.
+    - `game/wild-battle.ts` still says *"That is why Maren's 'three of them, in the satchel by the
+      door' has never corresponded to anything."* It corresponds now.
+    - **`bagHas` and the snare guard are cited at `core/battle.ts:1208` and `:1537` from three
+      files**; they are at **`:1226`** and **`:1554`**. This file published those two numbers as well
+      and they are corrected above. **A file:line in a comment is a measurement with a shelf life**,
+      which is this queue's own standing rule arriving in the code lane.
+
+58. ✅ **CLOSED WITHIN THE PASS THAT FOUND IT — THE SHOP HAD TWO INDEPENDENT REFUSALS AND EACH WAS
+    MASKING THE OTHER'S ABSENCE.** ⚠ **Recorded even though it closed, because the shape is the most
+    instructive one on this page: two correct layers of defence, neither asserted, and the suite
+    reading green off the fact that they cover for each other.** ⛔ **And say the diagnosis in the
+    right order — SHIPPED BEHAVIOUR WAS CORRECT ON EVERY REACHABLE PATH. This was a test-coverage gap
+    on defence-in-depth, never a live defect.**
+    - **The two layers.** `game/shop.ts:229-230` throws `ShopError` for an id the shelf is not
+      offering and for an already-greyed row; `game/scenes/OverworldScene.ts:1396-1399` returns early
+      on `row.disabled` and banners the reason. **The scene's guard is the layer a player meets**; the
+      model's throw is the belt behind it. The shelf is modal — `update()` returns before every other
+      key while `this.shop !== null` — and `buySelected` hands `buy` a row `shopRows` just derived from
+      the same save, so **neither throw is reachable through the UI.** Both files already said so in
+      comments, and both comments were right.
+    - **The gap, measured before it was closed.** Rewriting both refusals as a silent `return save`
+      left **111 tests GREEN** across `shop`, `overworld-shop`, `economy-wiring` and
+      `economy-primitives`; there were **zero `toThrow` in either shop test file**. Every refusal probe
+      ran through a helper guarded by `if (!attempt.threw)`, and a silent no-op returns an identical
+      object, so `serialize(attempt.save) === serialize(save)` passed either way. **Nothing in the
+      suite could tell a throw from a no-op.**
+    - **THE PART WORTH KEEPING IS WHY A SUBSTRING ASSERTION WOULD NOT HAVE FIXED IT.** `ShopError`'s
+      message embeds the row's own `reason`, so with the scene guard deleted the banner *still*
+      contains the id and the reason and the save is *still* untouched — the throw precedes every
+      write. The two layers are distinguishable only by the exact string they put on screen:
+      `base — costs 3, purse holds 0` from the scene against
+      `base — "base" cannot be bought — costs 3, purse holds 0` from the model. **So the test asserts
+      whole-string equality, and a `contains` check would have passed the sabotage and certified a
+      layer that was gone.** The banner is also named by POSITION rather than found by searching the
+      HUD, because `refreshHud` prints every greyed row's reason into the shelf anyway — **a search
+      would have passed even if the key press was never answered.**
+    - **Both layers are now pinned, by sabotage, in `320a687` and `0a3eb7d`.** Deleting the scene
+      guard reds both refusal tests at the equality and leaves the positive control and the
+      stale-shelf race green, which is correct — neither depends on that layer.
+    - **One correction the closing work made to itself, worth carrying:** a purchase appends **two**
+      tape actions, not one — `payout(-price)` and `grant({id: 1})` — because core's contract is that
+      an entry is a price **or** an absolute consequence and never both.
+
 ## What is next
 
 The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
 
-0. **THE SNARE GRANT (T-60), AND THE WIPE SOFTLOCK THAT IS ALREADY IN FLIGHT (item 46).** These are
-   ahead of everything below because they are the two things that stop a player playing. **T-60's
-   shape is the owner's** — a general `items` grant on the dialogue schema, or a flag-driven grant in
-   code — but that three snares are owed is not in question: the canon says so in the player's own
-   tutorial. **It is not the economy, and it must not be answered by shipping a shop.**
-1. **Get a ruling on the cascade budget** (the section at the top). Nothing about beat 1 is settled
-   until a knob moves or the beat's site changes, and no agent may pick either under G6/G14.
-   ⚠ **And read the two-ends note first**: the knob alone cannot make the beat playable, because the
-   gate's reference player is holding a snare the game cannot supply (item 45). **Both halves are
-   needed; neither substitutes for the other.**
-2. **Finish T-12 — the ECONOMY half, which is now the whole of the remainder.** T-28, T-29 and T-30
-   shipped together: damage, levels, XP and the bag persist, a wipe blacks out and wakes healed at an
-   inn for 5 ticks, and XP carries across fights. **The inn heal has since landed too**, so T-28's
-   clause-2 shortfall is closed and this list no longer names it. What is left of T-28's own
-   *done when* is the money: **no earner, no sink, and no town shop sells anything.** The order is
-   forced rather than chosen — an earner has to exist before `innCost` can be switched on, because a
-   priced inn with no income is a run that blocks. Item 36 above is the measured state.
-3. **Get a ruling on which artefact is authored first — the painting or the collision layout**
-   (**T-57**). This is ahead of the collision work rather than beside it: **the twelve masks already
-   exist**, git-ignored, and promoting them today would block the painted road and open the painted
-   house (item 43). Landing them is then a **gate recalibration** (**T-56**), not an art approval.
-4. **Fix the replay union's three remaining gaps** (**T-53**, **T-54**, **T-55**). T-53 is a decision,
+⚠ **THE THREE ITEMS THAT STOOD AT THE HEAD OF THIS LIST — the snare grant, the wipe softlock and
+the cascade budget — HAVE ALL BEEN DISCHARGED, TWO BY LANDING AND ONE BY TURNING OUT TO BE AN
+INSTRUMENT ERROR.** They are not silently dropped: the grant is item 55, the softlock is item 46, and
+the gate is the resolved section at the top of this file. **The list below is renumbered against what
+is actually left**, and what is left is smaller and more of it is the owner's.
+
+0. **CUT THE FOUR MISSING BIOME TILE FAMILIES, AND SHIP EACH NODE'S PAINTING WITH ITS MASK, ONE
+   COMMIT PER NODE.** ⚠ **This item read *"GET A RULING ON WHETHER THE MAPS MAY BE COMPOSED FROM
+   TILES"* and that ruling has been given** — the quote and its provenance are in the tiled-maps
+   section above. It is first for the same reason it was before: everything in the art lane and half
+   of the collision work hangs on it. What it is, now that it is work rather than a question:
+   **Forest (~50 tiles), Vale (~8) and Sanctum (~22) have no tile family at all; Marsh is an alias of
+   Meadow rather than a table; the dispatch keys on layout filename instead of on `biome`, so `r4`
+   cannot reach the Steppe table that already exists; and nine of the twelve nodes therefore paint as
+   meadows.** ✅ **Cindershelf's ash family HAS landed** (`579169f`) and is the shape the rest should
+   follow. ⛔ **It did not answer cindershelf's two open questions and must not be reported as though
+   it had** (item 53). Until the remaining families are cut, the composed PNGs are the region's
+   shape and not its content, **and none of them may be dropped into `assets/final/maps/` in a
+   batch**: a node's painting lands with the collision mask derived from the same layout, one commit
+   at a time, or it reintroduces the exact defect item 43 describes.
+1. **Close the snare meter — the tiers nobody grants are still infinite** (item 56). This is the
+   residue of T-60 rather than a new idea, and it is a small, decidable change: an untracked key
+   reads as unlimited, so the fix is deciding *where* a tier's meter is switched on, not inventing a
+   policy. **It is what stands between "the player has snares" and "snares are a resource."**
+2. **Finish T-12's clause 4 — and what is left of it is now a short list, not the whole clause.**
+   The earner, the sink, the shop and the two content gates all landed (item 55). What remains:
+   **`innCost` has no reader** and the owner's *"already paid through ticks"* is why; **no
+   `baitPrice` row can be bought**, because `baitPrice` is keyed by `BaitMatch` rather than by a bag
+   key, so the crate Kett describes is unpurchasable; and **quests pay nothing**, which is half of
+   what bible §11 says currency comes from.
+3. **Land the collision masks node by node, behind the paintings** (**T-56**). ⚠ **This item read
+   *"get a ruling on which artefact is authored first"* (**T-57**) and that question has dissolved
+   rather than been answered** — both artefacts stamp from one text file, so neither is authored
+   first. What is left is not a decision but a **gate recalibration** across **three** test files, and
+   it is not optional: `tests/unit/manifest.test.ts`, `tests/unit/collision.test.ts` and
+   `tests/unit/overlay-diff.test.ts` each go red on the first promoted mask by design, and
+   overlay-diff's residual limits were calibrated against a luminance-derived stand-in and must be
+   **re-measured**, not bumped. ⛔ **The rule that governs the order is per node**: promoting a mask
+   against one of the nine generated maps still blocks the painted road and opens the painted house
+   (item 43).
+4. **Make grass gating spatial** (**T-65**). The layouts make a per-node encounter mask derivable
+   exactly, the shares are measured, and the engine still rolls one global 0.25 everywhere — a town
+   square is as productive as the reeds. ⛔ **The single `rng` draw per step is the constraint that
+   decides the implementation**: a second draw renumbers every draw after it and desynchronises every
+   determinism fixture. **This does not wait on item 0 and never did** — the layouts are committed and
+   the encounter mask is derived from text, not from a picture, so it is unaffected by which biome's
+   tiles a node ends up painted with.
+5. **Fix the replay union's three remaining gaps** (**T-53**, **T-54**, **T-55**). T-53 is a decision,
    not a patch — an existing assertion pins the current behaviour deliberately.
    ~~**Repair the player-sprite assets** (T-24)~~ — **DONE**; the gate reads 16 of 16. **T-20's side
    view is a separate, still-open geometry defect and the green gate is not evidence about it.**
-5. **Re-author the maps top-down** (T-17, amended). Three of the nine rejects retire at the root and
-   `r5`'s defect inverts, so the reject list is smaller than it looks. **Colour discipline is part of
-   the re-author, not a separate pass** — item 32: the shipped ten run 17–32 colours against Gold's
-   12–18, and nine of the ten are flagged above the band by the palette gate's advisory.
-6. **Run the B1 reproduction gate** (build-doc §15, Lane B) — one asset per pixel class reproduced
+6. **Re-author the maps top-down** (T-17, amended) — ⚠ **and HOW is now settled: by composition, per
+   item 0.** Three of the nine rejects retire at the root and `r5`'s defect inverts, so the reject
+   list is smaller than it looks. **Colour discipline comes along for free rather than being a
+   separate pass** — the compositions read 16–30 distinct colours at zero off-palette, against the
+   shipped generated maps' 17–32 and Gold's 12–18. ⚠ **But do not carry item 32's colour reading over
+   as the ARGUMENT for the change**: the shipped maps pass the palette gate, the gate caps nothing,
+   and the case for composition is geometric. The colour figures are a consequence, not a reason.
+7. **Run the B1 reproduction gate** (build-doc §15, Lane B) — one asset per pixel class reproduced
    from `manifest.json` byte-identically. Nothing multi-version starts before it passes.
-7. **Give the harness a lifecycle mode** so the Legacy beat is measured rather than asserted.
-8. **Batch the vertical-slice art** (B3/B4). G13 still binds — no batch of 20 or more without an
+8. **Give the harness a lifecycle mode** so the Legacy beat is measured rather than asserted.
+9. **Batch the vertical-slice art** (B3/B4). G13 still binds — no batch of 20 or more without an
    explicit `--confirm` — but it binds as a *review* gate now, not a budget one: the whole manifest
    is about 8% of the balance.
-9. **Audio** (C8): retirement cue first, then the pack, then the DSP season presets.
+10. **Audio** (C8): retirement cue first, then the pack, then the DSP season presets.
 
 ## Waiting on the owner
 
-- **WHAT SHAPE THE SNARE GRANT TAKES** (**T-60**). **Not whether** — the canon already grants three
-  snares in Maren's tutorial, so building it is implementing shipped content, not inventing it
-  (G2-safe). The two candidates, recorded without a preference: **(A)** a general `items` grant on the
-  dialogue schema — a real change, since `zDialogueEntry` is a `strictObject` — which makes the canon
-  the source and gives every later grant the same door; or **(B)** a flag-driven grant in code, which
-  needs no schema change but puts the number three in code beside a line of dialogue that also states
-  it, where the two can disagree in silence. **No agent may pick.** A is content-authoring (G2's
-  territory); B puts a gameplay quantity in code, which G11's spirit and this file's own
-  *derived, verified, or absent* rule both point away from.
+✅ **ONE ENTRY LEFT THIS REGISTER BY BEING ANSWERED, AND IT IS RECORDED AS A DEPARTURE RATHER THAN
+DELETED**, because "it is no longer here" is indistinguishable from "somebody removed it".
+- **WHETHER THE MAPS MAY BE COMPOSED FROM TILES — RULED. He raised it himself and answered it
+  himself.** *"Get it done. Use as many agents as you need to. This was the common sense answer from
+  the start, and while planning out this project, you cautioned me against it. Make up for that by
+  doing an exceptionally good job here as quickly as you can."* The full account, **including the
+  first-hand override *"I override the build doc!"* that followed it, and the source of each**, is the
+  tiled-maps section at the top of this file. ⚠ **The argument this entry
+  used to make was the wrong one and is struck there too:** it argued colour, and the nine shipped
+  generated maps read 17–32 distinct colours at **zero off-palette pixels** — they pass the palette
+  gate and always did. What ended the generated round was **composition**, and `af82c46`'s own commit
+  message says so on a controlled axis.
 
-- **The cascade budget.** The knob table at the top of this file is the choice. `battleTicks` or
-  `ticksPerYear`; `encounterTileFraction` cannot reach r2. ⚠ **Read it together with T-60**: the two
-  are one problem from opposite ends, and the knob cannot reach the other end.
+⛔ **AND ONE ENTRY WAS REMOVED FROM THIS REGISTER DURING THIS PASS AND HAS BEEN PUT BACK.** The
+cindershelf question below was written up as ruled, on a relayed report that turned out to be somebody
+reading a comment which itself asserted a ruling that never happened. **It is open. It is his.** The
+chain is item 53, and the rule it produced is directly below.
+
+⚠ **THE TEST THIS REGISTER APPLIES TO ANY REPORTED RULING: it enters as ANSWERED only with (a) the
+owner's words verbatim and (b) a named source for them.** ⛔ **The test is about WORDS AND A SOURCE,
+not about trusting the messenger** — a relay from another lane is trusted (see the standing rule in
+the tiled-maps section). The tile ruling has both, from two sources. The cindershelf report had
+**neither**: it was an agent's own inference, written into `compose.py` as though it were a ruling,
+and it moved a question out of this register for the length of an afternoon. **A consequence of one of
+his sentences is not one of his sentences** — least of all when a sibling file by the same author says
+the opposite.
+
+- **The cascade budget — the question has CHANGED SHAPE, because the gate that framed it was
+  measuring wrong.** ⚠ **The knob table is no longer a decision waiting to be made.** `preyShare`
+  ignored `seasonalWindow`, the correction made the gate stricter rather than looser, and it did not
+  buy the pass: **r4 and cindershelf never moved and always passed**, at 85% and 97% of seeds. The
+  gate is green and the four contested sites are now asserted **infeasible**, so a balance change
+  that makes one reachable turns it red and asks the question again. **What is genuinely still his**
+  is the sibling entry below — whether `r4`, which is `walkable: false`, is where the beat should
+  live. **No knob is owed an answer today**, and nothing should be tuned to produce one.
+
+- **DO GYM WINS PAY?** Unruled, and until now recorded only in a comment. `docs/content-bible.md:285`
+  reads, verbatim: *"- Currency from quests + trainer battles; sinks: snares, bait mats, inn,
+  forge."* **`gym` is a distinct `BattleKind`** — the four launchers stamp `wild`, `trainer`, `gym`
+  and `ancient` — and a won gym pays **zero**, bound by a passing test that walks all three non-payers
+  with a non-vacuity control. `game/wild-battle.ts` states the question rather than answering it, and
+  is right to: *"the bible's audio manifest groups them ('Trainer/gym battle'), its economy line does
+  not, and inventing the wider reading would mint currency no document asks for."*
+  ⚠ **The other half of that sentence pays nothing either: "Currency from quests."** No quest path
+  awards a coin. **So the only earner in the shipped game is a won rival fight** — six of them across
+  the run — and a fresh save holds `money: 0`, which means nothing at all can be bought until Wick is
+  beaten at r1. **Both halves are his to rule; neither is an agent's to invent (G2).**
+
+- ⛔ **IS *OFFLINE* SLICING OF A FINISHED PAINTING INTO TILES STILL BARRED?** **Recorded open rather
+  than resolved by inference (G2), and it is the boundary of the tile ruling rather than a new
+  subject.** He was asked about **composing from a tile set** and answered that; **nothing in the
+  landed pipeline slices a painting** — its tiles are authored as tiles — so the question has not
+  arisen in practice. **Do not read the permission wider than the question it answered.** G1's amended
+  text records it open in the same terms.
+
+- ⛔ **CINDERSHELF, AND IT IS NOW TWO QUESTIONS RATHER THAN ONE. He approved a PICTURE; nobody has
+  ruled on the WORDING.** Item 53 has both halves and the false-ruling chain that preceded them.
+  1. **DOES *"no grass anywhere over the whole picture"* MEAN NO GREEN, OR NO VEGETATION?** He approved
+     the vale-heather tile for the `,` slot — *"I was talking to the sub-agent directly. I approved the
+     Vale grass."* (relayed from the art lane's session — a trusted source, per the standing rule
+     above; **but nobody holds the text of the approval he gave the sub-agent**, so it is evidence the
+     act happened and not of its reasoning, which is a limit on the CONTENT rather than on the relay). **Heather and
+     dead bracken are vegetation.** The swap keeps the no-GREEN reading and gives up the
+     no-VEGETATION one, which the layout header's own gloss asserts — *"nothing vegetal grows on the
+     ash"*. ⛔ **This is the cost of the swap and is explicitly not resolved by it. Ruling on a picture
+     is not ruling on a word.**
+  2. **AND THE ORIGINAL QUESTION IS UNTOUCHED BY EITHER: does the clause bind the MATERIAL or the
+     ENCOUNTER TERRAIN?** `tools/comfy/manifest.json` forbids grass twice,
+     `data/nodes/cindershelf.json` declares six populations, and the layout carries 180 encounter
+     cells under the material reading. **If it binds the terrain instead, cindershelf has no wild
+     encounters and six declared populations become decoration.** ⚠ **The ash family has now landed
+     and that is NOT the answer** — the material half was never in doubt.
+
+  Note the node also PASSES the cascade feasibility gate today, so both answers touch more than one
+  lane.
 
 - **WHETHER THE STARTER'S FIRST FIGHT IS ACCEPTABLE — now confirmed on screen, not only in a model**
   (**T-38**, whose full table is below). The 2026-08-27 playtest `[SAW]`, on the **first random
@@ -1516,13 +2572,22 @@ The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
 
 - **When the painting and the collision layout disagree, which one is authored first?** (**T-57**.)
   The engine reads geometry from `tools/mapgen/layouts/*.txt`; the art lane is drawing composition from
-  hand-made top-down control drawings. **Nothing reconciles them**, and the ten paintings on disk were
+  hand-made top-down control drawings. **Nothing reconciles them**, and the paintings on disk were
   not produced from the layouts — the ControlNet lane is untracked and the committed manifest contains
   no reference to it. **No answer is proposed here**, and no agent may pick one: it decides whether the
   mask is correct on generation or must be traced back off a picture after every art round. **The
   consequence while it is open is item 43**: the twelve masks exist but promoting them makes the game
   worse than the all-open placeholder, because a mask that is exact against the wrong picture blocks
   the road the player can see.
+  ✅ **THE TILING RULING HAS DISSOLVED THIS ONE — PER NODE, AS EACH PAINTING LANDS, RATHER THAN AT A
+  STROKE.** ⚠ **This paragraph read *"contingent on a ruling nobody has made"* and that is now false.**
+  Under tiling the painting and the mask are both stamped from the same 64×64 text file, so they
+  cannot disagree — correspondence by construction rather than by a choice of which artefact wins,
+  which is better than either side this ticket offered, and T-57's own *done when* names this exact
+  route. **But nine nodes on disk are still generated images no layout produced**, and for those nine
+  the disagreement is exactly as live as before. So the mask rule is unchanged and is the operative
+  one: **a node may ship its mask on the same commit that ships its tiled painting, and not before.**
+  What is now owed is not a ruling — it is twelve paintings, one commit each.
 - **Whether Greaves and Maribel get tuned** now that the ruler is honest. T-13's ruling was
   explicitly "do not lower Greaves's levels as part of this ticket — if it still feels wrong
   afterward, that is a separate, deliberate call." This is that call.
@@ -1587,13 +2652,16 @@ The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
   | ticks spent on wakes | **20 of the run's 40** |
   | where year 1 ends | `hearthollow` |
 
-  1. ⚠ **"The vertical slice catches again" IS A READING OF A PLAYER THE SHIPPED GAME CANNOT PRODUCE,
-     and it is MARKED rather than deleted, because the figures beside it are unaffected.** The harness
-     hands its reference player a snare tier as a parameter with **no inventory check at all**
-     (`tools/harness/full-run.ts:235`), and builds a gym bag outright (`tools/harness/player.ts:495`,
-     *"one salve per party member, nothing else"*). A real player holds none of it — item 45, **T-60**.
-     **So the ten catches are a property of the model, and the screen shows zero.** What stands
-     unchanged: the wipes, the ticks, and **half the run's ticks going on waking up.**
+  1. ⚠ **THE MARK ON THIS ROW IS NARROWED, NOT LIFTED.** It used to read *"a player the shipped game
+     cannot produce"*, and that is no longer true: a real player now holds three base snares from the
+     opening beat, so the model and the screen are no longer on opposite sides of a wall. **What
+     reproduces and still makes the model optimistic**: the harness hands its reference player a snare
+     **tier** as a parameter with **no inventory check at all** (`tools/harness/full-run.ts`), and
+     builds a gym bag outright (`tools/harness/player.ts`, *"one salve per party member, nothing
+     else"*). It cannot tell a snare the player could buy from one they could not, and it pays for
+     neither. **So the ten catches are still a property of the model** — but of a model that is now
+     optimistic by a purse rather than by an impossibility. What stands entirely unchanged: the wipes,
+     the ticks, and **half the run's ticks going on waking up.**
   2. **The opening is always lost.** The **first three encounters are all losses**: the granted
      juvenile starter loses to Elders and Adults alike, and the run only becomes viable once the
      fourth encounter's catch enlarges the party. That is the T-38 table arriving in a real run —
@@ -1694,6 +2762,61 @@ The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
   not acted on.** Whether a LoRA is adopted, and whether that sentence changes, is the owner's call;
   no agent may make either, and the sentence must not move ahead of the ruling on the first one.
 
+**Struck on the 2026-08-27 economy, layout and tile passes, each checked against the artefact rather
+than against the sentence that carried it.** ⚠ **Four of these were this file's own headline claims,
+and three of those four were inherited into a session's planning before anybody re-ran them.** ⚠ **And
+the four added by the tile pass are the sharper lesson, because they are the ones where a CORRECT
+observation was carrying a WRONG argument** — the palette figures were right and the case they were
+recruited into was not.
+- **"Catching is unreachable, so demo beat 1 cannot be played"** — item 45, withdrawn in full. False
+  when written (the verb was unmetered, not blocked) and false again now (a new game holds three base
+  snares). **Six true premises, one false conclusion.**
+- **"A weighted snare costs 60 and cannot be obtained by any means in the shipped game"** — it costs
+  **3** and is on the shop's shelf from the second gym's badge. With it goes **"tuning the budget
+  cannot make the beat playable"**, which rested on it.
+- **"No earner the player can reach"** and **"no town shop sells anything"** — both landed (item 55).
+- **"A party wipe permanently ends the run"** and **"the blackout has no black screen and does not
+  wake the player at the inn"** — items 46 and 47, both fixed, and **both were already false when
+  this file wrote them**, the fix being an ancestor of the commit that denied it.
+- **"`main` is in sync with `origin/main`; everything is pushed"** — it is **many commits ahead and zero
+  behind**, and the exact figure moved four times during one pass, so the verified-state entry now
+  refuses to publish one at all. ⚠ **And the replacement went stale faster than the claim it
+  replaced**: "thirteen commits ahead" was written earlier in this same session and was three commits
+  wrong by the time it was read again. This one is worth a line of its own: the original was chosen
+  deliberately, over a commit hash, as *the claim that stays true*. **A claim that stays true is not
+  the same as a claim that stays checked** — and a claim that was measured is not the same as one that
+  is still being measured.
+- **"Nothing writes `weighted` or `master` into `save.items`"** and **"nothing yet writes the
+  fifth-gym master-snare grant"** — a briefing this pass was handed. The shop writes `weighted`, and
+  `winGym` writes `master` on the fifth leader with a **played-ladder** test proving it.
+- ⛔ **"GENERATED MAPS FAIL THE PALETTE GATE", AND THE WHOLE COLOUR ARGUMENT FOR TILES BUILT ON IT** —
+  **struck, and the argument is struck rather than only the figure.** Decoded this pass, the nine
+  shipped generated maps read **17–32 distinct opaque colours with ZERO off-palette pixels each**
+  (median 27, against a frozen 32). They **pass**, and always did; the gate asserts membership and
+  caps nothing. The real reason the generated round ended is **composition**, and `af82c46`'s own
+  commit message measures it on a controlled axis — *"Prompting owns STYLE; it cannot own GEOMETRY …
+  Composition did not move at all."* **Correcting only the number would have left the wrong argument
+  standing**, which is why this entry names the argument.
+- **The figure `398,485`** for the best generated map's colour count — **still withdrawn, and now for
+  a better reason.** It was withdrawn as unsourced when it appeared nowhere on disk. It now appears
+  exactly once, at `tools/mapgen/compose/verify.py:89`, as a hardcoded `print` in the composer's own
+  verifier — **the tile lane's script asserting the tile lane's case in prose it does not compute.**
+  So the figure is (a) **circular**, its only source being a file that states it, and (b) a **corpus
+  mismatch**: raw pre-postprocess generator output set against a finished tiled composition. The
+  magnitude of raw output is real (**222,814–413,217** across fourteen trials) and is not the
+  comparison anybody needed. Its sibling **"a tiled map is 21 colours"** is **true of the first round
+  only** — the v2 round reads **30**, two under the frozen 32, with four tile families still to be cut.
+- **"The tile composer is not in the repository … any agent running `git clean -xfd` deletes the
+  pipeline outright"** — **it is in**, at `tools/mapgen/compose/`, 169 tracked files of which 157 are
+  tiles, landed by `f0da7c7` and `9b9accd`. The warning was correct when written and did its job.
+- ⛔ **"CINDERSHELF IS RULED" — STRUCK, AND IT WAS THIS FILE'S OWN CLAIM FOR PART OF ONE PASS.** No
+  ruling exists. The claim came from a `compose.py` comment asserting *"THE OWNER HAS RULED ON THE ','
+  CELLS… It is resolved"*, written by the same lane whose layout header says *"THE OWNER HAS NOT YET
+  RULED"* — **a manufactured permission, which is the inferred-constraint failure with the sign
+  flipped and the more dangerous direction of the two.** The comment has been corrected in the tree;
+  the question is back in the *waiting on the owner* register; item 53 carries the chain and **T-72**
+  the work.
+
 **Struck from this file, having been checked and found false:** the claim that
 `tools/comfy/manifest.json`'s `_deviations[]` rows index a ledger the repo no longer keeps (item 10);
 the two prose-lint corpus structural failures (`G8-ASSERT-CHOP`, `G9-SHAPE-SIG`), both now CLEAN;
@@ -1787,6 +2910,16 @@ rule:** the withdrawal is on the OPERATOR — every figure produced by the unpub
 neighbour-difference operator at threshold 25, wherever it appears. `6.89` is that operator applied
 to the ground region instead of the whole map; `12.88` and `40.02` were already inside the
 "amplitude ladder" the old banner named, and the file simply failed to mark them.
+
+⛔ **`28.2` IS NOT WITHDRAWN, AND IT IS ALSO NOT A LEGIBILITY TARGET — BOTH HALVES MATTER, AND THE
+SECOND HALF IS NEW.** The figure is sound *for the job it was measured for*: it is the separation
+between Gold's two grass greens, and it exists here only to show that an edge-detection threshold of
+25 clears it by 3.2 points, which is luck rather than headroom. ⛔ **It must NOT be reused as the bar
+for telling a walkable material from a blocking one.** Gold spends **26.76** separating tall grass from
+plain ground — two things a player may both walk on, so it is the ENCOUNTER marker — and **41 to 68**
+separating walkable ground from a tree mass. **The floor for a walkable/blocking pair is 41, not the
+twenties**, and item 53 carries the table, the definitions and the independent re-measurement. A
+figure taken for one job is not a target for another.
 
 **`28.2` is NOT withdrawn** — Gold's two grass greens differing by 28.2 luminance is a colour
 difference computed from reference pixels, not an edge density, and it reproduces.
