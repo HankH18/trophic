@@ -119,6 +119,83 @@ BLOCK_TILES = {
     "F": ("built", ["fence-1", "fence-2", "fence-3"]),
 }
 
+# CINDERSHELF IS NOT MADE OF EITHER OF THOSE MATERIALS, AND PAINTING IT AS ONE IS A G2 BREACH.
+# tools/comfy/manifest.json `_nodes.cindershelf.feature` is authored content and says, verbatim,
+# "black volcanic ash, cracked basalt, steam vents and glowing orange fissures and no grass anywhere
+# over the whole picture, ore-cart rails laid flat across the ash". Composed against MEADOW this
+# node comes out as grass on a volcano. The family under tools/mapgen/compose/tiles/cinder/ is cut
+# for it; this table is what points the characters at it.
+#
+# THE ',' CELLS ARE STILL OPEN AND THIS TABLE DOES NOT CLOSE THEM. cindershelf.txt records the two
+# authored sources as in conflict — "no grass anywhere" against the 180 `,` cells the encounter mask
+# is derived from — and says in terms: "THE TWO AUTHORED SOURCES CONFLICT AND THE OWNER HAS NOT YET
+# RULED. Recorded, not resolved. Do not remove these cells, and do not paint them green, without his
+# answer." This table does what that instruction permits and no more: the cells STAY, and they are
+# painted ASH, because the same header binds the MATERIAL outright — "the tile painted for them on
+# this node must be ash, never grass or heather". So `,` here is ash-scrub — warm ash, vent margin,
+# fissure edge — and it is never vegetation. If Hank rules the other way, the ',' row is what moves.
+#
+# WHY ash-scrub HAS ITS OWN CLASS, AND WHY THAT WAS CHANGED AFTER LOOKING AT THE FIRST COMPOSE.
+# It was first given the same class as ash-open, on the argument that Gold's tall grass has a hard
+# tile edge against short grass and a hard edge is what makes a patch readable. Composed and looked
+# at, that was wrong HERE and for a reason specific to this material: Gold's tall grass is
+# unmistakably vegetation, so a hard silhouette still reads as ground. A dark cracked crust with a
+# hard silhouette reads as a ROCK MASS — something to walk around, not into — which is the one
+# misreading an encounter patch cannot afford.
+#
+# So ash-scrub is class "ash-hot" at softness 1 and ash-open is "ash" at 0. The SOFTER material
+# creeps onto the harder one, so open ash feathers 1-4px into every scrub boundary: loose ash blown
+# over a crusted vent margin, which is both the right physical direction and the thing that makes
+# the patch read as ground. The value and hue separation still does the work of telling them apart
+# — ash-scrub is ~26 luminance darker than ash-open and warm where ash-open is cool.
+#
+# Both ash classes are SOFTER than "path" (0/1 vs 3), so ash creeps over the haul track and the
+# track never creeps over the ash. That is the same direction MEADOW uses for grass against its lane.
+CINDER = {
+    # TWO variants, not four, and that was decided by composing and looking three times. The four
+    # darkest windows in the fields all outline ~8px plates in thick black, and stamped over a
+    # 60-cell cluster they read as a HEAP OF CLODS — an obstacle, not ground. These two are the
+    # lowest-contrast dark-warm windows that exist in the three fields: -1 has thin branching
+    # fissures and -2 is the only crack-free one (0 black pixels anywhere in it). With "cinder" in
+    # ORIENTABLE the pair is 8 distinct stamps, which is what a 60-cell patch needs.
+    ",": ("cinder", ["ash-scrub-1", "ash-scrub-2"],              "ash-hot"),
+    ".": ("cinder", ["ash-open-%d" % i for i in range(1, 5)],    "ash"),
+    "o": ("cinder", ["ash-open-%d" % i for i in range(1, 5)],    "ash"),
+    # THE HAUL TRACK IS THE SHIPPED path FAMILY, NOT A NEW CUT, AND THAT IS THE HONEST CHOICE.
+    # Three pale-stone windows were cut for it first and all three carried a visible horizontal join
+    # at 8x (seam ratios 1.85 / 2.48 / 2.67) — the cool stone in g3-basalt is COURSED MASONRY, and a
+    # coursed tile has a seam by construction. path-1..4 and mouth-1..2 are cut from
+    # assets/reference/gen3/lavaridge-town-rs.png — the SAME volcanic reference this family's inits
+    # come from — they are sun-baked earth rather than temperate turf, they are already seam-tested
+    # (T-11), palette-exact, and measured green-free: 0 pixels in all six have green above red and
+    # blue. Reusing them is what G3 asks for; cutting a second, worse track because it would carry
+    # this family's name is not.
+    ":": ("path",   ["path-1", "path-2", "path-3", "path-4"],    "path"),
+    "^": ("path",   ["mouth-1", "mouth-2"],                      "path"),
+    # cindershelf's layout contains no '~' and no 'W'; the entry exists so a future edit to the
+    # layout fails loudly on a MISSING TILE rather than silently borrowing a meadow pond.
+    "~": ("nature", ["water-1", "water-2", "water-3"],           "water"),
+}
+
+# The blocking characters differ per map for the same reason the walkable ones do. R-1..3 is a
+# temperate grey scree and there is no ash on it.
+#   'R' — cindershelf.txt: "cracked basalt — the frame, the band and the outcrops"
+#   '#' — cindershelf.txt: "the dark holes and the black slag heap"
+#   'F' — cindershelf.txt: "the ore-cart rail and the shaft/ladder timbering"
+# 'F' is the one that would have failed silently: built/fence-1..3 is a GREEN-PAINTED picket, 70-145
+# of its 256 pixels green, and the layout stamps it 57 times.
+CINDER_BLOCKS = {
+    "R": ("cinder", ["basalt-rock-%d" % i for i in range(1, 5)]),
+    "#": ("cinder", ["basalt-wall-%d" % i for i in range(1, 5)]),
+    "F": ("cinder", ["rail-1", "rail-2", "rail-3"]),
+    "T": ("nature", ["T-mass-1", "T-mass-2", "T-mass-3"]),
+    "W": ("nature", ["water-1", "water-2", "water-3"]),
+}
+
+# No green roof on a node whose subject line says "no grass anywhere over the whole picture". The
+# ramp is otherwise untouched, and assign_hues still de-collides in layout order.
+CINDER_HUES = ["red", "ochre", "blue"]
+
 # ── the building family ──────────────────────────────────────────────────────
 HUES = ["green", "red", "blue", "ochre"]
 
@@ -172,10 +249,16 @@ class _Grid:
 
 
 class Composer:
-    def __init__(self, body, d, materials, crowns_on=True, roof_cap=None):
+    def __init__(self, body, d, materials, crowns_on=True, roof_cap=None,
+                 blocks=None, hues=None):
         self.body = body
         self.d = d
         self.mat = materials
+        # Per-map, for the same reason `materials` is per-map: R-1..3 is a temperate grey scree and
+        # built/fence is a green picket. Defaulting to the module tables leaves hearthollow and
+        # brackwater byte-identical.
+        self.blocks_tbl = BLOCK_TILES if blocks is None else blocks
+        self.hues = HUES if hues is None else hues
         self.roof_cap = ROOF_CAP if roof_cap is None else roof_cap
         self.cols, self.rows, self.cell = d["cols"], d["rows"], d["cell"]
         self.crowns_on = crowns_on
@@ -227,7 +310,11 @@ class Composer:
     # Applied only to isotropic materials. NEVER to a built piece: roof ribs run
     # one way, an eave line and a wall course have a top and a bottom, and a
     # mirrored door is a door hung backwards.
-    ORIENTABLE = {"grass", "path", "nature", "ground"}
+    # "cinder" joins them: ash and basalt are isotropic, so a mirrored ash tile is still ash. It is
+    # what makes a TWO-variant encounter family stop reading as a lattice — 2 variants x 4
+    # orientations is 8 looks over a 60-cell patch. Mirrors are never rotations, so the horizontally
+    # barred rail tiles and the coursed block tiles keep their bars and courses horizontal.
+    ORIENTABLE = {"grass", "path", "nature", "ground", "cinder"}
 
     def oriented(self, family, name, o):
         if o == 0 or family not in self.ORIENTABLE or name.startswith("T-crown"):
@@ -324,7 +411,7 @@ class Composer:
         return out
 
     @staticmethod
-    def assign_hues(comps):
+    def assign_hues(comps, hues=None):
         """One roof hue per footprint, preferred from the footprint's own anchor
         and DE-COLLIDED in layout order.
 
@@ -337,18 +424,19 @@ class Composer:
         component discovery order — top to bottom, left to right — which is a
         property of the layout file, so this stays a pure function of the layout
         (G11). Once every hue is spoken for, the preference stands as it is."""
+        hues = HUES if hues is None else hues
         used = set()
         out = {}
         for comp in comps:
             anchor = comp[0]
-            k = lib.fnv("roofhue|%d|%d" % anchor) % len(HUES)
-            if len(used) < len(HUES):
-                for step in range(len(HUES)):
-                    cand = HUES[(k + step) % len(HUES)]
+            k = lib.fnv("roofhue|%d|%d" % anchor) % len(hues)
+            if len(used) < len(hues):
+                for step in range(len(hues)):
+                    cand = hues[(k + step) % len(hues)]
                     if cand not in used:
-                        k = (k + step) % len(HUES)
+                        k = (k + step) % len(hues)
                         break
-            h = HUES[k]
+            h = hues[k]
             used.add(h)
             out[anchor] = h
         return out
@@ -367,7 +455,7 @@ class Composer:
         hue = {}
         report = []
         comps = self.building_components()
-        hue_of = self.assign_hues(comps)
+        hue_of = self.assign_hues(comps, self.hues)
         for comp in comps:
             cells = set(comp)
             c0 = min(c for c, _ in comp)
@@ -552,8 +640,8 @@ class Composer:
                     name = slot[(c, r)]
                     self.material[(c, r)] = "built"
                     self.house[(c, r)] = dict(hue=hue[(c, r)], slot=name)
-                elif ch in BLOCK_TILES:
-                    fam, names = BLOCK_TILES[ch]
+                elif ch in self.blocks_tbl:
+                    fam, names = self.blocks_tbl[ch]
                     name = lib.pick(names, c, r, "block:" + ch)
                     self.material[(c, r)] = "block"
                     if ch == "T" and self.crowns_on and self.walkable_sides(c, r) >= 3:
@@ -581,7 +669,11 @@ class Composer:
     # How hard-wearing each walkable material is. The SOFTER material creeps onto
     # the HARDER one at their boundary: grass grows into the swept green and into
     # the track, and the track wears through the green where it crosses it.
-    SOFTNESS = {"grass": 0, "clearing": 1, "plaza": 1, "earth": 2, "path": 3}
+    # "ash" sits where "grass" does: it is the loosest material, so it creeps onto everything and
+    # nothing creeps onto it. "ash-hot" is the crusted vent margin — harder than loose ash, softer
+    # than the haul track — so open ash feathers into the encounter patches and the patches feather
+    # into the track. See the note over CINDER for why that edge is feathered and not hard.
+    SOFTNESS = {"grass": 0, "ash": 0, "ash-hot": 1, "clearing": 1, "plaza": 1, "earth": 2, "path": 3}
 
     def fringe_ground(self):
         moved = 0
@@ -726,19 +818,26 @@ class Composer:
         return n
 
 
-MATERIALS = {"hearthollow": MEADOW, "brackwater": MARSH}
+MATERIALS = {"hearthollow": MEADOW, "brackwater": MARSH, "cindershelf": CINDER}
+BLOCKS = {"cindershelf": CINDER_BLOCKS}
+NODE_HUES = {"cindershelf": CINDER_HUES}
+
+
+def _node_of(layout_path):
+    return os.path.basename(layout_path)[:-4]
 
 
 def materials_for(layout_path):
-    return MATERIALS.get(os.path.basename(layout_path)[:-4], MEADOW)
+    return MATERIALS.get(_node_of(layout_path), MEADOW)
 
 
 def compose(layout_path, out_path, materials=None, crowns_on=True, roof_cap=None):
     d = lib.dims()
     body = lib.parse_layout(layout_path, d)
+    node = _node_of(layout_path)
     doors = [(c, r) for r in range(d["rows"]) for c in range(d["cols"]) if body[r][c] == "D"]
     comp = Composer(body, d, materials or materials_for(layout_path), crowns_on=crowns_on,
-                    roof_cap=roof_cap)
+                    roof_cap=roof_cap, blocks=BLOCKS.get(node), hues=NODE_HUES.get(node))
     slot, hue, door_report = comp.paint_base(doors)
     stats = dict(
         fringe_px=comp.fringe_ground(),
