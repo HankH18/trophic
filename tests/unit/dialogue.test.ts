@@ -359,6 +359,287 @@ describe("dialogue schema", () => {
 });
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * 1b. A GRANT CANNOT FIRE TWICE — the grant graph in core/dialogue-schema.ts
+ *
+ * `grants` puts items in the player's bag every time its entry PLAYS. If the entry can play twice
+ * it mints its items again, and the player prints snares by walking back into the room. The
+ * per-entry self-latch check (the entry writes a flag its own `when.flagsUnset` forbids) is
+ * necessary and was, on its own, defeated three ways — each of these is a corpus that passed it and
+ * whose measured run played the grant a second time.
+ *
+ * Rejection-only would be a bad demo: a validator that refuses everything is not a validator. Every
+ * evasion below is paired with the realistic authored shape it must NOT refuse, including the shape
+ * the shipped corpus actually uses (a granting entry entered by `goto` from a closed predecessor).
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+describe("grants cannot fire twice — the grant graph", () => {
+  /** The one granting entry the corpus ships, and the shape all of this is asserted against. */
+  const GRANTOR = "maren.tutorial.snare";
+
+  const grantorOf = (f: RawDialogue): DialogueEntry => f.entries.find((e) => e.id === GRANTOR)!;
+
+  /** A realistic granting entry: Maren hands over the smith's weighted snares, once. */
+  const weightedGift = (): DialogueEntry => ({
+    id: "smith.first-weighted",
+    speaker: "maren",
+    node: "brackwater",
+    kind: "quest",
+    when: { actMin: 1, flagsUnset: ["smith.weighted.given"] },
+    lines: [{ text: "The smith sent two weighted snares up. They're yours." }],
+    setFlags: { "smith.weighted.given": true },
+    grants: { weighted: 2 },
+  });
+
+  it("the shipped corpus really does carry a grant for this to be about", () => {
+    const granting = raw.entries.filter((e) => e.grants !== undefined);
+    expect(granting.map((e) => e.id)).toEqual([GRANTOR]);
+    expect(grantorOf(raw).grants).toEqual({ base: 3 });
+    // …and it is entered by `goto`, which is the whole reason a per-entry check is not enough.
+    expect(raw.entries.filter((e) => e.goto === GRANTOR).map((e) => e.id)).toEqual([
+      "maren.starter.cindril",
+      "maren.starter.puddlisk",
+      "maren.starter.thornlet",
+    ]);
+  });
+
+  /* ── the check that was already there ─────────────────────────────────── */
+
+  it("rejects a granting entry with no self-latch at all", () => {
+    expectRejected((f) => {
+      delete grantorOf(f).setFlags;
+    }, /is not self-latching/);
+  });
+
+  it("rejects a grant key that is not a bag id", () => {
+    expectRejected((f) => {
+      grantorOf(f).grants = { snair: 3 };
+    }, /which is not a bag id/);
+  });
+
+  /* ── EVASION A — a choice on the granting entry rewrites the latch to false ─
+   *
+   * `chooseOption` (game/dialogue-runner.ts:386) writes `{...entry.setFlags, ...choice.setFlags}`,
+   * so the choice wins on any key it restates. Measured against the real runner before this check
+   * existed: the run wrote `{"tutorial.snare.done": false}` and the entry was eligible again.
+   */
+
+  it("rejects a choice that rewrites the latch to false (evasion A)", () => {
+    expectRejected((f) => {
+      const g = grantorOf(f);
+      delete g.goto;
+      g.choices = [
+        { text: "I'll take them.", goto: "maren.tutorial.survey" },
+        {
+          text: "Show me again later.",
+          setFlags: { "tutorial.snare.done": false },
+          goto: "maren.tutorial.survey",
+        },
+      ];
+    }, /no latch survives the run — choice "Show me again later\." leaves without one raised/);
+  });
+
+  it("rejects a DOWNSTREAM entry that lowers the latch before the run ends (evasion A, one hop on)", () => {
+    expectRejected((f) => {
+      // The granting entry's own `goto` target un-writes the latch the granting entry just set.
+      f.entries.find((e) => e.id === "maren.tutorial.survey")!.setFlags = {
+        "tutorial.survey.done": true,
+        "quest.first-signs.offered": true,
+        "tutorial.snare.done": false,
+      };
+    }, /no latch survives the run/);
+  });
+
+  it("ACCEPTS choices that write their own flags and leave the latch alone (positive control)", () => {
+    const ok = clone();
+    const g = grantorOf(ok);
+    delete g.goto;
+    g.choices = [
+      { text: "Thanks.", setFlags: { "tutorial.snare.thanked": true }, goto: "maren.tutorial.survey" },
+      { text: "Say nothing.", goto: "maren.tutorial.survey" },
+    ];
+    expect(() => validateDialogueFile(ok)).not.toThrow();
+  });
+
+  /* ── EVASION B — an unconditional `goto` bypasses the latch ──────────────
+   *
+   * `enter()` (game/dialogue-runner.ts:330-340) never calls `conditionHolds` — "`goto` is
+   * unconditional by design" (:325). Measured: a repeatable predecessor replayed
+   * ["maren.idle.repeatable", "maren.tutorial.snare", "maren.tutorial.survey"] with
+   * `tutorial.snare.done` already true and `problem` null.
+   */
+
+  const repeatablePredecessor = (goesTo: string): DialogueEntry => ({
+    id: "maren.idle.repeatable",
+    speaker: "maren",
+    node: "hearthollow",
+    kind: "greeting",
+    lines: [{ text: "Back again. The satchel's by the door." }],
+    goto: goesTo,
+  });
+
+  it("rejects a repeatable entry that goes straight into the grant (evasion B)", () => {
+    expectRejected((f) => {
+      f.entries.push(repeatablePredecessor(GRANTOR));
+    }, /"maren\.idle\.repeatable" reaches it through goto and can play more than once/);
+  });
+
+  it("rejects a repeatable entry TWO goto hops upstream — the walk is transitive", () => {
+    expectRejected((f) => {
+      f.entries.push(repeatablePredecessor("maren.starter.cindril"));
+    }, /"maren\.idle\.repeatable" reaches it through goto and can play more than once/);
+  });
+
+  it("rejects a predecessor whose own latch is lowered somewhere else in the corpus", () => {
+    expectRejected((f) => {
+      // maren.opening and the three starters all close on story.opening.done. Lower it once,
+      // anywhere, and every one of them becomes repeatable — and so does the grant below them.
+      f.entries.push({
+        id: "maren.idle.reopen",
+        speaker: "maren",
+        node: "hearthollow",
+        kind: "greeting",
+        lines: [{ text: "We'll start you over." }],
+        setFlags: { "story.opening.done": false },
+      });
+    }, /reaches it through goto and can play more than once/);
+  });
+
+  it("ACCEPTS the shipped shape — a granting entry entered by goto from closed predecessors", () => {
+    // The corpus itself is the positive control here: maren.opening -> maren.starter.* -> the grant.
+    // maren.opening writes NO flags of its own and is closed by its CONTINUATION (all three of its
+    // choices reach a writer of story.opening.done, which is what its own `when` forbids). A rule
+    // that only read an entry's own setFlags would reject the game's first scene.
+    expect(() => validateDialogue()).not.toThrow();
+    expect(raw.entries.find((e) => e.id === "maren.opening")!.setFlags).toBeUndefined();
+  });
+
+  it("ACCEPTS a new granting entry reached from a predecessor closed by the grant's own flag", () => {
+    const ok = clone();
+    ok.entries.push(
+      {
+        id: "smith.offer",
+        speaker: "maren",
+        node: "brackwater",
+        kind: "quest",
+        when: { actMin: 1, flagsUnset: ["smith.weighted.given"] },
+        lines: [{ text: "The smith had iron this month." }],
+        choices: [{ text: "Take them.", goto: "smith.first-weighted" }],
+      },
+      weightedGift(),
+    );
+    expect(() => validateDialogueFile(ok)).not.toThrow();
+  });
+
+  it("BINDS — the same pair with the predecessor's own gate removed is rejected", () => {
+    // The positive control above must pass for a REASON, not because the check stopped looking.
+    expectRejected((f) => {
+      f.entries.push(
+        {
+          id: "smith.offer",
+          speaker: "maren",
+          node: "brackwater",
+          kind: "quest",
+          when: { actMin: 1 },
+          lines: [{ text: "The smith had iron this month." }],
+          choices: [{ text: "Take them.", goto: "smith.first-weighted" }],
+        },
+        weightedGift(),
+      );
+    }, /"smith\.offer" reaches it through goto and can play more than once/);
+  });
+
+  /* ── EVASION C — a different entry lowers the latch ──────────────────────
+   *
+   * `conditionHolds` reads `flagsUnset` as "absent OR false", so one false write anywhere re-opens
+   * the granting entry. The per-entry check is per-entry and never asks who else writes the key.
+   */
+
+  it("rejects a second entry that writes the latch false (evasion C)", () => {
+    expectRejected((f) => {
+      f.entries.push({
+        id: "maren.idle.reset",
+        speaker: "maren",
+        node: "hearthollow",
+        kind: "greeting",
+        lines: [{ text: "Let's go over the snares once more." }],
+        setFlags: { "tutorial.snare.done": false },
+      });
+    }, /is written false elsewhere in the corpus — "tutorial\.snare\.done" by \[maren\.idle\.reset\]/);
+  });
+
+  it("rejects a CHOICE on an unrelated entry that writes the latch false", () => {
+    expectRejected((f) => {
+      f.entries.push({
+        id: "maren.idle.reset",
+        speaker: "maren",
+        node: "hearthollow",
+        kind: "greeting",
+        lines: [{ text: "Let's go over the snares once more." }],
+        choices: [{ text: "Please.", setFlags: { "tutorial.snare.done": false } }],
+      });
+    }, /is written false elsewhere in the corpus/);
+  });
+
+  it("ACCEPTS another entry writing the latch key to a NON-false value (positive control)", () => {
+    // Only `false` lowers a latch. A re-write to any other value leaves the door shut, and refusing
+    // it would forbid an author recording that the beat happened a second way.
+    const ok = clone();
+    ok.entries.push({
+      id: "maren.idle.recap",
+      speaker: "maren",
+      node: "hearthollow",
+      kind: "greeting",
+      lines: [{ text: "You've had the snares off me already." }],
+      setFlags: { "tutorial.snare.done": "recapped" },
+    });
+    expect(() => validateDialogueFile(ok)).not.toThrow();
+  });
+
+  /* ── the shapes the check must keep accepting ───────────────────────────── */
+
+  it("ACCEPTS a latch value of 0 — conditionHolds latches on anything but absent-or-false", () => {
+    const ok = clone();
+    grantorOf(ok).setFlags = { "tutorial.snare.done": 0 };
+    expect(() => validateDialogueFile(ok)).not.toThrow();
+    // …and the reading it depends on: 0 really does close the door.
+    expect(conditionHolds({ flagsUnset: ["tutorial.snare.done"] }, { ...emptyCtx, flags: { "tutorial.snare.done": 0 } })).toBe(false);
+  });
+
+  it("ACCEPTS a plain self-latched grant with no predecessors and no choices", () => {
+    const ok = clone();
+    ok.entries.push(weightedGift());
+    expect(() => validateDialogueFile(ok)).not.toThrow();
+  });
+
+  it("ACCEPTS a self-latched grant whose branches all write their own extra flags", () => {
+    const ok = clone();
+    ok.entries.push({
+      ...weightedGift(),
+      choices: [
+        { text: "Thanks.", setFlags: { "smith.thanked": true } },
+        { text: "Tell him I said so.", setFlags: { "smith.thanked": "relayed" } },
+      ],
+    });
+    expect(() => validateDialogueFile(ok)).not.toThrow();
+  });
+
+  it("leaves every non-granting entry alone — a repeatable greeting is not a defect", () => {
+    // The rule is about grants, not about repeatability. Most of the corpus is repeatable on
+    // purpose and must stay that way; a check that made every entry latch would gut the game.
+    const ok = clone();
+    ok.entries.push({
+      id: "maren.idle.repeatable",
+      speaker: "maren",
+      node: "hearthollow",
+      kind: "greeting",
+      lines: [{ text: "Back again. The satchel's by the door." }],
+    });
+    expect(() => validateDialogueFile(ok)).not.toThrow();
+    expect(raw.entries.filter((e) => (e.when?.flagsUnset ?? []).length === 0).length).toBeGreaterThan(100);
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
  * 2. Reference integrity (asserted directly, not only via the schema)
  * ──────────────────────────────────────────────────────────────────────────── */
 

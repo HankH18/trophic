@@ -34,7 +34,7 @@
 
 import { z } from "zod";
 import { actOf, firstAct, lastAct } from "./acts";
-import { SEASONS } from "./types";
+import { ROLES, SEASONS, SNARE_TIERS } from "./types";
 import type { Balance, GymLeader, Season } from "./types";
 
 import balanceJson from "../data/balance.json";
@@ -194,6 +194,21 @@ export interface DialogueEntry {
   lines: DialogueLine[];
   choices?: DialogueChoice[];
   setFlags?: Record<string, FlagValue>;
+  /**
+   * Items this entry puts in the player's bag when it plays. Keys are bag ids; counts are added.
+   *
+   * ⚠ **THIS DECLARATION ALONE ENFORCES NOTHING, AND ITS ABSENCE FROM THE SCHEMA IS NOT A COMPILE
+   * ERROR.** An object type that lacks an optional property is still assignable to one that has it,
+   * so a corpus with no `grants` anywhere typechecks either way, and `zDialogueEntry` is a
+   * `strictObject`: had this field been added here and NOT to the schema below, the first entry to
+   * author it would fail at BOOT with an `unrecognized_keys` validation error rather than at
+   * `tsc`. The interface and the `grants:` line in `zDialogueEntry` are one edit in two places and
+   * must always move together.
+   *
+   * Two things about a granted id are checked in {@link validateDialogueFile}, not here: that the id
+   * is a real bag id, and that the entry granting it can only fire once.
+   */
+  grants?: Record<string, number>;
   /** Unconditional continuation after the last line (used to chain cutscene beats). */
   goto?: string;
 }
@@ -210,6 +225,17 @@ const zFlagKey = z.string().regex(/^[a-z0-9][a-zA-Z0-9._-]*$/, "flag keys are do
 const zFlagValue: z.ZodType<FlagValue> = z.union([z.boolean(), z.number(), z.string()]);
 const zFlagBag = z.record(zFlagKey, zFlagValue);
 const zCompareOp = z.enum(COMPARE_OPS);
+
+/**
+ * The SHAPE of a bag id — and deliberately nothing more than the shape.
+ *
+ * It is NOT `zId`: a role-generic bait tag is a `Role` name (`Producer`, `Grazer`), which is
+ * capitalised, and `zId` admits only lowercase. Widening the regex to fit them is exactly why a
+ * regex cannot be the real check here — `^[A-Za-z0-9]…$` happily admits `snair`. The CLOSED set of
+ * ids that actually exist is resolved as a cross-reference in {@link validateDialogueFile} against
+ * {@link BAG_ITEM_IDS}, the same way node ids, species line ids and sign chains already are.
+ */
+const zItemId = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/, "bag ids are identifier-shaped");
 
 /**
  * G11 / INV-4 — nothing gameplay-shaped is re-typed here; it is READ from the shipped content.
@@ -368,6 +394,10 @@ export const zDialogueEntry: z.ZodType<DialogueEntry> = z
     lines: z.array(zDialogueLine).min(1).max(8),
     choices: z.array(zDialogueChoice).min(1).max(4).optional(),
     setFlags: zFlagBag.optional(),
+    // The schema half of `DialogueEntry.grants` — see the field's comment for why BOTH halves are
+    // required. A count is a whole number of items and at least one: `.min(1)` is that structural
+    // identity and not a tunable, so no gameplay constant is typed here (G11).
+    grants: z.record(zItemId, z.number().int().min(1)).optional(),
     goto: zId.optional(),
   })
   .refine((e) => e.chainStep === undefined || e.signChain !== undefined, "chainStep requires signChain")
@@ -411,6 +441,32 @@ export const SIGN_CHAINS: ReadonlySet<string> = new Set(
 /** Every species line id in `data/species.json`. */
 export const LINE_IDS: ReadonlySet<string> = new Set(speciesJson.species.map((s) => s.id));
 
+/** The medicine ids, READ from `balance.medicine` — `BattleAction {kind:"item", itemId}` resolves these. */
+const MEDICINE_IDS: readonly string[] = [balanceJson.medicine.salveItemId, balanceJson.medicine.tonicItemId];
+
+/**
+ * THE CLOSED SET OF BAG IDS a `grants` key may name — assembled from the shipped vocabulary, never
+ * typed here (G11/INV-4), exactly as {@link NODE_IDS}, {@link LINE_IDS} and {@link SIGN_CHAINS} are.
+ *
+ * A bag key is one of exactly three things, and every one of them already has an authority:
+ *   · a SNARE TIER — `core/types.ts` `SNARE_TIERS`, the same list `BattleAction {kind:"snare"}` takes;
+ *   · a MEDICINE — `balance.medicine.salveItemId` / `.tonicItemId`, ids that live in the balance so
+ *     `core/battle.ts` resolves an item without a literal;
+ *   · a BAIT TAG — build-doc §7.2 defines one as a species line id (species-specific bait) or a ROLE
+ *     name (role-generic bait), which is precisely the question `game/battle-input.ts` `isBaitTag`
+ *     asks and `core/foodweb.ts` `baitMatchFor` answers. No bait table is introduced or consulted
+ *     (G3): this is the same vocabulary read from the same two places.
+ *
+ * A grant key outside this set names an item the bag will hold, `bagHas` will report, and no pane,
+ * snare or bait rule will ever recognise — an entry that hands the player a word.
+ */
+export const BAG_ITEM_IDS: ReadonlySet<string> = new Set<string>([
+  ...SNARE_TIERS,
+  ...MEDICINE_IDS,
+  ...LINE_IDS,
+  ...ROLES,
+]);
+
 /**
  * node id -> (species line id -> that line's `carryCap` AT THAT NODE).
  *
@@ -449,6 +505,220 @@ function stripDocKeys(raw: unknown): unknown {
     if (!k.startsWith("_")) out[k] = v;
   }
   return out;
+}
+
+/* ── the grant graph ─────────────────────────────────────────────────────── */
+
+/*
+ * ⚠ WHY A GRAPH AND NOT A FIELD CHECK.
+ *
+ * The rule a granting entry has to satisfy is "it cannot play twice". The per-entry self-latch check
+ * further down asserts only that the entry writes a flag its own `when` forbids — and an adversarial
+ * reviewer walked past that three separate times, each time with a corpus the per-entry check
+ * accepted and a measured run that played the grant again:
+ *
+ *   A. A CHOICE ON THE GRANTING ENTRY REWRITES THE LATCH TO FALSE. `game/dialogue-runner.ts:386`
+ *      merges the choice over the entry — its own comment says "The ENTRY's flags are written first
+ *      and the CHOICE's second, so a choice that restates a key wins" — so `setFlags` alone is not
+ *      what the run actually writes. The measured run wrote `{"tutorial.snare.done": false}` and the
+ *      entry was eligible again. (The self-latch docblock anticipated the OPPOSITE case, a choice
+ *      SUPPLYING the latch, and missed this one.)
+ *   B. AN UNCONDITIONAL `goto` BYPASSES THE LATCH ENTIRELY. `enter()` at
+ *      `game/dialogue-runner.ts:330-340` never calls `conditionHolds`, because "`goto` is
+ *      unconditional by design" (:325). A REPEATABLE predecessor pointed at the granting entry
+ *      therefore replays it with its latch already set and its own `when` never consulted. Nothing
+ *      about the granting entry, read alone, can see this: the hole is in the predecessor.
+ *   C. A DIFFERENT ENTRY LOWERS THE LATCH. `conditionHolds` reads `flagsUnset` as "absent OR false",
+ *      so one `{"tutorial.snare.done": false}` anywhere in the corpus re-opens the door. The
+ *      per-entry check never asks who ELSE writes the key.
+ *
+ * So the question is asked of the corpus as a whole: **an entry is CLOSED when it names a flag in
+ * its own `when.flagsUnset` that (a) every path out of it writes to a value other than false, and
+ * (b) nothing anywhere in the corpus writes to false.** A granting entry must be closed, and so must
+ * every entry that can reach it through `goto`.
+ *
+ * That is not a stricter reading of the shipped corpus; it is the reading that makes the shipped
+ * corpus safe ON PURPOSE. `maren.opening` writes no flags at all and is closed by its CONTINUATION —
+ * all three of its choices lead to a starter entry, and every starter writes `story.opening.done`,
+ * which is exactly what `maren.opening.when.flagsUnset` requires. A rule that only looked at an
+ * entry's own `setFlags` would have to reject it.
+ */
+
+/**
+ * A BRANCH out of an entry: the flags the runner writes when the player leaves by this route, and
+ * the entry that route continues into.
+ *
+ * It mirrors `game/dialogue-runner.ts` rather than re-imagining it, because a model that disagreed
+ * with the runner would be a second opinion about the very thing it is guarding:
+ *
+ *   · An entry with NO choices leaves through `leaveEntry` (:343) — `setFlags` is written, then
+ *     `goto` is followed or the run ends.
+ *   · An entry WITH choices never reaches `leaveEntry`: `advanceRun` (:357) refuses to move while
+ *     `awaitingChoice`, so `chooseOption` (:372) is the only way out and the entry's own `goto` is
+ *     dead code. Each choice is a branch, and its flags are `{...entry.setFlags, ...choice.setFlags}`
+ *     because :386 merges the choice OVER the entry. That merge is evasion A, in one expression.
+ */
+interface RunBranch {
+  readonly flags: Readonly<Record<string, FlagValue>>;
+  readonly next: string | undefined;
+  /** How a diagnostic names this route to an author. */
+  readonly label: string;
+}
+
+function branchesOf(e: DialogueEntry): RunBranch[] {
+  const choices = e.choices ?? [];
+  if (choices.length === 0) {
+    return [{ flags: e.setFlags ?? {}, next: e.goto, label: "the entry itself" }];
+  }
+  return choices.map((c) => ({
+    flags: { ...(e.setFlags ?? {}), ...(c.setFlags ?? {}) },
+    next: c.goto,
+    label: `choice "${c.text}"`,
+  }));
+}
+
+/** The keys a write leaves RAISED — `conditionHolds` treats absent and `false` alike, so `false` is not one. */
+function raisedKeys(bag: Readonly<Record<string, FlagValue>>): string[] {
+  return Object.entries(bag)
+    .filter(([, v]) => v !== false)
+    .map(([k]) => k);
+}
+
+interface GrantGraph {
+  readonly index: ReadonlyMap<string, DialogueEntry>;
+  /** entry id -> the entries whose `goto` (entry or choice) enters it. */
+  readonly preds: ReadonlyMap<string, ReadonlySet<string>>;
+  /** flag key -> the entries that write it to `false` anywhere in the corpus. */
+  readonly lowered: ReadonlyMap<string, ReadonlySet<string>>;
+  readonly mayWrite: Map<string, ReadonlySet<string>>;
+  readonly guaranteed: Map<string, ReadonlySet<string>>;
+  /** The entries on the current DFS path, so a `goto` cycle terminates the walk. */
+  readonly onPath: Set<string>;
+}
+
+function buildGrantGraph(file: DialogueFile): GrantGraph {
+  const index = new Map(file.entries.map((e) => [e.id, e] as const));
+  const preds = new Map<string, Set<string>>();
+  const lowered = new Map<string, Set<string>>();
+  for (const e of file.entries) {
+    for (const b of branchesOf(e)) {
+      if (b.next !== undefined) {
+        const into = preds.get(b.next) ?? new Set<string>();
+        into.add(e.id);
+        preds.set(b.next, into);
+      }
+      for (const [k, v] of Object.entries(b.flags)) {
+        if (v !== false) continue;
+        const writers = lowered.get(k) ?? new Set<string>();
+        writers.add(e.id);
+        lowered.set(k, writers);
+      }
+    }
+  }
+  return { index, preds, lowered, mayWrite: new Map(), guaranteed: new Map(), onPath: new Set() };
+}
+
+/** Every flag key written ANYWHERE downstream of `startId`, following `goto` — a may-write set. */
+function writesReachableFrom(g: GrantGraph, startId: string): ReadonlySet<string> {
+  const cached = g.mayWrite.get(startId);
+  if (cached !== undefined) return cached;
+  const out = new Set<string>();
+  const seen = new Set<string>();
+  const stack: string[] = [startId];
+  while (stack.length > 0) {
+    const id = stack.pop();
+    if (id === undefined || seen.has(id)) continue;
+    seen.add(id);
+    const e = g.index.get(id);
+    if (e === undefined) continue;
+    for (const b of branchesOf(e)) {
+      for (const k of Object.keys(b.flags)) out.add(k);
+      if (b.next !== undefined) stack.push(b.next);
+    }
+  }
+  g.mayWrite.set(startId, out);
+  return out;
+}
+
+/**
+ * The flags that are still RAISED when EVERY run through `id` ends — a must-write set.
+ *
+ * This is the half of the answer the per-entry check cannot compute. A flag counts only if every
+ * branch out of the entry ends with it raised, so a single choice that writes it `false` (evasion A)
+ * or a downstream entry that might overwrite it removes it from the answer.
+ *
+ * Deliberately conservative in two places, and conservative here means STRICTER — it can only shrink
+ * the answer, so it can only refuse a corpus, never wave one through:
+ *   · a key written on this entry counts only if NOTHING downstream writes it at all (a may-write
+ *     set is cheaper and safer than trying to decide which downstream write lands last);
+ *   · a `goto` cycle contributes nothing, which is also what happens at runtime — `enter()`'s loop
+ *     guard (:331) ends the run when a chain re-enters an entry it has already played.
+ * The memo is keyed by entry alone; with cycles that can cache a smaller set than a path-sensitive
+ * walk would produce, which is the safe direction, and the shipped `goto` graph is acyclic.
+ */
+function guaranteedWrites(g: GrantGraph, id: string): ReadonlySet<string> {
+  const cached = g.guaranteed.get(id);
+  if (cached !== undefined) return cached;
+  const entry = g.index.get(id);
+  if (entry === undefined || g.onPath.has(id)) return new Set<string>();
+
+  g.onPath.add(id);
+  let out: Set<string> | undefined;
+  for (const b of branchesOf(entry)) {
+    const here = raisedKeys(b.flags);
+    let survives: Set<string>;
+    if (b.next === undefined) {
+      survives = new Set(here);
+    } else {
+      survives = new Set(guaranteedWrites(g, b.next));
+      const mayOverwrite = writesReachableFrom(g, b.next);
+      for (const k of here) if (!mayOverwrite.has(k)) survives.add(k);
+    }
+    out = out === undefined ? survives : new Set([...out].filter((k) => survives.has(k)));
+  }
+  g.onPath.delete(id);
+
+  const result: ReadonlySet<string> = out ?? new Set<string>();
+  g.guaranteed.set(id, result);
+  return result;
+}
+
+/**
+ * The flags that CLOSE an entry: named in its own `when.flagsUnset`, raised on every path out of it,
+ * and never written `false` by anything in the corpus. A non-empty result means the entry cannot be
+ * SELECTED a second time; an empty one means it is repeatable.
+ *
+ * An entry with no `flagsUnset` at all is repeatable by definition, and that is the common case — a
+ * greeting, an ambient line, a shopkeeper. Nothing is wrong with a repeatable entry; it is only a
+ * problem when it hands out items, or when it can `goto` into something that does.
+ */
+function closingFlags(g: GrantGraph, e: DialogueEntry): string[] {
+  const required = e.when?.flagsUnset ?? [];
+  if (required.length === 0) return [];
+  const guaranteed = guaranteedWrites(g, e.id);
+  return required.filter((k) => guaranteed.has(k) && !g.lowered.has(k));
+}
+
+/**
+ * Every entry that can reach `targetId` through `goto` edges, transitively.
+ *
+ * TRANSITIVE because the hole is: `enter()` does not consult conditions, so a repeatable entry two
+ * `goto` hops upstream replays the whole chain below it. The shipped corpus is exactly that shape —
+ * `maren.opening` → `maren.starter.*` → `maren.tutorial.snare` — and only the transitive walk
+ * reaches `maren.opening`, which is the entry a player actually stands in front of.
+ */
+function gotoAncestorsOf(g: GrantGraph, targetId: string): string[] {
+  const seen = new Set<string>();
+  const stack: string[] = [...(g.preds.get(targetId) ?? [])];
+  while (stack.length > 0) {
+    const id = stack.pop();
+    if (id === undefined || seen.has(id)) continue;
+    seen.add(id);
+    for (const p of g.preds.get(id) ?? []) stack.push(p);
+  }
+  // A cycle back onto the granting entry is the runner's loop guard's business, not this check's.
+  seen.delete(targetId);
+  return [...seen].sort();
 }
 
 /**
@@ -518,6 +788,71 @@ export function validateDialogueFile(raw: unknown): DialogueFile {
     }
 
     /*
+     * ⚠ A GRANT HAS TWO SILENT FAILURE MODES, AND NEITHER PERMANENT GATE CAN SEE EITHER.
+     *
+     * `tests/gates/reachability.test.ts` and `tests/gates/quest-layer.test.ts` ask whether an
+     * authored LINE can reach the screen. A grant is not a line; it is a write to the player's bag
+     * that happens when the entry plays, so a corpus can be fully reachable and still be wrong in
+     * both of the ways below. They are checked here because here is the only place that sees them.
+     *
+     * 1. AN ID NOBODY HONOURS. The bag is `Record<string, number>` and nothing downstream refuses a
+     *    key: `bagHas`/`bagConsume` (core/battle.ts) work on any string, and `game/battle-input.ts`
+     *    routes a bag key to a pane by ASKING what it is — a snare tier, a medicine, a bait tag.
+     *    A key that is none of the three is stock the player owns and can never use, and it fails
+     *    by being invisible. So the id is resolved against {@link BAG_ITEM_IDS}, a CROSS-REFERENCE
+     *    against the shipped vocabulary — not a regex, which would admit `snair` and every other
+     *    near-miss of a real id.
+     *
+     * 2. A LINE THAT MINTS ITEMS FOR EVER. This is the one that matters. An entry's `grants` fires
+     *    every time the entry PLAYS, and an entry stays eligible until something makes it
+     *    ineligible. `conditionHolds` is the only rule about eligibility, and the only self-closing
+     *    shape it admits is the LATCH: the entry writes a flag in `setFlags` that its own
+     *    `when.flagsUnset` requires to be absent, so the write that ends the beat is the write that
+     *    closes the door. Without it a granting entry is a cutscene the player can re-enter — walk
+     *    out, walk back, take three more snares, for the rest of the run — and nothing in the suite
+     *    goes red, because every line involved was reachable and every id was real.
+     *
+     *    The latch must be on the ENTRY's own `setFlags`, not a choice's: a choice-written flag is
+     *    only written on the branch the player happens to take, so an entry latched by one of its
+     *    choices is unlatched down every other branch. And the written value must not be `false` —
+     *    `conditionHolds` reads `flagsUnset` as "absent OR false", so `{latch: false}` is the latch
+     *    being lowered again in the same breath it is raised (`quest-layer` GATE 2c, whose
+     *    turn-in rule this check is modelled on, refuses the same shape for the same reason).
+     *
+     *    ⚠ THIS CHECK IS NECESSARY AND NOT SUFFICIENT, AND ON ITS OWN IT WAS DEFEATED THREE WAYS.
+     *    It reads one entry's own fields, and three of the four ways a grant fires twice are not
+     *    visible from inside the entry: a choice that rewrites the latch after `setFlags` has been
+     *    read, a repeatable `goto` predecessor that never consults the latch at all, and a different
+     *    entry that lowers it. Those are settled in THE GRANT GRAPH below, which asks the same
+     *    question of the whole corpus. Both halves run; this one names the field, that one names the
+     *    path.
+     */
+    if (e.grants !== undefined) {
+      for (const itemId of Object.keys(e.grants)) {
+        if (!BAG_ITEM_IDS.has(itemId)) {
+          issues.push(
+            `${where}: grants "${itemId}", which is not a bag id — a grant key must be a snare tier ` +
+              `(${SNARE_TIERS.join(", ")}), a medicine from balance.medicine (${MEDICINE_IDS.join(", ")}), ` +
+              `or a bait tag: a species line id from data/species.json or a role (${ROLES.join(", ")})`,
+          );
+        }
+      }
+      const written = Object.entries(e.setFlags ?? {});
+      const unset = new Set(e.when?.flagsUnset ?? []);
+      const latches = written.filter(([k, v]) => unset.has(k) && v !== false);
+      if (latches.length === 0) {
+        issues.push(
+          `${where}: grants [${Object.keys(e.grants).join(", ")}] but is not self-latching — it writes ` +
+            `[${written.map(([k, v]) => `${k}=${String(v)}`).join(", ") || "nothing"}] and its own ` +
+            `when.flagsUnset is [${[...unset].join(", ") || "empty"}], so nothing it sets closes it. ` +
+            `An entry that grants items must write a flag in setFlags — to a value other than false — ` +
+            `that its own when.flagsUnset requires to be unset; otherwise it hands out its items ` +
+            `every time it plays, and it can play as often as the player walks back in`,
+        );
+      }
+    }
+
+    /*
      * ⚠ A POPULATION CLAUSE IS CHECKED AGAINST THE NODE'S OWN NUMBERS, NOT THE REGION'S.
      *
      * Both checks below used to be one line against the GLOBAL `LINE_IDS`, and that is a hole a
@@ -565,6 +900,116 @@ export function validateDialogueFile(raw: unknown): DialogueFile {
     }
     for (const f of e.when?.floraStock ?? []) {
       if (!NODE_IDS.has(f.node)) issues.push(`${where}: floraStock condition names unknown node "${f.node}"`);
+    }
+  }
+
+  /*
+   * THE GRANT GRAPH — the three checks the per-entry latch check above cannot make.
+   *
+   * Each one closes a measured evasion of that check: a corpus that passed it and still played its
+   * grant a second time. The reasoning is in the block comment above {@link branchesOf}; the
+   * per-check notes below name the runner line that makes each hole possible.
+   *
+   * Skipped entirely when nothing grants, so a corpus with no `grants` pays nothing for it.
+   */
+  const granting = file.entries.filter((e) => e.grants !== undefined);
+  if (granting.length > 0) {
+    const graph = buildGrantGraph(file);
+    for (const e of granting) {
+      const where = `entry "${e.id}"`;
+      const items = Object.keys(e.grants ?? {}).sort().join(", ");
+      const required = new Set(e.when?.flagsUnset ?? []);
+      const ownLatches = Object.entries(e.setFlags ?? {})
+        .filter(([k, v]) => required.has(k) && v !== false)
+        .map(([k]) => k);
+      // No own latch at all is the per-entry check's complaint, already filed. Saying it twice in
+      // two vocabularies would make one defect read like two.
+      if (ownLatches.length === 0) continue;
+
+      /*
+       * EVASION A — the latch does not survive the entry.
+       *
+       * `chooseOption` (game/dialogue-runner.ts:386) writes `{...entry.setFlags, ...choice.setFlags}`
+       * — the choice wins on any key it restates — so what the run actually leaves behind is the
+       * MERGE, not `setFlags`. A choice restating the latch as `false` was measured writing
+       * `{"tutorial.snare.done": false}`, after which the entry was eligible again. The same
+       * arithmetic catches a downstream entry that overwrites the latch before the run ends.
+       */
+      const surviving = ownLatches.filter((k) => guaranteedWrites(graph, e.id).has(k));
+      if (surviving.length === 0) {
+        const openRoutes = branchesOf(e)
+          .filter((b) => !raisedKeys(b.flags).some((k) => ownLatches.includes(k)))
+          .map((b) => b.label);
+        issues.push(
+          `${where}: grants [${items}] and latches on [${ownLatches.join(", ")}], but no latch survives the ` +
+            `run — ${openRoutes.length > 0 ? `${openRoutes.join(" and ")} leaves without one raised` : "a path out of it ends with every latch lowered"}. ` +
+            `A choice's setFlags are merged OVER the entry's (game/dialogue-runner.ts:386, "a choice that ` +
+            `restates a key wins"), so a choice restating the latch as false lowers it and the entry is ` +
+            `eligible again. Every branch out of a granting entry must end with one of its latch flags raised`,
+        );
+      } else {
+        /*
+         * EVASION C — a DIFFERENT entry lowers the latch.
+         *
+         * `conditionHolds` reads `flagsUnset` as "absent OR false", so one `{latch: false}` anywhere
+         * in the corpus re-opens the granting entry. The per-entry check is per-entry and never asks
+         * who else writes the key; this does.
+         */
+        const standing = surviving.filter((k) => !graph.lowered.has(k));
+        if (standing.length === 0) {
+          const named = surviving
+            .map((k) => `"${k}" by [${[...(graph.lowered.get(k) ?? [])].sort().join(", ")}]`)
+            .join("; ");
+          issues.push(
+            `${where}: grants [${items}] and latches on [${surviving.join(", ")}], but every one of those ` +
+              `flags is written false elsewhere in the corpus — ${named}. conditionHolds reads ` +
+              `when.flagsUnset as "absent OR false", so a false write anywhere re-opens this entry and it ` +
+              `hands out its items again. Nothing outside a granting entry may lower its latch`,
+          );
+        }
+      }
+
+      /*
+       * EVASION B — an unconditional `goto` bypasses the latch entirely.
+       *
+       * `enter()` (game/dialogue-runner.ts:330-340) never calls `conditionHolds`, because "`goto` is
+       * unconditional by design" (:325). So a REPEATABLE entry that can reach this one through
+       * `goto` replays the grant with the latch already set and this entry's `when` never consulted;
+       * the measured run played ["maren.idle.repeatable", "maren.tutorial.snare",
+       * "maren.tutorial.survey"] with `tutorial.snare.done` already true and no problem reported.
+       *
+       * The shipped corpus survives this on purpose rather than by luck: `maren.opening` is closed by
+       * `story.opening.done`, which all three of its choices reach a writer of, and each
+       * `maren.starter.*` is closed by writing it itself. Nothing enforced that before this check;
+       * a single repeatable entry pointed at `maren.tutorial.snare` was all it took.
+       */
+      for (const ancestorId of gotoAncestorsOf(graph, e.id)) {
+        const ancestor = graph.index.get(ancestorId);
+        if (ancestor === undefined) continue;
+        if (closingFlags(graph, ancestor).length > 0) continue;
+        const forbids = ancestor.when?.flagsUnset ?? [];
+        const guarantees = [...guaranteedWrites(graph, ancestorId)].sort();
+        // Two different ways to be open, and they need different diagnostics: the predecessor
+        // forbids nothing it is sure to write (author it a latch), or it does and somebody else
+        // writes that flag false (delete the false write).
+        const wouldClose = forbids.filter((k) => guarantees.includes(k));
+        const why =
+          wouldClose.length > 0
+            ? `it forbids [${wouldClose.join(", ")}] and every path out of it raises that, but ` +
+              wouldClose
+                .map((k) => `"${k}" is written false by [${[...(graph.lowered.get(k) ?? [])].sort().join(", ")}]`)
+                .join("; ")
+            : `it forbids [${forbids.join(", ") || "nothing"}] and every path out of it raises ` +
+              `[${guarantees.join(", ") || "nothing"}], which do not meet`;
+        issues.push(
+          `${where}: grants [${items}] but "${ancestorId}" reaches it through goto and can play more than ` +
+            `once — ${why}. goto is unconditional ` +
+            `(game/dialogue-runner.ts:325) and enter() never calls conditionHolds (:330-340), so that entry ` +
+            `replays the grant with this entry's latch already set and its when never consulted. Every entry ` +
+            `that can reach a granting entry through goto must itself be closed: it must forbid a flag that ` +
+            `every path out of it raises and that nothing in the corpus writes false`,
+        );
+      }
     }
   }
 

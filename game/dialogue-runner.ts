@@ -37,6 +37,7 @@ import {
   type FlagValue,
 } from "@core/dialogue-schema";
 import { entryById, speakerById } from "@core/dialogue-schema";
+import { appendAction, applyGrant, grantAction } from "@core/save";
 import type { SaveEnvelope } from "@core/save";
 import type { Balance, Content } from "@core/types";
 import { liveNodeOf } from "./wild-battle";
@@ -243,6 +244,20 @@ export interface DialogueRunState {
   readonly finished: boolean;
   /** Flags the run has written so far — applied to the save with {@link applyRunFlags}. */
   readonly flags: Readonly<Record<string, FlagValue>>;
+  /**
+   * Items the run's COMPLETED entries granted, summed. Applied with {@link applyRunGrants}.
+   *
+   * ⚠ COMPLETED, NOT ENTERED — and that is the whole difference between this and {@link visited}.
+   * `visited` records that an entry came ON SCREEN; a run abandoned in the middle of one must not
+   * have paid out for it, or closing the box on the first line of Maren's snare tutorial would hand
+   * over three snares that her `tutorial.snare.done` latch then refuses to hand over again. So this
+   * is accumulated in exactly the two transitions that LEAVE an entry — {@link leaveEntry} and
+   * {@link chooseOption} — beside the `setFlags` those same transitions write, so a grant and the
+   * flag that latches it are written in the same step or not at all. The two are mutually exclusive
+   * by construction (`advanceRun` refuses to move while a choice is on screen and `chooseOption`
+   * refuses to act while one is not), so a single entry contributes exactly once.
+   */
+  readonly granted: Readonly<Record<string, number>>;
   /** Every entry the run has entered, in order. The loop guard reads it; the HUD reports it. */
   readonly visited: readonly string[];
   readonly choicesTaken: readonly DialogueChoiceTaken[];
@@ -306,6 +321,7 @@ export function beginRun(file: DialogueFile, entryId: string): DialogueRunState 
     lineIndex: 0,
     finished: false,
     flags: {},
+    granted: {},
     visited: [entryId],
     choicesTaken: [],
     problem: null,
@@ -317,6 +333,23 @@ function withFlags(
   added: Readonly<Record<string, FlagValue>> | undefined,
 ): Readonly<Record<string, FlagValue>> {
   return added === undefined ? state.flags : { ...state.flags, ...added };
+}
+
+/**
+ * The grants side of {@link withFlags} — and it SUMS where that one overwrites.
+ *
+ * A flag is a value and the last writer wins; a count is stock, and two entries in one chain that
+ * each hand over a snare have handed over two. `core/save.ts` `applyGrant` is additive for the same
+ * reason, so this keeps the run's own tally and the tape entry it becomes on the same arithmetic.
+ */
+function withGrants(
+  state: DialogueRunState,
+  added: Readonly<Record<string, number>> | undefined,
+): Readonly<Record<string, number>> {
+  if (added === undefined) return state.granted;
+  const out: Record<string, number> = { ...state.granted };
+  for (const [itemId, qty] of Object.entries(added)) out[itemId] = (out[itemId] ?? 0) + qty;
+  return out;
 }
 
 /**
@@ -339,10 +372,23 @@ function enter(file: DialogueFile, state: DialogueRunState, nextId: string): Dia
   return { ...state, entryId: nextId, lineIndex: 0, visited: [...state.visited, nextId] };
 }
 
-/** Leave the current entry: its `setFlags` are written, then its `goto` is followed or the run ends. */
+/**
+ * Leave the current entry: its `setFlags` and its `grants` are written, then its `goto` is followed
+ * or the run ends.
+ *
+ * ⚠ THE TWO ARE WRITTEN IN ONE STEP ON PURPOSE. `core/dialogue-schema.ts` refuses a granting entry
+ * that is not self-latching, so the flag in `setFlags` is what stops the grant firing a second
+ * time on a later run; splitting them across two transitions would put a window between the payout
+ * and the latch that closes it. They ride the same object literal so there is no such window — and
+ * that holds on the loop-guard path below too, which carries `carried` forward rather than `state`.
+ */
 function leaveEntry(file: DialogueFile, state: DialogueRunState): DialogueRunState {
   const entry = currentEntry(file, state);
-  const carried: DialogueRunState = { ...state, flags: withFlags(state, entry.setFlags) };
+  const carried: DialogueRunState = {
+    ...state,
+    flags: withFlags(state, entry.setFlags),
+    granted: withGrants(state, entry.grants),
+  };
   if (entry.goto === undefined) return { ...carried, finished: true };
   return enter(file, carried, entry.goto);
 }
@@ -384,6 +430,11 @@ export function chooseOption(
   let next: DialogueRunState = {
     ...state,
     flags: { ...withFlags(state, entry.setFlags), ...(choice.setFlags ?? {}) },
+    // The ENTRY's grants, and there is no choice-level equivalent to merge: `DialogueChoice` carries
+    // `text`, `goto` and `setFlags` and `zDialogueChoice` is a `strictObject`, so a branch that
+    // handed over stock would fail validation at boot rather than be silently dropped here. This is
+    // the other half of {@link leaveEntry} — an entry left through a choice is an entry completed.
+    granted: withGrants(state, entry.grants),
     choicesTaken: [...state.choicesTaken, taken],
   };
   if (choice.goto === undefined) return { ...next, finished: true };
@@ -426,6 +477,32 @@ export function applyRunFlags<S extends { questFlags: Record<string, FlagValue> 
 ): S {
   if (Object.keys(state.flags).length === 0) return save;
   return { ...save, questFlags: { ...save.questFlags, ...state.flags } };
+}
+
+/**
+ * Put a run's grants in the player's bag — ON THE TAPE, then applied.
+ *
+ * ⚠ IT GOES THROUGH `appendAction` + `applyGrant` AND NOT THROUGH `save.items`, and the difference
+ * is L10 rather than style. `core/save.ts` `replay` has ZERO production callers, so a write that
+ * skipped the tape would leave the replayed save short exactly the stock the live save holds, and
+ * nothing in the running game would ever say so — which is precisely how `{t:"innRest"}` shipped
+ * without a replay arm. `applyGrant` is the same applier `replay`'s `case "grant"` calls, so the
+ * live path and the replay path cannot disagree about what is in the bag: they are one function.
+ *
+ * ⚠ AND IT SWITCHES THE BAG'S METER ON. `core/battle.ts` `bagHas` reads an ABSENT key as
+ * untracked-and-therefore-unlimited, so a save whose `items` has never carried `base` has infinite
+ * base snares. The moment this lands `items.base` exists and every throw decrements it. That is the
+ * intended effect of wiring the corpus's one `grants` entry up, not a side effect of it.
+ *
+ * `Object.keys(...).length === 0` early-returns for the reason {@link applyRunFlags}'s does, with
+ * one more consequence here: without it every dialogue in the game — 215 entries of which exactly
+ * one grants anything (measured, `data/dialogue.json`) — would append an empty `{t:"grant",items:{}}` to the tape, and the log L10
+ * compares byte for byte would be mostly no-ops.
+ */
+export function applyRunGrants(save: SaveEnvelope, state: DialogueRunState): SaveEnvelope {
+  if (Object.keys(state.granted).length === 0) return save;
+  const logged = appendAction(save, grantAction({ ...state.granted }));
+  return applyGrant(logged, { ...state.granted });
 }
 
 /** Every line a run actually put on screen, in order — what a test asserts a player saw. */
