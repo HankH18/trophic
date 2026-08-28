@@ -1182,10 +1182,17 @@ describe("§S4 beating the fifth leader hands over master snares, exactly once",
     const granting = contentGranting(balance.economy.masterSnareGrant);
     for (const leader of LADDER.slice(0, 4)) {
       const h = playLadder(leader, granting);
+      // WAS `.toBeUndefined()`, AND THE CHANGE IS A STRENGTHENING, NOT A RELAXATION.
+      // That assertion used KEY ABSENCE as the proof the fifth-gym grant had not fired early. Snare
+      // metering made every tier a present key from boot (core/save.ts `emptyMeteredBag`), so "did
+      // not fire" is now `0` rather than a missing key. `undefined` was the weaker claim of the two:
+      // it was equally satisfied by the key having VANISHED, which under the old unmetered contract
+      // meant the tier had silently become unlimited again. `0` says the meter is on and the bag is
+      // empty, which is the thing this test is actually about.
       expect(
         masterHeld(h.scene.save),
         `beating ${leader.id} (act ${String(leader.act)}) handed over ${MASTER_TIER}`,
-      ).toBeUndefined();
+      ).toBe(0);
     }
   });
 

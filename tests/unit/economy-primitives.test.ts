@@ -183,10 +183,15 @@ describe("applyPayout / applyGrant — additive, isolated, and never in place", 
     /*
      * THE LOAD-BEARING PROPERTY, and it is not obvious from the applier alone. `core/battle.ts:1226`
      * `bagHas` returns TRUE for a key ABSENT from the bag — "untracked", the affordance the balance
-     * harness runs on — and `bagConsume` (`:1231`) returns early on an absent key. `newSave` writes
-     * `items: {}`, so in the shipped game the snare meter is OFF and catching is UNLIMITED. The meter
-     * turns ON the instant a key EXISTS, and it STAYS on at zero, because the save schema admits 0
-     * (`core/schemas.ts:827` `zNonNegInt`) and `bagConsume` decrements rather than deletes.
+     * harness runs on — and `bagConsume` (`:1231`) returns early on an absent key. The meter is ON
+     * for a key that EXISTS, and it STAYS on at zero, because the save schema admits 0 (`zNonNegInt`)
+     * and `bagConsume` decrements rather than deletes.
+     *
+     * ⚠ THIS COMMENT USED TO ADD "`newSave` writes `items: {}`, so in the shipped game the snare
+     * meter is OFF and catching is UNLIMITED", AND THAT IS NO LONGER TRUE. `core/save.ts` `newSave`
+     * seeds `emptyMeteredBag` — every snare tier and both medicines at zero — so the meter is on
+     * from boot and a grant only puts stock in. What is unchanged, and is what this test is about,
+     * is that dropping a key would switch it back off.
      *
      * So a grant that replaced the map, or that tidied a spent key away, would switch the economy
      * silently back off — a player with 0 base snares would go back to having infinite ones, and

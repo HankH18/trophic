@@ -13,20 +13,27 @@
  *     moved for no reason in the whole repo.
  *
  * WHAT THAT COST, and why §6 below is the test nobody had written. `core/battle.ts` `bagHas` reads
- * a key ABSENT from the bag as untracked-and-therefore-UNLIMITED. A fresh save carries `items: {}`,
+ * a key ABSENT from the bag as untracked-and-therefore-UNLIMITED. A fresh save carried `items: {}`,
  * so every snare in the shipped game was free and infinite. Every existing catching test mints its
  * own bag — `{master: 99}`, `{master: 4}`, `{master: 3}` — so every one of them exercised the
  * METERED path and none of them could notice that the path a player walks is the unmetered one.
- * §6 asserts what a FRESH save's bag actually is, and then walks the meter from off to on.
+ * §6 asserts what a FRESH save's bag actually is, and then walks the meter.
  *
- * ⚠ AND IT ONLY WALKS ON FOR ONE TIER, WHICH THIS FILE NOW SAYS OUT LOUD. The corpus's single
- * granting entry hands over ONE snare tier. `applyGrant` creates only the keys it is given and
- * nothing else in `data/`, `game/` or `core/` ever writes another tier into `save.items`, so after
- * the tutorial the player holds a metered stack of the granted tier and — by `bagHas`'s absent-key
- * reading — an UNLIMITED supply of every other tier, the strongest included. CATCHING AS A WHOLE IS
- * NOT METERED; the weakest tier is. §6 asserts that over ALL of `SNARE_TIERS`, so the claim is the
- * measured one and not the flattering one, and so that metering the rest turns this file red and
- * forces the claim to be restated rather than quietly outgrown.
+ * ⚠ THE HALF-METERED STATE THIS FILE USED TO DESCRIBE IS OVER, AND THE RESTATEMENT IS §6'S OWN.
+ * The corpus's single granting entry hands over ONE snare tier, `applyGrant` creates only the keys
+ * it is given, and nothing in `data/`, `game/` or `core/` ever writes another tier into
+ * `save.items` — so for a while the player held a metered stack of the granted tier and, by
+ * `bagHas`'s absent-key reading, an UNLIMITED supply of every other tier, the strongest included.
+ * The tiers the game GRANTED were the only metered ones, and `game/battle-input.ts` `snareEntries`
+ * offers all three from a fixed list, so the master snare sat un-greyed on a brand-new save's menu.
+ * `core/save.ts` `newSave` now seeds `emptyMeteredBag` — every snare tier and both medicines at
+ * zero — so the meter is on from boot and a grant only puts stock in. §6 asserts that over ALL of
+ * `SNARE_TIERS`, and it says which of its assertions were rewritten and what they used to claim.
+ *
+ * ⚠ AND IT NEARLY DID NOT NOTICE. Two §6 tests were written to go red the day the rest got metered
+ * and stayed GREEN through it, because `saveWith` REPLACED the save's bag with the fixture's `{}`.
+ * They were measuring a bag the test wrote. `saveWith` overlays now, which is the fix in the rig
+ * that makes the section's claim a claim about the game.
  *
  * §7 IS THE OTHER THING THIS FILE DID NOT HAVE. §1–§6 all call `applyRunGrants` themselves, so all
  * of them stayed green when the production call in `game/scenes/OverworldScene.ts` was commented
@@ -526,10 +533,38 @@ function bootSave(): SaveEnvelope {
   );
 }
 
-/** A save standing on the route with a fieldable party and whatever bag the test is about. */
+/**
+ * A save standing on the route with a fieldable party and whatever bag the test is about.
+ *
+ * ⚠ `items` IS AN OVERLAY, NOT A REPLACEMENT, and that changed. It used to be `items: { ...items }`
+ * — the fixture's bag INSTEAD of the one `newSave` produced — which is exactly the substitution
+ * this file's header warns about: §6 believed it was measuring a real starting bag while it was
+ * measuring `{}`, and it stayed green through the change that made `{}` impossible. The spread
+ * order here is `newSave`'s own, so a test that names a count still gets exactly that count.
+ */
 function saveWith(party: OwnedCreature[], items: Record<string, number> = {}): SaveEnvelope {
   const base = newSave({ seed: 4242, currentNode: NODE, nodes: content.nodes }, balance);
-  return { ...base, party: party.map((c) => ({ ...c })), items: { ...items } };
+  return { ...base, party: party.map((c) => ({ ...c })), items: { ...base.items, ...items } };
+}
+
+/**
+ * THE KEYS A NEW SAVE'S BAG TRACKS AT ZERO — every snare tier and both medicines, which is every
+ * bag key `game/battle-input.ts` offers from a FIXED LIST rather than out of the bag's contents.
+ *
+ * Assembled from `core/types.ts` `SNARE_TIERS` and `balance.medicine` rather than by calling
+ * `core/save.ts` `emptyMeteredBag`: a test that asks the code under test for the answer cannot
+ * notice the answer changing. No id is coined here (G2/G11).
+ */
+const METERED_KEYS: readonly string[] = [
+  ...SNARE_TIERS,
+  balance.medicine.salveItemId,
+  balance.medicine.tonicItemId,
+];
+const ZEROED_BAG: Record<string, number> = Object.fromEntries(METERED_KEYS.map((k) => [k, 0]));
+
+/** `stock` laid over the bag a new save starts holding — what `save.items` reads after a grant. */
+function bagWith(stock: Record<string, number>): Record<string, number> {
+  return { ...ZEROED_BAG, ...stock };
 }
 
 /**
@@ -751,7 +786,9 @@ describe("§2 a run abandoned before the granting entry completes grants nothing
     const after = applyRunGrants(save, abandoned);
     // Mirrors `applyRunFlags`'s "nothing to do" early return: the same object back.
     expect(after).toBe(save);
-    expect(after.items).toEqual({});
+    // ⚠ CHANGED FROM `{}` — see §6. "writes nothing" now means the bag is still the one `newSave`
+    // laid down, and `toBe(save)` above already carries the identity half of that claim.
+    expect(after.items).toEqual(ZEROED_BAG);
     expect(after.actionLog).toHaveLength(0);
   });
 
@@ -778,7 +815,9 @@ describe("§3 the grant lands once", () => {
     const before = bootSave();
     const played = fullRun();
     const after = applyRunGrants(applyRunFlags(before, played), played);
-    expect(after.items).toEqual(GRANTS);
+    // ⚠ CHANGED FROM `GRANTS` — see §6. The corpus's counts are compared unchanged; what is added
+    // is the zeroed remainder `newSave` now seeds, which the old form did not know about.
+    expect(after.items).toEqual(bagWith(GRANTS));
     // The latch the grant rides with — `core/dialogue-schema.ts` refuses a granting entry that does
     // not write one, so this is the corpus's own guarantee reaching the save.
     expect(Object.keys(after.questFlags).length).toBeGreaterThan(0);
@@ -805,7 +844,7 @@ describe("§3 the grant lands once", () => {
     const before = bootSave();
     const played = fullRun();
     const once = applyRunGrants(applyRunFlags(applyRunFlags(before, played), played), played);
-    expect(once.items).toEqual(GRANTS);
+    expect(once.items).toEqual(bagWith(GRANTS)); // ⚠ CHANGED FROM `GRANTS` — see §6.
   });
 });
 
@@ -859,7 +898,7 @@ describe("§4 applyRunGrants goes through the tape, not around it (L10 / build-d
 
     const replayed = replay({ ...initial, actionLog: [] }, live.actionLog, inertDeps);
     expect(serialize(replayed)).toBe(serialize(live));
-    expect(replayed.items).toEqual(GRANTS);
+    expect(replayed.items).toEqual(bagWith(GRANTS)); // ⚠ CHANGED FROM `GRANTS` — see §6.
   });
 
   it("…and it is the ENTRY that carries it: strip it and the replayed bag stays empty", () => {
@@ -1087,44 +1126,59 @@ function throwOneSnare(save: SaveEnvelope, tier: (typeof SNARE_TIERS)[number]): 
   };
 }
 
-describe("§6 the starting bag, and the meter the grant switches on", () => {
-  it("a FRESH save's bag is EMPTY — the real starting inventory, not a test's own", () => {
+describe("§6 the starting bag, and the meter it switches on before any grant", () => {
+  it("a FRESH save's bag holds NO STOCK and TRACKS every key a battle pane offers", () => {
     /*
      * ⚠ THE ASSERTION NOBODY HAD WRITTEN. Every catching test in this repo mints its own bag, so
      * every one of them measured the metered path while the shipped path was the unmetered one.
      * This is the fact all of §6 turns on, so it is asserted about `newSave` itself.
+     *
+     * ⚠ IT WAS `expect(boot.items).toEqual({})` PLUS `toHaveLength(0)`, AND BOTH WERE REPLACED.
+     * `core/save.ts` `newSave` seeds `emptyMeteredBag` now, so a fresh bag is not the empty object.
+     * The requirement those two lines encoded — a fresh save carries NO STOCK, or every "the grant
+     * put this here" claim in this file would be trivial — is asserted below and is unchanged. The
+     * per-key half is NEW: an absent key is what `core/battle.ts` `bagHas` reads as unlimited, so
+     * "tracked at zero" is a stronger statement than "not present", and it is the one that fails if
+     * the seed is reverted.
      */
     const boot = bootSave();
-    expect(boot.items).toEqual({});
-    expect(Object.keys(boot.items)).toHaveLength(0);
+    expect(
+      Object.entries(boot.items).filter(([, n]) => n !== 0),
+      "newSave seeds STOCK — every grant claim in this file would be trivial",
+    ).toEqual([]);
+    for (const key of METERED_KEYS) {
+      expect(
+        boot.items[key],
+        `a fresh bag does not track "${key}" — core/battle.ts bagHas reads an absent key as UNLIMITED`,
+      ).toBe(0);
+    }
     expect(boot.money).toBe(0);
   });
 
-  it("with that bag EVERY tier in SNARE_TIERS is unmetered — legal, free, and never out", () => {
-    // Asserted over the whole tier list rather than the granted one: the empty bag is the state a
-    // player boots into, and what it means is that NO snare is counted, not that one is not.
+  it("with that bag EVERY tier in SNARE_TIERS is REFUSED — nothing has granted one yet", () => {
+    /*
+     * ⚠ THIS TEST REPLACES ONE THAT ASSERTED THE OPPOSITE — "with that bag EVERY tier in
+     * SNARE_TIERS is unmetered — legal, free, and never out" — and the replacement is what this
+     * file's own §6 header demanded when it said the claim "must be restated rather than quietly
+     * outgrown". It is asserted over the whole tier list for the reason the old one was: the boot
+     * bag is the state a player starts in, and what matters is what it says about ALL snares.
+     *
+     * WHY THE OLD ONE DID NOT SIMPLY GO RED WHEN THE SEED LANDED: it called `saveWith([starter()])`,
+     * whose `items` parameter REPLACED the save's bag with `{}`. It was measuring a bag the test
+     * wrote. `saveWith` now overlays instead, so every line below is about a save the game produced.
+     */
     expect(SNARE_TIERS.length).toBeGreaterThan(0);
     for (const tier of SNARE_TIERS) {
       const save = saveWith([starter()]);
-      expect(save.items).toEqual({});
+      expect(save.items[tier], `the boot bag does not track ${tier}`).toBe(0);
 
       const first = throwOneSnare(save, tier);
-      expect(first.legalBefore, `${tier} was refused before the meter even existed`).toBeNull();
-      expect(first.thrown, `no ${tier} snare was actually thrown — nothing is measured`).toBe(1);
-      // `core/battle.ts` `bagConsume` returns early on a key the bag does not carry, so the throw
-      // costs nothing and `applyBattleAftermath` writes the same empty bag back.
-      expect(first.bagInBattle[tier]).toBeUndefined();
-      expect(first.after.items).toEqual({});
-
-      // …and it never runs out. Three more fights off the bag the last one left.
-      let carried = first.after;
-      for (let i = 0; i < 3; i += 1) {
-        const next = throwOneSnare({ ...saveWith([starter()]), items: carried.items }, tier);
-        expect(next.legalBefore, `${tier} ran out of a stock it never had`).toBeNull();
-        expect(next.thrown).toBe(1);
-        carried = next.after;
-      }
-      expect(carried.items).toEqual({});
+      expect(first.legalBefore, `${tier} is throwable out of a bag that holds none`).not.toBeNull();
+      expect(first.thrown, `a ${tier} snare was thrown with none in the bag`).toBe(0);
+      // The refusal costs nothing and leaves the meter exactly where it was — the key is kept at 0
+      // rather than deleted, which is what stops it falling back into "untracked".
+      expect(first.bagInBattle[tier]).toBe(0);
+      expect(first.after.items[tier]).toBe(0);
     }
   });
 
@@ -1172,31 +1226,39 @@ describe("§6 the starting bag, and the meter the grant switches on", () => {
     expect(illegalActionReason(state, { kind: "snare", tier }, built.ctx)).not.toBeNull();
   });
 
-  it("…but CATCHING IS NOT METERED — the tiers the grant does not stock stay unlimited for ever", () => {
+  it("…AND SO IS EVERY OTHER TIER — a spent-out player has no better snare to switch to", () => {
     /*
-     * ⚠ THE TRUE SITUATION, MEASURED, AND THE REASON THE TEST ABOVE IS NOT ALLOWED TO SAY "THE
-     * PLAYER IS METERED". `applyGrant` creates only the keys it is handed and nothing in `data/`,
-     * `game/` or `core/` writes another snare tier into `save.items`, so a post-tutorial bag carries
-     * exactly the granted tiers. `bagHas` reads every OTHER tier as untracked-and-therefore-
-     * unlimited — including the strongest one — so a player who spends the granted stock does not
-     * run out of snares, they change tier and catch for ever.
+     * ⚠ THIS TEST REPLACES ONE THAT ASSERTED THE OPPOSITE, ON THAT TEST'S OWN INSTRUCTION. It was
+     * named "…but CATCHING IS NOT METERED — the tiers the grant does not stock stay unlimited for
+     * ever" and it closed: "If someone meters the rest, this test goes RED. That is deliberate: the
+     * claim above would then have become true and must be restated here rather than quietly
+     * outgrown. Fix the test by asserting the new meter, never by deleting this one." This is that
+     * restatement, and the sibling above is the "claim above" that is now allowed to stand.
      *
-     * If someone meters the rest, this test goes RED. That is deliberate: the claim above would then
-     * have become true and must be restated here rather than quietly outgrown. Fix the test by
-     * asserting the new meter, never by deleting this one.
+     * WHAT WAS TRUE AND IS NOT ANY MORE, MEASURED BOTH TIMES. `applyGrant` still creates only the
+     * keys it is handed, and the corpus still stocks one tier. What changed is where the OTHER
+     * tiers come from: `core/save.ts` `newSave` seeds them at zero, so `bagHas` no longer reads
+     * them as untracked-and-unlimited. That matters because `game/battle-input.ts` `snareEntries`
+     * offers all three from a FIXED LIST — the master snare, which the shop does not sell, was
+     * sitting un-greyed on the menu of a brand-new save, and a player who spent the tutorial's
+     * three could select the best tier in the game and catch for ever.
      */
     expect(GRANTED_TIERS.length, "the corpus stocks no snare tier — §6 has nothing to partition")
       .toBeGreaterThan(0);
     expect(
       UNGRANTED_TIERS.length,
-      `every tier in [${SNARE_TIERS.join(", ")}] is now stocked by the corpus. Catching may now be ` +
-        `metered end to end — restate this section's claim against what is now true.`,
+      `every tier in [${SNARE_TIERS.join(", ")}] is now stocked by the corpus — the ungranted half ` +
+        `this test is about is empty, and the partition must be restated.`,
     ).toBeGreaterThan(0);
 
     // The post-tutorial save, built by the real applier off the real run — no bag written by hand.
     const played = fullRun();
     const granted = applyRunGrants(applyRunFlags(saveWith([starter()]), played), played);
-    expect(Object.keys(granted.items).sort()).toEqual([...GRANTED_TIERS].sort());
+    // ⚠ CHANGED FROM `toEqual([...GRANTED_TIERS].sort())`: the bag's KEYS are now the metered set,
+    // and it is the COUNTS that separate the granted tier from the rest. That distinction is the
+    // whole change, so it is asserted rather than assumed.
+    expect(Object.keys(granted.items).sort()).toEqual([...METERED_KEYS].sort());
+    for (const tier of UNGRANTED_TIERS) expect(granted.items[tier], `${tier} was stocked`).toBe(0);
 
     // Spend the granted stock out, exactly as the test above does, so the player is at their worst.
     let carried = granted;
@@ -1207,21 +1269,21 @@ describe("§6 the starting bag, and the meter the grant switches on", () => {
       expect(carried.items[tier], `${tier} did not spend out`).toBe(0);
     }
 
-    // …and every ungranted tier is still legal, still free, and still does not run out.
+    // …and every ungranted tier is refused, throws nothing, and never acquires a count.
     for (const tier of UNGRANTED_TIERS) {
       expect(
         Object.prototype.hasOwnProperty.call(carried.items, tier),
-        `${tier} has a key in the bag — it is metered and this test's premise is stale`,
-      ).toBe(false);
+        `${tier} has no key in the bag — bagHas would read that as an unlimited supply`,
+      ).toBe(true);
       let bag = carried;
       for (let i = 0; i < GRANTED_TIERS.length + 3; i += 1) {
         const fight = throwOneSnare({ ...saveWith([starter()]), items: bag.items }, tier);
-        expect(fight.legalBefore, `${tier} was refused on throw ${String(i + 1)}`).toBeNull();
-        expect(fight.thrown, `no ${tier} snare was thrown — nothing is measured`).toBe(1);
-        expect(fight.bagInBattle[tier], `${tier} acquired a count mid-fight`).toBeUndefined();
+        expect(fight.legalBefore, `${tier} was legal on throw ${String(i + 1)}`).not.toBeNull();
+        expect(fight.thrown, `a ${tier} snare was thrown with none in the bag`).toBe(0);
+        expect(fight.bagInBattle[tier], `${tier} lost its count mid-fight`).toBe(0);
         bag = fight.after;
       }
-      expect(bag.items[tier], `${tier} ended the run with a count`).toBeUndefined();
+      expect(bag.items[tier], `${tier} ended the run untracked`).toBe(0);
     }
   });
 
@@ -1282,10 +1344,10 @@ function mount(save: SaveEnvelope): OverworldScene {
 }
 
 describe("§7 the shipping game actually calls applyRunGrants", () => {
-  it("the rig is real — the granting entry has a node and a fresh save there starts empty", () => {
+  it("the rig is real — the granting entry has a node and a fresh save there holds no stock", () => {
     expect(SCENE_NODE, "the granting entry names no node — §7 cannot be mounted anywhere").toBeTruthy();
     expect(content.nodes.some((n) => n.id === SCENE_NODE)).toBe(true);
-    expect(sceneSave().items).toEqual({});
+    expect(sceneSave().items).toEqual(ZEROED_BAG); // ⚠ CHANGED FROM `{}` — see §6.
     expect(Object.keys(GRANTS).length).toBeGreaterThan(0);
   });
 
@@ -1295,15 +1357,22 @@ describe("§7 the shipping game actually calls applyRunGrants", () => {
      * `applyRunGrants`; the only thing that can put an item in this bag is the scene.
      */
     const before = sceneSave();
-    expect(before.items).toEqual({});
+    expect(before.items).toEqual(ZEROED_BAG); // ⚠ CHANGED FROM `{}` — see §6.
 
     const scene = mount(before);
 
+    /*
+     * ⚠ CHANGED FROM `Object.keys(scene.save.items).length` > 0, WHICH THE SEED MADE VACUOUS: a bag
+     * `newSave` already filled with five zeroed keys satisfies "has keys" without the scene doing
+     * anything at all. What this line has to catch is a scene that played the beat and handed the
+     * player NOTHING, so it counts STOCK — an id the bag holds a positive number of — which is what
+     * "the applyRunGrants call is not being reached" actually looks like.
+     */
     expect(
-      Object.keys(scene.save.items).length,
+      Object.entries(scene.save.items).filter(([, n]) => n > 0),
       "the scene played the beat and handed the player nothing — the applyRunGrants call in " +
         "game/scenes/OverworldScene.ts is not being reached",
-    ).toBeGreaterThan(0);
+    ).not.toEqual([]);
     for (const id of Object.keys(GRANTS)) {
       expect(scene.save.items[id], `the scene's bag is missing the corpus's "${id}"`).toBe(GRANTS[id]);
     }

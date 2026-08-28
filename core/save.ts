@@ -13,6 +13,10 @@
  */
 
 import { zOwnedCreature, zSaveFile } from "./schemas";
+// A VALUE import, and the only one from `./types` — {@link emptyMeteredBag} needs the tier list
+// itself, not its type, so that a tier added to `SNARE_TIERS` is metered from boot without anyone
+// remembering to come back here.
+import { SNARE_TIERS } from "./types";
 import type {
   ActionLogEntry,
   Balance,
@@ -398,6 +402,45 @@ export function nodeStateFrom(node: NodeFile): NodeState {
 }
 
 /**
+ * EVERY BAG KEY A BATTLE PANE CAN OFFER WITHOUT THE PLAYER OWNING ONE — the three snare tiers and
+ * the two medicines — so that a new run's bag TRACKS them all at zero.
+ *
+ * ⚠ WHY A ZEROED KEY IS NOT THE SAME AS NO KEY, AND WHY THIS FUNCTION HAD TO EXIST.
+ * `core/battle.ts:1226` `bagHas` answers TRUE for a key the bag does not carry — "a key absent from
+ * `bag` is untracked (the harness carries no bag)" — and `bagConsume` returns early on that same
+ * key. `newSave` seeded `items: {}` and no production caller passes `opts.items`, so on a REAL
+ * fresh save (measured through `game/boot.ts` `startNewGame` plus a storage round-trip, not
+ * inferred from this constructor) every one of these keys was absent and therefore UNLIMITED.
+ *
+ * That is not a harmless slack, because the panes that offer them are FIXED LISTS rather than a
+ * view of the bag: `game/battle-input.ts` `snareEntries` maps over the whole of `SNARE_TIERS` and
+ * `bagEntries` over both of `balance.medicine`'s ids, each row's `disabled` coming from
+ * `illegalActionReason`. So the master snare — the best tier, which the shop deliberately does not
+ * sell (`game/shop.ts` `UNSOLD_TIER`) and which is granted only at the fifth gym — sat un-greyed on
+ * the menu of a brand-new save, and a player who had spent Maren's three base snares could select
+ * it and catch forever. The tiers the game GRANTS were the only metered ones; the ones it withholds
+ * were free. Baits do not have this shape — `baitIdsIn` filters the bag's own keys and requires a
+ * positive count — which is exactly why they are not listed here.
+ *
+ * The ids are read, never written: `SNARE_TIERS` is core's own vocabulary and the two medicines
+ * come off `balance.medicine`, the same read `game/battle-input.ts` `medicineIds` and
+ * `game/shop.ts` `shelf` make. The only literal is the zero, which is what an empty stack IS —
+ * `core/schemas.ts` admits it through `zNonNegInt` and `bagConsume` decrements to it rather than
+ * deleting the key, so a spent-out stack stays metered instead of falling back into "untracked".
+ *
+ * ⚠ THIS DOES NOT MAKE A SECOND WRITER OF STOCK. Every count here is zero, so {@link applyGrant}
+ * remains the one thing that puts stock IN, and `replay` still rebuilds the bag from the tape on
+ * top of the very same seed this function lays down.
+ */
+export function emptyMeteredBag(balance: Balance): Record<string, number> {
+  const bag: Record<string, number> = {};
+  for (const tier of SNARE_TIERS) bag[tier] = 0;
+  bag[balance.medicine.salveItemId] = 0;
+  bag[balance.medicine.tonicItemId] = 0;
+  return bag;
+}
+
+/**
  * build-doc §4, runtime narrative step 1: "Boot loads balance.json, all content JSON, and the save
  * (or seeds a new one: RNG seed + copies of every node JSON as live sim state)."
  */
@@ -418,7 +461,11 @@ export function newSave(opts: NewSaveOpts, balance: Balance): SaveEnvelope {
     party: opts.party ? opts.party.map((c) => ({ ...c })) : [],
     box: opts.box ? opts.box.map((c) => ({ ...c })) : [],
     money: opts.money ?? 0,
-    items: { ...(opts.items ?? {}) },
+    // ⚠ SPREAD ORDER IS LOAD-BEARING: `opts.items` is applied SECOND and therefore WINS. A caller
+    // that mints its own bag — every rig in tests/ that wants `{master: 99}`, and any future
+    // starting kit — keeps the counts it asked for and merely gains a zero for the metered keys it
+    // did not mention. Reversing these two would silently zero a supplied stack.
+    items: { ...emptyMeteredBag(balance), ...(opts.items ?? {}) },
     questFlags: { ...(opts.questFlags ?? {}) },
     nodeStates,
     actionLog: [],
@@ -973,12 +1020,15 @@ export function applyReleased(save: SaveEnvelope, uid: string): SaveEnvelope {
  * money mutation made only in a scene is an L10 violation the moment it happens, and `replay` has
  * no production caller to make it visible — which is exactly how `innRest` shipped without an arm.
  *
- * ⚠ AND A GRANT IS WHAT SWITCHES THE BAG'S METER ON. `core/battle.ts` `bagHas` answers TRUE for a
- * key the bag does not carry — "a key absent from `bag` is untracked (the harness carries no bag)"
- * — and `bagConsume` returns early on that same key. A fresh save carries `items: {}`, so every
- * snare and bait in the game is currently UNMETERED: the throw is legal, nothing decrements, and
- * the stack never runs out. {@link applyGrant} is additive and deletes nothing, so the moment a key
- * exists the meter is on and STAYS on — `core/schemas.ts` admits 0 through `zNonNegInt`, and
+ * ⚠ A GRANT IS NO LONGER WHAT SWITCHES THE BAG'S METER ON — {@link emptyMeteredBag} IS, and the
+ * difference is the whole point. `core/battle.ts:1226` `bagHas` answers TRUE for a key the bag does
+ * not carry — "a key absent from `bag` is untracked (the harness carries no bag)" — and
+ * `bagConsume` returns early on that same key. While `newSave` seeded `items: {}`, only the tiers
+ * something had GRANTED were metered, and every tier the game withholds was unlimited; a grant
+ * switching the meter on meant the best snare in the game, granted last, was free from the first
+ * minute. `newSave` now lays down a zero for every snare tier and both medicines, so the meter is on
+ * from boot for all of them and {@link applyGrant} is left doing only what it is for: putting stock
+ * in. It is additive and deletes nothing, and `core/schemas.ts` admits 0 through `zNonNegInt` while
  * `bagConsume` decrements to 0 rather than removing the key, so a spent-out stack reads empty
  * instead of falling back into "untracked".
  *
@@ -1317,8 +1367,8 @@ function adjustPopulation(
  *                money on the tape, and the only entry here that is a DELTA rather than an
  *                absolute — see PAYOUT_ACTION for why that is safe and what it forbids.
  *   grant      — `applyGrant`: item stock ADDED to the bag, never replacing it. Without this arm a
- *                replayed run is not merely poorer, it is UNMETERED: `core/battle.ts` `bagHas`
- *                reads a key the bag never received as unlimited.
+ *                replayed run holds the zeroed bag `emptyMeteredBag` seeds and cannot throw a snare
+ *                at all — see the arm itself for what the same gap read before that seed existed.
  *   catch/release — BOTH halves. The node-population delta build-doc §7.3 attributes to the action
  *                   itself ("Player catch/release directly increments/decrements count at action
  *                   time"), AND the creature: `applyCaught` puts back the individual the `catch`
@@ -1584,11 +1634,13 @@ export function replay(
          * counts a replay reaches are the counts the run held. `readGrant` re-checks the shape for
          * the reason `case "payout"` re-checks its own.
          *
-         * ⚠ WITHOUT THIS ARM THE REPLAYED PLAYER IS NOT POORER, HE IS UNMETERED — which is a louder
-         * divergence than a missing purse, not a quieter one. `core/battle.ts` `bagHas` treats a key
-         * the bag does not carry as UNTRACKED = UNLIMITED, so a replay that dropped the grants would
-         * hand the replayed run infinite snares of every tier it was never given, and the two runs
-         * would diverge further with every throw instead of by one wrong number.
+         * ⚠ WITHOUT THIS ARM THE REPLAYED PLAYER CANNOT CATCH AT ALL. {@link emptyMeteredBag} seeds
+         * every snare tier and both medicines at zero, so a replay that dropped the grants meets an
+         * empty METERED bag rather than an empty untracked one: `core/battle.ts` `bagHas` refuses
+         * the throw outright instead of letting it through. Before that seed existed the same gap
+         * read the other way — an absent key is UNTRACKED = UNLIMITED, so the replayed run held
+         * infinite snares of every tier it was never granted. Either way the two runs diverge with
+         * every throw rather than by one wrong number; the arm is what keeps them equal.
          *
          * ⚠ NO CLOCK HERE, AND THAT IS NOT AN OMISSION. A grant is a consequence and carries no
          * price; whatever charged for it (a shop's `travel`, a quest's `foray`) is its own entry,

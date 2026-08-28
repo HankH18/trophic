@@ -44,7 +44,7 @@ import { heirStreamKey } from "@core/lifecycle";
 import { subsystemRng } from "@core/rng";
 import { validateContent } from "@core/schemas";
 import { appendAction, newSave, openStreams, type RngStreams, type SaveEnvelope } from "@core/save";
-import type { BattleState, Content, Season } from "@core/types";
+import type { BattleState, Content, Season, SnareTier } from "@core/types";
 
 import { rollForay, type Encounter, type ForayContext } from "@game/encounters";
 import {
@@ -106,32 +106,53 @@ function contextFor(save: SaveEnvelope, nodeId: string): ForayContext {
   };
 }
 
+/** The snare this rig's over-catching player throws, and the most throws one fight can take. */
+const RIG_TIER: SnareTier = "master";
+const MAX_THROWS_PER_FIGHT = 60;
+
 /**
  * Play one wild encounter the way a player who wants THIS animal plays it: snare with the best tier
  * every turn, and switch in a standing teammate when the reducer says the active one has fainted.
  *
  * Nothing here decides whether the catch succeeds — `core/battle.ts` does, off the seeded battle
  * stream — and nothing here moves a population; `applyWildBattleOutcome` does that or nothing does.
+ *
+ * ⚠ THE BAG IS A RIG, AND IT IS ONE BECAUSE THE BAG IS NOW METERED. `core/save.ts` `newSave` seeds
+ * every snare tier at zero (`emptyMeteredBag`) so that a tier nothing has granted is REFUSED rather
+ * than unlimited; before it did, this loop threw master snares out of a bag that had no `master`
+ * key, and `bagHas` read that absence as an infinite supply. With the seed in place a fresh save
+ * throws nothing at all, and every I2 assertion below fell to zero catches.
+ *
+ * I2 IS A CLAIM ABOUT THE ECOLOGY, NOT ABOUT THE ECONOMY — build-doc §15's "guaranteed cascade
+ * under over-catch script" — so the honest repair is to state the player this rig has always
+ * silently modelled: one who is not snare-limited. The stock is `MAX_THROWS_PER_FIGHT`, the most
+ * the loop below can spend, topped up per fight, so metering cannot bind here and the numbers are
+ * the ones the unmetered run produced. Whether a player can REACH this many master snares by
+ * playing is a separate question, tracked as its own gate; nothing here answers it.
  */
 function fightAndSnare(
   save: SaveEnvelope,
   encounter: Encounter,
   streams: RngStreams,
 ): { save: SaveEnvelope; outcome: BattleState["outcome"]; before: number; after: number } {
+  const stocked: SaveEnvelope = {
+    ...save,
+    items: { ...save.items, [RIG_TIER]: MAX_THROWS_PER_FIGHT },
+  };
   const build = buildWildBattle({
     content,
-    save,
+    save: stocked,
     encounter,
-    node: liveNodeOf(content, save, encounter.nodeId),
+    node: liveNodeOf(content, stocked, encounter.nodeId),
   });
   const rng = streams[BATTLE];
   if (!rng) throw new Error("no battle stream");
 
   let state = startBattle(build.input, build.ctx).state;
   let guard = 0;
-  while (state.outcome === null && guard < 60) {
+  while (state.outcome === null && guard < MAX_THROWS_PER_FIGHT) {
     guard += 1;
-    const result = battleStep(state, { kind: "snare", tier: "master" }, rng, build.ctx);
+    const result = battleStep(state, { kind: "snare", tier: RIG_TIER }, rng, build.ctx);
     state = result.state;
     if (result.events.some((e) => e.t === "actionRejected")) {
       const standing = state.playerOrder.find((uid) => !state.battlers[uid]?.fainted);
