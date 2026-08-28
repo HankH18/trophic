@@ -37,10 +37,11 @@ import {
   type FlagValue,
 } from "@core/dialogue-schema";
 import { entryById, speakerById } from "@core/dialogue-schema";
-import { appendAction, applyGrant, grantAction } from "@core/save";
+import { appendAction, applyGrant, applyStarterChoice, grantAction } from "@core/save";
 import type { SaveEnvelope } from "@core/save";
 import type { Balance, Content } from "@core/types";
-import { liveNodeOf } from "./wild-battle";
+import { registry } from "./registry";
+import { liveNodeOf, starterLines } from "./wild-battle";
 
 /** The shipped, validated corpus. Import THIS, never `data/dialogue.json`. */
 export { DIALOGUE };
@@ -500,10 +501,113 @@ export function applyRunFlags<S extends { questFlags: Record<string, FlagValue> 
  * one grants anything (measured, `data/dialogue.json`) — would append an empty `{t:"grant",items:{}}` to the tape, and the log L10
  * compares byte for byte would be mostly no-ops.
  */
-export function applyRunGrants(save: SaveEnvelope, state: DialogueRunState): SaveEnvelope {
-  if (Object.keys(state.granted).length === 0) return save;
-  const logged = appendAction(save, grantAction({ ...state.granted }));
+export function applyRunGrants(
+  save: SaveEnvelope,
+  state: DialogueRunState,
+  content?: Content,
+): SaveEnvelope {
+  // BEFORE the grant, so the starter is settled while the tape is still empty — see
+  // {@link applyRunStarter}, which is the whole of why the order here is not arbitrary.
+  const withStarter = applyRunStarter(save, state, content);
+  if (Object.keys(state.granted).length === 0) return withStarter;
+  const logged = appendAction(withStarter, grantAction({ ...state.granted }));
   return applyGrant(logged, { ...state.granted });
+}
+
+/**
+ * The flag `data/dialogue.json`'s three `maren.starter.*` branches write, and the species line id
+ * each one names.
+ *
+ * Spelled here as a constant for the reason `core/acts.ts` `RUN_COMPLETE_SHOWN_FLAG` and
+ * `game/finale.ts` `VELLSIRE_ATTEMPT_FLAG` are: a flag key is a name the corpus and the code have
+ * to agree on, and one of them has to say it. It is NOT a gameplay constant — nothing about how the
+ * game plays changes if it is renamed — so G11 does not put it in `data/balance.json`. The VALUES
+ * are never spelled anywhere in code (G2): they come out of the corpus and are checked against
+ * `data/species.json` by `core/save.ts` `applyStarterChoice`.
+ */
+export const STARTER_FLAG = "story.starter";
+
+/**
+ * HAND OVER THE STARTER THE PLAYER ACTUALLY CHOSE.
+ *
+ * ⚠ THE DEFECT THIS CLOSES, MEASURED THROUGH THE REAL NEW-GAME PATH. `game/boot.ts` `startNewGame`
+ * seeds `game/wild-battle.ts` `provisionalStarter` — the FIRST starter line in `data/species.json`
+ * order, with no choice simulated — and `story.starter` had no reader in `game/` or `core/`. So
+ * taking the Puddlisk branch left `story.starter = "puddlisk-line"` on a party of
+ * `{uid:"provisional-starter", lineId:"cindril-line"}`, and every player in the world walked out of
+ * Hearthollow with a Cindril. build-doc §1's legacy beat is the starter retiring before the league,
+ * so the animal that retires was decided by data order rather than by the player.
+ *
+ * WHY THE STAND-IN IS REPLACED RATHER THAN THE MINTING DEFERRED. `startNewGame` cannot know which
+ * starter the run will end up with — the choice is four screens away, inside a cutscene the
+ * overworld autoplays — and a party-less save is a real state other code has to reason about
+ * (`core/recovery.ts` treats an empty party as "the opening beat has not happened yet",
+ * `OverworldScene.openPrologue` refuses to stand the beat in for one). Keeping the stand-in keeps
+ * every one of those readings true and makes the choice a re-lining of a slot that already exists,
+ * which is also what lets the swap preserve the uid: nothing that already referred to the player's
+ * first creature has to be told it changed.
+ *
+ * ⚠ WHY THIS RUNS BEFORE THE GRANT IS APPENDED, AND WHY IT CHECKS THE LOG. `core/types.ts`
+ * `GameAction` is a closed union with no `starter` member, so this write cannot go on the tape and
+ * `replay` cannot rebuild it (see `core/save.ts` `applyStarterChoice`). What makes that sound
+ * rather than a silent L10 hole is that the opening cutscene plays out of `OverworldScene.create()`
+ * before any logged action exists: the save being re-lined is still the run's INITIAL save, the one
+ * `replay` is handed, so the choice is part of establishing the run exactly as the seed is. That is
+ * a fact about the corpus and the routing, not an assumption — so it is CHECKED, and a run that
+ * chose its starter after the tape started says so at `console.error` rather than diverging
+ * quietly. The choice is still honoured: a beat that silently does not happen is worse than a
+ * degraded one, and this is the beat.
+ *
+ * `content` is optional so `OverworldScene.finishDialogue`'s existing two-argument call keeps
+ * working; absent, it comes from `game/registry.ts`, which `BootScene` fills before any scene that
+ * can run a dialogue exists. A run that wrote the flag with no content resolvable is REPORTED, not
+ * skipped in silence.
+ */
+export function applyRunStarter(
+  save: SaveEnvelope,
+  state: DialogueRunState,
+  content?: Content,
+): SaveEnvelope {
+  const chosen = state.flags[STARTER_FLAG];
+  if (typeof chosen !== "string" || chosen.length === 0) return save;
+
+  const resolved = content ?? registry.contentOrNull();
+  if (!resolved) {
+    console.error(
+      `[dialogue] the opening beat chose "${chosen}" and there is no validated content to build it ` +
+        `from — the party keeps whatever ${STARTER_FLAG} was supposed to replace`,
+    );
+    return save;
+  }
+
+  // The starter LINES are read off `data/species.json`'s "starter" habitat sentinel by
+  // `game/wild-battle.ts` `starterLines` — no species id is named here (G2). The creature to
+  // re-line is whichever one of them the player is currently holding, which is the stand-in
+  // `startingParty` seeded; found by line rather than by `PROVISIONAL_STARTER_UID` so a lane that
+  // hands over its own starter under its own uid is served by the same path.
+  const starters = new Set(starterLines(resolved).map((line) => line.id));
+  const held = save.party.find((c) => starters.has(c.lineId));
+  if (!held) {
+    console.warn(
+      `[dialogue] the opening beat chose "${chosen}" and the party holds no starter-line creature ` +
+        `to hand it to — nothing was replaced`,
+    );
+    return save;
+  }
+  if (held.lineId === chosen) return save;
+
+  if (save.actionLog.length > 0) {
+    console.error(
+      `[dialogue] the starter was chosen ${String(save.actionLog.length)} logged action(s) into ` +
+        `the run. The choice is applied, but core/types.ts GameAction carries no "starter" member, ` +
+        `so replay() rebuilds this run holding "${held.lineId}" and L10 is false for it.`,
+    );
+  }
+
+  return applyStarterChoice(save, held.uid, chosen, {
+    species: resolved.species,
+    balance: resolved.balance,
+  });
 }
 
 /** Every line a run actually put on screen, in order — what a test asserts a player saw. */

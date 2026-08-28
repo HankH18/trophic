@@ -29,12 +29,14 @@ import type {
   NodeState,
   OwnedCreature,
   SaveFile,
+  SpeciesLine,
 } from "./types";
 import type { AdvanceYearResult, RandomFn, YearRetirementPrompt, YearTurnDeps } from "./lifecycle";
 import {
   cloneNodeState,
   enterPendingActs,
   LifecycleError,
+  newOwnedCreature,
   resolveRetirement,
   rollHeirChoice,
   runYearTurn,
@@ -1006,6 +1008,113 @@ export function applyReleased(save: SaveEnvelope, uid: string): SaveEnvelope {
     party: save.party.filter((c) => c.uid !== uid),
     box: save.box.filter((c) => c.uid !== uid),
   };
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * THE STARTER THE OPENING BEAT HANDS OVER
+ *
+ * ⚠ WHY THIS EXISTS. `data/dialogue.json`'s three `maren.starter.*` branches each write
+ * `story.starter` — `cindril-line`, `puddlisk-line`, `thornlet-line` — and that flag had NO READER
+ * anywhere in `game/` or `core/`. `game/boot.ts` `startingParty` seeds the stand-in
+ * `game/wild-battle.ts` `provisionalStarter` builds, which is the FIRST starter line in data order
+ * and simulates no choice at all, so measured through the real new-game path every branch of the
+ * opening left the player holding the same animal: taking the Puddlisk gave
+ * `story.starter = "puddlisk-line"` beside a party of `{uid:"provisional-starter",
+ * lineId:"cindril-line"}`. build-doc §1's second never-cut beat is the legacy one — "the starter
+ * retires before the league; its heir fights the finale" — so the creature that retires was always
+ * a Cindril and the choice the opening presents was decoration. This is the applier that makes it
+ * real.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+export interface StarterChoiceDeps {
+  /** data/species.json — the lines the choice may name. */
+  species: readonly SpeciesLine[];
+  balance: Balance;
+}
+
+/**
+ * Re-line the creature `uid` names as the species line the player chose. Pure, idempotent, and the
+ * ONE place a starter choice reaches the party.
+ *
+ * REPLACEMENT IN PLACE, NOT AN APPEND, and the uid is the identity that survives it. The opening
+ * beat is Maren handing over one animal out of the three in the pen; the player leaves with one
+ * creature either way, so this swaps the line and keeps everything the run already knows about that
+ * slot — its uid, its age, its level, its caught year, its traits, its boons and its bag of
+ * optional fields. Everything DERIVED from the line — `yearsRemaining`, `projectedRetirementYear`,
+ * the metamorphic flag — is rebuilt by {@link newOwnedCreature} rather than carried, because those
+ * are the line's answers and not the slot's. Choosing the line already held is a no-op that returns
+ * the same object, so applying this twice is applying it once.
+ *
+ * LOUD ON BOTH WAYS IT CAN BE WRONG. A `lineId` `data/species.json` does not carry, or a `uid` this
+ * save does not hold, means the caller and the save disagree about what the run is — and a starter
+ * silently not handed over is exactly the defect this function was written to close, so neither is
+ * swallowed.
+ *
+ * ⚠ IT IS NOT ON THE TAPE, AND IT CANNOT BE UNTIL `GameAction` CARRIES A `starter` MEMBER.
+ * `core/types.ts` `GameAction` is a closed union with no such member, so there is no
+ * `{t:"starter", uid, lineId}` to append and no `case` for `replay` to answer it with. What keeps
+ * L10 true meanwhile is WHEN this runs: the opening cutscene autoplays out of
+ * `game/scenes/OverworldScene.ts` `create()` before the player can take a single logged action, so
+ * the save it re-lines is still the run's INITIAL save — the one `replay` is handed — and the
+ * starter is part of establishing the run exactly as the seed and the node states are. The caller
+ * (`game/dialogue-runner.ts` `applyRunStarter`) checks that the log is empty and says so out loud
+ * when it is not. **The moment a `starter` member exists, this function is already the applier both
+ * paths should come through — add the tape entry beside the live call and a `case "starter"` arm to
+ * {@link replay}, and delete that check.** The same is true today of every flag
+ * `applyRunFlags` writes, which is the wider gap this one rides on.
+ */
+export function applyStarterChoice(
+  save: SaveEnvelope,
+  uid: string,
+  lineId: string,
+  deps: StarterChoiceDeps,
+): SaveEnvelope {
+  const line = deps.species.find((l) => l.id === lineId);
+  if (!line) {
+    throw new SaveCorruptError(
+      `the starter choice names species line "${lineId}", which data/species.json does not carry`,
+    );
+  }
+
+  const inParty = save.party.findIndex((c) => c.uid === uid);
+  const inBox = inParty >= 0 ? -1 : save.box.findIndex((c) => c.uid === uid);
+  if (inParty < 0 && inBox < 0) {
+    throw new SaveCorruptError(
+      `the starter choice names uid "${uid}", which this save holds in neither the party nor the box`,
+    );
+  }
+
+  const cohort = inParty >= 0 ? save.party : save.box;
+  const at = inParty >= 0 ? inParty : inBox;
+  const prev = cohort[at];
+  if (!prev) {
+    throw new SaveCorruptError(`the starter choice names uid "${uid}", which went missing mid-read`);
+  }
+  if (prev.lineId === lineId) return save;
+
+  const replacement = newOwnedCreature(
+    {
+      uid: prev.uid,
+      lineId: line.id,
+      age: prev.age,
+      level: prev.level,
+      caughtYear: prev.caughtYear,
+      traits: prev.traits.map((t) => ({ ...t })),
+      ...(prev.relicSlot === undefined ? {} : { relicSlot: prev.relicSlot }),
+      ...(prev.nickname === undefined ? {} : { nickname: prev.nickname }),
+      ...(prev.boxed === undefined ? {} : { boxed: prev.boxed }),
+      ...(prev.xp === undefined ? {} : { xp: prev.xp }),
+      ...(prev.curHp === undefined ? {} : { curHp: prev.curHp }),
+    },
+    line,
+    deps.balance,
+  );
+  // `NewCreatureOpts` has no `boons` field — a newly built creature has none — so the slot's are
+  // carried across here rather than being silently dropped by the constructor.
+  if (prev.boons.length > 0) replacement.boons = prev.boons.map((b) => ({ ...b }));
+
+  const next = cohort.map((c, i) => (i === at ? replacement : c));
+  return inParty >= 0 ? { ...save, party: next } : { ...save, box: next };
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
