@@ -447,7 +447,7 @@ import { linesMetAt } from "@game/quests";
 import { isNever, newOwnedCreature } from "@core/lifecycle";
 import { propDialogueFor, runHeadless, talkEntryFor, transcript, type DialogueRunState } from "@game/dialogue-runner";
 import type { DialogueSceneData } from "@game/scenes/DialogueScene";
-import { encounterTable, stepsPerForay } from "@game/encounters";
+import { encounterMaskFor, encounterTable, stepsPerForay } from "@game/encounters";
 /*
  * §14's inputs. The blueprints are read through `core/interiors.ts`'s own loader and its own
  * solidity predicate, never re-parsed here: the whole point of §14.2 is that the SCENE agrees with
@@ -500,7 +500,7 @@ import { assetId, hasRealAsset, registerRealAsset } from "@game/placeholder";
 // §17.6's curtain colour, resolved through the SAME role the scene paints it with — a hex typed
 // here would agree with itself and with nothing else after a palette re-freeze.
 import { roleColor } from "@game/ui/Palette";
-import { encounterWeights, indexSpecies } from "@core/foodweb";
+import { cellRollsEncounters, encounterWeights, findLayoutGrid, indexSpecies } from "@core/foodweb";
 
 const content: Content = validateContent();
 const balance: Balance = content.balance;
@@ -656,6 +656,96 @@ function walk(h: Harness, steps: number, stop?: () => boolean): number {
 }
 
 /**
+ * Walk like a player LOOKING for animals: to the nearest cell of the node's encounter terrain, and
+ * then across it. Same signature and same return as {@link walk} — the steps actually taken.
+ *
+ * ⚠ WHY {@link walk} STOPPED BEING ABLE TO DO THIS JOB, MEASURED RATHER THAN GUESSED.
+ * The stub hands `loadCollision` no mask pixels, so every node in this file is played on
+ * `synthesiseBorderCollision`'s placeholder — "walkable except the one-cell border". `walk` takes
+ * the first open direction in right/down/left/up order, and on an open rectangle that is not a
+ * roam: from the spawn at (32,32) it runs east along row 32 to col 62, then south down column 62 to
+ * row 62, and then oscillates between two cells for the rest of its budget. Instrumented at
+ * `SLICE_NODE`: 400 steps, 62 distinct cells, every one of them on the map's outer edge — and in
+ * hearthollow's committed layout that edge is `R` and `T`, rock and treeline, cells the shipped
+ * collision mask would never let a player stand on at all.
+ *
+ * While the encounter roll was position-blind, walking through a wall for 400 steps met creatures at
+ * exactly the rate walking through a meadow did, and none of that mattered. It matters now:
+ * `OverworldScene.forayContext` hands the roll the cell the step landed on, the layout says those
+ * cells are not encounter terrain, and a rig that never leaves them meets nothing — which is the
+ * right answer to the question it was accidentally asking, and the wrong question.
+ *
+ * So the tests that need an encounter walk where the animals are. The steering is a breadth-first
+ * search over `canEnter` — the scene's OWN walkability question, never a second grid — to the
+ * nearest cell the SHIPPED mask calls encounter terrain, one step along that path per frame. Once
+ * the player is in the grass the nearest other grass cell is a neighbour, so they pace it, which is
+ * what foraging looks like. Nothing here is random (G11) and nothing here is a node id: the search
+ * order is `DELTA`'s, so the path is a function of the map and the same every run.
+ *
+ * INDOORS IT IS {@link walk}, deliberately. A room's cells are the blueprint's coordinates and the
+ * mask is the TOWN's, so steering by one inside the other would be steering by a coincidence — and
+ * §14.3's claim is that indoors nothing rolls at all, which needs a walk that is not hunting.
+ */
+function forage(h: Harness, steps: number, stop?: () => boolean): number {
+  const order = ["right", "down", "left", "up"] as const;
+  let taken = 0;
+  let guard = 0;
+  while (taken < steps && guard < steps * 40 + 200) {
+    guard += 1;
+    if (stop?.() === true) break;
+    const before = h.scene.movement.tile;
+    for (const dir of order) h.hold(dir, false);
+    const toward = h.scene.currentInterior() === null ? stepTowardEncounterTerrain(h) : null;
+    const open =
+      toward ??
+      order.find((d) =>
+        h.scene.canEnter({ col: before.col + DELTA[d].dCol, row: before.row + DELTA[d].dRow }),
+      );
+    if (!open) break;
+    h.hold(open, true);
+    h.frame();
+    if (h.scene.movement.tile.col !== before.col || h.scene.movement.tile.row !== before.row) taken += 1;
+  }
+  for (const dir of order) h.hold(dir, false);
+  return taken;
+}
+
+/**
+ * The first step of the shortest walkable path from where the player is standing to the nearest cell
+ * that rolls encounters — or null when this node has no layout, or no reachable grass at all.
+ *
+ * The mask is `encounterMaskFor`, i.e. the very object `OverworldScene.forayContext` hands the roll,
+ * so the rig cannot be hunting for grass the game does not believe in.
+ */
+function stepTowardEncounterTerrain(h: Harness): Dir | null {
+  const mask = encounterMaskFor(h.scene.node.id, balance);
+  if (mask === null) return null;
+  const start = h.scene.movement.tile;
+  const key = (col: number, row: number): string => `${String(col)},${String(row)}`;
+  const firstStep = new Map<string, Dir>();
+  const seen = new Set<string>([key(start.col, start.row)]);
+  let frontier: Array<{ col: number; row: number }> = [start];
+  while (frontier.length > 0) {
+    const next: Array<{ col: number; row: number }> = [];
+    for (const cell of frontier) {
+      const came = firstStep.get(key(cell.col, cell.row));
+      for (const dir of Object.keys(DELTA) as Dir[]) {
+        const to = { col: cell.col + DELTA[dir].dCol, row: cell.row + DELTA[dir].dRow };
+        const k = key(to.col, to.row);
+        if (seen.has(k) || !h.scene.canEnter(to)) continue;
+        seen.add(k);
+        const step = came ?? dir;
+        if (cellRollsEncounters(mask, to.col, to.row)) return step;
+        firstStep.set(k, step);
+        next.push(to);
+      }
+    }
+    frontier = next;
+  }
+  return null;
+}
+
+/**
  * Answer a launched year-turn sequence, so the overworld is handed BACK.
  *
  * ⚠ WITHOUT THIS THE RIG STOPS AT THE FIRST YEAR END. The stub registers `YearTurn`, so
@@ -787,14 +877,14 @@ describe("§1 encounters come off save.nodeStates, not off the shipped node JSON
     for (const lineId of Object.keys(shipped.populations)) zeros[lineId] = 0;
     const h = mount({ save: withCounts(freshSave(), SLICE_NODE, zeros) });
 
-    walk(h, 400);
+    forage(h, 400);
     expect(h.scene.encountersMetCount()).toBe(0);
   });
 
   it("the same walk on the same seed DOES meet creatures when the save carries the shipped counts", () => {
     // The control. Without it the test above would also pass on a scene that never rolls at all.
     const h = mount();
-    walk(h, 400);
+    forage(h, 400);
     expect(h.scene.encountersMetCount()).toBeGreaterThan(0);
   });
 
@@ -805,14 +895,14 @@ describe("§1 encounters come off save.nodeStates, not off the shipped node JSON
     for (const id of Object.keys(shipped.populations)) others[id] = id === lineId ? shipped.populations[id]!.count : 0;
 
     const alive = mount({ save: withCounts(freshSave(), SLICE_NODE, others) });
-    walk(alive, 400);
+    forage(alive, 400);
     const metAlive = alive.scene.encountersMetCount();
     expect(metAlive).toBeGreaterThan(0);
 
     const wiped: Record<string, number> = {};
     for (const id of Object.keys(shipped.populations)) wiped[id] = 0;
     const dead = mount({ save: withCounts(freshSave(), SLICE_NODE, wiped) });
-    walk(dead, 400);
+    forage(dead, 400);
     expect(dead.scene.encountersMetCount()).toBe(0);
   });
 });
@@ -945,7 +1035,7 @@ describe("§3 a wild encounter becomes a battle, and a catch moves a real number
 
   /** Walk until the scene has launched a battle, and return the encounter that launched it. */
   function firstEncounter(h: Harness): { lineId: string } {
-    walk(h, WALK_BUDGET, () => h.parts.launches.some((l) => l.key === SCENE_KEYS.battle));
+    forage(h, WALK_BUDGET, () => h.parts.launches.some((l) => l.key === SCENE_KEYS.battle));
     const met = h.scene.lastEncounterMet();
     if (!met) throw new Error(`no encounter in ${String(WALK_BUDGET)} steps — the fixture is wrong`);
     return met;
@@ -1023,7 +1113,7 @@ describe("§3 a wild encounter becomes a battle, and a catch moves a real number
       // A fight lost on the way is a wipe, and a wipe wakes the party in the inn — see
       // `stepOutside`. The walk carries on outdoors, which is where the encounters are.
       if (stepOutside(h)) seen.push(`— woke in the inn and stepped back outside`);
-      walk(h, WALK_BUDGET, () => h.parts.launches.length > consumed);
+      forage(h, WALK_BUDGET, () => h.parts.launches.length > consumed);
       const launch = h.parts.launches[consumed];
       if (!launch) {
         seen.push(
@@ -1176,7 +1266,7 @@ describe("§3 a wild encounter becomes a battle, and a catch moves a real number
       // See `stepOutside`: a fight lost on the way wakes the party in the inn, and there are no
       // wild encounters on an inn's floor.
       if (stepOutside(h)) seen.push(`— woke in the inn and stepped back outside`);
-      walk(h, WALK_BUDGET, () => h.parts.launches.length > consumed);
+      forage(h, WALK_BUDGET, () => h.parts.launches.length > consumed);
       const launch = h.parts.launches[consumed];
       if (!launch) {
         seen.push(
@@ -1269,7 +1359,7 @@ describe("§3 a wild encounter becomes a battle, and a catch moves a real number
     let lost: { tickBefore: number; subTickBefore: number } | null = null;
 
     for (let attempt = 0; attempt < ENCOUNTERS_TO_TRY && lost === null; attempt += 1) {
-      walk(h, WALK_BUDGET, () => h.parts.launches.length > consumed);
+      forage(h, WALK_BUDGET, () => h.parts.launches.length > consumed);
       const launch = h.parts.launches[consumed];
       if (!launch) break;
       consumed += 1;
@@ -1327,7 +1417,7 @@ describe("§3 a wild encounter becomes a battle, and a catch moves a real number
 
   it("says so instead of silently doing nothing when there is nothing to send out", () => {
     const h = mount({ save: { ...freshSave(), party: [] } });
-    walk(h, 600);
+    forage(h, 600);
     expect(h.parts.launches.some((l) => l.key === "Battle")).toBe(false);
     expect(h.hud().length).toBeGreaterThan(0);
     // The banner is a text object; the refusal has to be ON it, not swallowed.
@@ -2861,7 +2951,7 @@ describe("§10.7 a quest is offered, worked and closed BY PLAYING", () => {
 
     const distinct = (): number => new Set(linesMetAt(h.scene.save, r1 as string)).size;
     for (let i = 0; i < 3000 && distinct() < 3; i += 1) {
-      walk(h, 1);
+      forage(h, 1);
       // A foray step can hand the scene over to a battle; FLED, so the party stays on its feet and
       // the walk continues from where it is. `core/battle.ts` `illegalActionReason` allows a flee
       // against a wild enemy and refuses one in a trainer battle, and a foray meets the former.
@@ -3163,7 +3253,7 @@ describe("§11 a fight costs clock.battleTicks, and it is charged at LAUNCH", ()
     const opening = subTicksSpent(h.data.save as SaveEnvelope);
 
     for (let round = 0; round < 12; round += 1) {
-      walk(h, 40);
+      forage(h, 40);
       settleBattle(h, "loss");
       settleYearTurn(h);
       h.press(KEY_R);
@@ -4582,7 +4672,7 @@ describe("§16 an interior draws its painting when one exists, and its footprint
 function walkIntoABattle(h: Harness): BattleSceneData {
   const before = h.parts.launches.length;
   const found = (): boolean => h.parts.launches.slice(before).some((l) => l.key === SCENE_KEYS.battle);
-  walk(h, 4000, found);
+  forage(h, 4000, found);
   const launch = h.parts.launches.slice(before).find((l) => l.key === SCENE_KEYS.battle);
   if (!launch) throw new Error("walked 4000 steps and no wild encounter became a battle");
   return launch.data as BattleSceneData;
@@ -5932,5 +6022,391 @@ describe("§19 the trainer's purse is levied exactly once, by the running game",
       run.save.money,
       `a run of ${String(LADDER.length)} gym wins ended holding ${String(run.save.money)}`,
     ).toBe(0);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §20 THE ENCOUNTER MASK REACHES THE PLAYER
+ *
+ * Commit 3700b1d derived an encounter mask off the twelve committed layouts and taught
+ * `game/encounters.ts` `rollForayStep` to honour a `ForayContext.footing`. NOTHING SUPPLIED ONE. In
+ * the running game every step of every map still rolled the position-blind average — on the lane,
+ * across the town square, through a building's footprint — while `tests/unit/encounter-mask.test.ts`
+ * was green about the derivation. A green model is not a wired game (the reason
+ * `tests/gates/reachability.test.ts` exists), so these tests are asked of the SCENE: they mount it,
+ * stand the player on cells taken out of a shipped layout, and drive real frames.
+ *
+ * WHERE THE CELLS COME FROM. `tools/mapgen/layouts/<node>.txt`, read through core/foodweb.ts's own
+ * `findLayoutGrid` — the parser `encounterMaskFromLayout` uses, never a second one — and picked as
+ * the longest horizontal run of one authored character, two cells clear of the synthesised border so
+ * the turn at each end stays on the map. Every cell of a chosen run is then checked against
+ * `encounterMaskFor`, the very mask `OverworldScene.forayContext` hands the roll, so a fixture that
+ * has drifted from the game's own answer fails as a fixture instead of passing as a test. On the
+ * shipped tree the runs are:
+ *
+ *     hearthollow  ','  scrub               row 39, cols 21–26
+ *     hearthollow  '.'  open-ground         row 47, cols 10–20
+ *     hearthollow  ':'  path-corridor       row 30, cols 33–47
+ *     hearthollow  'o'  centre-clearing     row 17, cols  7–25
+ *     hearthollow  'B'  building-footprint  row 18, cols  9–16
+ *     r1           ','  scrub               row 45, cols  5–22
+ *     r1           '.'  open-ground         row 38, cols  4–30
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("§20 a foray step rolls where the layout draws grass, and nowhere else", () => {
+  /** One horizontal run of a single authored character, in collision-cell / movement-tile space. */
+  interface TerrainRun {
+    col: number;
+    row: number;
+    len: number;
+    char: string;
+    nodeId: string;
+  }
+
+  /**
+   * The committed layout as a grid, parsed by `core/foodweb.ts` `findLayoutGrid`.
+   *
+   * The REAL parser on the REAL file. A regex of my own here would agree with itself and with
+   * nothing the game reads, and the whole point of §20 is that the grass the player walks on is the
+   * grass the art lane authored.
+   */
+  function layoutRows(nodeId: string): string[] {
+    const text = readFileSync(`${ROOT}tools/mapgen/layouts/${nodeId}.txt`, "utf8");
+    const parse = findLayoutGrid(text, balance.map.collisionCols);
+    expect(parse.ambiguous, `${nodeId}'s layout has two candidate grids`).toBe(false);
+    expect(parse.rows.length, `${nodeId}'s layout is not the balance.map grid`).toBe(balance.map.collisionRows);
+    return parse.rows;
+  }
+
+  /**
+   * The longest horizontal run of `char`, kept two cells clear of the grid edge.
+   *
+   * TWO, not one: the stub plays every node on `synthesiseBorderCollision`'s placeholder — walkable
+   * except the outermost cell — and a run that touched the border would put the turn-around into a
+   * wall and silently shorten the walk.
+   */
+  function longestRunOf(nodeId: string, char: string): TerrainRun {
+    const rows = layoutRows(nodeId);
+    const lo = 2;
+    const hi = balance.map.collisionCols - 3;
+    let best: TerrainRun | null = null;
+    for (let row = lo; row <= balance.map.collisionRows - 3; row += 1) {
+      const line = rows[row] as string;
+      let col = lo;
+      while (col <= hi) {
+        if (line[col] !== char) {
+          col += 1;
+          continue;
+        }
+        const start = col;
+        while (col <= hi && line[col] === char) col += 1;
+        if (best === null || col - start > best.len) best = { col: start, row, len: col - start, char, nodeId };
+      }
+    }
+    expect(best, `${nodeId}'s layout draws no run of "${char}" at all`).not.toBeNull();
+    const run = best as TerrainRun;
+    // A one-cell run cannot be paced, so a fixture that shrank to one is a fixture that stopped
+    // measuring a WALK.
+    expect(run.len, `${nodeId}'s longest run of "${char}" is a single cell`).toBeGreaterThanOrEqual(2);
+    return run;
+  }
+
+  /**
+   * Every cell of the run, judged by the mask the SCENE uses — the binding between the layout this
+   * fixture read and the answer `forayContext` hands `rollForayStep`.
+   */
+  function expectRunRolls(run: TerrainRun, rolls: boolean): void {
+    const mask = encounterMaskFor(run.nodeId, balance);
+    expect(mask, `${run.nodeId} has no encounter mask`).not.toBeNull();
+    for (let i = 0; i < run.len; i += 1) {
+      expect(
+        cellRollsEncounters(mask as NonNullable<typeof mask>, run.col + i, run.row),
+        `${run.nodeId} ${String(run.col + i)},${String(run.row)} is "${run.char}" in the layout but the mask disagrees`,
+      ).toBe(rolls);
+    }
+  }
+
+  /**
+   * Walk the run end to end and back, `steps` completed steps, EVERY ONE OF THEM LANDING ON IT.
+   *
+   * ⚠ EACH STEP BEGINS FROM A STANDSTILL, and that is not tidiness. `game/movement.ts` starts the
+   * next step the instant one lands while a key is held, so a frame ends with a step already in
+   * flight — and the turn at the end of the run would then carry the player one cell PAST it, onto
+   * ground the fixture has not vouched for. `placeAt` on the tile the player is already standing on
+   * drops that in-flight step and moves nobody: it is the player letting go of the key.
+   *
+   * Returns the steps actually taken, so a caller can refuse to draw a conclusion from a walk that
+   * did not happen.
+   */
+  function paceRun(h: Harness, run: TerrainRun, steps: number): number {
+    h.scene.movement = placeAt(h.scene.movement, { col: run.col, row: run.row });
+    let dir: Dir = "right";
+    let taken = 0;
+    let guard = 0;
+    while (taken < steps && guard < steps * 4 + 64) {
+      guard += 1;
+      const at = h.scene.movement.tile;
+      if (dir === "right" && at.col >= run.col + run.len - 1) dir = "left";
+      else if (dir === "left" && at.col <= run.col) dir = "right";
+      h.scene.movement = placeAt(h.scene.movement, at);
+      h.hold(dir, true);
+      h.frame();
+      h.hold(dir, false);
+      const now = h.scene.movement.tile;
+      if (now.col === at.col && now.row === at.row) break;
+      taken += 1;
+    }
+    const end = h.scene.movement.tile;
+    expect(
+      end.row === run.row && end.col >= run.col && end.col < run.col + run.len,
+      `the pace wandered off the run to ${String(end.col)},${String(end.row)}`,
+    ).toBe(true);
+    expect(h.scene.currentInterior(), "the pace walked indoors").toBeNull();
+    return taken;
+  }
+
+  /**
+   * A scene that keeps walking when it meets something.
+   *
+   * `OverworldHooks.onEncounter` is the production seam a lane uses to take the fight over, and the
+   * scene counts the encounter and records the sign card BEFORE calling it — so nothing about the
+   * roll is stood in for here. Without it the first animal pauses the overworld and a 400-step
+   * measurement becomes a 6-step one.
+   */
+  function mountForaging(over: Partial<OverworldSceneData> = {}): Harness {
+    return mount({ ...over, hooks: { onEncounter: () => undefined } });
+  }
+
+  const R1 = "r1";
+
+  /* ── 20.1 the grass rolls ──────────────────────────────────────────────── */
+
+  it.each([
+    [SLICE_NODE, "the town's scrub"],
+    [R1, "Meadow Reach's scrub"],
+  ])("%s — a run of steps that stays on the layout's ',' cells DOES meet creatures (%s)", (nodeId, _what) => {
+    const run = longestRunOf(nodeId, ",");
+    expectRunRolls(run, true);
+
+    const h = mountForaging({ save: freshSave(nodeId), startNode: nodeId });
+    /*
+     * 200 steps at `encounterChancePerStep` (shipped 0.18) — the rate a positioned step rolls at ON
+     * encounter terrain, with no tile fraction in it. P(nothing in 200) = 0.82^200 ≈ 5e-18.
+     */
+    const STEPS = 200;
+    const paced = paceRun(h, run, STEPS);
+    expect(paced, "the rig could not walk the scrub").toBe(STEPS);
+    expect(
+      h.scene.encountersMetCount(),
+      `${String(STEPS)} steps on ${nodeId} ${String(run.col)}..${String(run.col + run.len - 1)},${String(run.row)} met nothing`,
+    ).toBeGreaterThan(0);
+    expect(h.scene.lastEncounterMet()?.nodeId, "the encounter came from another node").toBe(nodeId);
+  });
+
+  /* ── 20.2 …and nothing else does ───────────────────────────────────────── */
+
+  /*
+   * The four kinds of ground a player crosses that are not grass, named by `tools/mapgen/legend.ts`:
+   * the lane, the worn track through the middle of the map, the open clearing a town square is drawn
+   * on, and the inside of a building's footprint.
+   *
+   * ⚠ THE FOOTPRINT IS WALKABLE HERE AND THAT IS NOT A MISTAKE. `B` blocks in the shipped legend, so
+   * a player with a real collision mask never stands in one; the stub's synthesised placeholder is
+   * open everywhere but its border, so the rig can. Collision and the encounter mask are two
+   * mechanisms, and the claim under test is the mask's alone: a cell that is not `,` hands over
+   * nothing, whoever managed to stand on it.
+   */
+  it.each([
+    [SLICE_NODE, ".", "the lane"],
+    [SLICE_NODE, ":", "the worn track"],
+    [SLICE_NODE, "o", "the town's open ground"],
+    [SLICE_NODE, "B", "inside a building's footprint"],
+    [R1, ".", "Meadow Reach's open ground"],
+  ])("%s — a run of steps on '%s' meets NOTHING (%s)", (nodeId, char, _what) => {
+    const run = longestRunOf(nodeId, char);
+    expectRunRolls(run, false);
+
+    const h = mountForaging({ save: freshSave(nodeId), startNode: nodeId });
+    /*
+     * ⚠ THE SAMPLE SIZE IS THE OLD BEHAVIOUR'S, NOT A ROUND NUMBER. Before the scene handed the roll
+     * a footing, EVERY cell of every map rolled at `stepEncounterChance` =
+     * `encounterTileFraction × encounterChancePerStep` = 0.25 × 0.18 = 0.045 — so the probability
+     * that 400 such steps met nothing is 0.955^400 ≈ 1.1e-8. A zero here is therefore evidence
+     * about the terrain and not about a quiet seed: one run in ninety million would have looked
+     * like this by luck.
+     */
+    const STEPS = 400;
+    const drawsBefore = h.scene.streamFor("encounter").draws;
+    const streamBefore = h.scene.streamFor("encounter").save();
+    const paced = paceRun(h, run, STEPS);
+    expect(paced, `the rig could not walk ${nodeId}'s "${char}" run`).toBe(STEPS);
+
+    expect(
+      h.scene.encountersMetCount(),
+      `${String(STEPS)} steps on "${char}" at ${nodeId} ` +
+        `${String(run.col)}..${String(run.col + run.len - 1)},${String(run.row)} met something`,
+    ).toBe(0);
+    /*
+     * …AND THE ROLL REALLY HAPPENED. Zero encounters is also what a scene that stopped rolling
+     * altogether produces, so the stream is the witness: `rollForayStep` takes exactly ONE draw per
+     * step whatever the ground is (its header explains why `rng.chance(0)` off the grass would have
+     * been wrong — `core/rng.ts` skips the draw for p ≤ 0, and the cost of a walk would start
+     * depending on the terrain crossed). 400 steps, 400 draws, nothing met.
+     */
+    expect(
+      h.scene.streamFor("encounter").draws - drawsBefore,
+      "a step off the grass did not draw at all — the walk's cost now depends on the ground",
+    ).toBe(STEPS);
+    expect(
+      h.scene.streamFor("encounter").save(),
+      "the encounter stream never moved — §14.3's outdoor control rests on this",
+    ).not.toEqual(streamBefore);
+  });
+
+  /* ── 20.3 determinism (L10 / build-doc §8.1) ───────────────────────────── */
+
+  it("the same seed and the same walk on the grass meet the same creatures", () => {
+    const run = longestRunOf(SLICE_NODE, ",");
+    const STEPS = 120;
+    const play = (): { met: number; last: string; stream: unknown } => {
+      const h = mountForaging();
+      expect(paceRun(h, run, STEPS)).toBe(STEPS);
+      const last = h.scene.lastEncounterMet();
+      return {
+        met: h.scene.encountersMetCount(),
+        last: last ? `${last.lineId} ${last.age} L${String(last.level)}` : "none",
+        stream: h.scene.streamFor("encounter").save(),
+      };
+    };
+    const a = play();
+    const b = play();
+    expect(a.met, "the walk met nothing, so nothing here is being replayed").toBeGreaterThan(0);
+    expect(b).toEqual(a);
+  });
+
+  it("the stream advances identically whether or not the ground was grass", () => {
+    /*
+     * ⚠ THE LOAD-BEARING ONE, and the reason `rollForayStep` is written the way it is: the number of
+     * draws a walk costs must not depend on the terrain it crossed, or two replays of the same
+     * action log over a redrawn map diverge and §14.3's indoor guard — whose control is "the same
+     * walk OUTDOORS does move the encounter stream" — starts failing on a walk that stayed off the
+     * grass.
+     *
+     * MEASURED AS AN EXACT EQUALITY, by emptying the node first. With every count at 0 the table has
+     * no weight, and `core/rng.ts` `pickWeighted` returns undefined WITHOUT consuming a draw — so a
+     * step whose gate passes on the grass costs exactly what a step refused by the terrain costs:
+     * the one gate draw. Same seed, same number of steps, one walk in the scrub and one on the
+     * paving, and the two streams have to be byte-identical.
+     */
+    const grass = longestRunOf(SLICE_NODE, ",");
+    const paving = longestRunOf(SLICE_NODE, ":");
+    expectRunRolls(grass, true);
+    expectRunRolls(paving, false);
+
+    const zeros: Record<string, number> = {};
+    for (const lineId of Object.keys(nodeFile(SLICE_NODE).populations)) zeros[lineId] = 0;
+    const STEPS = 200;
+    const after = (run: TerrainRun): { drawn: number; state: unknown; met: number } => {
+      const h = mountForaging({ save: withCounts(freshSave(), SLICE_NODE, zeros) });
+      const drawsBefore = h.scene.streamFor("encounter").draws;
+      expect(paceRun(h, run, STEPS)).toBe(STEPS);
+      return {
+        drawn: h.scene.streamFor("encounter").draws - drawsBefore,
+        state: h.scene.streamFor("encounter").save(),
+        met: h.scene.encountersMetCount(),
+      };
+    };
+    const onGrass = after(grass);
+    const onPaving = after(paving);
+    expect(onGrass.drawn, "a step on the grass did not cost exactly one draw").toBe(STEPS);
+    expect(onPaving.drawn, "a step on the paving did not cost exactly one draw").toBe(STEPS);
+    expect(onGrass.met).toBe(0);
+    expect(onPaving.met).toBe(0);
+    expect(onPaving.state, "the ground the player crossed changed the stream's position").toEqual(onGrass.state);
+  });
+
+  /* ── 20.3.1 the HUD is not told a different number ─────────────────────── */
+
+  it("the HUD's context carries NO footing, and a cell cannot move what the HUD reports", () => {
+    /*
+     * THE DECISION, WRITTEN DOWN. `refreshHud` asks for `forayContext()` with no cell, so what the
+     * player is TOLD about this node is the position-blind table it has always been. That is
+     * deliberate: the HUD prints counts and derived weights, not a per-step rate, and a footing on
+     * its context would be a claim about the tile the player happens to be on — and indoors it would
+     * be the interior room's coordinate read against the TOWN's mask, which is not a number at all.
+     *
+     * Both halves are asserted because they fail differently: the first catches a `forayContext`
+     * that started defaulting the cell, the second catches `encounterTable` learning to read one.
+     * Changing either is a change to what the player is told, and it should have to come through
+     * here.
+     */
+    const h = mount();
+    expect(h.scene.forayContext().footing, "the HUD's context acquired a footing").toBeUndefined();
+
+    const run = longestRunOf(SLICE_NODE, ",");
+    const positioned = h.scene.forayContext(SLICE_NODE, { col: run.col, row: run.row });
+    expect(positioned.footing, "a supplied cell did not reach the context").toBeDefined();
+    expect(
+      encounterTable(positioned),
+      "the encounter TABLE changed with the cell — the mask is deciding WHAT lives here, not just where",
+    ).toEqual(encounterTable(h.scene.forayContext()));
+  });
+
+  /* ── 20.4 two steps in one frame are two different cells ───────────────── */
+
+  it("a frame that lands TWO steps rolls each on the cell it landed on, not both on the last", () => {
+    /*
+     * ⚠ REACHABLE IN THE RUNNING GAME, not a contrivance. `game/movement.ts` `update` resolves up to
+     * `MAX_STEPS_PER_UPDATE` steps out of one long frame — any frame longer than
+     * `balance.map.walkMsPerTile` — and `OverworldScene.update` assigns `result.state` BEFORE it
+     * drains the events, so `this.movement.tile` is the LAST tile of the frame. A scene that read
+     * that field would roll both of a frame's steps on the second one's ground. Here the rig hands
+     * `update` twice its own pace, which is the same long frame a dropped frame produces.
+     *
+     * THE FIXTURE IS A BOUNDARY, taken from the layout: the first cell of the scrub run, and the
+     * cell immediately west of it, which by construction of "the longest run" is not scrub. The
+     * player is placed one cell east and walks west, so step 1 lands ON the grass and step 2 lands
+     * OFF it.
+     *
+     *   correct  — step 1 rolls at `encounterChancePerStep`; P(nothing in 250 frames) = 0.82^250 ≈ 5e-22
+     *   wrong    — both steps roll on the cell west of the run, which never rolls: EXACTLY zero, always
+     */
+    const run = longestRunOf(SLICE_NODE, ",");
+    expectRunRolls(run, true);
+    const mask = encounterMaskFor(SLICE_NODE, balance);
+    expect(mask, `${SLICE_NODE} has no encounter mask`).not.toBeNull();
+    const onGrass = { col: run.col, row: run.row };
+    const offGrass = { col: run.col - 1, row: run.row };
+    expect(
+      cellRollsEncounters(mask as NonNullable<typeof mask>, offGrass.col, offGrass.row),
+      "the cell west of the run is grass too — the fixture has no boundary in it",
+    ).toBe(false);
+
+    const h = mountForaging();
+    expect(h.scene.canEnter(offGrass), "the rig cannot stand west of the run").toBe(true);
+
+    const FRAMES = 250;
+    let doubles = 0;
+    for (let i = 0; i < FRAMES; i += 1) {
+      h.scene.movement = placeAt(h.scene.movement, { col: run.col + 1, row: run.row });
+      const before = h.scene.movement.stepsTaken;
+      h.hold("left", true);
+      // TWICE the pace in one call — two whole tiles of movement, one `update`.
+      h.frame(MS_PER_TILE * 2);
+      h.hold("left", false);
+      if (h.scene.movement.stepsTaken - before === 2) doubles += 1;
+    }
+
+    // The rig has to have produced the situation, or the assertion below is about nothing.
+    expect(doubles, "no frame landed two steps — the long-frame case was never constructed").toBe(FRAMES);
+    expect(
+      h.scene.movement.tile,
+      "the frame did not end on the cell a `this.movement.tile` read would have used",
+    ).toEqual(offGrass);
+    expect(
+      h.scene.encountersMetCount(),
+      `${String(FRAMES)} two-step frames whose FIRST step landed on ${String(onGrass.col)},${String(onGrass.row)} ` +
+        `(scrub) met nothing — the roll used the frame's last tile, not the step's`,
+    ).toBeGreaterThan(0);
   });
 });

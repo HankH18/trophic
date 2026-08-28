@@ -115,6 +115,7 @@ import {
 } from "../collision";
 import {
   absenceCauseOf,
+  encounterMaskFor,
   rollForayStep,
   stepsPerForay,
   totalActiveWeight,
@@ -255,6 +256,7 @@ import {
   type Direction,
   type MovementConfig,
   type MovementState,
+  type TilePosition,
 } from "../movement";
 // TYPE ONLY. `game/scenes/BattleScene.ts` value-imports Phaser, and so does this file — but the
 // hand-off must stay a shape, not a module edge: importing the CLASS here would make the overworld
@@ -1542,7 +1544,10 @@ export class OverworldScene extends Phaser.Scene {
     this.movement = result.state;
 
     for (const event of result.events) {
-      if (event.t === "stepCompleted") this.onStepCompleted();
+      // THE EVENT'S OWN TILE, not `this.movement.tile`. `result.state` is already assigned above and
+      // one long frame can land several steps, so the field holds the LAST of them — see
+      // {@link onStepCompleted}.
+      if (event.t === "stepCompleted") this.onStepCompleted(event.tile);
     }
 
     this.syncPlayerSprite();
@@ -1580,10 +1585,14 @@ export class OverworldScene extends Phaser.Scene {
 
   /**
    * A completed tile step IS a foray step (build-doc §4): it rolls an encounter at
-   * `balance.encounter.encounterChancePerStep`, and every `stepsPerForay` of them charges the one
-   * tick §3 L8 prices a foray at.
+   * `balance.encounter.encounterChancePerStep` WHERE THE GRASS IS, and every `stepsPerForay` of them
+   * charges the one tick §3 L8 prices a foray at.
+   *
+   * `tile` is the cell this step LANDED ON, carried by the `stepCompleted` event rather than read
+   * back off `this.movement` — {@link forayContext} says why that distinction is load-bearing and
+   * how a frame long enough to land two steps used to roll both of them on the second one's ground.
    */
-  private onStepCompleted(): void {
+  private onStepCompleted(tile: TilePosition): void {
     /*
      * ⚠ A STEP TAKEN INDOORS IS NOT A FORAY STEP. This one clause is BOTH place guards, deliberately
      * placed above everything rather than repeated inside each:
@@ -1618,7 +1627,24 @@ export class OverworldScene extends Phaser.Scene {
      * `isOver` was true, "so nothing is drawn from the encounter stream in a year the game does not
      * have". Every year is a year the game has.
      */
-    const encounter = rollForayStep(this.forayContext(), this.streamFor(ENCOUNTER_STREAM));
+    /*
+     * ⚠ THE CELL IS HANDED IN, AND THAT IS THE WHOLE DIFFERENCE BETWEEN A DERIVED MASK AND A MASK
+     * THE PLAYER CAN FEEL. Without a footing `rollForayStep` rolls the position-blind average on
+     * every cell of every map — roads, town squares and building footprints included — which is
+     * what this line did while `core/foodweb.ts` and `game/encounters.ts` were already able to
+     * answer the question per cell. With it, `encounterChancePerStep` applies where the layout
+     * writes `,` and nothing applies anywhere else.
+     *
+     * THE STREAM IS UNMOVED BY THE CHANGE OF QUESTION: `rollForayStep` takes exactly ONE draw per
+     * step either way (its header explains why `rng.chance(0)` off the grass would have been wrong —
+     * `core/rng.ts` returns false for p ≤ 0 without consuming a draw, so the cost of a walk would
+     * start depending on the ground crossed). §14.3's indoor guard measures the encounter stream and
+     * its control is "the same walk OUTDOORS does move it"; both still hold.
+     */
+    const encounter = rollForayStep(
+      this.forayContext(this.node.id, tile),
+      this.streamFor(ENCOUNTER_STREAM),
+    );
     if (encounter) {
       this.encountersMet += 1;
       this.lastEncounter = encounter;
@@ -1709,6 +1735,15 @@ export class OverworldScene extends Phaser.Scene {
      * farmable: leaving a building lands the player on that very tile, so stepping off and back on
      * would cost one step's ticks instead of two, for ever, next to every door in the game. The
      * price of walking is not what a door changes.
+     *
+     * ⚠ THE DOORWAY IS DELIBERATELY STILL ASKED OF `this.movement.tile`, NOT OF `tile`. A door is
+     * not a roll: entering one TELEPORTS the player (`enterInterior` → `placeAt`), so answering it
+     * for a cell the player has already walked off would move them out of a room from a tile they
+     * are not on, and the frame's remaining `stepCompleted` events would then arrive indoors
+     * carrying outdoor cells. The cost of leaving it alone is that a frame long enough to land two
+     * steps can walk OVER a threshold without going in — the player takes one more step to the door
+     * and it opens. That is a different question from where the animals are, and it is not this
+     * one's to answer.
      */
     if (!this.isHandedOver()) this.enterThroughDoorway();
   }
@@ -2337,8 +2372,37 @@ export class OverworldScene extends Phaser.Scene {
     );
   }
 
-  /** The question game/encounters.ts answers, built from live state only. */
-  forayContext(nodeId: string = this.node.id): ForayContext {
+  /**
+   * The question game/encounters.ts answers, built from live state only.
+   *
+   * ⚠ `at` IS THE CELL THE STEP LANDED ON, AND SUPPLYING IT IS WHAT MAKES THE MASK REAL.
+   * `game/encounters.ts` has honoured `ForayContext.footing` since the mask was derived, and NOTHING
+   * IN THE RUNNING GAME SUPPLIED ONE — so a step on a road, in the town square or across a
+   * building's footprint met animals at exactly the rate a step in tall grass did, on all twelve
+   * maps, while `tests/unit/encounter-mask.test.ts` was green about the derivation. This scene is
+   * the only place a player's cell exists; if the wiring is not here it is nowhere.
+   *
+   * IT IS A PARAMETER RATHER THAN A READ OF `this.movement.tile`, for two reasons:
+   *
+   *   • CORRECTNESS. `game/movement.ts` `update` resolves up to `MAX_STEPS_PER_UPDATE` steps out of
+   *     one long frame, and {@link update} assigns `result.state` BEFORE draining the events — so
+   *     `this.movement.tile` is the LAST tile of the frame, and two steps completed in one frame
+   *     would both be rolled against the second one's ground. Reachable in the running game on any
+   *     frame longer than `walkMsPerTile`, and `tests/unit/overworld-scene.test.ts` §20.4 constructs
+   *     it by handing `update` twice the pace in one call. The event carries the tile it landed on;
+   *     that is the tile the step happened on.
+   *   • THE HUD MUST NOT ACQUIRE A FOOTING BY ACCIDENT. {@link refreshHud} calls this with no cell
+   *     and reads only `encounterTable`, which ignores `footing` — so what the player is TOLD about
+   *     this node is unchanged, byte for byte, by this wiring. Defaulting `at` would have handed the
+   *     HUD a footing, and indoors it would have been the interior room's coordinate against the
+   *     town's mask: a nonsense nothing reads today and a trap for whatever reads it next.
+   *
+   * With no cell the roll falls back to the position-blind average, which is what every caller did
+   * before the mask existed and what the balance harness still asks for. `at` must be a cell of
+   * `nodeId`'s 64×64 grid — collision cell and movement tile are the same index (balance.map:
+   * `collisionCellPx` 16 × `collisionCols` 64 = the 1024px map = 64 tiles of `tileStepPx` 32 world).
+   */
+  forayContext(nodeId: string = this.node.id, at?: TilePosition): ForayContext {
     const ctx: ForayContext = {
       node: this.liveNode(nodeId),
       species: this.species,
@@ -2350,6 +2414,13 @@ export class OverworldScene extends Phaser.Scene {
     };
     const unlocked = this.unlockedSignChains(nodeId);
     if (unlocked.size > 0) ctx.unlockedSignChains = unlocked;
+    if (at) {
+      // Null is "this id names no layout" and NOT "this node draws no grass" — a node that honestly
+      // draws none has a mask that answers no for every cell. So a null leaves `footing` unset and
+      // the step rolls at the position-blind average, rather than silencing a node by accident.
+      const mask = encounterMaskFor(nodeId, this.balance);
+      if (mask) ctx.footing = { mask, col: at.col, row: at.row };
+    }
     return ctx;
   }
 
