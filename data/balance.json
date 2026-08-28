@@ -522,20 +522,28 @@
   },
   "economy": {
     "_source": "bible §11 — snares ×3 tiers, baits role-generic vs species-specific, medicines, inn rest. Prices are build-doc-addition tunables; medicine EFFECTS are in `medicine`.",
+    "_innCost": "NOT one of the flat prices below, deliberately. Hank's ruling: 'innCost is already paid through ticks' — a rest costs `clock.innTicks`, and this coin figure is the second half of a price that is mostly time. It was 40 before the flat-price pass and it is 40 after it. Do not 'correct' it to match the others.",
+    "_prices": "EVERY PURCHASABLE PRICE IS 3, AND THIS IS WHERE 3 CAME FROM. Hank ruled twice and the SECOND ruling is the one this number obeys. First: 'the other prices can all be the same, just for simplicity... base it off the estimated amount of money that a player can expect to earn over the course of an in-game year... a player should be able to buy 40 of those items total in a year.' That was implemented as 25, from the SIX-ACT MEAN income of 996 a year (996/40 = 24.9). Shown that 25 buys about five items in act 1 against eighty-six in act 6, he amended it: 'Make it so that the expected earnings in year one specifically can buy 40.' THE ANCHOR IS YEAR ONE, NOT THE MEAN. The only earner the shipped game has is a won rival fight (core/save.ts trainerPayout, at trainerPayoutPerLevel below). The ACT-1 rival, Wick at r1, fields a level-6 slot plus a level-6 Carricrow signature: 12 x (6+6) = 144. 144 / 40 items = 3.6. WHY 3 AND NOT 3.6: money is an INTEGER quantity on the tape. core/save.ts readPayout and applyPayout BOTH refuse a fractional amount outright, throwing SaveCorruptError, because a fraction the live path accepts and the replay arm declines to rebuild is locked decision L10 going silently false - the exact shape in which {t:innRest} once shipped with no replay arm at all. A fractional price would need a rounding rule at the till; no such rule exists and none was ruled on. Of the two integers either side: 4 buys 36 in year one and MISSES the target, 3 buys 48 and MEETS it with margin. Hence 3. THE CONSEQUENCE A LATER READER MUST NOT LOSE, because it is large and it was accepted knowingly: income is still not uniform. Act 1 pays 144 and act 6 pays 2160, so at 3 apiece act 1 affords 48 items and act 6 affords 720 - about 1,992 across the whole run, against the 240 the original phrasing described. Money is tight ONLY in year one and is effectively unlimited from act 3 on. That is the shape of anchoring a flat price to the poorest year, and no flat price avoids it: the price buying exactly 40 in each act runs 3.6, 10.8, 16.2, 28.8, 36 and 54, a fifteen-fold spread. Forty in EVERY act is a different rule needing an act-indexed price or a change to the purses.",
     "innCost": 40,
     "snarePrice": {
-      "base": 25,
-      "weighted": 60,
-      "master": 150
+      "base": 3,
+      "weighted": 3,
+      "master": 3
     },
+    "_baitPrice": "`none` is 0 because 'no bait' is an option a player always has, not a bait that happens to be free — it is the identity row of `catch.baitMult`, and it is left at 0 by the flat-price pass on purpose. Measured before touching it: `grep -rn 'baitPrice' core game tools tests data` returns only this file, `core/types.ts` and `core/schemas.ts` — nothing reads `none` as a price, or reads any of these prices at all yet.",
     "baitPrice": {
       "none": 0,
-      "role": 15,
-      "species": 45
+      "role": 3,
+      "species": 3
     },
-    "salvePrice": 30,
-    "tonicPrice": 45,
-    "trainerPayoutPerLevel": 12
+    "salvePrice": 3,
+    "tonicPrice": 3,
+    "_trainerPayout": "A PURSE IS A FLAT FEE PLUS A PER-LEVEL RATE, and the flat half exists to bend the curve. Hank's ruling: 'Make it so that earnings don't scale quite as much. I think it's a hallmark of Pokemon games that you eventually have way too much money at some point, but that point shouldn't be until probably Act 5.' A purely per-level purse could not do that: the rival's roster grows from two level-6 creatures to five level-36 ones, so the summed levels run 12, 36, 54, 96, 120, 180 and ANY flat rate reproduces that same 15x spread. Money was therefore already abundant by act 2. Adding a flat per-fight component compresses the ratio without touching one line of content (G2): payout = trainerPayoutFlat + trainerPayoutPerLevel x sum(levels). At 100 + 3x the purses become 136, 208, 262, 388, 460, 640 - a 4.7x spread instead of 15x. Measured against what a year actually costs (~47 weighted snares for the r4 cascade beat plus ~27 to fill a party = ~74 items at 3 apiece), the player can afford 0.6x, 0.9x, 1.2x, 1.7x, 2.1x and 2.9x of a year's need across the six acts - genuinely short in acts 1-2, comfortable at act 5, rich at act 6, which is the shape the ruling asks for. Act 1 still clears the earlier ruling that year one buys forty items: 136/3 = 45. AN EMPTY ROSTER PAYS NOTHING, and that is a guard rather than arithmetic - without it the flat fee would pay out for a fight against no one.",
+    "_gates": "TWO CONTENT IDS THE ECONOMY GATES ON, here rather than in code. Hank's ruling: 'Weighted Snares unlocked in the shop after the second gym is completed... the player be given three master snares at the completion of the fifth gym.' `weightedUnlockGym` is the SECOND leader and `masterSnareGrant` is his three. Both lived briefly as literals in game/ - `game/shop.ts` WEIGHTED_UNLOCK_GYM and a cast in OverworldScene - because zod STRIPS keys the schema does not declare (core/acts.ts records this as INV-3), so adding a key to this file alone reaches no reader and the move needed this file, core/types.ts and core/schemas.ts together. Note what stays derived: the badge FLAG is never written down. core/acts.ts badgeFlagFor builds it from acts.badgeFlagPrefix + the gym id + acts.badgeFlagSuffix, the one grammar the game reads badges through, so retuning the prefix moves this gate with it. ⚠ THE GYM ID IS NOT CROSS-VALIDATED against data/gyms.json - the schema only checks it is a non-empty string, so a typo here would silently never unlock the shelf rather than failing at boot. game/shop.ts refuses loudly instead; if that ever changes, this is the hole.",
+    "weightedUnlockGym": "odo",
+    "masterSnareGrant": 3,
+    "trainerPayoutFlat": 100,
+    "trainerPayoutPerLevel": 3
   },
   "audio": {
     "_source": "bible §12a procedural treatments — season DSP presets and progressive year darkening.",

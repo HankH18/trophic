@@ -702,7 +702,44 @@ export type GameAction =
    * caller yet — the invariant was the casualty, and it is the invariant the demo's determinism
    * tests stand on.
    */
-  | { t: "innRest"; restored: readonly string[] };
+  | { t: "innRest"; restored: readonly string[] }
+  /**
+   * WHAT A BEATEN TRAINER PAID — a delta on `money`, applied by `core/save.ts` `applyPayout` on the
+   * live path and the replay path alike. `core/save.ts` `trainerPayout` is what prices it, out of
+   * `balance.economy.trainerPayoutFlat`, `balance.economy.trainerPayoutPerLevel` and the levels the
+   * loser fielded — a flat fee per fight PLUS a per-level rate, the flat half being what keeps
+   * income from scaling as steeply as the rosters do.
+   *
+   * ⚠ IT IS A DELTA, AND IT IS THE ONE MEMBER OF THIS UNION THAT IS. Every sibling consequence
+   * here is ABSOLUTE on the rule {@link BattleAftermathMember} states — applied twice it still says
+   * the same thing — and a purse has no absolute form a single entry could carry, because money is
+   * the sum of every entry before it. What makes the delta safe is that `core/save.ts` `replay`
+   * walks the tape ONCE, in order, over a `seq` it refuses to let repeat or skip. Nothing may apply
+   * this entry a second time, which is precisely what the absolute siblings tolerate and this one
+   * does not.
+   *
+   * ⚠ AND IT CANNOT BE DERIVED FROM THE `battle` ENTRY BESIDE IT. That entry carries `kind` and
+   * `nodeId` and no roster at all, so the enemy levels the purse is priced from are not on the tape
+   * unless this member puts them there — the same reason the `catch` entry had to start carrying
+   * its creature.
+   *
+   * ⚠ IT CARRIES NO PRICE. The tick the fight cost was levied by that `battle` entry; an entry is a
+   * price or a consequence and never both.
+   */
+  | { t: "payout"; amount: number }
+  /**
+   * ITEMS INTO THE BAG — item id to count, ADDED to what the save already holds by `core/save.ts`
+   * `applyGrant` on the live path and the replay path alike. A starting kit, a quest reward, a
+   * shop purchase's goods half: anything that puts stock in the bag rides here.
+   *
+   * ⚠ ADDITIVE, NEVER A REPLACEMENT, AND THAT IS LOAD-BEARING RATHER THAN STYLISTIC.
+   * `core/battle.ts` `bagHas` reads a key the bag does not carry as UNTRACKED = UNLIMITED, so the
+   * bag's meter is off for every id the save has never been granted. A grant is what switches it
+   * on, and it stays on because `applyGrant` never deletes a key and `bagConsume` decrements to 0
+   * rather than removing it. Replacing the map wholesale would switch the meter back off for every
+   * id the grant did not mention.
+   */
+  | { t: "grant"; items: Record<string, number> };
 
 /** build-doc §8.1 / L10 — identical (seed, actionLog) ⇒ byte-identical final save. */
 export interface ActionLogEntry {
@@ -1234,6 +1271,12 @@ export interface Balance {
     baitPrice: Record<BaitMatch, number>;
     salvePrice: number;
     tonicPrice: number;
+    /** The gym whose badge unlocks the weighted snare on the shop shelf. A `data/gyms.json` id. */
+    weightedUnlockGym: string;
+    /** How many master snares the fifth gym hands over on its defeat. */
+    masterSnareGrant: number;
+    /** Paid once per won trainer fight, on top of the per-level rate. Bends the income curve. */
+    trainerPayoutFlat: number;
     trainerPayoutPerLevel: number;
   };
   audio: {

@@ -962,6 +962,259 @@ export function applyReleased(save: SaveEnvelope, uid: string): SaveEnvelope {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * The economy — the tape's two writers of `money` and `items` (§7.8, bible §11)
+ *
+ * ⚠ WHY THIS SECTION EXISTS. `save.money` had ZERO writers in the entire repo: `newSave` seeded it
+ * and nothing ever moved it again, so every price in `balance.economy` bought nothing and a beaten
+ * trainer paid nothing. `save.items` had two — the same seed, and `applyBattleAftermath` writing
+ * back the bag a fight left — and neither of them can put stock IN. These are the two entries that
+ * change both, and they are on the TAPE rather than in the scene for the reason every other
+ * consequence is: `replay` has to reach the same save, byte for byte (L10 / build-doc §8.1). A
+ * money mutation made only in a scene is an L10 violation the moment it happens, and `replay` has
+ * no production caller to make it visible — which is exactly how `innRest` shipped without an arm.
+ *
+ * ⚠ AND A GRANT IS WHAT SWITCHES THE BAG'S METER ON. `core/battle.ts` `bagHas` answers TRUE for a
+ * key the bag does not carry — "a key absent from `bag` is untracked (the harness carries no bag)"
+ * — and `bagConsume` returns early on that same key. A fresh save carries `items: {}`, so every
+ * snare and bait in the game is currently UNMETERED: the throw is legal, nothing decrements, and
+ * the stack never runs out. {@link applyGrant} is additive and deletes nothing, so the moment a key
+ * exists the meter is on and STAYS on — `core/schemas.ts` admits 0 through `zNonNegInt`, and
+ * `bagConsume` decrements to 0 rather than removing the key, so a spent-out stack reads empty
+ * instead of falling back into "untracked".
+ *
+ * ⚠ THE ONE THING THAT COULD SWITCH IT BACK OFF is {@link applyBattleAftermath}, which REPLACES
+ * `items` wholesale with the bag the fight ended holding. That is correct today, and only because
+ * all four launchers seed the fight from the whole of the save's bag — `game/wild-battle.ts`,
+ * `game/gym-battle.ts`, `game/rival.ts` and `game/finale.ts` each write `bag: { ...save.items }`,
+ * so the round trip loses no key. `core/battle.ts` `makeState` reads `input.bag ?? {}` though: a
+ * launcher that ever omits the bag hands back an EMPTY one, the replace deletes every id the player
+ * owns, and the meter goes off again silently. Left alone here deliberately — the aftermath's
+ * replace is its own contract and its own docblock, and one quantity must not be governed from two
+ * places.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The `t` discriminant a payout rides on the tape under.
+ *
+ * ⚠ IT IS A CONSEQUENCE AND IT NEEDS ITS OWN ENTRY, on exactly the terms {@link INN_REST_ACTION}
+ * states. The tick the fight cost was levied by the `{t:"battle"}` entry beside it, and this
+ * module's contract is that an entry is a price or a consequence and never both. Deriving the purse
+ * from that priced entry is not merely doctrinally wrong, it is impossible: a `battle` entry carries
+ * `kind` and `nodeId` and no roster at all, so the enemy levels {@link trainerPayout} prices from
+ * are not on the tape unless this entry puts them there — the same absence that forced the `catch`
+ * entry to start carrying its whole creature.
+ *
+ * ⚠ IT IS THE ONE DELTA IN A FAMILY OF ABSOLUTES, and that is stated here rather than discovered
+ * later. `BlackoutRecovery`, `BattleAftermathMember` and the `innRest` uid list are all absolute so
+ * that applying them twice says the same thing; a purse has no absolute form, because money is the
+ * sum of every entry before it. What makes the delta safe is that {@link replay} walks the tape
+ * ONCE, in order, over a `seq` it refuses to let repeat or skip. Nothing may apply this entry a
+ * second time.
+ *
+ * `core/schemas.ts` needed no change for it and must not get one: `zSaveFileFor` validates
+ * `actionLog[].action` as `z.looseObject({ t: z.string().min(1) })`, which hands the payload back
+ * intact, and {@link readPayout} re-checks the SHAPE at replay time rather than trusting the
+ * discriminant.
+ */
+export const PAYOUT_ACTION = "payout";
+
+/** The tape entry for one purse: what this act paid, in money. */
+export function payoutAction(amount: number): GameAction {
+  return { t: PAYOUT_ACTION, amount };
+}
+
+/**
+ * The amount carried by a tape entry, or null when the entry is not a payout.
+ *
+ * Takes `unknown` for the reason {@link readInnRest} does: the tape reaches `replay` through a
+ * permissive schema, so this is the only place the record's shape is checked, and a malformed one
+ * is null — it then changes nothing — rather than making a corrupt tape unreadable.
+ *
+ * A NON-INTEGER AMOUNT IS MALFORMED, not merely unusual. `serialize` is canonical and this file's
+ * header claims that "byte-identical" is a statement about values; a fractional purse round-trips
+ * through JSON at whatever precision it happened to carry and moves the determinism fixtures L10
+ * stands on. {@link trainerPayout} cannot produce one, so the only source of a float here is a
+ * hand-edited tape.
+ */
+export function readPayout(action: unknown): number | null {
+  if (action === null || typeof action !== "object") return null;
+  const raw = action as { t?: unknown; amount?: unknown };
+  if (raw.t !== PAYOUT_ACTION) return null;
+  if (!isFiniteNumber(raw.amount) || !Number.isInteger(raw.amount)) return null;
+  return raw.amount;
+}
+
+/**
+ * ADD ONE PURSE TO THE SAVE, and change nothing else. The ONE writer of `money` the live path and
+ * {@link replay}'s `case "payout"` both come through, so a replayed run cannot disagree with the
+ * run it is replaying about what the player is carrying (L10 / build-doc §8.1).
+ *
+ * INTEGER ARITHMETIC, GUARDED HERE — and an earlier revision of this docblock said "guarded
+ * upstream rather than here: {@link readPayout} refuses a fractional amount and {@link trainerPayout}
+ * cannot mint one." ⚠ THAT WAS FALSE, and it was false in the exact shape that made L10 silently
+ * wrong for `innRest`. This function is EXPORTED and nothing forces a caller through `readPayout`:
+ * measured, `applyPayout(save, 12.5)` on the live path paid 12.5, `readPayout` then returned `null`
+ * for that tape entry, `replay`'s arm applied NOTHING, and the replayed save came back 12.5 poorer —
+ * and `core/schemas.ts:826` types `money` as `z.number().min(0)` with no `.int()`, so the divergent
+ * save LOADED CLEANLY and the run continued wrong. A strict reader beside a permissive applier is
+ * not a guard; it is a divergence with a docblock in front of it.
+ *
+ * So the applier now refuses precisely what the reader refuses. Live and replay cannot disagree,
+ * because neither can accept what the other rejects.
+ *
+ * ⚠ IT DOES NOT CLAMP AN OVERDRAW — IT REFUSES ONE. `core/schemas.ts` validates
+ * `money: z.number().min(0)` on load, so a negative purse is not a debt, it is an UNLOADABLE SAVE:
+ * measured, `deserialize(serialize(...))` throws `SaveCorruptError: money: Too small`. The previous
+ * policy — "the layer that knows the price checks the balance before it logs" — is still the right
+ * one, and this throw is what makes it a policy rather than a comment: there is no such layer yet,
+ * `newSave` seeds `money: 0`, and the shipped prices start at 15, so THE FIRST PURCHASE OF ANYTHING
+ * overdraws. Clamping would hide it; throwing surfaces it at the call site that owes the check,
+ * which is the objection the original docblock was making and is preserved here.
+ */
+export function applyPayout(save: SaveEnvelope, amount: number): SaveEnvelope {
+  if (!isFiniteNumber(amount) || !Number.isInteger(amount)) {
+    throw new SaveCorruptError(`payout amount must be a finite integer — refusing to mint ${String(amount)}`);
+  }
+  const money = save.money + amount;
+  if (money < 0) {
+    throw new SaveCorruptError(
+      `payout of ${String(amount)} would overdraw a purse of ${String(save.money)} to ${String(money)}, ` +
+        "which `core/schemas.ts` refuses on load — the caller that knows the price must check the balance first",
+    );
+  }
+  return { ...save, money };
+}
+
+/**
+ * The `t` discriminant a grant rides on the tape under.
+ *
+ * A CONSEQUENCE, like its sibling {@link PAYOUT_ACTION}, and priced by nothing: a starting kit and
+ * a quest reward cost no tick at all, and a purchase's tick — if it ever has one — belongs to the
+ * entry that charges for it. {@link readGrant} re-checks the shape at replay time for the reason
+ * every reader in this module does; the tape arrives through `core/schemas.ts`'s permissive
+ * `looseObject` and the discriminant is a claim, not a proof.
+ */
+export const GRANT_ACTION = "grant";
+
+/** The tape entry for one grant: which item ids, and how many of each are being ADDED. */
+export function grantAction(items: Record<string, number>): GameAction {
+  return { t: GRANT_ACTION, items: { ...items } };
+}
+
+/**
+ * The item counts carried by a tape entry, or null when the entry is not a grant.
+ *
+ * Malformed is null on the terms {@link readInnRest} sets. "Malformed" includes a fractional or
+ * non-finite count and an empty item id, because both are things `core/schemas.ts` refuses of
+ * `save.items` itself (`z.record(z.string().min(1), zNonNegInt)`): letting one through here would
+ * build a bag the very next `serialize` → `deserialize` cannot load, which is a worse failure than
+ * ignoring the entry. An array is refused too — `typeof [] === "object"`, and a bag with numeric
+ * keys is not a bag.
+ */
+export function readGrant(action: unknown): Record<string, number> | null {
+  if (action === null || typeof action !== "object") return null;
+  const raw = action as { t?: unknown; items?: unknown };
+  if (raw.t !== GRANT_ACTION) return null;
+  const body = raw.items;
+  if (body === null || typeof body !== "object" || Array.isArray(body)) return null;
+  const source = body as Record<string, unknown>;
+  const items: Record<string, number> = {};
+  for (const key of Object.keys(source)) {
+    if (key.length === 0) return null;
+    const qty = source[key];
+    // NEGATIVE IS MALFORMED TOO, and this line used to miss it. `core/schemas.ts` validates the bag
+    // as `z.record(z.string().min(1), zNonNegInt)` and `zNonNegInt` is `zInt.min(0)` — it refuses a
+    // negative as firmly as a fraction. Reading one back would put a debt in the bag and make the
+    // save unloadable, while `readGrant` reported it as fine and `replay` applied it, so the live
+    // and replayed runs AGREED on a state neither could load. Checked here because the docblock
+    // below enumerates what "malformed" covers, and it has to be true.
+    if (!isFiniteNumber(qty) || !Number.isInteger(qty) || qty < 0) return null;
+    items[key] = qty;
+  }
+  return items;
+}
+
+/**
+ * ADD STOCK TO THE BAG, and change nothing else. The ONE writer of `items` that puts stock IN, and
+ * the one {@link replay}'s `case "grant"` and the live path both come through.
+ *
+ * ⚠ ADDITIVE, AND IT NEVER REPLACES THE MAP OR DELETES A KEY. An id the grant does not mention is
+ * carried through untouched; an id it does mention is `(what is there ?? 0) + n`. Both halves are
+ * load-bearing and the section header says why: `core/battle.ts` `bagHas` reads a MISSING key as
+ * unlimited, so replacing the map wholesale would hand the player infinite stock of everything the
+ * grant left out, and deleting a spent key would do the same for that one. Zero is a real value
+ * here — an empty stack the meter still counts — which is exactly what `zNonNegInt` admits and what
+ * `bagConsume` decrements to.
+ *
+ * Adding is the right operation for replay as well as for play: the tape carries what each act
+ * GAVE, and the bag is the sum of the grants before it minus what the fights spent. `replay` walks
+ * that sequence once, in `seq` order, so the sum it reaches is the sum the live run reached.
+ */
+export function applyGrant(save: SaveEnvelope, items: Record<string, number>): SaveEnvelope {
+  const bag: Record<string, number> = { ...save.items };
+  for (const key of Object.keys(items)) {
+    const qty = items[key] ?? 0;
+    // REFUSES WHAT {@link readGrant} REFUSES — see the measured divergence in `applyPayout`'s
+    // docblock. This applier is exported and nothing routes a caller through the reader, so a
+    // fraction, a negative or an empty id accepted here is a state the replay arm would decline to
+    // rebuild: the two runs disagree, or agree on something that will not load.
+    if (key.length === 0 || !isFiniteNumber(qty) || !Number.isInteger(qty) || qty < 0) {
+      throw new SaveCorruptError(
+        `grant of "${key}" × ${String(qty)} is not a whole non-negative count of a named item — ` +
+          "`core/schemas.ts` validates the bag as z.record(z.string().min(1), zNonNegInt)",
+      );
+    }
+    bag[key] = (bag[key] ?? 0) + qty;
+  }
+  return { ...save, items: bag };
+}
+
+/**
+ * What a beaten trainer pays: `balance.economy.trainerPayoutFlat` PLUS
+ * `balance.economy.trainerPayoutPerLevel` × the sum of the levels the loser fielded. bible §11's
+ * rule, read from `data/balance.json` and never restated as a literal here — a retune of the purse
+ * must touch balance.json alone (G11 / INV-4).
+ *
+ * WHY THERE IS A FLAT HALF AT ALL. Hank's ruling: *"Make it so that earnings don't scale quite as
+ * much... you eventually have way too much money at some point, but that point shouldn't be until
+ * probably Act 5."* A purely per-level purse cannot do that — the rival's roster grows from two
+ * level-6 creatures to five level-36 ones, so the summed levels run 12, 36, 54, 96, 120, 180 and
+ * ANY rate reproduces that same 15× spread. The flat fee compresses it to 4.7× without touching a
+ * line of content. See `economy._trainerPayout` for the measured curve.
+ *
+ * THE LEVELS, NOT THE COUNT. A trainer who fields three level-2 creatures and one who fields one
+ * level-6 still pay the same, which is what makes the purse track the difficulty of the fight
+ * rather than the size of the roster. The flat fee is levied ONCE PER FIGHT, not per creature, so
+ * that property survives the change.
+ *
+ * ⚠ AN EMPTY ROSTER PAYS NOTHING BECAUSE OF THE GUARD IN THE BODY — DO NOT DELETE IT. This
+ * paragraph used to read "that falls out of the sum rather than needing a guard", which was true of
+ * the purely multiplicative purse and is FALSE now: a flat fee pays out for a fight against nobody
+ * unless something stops it. The stale sentence was left standing for a while after the formula
+ * changed, and it is precisely the authority on which a future reader would have removed the line
+ * that makes it true. A test binds the guard on its own — sabotaging ONLY the guard, with the flat
+ * term intact, reddens `an empty roster pays nothing rather than NaN — or the flat fee for a fight
+ * against nobody`.
+ *
+ * `Math.round` is safety, not policy, and it is a no-op for every value the game ships: levels are
+ * integers and `trainerPayoutPerLevel` is an integer, so the product already is one. But
+ * `core/schemas.ts` types the tunable as `z.number().min(0)` rather than an integer, so a
+ * fractional retune would mint a fractional amount — which {@link readPayout} refuses, which would
+ * make the live path pay and the replay path pay nothing, which is L10 false again and silent. The
+ * same reasoning, in the same words, already guards `core/clock.ts` `subTicksForAction`.
+ */
+export function trainerPayout(enemyLevels: readonly number[], balance: Balance): number {
+  // AN EMPTY ROSTER PAYS NOTHING, and this guard is why. Under the old purely per-level purse that
+  // fell out of the sum for free; with a flat fee it does not, and without this line a fight against
+  // nobody would pay `trainerPayoutFlat`. See `economy._trainerPayout` for why the flat half exists:
+  // a per-level-only purse reproduces the roster's own 15x growth, and money was abundant by act 2.
+  if (enemyLevels.length === 0) return 0;
+  let total = 0;
+  for (const level of enemyLevels) total += level;
+  return Math.round(balance.economy.trainerPayoutFlat + balance.economy.trainerPayoutPerLevel * total);
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
  * Deterministic replay (build-doc §8.1 / L10, test `det_replay`)
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -1060,6 +1313,12 @@ function adjustPopulation(
  *                price is the `inn` entry beside it, on exactly the terms the blackout's is. This
  *                arm was MISSING while `core/recovery.ts` minted the entry, which made L10 false
  *                for every run that slept; see INN_REST_ACTION and the arm itself.
+ *   payout     — `applyPayout`: what a beaten trainer paid, added to `money`. The ONLY writer of
+ *                money on the tape, and the only entry here that is a DELTA rather than an
+ *                absolute — see PAYOUT_ACTION for why that is safe and what it forbids.
+ *   grant      — `applyGrant`: item stock ADDED to the bag, never replacing it. Without this arm a
+ *                replayed run is not merely poorer, it is UNMETERED: `core/battle.ts` `bagHas`
+ *                reads a key the bag never received as unlimited.
  *   catch/release — BOTH halves. The node-population delta build-doc §7.3 attributes to the action
  *                   itself ("Player catch/release directly increments/decrements count at action
  *                   time"), AND the creature: `applyCaught` puts back the individual the `catch`
@@ -1291,6 +1550,52 @@ export function replay(
          */
         const restored = readInnRest(action);
         if (restored) save = restoreParty(save, restored);
+        if (deps.applyOther) save = deps.applyOther(save, entry);
+        break;
+      }
+      case "payout": {
+        /*
+         * WHAT THE ACT PAID — the money side of L10, and the only arm that writes `money` at all.
+         * `readPayout` for the reason its siblings `case "innRest"` and `case "blackout"` use
+         * their readers: this entry reaches us through `core/schemas.ts`'s permissive `looseObject`,
+         * so the discriminant is a claim and not a proof, and a malformed one changes nothing rather
+         * than throwing on a tape that would otherwise still load.
+         *
+         * ⚠ THE PURSE CANNOT BE REBUILT FROM ANYTHING ELSE ON THE TAPE, so this arm is not an
+         * optimisation over deriving it. The `{t:"battle"}` entry beside it carries `kind` and
+         * `nodeId` and no roster, so the enemy levels `trainerPayout` prices from exist nowhere else
+         * in the log. Without this arm a replayed run reaches the finale broke while the run it
+         * replays did not — and the single shipped `applyOther` (`game/year-replay.ts`
+         * `replayRegionHooks`) refreshes an ecology mirror and reads no money, so no host would be
+         * quietly covering for the gap. That is the shape of the `innRest` failure exactly.
+         *
+         * `!== null` and not a truthiness test: a zero payout is a real entry — a trainer whose
+         * whole roster was level 0, or a retuned `trainerPayoutPerLevel` of 0 — and it must apply as
+         * the no-op it is rather than being read as "malformed".
+         */
+        const amount = readPayout(action);
+        if (amount !== null) save = applyPayout(save, amount);
+        if (deps.applyOther) save = deps.applyOther(save, entry);
+        break;
+      }
+      case "grant": {
+        /*
+         * STOCK INTO THE BAG — additive, through the same `applyGrant` the live path calls, so the
+         * counts a replay reaches are the counts the run held. `readGrant` re-checks the shape for
+         * the reason `case "payout"` re-checks its own.
+         *
+         * ⚠ WITHOUT THIS ARM THE REPLAYED PLAYER IS NOT POORER, HE IS UNMETERED — which is a louder
+         * divergence than a missing purse, not a quieter one. `core/battle.ts` `bagHas` treats a key
+         * the bag does not carry as UNTRACKED = UNLIMITED, so a replay that dropped the grants would
+         * hand the replayed run infinite snares of every tier it was never given, and the two runs
+         * would diverge further with every throw instead of by one wrong number.
+         *
+         * ⚠ NO CLOCK HERE, AND THAT IS NOT AN OMISSION. A grant is a consequence and carries no
+         * price; whatever charged for it (a shop's `travel`, a quest's `foray`) is its own entry,
+         * and `replay` models no clock at all — see `case "battle"`.
+         */
+        const granted = readGrant(action);
+        if (granted) save = applyGrant(save, granted);
         if (deps.applyOther) save = deps.applyOther(save, entry);
         break;
       }

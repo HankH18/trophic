@@ -673,6 +673,9 @@ const zBalanceShape = {
     baitPrice: z.record(zBaitMatch, z.number().min(0)),
     salvePrice: z.number().min(0),
     tonicPrice: z.number().min(0),
+    weightedUnlockGym: z.string().min(1),
+    masterSnareGrant: zNonNegInt,
+    trainerPayoutFlat: z.number().min(0),
     trainerPayoutPerLevel: z.number().min(0),
   }),
   audio: z.object({
