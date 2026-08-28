@@ -19,7 +19,7 @@
  * restated here.
  */
 
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
@@ -48,6 +48,10 @@ import {
   type PlaceholderPlan,
 } from "../../game/placeholder";
 import { registry } from "../../game/registry";
+// The shipped packer's own output path. Imported rather than typed so a change to where
+// `npm run postprocess` writes its sheets moves the assertion with it. `run.ts` guards its CLI
+// behind `isEntrypoint()`, so importing it runs nothing.
+import { ATLAS_DIR as PACKER_ATLAS_DIR } from "../../tools/postprocess/run";
 
 const content: Content = validateContent();
 const balance: Balance = content.balance;
@@ -528,63 +532,82 @@ describe("textureFor / the real-art census", () => {
 });
 
 /* ────────────────────────────────────────────────────────────────────────────
- * The packed sheets are NOT art
+ * The packed sheets are NOT art, and they are no longer in the shipping root
  *
- * THE DEFECT THIS BINDS, and it was live on every boot: `assets/final/atlas/` holds four packed
+ * THE DEFECT THIS BINDS, and it was live on every boot: `assets/final/atlas/` held four packed
  * sheets, and a packed sheet is a PNG under `assets/final/`. The census glob had no exclusion for
  * that directory, so all four registered as ordinary art, `queueRealAssets` handed them to
- * `scene.load.image`, and `BootScene.preload` downloaded and GPU-uploaded ~104KB of sheet on every
+ * `scene.load.image`, and `BootScene.preload` downloaded and GPU-uploaded ~100KB of sheet on every
  * boot — ON TOP OF the individual PNGs they were packed to replace, and drawn by nothing, because
  * no `textureFor` call in `game/` names an `atlas/*` id.
  *
- * These assert the exclusion from the FILES ON DISK rather than from a written-down list, so a
- * fifth sheet is covered the day it is packed, and the premise is asserted rather than assumed: if
- * `assets/final/atlas/` ever holds no PNG at all, the first expectation reddens and says so instead
- * of the rest passing for free.
+ * ⚠ WHY THIS BLOCK WAS REFOUNDED, rather than left reading files that are gone. Its premise used to
+ * be "four sheets are sitting under `assets/final/atlas/`", and that premise is now FALSE BECAUSE
+ * THE DEFECT WAS FIXED AT ITS SOURCE. Subtracting the directory from `import.meta.glob` only ever
+ * decided what entered the MODULE GRAPH; `tools/sync-assets.mjs` copies `assets/final/` wholesale
+ * into `public/assets/` and `publicDir` copies that into `dist/`, so the sheets went on being
+ * published, unhashed and unreferenced, on every deploy. `tools/postprocess/run.ts` now writes them
+ * to `build/atlas/` — gitignored, copied nowhere — and the eight committed files are deleted.
+ *
+ * So the premise this block rests on moved UP, to the thing that decides where the bytes land, and
+ * it is read out of the shipped packer rather than off the disk. The glob exclusion stays as the
+ * second line of defence and is asserted from `game/placeholder.ts`'s own source, so it cannot be
+ * quietly dropped on the theory that the directory is empty now.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-const ATLAS_DIR = resolve(fileURLToPath(new URL("../../", import.meta.url)), "assets/final/atlas");
+const REPO_DIR = resolve(fileURLToPath(new URL("../../", import.meta.url)));
+const SHIPPED_ATLAS_DIR = resolve(REPO_DIR, "assets/final/atlas");
 
-/** The `assetId()` of every packed sheet actually sitting in `assets/final/atlas/`. */
+/** The `assetId()` of every packed sheet actually sitting in `assets/final/atlas/`. Expected empty. */
 function packedSheetIds(): string[] {
   let names: string[];
   try {
-    names = readdirSync(ATLAS_DIR);
+    names = readdirSync(SHIPPED_ATLAS_DIR);
   } catch {
     names = [];
   }
   return names.filter((n) => n.endsWith(".png")).map((n) => assetId(`assets/final/atlas/${n}`)).sort();
 }
 
-describe("assets/final/atlas/ — packed sheets are build artefacts, never registered art", () => {
-  it("the sheets are really there, so the assertions below are about something", () => {
-    // The premise. A packed sheet is what the exclusion is FOR; with none on disk the rest of this
-    // block would pass by absence, which is the shape of green this project refuses.
-    expect(packedSheetIds().length, `no packed sheet under ${ATLAS_DIR} — this block is vacuous`)
-      .toBeGreaterThan(0);
+describe("packed sheets are build artefacts — they leave the shipping root, and are never registered art", () => {
+  it("the packing lane writes OUTSIDE assets/final/ — the premise the rest of this block rests on", () => {
+    // Read from the shipped packer, not typed here: `tools/postprocess/run.ts` is what `npm run
+    // postprocess` executes, and ATLAS_DIR is the path it writes every sheet and descriptor to.
+    expect(PACKER_ATLAS_DIR.length, "the packer names no output directory").toBeGreaterThan(0);
+    expect(
+      PACKER_ATLAS_DIR.replace(/^\.?\/+/, "").startsWith("assets/final"),
+      `the packer writes sheets into the shipping root ("${PACKER_ATLAS_DIR}") — a sheet is a build ` +
+        "artefact, and assets/final/ is the committed home for finished art (build-doc §5)",
+    ).toBe(false);
+    // …and nothing is left behind at the old location. This is the check that would have caught the
+    // eight committed files, and it is asked of the disk rather than of the manifest.
+    expect(packedSheetIds(), `packed sheets are back under ${SHIPPED_ATLAS_DIR}`).toEqual([]);
   });
 
-  it("not one of them is in the real-art census", () => {
-    const registered = new Set(realAssetIds());
+  it("the census glob still subtracts the directory — the second line of defence, read from shipped source", () => {
+    // If ATLAS_DIR ever regresses, this is what keeps the cost at zero: the sheets would be on disk
+    // under assets/final/ but still outside the module graph. Asserted from the source because
+    // `import.meta.glob` is erased at transform time and cannot be read back at runtime.
+    const src = readFileSync(resolve(REPO_DIR, "game/placeholder.ts"), "utf8");
+    expect(src, "the positive half of the final-art glob is gone").toContain('"../assets/final/**/*.png"');
+    expect(src, "the atlas/ subtraction is gone from the final-art glob").toContain(
+      '"!../assets/final/atlas/**"',
+    );
+  });
+
+  it("no packed-sheet id is in the real-art census, and the boot loader is never handed one", () => {
+    // The cost the whole arrangement exists to remove, measured where it was actually paid:
+    // `queueRealAssets` is what `BootScene.preload` calls, and what it queues is what the browser
+    // downloads. Both directions are asked over the `atlas/` PREFIX, so a fifth sheet under any
+    // name is covered the day it is packed.
     for (const id of packedSheetIds()) {
-      expect(registered.has(id), `${id} is registered as art — the atlas/ exclusion is gone`).toBe(false);
-      expect(hasRealAsset(`assets/final/${id}.png`)).toBe(false);
+      expect(hasRealAsset(`assets/final/${id}.png`), `${id} is registered as art`).toBe(false);
       expect(realAssetUrl(id)).toBeNull();
     }
-    // Stronger, and derived: NO census id lives under the atlas directory, whatever it is called.
     expect(realAssetIds().filter((id) => id.startsWith("atlas/"))).toEqual([]);
-  });
-
-  it("and the boot loader is therefore never handed one", () => {
-    // The cost the exclusion exists to remove, measured where it was actually paid: `queueRealAssets`
-    // is what `BootScene.preload` calls, and what it queues is what the browser downloads.
     const { scene, loaded } = fakeScene();
     queueRealAssets(scene as unknown as Parameters<typeof queueRealAssets>[0]);
-    const queued = loaded.map((l) => l.key);
-    for (const id of packedSheetIds()) {
-      expect(queued, `boot queued the packed sheet ${id}`).not.toContain(id);
-    }
-    expect(queued.filter((k) => k.startsWith("atlas/"))).toEqual([]);
+    expect(loaded.map((l) => l.key).filter((k) => k.startsWith("atlas/"))).toEqual([]);
   });
 
   it("the individual art the sheets pack is still registered — the exclusion is a directory, not a class", () => {

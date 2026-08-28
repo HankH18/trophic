@@ -123,22 +123,32 @@ declare global {
  * are correct in `vite dev` AND in a hashed production build.
  *
  * ─────────────────────────────────────────────────────────────────────────────
- *  WHY `atlas/` IS SUBTRACTED, AND WHY IT IS NOT REPLACED BY AN ATLAS LOADER
+ *  WHY `atlas/` IS STILL SUBTRACTED WHEN THE SHEETS ARE NO LONGER THERE
  * ─────────────────────────────────────────────────────────────────────────────
- * MEASURED: `assets/final/atlas/` holds four PACKED SHEETS (`creatures.png`, `npcs.png`,
- * `player.png`, `ui.png` — ~104KB) plus a descriptor JSON each. A sheet is a PNG under
- * `assets/final/`, so before this subtraction the glob registered all four as ordinary art, which
+ * MEASURED, and this is history now: `assets/final/atlas/` held four PACKED SHEETS
+ * (`creatures.png`, `npcs.png`, `player.png`, `ui.png` — 100KB of PNG) plus a descriptor JSON each.
+ * A sheet is a PNG under `assets/final/`, so the glob registered all four as ordinary art, which
  * made `queueRealAssets` hand them to `scene.load.image` and `BootScene.preload` download and
- * upload every one of them ON EVERY BOOT — ON TOP OF the 161 individual PNGs the sheets were
- * packed to replace, and drawn by NOTHING: no `textureFor` call anywhere in `game/` names an
- * `atlas/*` id, because ids like `creature-battle/vellsire` are what the data references.
+ * upload every one of them ON EVERY BOOT — ON TOP OF the individual PNGs the sheets were packed to
+ * replace, and drawn by NOTHING: no `textureFor` call anywhere in `game/` names an `atlas/*` id,
+ * because ids like `creature-battle/vellsire` are what the data references.
  *
- * The subtraction is deliberately NOT paired with `this.load.atlas(...)`. The descriptors are not
- * in Phaser's atlas format and their frame ids do not match this project's key space, so wiring a
- * loader would trade a silent cost for a silently WRONG texture cache. Whoever finishes the packing
- * lane emits a Phaser-format descriptor whose frames are `assetId()` keys and loads it here on
- * purpose; until then a sheet is a build artefact, not art, and
- * `tests/unit/game-placeholder.test.ts` §atlas asserts none of them is registered.
+ * ⚠ SUBTRACTING THEM HERE FIXED THE BOOT DOWNLOAD AND NOT THE SHIPMENT, which is why the fix moved
+ * upstream. `import.meta.glob` decides what enters the MODULE GRAPH; it has no say over the static
+ * copy. `tools/sync-assets.mjs` copies `assets/final/` wholesale into `public/assets/` and
+ * `vite.config.ts`'s `publicDir` copies that into `dist/`, so after this line landed the sheets were
+ * still published — unhashed, unreferenced — on every deploy. `tools/postprocess/run.ts` now writes
+ * them to `build/atlas/` instead, which is gitignored and copied nowhere, and the eight committed
+ * files are deleted. A sheet is a build artefact, not art, and the shipping root is for art.
+ *
+ * The subtraction STAYS as the second line of defence: it is what makes a regression of that
+ * output path cost nothing at runtime. It is deliberately NOT paired with `this.load.atlas(...)` —
+ * the descriptors are not in Phaser's atlas format and their frame ids are manifest ROW ids
+ * (`battle-ashvole-a-front`), not this project's key space, so wiring a loader would trade a silent
+ * cost for a silently WRONG texture cache. Whoever finishes the packing lane emits a Phaser-format
+ * descriptor whose frames are `assetId()` keys and loads it here on purpose.
+ * `tests/unit/game-placeholder.test.ts` §atlas holds both halves: that this pattern is still here,
+ * and that the packer's output directory is outside the shipping root.
  */
 const GLOBBED_FINAL = import.meta.glob(
   ["../assets/final/**/*.png", "!../assets/final/atlas/**"],

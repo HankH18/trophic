@@ -65,14 +65,27 @@
  * `player` row.
  *
  * STILL NOT COVERED, and deliberately named rather than silently omitted: `game/scenes/TitleScene.ts`'s
- * `"ui/title-banner"`. It is the same defect class but it is NOT the same fix, and it is the one
- * screen this table cannot bind — because there is nothing to bind it TO. `tools/comfy/manifest.json`
- * carries zero rows matching title / banner / logo / splash; its authored `_ui` block declares six
- * nine-slice FRAMES and nothing else; and there is no `ui/` directory in the manifest at all (the
- * ui-frame class writes into `assets/final/ui-frame/`). Emitting a row would mean authoring a new
- * `_ui` subject string with no bible line to cite, which is the G2 violation, and a wordmark is not
- * a nine-slice frame so it would need a new CLASS as well. A `SCREENS` row here would assert set
- * identity against the empty set and pass vacuously, which is worse than the gap it papers over.
+ * `"ui/title-banner"`. It cannot go in `SCREENS`, whose contract is SET IDENTITY AGAINST MANIFEST
+ * ROWS: `tools/comfy/manifest.json` carries zero rows matching title / banner / logo / splash, its
+ * authored `_ui` block declares six nine-slice FRAMES and nothing else, and no class writes into
+ * `ui/`. Emitting a row would mean authoring a new `_ui` subject string with no bible line to cite
+ * (the G2 violation), and a wordmark is not a nine-slice frame so it would need a new CLASS as well.
+ * A `SCREENS` row would assert identity against the empty set and pass vacuously.
+ *
+ * ⚠ BUT THE REASON THIS PARAGRAPH USED TO GIVE — "there is nothing to bind it TO" — IS NO LONGER
+ * TRUE, and the reasoning under it was wrong even then. THE MANIFEST WAS NEVER THE BINDING
+ * CONSTRAINT: `game/placeholder.ts` globs `assets/final/**\/*.png` CLASS-AGNOSTICALLY and `assetId`
+ * strips prefix and extension, so any file under the shipping root resolves to an id and any code
+ * spelling that id draws it. `assets/final/ui/title-banner.png` is now shipped and RESOLVES — no row
+ * required, and none ever was. `tests/gates/asset-reachability.test.ts` GATE 2d binds the pairing
+ * from the file's side (the banner is claimed BECAUSE `TitleScene` spells its id, so the claim dies
+ * the day the screen stops).
+ *
+ * WHAT IS STILL UNBOUND is the other direction: nothing asserts that the key `TitleScene` spells
+ * RESOLVES TO REAL ART, so deleting the PNG would drop the title screen to a labelled placeholder in
+ * silence. The cheap correct fix is one edit in the scene — export the id as a constant instead of
+ * spelling it inline — after which a single `hasRealAsset` assertion here binds it without any test
+ * hand-typing the key. It is left to whoever owns that scene rather than done from a typed string.
  *
  * WHAT THIS FILE DOES NOT DO, so a green here is not read as more than it is: it binds the KEY
  * SPACE. That a mounted scene really passes the key to `placeholderImage`, and at what size it lands

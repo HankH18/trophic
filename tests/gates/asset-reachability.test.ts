@@ -555,6 +555,62 @@ function stripped(src: string): string {
   return out;
 }
 
+/**
+ * The OTHER half of the same lexer: the string literals themselves, with comments skipped.
+ *
+ * {@link stripped} blanks strings because §1b and {@link WIRED_FRAMES} are asking about CODE and a
+ * paragraph of prose discussing `UI_FRAME_ASSET_ID.dialogueBox` must not read as a call site. GATE
+ * 2d needs the opposite: the literal CONTENTS, because an asset-id literal is how shipped code
+ * addresses a file (`placeholderImage(this, x, y, "ui/title-banner", …)`).
+ *
+ * Comments are skipped for the same reason they are blanked above — a path written in a comment is
+ * documentation, not an address. A template literal is collected ONLY when it has no `${`: a
+ * template with a substitution is not a fixed id, and the census that covers those is the DRIVEN one
+ * at the top of this file, which calls the builders rather than reading their source.
+ *
+ * ⚠ SAME REGEX-LITERAL LIMIT as `stripped`, and the failure direction is the same: a bogus string
+ * scan drops literals, so a file loses a claim and is REPORTED, never quietly excused.
+ */
+function stringLiterals(src: string): string[] {
+  const out: string[] = [];
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i] as string;
+    const next = src[i + 1];
+    if (ch === "/" && next === "/") {
+      const end = src.indexOf("\n", i);
+      i = end === -1 ? src.length : end;
+      continue;
+    }
+    if (ch === "/" && next === "*") {
+      const end = src.indexOf("*/", i + 2);
+      i = end === -1 ? src.length : end + 2;
+      continue;
+    }
+    if (ch === '"' || ch === "'" || ch === "`") {
+      let j = i + 1;
+      while (j < src.length) {
+        const c = src[j] as string;
+        if (c === "\\") {
+          j += 2;
+          continue;
+        }
+        if (c === ch) break;
+        if (ch !== "`" && c === "\n") break;
+        j += 1;
+      }
+      if (src[j] === ch) {
+        const body = src.slice(i + 1, j);
+        if (ch !== "`" || !body.includes("${")) out.push(body);
+        i = j + 1;
+      } else i = j;
+      continue;
+    }
+    i += 1;
+  }
+  return out;
+}
+
 function walkTs(dir: string): string[] {
   const found: string[] = [];
   const rec = (d: string): void => {
@@ -570,6 +626,61 @@ function walkTs(dir: string): string[] {
   rec(dir);
   return found;
 }
+
+/**
+ * Every asset id shipped code SPELLS, reduced by the loader's own `assetId()`. -> the files it read.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════════════════
+ * THE DETECTOR HOLE THIS CLOSES, FOUND THE FIRST TIME REAL ART LANDED IN THE COMMONEST SHAPE
+ * ═════════════════════════════════════════════════════════════════════════════════════════════════
+ * GATE 2d recognised a PATH — that is how the interior paintings resolve, because
+ * `game/mapview.ts` `interiorAssetPath` builds `assets/final/interiors/<id>.png` and the claim calls
+ * it. It did NOT recognise an ID. And an id is what every `textureFor` / `placeholderImage` call
+ * site actually passes: `game/scenes/TitleScene.ts` draws `"ui/title-banner"` and has since before
+ * the art existed. The moment `assets/final/ui/title-banner.png` was promoted, this gate named live,
+ * drawn, correctly-keyed art as CLAIMED BY NOTHING — and the message it prints tells the reader the
+ * fix may be to delete it. That is the dangerous direction for a gate to be wrong in.
+ *
+ * ⚠ THE MANIFEST WAS NEVER THE BINDING CONSTRAINT, which is the reasoning error underneath it. The
+ * loader does not consult `tools/comfy/manifest.json` at all: `game/placeholder.ts` globs
+ * `assets/final/**\/*.png` CLASS-AGNOSTICALLY and `assetId` strips the prefix and the extension, so
+ * any file under the shipping root reduces to an id and any code that spells that id draws it.
+ * "There is no `ui/` class in the manifest" was true and irrelevant.
+ *
+ * So the reduction here is the LOADER'S OWN — `assetId` is imported from `game/placeholder.ts`, not
+ * reimplemented — and it is applied to both sides: to the literal, and to the shipped file. A file
+ * is claimed when shipped code spells its id, in whichever of the two forms, because `assetId` maps
+ * `"assets/final/ui/title-banner.png"` and `"ui/title-banner"` to the same string.
+ *
+ * ⚠ A GLOB IS NOT A CLAIM, AND THIS RULE HAD TO BE TAUGHT THAT. The first re-check of the deleted
+ * packed sheets against this scan turned up one hit: `game/placeholder.ts` spells
+ * `"!../assets/final/atlas/**"`, which reduces to `atlas/**`. That one is harmless by accident —
+ * `atlas/**` is nobody's id — but a subtraction written one path deeper (`"!.../atlas/creatures.png"`)
+ * would have reduced to a REAL file's id and claimed it, which would let this gate go green on the
+ * strength of a statement that a file is deliberately UNUSED. That is the same inversion GATE 2d's
+ * header refuses for `NOT_ART`. So a literal beginning `!` and a literal carrying glob metacharacters
+ * are refused before the reduction, and `§5` sabotages both.
+ */
+const GLOB_LITERAL = /[*?]/;
+
+const ID_LITERALS: ReadonlyMap<string, string[]> = (() => {
+  const out = new Map<string, string[]>();
+  for (const dir of ["game", "core"]) {
+    for (const abs of walkTs(join(ROOT, dir))) {
+      const site = abs.slice(ROOT.length + 1); // `rel` is declared below; same reduction.
+      for (const literal of stringLiterals(readFileSync(abs, "utf8"))) {
+        if (literal.startsWith("!") || GLOB_LITERAL.test(literal)) continue;
+        const id = assetId(literal);
+        if (id.length === 0) continue;
+        const sites = out.get(id);
+        if (sites) {
+          if (!sites.includes(site)) sites.push(site);
+        } else out.set(id, [site]);
+      }
+    }
+  }
+  return out;
+})();
 
 const rel = (abs: string): string => abs.slice(ROOT.length + 1);
 
@@ -663,6 +774,47 @@ describe("§1b the weak corroboration — no new drawing surface has appeared un
  * ════════════════════════════════════════════════════════════════════════════ */
 
 /**
+ * ═════════════════════════════════════════════════════════════════════════════════════════════════
+ * `overworld-mini` — WHAT THE STANDING RED ACTUALLY NAMES. RECORDED SO IT IS NOT RE-DERIVED.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════════
+ * A CLASS THAT WAS DERIVED FROM A COUNT AND NEVER GIVEN A SCREEN. `docs/build-doc.md` §9.7 lists
+ * "overworld minis for encounterable species (~25)" among its asset counts, and
+ * `tools/comfy/comfy-batch.ts` faithfully emits one row per line that appears in any node's
+ * populations — 24 rows, 32×32, `assets/final/overworld-mini/mini-<line>.png`. Nothing downstream of
+ * that sentence was ever built.
+ *
+ * WHAT WAS CHECKED, because a name-grep is not evidence in this repository (see the `dexArtId` note
+ * above, and `placeholderImage` call sites, and ids built as `` `${DIR}/${id}` ``):
+ *
+ *   · ZERO of the 24 rows have produced a file. `assets/final/overworld-mini/` does not exist and
+ *     has never existed in any commit on any branch — so, unlike every other red this gate has
+ *     carried, no money has been spent here yet. The readout in {@link formatUnconsumed} measures
+ *     this rather than assuming it.
+ *   · THE COMPLETE KEY GRAMMAR OF THE GAME was enumerated, not grepped: every `*_DIR` constant in
+ *     `game/` and `core/` (`interiors`, `player`, `creature-battle`, `ui-frame`, and
+ *     `placeholder.ts`'s `assets/final/`), and every `textureFor` / `placeholderImage` / `add.image`
+ *     call site. There is no constant that can spell an `overworld-mini/` prefix and no call site
+ *     that could pass one.
+ *   · THERE IS NO SCREEN THAT COULD HOST ONE. Encounters are an invisible per-step probability roll
+ *     against the grass mask (build-doc §7); there is no on-map creature entity, no minimap
+ *     (the string does not occur in `game/`, `core/` or `docs/`), and no town-map widget.
+ *     `OverworldScene` contains exactly one `add.image`, and it draws an interior room plate.
+ *   · `balance.map.miniSpritePx` — the class's size source — is as orphaned as the class: declared,
+ *     validated, valued at 32, and read by nothing outside tests. Contrast `battleSpritePx`, which
+ *     has real readers in `BattleHud`, `BattleLayout` and `BattleScene`.
+ *
+ * ⚠ SO THIS IS AN OWNER RULING, NOT A TODO, AND IT IS THE SAME SHAPE AS `dex-painted`. That class
+ * was cut only after the owner ruled the dex would use the existing creature sprites; the generator
+ * then lost the ability to spell it. Cutting `overworld-mini` is a scope decision of exactly that
+ * kind, because it contradicts a canonical count in build-doc §9.7 — and G2 says a discrepancy with
+ * a canonical doc is recorded as open, never resolved by inventing a value. The opposite resolution
+ * is worse: writing a consumer would mean inventing an on-map creature entity the encounter design
+ * does not have, and then paying for 24 generations to feed it.
+ *
+ * Until that ruling, the honest state is a red that names 24 rows nothing can draw.
+ */
+
+/**
  * A class whose shipped DOMAIN is empty, so no key of it can be asked for however live its consumer.
  *
  * ⚠ THIS IS NOT AN ALLOWLIST AND IT MUST NEVER BECOME ONE. An entry is only admitted when BOTH
@@ -726,6 +878,8 @@ interface ClassCoverage {
   finalDir: string;
   rows: number;
   asked: number;
+  /** How many of the class's rows have actually produced a file. MEASURED, not assumed — see below. */
+  built: number;
 }
 
 function classCoverage(): ClassCoverage[] {
@@ -736,25 +890,46 @@ function classCoverage(): ClassCoverage[] {
       finalDir: CLASS_RECIPES[className]?.finalDir ?? "(no finalDir)",
       rows: keys.size,
       asked: [...keys].filter((k) => ASKED.has(k)).length,
+      built: ROWS.filter(
+        (r) => r.class === className && existsSync(join(ROOT, r.finalFile.replace(/^\.?\/+/, ""))),
+      ).length,
     };
   });
 }
 
+/**
+ * ⚠ THE COUNT OF FILES ON DISK IS PART OF THE REPORT, AND IT WAS MISSING. This message used to say
+ * flatly that the images "are generated, committed, loaded by BootScene's `queueRealAssets`, and
+ * never drawn" — and for `overworld-mini` every clause of that was false: zero of its 24 rows have
+ * ever produced a PNG, `assets/final/overworld-mini/` has never existed in any commit, and a
+ * directory that does not exist is not globbed by `game/placeholder.ts` and not queued by anything.
+ * The distinction decides what the red is ABOUT. Rows with files are money already spent on art
+ * nothing draws; rows with no files are a class that was derived from a count and never given a
+ * screen, where the cost is still ahead. So the readout is measured per class rather than asserted
+ * in prose, and it moves the day the art lane ships one.
+ */
 function formatUnconsumed(unconsumed: readonly ClassCoverage[]): string {
   const rows = unconsumed.reduce((n, c) => n + c.rows, 0);
   return [
     `${String(unconsumed.length)} manifest class(es) — ${String(rows)} rows — are DECLARED and`,
     "CONSUMED BY NOTHING. Every key those rows can produce was checked against a census built by",
     "calling the shipped key builders over the shipped domains (see KEY_BUILDERS); not one of them",
-    "is ever asked for, so the images are generated, committed, loaded by BootScene's",
-    "`queueRealAssets`, and never drawn:",
-    ...unconsumed.map((c) => `  • ${c.className} — ${String(c.rows)} rows under ${c.finalDir}/`),
+    "is ever asked for, so nothing in `game/` or `core/` can put one on the screen:",
+    ...unconsumed.map(
+      (c) =>
+        `  • ${c.className} — ${String(c.rows)} rows under ${c.finalDir}/ — ` +
+        (c.built === 0
+          ? "0 built, so this is art NOT YET PAID FOR: the class was derived and never given a screen"
+          : `${String(c.built)} of them already generated and committed, drawn by nothing`),
+    ),
     "",
-    "Two ways this goes green, and only two. Either a consumer is written and its key builder is",
-    "added to KEY_BUILDERS above, or — if a consumer already exists and this gate has not been told",
-    "about it — the builder row is added and the class turns green on the spot. It must NOT be",
-    "silenced: EMPTY_DOMAIN is not an allowlist, it admits only a class whose consumer can be DRIVEN",
-    "and whose emptiness is a checked property of the authored data.",
+    "Three ways this goes green, and only three. A consumer is written and its key builder added to",
+    "KEY_BUILDERS above; or — if a consumer already exists and this gate has not been told about it —",
+    "the builder row is added and the class turns green on the spot; or the class is CUT, which means",
+    "the generator loses the ability to spell it (rows[] is DERIVED, so removing rows means removing",
+    "what they are derived FROM) and is the shape `dex-painted` was closed in, after an owner ruling.",
+    "It must NOT be silenced: EMPTY_DOMAIN is not an allowlist, it admits only a class whose consumer",
+    "can be DRIVEN and whose emptiness is a checked property of the authored data.",
   ].join("\n");
 }
 
@@ -813,7 +988,13 @@ describe("GATE 2a — every manifest class has a consumer", () => {
     const stillAsked = [...keys].filter((k) => crippled.has(k));
     expect(stillAsked).toEqual([]);
     const finalDir = CLASS_RECIPES[SABOTAGED]?.finalDir ?? "(no finalDir)";
-    expect(formatUnconsumed([{ className: SABOTAGED, finalDir, rows: keys.size, asked: 0 }])).toContain(SABOTAGED);
+    // `built` is read off the same measurement the gate reports, never typed — this class HAS files,
+    // so the sabotage also exercises the "already generated and committed" arm of the readout.
+    const built = classCoverage().find((c) => c.className === SABOTAGED)?.built ?? 0;
+    expect(built, `"${SABOTAGED}" has produced no files — the built readout would prove nothing`).toBeGreaterThan(0);
+    const report = formatUnconsumed([{ className: SABOTAGED, finalDir, rows: keys.size, asked: 0, built }]);
+    expect(report).toContain(SABOTAGED);
+    expect(report).toContain("already generated and committed");
     // …and with the census intact it is NOT reported, so the red above is the sabotage and nothing else.
     expect(classCoverage().find((c) => c.className === SABOTAGED)?.asked).toBeGreaterThan(0);
   });
@@ -826,10 +1007,14 @@ describe("GATE 2a — every manifest class has a consumer", () => {
       finalDir: "assets/final/gate-sabotage",
       rows: 7,
       asked: 0,
+      built: 0,
     };
     const unconsumed = [...classCoverage().filter((c) => c.asked === 0), invented];
     expect(formatUnconsumed(unconsumed)).toContain("gate-sabotage-class");
     expect(formatUnconsumed(unconsumed)).toContain("assets/final/gate-sabotage/");
+    // A class declared on the day it is added has no art yet, and the readout must SAY so rather
+    // than repeating the "generated and committed" line that was false for `overworld-mini`.
+    expect(formatUnconsumed(unconsumed)).toContain("0 built");
   });
 });
 
@@ -854,23 +1039,39 @@ describe("GATE 2a — every manifest class has a consumer", () => {
  * `ui-sign-card-frame` — WHY THIS ONE IS STILL RED, AND WHY THAT RED IS A DECISION, NOT A TODO
  * ═════════════════════════════════════════════════════════════════════════════════════════════════
  * Five of the six `ui-frame` rows now reach a screen. The sixth is NOT the next one to wire, and it
- * is deliberately NOT exempted here — an exemption reads as "handled", and this needs an owner to
- * decide whether the sign card is a screen at all. What is recorded is the investigation, so nobody
- * closes the red by inventing the content G2 forbids:
+ * is deliberately NOT exempted here — an exemption reads as "handled". What is recorded is the
+ * investigation, so nobody closes the red by inventing the content G2 forbids:
  *
- *   NOT CONSTRUCTIBLE UNDER G2. `tools/ui-frames/SPEC.md` §4.6 authors the frame's PIXELS and one
- *   text rule, and its nine-slice table explicitly declines a position — "wherever the prop is".
- *   Building the screen would mean inventing the world position, a depth (`OverworldScene` carries
- *   no prop depth at all), the trigger, the wrap width, AND THE TEXT ITSELF. The two candidate
- *   bodies disagree about what the card even says: the corpus's `prop.*-sign-*` entries are ~180
- *   characters of prose written for the 464×68 dialogue box, while the only authored render shows a
- *   three-line dex-entry summary that no runtime code produces for a prop.
+ *   ⚠ THE QUESTION IS NOT "IS THE SIGN CARD A SCREEN". It was asked that way here and the answer
+ *   misleads. THE SIGN FEATURE SHIPS AND IS REACHABLE TODAY: `sign-card` is one of the four
+ *   `PROP_KINDS` (`core/types.ts`), four of them are placed on real maps (`hearthollow-signpost`,
+ *   `r1-sign-forage`, `bowerdeep-sign-market`, `duskhollow-sign-observatory`, each with an
+ *   `interactionRadius`), each has an authored `prop.*` dialogue entry spoken by the `prop-sign-card`
+ *   speaker, and `OverworldScene.interact()` reads them — a prop read even takes priority over an
+ *   NPC talk. The player walks up, presses the interact key, and the sign's words appear. What
+ *   delivers them is the DIALOGUE BOX. The row this gate names is the sign's painted PLANK, and the
+ *   real question is whether props get a sprite layer at all.
  *
- *   TWO STRUCTURAL BLOCKERS BESIDES. Its 7px asymmetric bevel is not the 4px symmetric idiom
+ *   AND TODAY THEY DO NOT, BY A STANDING RULE. `tools/comfy/MAP-PROMPT-RULES.md`: "Props have no
+ *   sprite. Nothing draws `props[]`; they are invisible interaction hotspots over the painted map."
+ *   Every prop's body is baked into its node's 1024² map plate — the sign already has a shipped
+ *   world face at roughly one cell. All four `prop`-class manifest rows are still `pending` and
+ *   `assets/final/prop/` does not exist. So drawing this one plank is not a call site; it is a
+ *   decision to start drawing props, against a rule the map lane painted twelve maps under.
+ *
+ *   NOT CONSTRUCTIBLE UNDER G2 EITHER. `tools/ui-frames/SPEC.md` §4.6 authors the frame's PIXELS and
+ *   one text rule, and its nine-slice table explicitly declines a position — "wherever the prop is".
+ *   Building the surface would mean inventing the depth (`OverworldScene` carries no prop depth at
+ *   all), the trigger, the wrap width, AND THE TEXT ITSELF. The two candidate bodies disagree about
+ *   what the card even says: the corpus's `prop.*-sign-*` entries are ~180 characters of prose
+ *   written for the 464×68 dialogue box, while the only authored render shows a three-line
+ *   dex-entry summary that no runtime code produces for a prop.
+ *
+ *   ONE STRUCTURAL BLOCKER BESIDES. Its 7px asymmetric bevel is not the 4px symmetric idiom
  *   {@link drawFrameRing} slices (`game/ui/FramePanel.ts` states this at the export, and
- *   `tests/unit/ui-frame-panel.test.ts` holds it out of the panel assertions for it) — and the sign
- *   ALREADY HAS a shipped world face baked into the map at roughly one cell, which a 240×160 card
- *   would cover at about 12× its size.
+ *   `tests/unit/ui-frame-panel.test.ts` holds it out of the panel assertions for it), and SPEC.md
+ *   calls it "fixed 1:1" — so even with a surface to draw on, the shared slicer is the wrong drawer
+ *   and a 240×160 card would cover the painted sign at about 12× its size.
  *
  * So the report below is the truthful one: one row, generated and committed, that nothing asks for.
  * The three ways it goes green are a screen that asks for it, a manifest whose derivation no longer
@@ -1176,14 +1377,20 @@ describe("§4 the mirror — the game must not ask for a key nothing can produce
  * the vacuous direction, because a loop over claims never visits an unclaimed file. This walks the
  * shipping root and requires each file to be spoken for.
  *
- * A claim is one of three things, and nothing else:
+ * A claim is one of four things, and nothing else:
  *
  *   MANIFEST      — the file is some row's `finalFile`. The pipeline owns it.
+ *   ID LITERAL    — shipped code in `game/` or `core/` SPELLS the file's asset id, discovered by
+ *                   {@link ID_LITERALS} and reduced with the loader's own `assetId()`. This is not a
+ *                   list; it is a scan, because the id form is the commonest shape a call site uses
+ *                   and a hand-list of them would go stale in the dangerous direction. See that
+ *                   block for the live art this gate called unclaimed before the rule existed.
  *   HARDCODED     — a path spelled in shipped code, listed in {@link HARDCODED_CLAIMS} BY NAME. Each
  *                   entry must CALL the shipped function that builds the path rather than typing the
  *                   directory, so a claim cannot drift from the code it speaks for, and adding one
  *                   is a deliberate edit with a stated reason — the same shape as the closed
- *                   character set in the layout gate.
+ *                   character set in the layout gate. Still needed for a path no literal spells:
+ *                   `interiorAssetPath` BUILDS its path from a room id, so no fixed string exists.
  *   NOT ART       — bookkeeping the engine reads as data rather than as a picture, matched by a
  *                   named rule in {@link NOT_ART}.
  *
@@ -1192,13 +1399,17 @@ describe("§4 the mirror — the game must not ask for a key nothing can produce
  * see at all: bytes shipped into the repository that nothing in the project even names.
  *
  * ═════════════════════════════════════════════════════════════════════════════════════════════════
- * `assets/final/atlas/` — WHY BEING EXCLUDED FROM THE BUNDLE DID NOT MAKE THE SHEETS CLAIMED
+ * `assets/final/atlas/` — CLOSED, AND WHAT IT TOOK. KEPT BECAUSE THE NEAR-MISSES REPEAT.
  * ═════════════════════════════════════════════════════════════════════════════════════════════════
- * The eight files under `assets/final/atlas/` (four packed sheets, ~104KB, plus a descriptor each)
- * are this gate's standing red. `game/placeholder.ts` now SUBTRACTS the directory from its glob —
- * `["../assets/final/**\/*.png", "!../assets/final/atlas/**"]` — so the sheets no longer reach
- * `dist/` and `BootScene` no longer downloads them. That is a real fix for a real cost, and it does
- * NOT make them claimed. Three reasons, recorded because the opposite reading is the tempting one:
+ * The eight files under `assets/final/atlas/` (four packed sheets, 100KB of PNG, plus a descriptor
+ * each) were this gate's longest-standing red. They are deleted, and `tools/postprocess/run.ts` now
+ * writes `build/atlas/` instead — gitignored, and copied nowhere. What is worth keeping is why the
+ * two earlier attempts at this did not close it.
+ *
+ * FIRST NEAR-MISS: SUBTRACTING THE DIRECTORY FROM THE GLOB. `game/placeholder.ts` subtracts
+ * `"!../assets/final/atlas/**"`, which stopped `BootScene` downloading and GPU-uploading the sheets
+ * on every boot. A real fix for a real cost — and it did not make the files CLAIMED, for three
+ * reasons that still hold against the next negative pattern anyone reaches for:
  *
  *   1. THE QUESTION IS ABOUT THE SHIPPING ROOT, NOT THE BUNDLE. `assets/final/` is the committed
  *      home for finished art (build-doc §5), and this gate walks the repository. If "absent from
@@ -1208,22 +1419,33 @@ describe("§4 the mirror — the game must not ask for a key nothing can produce
  *      nothing to do with it. A HARDCODED claim says "shipped code addresses this path"; the glob
  *      says "shipped code deliberately does not". Counting it would let the gate go green on the
  *      strength of a statement that the files are unused.
- *   3. THEY ARE FURTHER FROM CLAIMED THAN BEFORE, NOT NEARER. Before the subtraction the sheets at
- *      least became textures (drawn by nothing — no `textureFor` call names an `atlas/*` id, because
- *      the data references ids like `creature-battle/vellsire`). Now no path in `game/` or `core/`
- *      names one at all, there is no `load.atlas` anywhere, and the descriptors are not in Phaser's
- *      atlas format — their frame ids are not this project's key space, which is why wiring a loader
- *      would trade a silent cost for a silently WRONG texture cache.
+ *   3. IT PUT THEM FURTHER FROM CLAIMED, NOT NEARER. Before the subtraction the sheets at least
+ *      became textures (drawn by nothing — no `textureFor` call names an `atlas/*` id, because the
+ *      data references ids like `creature-battle/vellsire`). After it, no path in `game/` or
+ *      `core/` named one at all.
  *
- * WHAT HAS CHANGED IS THE DIAGNOSIS, and the message below already carries the right resolution:
- * "it is dead weight and the fix is to delete it". `game/placeholder.ts` says the same thing in its
- * own words — "a sheet is a build artefact, not art" — and a build artefact does not belong in the
- * shipping root. Emitting them outside `assets/final/` (or deleting them until the packing lane
- * emits a Phaser-format descriptor whose frames are `assetId()` keys and loads it on purpose) makes
- * them genuinely UNSHIPPED, and this gate goes green because there is nothing there to claim.
+ * ⚠ SECOND NEAR-MISS, AND THE ONE THAT COST THE MOST: THE EXCLUSION WAS BELIEVED TO UNSHIP THEM. It
+ * did not. `import.meta.glob` decides what enters the MODULE GRAPH and nothing else;
+ * `tools/sync-assets.mjs` copies `assets/final/` wholesale into `public/assets/` and
+ * `vite.config.ts`'s `publicDir` copies that into `dist/`. Measured on the built tree: all eight
+ * files sat in `dist/assets/atlas/` at their exact source sizes and UNHASHED — the signature of the
+ * publicDir path — while the module-graph PNGs beside them carried content hashes. `deploy.yml`
+ * uploads `dist` to Pages, so the sheets were published on every deploy for as long as the fix was
+ * believed complete. A file leaves the bundle when it leaves `assets/final/`, not when a bundler
+ * pattern stops naming it.
  *
- * ⚠ WHAT WOULD BE WRONG IS A `NOT_ART` RULE. A packed sheet is not bookkeeping the engine reads as
- * data; it is 161 pictures in one file. That is the one resolution this gate refuses by name.
+ * THE RESOLUTION THE MESSAGE BELOW ALREADY NAMED is the one that was taken: "it is dead weight and
+ * the fix is to delete it". A build artefact does not belong in the shipping root, and
+ * `tests/unit/game-placeholder.test.ts` §atlas now holds BOTH halves of that — that the packer's
+ * output directory is outside `assets/final/`, read from the packer's own exported constant, and
+ * that the glob exclusion is still present as the second line of defence. No loader was wired, and
+ * that was deliberate: the descriptors are not in Phaser's atlas format and their frame ids are
+ * manifest ROW ids (`battle-ashvole-a-front`), not this project's key space, so wiring one would
+ * have traded a silent cost for a silently WRONG texture cache.
+ *
+ * ⚠ WHAT WOULD HAVE BEEN WRONG IS A `NOT_ART` RULE. A packed sheet is not bookkeeping the engine
+ * reads as data; it is 94 pictures in one file. That is the one resolution this gate refuses by
+ * name, and it stays refused for the next sheet as much as for these four.
  */
 
 const SHIPPING_ROOT = "assets/final";
@@ -1298,13 +1520,113 @@ const NOT_ART: readonly NotArtRule[] = [
   },
 ];
 
+/**
+ * The claim predicate, in ONE place.
+ *
+ * ⚠ IT USED TO BE WRITTEN TWICE — once here and once, by hand, inside the BINDS test below. A copy
+ * of a predicate is a copy that drifts, and it did: the ID-LITERAL arm was added to the real one and
+ * the certifying copy went on testing three arms out of four, so the non-vacuity check no longer
+ * covered the newest way a file can be excused. Everything asks this function now.
+ */
+function isClaimed(path: string): boolean {
+  const manifestOwned = new Set(ROWS.map((row) => row.finalFile.replace(/^\.?\/+/, "")));
+  const hardcoded = new Set(HARDCODED_CLAIMS.flatMap((c) => c.paths()));
+  return (
+    manifestOwned.has(path) ||
+    hardcoded.has(path) ||
+    // The file's own id, through the loader's reduction, against the ids shipped code spells.
+    ID_LITERALS.has(assetId(path)) ||
+    NOT_ART.some((r) => r.match(path))
+  );
+}
+
 function unclaimedShippedFiles(): string[] {
+  return SHIPPED_FILES.filter((p) => !isClaimed(p));
+}
+
+/** The shipped files claimed only because code spells their id. Used to prove the rule bites. */
+function idLiteralClaimed(): string[] {
   const manifestOwned = new Set(ROWS.map((row) => row.finalFile.replace(/^\.?\/+/, "")));
   const hardcoded = new Set(HARDCODED_CLAIMS.flatMap((c) => c.paths()));
   return SHIPPED_FILES.filter(
-    (p) => !manifestOwned.has(p) && !hardcoded.has(p) && !NOT_ART.some((r) => r.match(p)),
+    (p) =>
+      !manifestOwned.has(p) &&
+      !hardcoded.has(p) &&
+      !NOT_ART.some((r) => r.match(p)) &&
+      ID_LITERALS.has(assetId(p)),
   );
 }
+
+describe("§5 the id-literal claim is real before it is trusted, and it cannot over-claim", () => {
+  it("the lexer reads literals from CODE and refuses them in comments and in built strings", () => {
+    // Positive control both ways, over the shipped call shape.
+    expect(stringLiterals('placeholderImage(this, x, y, "ui/title-banner", w, h);')).toContain("ui/title-banner");
+    expect(stringLiterals("const a = 'ui/title-banner';")).toContain("ui/title-banner");
+    // A path written in prose is documentation, not an address — the same rule §1b's lexer follows.
+    expect(stringLiterals('// draws "ui/title-banner" one day\n')).toEqual([]);
+    expect(stringLiterals('/* see "ui/title-banner" */')).toEqual([]);
+    // A template with a substitution is not a FIXED id; the driven census covers those by calling
+    // the builder. Collecting it would put a half-built string into the claim set.
+    expect(stringLiterals("const k = `${DIR}/${id}`;")).toEqual([]);
+    // …but a template with no substitution is just a string, and is collected.
+    expect(stringLiterals("const k = `ui/title-banner`;")).toContain("ui/title-banner");
+  });
+
+  it("the scan walked the shipped tree, and both id forms reduce to the same claim", () => {
+    expect(ID_LITERALS.size, "the id-literal scan found nothing — it is aimed at nothing").toBeGreaterThan(20);
+    const sites = new Set([...ID_LITERALS.values()].flat());
+    expect(sites.size, "every literal came from one file — the walk is not reaching game/ and core/").toBeGreaterThan(3);
+    // The reduction is the LOADER'S, applied to both sides: this is why an id literal claims a path.
+    expect(assetId("assets/final/ui/title-banner.png")).toBe(assetId("ui/title-banner"));
+  });
+
+  it("BINDS — the rule actually claims shipped files, and refuses an id nothing spells", () => {
+    // Non-vacuity from the disk: at least one file under the shipping root is claimed by NOTHING BUT
+    // an id literal. Without this the whole rule could be dead code and every test above still pass.
+    const claimed = idLiteralClaimed();
+    expect(
+      claimed.length,
+      "no shipped file is claimed by an id literal — this rule is not doing anything, and if that is " +
+        "genuinely true it should be deleted rather than left as a hole with a comment on it",
+    ).toBeGreaterThan(0);
+    for (const path of claimed) {
+      expect(ID_LITERALS.get(assetId(path)), `${path} claims a site list`).toBeDefined();
+    }
+    // …and the sabotage, which is the half that matters: the rule must DISCRIMINATE. A scan that
+    // claimed everything would make this gate green forever, so most shipped art must NOT be claimed
+    // this way — the creature plates, the maps and the frames are reached by BUILT keys, and their
+    // ids are spelled nowhere as literals. Measured, not assumed.
+    const notSpelled = SHIPPED_FILES.filter((p) => !ID_LITERALS.has(assetId(p)));
+    expect(
+      notSpelled.length,
+      "every shipped file's id is spelled as a literal somewhere — the claim rule is a blanket",
+    ).toBeGreaterThan(SHIPPED_FILES.length / 2);
+    // A constructed id nothing spells is not in the set, so the map is not answering true to anything.
+    expect(ID_LITERALS.has("__gate-sabotage__/no-such-asset")).toBe(false);
+  });
+
+  it("BINDS — a glob, and above all a SUBTRACTION, is refused before it can become a claim", () => {
+    /*
+     * The near-miss that made this filter exist, kept as a live sabotage. `game/placeholder.ts`
+     * really does spell `"!../assets/final/atlas/**"`; written one path deeper it would reduce to a
+     * shipped file's id and claim it — turning "shipped code deliberately does not use this" into
+     * "shipped code addresses this". Both halves are checked: the reduction that WOULD have matched,
+     * and the filter that stops it.
+     */
+    const subtraction = "!../assets/final/creature-battle/battle-nibbin-a-front.png";
+    const target = assetId(subtraction);
+    // The reduction really does land on a real shipped file's id, or this sabotage is aimed at nothing.
+    expect(SHIPPED_FILES.map((p) => assetId(p))).toContain(target);
+    // …and the filter refuses it, so it never reaches the claim set through that spelling.
+    expect(subtraction.startsWith("!") || GLOB_LITERAL.test(subtraction)).toBe(true);
+    expect(ID_LITERALS.get(target) ?? [], `${target} is claimed by a subtraction`).not.toContain(
+      "game/placeholder.ts",
+    );
+    // A wildcard is refused for the same reason: it names a set, not a file.
+    expect(GLOB_LITERAL.test("../assets/final/**/*.png")).toBe(true);
+    expect(ID_LITERALS.has("atlas/**")).toBe(false);
+  });
+});
 
 describe("GATE 2d — every file under assets/final/ is claimed by something", () => {
   it("the walk is real and reaches the art the manifest has already produced", () => {
@@ -1378,20 +1700,21 @@ describe("GATE 2d — every file under assets/final/ is claimed by something", (
     for (const path of claimed) expect(manifestOwned.has(path)).toBe(false);
   });
 
-  it("BINDS — an unclaimed file is reported, and a claimed one is not", () => {
-    // Non-vacuity for the predicate itself, over a synthetic path that no claim can reach.
-    const manifestOwned = new Set(ROWS.map((r) => r.finalFile.replace(/^\.?\/+/, "")));
-    const hardcoded = new Set(HARDCODED_CLAIMS.flatMap((c) => c.paths()));
-    const claims = (p: string): boolean =>
-      manifestOwned.has(p) || hardcoded.has(p) || NOT_ART.some((r) => r.match(p));
-    expect(claims(`${SHIPPING_ROOT}/gate-sabotage/nobody-owns-this.png`)).toBe(false);
-    // A real row, a real hardcoded path and a real not-art file all ARE claimed.
+  it("BINDS — an unclaimed file is reported, and one of EVERY claim kind is not", () => {
+    // Non-vacuity for the predicate itself, asked of the SHIPPED predicate rather than a copy of it
+    // (see {@link isClaimed}), over a synthetic path that no claim can reach.
+    expect(isClaimed(`${SHIPPING_ROOT}/gate-sabotage/nobody-owns-this.png`)).toBe(false);
+    // A real row, a real hardcoded path, a real not-art file and a real id-literal claim are all
+    // claimed — one per arm, so no arm can quietly stop working.
     const row = ROWS.find((r) => existsSync(join(ROOT, r.finalFile)));
     expect(row).toBeDefined();
-    expect(claims((row as ManifestRow).finalFile)).toBe(true);
+    expect(isClaimed((row as ManifestRow).finalFile)).toBe(true);
     const interior = INTERIORS[0];
     expect(interior).toBeDefined();
-    expect(claims(interiorAssetPath((interior as { id: string }).id))).toBe(true);
-    expect(claims(`${SHIPPING_ROOT}/dex-painted/stand-ins.json`)).toBe(true);
+    expect(isClaimed(interiorAssetPath((interior as { id: string }).id))).toBe(true);
+    expect(isClaimed(`${SHIPPING_ROOT}/dex-painted/stand-ins.json`)).toBe(true);
+    const byIdLiteral = idLiteralClaimed()[0];
+    expect(byIdLiteral, "no file is claimed by an id literal — that arm is untested here").toBeDefined();
+    expect(isClaimed(byIdLiteral as string)).toBe(true);
   });
 });

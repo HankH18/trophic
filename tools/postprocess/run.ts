@@ -29,7 +29,30 @@ import { isStandInRaster, makePlaceholder, placeholderLabel } from './placeholde
 import type { ManifestFile, ManifestRow } from '../comfy/comfy-batch.ts';
 import { assertFiltersMatch, isGuardrail, loadManifest, ManifestError } from '../comfy/comfy-batch.ts';
 
-const ATLAS_DIR = 'assets/final/atlas';
+/**
+ * WHERE THE PACKED SHEETS GO — AND WHY IT IS NOT `assets/final/`.
+ *
+ * This was `assets/final/atlas` and that was the whole defect. `assets/final/` is the COMMITTED
+ * home for finished art (build-doc §5), so writing build artefacts into it made four packed sheets
+ * (~104KB of PNG plus a descriptor each) tracked files that:
+ *
+ *   · registered as ordinary art in `game/placeholder.ts`'s glob, so `BootScene.preload` downloaded
+ *     and GPU-uploaded every one on every boot ON TOP OF the individual PNGs they pack — drawn by
+ *     nothing, because no `textureFor` call in `game/` names an `atlas/*` id;
+ *   · survived the fix for that. Subtracting `atlas/` from the glob stopped the BOOT DOWNLOAD and
+ *     nothing else: `tools/sync-assets.mjs` copies `assets/final/` wholesale into `public/assets/`
+ *     and `vite.config.ts`'s `publicDir` copies that into `dist/`, so the sheets were still
+ *     published to Pages, unhashed and unreferenced, on every deploy;
+ *   · were invisible to `tests/gates/asset-reachability.test.ts` GATE 2a/2c, which walk manifest
+ *     CLASSES and ROWS — a sheet has no row — and so had to be caught by GATE 2d, which walks the
+ *     shipping root and asks what claims each file. Nothing claimed them, and that red stood.
+ *
+ * `build/` is gitignored, is not the shipping root, and is not copied anywhere. A sheet is a build
+ * artefact, not art, so it belongs there. The day the packing lane emits a Phaser-format descriptor
+ * whose frames are `assetId()` keys and something LOADS it on purpose, the loader decides where its
+ * input lives; until then nothing reads these, and nothing should pay to ship them.
+ */
+export const ATLAS_DIR = 'build/atlas';
 
 export interface AtlasReport {
   group: string;
