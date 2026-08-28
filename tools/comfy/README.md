@@ -68,15 +68,15 @@ true:
   img2img on this model is for deltas *within* a view and cannot turn one.
   **`manifest._img2img.trialled` therefore stays `false`, and it is correct that it does.** Neither
   use build-doc asks for has been run and reviewed — map year-variant (§9.5) and the walk-cycle
-  trial (§9.6) are each still a **SUPERVISED validation gate**, same standing as the painted-dex
-  trial (§9.4) — and `assertSupervised` refuses to plan more than one img2img row while that flag
-  is false.
+  trial (§9.6) are each still a **SUPERVISED validation gate** — the same standing §9.4's painted-dex
+  trial had before cut line C-4 removed that class — and `assertSupervised` refuses to plan more than
+  one img2img row while that flag is false.
 - **Cloud API client + manifest runner — BUILT.** `client.ts` and `comfy-batch.ts` ship, `npm run
   factory` is wired to the runner, and 69 files in `assets/raw/` came from live runs.
 
 **What genuinely has not happened** — do not read the above as "the pipeline is done":
 
-- The **B1 gate** has never been run. 288 manifest rows, 287 `pending`, and exactly one `sha256`
+- The **B1 gate** has never been run. 170 manifest rows, 169 `pending`, and exactly one `sha256`
   on the record (`player-front`) — and that one is a byte-identical *promotion*, not a manifest
   reproduction.
 - `_credits.perImageCredits` is `null`: the G13 estimate is **uncalibrated**, because Comfy Cloud

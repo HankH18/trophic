@@ -573,11 +573,54 @@ describe('build-doc §9.7 asset counts', () => {
     expect(Object.keys(manifest.classes['creature-battle']!.views)).toEqual(['front']);
   });
 
-  it('35 painted dex identities, one per named identity in species.json', () => {
+  it('NO painted dex plate can be spelled — cut line C-4, in the generator and not just the rows', () => {
+    /*
+     * WHAT THIS TEST USED TO SAY: "35 painted dex identities, one per named identity in
+     * species.json" — 35 `dex-painted` rows, one per `dexIds` entry.
+     *
+     * build-doc §9.4 wrote the exit in advance ("if it can't reach approval in one supervised loop,
+     * cut line C4 applies: dex falls back to upscaled pixel sprites") and §15 carries it as cut line
+     * C-4. The owner took it: "the dex uses the existing creature sprites, so the 35 `dex-painted`
+     * manifest rows are dead and `assets/final/dex-painted/` should be removed rather than kept."
+     *
+     * So the count moved from 35 to 0 and the test is INVERTED rather than deleted — a deleted test
+     * is a decision nothing holds, and the failure mode being guarded against here is not "the
+     * plates are missing", it is "the plates came BACK from a `rebuild` because the generator still
+     * knew how to spell them". That is exactly what happened to the creature `back` view before it
+     * was cut structurally, and it is why the last two assertions matter more than the first four.
+     *
+     * The 35 IDENTITIES are untouched. This is a ruling about ART, not content: the dex screen still
+     * lists all 35, drawing each one's `creature-battle` sprite through DexScene::creatureArtId.
+     */
     const dexIds = new Set(content.species.flatMap((s) => s.dexIds));
-    expect(dexIds.size).toBe(35);
-    expect(rowsOfClass('dex-painted')).toHaveLength(35);
-    for (const id of dexIds) expect(byId.has(`dex-${id.toLowerCase()}`), id).toBe(true);
+    expect(dexIds.size, 'the 35 dex identities are CONTENT and are not cut').toBe(35);
+
+    expect(manifest.classes['dex-painted'], 'the class is still declared').toBeUndefined();
+    expect(rowsOfClass('dex-painted')).toEqual([]);
+    for (const id of dexIds) expect(byId.has(`dex-${id.toLowerCase()}`), id).toBe(false);
+    // Matched on the FIELDS, not on a substring of the id: a row could carry the plate view or write
+    // into the cut directory under any name at all.
+    expect(rows.filter((r) => r.view === 'plate').map((r) => r.id)).toEqual([]);
+    expect(rows.filter((r) => r.finalFile.includes('dex-painted')).map((r) => r.id)).toEqual([]);
+
+    // …and a fresh derivation produces none either, so the committed rows are not merely trimmed.
+    expect(deriveRows(manifest, content).filter((r) => r.class === 'dex-painted')).toEqual([]);
+
+    /*
+     * THE HALF THAT MAKES THIS A CUT AND NOT AN EMPTY LIST, and the sabotage this file runs against
+     * itself. Putting the class back into `manifest.classes` — the single edit that WOULD have
+     * restored the batch if `deriveRows` still carried the loop — restores nothing, because the loop
+     * and its `dexIdentities()` helper are deleted from tools/comfy/comfy-batch.ts. The spec is
+     * cloned off a real class so this cannot pass because the fixture was malformed.
+     */
+    const restored = clone(manifest);
+    const spec = clone(manifest.classes['creature-battle']!);
+    spec.finalDir = 'assets/final/dex-painted';
+    spec.views = { plate: 'single specimen, field-guide plate composition' };
+    restored.classes['dex-painted'] = spec;
+    expect(restored.classes['dex-painted'], 'the sabotage did not take').toBeDefined();
+    expect(deriveRows(restored, content).filter((r) => r.class === 'dex-painted')).toEqual([]);
+    expect(deriveRows(restored, content).length).toBe(rows.length);
   });
 
   it('12 base maps, one per node file', () => {
@@ -791,7 +834,10 @@ describe('style lock (build-doc §8.4 / §9.2 / L6)', () => {
 
   it('every pixel class uses the validated trial skeleton, not §9.2\'s documented one', () => {
     for (const r of rows) {
-      if (r.class === 'dex-painted' || r.class === 'map-variant') continue;
+      // `dex-painted` was excluded here too until cut line C-4 removed it. The exclusion is gone
+      // with the class, so this now covers 35 rows it used to skip: `map-variant` is the only
+      // remaining exemption, and it is one because an img2img row's prompt IS its subject.
+      if (r.class === 'map-variant') continue;
       expect(r.prompt.includes('retro 90s handheld RPG style'), r.id).toBe(true);
       expect(r.prompt.includes('monster-taming'), r.id).toBe(false);
     }
@@ -804,11 +850,29 @@ describe('style lock (build-doc §8.4 / §9.2 / L6)', () => {
     }
   });
 
-  it('the painted dex class uses §9.4\'s prompt direction verbatim', () => {
-    for (const r of rowsOfClass('dex-painted')) {
-      expect(r.prompt.startsWith('painted storybook illustration, natural-history field-guide style, ')).toBe(true);
-      expect(r.prompt.endsWith(', soft watercolor texture, muted palette')).toBe(true);
+  it('§9.4\'s painted prompt direction is spelled NOWHERE — no row and no skeleton', () => {
+    /*
+     * INVERTED, NOT DELETED. This used to assert that every `dex-painted` row's prompt opened and
+     * closed with §9.4's watercolour direction verbatim. With cut line C-4 taken, that loop would
+     * run over ZERO rows and pass while asserting nothing — the vacuous green this suite exists to
+     * refuse. The same words are therefore checked from the other side: they may appear in no row's
+     * prompt and in no class's skeleton, so a rebuild cannot reintroduce the painted style lock
+     * under some other class name.
+     */
+    for (const r of rows) {
+      expect(r.prompt.includes('painted storybook illustration'), r.id).toBe(false);
+      expect(r.prompt.includes('soft watercolor texture'), r.id).toBe(false);
     }
+    const skeletons = Object.entries(manifest.classes);
+    expect(skeletons.length, 'no classes to check').toBeGreaterThan(8);
+    for (const [name, c] of skeletons) {
+      expect(c.skeleton.includes('painted storybook illustration'), name).toBe(false);
+      expect(c.skeleton.includes('soft watercolor texture'), name).toBe(false);
+    }
+    // Non-vacuity: the assertions above are over a real, non-empty prompt corpus that really does
+    // carry the OTHER skeleton, so they are not passing because `rows` is empty or `prompt` is blank.
+    expect(rows.length).toBeGreaterThan(150);
+    expect(rows.filter((r) => r.prompt.includes('retro 90s handheld RPG style')).length).toBeGreaterThan(100);
   });
 
   it("Fenmaw's prompts repeat the gharial snout — §9.2's named fidelity failure", () => {
@@ -827,8 +891,11 @@ describe('style lock (build-doc §8.4 / §9.2 / L6)', () => {
     // T-17, "fix scale, keep isometric") and gained an explicit scale bound, and neither form has
     // an approved image. A class whose style lock moved is untrialed again by definition — the
     // `trialled: true` it carried was earned by a skeleton that no longer exists.
+    // `dex-painted` left this list by being CUT rather than by being trialled — cut line C-4. It is
+    // the only way a class may leave without an approved image behind it, and it left the manifest
+    // entirely, which is what the test above asserts.
     expect(untrialled.sort()).toEqual([
-      'dex-painted', 'map-route', 'map-site', 'map-town', 'map-variant', 'prop', 'ui-frame',
+      'map-route', 'map-site', 'map-town', 'map-variant', 'prop', 'ui-frame',
     ]);
   });
 });
@@ -1321,11 +1388,37 @@ describe('supervised gates (build-doc §9.4 / §9.5 / §9.6)', () => {
     expect(() => assertSupervised(variants, m, true)).not.toThrow();
   });
 
-  it('a gated row refuses without --confirm even when its class is trialled (the dex plates)', () => {
-    const dex = rowsFor('dex-painted').slice(0, 3);
-    for (const r of dex) expect(r.gate).toMatch(/§9.4/);
-    expect(() => assertSupervised(dex, manifest, false)).toThrow(SupervisedGateError);
-    expect(() => assertSupervised(dex, manifest, true)).not.toThrow();
+  it('a gated row refuses without --confirm even when its class is trialled', () => {
+    /*
+     * THE SUBJECT USED TO BE THE 35 §9.4 DEX PLATES, and cut line C-4 removed them. The rows that
+     * still carry a `gate` are §9.5's 28 map variants — which are img2img, so `assertSupervised`
+     * refuses them at rule 3 (the one-img2img cap) before rule 1 is ever consulted. Driving rule 1
+     * through them would assert nothing about rule 1.
+     *
+     * ⚠ AND THE OLD FIXTURE NEVER PROVED THIS TEST'S OWN TITLE: `dex-painted` was `trialled: false`,
+     * so its refusal could equally have come from rule 2. Isolating rule 1 needs a gate on a
+     * TRIALLED, ungated, txt2img row, and no shipped row is that — so it is CONSTRUCTED, by adding
+     * one field to real rows of the largest trialled class, with the ungated control asserted first
+     * so the refusal can only be the field that was added.
+     */
+    const clean = rowsFor('creature-battle').slice(0, 3);
+    expect(clean).toHaveLength(3);
+    expect(manifest.classes['creature-battle']!.trialled, 'the control class must be trialled').toBe(true);
+    expect(clean.every((r) => r.gate === undefined && r.mode !== 'img2img')).toBe(true);
+    expect(() => assertSupervised(clean, manifest, false), 'the control must pass unconfirmed').not.toThrow();
+
+    const gated = clean.map((r) => ({
+      ...clone(r),
+      gate: 'a supervised gate, added here and nowhere else — rule 1 in isolation',
+    }));
+    expect(() => assertSupervised(gated, manifest, false)).toThrow(SupervisedGateError);
+    expect(() => assertSupervised(gated, manifest, false)).toThrow(/carry a supervised gate/);
+    expect(() => assertSupervised(gated, manifest, true)).not.toThrow();
+
+    // …and the FIELD is not dead in the shipped manifest, or rule 1 would be enforcing nothing.
+    const shippedGated = rows.filter((r) => r.gate !== undefined);
+    expect(shippedGated.length, 'no shipped row carries a gate at all').toBeGreaterThan(0);
+    expect(new Set(shippedGated.map((r) => r.class))).toEqual(new Set(['map-variant']));
   });
 
   it('an untrialed class with no per-row gate still refuses without --confirm (props, UI, map-route)', () => {

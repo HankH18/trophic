@@ -176,7 +176,12 @@ describe('the offline and runtime placeholders name an asset the same way (BF-25
     });
 
   it('placeholder(finalFile) === assetId(finalFile) for every one of the manifest rows', () => {
-    expect(manifest.rows.length).toBeGreaterThan(200); // the sweep is over the whole manifest
+    // The sweep is over the whole manifest. The floor was 200 and the manifest carried 205 rows;
+    // cut line C-4 removed the 35 `dex-painted` rows, so a floor calibrated to the old count is now
+    // unreachable. 150 is the same floor `tests/gates/asset-reachability.test.ts` uses for the same
+    // purpose — proof the sweep is over a real corpus and not an empty array — and the sweep itself
+    // is unchanged: it still covers EVERY row, whatever the count is.
+    expect(manifest.rows.length).toBeGreaterThan(150);
     const disagree = manifest.rows
       .map((r) => ({ id: r.id, ours: placeholderLabel(r.finalFile), theirs: assetId(r.finalFile) }))
       .filter((x) => x.ours !== x.theirs);
@@ -228,7 +233,7 @@ describe('the offline and runtime placeholders name an asset the same way (BF-25
    *
    * The observable is the BLOCK COLOUR. `makePlaceholder` fills with `palette[hashSeed(0, label)]`,
    * so the pixel is a one-way function of the exact string the writer used — there is no way to get
-   * the asset-id colour out of a row-id label. All 213 rows hash to different swatches under the two
+   * the asset-id colour out of a row-id label. Every row hashes to a different swatch under the two
    * conventions, so the negative half of this can never pass by collision.
    */
   it('BINDS THE WRITER: writePlaceholders colours the PNG by the ASSET ID, not by the row id', async () => {

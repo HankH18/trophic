@@ -35,8 +35,16 @@
  *
  * The ruling had reached the art lane and NOT the code: all three slots — the 128² dex plate, the
  * 96² team card and the 48² Legacy portrait well — still asked for `dex-painted/dex-<name>`, and
- * every one of those 35 PNGs is a DECLARED STAND-IN (`assets/final/dex-painted/stand-ins.json`), so
- * not one of the three had real art for any line. Cindril included, on the never-cut Legacy beat.
+ * every one of those 35 PNGs was a DECLARED STAND-IN, so not one of the three had real art for any
+ * line. Cindril included, on the never-cut Legacy beat.
+ *
+ * ⚠ AND THE OTHER HALF HAS NOW LANDED TOO: the class, its 35 rows, its directory and its
+ * `stand-ins.json` are DELETED. That declaration was the only one in the repository, which made an
+ * unrelated ruling capable of destroying the placeholder register this file reads — so the register
+ * moved to `assets/final/stand-ins.json`, at the root of the shipping tree where no single class can
+ * take it with it. The shipped stand-in set is now legitimately EMPTY, and the two non-vacuity lines
+ * that leaned on the 35 plates are replaced by DRIVING the reader over a declaration built in the
+ * test. See "THE RULING BOUGHT REAL ART" below.
  *
  * ⚠ THE CHECK ITSELF IS UNTOUCHED — the same rule the `player` row's 9→1 collapse was held to.
  * Still an exact set comparison in BOTH directions, still non-vacuous, still 1-to-1, still derived
@@ -71,8 +79,9 @@
  * on screen, is `tests/unit/art-slot-fit.test.ts`, which drives the three real scenes.
  */
 import { describe, expect, it, vi } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { newOwnedCreature } from "../../core/lifecycle";
 import { validateContent } from "../../core/schemas";
@@ -119,18 +128,38 @@ function manifestKeys(className: string): Set<string> {
   return new Set(ROWS.filter((row) => row.class === className).map((row) => assetId(row.finalFile)));
 }
 
+const SHIPPING_ROOT = resolve(ROOT, "assets/final");
+
 /**
- * Every asset id the pipeline has declared a STAND-IN rather than art.
+ * Every `stand-ins.json` under a shipping root, found the way `game/placeholder.ts`'s
+ * `import.meta.glob("../assets/final/**\/stand-ins.json")` finds them: by WALKING THE TREE.
  *
- * Read from the same `stand-ins.json` files `game/placeholder.ts` globs, so this is the pipeline's
- * own statement and not a second opinion. It is what makes the "the slots now have real art"
- * assertion mean something: under the cut `dex-painted` key every one of the 35 plates is in here.
+ * ⚠ IT USED TO DERIVE THE DIRECTORIES FROM `row.finalFile`, which is a subtly different question —
+ * "which class directories exist" rather than "where are the declarations" — and it stopped finding
+ * the register the day the register moved out of a class directory. The declaration is now
+ * repository-scoped (`assets/final/stand-ins.json`), because parking it inside `dex-painted/` meant
+ * cut line C-4 deleted the whole corpus along with the class; a walk finds it there AND finds any
+ * per-directory declaration a lane writes, which is exactly what the shipped glob does.
  */
-function declaredStandIns(): Set<string> {
+function declarationFiles(root: string): string[] {
+  if (!existsSync(root)) return [];
+  const found: string[] = [];
+  for (const entry of readdirSync(root, { withFileTypes: true })) {
+    const abs = join(root, entry.name);
+    if (entry.isDirectory()) found.push(...declarationFiles(abs));
+    else if (entry.isFile() && entry.name === "stand-ins.json") found.push(abs);
+  }
+  return found;
+}
+
+/**
+ * Every asset id the pipeline has declared a STAND-IN rather than art — the pipeline's own
+ * statement, not a second opinion. It is what makes the "the slots now have real art" assertion
+ * mean something: under the cut `dex-painted` key every one of the 35 plates was in here.
+ */
+function declaredStandIns(root: string = SHIPPING_ROOT): Set<string> {
   const out = new Set<string>();
-  for (const dir of new Set(ROWS.map((row) => row.finalFile.replace(/\/[^/]+$/, "")))) {
-    const file = resolve(ROOT, dir, "stand-ins.json");
-    if (!existsSync(file)) continue;
+  for (const file of declarationFiles(root)) {
     const listed = (JSON.parse(readFileSync(file, "utf8")) as { standIns?: unknown }).standIns;
     if (Array.isArray(listed)) for (const id of listed) out.add(String(id));
   }
@@ -264,25 +293,73 @@ describe("T-19 — every asset key a screen asks for is a key the pipeline can p
       // …and `assetId` does not rescue either of them, which is why the fallback was silent.
       expect(assetId(retired)).toBe(retired);
     }
-    // The cut class's key space is real and is disjoint from what the screens now ask for — so this
-    // test cannot pass merely because the manifest lost its dex rows.
-    const cutClass = manifestKeys("dex-painted");
-    expect(cutClass.size, "the dex-painted rows are still in the manifest — see this file's header").toBe(35);
-    expect([...cutClass].filter((key) => produced.has(key))).toEqual([]);
+    /*
+     * The cut class's key space is EMPTY, and empty in the GENERATOR rather than merely unasked-for:
+     * cut line C-4 removed the class from `manifest.classes`, its 35 rows from `rows`, and the loop
+     * that spelled them from `deriveRows`. This used to assert `cutClass.size === 35` — the rows
+     * were still committed then — with the note that it "cannot pass merely because the manifest
+     * lost its dex rows". That protection has not gone anywhere: it is the two assertions above,
+     * which require the SHIPPED key to be a real manifest key and to differ from both retired
+     * strings. What is asserted here now is the ruling itself, from the manifest's side.
+     */
+    expect(manifestKeys("dex-painted").size).toBe(0);
+    expect(
+      (manifest as { classes: Record<string, unknown> }).classes["dex-painted"],
+      "dex-painted is back in tools/comfy/manifest.json",
+    ).toBeUndefined();
+    expect(
+      [...new Set(ROWS.map((r) => assetId(r.finalFile)))].filter((k) => k.startsWith("dex-painted/")),
+      "a row of some other class writes into the cut directory",
+    ).toEqual([]);
   });
 
   it("THE RULING BOUGHT REAL ART — no creature slot resolves to a declared stand-in", () => {
     /*
-     * THE MEASUREMENT THAT IS THE WHOLE FINDING. `assets/final/dex-painted/stand-ins.json` declares
-     * all 35 painted plates to be generated black plates with a label, and `game/placeholder.ts`
-     * refuses to register a declared stand-in as real art — so under the old key EVERY one of the
-     * three slots drew a labelled box for EVERY line. This asserts the other side of the ruling:
-     * the keys the slots ask for now name files that exist and that nothing has declared a stand-in.
+     * THE MEASUREMENT THAT IS THE WHOLE FINDING. The declaration used to name all 35 painted plates
+     * as generated black plates with a label, and `game/placeholder.ts` refuses to register a
+     * declared stand-in as real art — so under the old key EVERY one of the three slots drew a
+     * labelled box for EVERY line. This asserts the other side of the ruling: the keys the slots ask
+     * for now name files that exist and that nothing has declared a stand-in.
+     *
+     * ⚠ THE NON-VACUITY USED TO BE `STAND_INS.size > 0` PLUS `STAND_INS.has("dex-painted/dex-cindril")`
+     * — and both died with the corpus. Cut line C-4 deleted the 35 plates, and they were the only
+     * declared stand-ins in the repository, so the shipped set is legitimately EMPTY: nothing under
+     * `assets/final/` is a generated placeholder today. An empty set makes `STAND_INS.has(key)`
+     * trivially false for every key, which is exactly the vacuous green those two lines existed to
+     * prevent. So the instrument is proven by being DRIVEN instead of by what happens to be on disk:
+     * the reader is pointed at a declaration built here that names a key the slots really do ask
+     * for, and must surface it. If the reader stopped reading — the failure the move to
+     * `assets/final/stand-ins.json` could have introduced — this is red.
      */
-    expect(STAND_INS.size, "no stand-in declaration was read at all — this check would be vacuous")
-      .toBeGreaterThan(0);
-    // Non-vacuity in the other direction: the instrument really does see the cut class as stand-ins.
-    expect(STAND_INS.has("dex-painted/dex-cindril")).toBe(true);
+    expect(
+      declarationFiles(SHIPPING_ROOT),
+      "no stand-ins.json exists under assets/final/ at all — the register the game globs is gone",
+    ).not.toEqual([]);
+
+    const probeKey = [...creatureSlotKeys()][0];
+    expect(probeKey, "no slot key to probe with").toBeDefined();
+    const probeRoot = mkdtempSync(join(tmpdir(), "trophic-standin-probe-"));
+    try {
+      mkdirSync(join(probeRoot, "some-class"), { recursive: true });
+      writeFileSync(
+        join(probeRoot, "stand-ins.json"),
+        JSON.stringify({ standIns: [probeKey] }),
+        "utf8",
+      );
+      // Also one nested, so the walk is proven to reach a per-directory declaration too.
+      writeFileSync(
+        join(probeRoot, "some-class", "stand-ins.json"),
+        JSON.stringify({ standIns: ["some-class/nested-probe"] }),
+        "utf8",
+      );
+      const probed = declaredStandIns(probeRoot);
+      expect(probed.has(String(probeKey)), "the reader does not surface a declared id").toBe(true);
+      expect(probed.has("some-class/nested-probe"), "the walk misses a nested declaration").toBe(true);
+      // …and the SHIPPED set does not carry it, so the loop below is a real question.
+      expect(STAND_INS.has(String(probeKey))).toBe(false);
+    } finally {
+      rmSync(probeRoot, { recursive: true, force: true });
+    }
 
     const asked = [...creatureSlotKeys()].sort();
     expect(asked.length).toBe(75);

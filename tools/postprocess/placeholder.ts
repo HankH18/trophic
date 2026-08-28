@@ -139,13 +139,15 @@ const SWATCH_BAND_DIVISOR = 16;
  * means the generator returned something that is not a picture.
  *
  * A flat block plus its ink is exactly two colours. That is right for a 96² battle frame and it is
- * BELOW the native floor — so the 35 `dex-painted` placeholders, which the manifest generates at
- * 1024² ("retained at native size"), would have arrived as 35 red assertions in a shipped gate.
+ * BELOW the native floor — so a placeholder for any class the manifest generates at 1024² would
+ * arrive as a red assertion in a shipped gate. The case that proved it was the 35 `dex-painted`
+ * plates (that class is CUT — cut line C-4 — but `map-town`, `map-route`, `map-site` and
+ * `map-variant` are all still 1024² with `fit: false`, so the property is live, not historical).
  *
  * The two dishonest ways out are both refused: weakening the floor or exempting placeholders would
  * throw away the check that catches an all-black return, and writing the placeholders at 128²
- * instead would hide the one property that matters about them — that a `dex-painted` file is 1024²,
- * which is what makes an unfitted slot draw seven canvas widths across.
+ * instead would hide the one property that matters about them — that a native-size file really is
+ * 1024², which is what makes an unfitted slot draw seven canvas widths across.
  *
  * So the placeholder SPENDS the colour, and spends it in the one arrangement that could never be
  * mistaken for a picture: the whole frozen palette, laid out as hard-edged equal bars along the
@@ -275,10 +277,10 @@ export function makePlaceholder(id: string, width: number, height: number, opts:
  * Writing a placeholder to a row's `finalFile` makes the file EXIST, and existence is what several
  * readouts count. `tests/gates/asset-palette-contract.test.ts`'s coverage advisory prints
  * `<class> N/N built` off `existsSync(row.finalFile)`, and `game/placeholder.ts`'s stand-in census
- * stops listing a key the moment the loader has a texture for it. So landing 35 honest placeholders
- * would silently turn "nothing painted yet" into "dex-painted 35/35 built" beside 35 rows whose
- * status is still `pending`. A stand-in that erases the record of being a stand-in is worse than no
- * stand-in at all.
+ * stops listing a key the moment the loader has a texture for it. So landing a class's worth of
+ * honest placeholders silently turns "nothing painted yet" into "<class> N/N built" beside N rows
+ * whose status is still `pending` — measured on the 35 `dex-painted` plates, before that class was
+ * cut. A stand-in that erases the record of being a stand-in is worse than no stand-in at all.
  *
  * The marker is therefore the FILE'S OWN BYTES, not a flag beside them. `makePlaceholder` is a pure
  * function of `(label, width, height, palette)`, `placeholderLabel` derives the label from the path,

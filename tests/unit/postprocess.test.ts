@@ -53,9 +53,9 @@ import {
 } from '../../tools/postprocess/chain.ts';
 import { toSprite } from '../../tools/comfy/player-views.ts';
 import { atlasDescriptor, packAtlas } from '../../tools/postprocess/atlas.ts';
-import { fontScale, makePlaceholder, wrapLabel } from '../../tools/postprocess/placeholder.ts';
+import { fontScale, makePlaceholder, placeholderLabel, wrapLabel } from '../../tools/postprocess/placeholder.ts';
 import { loadManifest, type ClassSpec, type ManifestFile, type ManifestRow } from '../../tools/comfy/comfy-batch.ts';
-import { writePlaceholders } from '../../tools/postprocess/run.ts';
+import { writePlaceholders, writeStandInDeclaration } from '../../tools/postprocess/run.ts';
 
 const PALETTE = loadPalette();
 
@@ -288,9 +288,29 @@ describe('the chain is re-runnable from assets/raw/ (§9.3)', () => {
     expect(Math.abs(outAspect - srcAspect)).toBeLessThan(0.03);
   });
 
-  it('the painted dex class is left alone — §9.3 prescribes no chain for a watercolour', () => {
-    const spec = classOf(manifest, 'dex-painted');
-    expect(spec.postprocess).toMatchObject({ trim: false, fit: false, quantize: false, removeBackground: false, atlas: null });
+  it('the painted dex class is CUT, and the chain has no unquantized class left', () => {
+    /*
+     * WHAT THIS TEST USED TO SAY, AND WHY IT IS INVERTED RATHER THAN DELETED.
+     *
+     * It read `classOf(manifest, 'dex-painted').postprocess` and asserted the whole chain was off —
+     * "§9.3 prescribes no chain for a watercolour". The owner took build-doc §15's cut line C-4
+     * ("the dex uses the existing creature sprites"), so that class no longer exists and the
+     * assertion has no subject. Deleting the test would leave nothing saying the class is gone, and
+     * a `rebuild` that quietly reintroduced it would be green here; so it asserts the CUT instead,
+     * the same way the creature-back and player-view rulings are held.
+     *
+     * The second half is the consequence nothing else states: `dex-painted` was the ONLY class with
+     * `quantize: false`. Every class the pipeline still declares goes through the frozen palette,
+     * which is what `tests/gates/asset-palette-contract.test.ts` assumes of everything it decodes.
+     * That assumption was previously true-with-an-exception; now it is simply true, and this is
+     * where it would go red if a new unquantized class were added without saying so.
+     */
+    expect(() => classOf(manifest, 'dex-painted')).toThrow(/manifest\.classes has no "dex-painted"/);
+    const classes = Object.entries(manifest.classes);
+    expect(classes.length, 'no classes to check — this loop would be vacuous').toBeGreaterThan(8);
+    for (const [name, spec] of classes) {
+      expect(spec.postprocess.quantize, `class "${name}" skips the palette quantize`).toBe(true);
+    }
   });
 });
 
@@ -983,6 +1003,76 @@ describe('placeholders never look like finished art', () => {
     expect(report.written).toEqual([finalPathOf(row, tmp)]);
     expect(resolve(finalPathOf(row, tmp))).toBe(resolve(tmp, 'assets/final/maps/hearthollow.png'));
     expect(existsSync(finalPathOf(row, tmp))).toBe(true);
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * …and it DECLARES them, at the root of the shipping tree.
+   *
+   * Two defects are being held closed here, and the second is the one that cost something.
+   *
+   *   1. NOTHING WROTE THE DECLARATION. `writePlaceholders` created exactly the files that must be
+   *      declared and declared none of them; `assets/final/dex-painted/stand-ins.json` was
+   *      hand-authored and hand-maintained. `tests/gates/stand-in-declaration.test.ts` caught a
+   *      wrong list after the fact, which is right, but the writer is the only thing that can be
+   *      right by construction.
+   *   2. IT LIVED INSIDE A CLASS DIRECTORY, so cut line C-4 — a ruling about the dex, nothing to do
+   *      with placeholders — deleted the repository's entire placeholder register along with the
+   *      class. THAT is the property asserted at the end of this test, and it is asserted by doing
+   *      the thing that broke it: deleting a whole class directory and looking for the register.
+   * ────────────────────────────────────────────────────────────────────────── */
+  it('declares what it wrote, at the shipping root, where no single class can delete it', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'trophic-declare-'));
+    try {
+      const row = manifest.rows.find((r) => r.id === 'map-hearthollow')!;
+      const other = manifest.rows.find((r) => r.id === 'battle-cindril-j-front')!;
+      const report = await writePlaceholders(
+        manifest,
+        (r) => r.id === row.id || r.id === other.id,
+        { force: true, root },
+      );
+      expect(report.written).toHaveLength(2);
+
+      // The declaration is at the ROOT of the shipping tree, not beside either class's PNGs.
+      const declaration = resolve(root, 'assets/final/stand-ins.json');
+      expect(report.declared.file).toBe('assets/final/stand-ins.json');
+      expect(existsSync(declaration), 'no declaration was written at the shipping root').toBe(true);
+      expect(existsSync(resolve(root, 'assets/final/maps/stand-ins.json'))).toBe(false);
+      expect(existsSync(resolve(root, 'assets/final/creature-battle/stand-ins.json'))).toBe(false);
+
+      // …and it lists exactly what was written, under the label the GAME resolves the path to —
+      // the same convention `tests/gates/stand-in-declaration.test.ts` reconciles against.
+      const listed = (JSON.parse(readFileSync(declaration, 'utf8')) as { standIns: string[] }).standIns;
+      expect(listed).toEqual([placeholderLabel(other.finalFile), placeholderLabel(row.finalFile)].sort());
+      expect(report.declared.standIns).toEqual(listed);
+      expect(listed).toContain('maps/hearthollow');
+
+      // REAL ART LANDING AT A DECLARED PATH DROPS THE ID, because the list is derived from the
+      // pixels rather than appended to. Overwrite one placeholder with something that is not one.
+      await writeRaster(finalPathOf(row, root), rawSprite(16));
+      const again = await writeStandInDeclaration(root);
+      expect(again.standIns).toEqual([placeholderLabel(other.finalFile)]);
+      expect(again.standIns).not.toContain('maps/hearthollow');
+
+      // The authored prose survives a regeneration: this function owns the LIST, not the record of
+      // why the file exists. (`_source` here stands in for the shipped file's `_what`/`_whyItLivesHere`.)
+      const doc = JSON.parse(readFileSync(declaration, 'utf8')) as Record<string, unknown>;
+      doc['_source'] = 'authored, and must not be regenerated away';
+      await writeFile(declaration, JSON.stringify(doc, null, 2), 'utf8');
+      await writeStandInDeclaration(root);
+      expect(
+        (JSON.parse(readFileSync(declaration, 'utf8')) as Record<string, unknown>)['_source'],
+        'the writer discarded the authored prose',
+      ).toBe('authored, and must not be regenerated away');
+
+      // THE PROPERTY THE RULING ASKED FOR, done rather than argued: delete an entire class
+      // directory and the register is still there, still naming the OTHER class's placeholder.
+      await rm(resolve(root, 'assets/final/creature-battle'), { recursive: true, force: true });
+      expect(existsSync(declaration), 'deleting one class took the register with it').toBe(true);
+      const survivors = (JSON.parse(readFileSync(declaration, 'utf8')) as { standIns: string[] }).standIns;
+      expect(survivors).toEqual([placeholderLabel(other.finalFile)]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
 

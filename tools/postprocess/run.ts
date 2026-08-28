@@ -16,8 +16,8 @@
  * no class and no row is refused (exit 3, with the near miss named), never reported as a run of
  * zero images that succeeded.
  */
-import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
@@ -25,7 +25,7 @@ import { loadPalette, paletteBanner, REPO_ROOT } from './palette.ts';
 import { classOf, finalPathOf, processRow, rawPathOf, recipeFor } from './chain.ts';
 import { readRaster, writeRaster } from './raster.ts';
 import { atlasDescriptor, packAtlas, type AtlasEntry } from './atlas.ts';
-import { makePlaceholder, placeholderLabel } from './placeholder.ts';
+import { isStandInRaster, makePlaceholder, placeholderLabel } from './placeholder.ts';
 import type { ManifestFile, ManifestRow } from '../comfy/comfy-batch.ts';
 import { assertFiltersMatch, isGuardrail, loadManifest, ManifestError } from '../comfy/comfy-batch.ts';
 
@@ -66,9 +66,95 @@ export async function packAtlases(m: ManifestFile, root = REPO_ROOT): Promise<At
   return reports;
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * The stand-in declaration — written by the thing that writes the placeholders
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  WHY THIS FUNCTION EXISTS AT ALL, AND WHY THE FILE IS NOT BESIDE THE PNGs
+ * ─────────────────────────────────────────────────────────────────────────────
+ * A placeholder makes a file EXIST, and existence is what several readouts count — the palette
+ * gate's coverage advisory prints `N/M built` off `existsSync`, and `game/placeholder.ts`'s
+ * stand-in census goes quiet the moment the loader has a texture. So a placeholder that erases
+ * the record of being a placeholder is worse than no placeholder at all, and the record is
+ * `stand-ins.json`: `game/placeholder.ts` globs it at BUILD time (a bundle cannot decode pixels to
+ * decide) and refuses to register anything it lists as real art.
+ *
+ * TWO THINGS WERE WRONG WITH THAT RECORD AND BOTH ARE FIXED HERE.
+ *
+ *   1. NOTHING WROTE IT. `writePlaceholders` created exactly the files that must be declared and
+ *      declared none of them; the list was hand-authored and hand-maintained, which is how a
+ *      register that has to be exactly right ends up depending on whoever remembered.
+ *      `tests/gates/stand-in-declaration.test.ts` caught a wrong list AFTER the fact — good, but
+ *      the writer is the only place that can be right by construction.
+ *   2. IT LIVED INSIDE AN ASSET CLASS (`assets/final/dex-painted/stand-ins.json`), so deleting
+ *      that class — cut line C-4 — took the repository's whole placeholder register with it.
+ *      Scope of the question is the shipping tree, so scope of the file is the shipping tree.
+ *
+ * The `_`-prefixed keys of an existing declaration are AUTHORED and are preserved verbatim; only
+ * `standIns` is derived. Derivation is by the same measurement the gate makes — a PNG is a
+ * placeholder exactly when its bytes are what `makePlaceholder` produces for its own path, size
+ * and the frozen palette — so a re-freeze of the palette drops stale entries rather than leaving
+ * them asserted, and the gate is still an INDEPENDENT read of the committed file against the
+ * committed pixels rather than a restatement of this function.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const SHIPPING_ROOT = 'assets/final';
+/** The declaration's basename, matched by `game/placeholder.ts`'s glob. Named once. */
+const DECLARATION_FILE = 'stand-ins.json';
+
+function pngsUnder(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  const found: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const abs = join(dir, entry.name);
+    if (entry.isDirectory()) found.push(...pngsUnder(abs));
+    else if (entry.isFile() && entry.name.toLowerCase().endsWith('.png')) found.push(abs);
+  }
+  return found;
+}
+
+export interface DeclarationReport {
+  /** Repo-relative path of the declaration written. */
+  file: string;
+  /** Every asset id measured to be a generated placeholder, sorted. */
+  standIns: string[];
+}
+
+/** Re-derive `assets/final/stand-ins.json` from the pixels that are actually on disk. */
+export async function writeStandInDeclaration(root = REPO_ROOT): Promise<DeclarationReport> {
+  const palette = loadPalette();
+  const shipped = resolve(root, SHIPPING_ROOT);
+  const ids: string[] = [];
+  for (const abs of pngsUnder(shipped)) {
+    const path = relative(root, abs).split('\\').join('/');
+    const label = placeholderLabel(path);
+    if (isStandInRaster(await readRaster(abs), label, palette)) ids.push(label);
+  }
+  ids.sort();
+
+  const dest = resolve(shipped, DECLARATION_FILE);
+  // Keep whatever prose the committed declaration carries: this function owns the LIST, not the
+  // record of why the file exists. A fresh tree gets a pointer rather than an unexplained array.
+  let doc: Record<string, unknown> = {
+    _what: `Generated placeholders under ${SHIPPING_ROOT}/ — NOT art. Written by ` +
+      'tools/postprocess/run.ts `placeholders`; verified against the pixels by ' +
+      'tests/gates/stand-in-declaration.test.ts; read at build time by game/placeholder.ts, which ' +
+      'refuses to register anything listed here as real art.',
+  };
+  if (existsSync(dest)) {
+    const parsed = JSON.parse(readFileSync(dest, 'utf8')) as Record<string, unknown>;
+    doc = Object.fromEntries(Object.entries(parsed).filter(([k]) => k.startsWith('_')));
+  }
+  await mkdir(shipped, { recursive: true });
+  await writeFile(dest, `${JSON.stringify({ ...doc, standIns: ids }, null, 2)}\n`, 'utf8');
+  return { file: `${SHIPPING_ROOT}/${DECLARATION_FILE}`, standIns: ids };
+}
+
 export interface PlaceholderReport {
   written: string[];
   skipped: string[];
+  /** The declaration reconciled after the write — see {@link writeStandInDeclaration}. */
+  declared: DeclarationReport;
 }
 
 export async function writePlaceholders(
@@ -78,12 +164,13 @@ export async function writePlaceholders(
 ): Promise<PlaceholderReport> {
   const root = opts.root ?? REPO_ROOT;
   const palette = loadPalette();
-  const report: PlaceholderReport = { written: [], skipped: [] };
+  const written: string[] = [];
+  const skipped: string[] = [];
   for (const row of m.rows) {
     if (!filter(row)) continue;
     const dest = finalPathOf(row, root);
     if (!opts.force && existsSync(rawPathOf(m, row, root))) {
-      report.skipped.push(row.id);
+      skipped.push(row.id);
       continue;
     }
     const recipe = recipeFor(classOf(m, row.class), row);
@@ -92,9 +179,11 @@ export async function writePlaceholders(
     // read one name for one asset whether they are looking at a built file or a screenshot.
     const label = placeholderLabel(row.finalFile);
     await writeRaster(dest, makePlaceholder(label, recipe.targetW, recipe.targetH, { palette }));
-    report.written.push(dest);
+    written.push(dest);
   }
-  return report;
+  // Declared in the SAME ACT that writes them. A run filtered by --class still reconciles the whole
+  // tree, because a per-class refresh would silently drop every other class's entries.
+  return { written, skipped, declared: await writeStandInDeclaration(root) };
 }
 
 function isEntrypoint(): boolean {
@@ -134,6 +223,10 @@ async function main(): Promise<number> {
   if (argv[0] === 'placeholders') {
     const rep = await writePlaceholders(m, matches, { force: flag('force') });
     console.log(`placeholders: ${rep.written.length} written, ${rep.skipped.length} skipped (real raw art present)`);
+    console.log(
+      `${rep.declared.file}: ${rep.declared.standIns.length} id(s) declared — every PNG under ` +
+        `${SHIPPING_ROOT}/ whose bytes are what makePlaceholder produces for its own path`,
+    );
     return 0;
   }
 

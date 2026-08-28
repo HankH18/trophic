@@ -33,23 +33,34 @@
  * ─────────────────────────────────────────────────────────────────────────────
  * The painted dex class is CUT — build-doc §15's cut line C-4, taken by the owner and recorded in
  * `docs/STATUS.md`: *"The dex uses the existing creature sprites, so the 35 dex-painted manifest
- * rows are dead."* All 35 of those plates are declared stand-ins, so under the old key none of the
- * three slots had real art for any line. They now ask for the 96² `creature-battle` sprite, via
- * `game/scenes/DexScene.ts::creatureArtId` and `game/ui/BattleHud.ts::battleSpriteKey`.
+ * rows are dead."* Every one of those plates was a declared stand-in, so under the old key none of
+ * the three slots had real art for any line. They now ask for the 96² `creature-battle` sprite, via
+ * `game/scenes/DexScene.ts::creatureArtId` and `game/ui/BattleHud.ts::battleSpriteKey`. The class,
+ * its 35 rows and its directory are now GONE, which is why nothing below reads a size out of it.
  *
  * That buys a second property worth binding, and it is NOT the same as fitting. Measured off the
  * real objects, `displayWidth / natural texture width`:
  *
- *     slot                with the cut 1024² plate      with the 96² battle sprite
- *     dex          128²   ×0.125    = 1:8    integer     ×1        (16px gutter)  integer
- *     summary       96²   ×0.09375  = 1:10.67  NOT       ×1                        integer
- *     portrait well 48²   ×0.046875 = 1:21.33  NOT       ×0.5      = 1:2           integer
+ *     slot                with an oversized 160×320      with the 96² battle sprite
+ *     dex          128²   ×0.4     = 1:2.5    NOT         ×1        (16px gutter)  integer
+ *     summary       96²   ×0.3     = 1:3.33   NOT         ×1                        integer
+ *     portrait well 48²   ×0.15    = 1:6.67   NOT         ×0.5      = 1:2           integer
  *
  * A non-integer nearest-neighbour factor smears the pixel grid — the same class of defect
  * `fitWithin` was written for, one level up. ⚠ `fitWithin` IS CORRECT and must not be "fixed" for
- * it: 1024 really does draw at 48, and what was wrong was the RATIO. So {@link expectIntegerFactor}
- * asserts the factor is an integer or the reciprocal of one, and the test below DEMONSTRATES the
- * assertion can fail by driving the same slot with the cut plate's size.
+ * it: an oversized texture really does draw down to 48, and what was wrong was the RATIO. So
+ * {@link expectIntegerFactor} asserts the factor is an integer or the reciprocal of one, and the
+ * test below DEMONSTRATES the assertion can fail by driving the same slots with a texture that is
+ * genuinely bigger than every one of them.
+ *
+ * ⚠ THE OVERSIZED FIXTURE USED TO BE `classTargetSize("dex-painted")` — 1024², read from the class
+ * the ruling has now deleted. It is `rowTargetSize("ui-menu-panel")` instead: 160×320, a REAL size
+ * the pipeline still generates, and NON-SQUARE, which the 1024² plate was not. That matters here
+ * more than anywhere else in the file, because a square texture in a square slot is exactly the case
+ * where a fit and a stretch produce the same two numbers — see {@link theNonSquareFixture}. The one
+ * thing the old 1024² fixture recorded and this one does not is that an OVERSIZED texture can still
+ * land on an integer factor (1024→128 is 1:8), so a ratio test alone never protected the dex; that
+ * is kept, as a size constructed from `DEX_ART_BOX` itself rather than borrowed from a dead class.
  *
  * The fit assertion stays deliberately one-sided: it does not demand that the art fill the box, only
  * that what is drawn FITS INSIDE it at the aspect ratio the texture actually has.
@@ -326,23 +337,47 @@ const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..")
  * here it would be a second answer to a question `tools/comfy/manifest.json` already answers, and
  * the day a class is re-targeted this rig would go on testing the old number.
  */
+function readArtManifest(): {
+  classes: Record<string, { targetW: number; targetH: number } | undefined>;
+  rows: Array<{ id: string; targetSize: string }>;
+} {
+  return JSON.parse(readFileSync(resolve(REPO_ROOT, "tools/comfy/manifest.json"), "utf8")) as {
+    classes: Record<string, { targetW: number; targetH: number } | undefined>;
+    rows: Array<{ id: string; targetSize: string }>;
+  };
+}
+
 function classTargetSize(className: string): { width: number; height: number } {
-  const manifest = JSON.parse(
-    readFileSync(resolve(REPO_ROOT, "tools/comfy/manifest.json"), "utf8"),
-  ) as { classes: Record<string, { targetW: number; targetH: number }> };
-  const cls = manifest.classes[className];
+  const cls = readArtManifest().classes[className];
   if (!cls) throw new Error(`tools/comfy/manifest.json has no ${className} class`);
   return { width: cls.targetW, height: cls.targetH };
+}
+
+/**
+ * The size ONE ROW is generated at. `ui-frame` overrides its class default per row, so the only
+ * place a non-square generated size can be read from is the row itself.
+ */
+function rowTargetSize(rowId: string): { width: number; height: number } {
+  const row = readArtManifest().rows.find((r) => r.id === rowId);
+  if (!row) throw new Error(`tools/comfy/manifest.json has no ${rowId} row`);
+  const [w, h] = row.targetSize.split("x").map(Number);
+  if (w === undefined || h === undefined || !Number.isFinite(w) || !Number.isFinite(h)) {
+    throw new Error(`${rowId}.targetSize is "${row.targetSize}", which is not WxH`);
+  }
+  return { width: w, height: h };
 }
 
 /** What the three slots ask for now: the shipped creature battle sprite. */
 const SPRITE = classTargetSize("creature-battle");
 
 /**
- * What they asked for before the ruling. Used ONLY to prove the integer-factor assertion is capable
- * of failing — it is the size that made the summary slot 1:10.67 and the portrait well 1:21.33.
+ * A real generated size that is BIGGER THAN EVERY SLOT ON BOTH AXES and is NOT SQUARE. Used only to
+ * prove the integer-factor assertion is capable of failing: 160×320 makes the dex 1:2.5, the team
+ * card 1:3.33 and the portrait well 1:6.67. Read from the shipped `ui-menu-panel` row rather than
+ * written down, so a re-target of that row moves this fixture with it — and asserted to still have
+ * both properties before it is used, since a row that shrank would make the whole test vacuous.
  */
-const CUT_PLATE = classTargetSize("dex-painted");
+const OVERSIZED = rowTargetSize("ui-menu-panel");
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Recorders off a stub scene
@@ -690,34 +725,62 @@ describe("the creature sprite is drawn inside the slot that asked for it", () =>
    * Non-vacuity — the recorder really sees what these assertions claim
    * ────────────────────────────────────────────────────────────────────────── */
 
-  it("BINDS — the integer-factor assertion fails on the size the slots used to ask for", () => {
+  it("BINDS — the integer-factor assertion fails on an oversized, non-square generated size", () => {
     /*
      * The whole point of the ruling, measured through the real scenes rather than argued. Driving
-     * the SAME slots with the cut plate's 1024² texture must make {@link expectIntegerFactor} throw
-     * — otherwise the assertion above is decoration and would stay green if a slot were repointed.
+     * the SAME slots with a texture bigger than all of them must make {@link expectIntegerFactor}
+     * throw — otherwise the assertion above is decoration and would stay green if a slot were
+     * repointed at something that does not fit on a clean factor.
      *
-     * The dex is deliberately NOT one of these: 1024→128 is exactly 1:8, so the dex slot's ratio was
-     * already integer and this property alone never protected it. That is recorded, not hidden — the
-     * key assertion above is what holds the dex.
+     * ⚠ THE FIXTURE IS NO LONGER THE CUT 1024² PLATE. It is the shipped `ui-menu-panel` row's
+     * 160×320, which is oversized on BOTH axes and NOT SQUARE — so the scale factor is set by the
+     * tighter axis and a stretch would produce a different number from a fit, which a square fixture
+     * in a square slot can never show. Every property the fixture needs is asserted, not assumed.
      */
-    expect(CUT_PLATE.width).toBeGreaterThan(SPRITE.width);
+    const style = defaultRetirementStyle(balance);
+    const boxes = [DEX_ART_BOX, SUMMARY_ART_BOX, { width: style.portrait, height: style.portrait }];
+    for (const box of boxes) {
+      expect(OVERSIZED.width, "the fixture is not wider than a slot").toBeGreaterThan(box.width);
+      expect(OVERSIZED.height, "the fixture is not taller than a slot").toBeGreaterThan(box.height);
+    }
+    expect(OVERSIZED.width, "the fixture is square — a fit and a stretch agree on it").not.toBe(OVERSIZED.height);
 
-    const summary = slotImage(driveSummary(CUT_PLATE).scene, driveSummary(CUT_PLATE).key, "the team card");
-    expect(summary.displayWidth / summary.width).toBeCloseTo(SUMMARY_ART_BOX.width / CUT_PLATE.width, 12);
+    /** The fit `fitWithin` applies: one factor, set by the tighter axis. Derived, never typed. */
+    const fit = (box: { width: number; height: number }): number =>
+      Math.min(1, box.width / OVERSIZED.width, box.height / OVERSIZED.height);
+
+    const dex = driveDex(OVERSIZED);
+    const plate = slotImage(dex.scene, dex.key, "the dex");
+    expect(plate.displayWidth / plate.width).toBeCloseTo(fit(DEX_ART_BOX), 12);
+    // The stretch this fixture can see and a square one cannot: filling the box on both axes.
+    expect([plate.displayWidth, plate.displayHeight]).not.toEqual([DEX_ART_BOX.width, DEX_ART_BOX.height]);
+    expect(() => expectIntegerFactor(plate, "dex")).toThrow();
+
+    const summary = slotImage(driveSummary(OVERSIZED).scene, driveSummary(OVERSIZED).key, "the team card");
+    expect(summary.displayWidth / summary.width).toBeCloseTo(fit(SUMMARY_ART_BOX), 12);
     expect(() => expectIntegerFactor(summary, "summary")).toThrow();
 
-    const style = defaultRetirementStyle(balance);
-    const well = driveRetirement(CUT_PLATE);
+    const well = driveRetirement(OVERSIZED);
     const portrait = slotImage(well.scene, well.key, "the retirement card");
-    expect(portrait.displayWidth / portrait.width).toBeCloseTo(style.portrait / CUT_PLATE.width, 12);
+    expect(portrait.displayWidth / portrait.width).toBeCloseTo(
+      fit({ width: style.portrait, height: style.portrait }),
+      12,
+    );
     expect(() => expectIntegerFactor(portrait, "retirement")).toThrow();
 
-    // …and the dex, for the record: it fitted at 1:8 and is the reason a ratio test alone is not
-    // enough. Asserted so the claim in the comment above cannot silently stop being true.
-    const dex = driveDex(CUT_PLATE);
-    const plate = slotImage(dex.scene, dex.key, "the dex");
-    expect(plate.displayWidth / plate.width).toBe(DEX_ART_BOX.width / CUT_PLATE.width);
-    expect(() => expectIntegerFactor(plate, "dex")).not.toThrow();
+    /*
+     * …and the property the CUT 1024² plate used to record here, kept: an oversized texture can
+     * still land on an integer factor, so this ratio check ALONE never protected the dex. 1024→128
+     * was exactly 1:8, and the size is rebuilt from `DEX_ART_BOX` rather than borrowed from the
+     * deleted class, so the point survives the ruling instead of dying with its fixture. What holds
+     * the dex is the key assertion above, not this one.
+     */
+    const integerOversize = { width: DEX_ART_BOX.width * 8, height: DEX_ART_BOX.height * 8 };
+    expect(integerOversize.width).toBeGreaterThan(DEX_ART_BOX.width);
+    const clean = driveDex(integerOversize);
+    const cleanPlate = slotImage(clean.scene, clean.key, "the dex");
+    expect(cleanPlate.displayWidth / cleanPlate.width).toBe(DEX_ART_BOX.width / integerOversize.width);
+    expect(() => expectIntegerFactor(cleanPlate, "dex")).not.toThrow();
   });
 
   it("BINDS — the recorder observes natural size, display size and the key, and they can differ", () => {

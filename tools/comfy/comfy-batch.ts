@@ -530,8 +530,12 @@ export function img2imgUntrialled(m: ManifestFile): boolean {
  * Refuse, rather than print a NOTE, when a batch reaches for a path a human is supposed to watch.
  *
  * Three rules, each one a spec line that previously had no enforcement anywhere:
- *   1. a row carrying a `gate` string needs `--confirm`. The field is set on exactly the three
- *      supervised paths — §9.4's painted dex, §9.5's map variants, §9.6's walk frames.
+ *   1. a row carrying a `gate` string needs `--confirm`. The field is set on the supervised paths.
+ *      It was three — §9.4's painted dex, §9.5's map variants, §9.6's walk frames — and is now one:
+ *      §9.4's dex class is CUT (cut line C-4, "the dex uses the existing creature sprites") and the
+ *      §9.6 walk frames landed as the procedural bob, so §9.5's 28 map variants are the rows that
+ *      carry a `gate` today. The RULE is unchanged and is not scoped to a class: any row that grows
+ *      a `gate` is refused without `--confirm`, which is what tests/unit/manifest.test.ts drives.
  *   2. a row whose class is `trialled: false` needs `--confirm`. "Review before scaling up" was a
  *      console.log; scaling up is what an unattended agent does by default.
  *   3. while `_img2img.trialled` is false, AT MOST ONE img2img row may be planned per invocation.
@@ -744,21 +748,6 @@ export function encounterableLines(content: Content): SpeciesLine[] {
   return content.species.filter((s) => present.has(s.id));
 }
 
-/** dexId -> the (line, stage) that names it, first match in file order. */
-function dexIdentities(content: Content): Array<{ dexId: string; line: SpeciesLine; stage: AgeClass }> {
-  const out: Array<{ dexId: string; line: SpeciesLine; stage: AgeClass }> = [];
-  const seen = new Set<string>();
-  for (const line of content.species) {
-    for (const stage of artFormsOf(line)) {
-      const name = line.formNames[stage];
-      if (seen.has(name)) continue;
-      seen.add(name);
-      out.push({ dexId: name, line, stage });
-    }
-  }
-  return out;
-}
-
 const shortId = (lineId: string): string => lineId.replace(/-line$/, '');
 const mapAssetFor = (node: NodeFile): string => node.mapAsset;
 
@@ -820,21 +809,22 @@ export function deriveRows(m: ManifestFile, content: Content): RowSpec[] {
     );
   }
 
-  // ── painted dex plates: one per named dex identity (35).
-  for (const { dexId, line, stage } of dexIdentities(content)) {
-    const id = `dex-${dexId.toLowerCase()}`;
-    rows.push(
-      finish(m, {
-        id,
-        class: 'dex-painted',
-        subject: `${dexId}, ${formConcept(m, dexId, stage, line.ancient)}, ${typeWords(line, stage)} creature`,
-        view: 'plate',
-        origin: `data/species.json#${line.id}.dexIds`,
-        finalFile: `${classOf(m, 'dex-painted').finalDir}/${id}.png`,
-        gate: 'build-doc §9.4 SUPERVISED painted-class trial; cut line C-4 if it cannot be approved',
-      }),
-    );
-  }
+  // ── NO PAINTED DEX PLATES. There used to be 35 here, one per named dex identity, and the loop
+  //    that spelled them is deleted rather than commented out — the same shape the creature `back`
+  //    view was cut in, and for the same reason.
+  //
+  //    build-doc §9.4 wrote the fallback in advance ("cut line C4 applies: dex falls back to
+  //    upscaled pixel sprites") and the owner took it: "the dex uses the existing creature sprites,
+  //    so the 35 `dex-painted` manifest rows are dead and `assets/final/dex-painted/` should be
+  //    removed rather than kept." The dex, the team card and the Legacy portrait well all draw
+  //    `creature-battle` now (game/scenes/DexScene.ts::creatureArtId).
+  //
+  //    THE GENERATOR IS STRUCTURALLY UNABLE TO SPELL THE CLASS, which is the whole point of doing
+  //    it this way. `classes["dex-painted"]` is gone from tools/comfy/manifest.json, so `classOf`
+  //    throws for it; there is no loop left to name it; and `dexIdentities()` — which existed only
+  //    to enumerate the plates — is deleted with it. Restoring the batch takes a deliberate act in
+  //    two files, not a `rebuild` that silently puts 35 rows back the way deleting the rows alone
+  //    would have. tests/unit/manifest.test.ts asserts both halves.
 
   // ── base maps: 12, one per node file. finalFile is COPIED from the node's own mapAsset.
   for (const node of content.nodes) {

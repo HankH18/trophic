@@ -24,7 +24,11 @@
  * The same reasoning reaches ACROSS files. `tools/comfy/manifest.json` holds a pixel size for every
  * asset class, and four of them agreed with balance.json by coincidence — no comparison existed.
  * Three were another key's number wearing a second face and are cross-pinned below (proven by
- * mutating BOTH sides); the fourth is not a balance number and says so in its own describe.
+ * mutating BOTH sides). The fourth was `dex-painted`, whose 1024² was NOT a balance number: it was
+ * the generator's own canvas, cross-checked against the §9.2 graph's empty-latent node instead. That
+ * class is CUT (cut line C-4), and its describe now holds the four MAP classes that ship at the same
+ * size for the same reason — with the difference that theirs IS a balance number, so the graph, the
+ * manifest and `balance.map.mapNativePx` are all asserted to be one value there.
  *
  * The last two describes are the other half of finding: a budget with no measurement is decoration.
  * `perf.battleActionBudgetMs` and `perf.bootBudgetMs` were numbers with no consumer anywhere in the
@@ -306,6 +310,8 @@ const ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 interface ArtClassSpec {
   targetW: number;
   targetH: number;
+  /** The manifest's own statement of where its target size comes from. Read, not restated. */
+  _targetSource?: string;
 }
 interface ArtRow {
   id: string;
@@ -509,7 +515,7 @@ describe("art manifest sizes are the balance keys they are copies of, not number
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
- * dex-painted — the one of the four that is NOT a balance number.
+ * The generator's native canvas — the size a class is RETAINED at, not a tunable.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 interface ComfyNode {
@@ -534,32 +540,71 @@ function latentSize(graph: Record<string, ComfyNode>): readonly [number, number]
   return undefined;
 }
 
-describe("the painted dex plate's 1024² is the generator's native size, not a tunable", () => {
-  /*
-   * Why this class gets NO key in data/balance.json, deliberately.
-   *
-   * `dex-painted`'s `_targetSource` says "retained at native size — §9.3 prescribes no chain for the
-   * painted class". "Native" is a real, locatable number: the empty-latent node of the §9.2 locked
-   * graph in tools/comfy/pixel-txt2img-api.json. So the rule is "no downscale is applied", and the
-   * only honest expression of it is `target === latent`.
-   *
-   * It equals `balance.map.mapNativePx` today, and binding it there would have been WRONG: that key
-   * is pinned by core/schemas.ts to the collision identity (`collisionCols × collisionCellPx`), so a
-   * retune of the map grid would drag the watercolour dex plates with it for no reason. Two facts,
-   * one value. A new balance key would have been the THIRD home of a number that already has two.
-   */
-  it("the target and the graph's latent are the same size", () => {
-    const latent = latentSize(readGraph());
-    expect(latent, `${TXT2IMG_GRAPH} has no latent-image node — this cross-check is aimed at nothing`).toBeDefined();
-    const dex = ART.classes["dex-painted"];
-    expect(dex, "the manifest has no dex-painted class").toBeDefined();
-    expect([dex?.targetW, dex?.targetH], "the painted class is downscaled after all, or the graph moved").toEqual([
-      latent?.[0],
-      latent?.[1],
-    ]);
+/**
+ * The balance key a class names when it is NOT downscaled. Read off the manifest, never typed.
+ *
+ * ⚠ THIS SECTION USED TO BE ABOUT `dex-painted`, AND THAT CLASS IS CUT. The property it held was
+ * real and is not dex-specific: a class the §9.3 chain does not resize ships at whatever the §9.2
+ * locked graph generates, so its declared target must equal the graph's empty-latent node or the
+ * manifest is stating a size the pipeline cannot produce. `dex-painted` was one of five classes with
+ * that property; cut line C-4 removed it, and the four map classes — which are the ones that
+ * actually SHIP at native size, with `fit: false` — are the four that remain.
+ *
+ * What changed with the subject is that the number now has a balance home and did not before. The
+ * old comment here recorded why the painted plate was deliberately NOT pinned to
+ * `balance.map.mapNativePx`: that key is pinned by core/schemas.ts to the collision identity
+ * (`collisionCols × collisionCellPx`), so a retune of the map GRID would have dragged a watercolour
+ * with it for no reason — two facts that happened to share a value. For a MAP that reasoning
+ * inverts: the map native size and the collision identity are one fact, and the map classes say so
+ * themselves in `_targetSource`. So all three numbers are asserted equal here, and the day they part
+ * is the day the generator emits one size while the data claims another and nothing resizes it.
+ */
+const NATIVE_SOURCE = "balance.map.mapNativePx";
+/** The same string as a path into data/balance.json — derived from it, so the two cannot part. */
+const NATIVE_BALANCE_PATH = NATIVE_SOURCE.replace(/^balance\./, "");
+
+function nativeClasses(m: ArtManifest): Array<[string, ArtClassSpec]> {
+  return Object.entries(m.classes).flatMap(([name, spec]) =>
+    spec !== undefined && spec._targetSource === NATIVE_SOURCE ? [[name, spec] as [string, ArtClassSpec]] : [],
+  );
+}
+
+describe("a class that is not downscaled is generated at the graph's native size", () => {
+  it("the painted dex class is CUT — the ruling is in the manifest, not just in the screens", () => {
+    // The structural half of cut line C-4, asserted where the class's size used to be asserted. If a
+    // rebuild ever puts the class back, the section that reads its `_targetSource` starts reading a
+    // number nothing verified, so this is the assertion that has to be here rather than a comment.
+    expect(ART.classes["dex-painted"], "dex-painted is back in tools/comfy/manifest.json").toBeUndefined();
+    expect(ART.rows.filter((r) => r.class === "dex-painted")).toEqual([]);
   });
 
-  it("BINDS — a moved latent is a moved plate, and the check says so", () => {
+  it("every class that claims the map native size IS the graph's latent, and the balance key", () => {
+    const latent = latentSize(readGraph());
+    expect(latent, `${TXT2IMG_GRAPH} has no latent-image node — this cross-check is aimed at nothing`).toBeDefined();
+    const native = nativeClasses(ART);
+    expect(
+      native.map(([n]) => n).sort(),
+      "no class declares the map native size — this check is aimed at nothing",
+    ).toEqual(["map-route", "map-site", "map-town", "map-variant"]);
+    for (const [name, spec] of native) {
+      expect([spec.targetW, spec.targetH], `${name} is downscaled after all, or the graph moved`).toEqual([
+        latent?.[0],
+        latent?.[1],
+      ]);
+      expect([spec.targetW, spec.targetH], `${name} disagrees with ${NATIVE_SOURCE}`).toEqual([
+        at(balance, NATIVE_BALANCE_PATH),
+        at(balance, NATIVE_BALANCE_PATH),
+      ]);
+    }
+    // …and the reverse containment, so a NEW class generated at the latent cannot appear unchecked:
+    // anything at that size must say where the size comes from.
+    const unsourced = Object.entries(ART.classes).filter(
+      ([, spec]) => spec !== undefined && spec.targetW === latent?.[0] && spec._targetSource !== NATIVE_SOURCE,
+    );
+    expect(unsourced.map(([n]) => n), "a class ships at the generator's native size and cites no source").toEqual([]);
+  });
+
+  it("BINDS — a moved latent is a moved map, and the check says so", () => {
     const drifted = structuredClone(readGraph());
     let moved = false;
     for (const node of Object.values(drifted)) {
@@ -570,15 +615,20 @@ describe("the painted dex plate's 1024² is the generator's native size, not a t
       }
     }
     expect(moved, "nothing was mutated — the sabotage is aimed at nothing").toBe(true);
-    expect(latentSize(drifted)?.[0]).not.toBe(ART.classes["dex-painted"]?.targetW);
+    const native = nativeClasses(ART);
+    expect(native.length).toBeGreaterThan(0);
+    for (const [, spec] of native) expect(latentSize(drifted)?.[0]).not.toBe(spec.targetW);
   });
 
-  it("BINDS — a moved plate target is caught too", () => {
+  it("BINDS — a moved class target is caught too", () => {
     const drifted = structuredClone(ART);
-    const dex = drifted.classes["dex-painted"];
-    expect(dex).toBeDefined();
-    if (dex) dex.targetW += 128;
-    expect(dex?.targetW).not.toBe(latentSize(readGraph())?.[0]);
+    const native = nativeClasses(drifted);
+    expect(native.length).toBeGreaterThan(0);
+    for (const [, spec] of native) spec.targetW += 128;
+    for (const [, spec] of nativeClasses(drifted)) {
+      expect(spec.targetW).not.toBe(latentSize(readGraph())?.[0]);
+      expect(spec.targetW).not.toBe(at(balance, NATIVE_BALANCE_PATH));
+    }
   });
 });
 
