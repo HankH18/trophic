@@ -168,7 +168,9 @@ describe('manifest seed-reuse enforcement (G5 / build-doc §8.4)', () => {
   it('a seed is a pure function of (id, version) — re-deriving cannot move it', () => {
     expect(deriveSeed('battle-fenmaw-e-front', 1)).toBe(deriveSeed('battle-fenmaw-e-front', 1));
     expect(deriveSeed('battle-fenmaw-e-front', 1)).toBe(hashSeed(1, 'battle-fenmaw-e-front'));
-    expect(deriveSeed('battle-fenmaw-e-front', 1)).not.toBe(deriveSeed('battle-fenmaw-e-back', 1));
+    // Two DIFFERENT ids hash apart. The pair used to be a creature's front/back rows; the back
+    // view is cut, so this reaches for two rows that still exist. The claim is unchanged.
+    expect(deriveSeed('battle-fenmaw-e-front', 1)).not.toBe(deriveSeed('battle-cindril-j-front', 1));
   });
 
   it('BLOCKS a reseed of an asset that has already been generated', () => {
@@ -521,10 +523,13 @@ describe('the manifest cannot drift from data/ (G2)', () => {
  * ════════════════════════════════════════════════════════════════════════════ */
 
 describe('build-doc §9.7 asset counts', () => {
-  it('150 creature battle sprites — 75 forms × front/back (not §9.7\'s 154)', () => {
+  it('75 creature battle sprites — ONE front per form (not §9.7\'s 154, and no longer 150)', () => {
+    // 150 was 75 forms × front/back. Hank cut the back view — "we're not going to have the backs of
+    // any of the creatures. Both creatures are going to be facing forward in battle" — so a form
+    // has exactly one sprite. `forms` is still derived from data/species.json, not restated.
     const forms = content.species.reduce((n, s) => n + artFormsOf(s).length, 0);
     expect(forms).toBe(75);
-    expect(rowsOfClass('creature-battle')).toHaveLength(150);
+    expect(rowsOfClass('creature-battle')).toHaveLength(75);
   });
 
   it('every aging line has 3 forms and every Ancient exactly 1 (bible §4)', () => {
@@ -534,15 +539,38 @@ describe('build-doc §9.7 asset counts', () => {
     expect(content.species.filter((s) => s.ancient)).toHaveLength(3);
   });
 
-  it('every creature form has a front AND a back sprite, and nothing else does', () => {
+  /*
+   * INVERTED, NOT DELETED. This asserted `byId.has(`${stem}-back`) === true` and a view set of
+   * {front, back} — i.e. it required the back view to exist. Hank cut the back view outright
+   * ("we're not going to have the backs of any of the creatures. Both creatures are going to be
+   * facing forward in battle"), so the requirement it encoded — every form is drawn from both
+   * sides — is no longer the contract.
+   *
+   * An absence is not a gate. Deleting these assertions would leave nothing to notice a future
+   * agent regenerating the back batch: `rebuild` would emit 75 rows and every remaining test would
+   * stay green. So the assertion is turned around instead of dropped, and it is strictly the same
+   * strength in the other direction: the back view must be ABSENT, from the rows, from the ids, and
+   * from the `views` map the derivation reads.
+   */
+  it('every creature form has a FRONT sprite and NO back sprite — the back view is cut, not merely undrawn', () => {
     for (const line of content.species) {
       for (const stage of artFormsOf(line)) {
         const stem = `battle-${line.id.replace(/-line$/, '')}-${stage.toLowerCase()}`;
         expect(byId.has(`${stem}-front`), stem).toBe(true);
-        expect(byId.has(`${stem}-back`), stem).toBe(true);
+        expect(byId.has(`${stem}-back`), stem).toBe(false);
       }
     }
-    expect(new Set(rowsOfClass('creature-battle').map((r) => r.view))).toEqual(new Set(['front', 'back']));
+    expect(new Set(rowsOfClass('creature-battle').map((r) => r.view))).toEqual(new Set(['front']));
+    // The loop above only knows the stems it derives from data/species.json, so a back row for a
+    // creature data no longer ships would slip past it. Ask the rows themselves. Matched on the
+    // `view` FIELD and on the id SUFFIX — never on a substring: `battle-kilnback-e-front` is a
+    // FRONT row for a creature called kilnback, and a naive `id.includes('back')` condemns it.
+    expect(rowsOfClass('creature-battle').filter((r) => r.view === 'back')).toEqual([]);
+    expect(rowsOfClass('creature-battle').filter((r) => r.id.endsWith('-back')).map((r) => r.id)).toEqual([]);
+    expect(byId.has('battle-kilnback-e-front'), 'the kilnback front row is the substring trap; it must SURVIVE').toBe(true);
+    // …and the generator cannot re-derive one. `deriveRows` iterates this map, so a back row cannot
+    // come back without it, and `viewPhrase` throws for a view the map does not carry.
+    expect(Object.keys(manifest.classes['creature-battle']!.views)).toEqual(['front']);
   });
 
   it('35 painted dex identities, one per named identity in species.json', () => {
@@ -598,10 +626,41 @@ describe('build-doc §9.7 asset counts', () => {
     for (const kind of PROP_KINDS) expect(byId.has(`prop-${kind}`), kind).toBe(true);
   });
 
-  it('the player ships 3 statics and the §9.6 walk frames', () => {
-    expect(rowsOfClass('player')).toHaveLength(9);
-    for (const v of ['front', 'back', 'side']) expect(byId.get(`player-${v}`)!.mode).toBe('txt2img');
-    for (const v of ['front-step-left', 'side-step-right']) expect(byId.get(`player-${v}`)!.mode).toBe('img2img');
+  /*
+   * INVERTED, NOT DELETED. It read:
+   *     expect(rowsOfClass('player')).toHaveLength(9);
+   *     for (const v of ['front', 'back', 'side']) expect(byId.get(`player-${v}`)!.mode).toBe('txt2img');
+   *     for (const v of ['front-step-left', 'side-step-right']) expect(byId.get(`player-${v}`)!.mode).toBe('img2img');
+   * — three static views plus six §9.6 walk frames, required to EXIST. The owner collapsed the
+   * player to ONE art id: it always faces forward, and motion is §9.6 step 4's bob, whose
+   * HORIZONTAL FLIP ALTERNATION is the thing a step frame would have been for (see the manifest's
+   * own `_player._walkNote` and game/movement.ts's skipFlipped).
+   *
+   * This is the doc's own licensed branch, not a departure from it: build-doc L5 makes "procedural
+   * bob the committed fallback" and §9.7 writes "player statics + walk sheet (or bob)". So the
+   * shape is read from the manifest's declaration instead of restated as a new literal.
+   *
+   * The retired ids are asserted ABSENT rather than merely unmentioned. Dropping them would leave
+   * nothing to notice a later `rebuild` re-deriving nine rows — an absence catches nothing.
+   */
+  it('the player ships ONE static, front — no back, no side, no walk frame can be spelled', () => {
+    const player = rowsOfClass('player');
+    expect(player.map((r) => r.id)).toEqual(['player-front']);
+    expect(byId.get('player-front')!.mode).toBe('txt2img');
+    // The manifest's own declaration, which is what the derivation reads — so the committed rows
+    // and the generator cannot disagree about what the player is.
+    expect(manifest._player.statics).toEqual(['front']);
+    expect(manifest._player.walkFrames).toEqual([]);
+    expect(Object.keys(manifest.classes['player']!.views)).toEqual(['front']);
+    // THE GATE: every id the nine-row world could spell, asserted unspellable.
+    for (const v of ['back', 'side']) expect(byId.has(`player-${v}`), v).toBe(false);
+    for (const base of ['front', 'back', 'side']) {
+      for (const step of ['step-left', 'step-right']) {
+        expect(byId.has(`player-${base}-${step}`), `${base}-${step}`).toBe(false);
+      }
+    }
+    // A walk frame is the only reason a player row was ever img2img; none may remain.
+    expect(player.filter((r) => r.mode === 'img2img')).toEqual([]);
   });
 
   it('every row carries the §9.7 fields, and every id is unique', () => {
@@ -805,7 +864,9 @@ describe('graph injection', () => {
     const b = graphForRow(row, baseGraph);
     expect(a.hash).toBe(b.hash);
     expect(a.hash).toHaveLength(16);
-    const other = graphForRow(byId.get('battle-cindril-j-back')!, baseGraph);
+    // Was `battle-cindril-j-back`, which no longer exists. Any second row proves the same thing —
+    // the hash moves with the row — so this takes the same creature at a different age form.
+    const other = graphForRow(byId.get('battle-cindril-a-front')!, baseGraph);
     expect(other.hash).not.toBe(a.hash);
     expect(workflowHash(a.graph)).toBe(a.hash);
   });
@@ -886,8 +947,10 @@ function stubClient(behaviour: StubBehaviour) {
     calls,
     client: {
       async run(graph: Graph) {
-        // Key on the full positive prompt: front/back rows of the same creature agree for the
-        // first couple of hundred characters, so a truncated key silently merges them.
+        // Key on the full positive prompt, never a prefix: two rows whose prompts diverge only
+        // late must not silently merge. The pair that forced this were a creature's front and back
+        // rows, identical for the first couple of hundred characters; the back view is cut now, but
+        // the rule is about prefixes, not about that one pair, so it stands.
         const id = String(
           Object.values(graph).find((n) => n!.class_type === 'CLIPTextEncode')!.inputs.text ?? '',
         );
@@ -1136,15 +1199,46 @@ describe('supervised gates (build-doc §9.4 / §9.5 / §9.6)', () => {
     expect(() => assertSupervised(variants, manifest, false)).toThrow(SupervisedGateError);
   });
 
-  it('…and that refusal covers the player walk frames too, which sit under the credit gate', () => {
-    // `run --class=player` is 8 rows: under CREDIT_GATE_ROWS, so G13 never fires. Six of them are
-    // §9.6 img2img walk frames on the same untrialed graph.
+  /*
+   * RE-POINTED, NOT DELETED — and re-pointed because it had gone VACUOUS, which is worse than red.
+   * It read:
+   *     const player = rowsFor('player');
+   *     expect(player).toHaveLength(9); // 3 statics + 6 §9.6 walk frames
+   *     expect(player.filter((r) => r.mode === 'img2img').length).toBeGreaterThan(1);
+   *     expect(planBatch(player, manifest).requiresConfirm).toBe(false);
+   *     expect(() => assertSupervised(player, manifest, false)).toThrow(SupervisedGateError);
+   *     expect(() => assertSupervised(player, manifest, true)).toThrow(/has been run and reviewed/);
+   *
+   * The requirement it encoded IS NOT ABOUT THE PLAYER. It is: a batch small enough to sit under
+   * G13's 20-row credit gate is STILL refused when it carries untrialled img2img rows. The player
+   * was merely the batch that happened to have that shape — 8 rows, six of them §9.6 walk frames.
+   *
+   * The player is one approved txt2img row now, so it cannot have that shape at all, and the
+   * img2img branch of `assertSupervised` needs `img2img.length > 1` to fire — the last line above
+   * would have been asserting a throw that nothing in the batch can cause. `map-variant` still has
+   * the shape, so the invariant moves onto a REAL under-the-gate slice of it and keeps its teeth.
+   * The claim the player CAN still make is split out below rather than dropped.
+   */
+  it('…and that refusal covers a batch small enough to sit UNDER the credit gate', () => {
+    const small = rowsFor('map-variant').slice(0, 2);
+    expect(small.length).toBeGreaterThan(1); // >1 is what the img2img branch needs to fire at all
+    expect(small.length).toBeLessThan(CREDIT_GATE_ROWS);
+    expect(small.every((r) => r.mode === 'img2img')).toBe(true);
+    expect(planBatch(small, manifest).requiresConfirm).toBe(false); // G13 alone would wave it through
+    expect(() => assertSupervised(small, manifest, false)).toThrow(SupervisedGateError);
+    expect(() => assertSupervised(small, manifest, true)).toThrow(/has been run and reviewed/);
+  });
+
+  it('the ONE approved player static cannot be silently regenerated — the §15 style lock', () => {
+    // What the player row can still bind now that its eight siblings are gone. It is `approved`,
+    // build-doc §15 makes it the style lock for the whole pipeline, and a batch containing it is
+    // under the credit gate — so G13 waves it through and only this refusal stands in the way.
     const player = rowsFor('player');
-    expect(player).toHaveLength(9); // 3 statics + 6 §9.6 walk frames
-    expect(player.filter((r) => r.mode === 'img2img').length).toBeGreaterThan(1);
-    expect(planBatch(player, manifest).requiresConfirm).toBe(false); // G13 alone would wave it through
+    expect(player.map((r) => r.id)).toEqual(['player-front']);
+    expect(player[0]!.status).toBe('approved');
+    expect(planBatch(player, manifest).requiresConfirm).toBe(false);
     expect(() => assertSupervised(player, manifest, false)).toThrow(SupervisedGateError);
-    expect(() => assertSupervised(player, manifest, true)).toThrow(/has been run and reviewed/);
+    expect(() => assertSupervised(player, manifest, false)).toThrow(/signed off by a human/);
   });
 
   /*
@@ -1887,8 +1981,8 @@ describe('G13 projects what can actually be billed', () => {
     const m = priced();
     const sprites = m.rows.filter((r) => r.class === 'creature-battle');
     const plan = planBatch(sprites, m);
-    expect(sprites).toHaveLength(150);
-    expect(plan.worstCaseImages).toBe(150 * TRANSPORT_ATTEMPTS);
+    expect(sprites).toHaveLength(75);
+    expect(plan.worstCaseImages).toBe(75 * TRANSPORT_ATTEMPTS);
   });
 
   it('BINDS — the projection tracks the real budgets, so it cannot drift from them', () => {

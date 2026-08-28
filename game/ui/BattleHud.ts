@@ -21,18 +21,21 @@ import { placeholderImage } from "../placeholder";
  * Asset keys — the rows Lane B's battle-sprite batch actually ships.
  *
  * ⚠ build-doc §9.7 says 154 battle sprites (77 forms) and the shipped roster does not give that:
- * the count is 150 — 75 forms × front/back, where a form is one (line, age class), which is also
+ * the count is 75 — one FRONT sprite per form, where a form is one (line, age class), which is also
  * what `tools/comfy/manifest.json` ships. The key is that tuple, built from data at runtime — no
  * species name is ever written in this file (build-doc §8.3 / G2).
+ *
+ * It was 150 (75 forms × front/back) until the back view was cut — see {@link Facing}.
  *
  * WHAT WAS WRONG WITH THE FIRST CUT
  * ─────────────────────────────────
  * It ASSUMED a key shape (`battle/<lineId>/<age>/<facing>`) and logged "lane B must adopt this key"
  * as an open question. The manifest was already committed and disagreed:
- * `tools/comfy/manifest.json`'s 150 `creature-battle` rows are `battle-cindril-j-front` at
+ * `tools/comfy/manifest.json`'s `creature-battle` rows are `battle-cindril-j-front` at
  * `assets/final/creature-battle/`, and `game/placeholder.ts::assetId` turns that finalFile into the
  * texture key `creature-battle/battle-cindril-j-front`. Measured intersection of the 162 keys this
- * function used to produce with the manifest's 150 ids: **zero**. So when the art lands, every
+ * function used to produce with the manifest's 150 ids (its count at the time): **zero**. So when
+ * the art lands, every
  * battle sprite would have gone on silently drawing a placeholder — `textureFor` falls back without
  * a warning. The key below is the manifest's own id, derived by the manifest's own rule
  * (`tools/comfy/comfy-batch.ts::deriveRows`, `shortId = lineId.replace(/-line$/, '')`), and
@@ -40,16 +43,38 @@ import { placeholderImage } from "../placeholder";
  * restating this function.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export type Facing = "front" | "back";
+/**
+ * There is ONE view of a creature in battle, and it is the front.
+ *
+ * This is a one-member union ON PURPOSE. Hank's ruling — "we're not going to have the backs of any
+ * of the creatures. Both creatures are going to be facing forward in battle." — kills the back view
+ * as a CONCEPT, not just as art that was never drawn, so {@link battleSpriteKey} must be
+ * structurally unable to spell a `-back` key rather than merely never asked for one. Widening this
+ * union is the deliberate act that reintroduces the back view; a reviewer sees it in the diff, and
+ * `tests/unit/manifest.test.ts` reds on the manifest half the same moment
+ * (`§9.7 asset counts` asserts NO `-back` row exists and that the view set is exactly {front}).
+ *
+ * `tools/comfy/manifest.json` `classes["creature-battle"].views` carries the same single view, and
+ * `tools/comfy/comfy-batch.ts::deriveRows` reads that map rather than a literal — so the generator
+ * cannot re-derive a back row either.
+ */
+export type Facing = "front";
 
 /** `tools/comfy/manifest.json` `classes["creature-battle"].finalDir`, minus `assets/final/`. */
 const BATTLE_SPRITE_DIR = "creature-battle";
 /** `comfy-batch.ts::shortId` — every id in `data/species.json` ends in this. */
 const LINE_ID_SUFFIX = "-line";
 
-/** The enemy is seen from the front; the player's own creature is seen from behind. */
-export function facingFor(side: "player" | "enemy"): Facing {
-  return side === "player" ? "back" : "front";
+/**
+ * BOTH combatants are seen from the front — the player's own creature no less than the enemy's.
+ *
+ * The side is deliberately ignored rather than the parameter removed: this function is the named
+ * seam the ruling lives at, and if the two sides are ever drawn differently again this is where
+ * that decision goes. It used to read `side === "player" ? "back" : "front"`, which is exactly the
+ * line a future reader would restore from a comment that still said "seen from behind".
+ */
+export function facingFor(_side: "player" | "enemy"): Facing {
+  return "front";
 }
 
 /**

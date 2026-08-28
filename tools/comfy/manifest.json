@@ -15,8 +15,8 @@
     {
       "id": "LB-M1",
       "spec": "build-doc §9.7 / bible §4 asset-count paragraph",
-      "finding": "154 battle sprites is arithmetically impossible against the shipped roster. data/species.json holds 27 lines of which 3 are Ancients; 24 aging lines × 3 age forms + 3 Ancients × 1 form = 75 forms × front/back = 150.",
-      "action": "The manifest derives 150 creature-battle rows from data/species.json. §9.7's 154 is the number an art reviewer counts against, so the gap is stated here rather than discovered mid-review."
+      "finding": "154 battle sprites is arithmetically impossible against the shipped roster. data/species.json holds 27 lines of which 3 are Ancients; 24 aging lines × 3 age forms + 3 Ancients × 1 form = 75 forms. It was 75 forms × front/back = 150 rows until the BACK VIEW WAS CUT: Hank ruled \"we're not going to have the backs of any of the creatures. Both creatures are going to be facing forward in battle\", so a form has ONE sprite and the count is 75.",
+      "action": "The manifest derives 75 creature-battle rows from data/species.json, one FRONT sprite per form. The front/back loop is gone from deriveRows: it iterates classes[\"creature-battle\"].views, which now holds only \"front\", so a back row cannot be re-derived by a rebuild. §9.7's 154 is the number an art reviewer counts against, so the gap is stated here rather than discovered mid-review. game/ui/BattleHud.ts::Facing is the runtime half of the same ruling."
     },
     {
       "id": "LB-M2",
@@ -65,6 +65,12 @@
       "spec": "build-doc §9.2 fidelity rule",
       "finding": "§9.2 says 'front-load and repeat distinctive anatomy (Fenmaw's gharial snout class of failure)'. The derivation did exactly that and Fenmaw STILL came back a generic crocodile — the subject already read `bulk gharial with a long narrow gharial snout` twice (assets/raw/palette-trials/pt-fenmaw.png). Repetition is not the missing piece: this model reads the SPECIES TERM `gharial` as its common relative `crocodile`, so repeating the term repeats the wrong animal. Confirmed by one generation per hypothesis: replacing the term with the SHAPE — `an extremely long thin tube-shaped snout, a narrow needle-like jaw far longer than the head is wide` — produced a true gharial (pt-fenmaw-b.png). The same collapse is visible in every other trial whose identity rests on a specialist term: `lungfish` rendered a generic bipedal fish blob (pt-mirefin.png), the `wyrm` of `spider-wyrm` vanished and left a plain spider (pt-webvern.png), `spore-antlered` rendered plain deer antlers (pt-sporantle.png), `eyeless` rendered a serpent with large eyes (pt-undermere.png), `will-o-wisp` rendered nothing at all (pt-wispurr.png), `dusk moth` rendered butterfly filaments (pt-gloomoth.png), `mudball tadpole` rendered a bipedal blob with no tail (pt-bogling.png).",
       "action": "§9.2's fidelity rule gains a second clause, and `_concepts` is where it is applied: NAME DISTINCTIVE ANATOMY BY ITS SHAPE, NEVER BY ITS SPECIES TERM — the term stays (it is the bible's word and G2 protects it), the shape is added beside it and both are then front-loaded and repeated by the derivation. Rewritten: Fenmaw, Mirefin, Webvern, Sporantle, Undermere, Bogling, Wispurr, Gloomoth (each measured above) and Stonewing (reasoned, not measured — no trial exists). Deliberately NOT rewritten: Pyrelisk, because 'basilisk' fixes no anatomy in the bible and a shape restatement would have to invent one. THIS IS A PROMPT CHANGE, NOT A CONTENT CHANGE: every bible name, type, role, habitat and concept term is untouched and still appears verbatim in the subject; only the wording that steers the generator is added. Rewriting what Fenmaw IS would be a G2 violation; describing the gharial's snout by its geometry is a pipeline fidelity fix. Seeds are unaffected — `deriveSeed` is pure in (id, version), so no row's seed moves and G5 is not engaged."
+    },
+    {
+      "id": "LB-M10",
+      "spec": "build-doc §9.7 (\"player statics + walk sheet (or bob)\") / §9.6 / §9.2 + L6",
+      "finding": "Nine player rows — front/back/side statics x stand/step-left/step-right — became one. Hank ruled \"we're switching to the player character always being facing forward and doing the skipping movement as it moves around\", so the sprite never turns and back and side are views the screen can never ask for. The six §9.6 walk frames go with them: §9.6 step 4's own exit is \"Fail ⇒ fall to bob without discussion\", and the bob shipped — its third term is a horizontal flip, which is what the step frames would have been for.",
+      "action": "manifest._player.statics is [\"front\"], walkFrames is empty, and classes.player.views holds only \"front\", so deriveRows cannot re-derive the eight retired rows from a rebuild. game/mapview.ts playerArtIds() returns one key and tests/gates/dex-path-contract.test.ts holds the two sides to SET IDENTITY — an exact comparison in both directions, unchanged; only the expected set moved. §9.7's \"player statics\" is plural, so the gap is stated here rather than discovered mid-review. This is the same ruling LB-M1 records for the creatures' backs. The RAW lane is untouched: assets/approved-trials/_player-views/derived/player-{back,side}-32x48.png and tools/comfy/player-views.ts still exist and are still decoded pixel-by-pixel by tests/gates/player-art-contract.test.ts — retiring those bytes is the art lane's call, and what is settled here is only that no key the GAME asks for can reach them."
     }
   ],
   "_deviationsNote": "Each entry below is a departure from build-doc §9 that a reviewer should see before trusting a count, a prompt or a post-process step in this file. The `_targetSource`, `_derivedFormRule`, `_concepts[].source` and `_nodes[].agingArcSource` fields cite these LB-M ids, so an entry's id is load-bearing inside this file.",
@@ -91,8 +97,7 @@
       "rawDir": "assets/raw/creature-battle",
       "finalDir": "assets/final/creature-battle",
       "views": {
-        "front": "facing the viewer, battle stance",
-        "back": "seen from behind, battle stance, viewed from the rear"
+        "front": "facing the viewer, battle stance"
       },
       "postprocess": {
         "trim": true,
@@ -330,15 +335,7 @@
       "rawDir": "assets/raw/player",
       "finalDir": "assets/final/player",
       "views": {
-        "front": "standing facing forward",
-        "back": "standing seen from behind",
-        "side": "standing in profile, facing right",
-        "front-step-left": "standing facing forward, mid-step, left foot forward",
-        "front-step-right": "standing facing forward, mid-step, right foot forward",
-        "back-step-left": "seen from behind, mid-step, left foot forward",
-        "back-step-right": "seen from behind, mid-step, right foot forward",
-        "side-step-left": "in profile facing right, mid-step, left foot forward",
-        "side-step-right": "in profile facing right, mid-step, right foot forward"
+        "front": "standing facing forward"
       },
       "postprocess": {
         "trim": true,
@@ -772,25 +769,17 @@
     "seedPin": 42,
     "seedPinSource": "gate B0. 42 is the validated trial seed (the handoff's 62 is the CLIPLoader node id) and it is the seed the APPROVED player sprite was generated with (tools/comfy/manifest-b0.json#player-front). G5: it is frozen for every player row.",
     "statics": [
-      "front",
-      "back",
-      "side"
+      "front"
     ],
-    "walkFrames": [
-      "front-step-left",
-      "front-step-right",
-      "back-step-left",
-      "back-step-right",
-      "side-step-left",
-      "side-step-right"
-    ],
-    "_walkNote": "build-doc §9.6 — the walk frames are img2img from the matching approved static, denoise sweep {0.3, 0.4, 0.5}, SUPERVISED, timeboxed to one review loop. The 4th direction is the side sheet mirrored, so there are 3 directions here and not 4. Fail ⇒ fall to bob without discussion (§9.6 step 4); the statics ship either way.",
+    "walkFrames": [],
+    "_walkNote": "EMPTY, AND THAT IS §9.6 STEP 4 TAKING ITS OWN FALLBACK. The walk trial's exit condition is 'Fail ⇒ fall to bob without discussion', and the bob is what shipped: build-doc §9.6 step 4, 'y = 2px sine per tile step, 1px lateral sway, horizontal flip alternation', implemented in game/movement.ts (skipOffsetPx / skipSwayOffsetPx / skipFlipped) off balance.map.skipHopPx, skipSwayPx and skipHopsPerTile. The third term is why there is no frame here: the horizontal mirror on alternate hops is what a step frame would have been for — a pure vertical sine on a static sprite reads as a float, and the mirror is what makes the eye read a change of weight. Six img2img rows for frames nothing can draw would be real money spent on unreachable art.",
     "approvedFront": {
       "file": "assets/approved-trials/player-APPROVED.png",
       "sha256": "ba2df07114ffa6d22055fdb0db4238ab0aed8780c68a2c45fe8c821a48f83140",
       "recordedBy": "tools/comfy/manifest-b0.json#player-front",
       "note": "Lane B integration: this manifest's player-front row carries the approval, so a rebuild cannot silently re-render the protagonist."
-    }
+    },
+    "_staticsNote": "ONE, and it was three. Hank's ruling: \"we're switching to the player character always being facing forward and doing the skipping movement as it moves around.\" The player never turns, so back and side are views the screen has no route to — game/mapview.ts PLAYER_VIEWS is [\"front\"] and playerArtIds() is one key, held to SET IDENTITY with this class by tests/gates/dex-path-contract.test.ts. See _deviations LB-M10."
   },
   "_versions": {
     "map-bowerdeep": 2,
@@ -829,21 +818,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-cindril-j-back",
-      "class": "creature-battle",
-      "subject": "Cindril, fox kit with an ember-tipped tail, juvenile Fire creature, fox kit with an ember-tipped tail",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Cindril, fox kit with an ember-tipped tail, juvenile Fire creature, fox kit with an ember-tipped tail, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3796449731,
-      "mode": "txt2img",
-      "origin": "data/species.json#cindril-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-cindril-j-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-cindril-a-front",
       "class": "creature-battle",
       "subject": "Vulkindle, fox kit with an ember-tipped tail, grown to its adult form, adult Fire creature, fox kit with an ember-tipped tail, grown to its adult form",
@@ -856,21 +830,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#cindril-line[A]",
       "finalFile": "assets/final/creature-battle/battle-cindril-a-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-cindril-a-back",
-      "class": "creature-battle",
-      "subject": "Vulkindle, fox kit with an ember-tipped tail, grown to its adult form, adult Fire creature, fox kit with an ember-tipped tail, grown to its adult form",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Vulkindle, fox kit with an ember-tipped tail, grown to its adult form, adult Fire creature, fox kit with an ember-tipped tail, grown to its adult form, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 1473882564,
-      "mode": "txt2img",
-      "origin": "data/species.json#cindril-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-cindril-a-back.png",
       "status": "pending"
     },
     {
@@ -889,21 +848,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-cindril-e-back",
-      "class": "creature-battle",
-      "subject": "Pyrevane, fox kit with an ember-tipped tail, grown to its elder form, elder Fire creature, fox kit with an ember-tipped tail, grown to its elder form",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Pyrevane, fox kit with an ember-tipped tail, grown to its elder form, elder Fire creature, fox kit with an ember-tipped tail, grown to its elder form, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3113330504,
-      "mode": "txt2img",
-      "origin": "data/species.json#cindril-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-cindril-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-puddlisk-j-front",
       "class": "creature-battle",
       "subject": "Puddlisk, glass-skinned newt, juvenile Water creature, glass-skinned newt",
@@ -916,21 +860,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#puddlisk-line[J]",
       "finalFile": "assets/final/creature-battle/battle-puddlisk-j-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-puddlisk-j-back",
-      "class": "creature-battle",
-      "subject": "Puddlisk, glass-skinned newt, juvenile Water creature, glass-skinned newt",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Puddlisk, glass-skinned newt, juvenile Water creature, glass-skinned newt, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2594058204,
-      "mode": "txt2img",
-      "origin": "data/species.json#puddlisk-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-puddlisk-j-back.png",
       "status": "pending"
     },
     {
@@ -949,21 +878,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-puddlisk-a-back",
-      "class": "creature-battle",
-      "subject": "Rillisk, glass-skinned newt, grown to its adult form, adult Water creature, glass-skinned newt, grown to its adult form",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Rillisk, glass-skinned newt, grown to its adult form, adult Water creature, glass-skinned newt, grown to its adult form, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3336615627,
-      "mode": "txt2img",
-      "origin": "data/species.json#puddlisk-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-puddlisk-a-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-puddlisk-e-front",
       "class": "creature-battle",
       "subject": "Maelstrisk, glass-skinned newt, grown to its elder form, elder Water creature, glass-skinned newt, grown to its elder form",
@@ -976,21 +890,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#puddlisk-line[E]",
       "finalFile": "assets/final/creature-battle/battle-puddlisk-e-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-puddlisk-e-back",
-      "class": "creature-battle",
-      "subject": "Maelstrisk, glass-skinned newt, grown to its elder form, elder Water creature, glass-skinned newt, grown to its elder form",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Maelstrisk, glass-skinned newt, grown to its elder form, elder Water creature, glass-skinned newt, grown to its elder form, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3659983423,
-      "mode": "txt2img",
-      "origin": "data/species.json#puddlisk-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-puddlisk-e-back.png",
       "status": "pending"
     },
     {
@@ -1009,21 +908,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-thornlet-j-back",
-      "class": "creature-battle",
-      "subject": "Thornlet, bramble hedgehog, juvenile Plant creature, bramble hedgehog",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Thornlet, bramble hedgehog, juvenile Plant creature, bramble hedgehog, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2240906900,
-      "mode": "txt2img",
-      "origin": "data/species.json#thornlet-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-thornlet-j-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-thornlet-a-front",
       "class": "creature-battle",
       "subject": "Bramblore, bramble hedgehog, grown to its adult form, adult Plant creature, bramble hedgehog, grown to its adult form",
@@ -1036,21 +920,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#thornlet-line[A]",
       "finalFile": "assets/final/creature-battle/battle-thornlet-a-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-thornlet-a-back",
-      "class": "creature-battle",
-      "subject": "Bramblore, bramble hedgehog, grown to its adult form, adult Plant creature, bramble hedgehog, grown to its adult form",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Bramblore, bramble hedgehog, grown to its adult form, adult Plant creature, bramble hedgehog, grown to its adult form, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 645474195,
-      "mode": "txt2img",
-      "origin": "data/species.json#thornlet-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-thornlet-a-back.png",
       "status": "pending"
     },
     {
@@ -1069,21 +938,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-thornlet-e-back",
-      "class": "creature-battle",
-      "subject": "Thornwald, bramble hedgehog, grown to its elder form, elder Plant creature, bramble hedgehog, grown to its elder form",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Thornwald, bramble hedgehog, grown to its elder form, elder Plant creature, bramble hedgehog, grown to its elder form, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3861896455,
-      "mode": "txt2img",
-      "origin": "data/species.json#thornlet-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-thornlet-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-nibbin-j-front",
       "class": "creature-battle",
       "subject": "Nibbin, plains vole, juvenile Beast creature, plains vole",
@@ -1096,21 +950,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#nibbin-line[J]",
       "finalFile": "assets/final/creature-battle/battle-nibbin-j-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-nibbin-j-back",
-      "class": "creature-battle",
-      "subject": "Nibbin, plains vole, juvenile Beast creature, plains vole",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Nibbin, plains vole, juvenile Beast creature, plains vole, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2002180788,
-      "mode": "txt2img",
-      "origin": "data/species.json#nibbin-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-nibbin-j-back.png",
       "status": "pending"
     },
     {
@@ -1129,21 +968,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-nibbin-a-back",
-      "class": "creature-battle",
-      "subject": "Nibbin, plains vole, adult Beast creature, plains vole",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Nibbin, plains vole, adult Beast creature, plains vole, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3256889651,
-      "mode": "txt2img",
-      "origin": "data/species.json#nibbin-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-nibbin-a-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-nibbin-e-front",
       "class": "creature-battle",
       "subject": "Nibbin, plains vole, elder Beast creature, plains vole",
@@ -1156,21 +980,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#nibbin-line[E]",
       "finalFile": "assets/final/creature-battle/battle-nibbin-e-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-nibbin-e-back",
-      "class": "creature-battle",
-      "subject": "Nibbin, plains vole, elder Beast creature, plains vole",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Nibbin, plains vole, elder Beast creature, plains vole, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3386606247,
-      "mode": "txt2img",
-      "origin": "data/species.json#nibbin-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-nibbin-e-back.png",
       "status": "pending"
     },
     {
@@ -1189,21 +998,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-pollywisp-j-back",
-      "class": "creature-battle",
-      "subject": "Pollywisp, seed-carrying wisp-moth, juvenile Wind and Plant creature, seed-carrying wisp-moth",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Pollywisp, seed-carrying wisp-moth, juvenile Wind and Plant creature, seed-carrying wisp-moth, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 438205541,
-      "mode": "txt2img",
-      "origin": "data/species.json#pollywisp-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-pollywisp-j-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-pollywisp-a-front",
       "class": "creature-battle",
       "subject": "Pollywisp, seed-carrying wisp-moth, adult Wind and Plant creature, seed-carrying wisp-moth",
@@ -1216,21 +1010,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#pollywisp-line[A]",
       "finalFile": "assets/final/creature-battle/battle-pollywisp-a-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-pollywisp-a-back",
-      "class": "creature-battle",
-      "subject": "Pollywisp, seed-carrying wisp-moth, adult Wind and Plant creature, seed-carrying wisp-moth",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Pollywisp, seed-carrying wisp-moth, adult Wind and Plant creature, seed-carrying wisp-moth, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2821706882,
-      "mode": "txt2img",
-      "origin": "data/species.json#pollywisp-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-pollywisp-a-back.png",
       "status": "pending"
     },
     {
@@ -1249,21 +1028,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-pollywisp-e-back",
-      "class": "creature-battle",
-      "subject": "Pollywisp, seed-carrying wisp-moth, elder Wind and Plant creature, seed-carrying wisp-moth",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Pollywisp, seed-carrying wisp-moth, elder Wind and Plant creature, seed-carrying wisp-moth, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3397832966,
-      "mode": "txt2img",
-      "origin": "data/species.json#pollywisp-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-pollywisp-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-bramblehog-j-front",
       "class": "creature-battle",
       "subject": "Bramblehog, thorn boar, juvenile Plant creature, thorn boar",
@@ -1276,21 +1040,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#bramblehog-line[J]",
       "finalFile": "assets/final/creature-battle/battle-bramblehog-j-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-bramblehog-j-back",
-      "class": "creature-battle",
-      "subject": "Bramblehog, thorn boar, juvenile Plant creature, thorn boar",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Bramblehog, thorn boar, juvenile Plant creature, thorn boar, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 4112145979,
-      "mode": "txt2img",
-      "origin": "data/species.json#bramblehog-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-bramblehog-j-back.png",
       "status": "pending"
     },
     {
@@ -1309,21 +1058,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-bramblehog-a-back",
-      "class": "creature-battle",
-      "subject": "Bramblehog, thorn boar, adult Plant creature, thorn boar",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Bramblehog, thorn boar, adult Plant creature, thorn boar, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 1008180044,
-      "mode": "txt2img",
-      "origin": "data/species.json#bramblehog-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-bramblehog-a-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-bramblehog-e-front",
       "class": "creature-battle",
       "subject": "Bramblehog, thorn boar, elder Plant creature, thorn boar",
@@ -1336,21 +1070,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#bramblehog-line[E]",
       "finalFile": "assets/final/creature-battle/battle-bramblehog-e-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-bramblehog-e-back",
-      "class": "creature-battle",
-      "subject": "Bramblehog, thorn boar, elder Plant creature, thorn boar",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Bramblehog, thorn boar, elder Plant creature, thorn boar, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2588457136,
-      "mode": "txt2img",
-      "origin": "data/species.json#bramblehog-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-bramblehog-e-back.png",
       "status": "pending"
     },
     {
@@ -1369,21 +1088,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-skir-j-back",
-      "class": "creature-battle",
-      "subject": "Skir, meadow kestrel, juvenile Wind creature, meadow kestrel",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Skir, meadow kestrel, juvenile Wind creature, meadow kestrel, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 815085405,
-      "mode": "txt2img",
-      "origin": "data/species.json#skir-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-skir-j-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-skir-a-front",
       "class": "creature-battle",
       "subject": "Skir, meadow kestrel, adult Wind creature, meadow kestrel",
@@ -1396,21 +1100,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#skir-line[A]",
       "finalFile": "assets/final/creature-battle/battle-skir-a-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-skir-a-back",
-      "class": "creature-battle",
-      "subject": "Skir, meadow kestrel, adult Wind creature, meadow kestrel",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Skir, meadow kestrel, adult Wind creature, meadow kestrel, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3273210602,
-      "mode": "txt2img",
-      "origin": "data/species.json#skir-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-skir-a-back.png",
       "status": "pending"
     },
     {
@@ -1429,21 +1118,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-skir-e-back",
-      "class": "creature-battle",
-      "subject": "Skir, meadow kestrel, elder Wind creature, meadow kestrel",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Skir, meadow kestrel, elder Wind creature, meadow kestrel, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2078768878,
-      "mode": "txt2img",
-      "origin": "data/species.json#skir-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-skir-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-loamunder-j-front",
       "class": "creature-battle",
       "subject": "Loamunder, walking sod clump that seeds fields, juvenile Earth and Plant creature, walking sod clump that seeds fields",
@@ -1456,21 +1130,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#loamunder-line[J]",
       "finalFile": "assets/final/creature-battle/battle-loamunder-j-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-loamunder-j-back",
-      "class": "creature-battle",
-      "subject": "Loamunder, walking sod clump that seeds fields, juvenile Earth and Plant creature, walking sod clump that seeds fields",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Loamunder, walking sod clump that seeds fields, juvenile Earth and Plant creature, walking sod clump that seeds fields, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 1050107585,
-      "mode": "txt2img",
-      "origin": "data/species.json#loamunder-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-loamunder-j-back.png",
       "status": "pending"
     },
     {
@@ -1489,21 +1148,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-loamunder-a-back",
-      "class": "creature-battle",
-      "subject": "Loamunder, walking sod clump that seeds fields, adult Earth and Plant creature, walking sod clump that seeds fields",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Loamunder, walking sod clump that seeds fields, adult Earth and Plant creature, walking sod clump that seeds fields, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 201732878,
-      "mode": "txt2img",
-      "origin": "data/species.json#loamunder-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-loamunder-a-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-loamunder-e-front",
       "class": "creature-battle",
       "subject": "Loamunder, walking sod clump that seeds fields, elder Earth and Plant creature, walking sod clump that seeds fields",
@@ -1516,21 +1160,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#loamunder-line[E]",
       "finalFile": "assets/final/creature-battle/battle-loamunder-e-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-loamunder-e-back",
-      "class": "creature-battle",
-      "subject": "Loamunder, walking sod clump that seeds fields, elder Earth and Plant creature, walking sod clump that seeds fields",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Loamunder, walking sod clump that seeds fields, elder Earth and Plant creature, walking sod clump that seeds fields, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2056989834,
-      "mode": "txt2img",
-      "origin": "data/species.json#loamunder-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-loamunder-e-back.png",
       "status": "pending"
     },
     {
@@ -1549,21 +1178,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-mirefin-j-back",
-      "class": "creature-battle",
-      "subject": "Bogling, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail, juvenile Water creature, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Bogling, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail, juvenile Water creature, mudball tadpole, a legless round mud-brown body tapering into one broad paddle tail, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3016181044,
-      "mode": "txt2img",
-      "origin": "data/species.json#mirefin-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-mirefin-j-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-mirefin-a-front",
       "class": "creature-battle",
       "subject": "Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, adult Water and Poison creature, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins",
@@ -1576,21 +1190,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#mirefin-line[A]",
       "finalFile": "assets/final/creature-battle/battle-mirefin-a-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-mirefin-a-back",
-      "class": "creature-battle",
-      "subject": "Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, adult Water and Poison creature, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, adult Water and Poison creature, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 4270889907,
-      "mode": "txt2img",
-      "origin": "data/species.json#mirefin-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-mirefin-a-back.png",
       "status": "pending"
     },
     {
@@ -1609,21 +1208,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-mirefin-e-back",
-      "class": "creature-battle",
-      "subject": "Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, elder Water and Poison creature, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Mirefin, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, elder Water and Poison creature, stalking lungfish, a long eel-shaped fish body that walks on four stubby limb-like fins, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 105639207,
-      "mode": "txt2img",
-      "origin": "data/species.json#mirefin-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-mirefin-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-reedrick-j-front",
       "class": "creature-battle",
       "subject": "Reedrick, stilt-legged reed wader, juvenile Plant and Wind creature, stilt-legged reed wader",
@@ -1636,21 +1220,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#reedrick-line[J]",
       "finalFile": "assets/final/creature-battle/battle-reedrick-j-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-reedrick-j-back",
-      "class": "creature-battle",
-      "subject": "Reedrick, stilt-legged reed wader, juvenile Plant and Wind creature, stilt-legged reed wader",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Reedrick, stilt-legged reed wader, juvenile Plant and Wind creature, stilt-legged reed wader, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2995873875,
-      "mode": "txt2img",
-      "origin": "data/species.json#reedrick-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-reedrick-j-back.png",
       "status": "pending"
     },
     {
@@ -1669,21 +1238,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-reedrick-a-back",
-      "class": "creature-battle",
-      "subject": "Reedrick, stilt-legged reed wader, adult Plant and Wind creature, stilt-legged reed wader",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Reedrick, stilt-legged reed wader, adult Plant and Wind creature, stilt-legged reed wader, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 296339284,
-      "mode": "txt2img",
-      "origin": "data/species.json#reedrick-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-reedrick-a-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-reedrick-e-front",
       "class": "creature-battle",
       "subject": "Reedrick, stilt-legged reed wader, elder Plant and Wind creature, stilt-legged reed wader",
@@ -1696,21 +1250,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#reedrick-line[E]",
       "finalFile": "assets/final/creature-battle/battle-reedrick-e-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-reedrick-e-back",
-      "class": "creature-battle",
-      "subject": "Reedrick, stilt-legged reed wader, elder Plant and Wind creature, stilt-legged reed wader",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Reedrick, stilt-legged reed wader, elder Plant and Wind creature, stilt-legged reed wader, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3337340120,
-      "mode": "txt2img",
-      "origin": "data/species.json#reedrick-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-reedrick-e-back.png",
       "status": "pending"
     },
     {
@@ -1729,21 +1268,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-fenmaw-j-back",
-      "class": "creature-battle",
-      "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, juvenile Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, juvenile Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 78950186,
-      "mode": "txt2img",
-      "origin": "data/species.json#fenmaw-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-fenmaw-j-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-fenmaw-a-front",
       "class": "creature-battle",
       "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, adult Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide",
@@ -1756,21 +1280,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#fenmaw-line[A]",
       "finalFile": "assets/final/creature-battle/battle-fenmaw-a-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-fenmaw-a-back",
-      "class": "creature-battle",
-      "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, adult Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, adult Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 1915689117,
-      "mode": "txt2img",
-      "origin": "data/species.json#fenmaw-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-fenmaw-a-back.png",
       "status": "pending"
     },
     {
@@ -1789,21 +1298,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-fenmaw-e-back",
-      "class": "creature-battle",
-      "subject": "Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, elder Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Fenmaw, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, elder Water creature, bulk gharial with an extremely long thin tube-shaped gharial snout, a narrow needle-like jaw far longer than the head is wide, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 4069427169,
-      "mode": "txt2img",
-      "origin": "data/species.json#fenmaw-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-fenmaw-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-sporantle-j-front",
       "class": "creature-battle",
       "subject": "Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, juvenile Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps",
@@ -1816,21 +1310,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#sporantle-line[J]",
       "finalFile": "assets/final/creature-battle/battle-sporantle-j-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-sporantle-j-back",
-      "class": "creature-battle",
-      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, juvenile Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, juvenile Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3630132352,
-      "mode": "txt2img",
-      "origin": "data/species.json#sporantle-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-sporantle-j-back.png",
       "status": "pending"
     },
     {
@@ -1849,21 +1328,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-sporantle-a-back",
-      "class": "creature-battle",
-      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, adult Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, adult Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 4189548095,
-      "mode": "txt2img",
-      "origin": "data/species.json#sporantle-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-sporantle-a-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-sporantle-e-front",
       "class": "creature-battle",
       "subject": "Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, elder Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps",
@@ -1876,21 +1340,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#sporantle-line[E]",
       "finalFile": "assets/final/creature-battle/battle-sporantle-e-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-sporantle-e-back",
-      "class": "creature-battle",
-      "subject": "Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, elder Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Sporantle, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, elder Poison and Plant creature, spore-antlered fungus beast, a decomposer, its antlers branching mushroom stalks tipped with round spore caps, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3866180299,
-      "mode": "txt2img",
-      "origin": "data/species.json#sporantle-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-sporantle-e-back.png",
       "status": "pending"
     },
     {
@@ -1909,21 +1358,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-mosslet-j-back",
-      "class": "creature-battle",
-      "subject": "Mosslet, moss-backed hare, juvenile Plant creature, moss-backed hare",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Mosslet, moss-backed hare, juvenile Plant creature, moss-backed hare, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 4247897925,
-      "mode": "txt2img",
-      "origin": "data/species.json#mosslet-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-mosslet-j-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-mosslet-a-front",
       "class": "creature-battle",
       "subject": "Mosslet, moss-backed hare, adult Plant creature, moss-backed hare",
@@ -1936,21 +1370,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#mosslet-line[A]",
       "finalFile": "assets/final/creature-battle/battle-mosslet-a-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-mosslet-a-back",
-      "class": "creature-battle",
-      "subject": "Mosslet, moss-backed hare, adult Plant creature, moss-backed hare",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Mosslet, moss-backed hare, adult Plant creature, moss-backed hare, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2336431970,
-      "mode": "txt2img",
-      "origin": "data/species.json#mosslet-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-mosslet-a-back.png",
       "status": "pending"
     },
     {
@@ -1969,21 +1388,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-mosslet-e-back",
-      "class": "creature-battle",
-      "subject": "Mosslet, moss-backed hare, elder Plant creature, moss-backed hare",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Mosslet, moss-backed hare, elder Plant creature, moss-backed hare, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 445297254,
-      "mode": "txt2img",
-      "origin": "data/species.json#mosslet-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-mosslet-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-webvern-j-front",
       "class": "creature-battle",
       "subject": "Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, juvenile Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs",
@@ -1996,21 +1400,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#webvern-line[J]",
       "finalFile": "assets/final/creature-battle/battle-webvern-j-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-webvern-j-back",
-      "class": "creature-battle",
-      "subject": "Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, juvenile Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, juvenile Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 614618129,
-      "mode": "txt2img",
-      "origin": "data/species.json#webvern-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-webvern-j-back.png",
       "status": "pending"
     },
     {
@@ -2029,21 +1418,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-webvern-a-back",
-      "class": "creature-battle",
-      "subject": "Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, adult Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, adult Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3041612382,
-      "mode": "txt2img",
-      "origin": "data/species.json#webvern-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-webvern-a-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-webvern-e-front",
       "class": "creature-battle",
       "subject": "Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, elder Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs",
@@ -2056,21 +1430,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#webvern-line[E]",
       "finalFile": "assets/final/creature-battle/battle-webvern-e-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-webvern-e-back",
-      "class": "creature-battle",
-      "subject": "Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, elder Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Webvern, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, elder Poison creature, canopy weaver spider-wyrm, a long serpentine dragon body carried on eight spider legs, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 742942170,
-      "mode": "txt2img",
-      "origin": "data/species.json#webvern-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-webvern-e-back.png",
       "status": "pending"
     },
     {
@@ -2089,21 +1448,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-gloomoth-j-back",
-      "class": "creature-battle",
-      "subject": "Gloomgrub, Poison and Plant grub, the larval form of the dusk moth, juvenile Poison and Plant creature, Poison and Plant grub, the larval form of the dusk moth",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Gloomgrub, Poison and Plant grub, the larval form of the dusk moth, juvenile Poison and Plant creature, Poison and Plant grub, the larval form of the dusk moth, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 1904943233,
-      "mode": "txt2img",
-      "origin": "data/species.json#gloomoth-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-gloomoth-j-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-gloomoth-a-front",
       "class": "creature-battle",
       "subject": "Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, adult Dark and Wind creature, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings",
@@ -2116,21 +1460,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#gloomoth-line[A]",
       "finalFile": "assets/final/creature-battle/battle-gloomoth-a-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-gloomoth-a-back",
-      "class": "creature-battle",
-      "subject": "Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, adult Dark and Wind creature, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, adult Dark and Wind creature, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 1014991822,
-      "mode": "txt2img",
-      "origin": "data/species.json#gloomoth-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-gloomoth-a-back.png",
       "status": "pending"
     },
     {
@@ -2149,21 +1478,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-gloomoth-e-back",
-      "class": "creature-battle",
-      "subject": "Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, elder Dark and Wind creature, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Gloomoth, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, elder Dark and Wind creature, migratory dusk moth, a broad furred moth body with wide feathered antennae and soft scalloped wings, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3654259274,
-      "mode": "txt2img",
-      "origin": "data/species.json#gloomoth-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-gloomoth-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-duskstalk-j-front",
       "class": "creature-battle",
       "subject": "Duskstalk, long-limbed shadow cat, juvenile Dark creature, long-limbed shadow cat",
@@ -2176,21 +1490,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#duskstalk-line[J]",
       "finalFile": "assets/final/creature-battle/battle-duskstalk-j-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-duskstalk-j-back",
-      "class": "creature-battle",
-      "subject": "Duskstalk, long-limbed shadow cat, juvenile Dark creature, long-limbed shadow cat",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Duskstalk, long-limbed shadow cat, juvenile Dark creature, long-limbed shadow cat, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3722619084,
-      "mode": "txt2img",
-      "origin": "data/species.json#duskstalk-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-duskstalk-j-back.png",
       "status": "pending"
     },
     {
@@ -2209,21 +1508,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-duskstalk-a-back",
-      "class": "creature-battle",
-      "subject": "Duskstalk, long-limbed shadow cat, adult Dark creature, long-limbed shadow cat",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Duskstalk, long-limbed shadow cat, adult Dark creature, long-limbed shadow cat, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2531617723,
-      "mode": "txt2img",
-      "origin": "data/species.json#duskstalk-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-duskstalk-a-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-duskstalk-e-front",
       "class": "creature-battle",
       "subject": "Duskstalk, long-limbed shadow cat, elder Dark creature, long-limbed shadow cat",
@@ -2236,21 +1520,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#duskstalk-line[E]",
       "finalFile": "assets/final/creature-battle/battle-duskstalk-e-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-duskstalk-e-back",
-      "class": "creature-battle",
-      "subject": "Duskstalk, long-limbed shadow cat, elder Dark creature, long-limbed shadow cat",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Duskstalk, long-limbed shadow cat, elder Dark creature, long-limbed shadow cat, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 290816239,
-      "mode": "txt2img",
-      "origin": "data/species.json#duskstalk-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-duskstalk-e-back.png",
       "status": "pending"
     },
     {
@@ -2269,21 +1538,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-barkhide-j-back",
-      "class": "creature-battle",
-      "subject": "Barkhide, armored bark elk, juvenile Plant and Earth creature, armored bark elk",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Barkhide, armored bark elk, juvenile Plant and Earth creature, armored bark elk, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2358846812,
-      "mode": "txt2img",
-      "origin": "data/species.json#barkhide-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-barkhide-j-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-barkhide-a-front",
       "class": "creature-battle",
       "subject": "Barkhide, armored bark elk, adult Plant and Earth creature, armored bark elk",
@@ -2296,21 +1550,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#barkhide-line[A]",
       "finalFile": "assets/final/creature-battle/battle-barkhide-a-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-barkhide-a-back",
-      "class": "creature-battle",
-      "subject": "Barkhide, armored bark elk, adult Plant and Earth creature, armored bark elk",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Barkhide, armored bark elk, adult Plant and Earth creature, armored bark elk, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3101404235,
-      "mode": "txt2img",
-      "origin": "data/species.json#barkhide-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-barkhide-a-back.png",
       "status": "pending"
     },
     {
@@ -2329,21 +1568,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-barkhide-e-back",
-      "class": "creature-battle",
-      "subject": "Barkhide, armored bark elk, elder Plant and Earth creature, armored bark elk",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Barkhide, armored bark elk, elder Plant and Earth creature, armored bark elk, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3424772031,
-      "mode": "txt2img",
-      "origin": "data/species.json#barkhide-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-barkhide-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-ashvole-j-front",
       "class": "creature-battle",
       "subject": "Ashvole, cinder-burrowing vole, juvenile Fire creature, cinder-burrowing vole",
@@ -2356,21 +1580,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#ashvole-line[J]",
       "finalFile": "assets/final/creature-battle/battle-ashvole-j-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-ashvole-j-back",
-      "class": "creature-battle",
-      "subject": "Ashvole, cinder-burrowing vole, juvenile Fire creature, cinder-burrowing vole",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Ashvole, cinder-burrowing vole, juvenile Fire creature, cinder-burrowing vole, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 389845800,
-      "mode": "txt2img",
-      "origin": "data/species.json#ashvole-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-ashvole-j-back.png",
       "status": "pending"
     },
     {
@@ -2389,21 +1598,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-ashvole-a-back",
-      "class": "creature-battle",
-      "subject": "Ashvole, cinder-burrowing vole, adult Fire creature, cinder-burrowing vole",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Ashvole, cinder-burrowing vole, adult Fire creature, cinder-burrowing vole, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 1907190423,
-      "mode": "txt2img",
-      "origin": "data/species.json#ashvole-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-ashvole-a-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-ashvole-e-front",
       "class": "creature-battle",
       "subject": "Ashvole, cinder-burrowing vole, elder Fire creature, cinder-burrowing vole",
@@ -2416,21 +1610,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#ashvole-line[E]",
       "finalFile": "assets/final/creature-battle/battle-ashvole-e-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-ashvole-e-back",
-      "class": "creature-battle",
-      "subject": "Ashvole, cinder-burrowing vole, elder Fire creature, cinder-burrowing vole",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Ashvole, cinder-burrowing vole, elder Fire creature, cinder-burrowing vole, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 1072965027,
-      "mode": "txt2img",
-      "origin": "data/species.json#ashvole-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-ashvole-e-back.png",
       "status": "pending"
     },
     {
@@ -2449,21 +1628,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-pyrelisk-j-back",
-      "class": "creature-battle",
-      "subject": "Pyrelisk, vent basilisk, juvenile Fire and Earth creature, vent basilisk",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Pyrelisk, vent basilisk, juvenile Fire and Earth creature, vent basilisk, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 795774043,
-      "mode": "txt2img",
-      "origin": "data/species.json#pyrelisk-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-pyrelisk-j-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-pyrelisk-a-front",
       "class": "creature-battle",
       "subject": "Pyrelisk, vent basilisk, adult Fire and Earth creature, vent basilisk",
@@ -2476,21 +1640,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#pyrelisk-line[A]",
       "finalFile": "assets/final/creature-battle/battle-pyrelisk-a-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-pyrelisk-a-back",
-      "class": "creature-battle",
-      "subject": "Pyrelisk, vent basilisk, adult Fire and Earth creature, vent basilisk",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Pyrelisk, vent basilisk, adult Fire and Earth creature, vent basilisk, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2223339500,
-      "mode": "txt2img",
-      "origin": "data/species.json#pyrelisk-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-pyrelisk-a-back.png",
       "status": "pending"
     },
     {
@@ -2509,21 +1658,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-pyrelisk-e-back",
-      "class": "creature-battle",
-      "subject": "Pyrelisk, vent basilisk, elder Fire and Earth creature, vent basilisk",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Pyrelisk, vent basilisk, elder Fire and Earth creature, vent basilisk, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 675437392,
-      "mode": "txt2img",
-      "origin": "data/species.json#pyrelisk-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-pyrelisk-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-cragmar-j-front",
       "class": "creature-battle",
       "subject": "Cragmar, boulder ram, juvenile Earth creature, boulder ram",
@@ -2536,21 +1670,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#cragmar-line[J]",
       "finalFile": "assets/final/creature-battle/battle-cragmar-j-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-cragmar-j-back",
-      "class": "creature-battle",
-      "subject": "Cragmar, boulder ram, juvenile Earth creature, boulder ram",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Cragmar, boulder ram, juvenile Earth creature, boulder ram, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2354328021,
-      "mode": "txt2img",
-      "origin": "data/species.json#cragmar-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-cragmar-j-back.png",
       "status": "pending"
     },
     {
@@ -2569,21 +1688,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-cragmar-a-back",
-      "class": "creature-battle",
-      "subject": "Cragmar, boulder ram, adult Earth creature, boulder ram",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Cragmar, boulder ram, adult Earth creature, boulder ram, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2979407474,
-      "mode": "txt2img",
-      "origin": "data/species.json#cragmar-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-cragmar-a-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-cragmar-e-front",
       "class": "creature-battle",
       "subject": "Cragmar, boulder ram, elder Earth creature, boulder ram",
@@ -2596,21 +1700,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#cragmar-line[E]",
       "finalFile": "assets/final/creature-battle/battle-cragmar-e-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-cragmar-e-back",
-      "class": "creature-battle",
-      "subject": "Cragmar, boulder ram, elder Earth creature, boulder ram",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Cragmar, boulder ram, elder Earth creature, boulder ram, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2788866038,
-      "mode": "txt2img",
-      "origin": "data/species.json#cragmar-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-cragmar-e-back.png",
       "status": "pending"
     },
     {
@@ -2629,21 +1718,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-stonewing-j-back",
-      "class": "creature-battle",
-      "subject": "Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, juvenile Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, juvenile Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2228441774,
-      "mode": "txt2img",
-      "origin": "data/species.json#stonewing-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-stonewing-j-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-stonewing-a-front",
       "class": "creature-battle",
       "subject": "Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, adult Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head",
@@ -2656,21 +1730,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#stonewing-line[A]",
       "finalFile": "assets/final/creature-battle/battle-stonewing-a-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-stonewing-a-back",
-      "class": "creature-battle",
-      "subject": "Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, adult Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, adult Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3118393185,
-      "mode": "txt2img",
-      "origin": "data/species.json#stonewing-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-stonewing-a-back.png",
       "status": "pending"
     },
     {
@@ -2689,21 +1748,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-stonewing-e-back",
-      "class": "creature-battle",
-      "subject": "Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, elder Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Stonewing, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, elder Earth and Wind creature, obsidian condor, a vast vulture with enormous broad wings, long fingered wingtips and a bare head, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 964655133,
-      "mode": "txt2img",
-      "origin": "data/species.json#stonewing-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-stonewing-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-carricrow-j-front",
       "class": "creature-battle",
       "subject": "Carricrow, carrion crow, juvenile Dark and Wind creature, carrion crow",
@@ -2716,21 +1760,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#carricrow-line[J]",
       "finalFile": "assets/final/creature-battle/battle-carricrow-j-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-carricrow-j-back",
-      "class": "creature-battle",
-      "subject": "Carricrow, carrion crow, juvenile Dark and Wind creature, carrion crow",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Carricrow, carrion crow, juvenile Dark and Wind creature, carrion crow, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 785867776,
-      "mode": "txt2img",
-      "origin": "data/species.json#carricrow-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-carricrow-j-back.png",
       "status": "pending"
     },
     {
@@ -2749,21 +1778,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-carricrow-a-back",
-      "class": "creature-battle",
-      "subject": "Carricrow, carrion crow, adult Dark and Wind creature, carrion crow",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Carricrow, carrion crow, adult Dark and Wind creature, carrion crow, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 1345283519,
-      "mode": "txt2img",
-      "origin": "data/species.json#carricrow-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-carricrow-a-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-carricrow-e-front",
       "class": "creature-battle",
       "subject": "Carricrow, carrion crow, elder Dark and Wind creature, carrion crow",
@@ -2776,21 +1790,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#carricrow-line[E]",
       "finalFile": "assets/final/creature-battle/battle-carricrow-e-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-carricrow-e-back",
-      "class": "creature-battle",
-      "subject": "Carricrow, carrion crow, elder Dark and Wind creature, carrion crow",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Carricrow, carrion crow, elder Dark and Wind creature, carrion crow, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 1021915723,
-      "mode": "txt2img",
-      "origin": "data/species.json#carricrow-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-carricrow-e-back.png",
       "status": "pending"
     },
     {
@@ -2809,21 +1808,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-umbrat-j-back",
-      "class": "creature-battle",
-      "subject": "Umbrat, shade rat, juvenile Dark creature, shade rat",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Umbrat, shade rat, juvenile Dark creature, shade rat, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 110165639,
-      "mode": "txt2img",
-      "origin": "data/species.json#umbrat-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-umbrat-j-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-umbrat-a-front",
       "class": "creature-battle",
       "subject": "Umbrat, shade rat, adult Dark creature, shade rat",
@@ -2836,21 +1820,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#umbrat-line[A]",
       "finalFile": "assets/final/creature-battle/battle-umbrat-a-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-umbrat-a-back",
-      "class": "creature-battle",
-      "subject": "Umbrat, shade rat, adult Dark creature, shade rat",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Umbrat, shade rat, adult Dark creature, shade rat, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 404965528,
-      "mode": "txt2img",
-      "origin": "data/species.json#umbrat-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-umbrat-a-back.png",
       "status": "pending"
     },
     {
@@ -2869,21 +1838,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-umbrat-e-back",
-      "class": "creature-battle",
-      "subject": "Umbrat, shade rat, elder Dark creature, shade rat",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Umbrat, shade rat, elder Dark creature, shade rat, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2784143380,
-      "mode": "txt2img",
-      "origin": "data/species.json#umbrat-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-umbrat-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-wispurr-j-front",
       "class": "creature-battle",
       "subject": "Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, juvenile Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light",
@@ -2896,21 +1850,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#wispurr-line[J]",
       "finalFile": "assets/final/creature-battle/battle-wispurr-j-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-wispurr-j-back",
-      "class": "creature-battle",
-      "subject": "Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, juvenile Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, juvenile Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 1762802438,
-      "mode": "txt2img",
-      "origin": "data/species.json#wispurr-line[J]",
-      "finalFile": "assets/final/creature-battle/battle-wispurr-j-back.png",
       "status": "pending"
     },
     {
@@ -2929,21 +1868,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-wispurr-a-back",
-      "class": "creature-battle",
-      "subject": "Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, adult Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, adult Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3690055177,
-      "mode": "txt2img",
-      "origin": "data/species.json#wispurr-line[A]",
-      "finalFile": "assets/final/creature-battle/battle-wispurr-a-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-wispurr-e-front",
       "class": "creature-battle",
       "subject": "Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, elder Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light",
@@ -2956,21 +1880,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#wispurr-line[E]",
       "finalFile": "assets/final/creature-battle/battle-wispurr-e-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-wispurr-e-back",
-      "class": "creature-battle",
-      "subject": "Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, elder Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Wispurr, will-o-wisp cat wreathed in pale drifting ghost-light, elder Dark and Beast creature, will-o-wisp cat wreathed in pale drifting ghost-light, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 3098142309,
-      "mode": "txt2img",
-      "origin": "data/species.json#wispurr-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-wispurr-e-back.png",
       "status": "pending"
     },
     {
@@ -2989,21 +1898,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-vellsire-e-back",
-      "class": "creature-battle",
-      "subject": "Vellsire, vanished keystone stag, ancient elder Beast and Dark creature, vanished keystone stag",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Vellsire, vanished keystone stag, ancient elder Beast and Dark creature, vanished keystone stag, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 1309662897,
-      "mode": "txt2img",
-      "origin": "data/species.json#vellsire-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-vellsire-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-kilnback-e-front",
       "class": "creature-battle",
       "subject": "Kilnback, kiln-shelled tortoise, ancient elder Fire and Earth creature, kiln-shelled tortoise",
@@ -3019,21 +1913,6 @@
       "status": "pending"
     },
     {
-      "id": "battle-kilnback-e-back",
-      "class": "creature-battle",
-      "subject": "Kilnback, kiln-shelled tortoise, ancient elder Fire and Earth creature, kiln-shelled tortoise",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Kilnback, kiln-shelled tortoise, ancient elder Fire and Earth creature, kiln-shelled tortoise, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 2470511806,
-      "mode": "txt2img",
-      "origin": "data/species.json#kilnback-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-kilnback-e-back.png",
-      "status": "pending"
-    },
-    {
       "id": "battle-undermere-e-front",
       "class": "creature-battle",
       "subject": "Undermere, eyeless serpent with a smooth blank head, no eyes and no eye sockets, ancient elder Water and Dark creature, eyeless serpent with a smooth blank head, no eyes and no eye sockets",
@@ -3046,21 +1925,6 @@
       "mode": "txt2img",
       "origin": "data/species.json#undermere-line[E]",
       "finalFile": "assets/final/creature-battle/battle-undermere-e-front.png",
-      "status": "pending"
-    },
-    {
-      "id": "battle-undermere-e-back",
-      "class": "creature-battle",
-      "subject": "Undermere, eyeless serpent with a smooth blank head, no eyes and no eye sockets, ancient elder Water and Dark creature, eyeless serpent with a smooth blank head, no eyes and no eye sockets",
-      "view": "back",
-      "prompt": "pixel art creature battle sprite, retro 90s handheld RPG style, Undermere, eyeless serpent with a smooth blank head, no eyes and no eye sockets, ancient elder Water and Dark creature, eyeless serpent with a smooth blank head, no eyes and no eye sockets, seen from behind, battle stance, viewed from the rear, full body, centered composition, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs",
-      "targetSize": "96x96",
-      "version": 1,
-      "seed": 4062111328,
-      "mode": "txt2img",
-      "origin": "data/species.json#undermere-line[E]",
-      "finalFile": "assets/final/creature-battle/battle-undermere-e-back.png",
       "status": "pending"
     },
     {
@@ -5140,144 +4004,6 @@
       "sha256": "ba2df07114ffa6d22055fdb0db4238ab0aed8780c68a2c45fe8c821a48f83140",
       "attempts": 1,
       "flaggedForReview": false
-    },
-    {
-      "id": "player-back",
-      "class": "player",
-      "subject": "young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots",
-      "view": "back",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, standing seen from behind, full body, compact youthful proportions, large head, short limbs, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
-      "targetSize": "32x48",
-      "version": 1,
-      "seed": 42,
-      "mode": "txt2img",
-      "origin": "manifest._player — L6 verbatim, gate B0",
-      "finalFile": "assets/final/player/player-back.png",
-      "status": "pending"
-    },
-    {
-      "id": "player-side",
-      "class": "player",
-      "subject": "young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots",
-      "view": "side",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, standing in profile, facing right, full body, compact youthful proportions, large head, short limbs, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
-      "targetSize": "32x48",
-      "version": 1,
-      "seed": 42,
-      "mode": "txt2img",
-      "origin": "manifest._player — L6 verbatim, gate B0",
-      "finalFile": "assets/final/player/player-side.png",
-      "status": "pending"
-    },
-    {
-      "id": "player-front-step-left",
-      "class": "player",
-      "subject": "young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots",
-      "view": "front-step-left",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, standing facing forward, mid-step, left foot forward, full body, compact youthful proportions, large head, short limbs, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
-      "targetSize": "32x48",
-      "version": 1,
-      "seed": 42,
-      "mode": "img2img",
-      "origin": "manifest._player.walkFrames — build-doc §9.6, img2img off player-front",
-      "finalFile": "assets/final/player/player-front-step-left.png",
-      "initImage": "assets/final/player/player-front.png",
-      "denoise": 0.35,
-      "gate": "build-doc §9.6 SUPERVISED walk trial, denoise sweep {0.3, 0.4, 0.5} via --denoise. Fail ⇒ fall to bob without discussion; the statics ship either way.",
-      "status": "pending"
-    },
-    {
-      "id": "player-front-step-right",
-      "class": "player",
-      "subject": "young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots",
-      "view": "front-step-right",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, standing facing forward, mid-step, right foot forward, full body, compact youthful proportions, large head, short limbs, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
-      "targetSize": "32x48",
-      "version": 1,
-      "seed": 42,
-      "mode": "img2img",
-      "origin": "manifest._player.walkFrames — build-doc §9.6, img2img off player-front",
-      "finalFile": "assets/final/player/player-front-step-right.png",
-      "initImage": "assets/final/player/player-front.png",
-      "denoise": 0.35,
-      "gate": "build-doc §9.6 SUPERVISED walk trial, denoise sweep {0.3, 0.4, 0.5} via --denoise. Fail ⇒ fall to bob without discussion; the statics ship either way.",
-      "status": "pending"
-    },
-    {
-      "id": "player-back-step-left",
-      "class": "player",
-      "subject": "young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots",
-      "view": "back-step-left",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, seen from behind, mid-step, left foot forward, full body, compact youthful proportions, large head, short limbs, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
-      "targetSize": "32x48",
-      "version": 1,
-      "seed": 42,
-      "mode": "img2img",
-      "origin": "manifest._player.walkFrames — build-doc §9.6, img2img off player-back",
-      "finalFile": "assets/final/player/player-back-step-left.png",
-      "initImage": "assets/final/player/player-back.png",
-      "denoise": 0.35,
-      "gate": "build-doc §9.6 SUPERVISED walk trial, denoise sweep {0.3, 0.4, 0.5} via --denoise. Fail ⇒ fall to bob without discussion; the statics ship either way.",
-      "status": "pending"
-    },
-    {
-      "id": "player-back-step-right",
-      "class": "player",
-      "subject": "young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots",
-      "view": "back-step-right",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, seen from behind, mid-step, right foot forward, full body, compact youthful proportions, large head, short limbs, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
-      "targetSize": "32x48",
-      "version": 1,
-      "seed": 42,
-      "mode": "img2img",
-      "origin": "manifest._player.walkFrames — build-doc §9.6, img2img off player-back",
-      "finalFile": "assets/final/player/player-back-step-right.png",
-      "initImage": "assets/final/player/player-back.png",
-      "denoise": 0.35,
-      "gate": "build-doc §9.6 SUPERVISED walk trial, denoise sweep {0.3, 0.4, 0.5} via --denoise. Fail ⇒ fall to bob without discussion; the statics ship either way.",
-      "status": "pending"
-    },
-    {
-      "id": "player-side-step-left",
-      "class": "player",
-      "subject": "young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots",
-      "view": "side-step-left",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, in profile facing right, mid-step, left foot forward, full body, compact youthful proportions, large head, short limbs, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
-      "targetSize": "32x48",
-      "version": 1,
-      "seed": 42,
-      "mode": "img2img",
-      "origin": "manifest._player.walkFrames — build-doc §9.6, img2img off player-side",
-      "finalFile": "assets/final/player/player-side-step-left.png",
-      "initImage": "assets/final/player/player-side.png",
-      "denoise": 0.35,
-      "gate": "build-doc §9.6 SUPERVISED walk trial, denoise sweep {0.3, 0.4, 0.5} via --denoise. Fail ⇒ fall to bob without discussion; the statics ship either way.",
-      "status": "pending"
-    },
-    {
-      "id": "player-side-step-right",
-      "class": "player",
-      "subject": "young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots",
-      "view": "side-step-right",
-      "prompt": "pixel art overworld character sprite, retro 90s handheld RPG style, young field warden protagonist wearing a green shirt, brown shorts, a peaked green ranger cap with a small yellow star badge, a leather satchel on a shoulder strap, and brown walking boots, in profile facing right, mid-step, right foot forward, full body, compact youthful proportions, large head, short limbs, plain white background, crisp clean pixel edges, 2D game asset",
-      "negative": "low quality, bad anatomy, extra digits, missing digits, extra limbs, missing limbs, cape, cloak, hood, mantle",
-      "targetSize": "32x48",
-      "version": 1,
-      "seed": 42,
-      "mode": "img2img",
-      "origin": "manifest._player.walkFrames — build-doc §9.6, img2img off player-side",
-      "finalFile": "assets/final/player/player-side-step-right.png",
-      "initImage": "assets/final/player/player-side.png",
-      "denoise": 0.35,
-      "gate": "build-doc §9.6 SUPERVISED walk trial, denoise sweep {0.3, 0.4, 0.5} via --denoise. Fail ⇒ fall to bob without discussion; the statics ship either way.",
-      "status": "pending"
     }
   ]
 }

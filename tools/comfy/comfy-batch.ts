@@ -762,13 +762,23 @@ const mapAssetFor = (node: NodeFile): string => node.mapAsset;
 export function deriveRows(m: ManifestFile, content: Content): RowSpec[] {
   const rows: RowSpec[] = [];
 
-  // ── creature battle sprites: 24 aging lines × 3 forms + 3 Ancients × 1 = 75 forms × front/back.
+  // ── creature battle sprites: 24 aging lines × 3 forms + 3 Ancients × 1 = 75 forms, ONE view each.
+  //
+  // The view list is READ FROM THE MANIFEST (`classes["creature-battle"].views`), not written here.
+  // It used to be the literal `['front', 'back']`, which is what made the back view survivable: the
+  // rows could be deleted from manifest.json and the next `rebuild` would put all 75 of them back,
+  // silently, because the derivation still knew how to spell them. Hank's ruling — "we're not going
+  // to have the backs of any of the creatures. Both creatures are going to be facing forward in
+  // battle" — removes the concept, so the generator must be unable to name it. `views` now holds
+  // only `front`; adding `back` back to that map is the single deliberate act that would restore
+  // the batch, and `viewPhrase` throws for any view the map does not carry.
+  // The runtime half of the same ruling is `game/ui/BattleHud.ts::Facing`, a one-member union.
   for (const line of content.species) {
     for (const stage of artFormsOf(line)) {
       const name = line.formNames[stage];
       const concept = formConcept(m, name, stage, line.ancient);
       const subject = `${name}, ${concept}, ${ageWord(m, stage, line.ancient)} ${typeWords(line, stage)} creature, ${concept}`;
-      for (const view of ['front', 'back']) {
+      for (const view of Object.keys(classOf(m, 'creature-battle').views)) {
         const id = `battle-${shortId(line.id)}-${stage.toLowerCase()}-${view}`;
         rows.push(
           finish(m, {

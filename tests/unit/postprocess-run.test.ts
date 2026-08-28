@@ -32,11 +32,11 @@ import { tmpdir } from 'node:os';
 import { loadPalette, loadPaletteFile, REPO_ROOT } from '../../tools/postprocess/palette.ts';
 import { loadManifest } from '../../tools/comfy/comfy-batch.ts';
 import { writePlaceholders } from '../../tools/postprocess/run.ts';
-import { finalPathOf } from '../../tools/postprocess/chain.ts';
+import { finalPathOf, rawPathOf } from '../../tools/postprocess/chain.ts';
 import { readRaster } from '../../tools/postprocess/raster.ts';
 import { placeholderLabel } from '../../tools/postprocess/placeholder.ts';
 import { assetId, placeholderHex } from '@game/placeholder';
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { hashSeed } from '../../core/rng.ts';
 
 const exec = promisify(execFile);
@@ -62,7 +62,31 @@ async function cli(...args: string[]): Promise<Run> {
 /** A row that really exists and a class that really exists — the manifest is the source of both. */
 const manifest = await loadManifest();
 const REAL_CLASS = 'creature-battle';
-const REAL_ID = 'battle-fenmaw-e-back';
+/*
+ * Was `battle-fenmaw-e-back`. The back view is cut (game/ui/BattleHud.ts::Facing) so that row no
+ * longer exists. Nothing in this file depends on the facing; the row only has to be real and to not
+ * be in the `player` class, which is the class the "two real filters, no shared row" case uses.
+ */
+const REAL_ID = 'battle-cindril-j-front';
+
+/*
+ * A row with NO RAW FILE, CHOSEN AT RUNTIME — never a hard-coded id.
+ *
+ * "BINDS THE OTHER SIDE" needs a filter that selects a row the post-process then does no work on,
+ * so it can read back `0 processed · 1 rows have no raw file yet`. That requires a row with nothing
+ * at its `rawPathOf`, and which rows those are is LOCAL, UNCOMMITTED STATE: `assets/raw/**` is
+ * gitignored, generation writes into it, and this test cannot see when that happens.
+ *
+ * It used to be spelled as a constant, and it was only ever right by accident — the old id was a
+ * BACK sprite, and backs were never generated. Both substitutions available at the time were
+ * already wrong: `battle-fenmaw-e-front` had a 4-byte scratch file another test in this suite
+ * writes, and `battle-cindril-j-front` acquired a real 443 KB raw mid-run when the front batch
+ * landed. Either one makes the CLI actually post-process, and the failure surfaces as an
+ * unexplained crash inside sharp ("Input file contains unsupported image format") rather than as
+ * anything about this test's fixture. So the row is SELECTED by the property the test needs, and
+ * the selection is asserted to have found something.
+ */
+const NO_RAW_ROW = manifest.rows.find((r) => r.class !== 'player' && !existsSync(rawPathOf(manifest, r)));
 
 describe('tools/postprocess/run.ts refuses a filter that selects no rows (BF-6)', () => {
   it('the fixture filters are real — this test is measuring a refusal, not a typo of its own', () => {
@@ -70,6 +94,14 @@ describe('tools/postprocess/run.ts refuses a filter that selects no rows (BF-6)'
     expect(manifest.rows.some((r) => r.id === REAL_ID)).toBe(true);
     // …and the row used for the "both real, no overlap" case is genuinely NOT in the class used.
     expect(manifest.rows.find((r) => r.id === REAL_ID)!.class).not.toBe('player');
+    // …and the run-path fixture really did find a row with no raw file. If every row has one, the
+    // "does no work" case below is unrunnable and must say so, not quietly measure something else.
+    expect(
+      NO_RAW_ROW,
+      'every non-player manifest row has a raw file on disk, so nothing can exercise the ' +
+        '"filter matched, no work to do" path. Clear assets/raw/ or add a row.',
+    ).toBeDefined();
+    expect(existsSync(rawPathOf(manifest, NO_RAW_ROW!))).toBe(false);
   });
 
   it('a mistyped --class exits non-zero and names the near miss, instead of "0 processed" at exit 0', async () => {
@@ -111,7 +143,8 @@ describe('tools/postprocess/run.ts refuses a filter that selects no rows (BF-6)'
     // Without this the guard could be an unconditional refusal and every assertion above would
     // still pass. The row chosen has no raw file, so the run does no work and writes nothing —
     // and "0 processed" is the honest answer here precisely because a row matched.
-    const r = await cli(`--id=${REAL_ID}`, '--no-atlas');
+    if (NO_RAW_ROW === undefined) throw new Error('no manifest row lacks a raw file — see the fixture test above');
+    const r = await cli(`--id=${NO_RAW_ROW.id}`, '--no-atlas');
     expect(r.code, `stdout: ${r.stdout}\nstderr: ${r.stderr}`).toBe(0);
     expect(r.stdout).toMatch(/0 processed · 1 rows have no raw file yet/);
   });
@@ -195,7 +228,7 @@ describe('the offline and runtime placeholders name an asset the same way (BF-25
    *
    * The observable is the BLOCK COLOUR. `makePlaceholder` fills with `palette[hashSeed(0, label)]`,
    * so the pixel is a one-way function of the exact string the writer used — there is no way to get
-   * the asset-id colour out of a row-id label. All 288 rows hash to different swatches under the two
+   * the asset-id colour out of a row-id label. All 213 rows hash to different swatches under the two
    * conventions, so the negative half of this can never pass by collision.
    */
   it('BINDS THE WRITER: writePlaceholders colours the PNG by the ASSET ID, not by the row id', async () => {

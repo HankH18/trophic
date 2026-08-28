@@ -1735,10 +1735,20 @@ describe("battle UI widget models", () => {
     expect(card.title).toBe(`${player.displayName}  Lv ${String(player.level)}`);
     expect(card.hp.readout).toBe(`${String(player.curHp)}/${String(player.maxHp)}`);
     expect(card.retirement).toBe("Retires Y4");
-    expect(card.spriteKey).toBe(battleSpriteKey(player.lineId, player.age, "back"));
+    // WAS `battleSpriteKey(player.lineId, player.age, "back")`. Hank cut the back view — "we're not
+    // going to have the backs of any of the creatures. Both creatures are going to be facing
+    // forward in battle" — so the player's own creature is drawn from the front like the enemy's.
+    // `Facing` is now a one-member union, so the old line no longer TYPE-CHECKS either.
+    expect(card.spriteKey).toBe(battleSpriteKey(player.lineId, player.age, "front"));
     // The retirement year is a fact about a creature you own — the wild side never shows one.
     expect(combatantCardModel(enemy, 100, { projectedRetirementYear: 4 }).retirement).toBe("");
     expect(combatantCardModel(enemy, 100).spriteKey).toBe(battleSpriteKey(enemy.lineId, enemy.age, "front"));
+    // THE GATE, at the level the player actually sees: side no longer selects a view. Reverting
+    // `facingFor` to `side === "player" ? "back" : "front"` reds here as well as at the compiler.
+    for (const b of [player, enemy]) {
+      expect(combatantCardModel(b, 100).spriteKey.endsWith("-front"), b.lineId).toBe(true);
+      expect(combatantCardModel(b, 100).spriteKey.endsWith("-back"), b.lineId).toBe(false);
+    }
   });
 
   it("the Lure chip is a persistent readout on the ENEMY card, and needs a content label", () => {
@@ -1777,7 +1787,9 @@ describe("battle UI widget models", () => {
         .filter((row) => row.class === "creature-battle")
         .map((row) => assetId(row.finalFile)),
     );
-    expect(manifestIds.size).toBe(150); // build-doc §9.7 says 154; its form arithmetic is off, and 75 forms × 2 facings is 150.
+    // build-doc §9.7 says 154; its form arithmetic is off. It was 150 (75 forms × 2 facings) until
+    // the back view was cut, and a form now ships ONE front sprite: 75.
+    expect(manifestIds.size).toBe(75);
 
     // The keys the manifest OWES: every (line, age) a battler is supposed to be built at, both
     // facings. Ancients are pinned to "E" by core/lifecycle.ts:346 (`line.ancient ? "E" : opts.age`),
@@ -1793,7 +1805,10 @@ describe("battle UI widget models", () => {
     for (const line of content.species) {
       const ages: AgeClass[] = line.ancient ? ["E"] : [...AGE_CLASSES];
       for (const age of ages) {
-        for (const facing of ["front", "back"] as const) asked.add(battleSpriteKey(line.id, age, facing));
+        // One view per form. This used to iterate `["front", "back"]`; `Facing` is a one-member
+        // union now, so a two-facing loop does not compile, and the set identity below is what
+        // catches the manifest growing a back row again.
+        asked.add(battleSpriteKey(line.id, age, "front"));
       }
     }
     expect([...asked].sort()).toEqual([...manifestIds].sort());
@@ -1807,8 +1822,11 @@ describe("battle UI widget models", () => {
     const standIn = placeholderKey(one, 72, 72);
     expect(standIn).toContain(one);
     expect(standIn).toBe(placeholderKey(one, 72, 72));
-    // Front and back are different manifest rows and must never collapse onto one stand-in.
-    expect(placeholderKey(battleSpriteKey("cindril-line", "J", "back"), 72, 72)).not.toBe(standIn);
+    // WAS: "front and back are different manifest rows and must never collapse onto one stand-in",
+    // asserting the back key resolved to its own real art. There is no back row to collapse onto
+    // any more, so assert THAT — and keep the distinctness claim on two rows that do still exist.
+    expect([...manifestIds].filter((id) => id.endsWith("-back"))).toEqual([]);
+    expect(placeholderKey(battleSpriteKey("cindril-line", "A", "front"), 72, 72)).not.toBe(standIn);
   });
 
   it("BINDS — the manifest check refuses the key shape this lane used to invent", () => {
@@ -1832,9 +1850,11 @@ describe("battle UI widget models", () => {
      * real `rollEncounterAt` at each Ancient's real host node with the sign chain unlocked, turns
      * every (line, age) it actually produced into a battle sprite key, and subtracts the manifest.
      *
-     * MEASURED: three Ancient lines × {J, A} × {front, back} = 12 keys with no row. `textureFor`
-     * substitutes a hatched box for each, silently, so the large majority of unlocked-Ancient
-     * encounters would ship as placeholders with nothing reporting it.
+     * MEASURED (when the back view still existed): three Ancient lines × {J, A} × {front, back} =
+     * 12 keys with no row. `textureFor` substitutes a hatched box for each, silently, so the large
+     * majority of unlocked-Ancient encounters would ship as placeholders with nothing reporting it.
+     * The back view has since been cut, so the same defect would now measure 6 keys; the clamp that
+     * fixed it is unrelated to the facing and the assertion below is unchanged.
      *
      * FIXED in `game/encounters.ts`: the age is clamped to "E" for an Ancient while `rollAge`'s draw
      * is still consumed, so the seed-replay contract is byte-identical. This test kept its rig and
@@ -1866,19 +1886,17 @@ describe("battle UI widget models", () => {
         const met = rollEncounterAt(ctx, createRng(seed));
         if (met?.lineId !== line.id) continue;
         ancientsMet += 1;
-        for (const facing of ["front", "back"] as const) {
-          const key = battleSpriteKey(met.lineId, met.age, facing);
-          if (!manifestIds.has(key)) missing.add(key);
-        }
+        const key = battleSpriteKey(met.lineId, met.age, "front");
+        if (!manifestIds.has(key)) missing.add(key);
       }
     }
     expect(ancientsMet, "no Ancient was ever met — the fixture is wrong, not the manifest").toBeGreaterThan(0);
     expect(
       [...missing].sort(),
       "the encounter roll asked for a battle sprite the manifest has no row for. Before the BF-4 " +
-        "clamp this was 12 keys — three Ancient lines x {J,A} x {front,back} — and `textureFor` " +
-        "drew a hatched box for each of them silently. If this is non-empty again, either an " +
-        "Ancient is rolling below Elder or lane B has dropped a committed row.",
+        "clamp this was 12 keys — three Ancient lines x {J,A} x {front,back}, back rows included — " +
+        "and `textureFor` drew a hatched box for each of them silently. If this is non-empty again, " +
+        "either an Ancient is rolling below Elder or lane B has dropped a committed row.",
     ).toEqual([]);
   });
 
