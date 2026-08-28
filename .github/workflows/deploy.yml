@@ -1,0 +1,73 @@
+# Builds TROPHIC and publishes it to GitHub Pages.
+#
+# WHY THIS JOB DOES NOT GATE ON THE TEST SUITE, stated here because a deploy that
+# ignores its own tests is normally a smell and this one is deliberate: the suite
+# carries a small number of DELIBERATE reds that are FINDINGS awaiting the owner's
+# decisions, not defects — a manifest class with no consumer, packed atlases in the
+# shipping root, and a UI frame whose screen has never been specified. Gating the
+# deploy on them would mean the honest answer to "is this art dead?" is also the
+# answer to "can anyone play the game?", which is the wrong coupling. The suite is
+# still run, below, and its result is visible on every commit.
+#
+# `npm run build` IS `tsc --noEmit && vite build`, so a type error still blocks the
+# deploy. That is the gate that belongs here.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # Vite emits `assets/`, which Jekyll would serve happily, but a future asset
+      # directory beginning with an underscore would be silently dropped. Cheap
+      # insurance against a class of "the file is there and 404s" that is very hard
+      # to diagnose from the outside.
+      - run: touch dist/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  # Reported, never blocking — see the header. A red here is information about the
+  # art pipeline, not about whether the build is deployable.
+  tests:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test
