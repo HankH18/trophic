@@ -755,6 +755,18 @@ class Composer:
 
     # ── the base stamp ──────────────────────────────────────────────────────
     GROUND, BLOCK, BUILT, INK, SHADE, SHORE = 0, 1, 2, 3, 4, 5
+    # A prop is a SIXTH kind and takes its own tag rather than borrowing BUILT.
+    # verify.py's `overhang_worst` asks how much of a WALKABLE cell is covered by
+    # its BLOCKING NEIGHBOUR's art leaking across the cell edge. A prop standing on
+    # its own walkable anchor is not that, and tagging it BUILT would make all
+    # seventeen read as leaks. The cost is that the shipped audit then measures
+    # nothing about props, so props.py carries its own census.
+    PROP = 6
+    # The south-shade ink, reachable through the INSTANCE so a pass that stamps over a
+    # finished map lays the same shade without importing this module back. compose.py is
+    # also a __main__ script: `import compose` from props.py would execute all of it a
+    # second time under a second module object.
+    SHADOW_INK = SHADOW
 
     def put(self, x, y, rgb, tag):
         self.px[x, y] = rgb
@@ -970,7 +982,8 @@ def materials_for(layout_path):
     return MATERIALS.get(_node_of(layout_path), MEADOW)
 
 
-def compose(layout_path, out_path, materials=None, crowns_on=True, roof_cap=None):
+def compose(layout_path, out_path, materials=None, crowns_on=True, roof_cap=None,
+            props_hook=None):
     d = lib.dims()
     body = lib.parse_layout(layout_path, d)
     node = _node_of(layout_path)
@@ -989,6 +1002,15 @@ def compose(layout_path, out_path, materials=None, crowns_on=True, roof_cap=None
         hues=sorted(set(hue.values())),
         slots_used=sorted(set(slot.values())),
     )
+    # ── pass 5: props OVERLAY the painted map (build-doc §7.6) ──────────────
+    # Last, over the finished image, before the save. That is not convenience:
+    # a prop the keyline pass then boxes in ink, or the fringe pass then autotiles
+    # against, is not an overlay. Collision is untouched and cannot be touched from
+    # here — it is derived from the layout by game/collision.ts; this writes pixels.
+    # With props_hook=None the bytes are exactly what they were before this hook
+    # existed, which is what keeps assets/final/maps reproducible.
+    if props_hook is not None:
+        stats['props'] = props_hook(comp, _node_of(layout_path))
     comp.img.save(out_path)
     return comp, stats
 
@@ -997,7 +1019,16 @@ if __name__ == "__main__":
     layout = sys.argv[1]
     out = sys.argv[2]
     cap = int(sys.argv[sys.argv.index("--roof-cap") + 1]) if "--roof-cap" in sys.argv else None
-    _, st = compose(layout, out, roof_cap=cap)
+    # PROPS ARE ON BY DEFAULT HERE, and that is the whole point of landing this:
+    # tools/mapgen/land.ts spawns THIS script (`spawn(PYTHON, [COMPOSER, layoutFile, out])`)
+    # and settles its bytes into assets/final/maps. A prop pass that is opt-in from the
+    # CLI is a prop pass that never reaches the shipped map. `--no-props` recovers the
+    # bare terrain, which is the control every check in this lane is measured against.
+    hook = None
+    if "--no-props" not in sys.argv:
+        import props
+        hook = props.stamp
+    _, st = compose(layout, out, roof_cap=cap, props_hook=hook)
     print("wrote", out)
     for k, v in st.items():
         if k != "doors":
