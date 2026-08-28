@@ -441,7 +441,7 @@ import { placeAt } from "@game/movement";
 import { SCENE_KEYS } from "@game/scene-keys";
 import { weightedUnlockGym, shopRows } from "@game/shop";
 import { provisionalStarter } from "@game/wild-battle";
-import { OverworldScene, type OverworldSceneData } from "@game/scenes/OverworldScene";
+import { OverworldScene, panelColumnHeight, type OverworldSceneData } from "@game/scenes/OverworldScene";
 import type { BattleSceneData } from "@game/scenes/BattleScene";
 import type { DialogueSceneData } from "@game/scenes/DialogueScene";
 import { finishYearTurn, type YearTurnSceneData } from "@game/scenes/YearTurnScene";
@@ -1619,5 +1619,84 @@ describe("§S6 an open shelf is on the screen, not only in the scene", () => {
         row.reason!,
       );
     }
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §S7 …and the shelf is painted IN THE PANEL, off the map
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * §S6 asks whether the shelf is on screen. This asks WHERE, because the answer changed: the
+ * player-facing readout moved off the map into a panel docked to the right of the screen
+ * (`game/scenes/OverworldScene.ts` `buildPanel`), after Hank, twice — *"get rid of the demo screen
+ * on the deployment"*, then *"The demo overlay is still showing"* — and the ruling that shaped it:
+ * *"Maybe you just have that in a modal to the side of the screen."*
+ *
+ * ⚠ THE SHELF IS THE ONE THING THAT LOSING WOULD BE INVISIBLE. It is spread into the SAME line list
+ * as the control prompts, so "move the readout" and "move the shelf" are one edit — and the
+ * overworld's text HUD is the ONLY surface that draws a shop. §S6's assertions are untouched above;
+ * these are ADDED beside them, so the shelf now has to be both painted AND in the right place.
+ */
+describe("§S7 the shelf is painted inside the side panel, and nothing is left over the map", () => {
+  it("⚠ every row, the purse, the cursor and the legend land in the panel — not on the map", () => {
+    const { h, label } = openShopWith(RICH_PURSE);
+    const map = h.scene.mapViewport();
+    const panel = h.scene.panelRect();
+    expect(panel, `${label}: no panel was built — the assertions below would be vacuous`).not.toBeNull();
+
+    const rows = h.scene.shopOnScreen();
+    expect(rows.length, `${label} opened an empty shelf — this asserts nothing`).toBeGreaterThan(0);
+    const under = rows[h.scene.shopCursorAt()]!;
+    const marks = [
+      `purse ${String(h.scene.save.money)}`,
+      "[E] buy",
+      `> ${under.label}`,
+      ...rows.flatMap((row) => [row.label, row.detail]),
+    ];
+    const painted = h.parts.objects.filter((o) => o.kind === "text" && o.visible);
+    for (const mark of marks) {
+      const carrier = painted.find((o) => o.text.includes(mark));
+      expect(carrier, `${label}: "${mark}" is on no painted surface`).toBeDefined();
+      expect(carrier!.x, `${label}: "${mark}" is painted over the map`).toBeGreaterThanOrEqual(map.width);
+      expect(carrier!.x, `${label}: "${mark}" is painted left of the panel`).toBeGreaterThanOrEqual(panel!.x);
+    }
+  });
+
+  it("⚠ THE MEASUREMENT, with a shop open: not one painted line begins inside the map viewport", () => {
+    const { h, label } = openShopWith(RICH_PURSE);
+    const map = h.scene.mapViewport();
+    const painted = h.parts.objects.filter((o) => o.kind === "text" && o.visible);
+    expect(painted.length, `${label}: nothing is painted at all`).toBeGreaterThan(0);
+    for (const t of painted) {
+      expect(
+        t.x,
+        `${label}: a painted line begins at x=${String(t.x)}, inside the map (0…${String(map.width)}): ` +
+          `"${t.text.split("\n")[0] ?? ""}"`,
+      ).toBeGreaterThanOrEqual(map.width);
+    }
+  });
+
+  it("⚠ the whole open-shop column fits inside the panel — the legend is not pushed off the bottom", () => {
+    /*
+     * A shop is the longest this column ever gets: the shelf is spread into the same list as every
+     * control prompt, so an open counter is the readout PLUS a header, a row per item and a key
+     * legend. If that overruns 320px the thing that falls off the bottom is whatever was printed
+     * last — and the banner is anchored there, so what it collides with is the legend.
+     *
+     * Measured through the scene's OWN {@link panelColumnHeight}, not through a copy of its
+     * arithmetic written out here: the stub is a recorder and has no glyph metrics, so a second sum
+     * beside the first is a second sum that can drift away from the layout it claims to describe.
+     */
+    const { h, label } = openShopWith(RICH_PURSE);
+    const panel = h.scene.panelRect()!;
+    const readout = h.parts.objects.find(
+      (o) => o.kind === "text" && o.visible && o.text.includes("[C] collision overlay"),
+    );
+    expect(readout, `${label}: the readout is not painted`).toBeDefined();
+    const bottom = readout!.y + panelColumnHeight(readout!.text.split("\n"), readout!.wordWrapWidth as number);
+    expect(
+      bottom,
+      `${label}: the open-shop column runs past the bottom of the panel, to y=${String(bottom)}`,
+    ).toBeLessThanOrEqual(panel.y + panel.height);
   });
 });

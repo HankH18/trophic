@@ -27,6 +27,26 @@ export interface WorldPoint {
   y: number;
 }
 
+/**
+ * Anything standing on the painted map at map-native pixels with a reach around it.
+ *
+ * ⚠ WIDENED FROM `PropPlacement` DELIBERATELY, AND IT IS THE G3 ANSWER TO NPCs. `game/npcs.ts`
+ * stands people on the same 1024² painted-map space with the same kind of reach, and "is the player
+ * close enough to this thing" is a question that must have ONE implementation or a person and a
+ * standing stone will disagree about what "close" means the first time `mapRenderScale` is retuned.
+ * So the four functions below take this SHAPE rather than the prop TYPE — `PropPlacement` satisfies
+ * it structurally, every prop caller is unchanged, and the NPC layer reuses the arithmetic instead
+ * of copying it. Nothing else about props is generalised: `propsOf`, `propById`, `propsInReach`,
+ * `propAt` and `propLabel` still speak in props, because those are about a NODE's prop list.
+ */
+export interface MapReachable {
+  /** Position in map-native pixels (1024² painted map space). */
+  x: number;
+  y: number;
+  /** Reach in the same map-native pixels. Non-positive falls back to the balance default. */
+  interactionRadius: number;
+}
+
 /** Every prop placed in a node, in file order. */
 export function propsOf(node: NodeFile): readonly PropPlacement[] {
   return node.props;
@@ -43,7 +63,7 @@ export function propById(node: NodeFile, propId: string): PropPlacement | undefi
  * `mapRenderScale` is read from balance rather than assumed, so a retune of the render scale moves
  * the prop and the player together (G11/INV-3).
  */
-export function propWorldPosition(prop: PropPlacement, balance: Balance): WorldPoint {
+export function propWorldPosition(prop: MapReachable, balance: Balance): WorldPoint {
   const scale = balance.map.mapRenderScale;
   return { x: prop.x * scale, y: prop.y * scale };
 }
@@ -55,13 +75,13 @@ export function propWorldPosition(prop: PropPlacement, balance: Balance): WorldP
  * map-native — so it scales with them. A placement that ships a non-positive radius falls back to
  * `balance.map.propInteractionRadiusDefault` rather than becoming silently unreadable.
  */
-export function propWorldRadius(prop: PropPlacement, balance: Balance): number {
+export function propWorldRadius(prop: MapReachable, balance: Balance): number {
   const authored = prop.interactionRadius > 0 ? prop.interactionRadius : balance.map.propInteractionRadiusDefault;
   return authored * balance.map.mapRenderScale;
 }
 
 /** World-pixel distance from a point to a prop's anchor. */
-export function distanceToProp(prop: PropPlacement, at: WorldPoint, balance: Balance): number {
+export function distanceToProp(prop: MapReachable, at: WorldPoint, balance: Balance): number {
   const anchor = propWorldPosition(prop, balance);
   const dx = at.x - anchor.x;
   const dy = at.y - anchor.y;
@@ -69,7 +89,7 @@ export function distanceToProp(prop: PropPlacement, at: WorldPoint, balance: Bal
 }
 
 /** Is this point inside the prop's interaction radius? The boundary counts as inside. */
-export function propInReach(prop: PropPlacement, at: WorldPoint, balance: Balance): boolean {
+export function propInReach(prop: MapReachable, at: WorldPoint, balance: Balance): boolean {
   return distanceToProp(prop, at, balance) <= propWorldRadius(prop, balance);
 }
 

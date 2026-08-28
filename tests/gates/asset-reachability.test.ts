@@ -82,6 +82,7 @@ import { validateContent } from "../../core/schemas";
 import { AGE_CLASSES, SEASONS } from "../../core/types";
 import type { AgeClass, NodeFile } from "../../core/types";
 import { ancientAgeClass } from "../../game/finale";
+import { interiorNpcPlacements, npcSpeakersHomedAt } from "../../game/npcs";
 import { assetId, realAssetIds, registerRealAsset } from "../../game/placeholder";
 import {
   DIALOGUE_FRAME_ASSET_ID,
@@ -328,6 +329,31 @@ const KEY_BUILDERS: readonly KeyBuilder[] = [
      */
     where: "game/scenes/DialogueScene.ts portraitAssetId()/speakerHasFace() × data/dialogue.json speakers[]",
     keys: () => DIALOGUE.speakers.filter(speakerHasFace).map((s) => portraitAssetId(s.portrait)),
+  },
+  {
+    /*
+     * ⚠ THE SECOND CONSUMER OF `npc-static`, AND IT IS NOT A DUPLICATE OF THE ROW ABOVE — it is the
+     * one twelve finished sprites actually waited for. The row above is the dialogue box's PORTRAIT
+     * slot, and a face in a text box is not a person standing in a town: `npc-static` passed GATE 2a
+     * on the portrait alone while `game/scenes/OverworldScene.ts` had no NPC entity, no placement and
+     * no sprite, and the owner played a region with nobody in it. A key census structurally cannot
+     * tell the two apart, which is why `tests/gates/npc-onscreen.test.ts` exists beside this file and
+     * asks the second question. This row is what keeps THIS file honest about the surface's
+     * existence.
+     *
+     * THE DOMAIN IS THE MODULE'S OWN, in both halves: the four shipped interior plans through
+     * `interiorNpcPlacements`, and — for outdoors — the speaker list `scatteredNpcPlacements` itself
+     * iterates, per node. The collision grid chooses which CELL a person stands on and never which
+     * PORTRAIT is drawn, so it is not needed to span the key space and twelve mask PNGs are not
+     * decoded here to prove it.
+     */
+    where: "game/npcs.ts interiorNpcPlacements()/npcSpeakersHomedAt() × core/interiors.ts INTERIORS × data/nodes/",
+    keys: () => [
+      ...INTERIORS.flatMap((bp) =>
+        interiorNpcPlacements(bp, balance).map((p) => portraitAssetId(p.portrait)),
+      ),
+      ...content.nodes.flatMap((n) => npcSpeakersHomedAt(n.id).map((s) => portraitAssetId(s.portrait))),
+    ],
   },
   {
     /*
@@ -715,6 +741,13 @@ const DRAWING_FILES: readonly string[] = [
   // npc-static / trainer-battle / prop, via `speakers[].portrait` -> `portraitAssetId`; and the
   // `ui-frame` ring, via `DIALOGUE_FRAME_ASSET_ID`.
   "game/scenes/DialogueScene.ts",
+  /*
+   * npc-static AGAIN, and this is the surface that puts a person in the world rather than a face in
+   * a box — `NpcLayer` -> `placeholderImage` on the speaker's own portrait. Its builder is the
+   * `game/npcs.ts` row above. The two `npc-static` consumers are deliberately separate rows: the
+   * portrait one was green for the whole time nobody was standing anywhere.
+   */
+  "game/npcs.ts",
   /*
    * `ui-frame`, for the OTHER four screens. This is the shared nine-slice slicer, and it is the only
    * file that draws one: `MenuScene`, `BattleHud`, `DexScene` and `SurveyScene` call

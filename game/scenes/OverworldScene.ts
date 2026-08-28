@@ -221,6 +221,7 @@ import {
   syncQuestFlags,
   writeLabels,
 } from "../quests";
+import { NpcLayer, npcTalkEntryFor } from "../npcs";
 import { propAt, propLabel, propsOf } from "../props";
 import { createDialogueScene, type DialogueSceneData } from "./DialogueScene";
 import {
@@ -239,7 +240,14 @@ import {
  * A `0x000000` typed here would be the one colour on this screen the palette does not own.
  */
 import { applyMusicSituation, audio } from "../audio";
-import { roleColor } from "../ui/Palette";
+/*
+ * THE SIDE PANEL'S CHROME. The overworld does not hand-roll a rectangle: `game/ui/FramePanel.ts` is
+ * the eight-piece slicer every other panel in the game already draws through, and
+ * `UI_FRAME_ASSET_ID.menuPanel` is authored at exactly 160×320 — the shape this screen needs — so
+ * the ring is drawn at its own natural size and no edge is resampled. See {@link OverworldScene.buildPanel}.
+ */
+import { FRAME_CHROME_PX, UI_FRAME_ASSET_ID, drawFrameRingIn, type FrameRect } from "../ui/FramePanel";
+import { roleColor, roleHex } from "../ui/Palette";
 import { unlockedSignChainLines } from "../ui/SignChains";
 import {
   actEntryBeats,
@@ -581,6 +589,11 @@ export class OverworldScene extends Phaser.Scene {
 
   private player!: Phaser.GameObjects.Image;
   /**
+   * The people standing in whatever geometry is on screen (game/npcs.ts). Rebuilt on `create` like
+   * every other display object here — a restart tears down the display list and the field survives.
+   */
+  private npcs!: NpcLayer;
+  /**
    * Which way the sprite is currently mirrored, so {@link syncPlayerSprite} touches the display
    * object only when the flip actually changes rather than sixty times a second.
    *
@@ -614,6 +627,25 @@ export class OverworldScene extends Phaser.Scene {
    * see the visibility assertions in tests/unit/overworld-scene.test.ts §HUD.
    */
   private diagnosticsHud!: Phaser.GameObjects.Text;
+  /**
+   * The three fault reports — {@link spawnProblem}, {@link grantProblem}, {@link spawnInsideProp} —
+   * on a surface of their own at the TOP of the panel, in {@link PANEL_FAULT_STYLE}'s one colour.
+   *
+   * ⚠ WHY THEY ARE NOT JUST THREE MORE LINES IN {@link hud}. Each of them says the game is broken
+   * where the player is standing. Ninth in a column of twenty, in the same grey as `[C] collision
+   * overlay`, a fault is buried — which is the state this whole panel exists to end. First in the
+   * column, in a colour nothing else on the panel wears, it cannot be missed.
+   *
+   * They are STILL classified `"fault"` inside {@link refreshHud}'s one list, so `?debug=1` prints
+   * them in their old position in the old readout, byte for byte.
+   */
+  private faultHud!: Phaser.GameObjects.Text;
+  /**
+   * The panel's backdrop and its eight ring pieces — everything {@link buildPanel} draws that is not
+   * text. Held so a `create()` on a restart can tear down the previous visit's objects; the display
+   * list is rebuilt by Phaser but this FIELD survives, the same asymmetry `interiorArt` is nulled for.
+   */
+  private panelChrome: Phaser.GameObjects.GameObject[] = [];
   /** Whether `?debug=1` asked for the diagnostic readout. Read once per `create()`. */
   private showDiagnostics = false;
   private banner!: Phaser.GameObjects.Text;
@@ -836,6 +868,14 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   create(): void {
+    /*
+     * ⚠ READ FIRST, BEFORE ANYTHING MEASURES THE SCREEN. `?debug=1` does not merely add lines: it
+     * puts the whole screen back the way it was before the panel existed ({@link panelWidth}), and
+     * `buildNodeView` on the next line already reaches `applyCameraBounds`, which asks how wide the
+     * panel is. Read after that, the first frame of a debug run would be bounded for a panel that
+     * is not drawn.
+     */
+    this.showDiagnostics = diagnosticsRequested();
     this.buildNodeView();
 
     /*
@@ -855,6 +895,11 @@ export class OverworldScene extends Phaser.Scene {
       .setDisplaySize(this.balance.map.playerSpriteW, this.balance.map.playerSpriteH)
       .setFlipX(false)
       .setDepth(20);
+
+    // The people, in the same display list and the same coordinate space. `game/npcs.ts` owns which
+    // speaker stands where; this owns only that the layer exists on this scene. AFTER `this.player`,
+    // because `syncPlayerSprite` is what drives it.
+    this.npcs = new NpcLayer(this, this.balance);
 
     /*
      * The Graphics object is new on every `create`; `overlayVisible` is an instance field and is
@@ -880,45 +925,88 @@ export class OverworldScene extends Phaser.Scene {
 
     const camera = this.cameras.main;
     this.applyCameraBounds();
-    camera.startFollow(this.player, true);
+    /*
+     * ⚠ THE FOLLOW OFFSET IS HALF THE PANEL, AND IT IS NOT DECORATION.
+     *
+     * Phaser centres the followed sprite in the camera's VIEWPORT, and the viewport is the whole
+     * 480 — the panel is drawn on top of the map, not cut out of it (see {@link buildPanel} for why
+     * that shape was chosen over a narrowed viewport). Unoffset, the player sits at screen x = 240,
+     * eighty pixels right of the middle of the 320-wide strip they can actually see. Half the panel
+     * to the left puts them back in the middle of the map, and nothing else moves.
+     *
+     * `panelWidth()` is 0 under `?debug=1`, so the debug screen keeps the camera it always had.
+     */
+    camera.startFollow(this.player, true, 1, 1, -this.panelWidth() / 2, 0);
+
+    // The plate the readout is drawn on, built BEFORE the meter and the text so it is under both
+    // in the display list as well as below them in depth.
+    this.buildPanel();
 
     // L8's season meter is HUD, not a menu: it is on screen while the overworld is. The widget is
     // game/ui/SeasonMeter.ts's — this scene used to print `year N · tick t/16 · season` as plain
     // text instead (a 16-tick year, back then), which is a second readout of the same clock and left
     // the meter L8 names mounted nowhere in the game.
-    this.meterHud = new SeasonMeterHud(phaserMeterSurface(this, METER_STYLE), METER_STYLE);
+    const meterStyle = this.meterStyle();
+    this.meterHud = new SeasonMeterHud(this.meterSurface(meterStyle), meterStyle);
 
     /*
-     * WRAPPED, and the width is the screen's. Without it the HUD text object sized itself to its
-     * longest line — measured at 1044px on a 480px virtual screen — so the provenance line, the one
-     * that distinguishes a placeholder from real art, was cut off mid-sentence at the right edge
-     * ("… SYNTHESISED co"), and the dark panel behind the text spanned the whole canvas including
-     * the player. TitleScene and BootScene both already wrap; this one did not.
+     * WRAPPED, and the width is whatever column the readout is standing in. Without a wrap the HUD
+     * text object sized itself to its longest line — measured at 1044px on a 480px virtual screen —
+     * so the provenance line, the one that distinguishes a placeholder from real art, was cut off
+     * mid-sentence at the right edge ("… SYNTHESISED co"), and the dark panel behind the text
+     * spanned the whole canvas including the player.
      */
+    const panel = this.panelRect();
     const wrapWidth = Math.max(1, this.scale.width - HUD_PAD * 2);
-    const hudTop = METER_STYLE.y + METER_STYLE.cellH + METER_STYLE.cellGap + HUD_LINE_PX;
+    const legacyTop = METER_STYLE.y + METER_STYLE.cellH + METER_STYLE.cellGap + HUD_LINE_PX;
+    const panelWrap = Math.max(1, PANEL_TEXT_WRAP_PX);
+    /*
+     * The top of the panel's flowing column: below the meter's pips, below the meter's own label,
+     * and one gap clear of both. Everything under it is laid out downward from here.
+     */
+    const columnTop =
+      panel === null
+        ? legacyTop
+        : meterStyle.y + meterStyle.cellH + meterStyle.cellGap + PANEL_LINE_PX + PANEL_GAP_PX;
+    this.faultHud = this.add
+      .text(panel === null ? HUD_PAD : panel.x + PANEL_INSET, columnTop, "", PANEL_FAULT_STYLE)
+      .setWordWrapWidth(panel === null ? wrapWidth : panelWrap, true)
+      .setScrollFactor(0)
+      .setDepth(100)
+      .setVisible(false);
     this.hud = this.add
-      .text(HUD_PAD, hudTop, "", HUD_STYLE)
-      .setWordWrapWidth(wrapWidth, true)
+      .text(
+        panel === null ? HUD_PAD : panel.x + PANEL_INSET,
+        columnTop,
+        "",
+        panel === null ? HUD_STYLE : PANEL_TEXT_STYLE,
+      )
+      .setWordWrapWidth(panel === null ? wrapWidth : panelWrap, true)
       .setScrollFactor(0)
       .setDepth(100);
     /*
-     * The diagnostic readout, at the SAME anchor and in the SAME style as the player's — because
-     * with `?debug=1` on it IS the readout this screen has always drawn, in one panel at one place,
-     * and `hud` steps out from under it. Wrapped for the reason the comment above gives: the
-     * provenance line ("map assets/final/maps/… · authored mask") is the longest thing either
-     * object prints and it lives in THIS one. See {@link diagnosticsHud} and {@link refreshHud}.
+     * The diagnostic readout, at the anchor and in the style this screen has ALWAYS drawn it in —
+     * top-left, full screen width, 10px. With `?debug=1` on there is no panel ({@link panelWidth}
+     * answers 0), `hud` is empty and hidden, and this object is the whole 25-line list in one place,
+     * byte for byte what was there before the panel existed. Wrapped for the reason above: the
+     * provenance line ("map assets/final/maps/… · authored mask") lives in THIS one.
      */
-    this.showDiagnostics = diagnosticsRequested();
     this.diagnosticsHud = this.add
-      .text(HUD_PAD, hudTop, "", HUD_STYLE)
+      .text(HUD_PAD, legacyTop, "", HUD_STYLE)
       .setWordWrapWidth(wrapWidth, true)
       .setScrollFactor(0)
       .setDepth(100)
       .setVisible(this.showDiagnostics);
+    // Bottom-anchored, so a two-line flash grows upward into the column's spare room instead of
+    // walking off the bottom of the panel.
     this.banner = this.add
-      .text(HUD_PAD, this.scale.height - HUD_PAD, "", BANNER_STYLE)
-      .setWordWrapWidth(wrapWidth, true)
+      .text(
+        panel === null ? HUD_PAD : panel.x + PANEL_INSET,
+        (panel === null ? this.scale.height : panel.y + panel.height) - (panel === null ? HUD_PAD : PANEL_INSET),
+        "",
+        panel === null ? BANNER_STYLE : PANEL_BANNER_STYLE,
+      )
+      .setWordWrapWidth(panel === null ? wrapWidth : panelWrap, true)
       .setOrigin(0, 1)
       .setScrollFactor(0)
       .setDepth(100);
@@ -1249,20 +1337,187 @@ export class OverworldScene extends Phaser.Scene {
    *
    * `Math.max` against the screen because a room is SMALLER than the 480×320 viewport (build-doc
    * §7.6) and a camera bounded tighter than its own viewport has nothing to clamp to.
+   *
+   * ⚠ AND THE BOUND IS THE CONTENT PLUS THE PANEL. THIS IS THE ONE PLACE THE SIDE PANEL COULD HAVE
+   * SILENTLY BROKEN THE GAME, so the arithmetic is written out.
+   *
+   * The camera's viewport is the whole 480 and the panel is painted over its right 160 — so a
+   * camera clamped at `worldWidth` can push the player as far as screen x = 480, i.e. UNDER the
+   * panel, where they are invisible and appear frozen. It happens exactly at the world's right
+   * edge, which is walkable on every shipped node. Padding the bound by the panel's width lets the
+   * camera scroll 160px further, which puts the world's right edge at screen x = 320 — flush with
+   * the panel's left edge. The player can never be pushed past it, and the padding itself is never
+   * seen: the only thing beyond the world's right edge is the strip the panel is drawn on.
+   *
+   * `panelWidth()` is 0 under `?debug=1`, so the debug screen keeps the bounds it always had.
    */
   private applyCameraBounds(): void {
+    const pad = this.panelWidth();
     const grid = this.interiorGrid;
     if (grid === null) {
-      this.cameras.main.setBounds(0, 0, this.mapView.worldWidth, this.mapView.worldHeight);
+      this.cameras.main.setBounds(0, 0, this.mapView.worldWidth + pad, this.mapView.worldHeight);
       return;
     }
     const cell = worldCellPx(grid, this.balance);
     this.cameras.main.setBounds(
       0,
       0,
-      Math.max(grid.cols * cell, this.scale.width),
+      Math.max(grid.cols * cell + pad, this.scale.width),
       Math.max(grid.rows * cell, this.scale.height),
     );
+  }
+
+  /* ── the side panel ───────────────────────────────────────────────────── */
+
+  /**
+   * How many pixels of the screen the readout owns — 0 when there is no panel.
+   *
+   * ONE ANSWER, asked by the camera bounds, the follow offset, the panel rect and the map viewport,
+   * so none of them can disagree about whether a panel is up. `?debug=1` answers 0: the developers'
+   * screen is the screen this scene has always drawn, full width, with the readout back on top of
+   * the map where it was — see {@link diagnosticsHud}.
+   */
+  private panelWidth(): number {
+    return this.showDiagnostics ? 0 : PANEL_W;
+  }
+
+  /**
+   * The rectangle the map is actually visible in — the screen, less the panel.
+   *
+   * ⚠ THIS IS THE MEASUREMENT HANK ASKED FOR, and it is exposed rather than kept private so a test
+   * can assert the thing he said instead of a proxy for it: *no painted text object's bounds
+   * overlap this rectangle.* Read from `balance.map` (G11), never from a literal 480×320.
+   */
+  mapViewport(): FrameRect {
+    return {
+      x: 0,
+      y: 0,
+      width: this.balance.map.virtualWidth - this.panelWidth(),
+      height: this.balance.map.virtualHeight,
+    };
+  }
+
+  /** The panel's rectangle, or null when there is no panel (`?debug=1`). */
+  panelRect(): FrameRect | null {
+    const width = this.panelWidth();
+    if (width <= 0) return null;
+    return {
+      x: this.balance.map.virtualWidth - width,
+      y: 0,
+      width,
+      height: this.balance.map.virtualHeight,
+    };
+  }
+
+  /**
+   * Paint the panel: an opaque plate, then `game/ui/FramePanel.ts`'s eight-piece ring around it.
+   *
+   * ─────────────────────────────────────────────────────────────────────────
+   * WHY THE MAP IS DRAWN UNDER THE PANEL INSTEAD OF THE VIEWPORT BEING NARROWED
+   * ─────────────────────────────────────────────────────────────────────────
+   * The obvious move is `camera.setViewport(0, 0, 320, 320)`. It is the wrong one here, and the
+   * reason is structural rather than stylistic: a Phaser camera scissors EVERYTHING it renders to
+   * its viewport, including `setScrollFactor(0)` objects — so the panel's own text, at x ≥ 320,
+   * would be clipped away by the very camera that made room for it. Narrowing therefore forces a
+   * SECOND camera for the UI plus `ignore()` lists on both, and every object built after `create()`
+   * (the curtain, the interior painting, fifty-two meter pips) has to be added to the right list or
+   * it silently renders into the wrong half. The blackout curtain is the sharp case: it is one
+   * full-screen rectangle, and under two cameras it would have to be on the UI camera to cover the
+   * panel and on the world camera to cover the map.
+   *
+   * Painting an opaque plate over the right 160 costs one rectangle, keeps every screen↔world
+   * conversion in this file exactly as it was (`cellRect`, `doorTileOf`, `spriteWorldPosition` and
+   * the collision overlay all still speak the same coordinates), and leaves the depth ladder to do
+   * the covering. The one thing it does NOT solve on its own — the player being pushed under the
+   * panel at the world's right edge — is solved in {@link applyCameraBounds}, where it is measured.
+   *
+   * A missing texture is a supported answer (`drawFrameRingIn` returns null), and the plate is
+   * drawn either way: the readout must be legible against SOMETHING even where the art has not
+   * loaded, and an unbacked column of text over a painted town is the defect this panel is fixing.
+   */
+  private buildPanel(): void {
+    // The field outlives the display list a restart tore down, so the corpses are dropped rather
+    // than destroyed — the same asymmetry `interiorArt` is nulled for.
+    this.panelChrome = [];
+    const rect = this.panelRect();
+    if (rect === null) return;
+    const plate = this.add
+      .rectangle(rect.x, rect.y, rect.width, rect.height, roleColor("void"))
+      .setOrigin(0, 0)
+      .setScrollFactor(0)
+      .setDepth(PANEL_DEPTH);
+    this.panelChrome.push(plate);
+    const ring = drawFrameRingIn(this, UI_FRAME_ASSET_ID.menuPanel, rect);
+    for (const piece of ring ?? []) {
+      piece.setScrollFactor(0).setDepth(PANEL_DEPTH);
+      this.panelChrome.push(piece);
+    }
+  }
+
+  /**
+   * The meter's style for whichever screen is up.
+   *
+   * ⚠ THE PIPS HAD TO SHRINK, and the arithmetic says by how much. The meter draws one pip per
+   * `balance.clock.ticksPerYear` — fifty-two of them — and at the default `cellW` 6 / `cellGap` 2 /
+   * `seasonGap` 5 that row is 431px wide. On a 480px screen it spanned almost the whole thing, and
+   * in a 160px column it would have run four fifths of the way off the right of the panel. At
+   * `cellW` 2 / `cellGap` 0 / `seasonGap` 3 the same fifty-two pips measure 113px and fit inside
+   * {@link PANEL_TEXT_WRAP_PX} with room to spare. NOTHING about what the meter MEANS changes:
+   * `game/ui/SeasonMeter.ts` derives every pip, every boundary and the label from `balance.clock`,
+   * and this is the style it is drawn with (G11 — presentation, not a tunable).
+   *
+   * `?debug=1` gets `METER_STYLE` untouched, like the rest of that screen.
+   */
+  private meterStyle(): SeasonMeterStyle {
+    const panel = this.panelRect();
+    if (panel === null) return METER_STYLE;
+    return {
+      ...METER_STYLE,
+      x: panel.x + PANEL_INSET,
+      y: PANEL_INSET,
+      cellW: 2,
+      cellH: 8,
+      cellGap: 0,
+      seasonGap: 3,
+      fontSize: `${String(PANEL_FONT_PX)}px`,
+    };
+  }
+
+  /**
+   * `phaserMeterSurface` with a depth on everything it makes.
+   *
+   * The adapter in `game/ui/SeasonMeter.ts` sets a scroll factor and nothing else, which was right
+   * while the meter was the only thing at depth 0 above the map. Inside the panel it has to clear
+   * {@link PANEL_DEPTH} or the plate is painted over the clock. Lifted HERE rather than in the
+   * adapter because the depth is this screen's layering decision, not the widget's — and
+   * `MeterPip`/`MeterLabel` are structural interfaces that deliberately do not know what a depth is,
+   * which is why the call is optional.
+   */
+  private meterSurface(style: SeasonMeterStyle): ReturnType<typeof phaserMeterSurface> {
+    const base = phaserMeterSurface(this, style);
+    const panel = this.panelRect();
+    const lift = <T,>(made: T): T => {
+      (made as { setDepth?: (depth: number) => unknown }).setDepth?.(100);
+      return made;
+    };
+    return {
+      pip: (index: number) => lift(base.pip(index)),
+      label: () => {
+        const made = lift(base.label());
+        /*
+         * The label is the one meter object that is TYPE, and type is the thing that overruns a
+         * column. `Y10 · autumn · 51.5/52` is the longest the model can build; wrapped at the
+         * panel's own width it can never reach past the ring, whatever the clock says.
+         */
+        if (panel !== null) {
+          (made as { setWordWrapWidth?: (width: number, advanced?: boolean) => unknown }).setWordWrapWidth?.(
+            Math.max(1, PANEL_TEXT_WRAP_PX),
+            true,
+          );
+        }
+        return made;
+      },
+    };
   }
 
   /**
@@ -1756,6 +2011,19 @@ export class OverworldScene extends Phaser.Scene {
       pos.y - skipOffsetPx(this.movement, this.skipCfg),
     );
 
+    /*
+     * THE NPCs RIDE THE PLAYER'S OWN SYNC, and above the early return on purpose: this is the one
+     * method called on every frame the player moves AND on every node/interior change (`create`,
+     * `enterInterior`, `leaveInterior`, `enterNode`), so one line here is the whole hook. The layer
+     * rebuilds only when the geometry on screen changes; per frame it re-sorts depth on feet.
+     */
+    this.npcs.sync({
+      node: this.node,
+      interior: this.interior,
+      grid: this.activeGrid(),
+      player: this.player,
+    });
+
     const flipped = skipFlipped(this.movement, this.skipCfg);
     if (flipped === this.playerFlipped) return;
     this.playerFlipped = flipped;
@@ -2247,6 +2515,28 @@ export class OverworldScene extends Phaser.Scene {
       }
       this.flashBanner(`${propLabel(here.prop)} — ${NOTHING_MORE_TO_READ}`);
       return;
+    }
+
+    /*
+     * …AND A PERSON YOU WALKED UP TO ANSWERS FOR THEMSELVES, before the room does.
+     *
+     * `talkHere()` addresses the ROOM, which was the only answer available while `data/` placed
+     * nobody (see `talkEntryFor`'s declared deviation). People are placed now, so standing in front
+     * of one must get THEIR line. The room-wide answer stays as the FALLBACK, deliberately: a node's
+     * corpus is wider than its placed cast — Maren, Wick, the leaders and `narration` all speak here
+     * and are not `npc-static` — and `tests/gates/reachability.test.ts` proves every authored line
+     * reachable through it. `spokenHere` is shared for the same anti-starvation reason.
+     */
+    const person = this.npcs.npcAt(spriteWorldPosition(this.movement, this.movementCfg));
+    if (person) {
+      const line = this.tryDialogue(() =>
+        npcTalkEntryFor(DIALOGUE, person.speakerId, this.node.id, this.dialogueCtx(), this.spokenHere),
+      );
+      if (line) {
+        this.spokenHere.add(line.id);
+        this.playEntry(line.id, person.name);
+        return;
+      }
     }
 
     const talk = this.talkHere();
@@ -4096,11 +4386,18 @@ export class OverworldScene extends Phaser.Scene {
    * tile coordinates and population counts, not a town. The default is now the game; the diagnostic
    * half is opt-in through `?debug=1` ({@link diagnosticsRequested}) and comes back IN FULL.
    *
-   * Every line this method can emit is tagged at the site that emits it — `"player"` or
+   * ⚠ AND CLASSIFYING THE LINES WAS ONLY HALF OF IT. Twenty-five went to eleven and Hank said, of
+   * the same build, *"The demo overlay is still showing"* — because eleven lines of monospace still
+   * covered the town. The classification was never the problem; the LOCATION was. The player's
+   * lines are now drawn in a panel docked to the right of the screen ({@link buildPanel}) and the
+   * map is clear of text. What each line SAYS is untouched by both changes.
+   *
+   * Every line this method can emit is tagged at the site that emits it — `"player"`, `"fault"` or
    * `"diagnostic"` — and the whole classification is here so it can be checked in one read. The
    * rule: a line is PLAYER-FACING if the player needs it to play (a control prompt, where a door
-   * is, what is on the shelf) or if it reports something BROKEN; it is DIAGNOSTIC if it reports the
-   * engine's internals to whoever is building the thing.
+   * is, what is on the shelf); it is a FAULT if it reports something BROKEN, which is player-facing
+   * too but gets a surface of its own ({@link faultHud}) so it cannot be buried in the column; it is
+   * DIAGNOSTIC if it reports the engine's internals to whoever is building the thing.
    *
    *   line                                              audience     why
    *   ───────────────────────────────────────────────── ──────────── ─────────────────────────────
@@ -4121,13 +4418,12 @@ export class OverworldScene extends Phaser.Scene {
    *   `weight x over a/b lines`                         diagnostic   derived encounter weight.
    *   `  <lineId>: <count> (<cause>)`   per table entry diagnostic   the population table.
    *   `last: <lineId> <age> L<level>`                   diagnostic   what the last roll produced.
-   *   {@link spawnProblem}                              player       FAULT — an arrival the mask
-   *                                                                  refuses. A player seeing a fault
-   *                                                                  beats one silently stuck.
-   *   {@link grantProblem}                              player       FAULT — a grant that did not
-   *                                                                  happen.
-   *   {@link spawnInsideProp}                           player       FAULT — put down inside a prop,
-   *                                                                  where [E] answers the wrong thing.
+   *   {@link spawnProblem}                              fault        an arrival the mask refuses. A
+   *                                                                  player seeing a fault beats one
+   *                                                                  silently stuck.
+   *   {@link grantProblem}                              fault        a grant that did not happen.
+   *   {@link spawnInsideProp}                           fault        put down inside a prop, where
+   *                                                                  [E] answers the wrong thing.
    *   `tint <label> · PROVISIONAL hues`                 diagnostic   season-tint provenance.
    *   {@link viewNote} (map/mask/interior provenance)   diagnostic   asset paths and blocked cells.
    *   `ticks travel … · next foray …`                   diagnostic   the price table; the meter is
@@ -4165,8 +4461,12 @@ export class OverworldScene extends Phaser.Scene {
      */
     const lines: string[] = [];
     const forPlayer = new Set<number>();
+    const forFault = new Set<number>();
     const say = (line: string, who: HudAudience): void => {
-      if (who === "player") forPlayer.add(lines.length);
+      if (who !== "diagnostic") forPlayer.add(lines.length);
+      // A fault is player-facing AND gets its own object — see {@link faultHud}. It stays in
+      // `lines` at its old index so `?debug=1` prints the readout in its old order.
+      if (who === "fault") forFault.add(lines.length);
       lines.push(line);
     };
     say(`${this.node.name} (${this.node.id}) · ${this.node.biome}`, "player");
@@ -4199,13 +4499,13 @@ export class OverworldScene extends Phaser.Scene {
     // ⚠ THE THREE FAULT LINES ARE PLAYER-FACING AND STAY ON SCREEN WITH THE FLAG OFF. Each of them
     // reports a game that is actually broken where the player is standing; a fault the player can
     // read is worth more than a silent one, and none of the three is ever printed by a healthy run.
-    if (this.spawnProblem) say(this.spawnProblem, "player");
+    if (this.spawnProblem) say(this.spawnProblem, "fault");
     // Same channel, same reason: a grant that did not happen is invisible on a banner that the next
     // beat overwrites in the same frame. See {@link grantProblem}.
-    if (this.grantProblem) say(this.grantProblem, "player");
+    if (this.grantProblem) say(this.grantProblem, "fault");
     // Same channel, same reason: a mask the loader calls healthy can still put the player down
     // where the talk key is answered by a signpost, and nothing else on screen would say so.
-    if (this.spawnInsideProp) say(this.spawnInsideProp, "player");
+    if (this.spawnInsideProp) say(this.spawnInsideProp, "fault");
     // Hard Req 6 — the season reading is a runtime tint. `provisional` is on while its hues are a
     // placeholder rather than data (game/season-tint.ts), and it says so on screen for the same
     // reason the map placeholder does.
@@ -4359,21 +4659,38 @@ export class OverworldScene extends Phaser.Scene {
     say(`[C] collision overlay · [R] ${restHere ?? "inn"}`, "player");
 
     /*
-     * ⚠ WHERE THE TWO OBJECTS ARE FILLED, AND THE ONE PLACE THE FLAG IS SPENT.
+     * ⚠ WHERE THE THREE OBJECTS ARE FILLED, AND THE ONE PLACE THE FLAG IS SPENT.
      *
-     * With `?debug=1` ON the whole list goes into {@link diagnosticsHud} and {@link hud} steps out
-     * from under it, so the debug view is one panel at one anchor — byte for byte the readout this
-     * screen drew before the split. With the flag OFF the player's lines are the ones painted and
-     * the diagnostic ones are still WRITTEN, into the hidden object, so nothing stops being computed
-     * and a headless rig reading this scene's display list still sees the whole readout.
+     * With `?debug=1` ON the whole list goes into {@link diagnosticsHud} and both {@link hud} and
+     * {@link faultHud} step out from under it, so the debug view is one panel at one anchor — byte
+     * for byte the readout this screen drew before the split, faults included and in their old
+     * places. With the flag OFF the player's lines are the ones painted, the faults are painted on
+     * their own strip, and the diagnostic ones are still WRITTEN, into the hidden object, so nothing
+     * stops being computed and a headless rig reading this scene's display list still sees the whole
+     * readout.
      *
-     * Both objects are always given text and always given a visibility, in both branches: an object
-     * left holding the previous frame's list is how a stale line survives a flag change.
+     * All three objects are always given text and always given a visibility, in both branches: an
+     * object left holding the previous frame's list is how a stale line survives a flag change.
      */
-    const mine = lines.filter((_, i) => forPlayer.has(i));
+    const mine = lines.filter((_, i) => forPlayer.has(i) && !forFault.has(i));
+    const faults = lines.filter((_, i) => forFault.has(i));
     const theirs = lines.filter((_, i) => !forPlayer.has(i));
     this.hud.setText(this.showDiagnostics ? [] : mine).setVisible(!this.showDiagnostics);
     this.diagnosticsHud.setText(this.showDiagnostics ? lines : theirs).setVisible(this.showDiagnostics);
+    /*
+     * THE FAULT STRIP, AND THE ONE PIECE OF LAYOUT THAT HAS TO BE COMPUTED RATHER THAN FIXED.
+     *
+     * The strip sits at the top of the column and the readout flows underneath it, so the readout's
+     * y depends on how many WRAPPED rows the faults took. {@link panelColumnHeight} answers that
+     * from numbers this file fixes rather than from a rendered measurement — see its docblock.
+     *
+     * NOTHING IS RESERVED WHEN THERE IS NO FAULT. A healthy run is every run the player will have,
+     * and the column is tight enough that three blank rows kept for an emergency would push the
+     * shop's key legend off the bottom of the panel.
+     */
+    const faultPx = panelColumnHeight(faults);
+    this.faultHud.setText(this.showDiagnostics ? [] : faults).setVisible(!this.showDiagnostics && faultPx > 0);
+    this.hud.setPosition(this.hud.x, this.faultHud.y + (faultPx > 0 ? faultPx + PANEL_GAP_PX : 0));
   }
 
   /* ── read-only accessors for the other lanes ──────────────────────────── */
@@ -4431,10 +4748,116 @@ export class OverworldScene extends Phaser.Scene {
 const HUD_PAD = 6;
 const HUD_LINE_PX = 12;
 /**
- * Who a HUD line is for. `"player"` is painted by default; `"diagnostic"` waits for `?debug=1`.
+ * Who a HUD line is for. `"player"` is painted by default; `"diagnostic"` waits for `?debug=1`;
+ * `"fault"` is player-facing AND gets its own object so it cannot be buried in the list.
  * The whole classification, line by line, is in {@link OverworldScene.refreshHud}'s docblock.
  */
-type HudAudience = "player" | "diagnostic";
+type HudAudience = "player" | "diagnostic" | "fault";
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * THE SIDE PANEL — geometry, and why each number is the number
+ * ────────────────────────────────────────────────────────────────────────────
+ *
+ * ⚠ WHAT THIS IS FOR. Hank, twice: *"get rid of the demo screen on the deployment. I want the user
+ * to actually be able to see the screen."* … *"The demo overlay is still showing."* And then the
+ * ruling that decided the shape: *"I do see that the overlay includes some control instructions.
+ * Maybe you just have that in a modal to the side of the screen."*
+ *
+ * The control prompts are not noise — [1]/[G]/[E]/[X]/[C]/[R] are the whole input vocabulary of the
+ * overworld and nothing else on screen names them — so they are not deleted, they are MOVED OFF THE
+ * MAP. Everything below is presentation (G11): not one of these numbers is read by the sim.
+ */
+
+/**
+ * The panel's width — 192, and the number was DERIVED, not chosen.
+ *
+ * It is set by the tallest column the readout can build. That is a town shop, open, which is the
+ * base readout PLUS a shelf header, a row per item and a key legend: sixteen lines, 566 characters,
+ * measured at `hearthollow-supply` (`tests/unit/overworld-shop.test.ts` §S7 asserts the fit and
+ * names the node). Wrapped into this panel at {@link PANEL_FONT_PX} that is 26 rows and 286px,
+ * inside the 293px the column has between the meter and the bottom of the frame. Narrower panels
+ * do not fit it, and the failure mode is precise and bad: what runs off the bottom of a shop's
+ * column is `[E] buy`, so the shelf becomes a list the player cannot see the key for.
+ *
+ *   160 → 29 rows, 347px — 27px past the frame
+ *   176 → 29 rows, 346px — no better; the long lines wrap the same way
+ *   192 → 26 rows, 313px — fits, with room for the banner
+ *
+ * What it leaves behind is the other half of the choice: 480 − 192 = **288**, and
+ * `balance.map.tileStepPx` is 32, so the map viewport is exactly nine tiles by ten. Gold's is ten by
+ * nine; this is the same view, turned.
+ *
+ * ⚠ IT IS NOT `ui-menu-panel`'s AUTHORED 160. The art is drawn at 192×320, so the top and bottom
+ * edge strips stretch 1.2× on X — which is what a nine-slice is FOR, and what `game/scenes/
+ * DexScene.ts` and `game/scenes/SurveyScene.ts` already do with their own frames. Only the edges
+ * move; the corners keep their natural size, so the border weight does not change with the panel
+ * (`game/ui/FramePanel.ts` `drawFrameRing`). A 4px corner bracket reading 1.2× long is the whole
+ * cost, and it is a smaller one than a shop with no visible buy key.
+ *
+ * ⚠ NOT READ FROM `data/balance.json`, deliberately. The sim never asks how wide a HUD panel is;
+ * `virtualWidth`/`virtualHeight`, which the panel is measured AGAINST, are read from there (G11).
+ */
+const PANEL_W = 192;
+/**
+ * The gap between the ring and the first glyph. `FRAME_CHROME_PX` is where the art's chrome ends;
+ * the +1 is `tools/ui-frames/SPEC.md` §4.1's objection to setting type directly against the inner
+ * keyline — one pixel of it, because every pixel spent here is a pixel off
+ * {@link PANEL_TEXT_WRAP_PX}, and the column is sized to a worst case that has none to give.
+ */
+const PANEL_INSET = FRAME_CHROME_PX + 1;
+/**
+ * The panel's type size, and the one place the column's width becomes a character count.
+ *
+ * 8px rather than the map-era 10px because the column is fixed at {@link PANEL_TEXT_WRAP_PX}: at
+ * 10px it holds ~29 characters and the open-shop column needs 35 to fit the frame (see
+ * {@link PANEL_W}'s table). AND NOT 7px, which would fit more easily — `game/scenes/BootScene.ts`
+ * already fixes the floor for this screen ("readable at 480×320 means 8px text") and a panel the
+ * player has to squint at is the overlay problem restated. The screen is integer-scaled
+ * (`game/boot.ts` `canvasZoom`), so 8px is 16–24 device pixels tall in any window big enough to
+ * play in.
+ */
+const PANEL_FONT_PX = 8;
+/** Nominal advance of one glyph at {@link PANEL_FONT_PX}, rounded UP — see {@link panelColumnHeight}. */
+const PANEL_CHAR_PX = 5;
+/** Nominal height of one wrapped row at {@link PANEL_FONT_PX}, rounded up from the 8px em. */
+const PANEL_LINE_PX = 11;
+/** Vertical breathing room between the panel's stacked blocks. */
+const PANEL_GAP_PX = 3;
+/** Text padding inside a panel text object's own plate. Two, for {@link PANEL_INSET}'s reason. */
+const PANEL_TEXT_PAD_PX = 2;
+/**
+ * The wrap width every panel text object is given: the panel, less both insets, less the plate
+ * padding on both sides. This is what keeps a long line inside the ring instead of under it.
+ */
+const PANEL_TEXT_WRAP_PX = PANEL_W - PANEL_INSET * 2 - PANEL_TEXT_PAD_PX * 2;
+/**
+ * Where the panel's backdrop and ring sit: above the player (20) and the collision overlay (10),
+ * because the map is drawn full-width UNDERNEATH the panel and the panel is what hides it; below
+ * the text (100), which is drawn on the panel; and below the blackout curtain (200), which is a
+ * black screen and therefore covers this too.
+ */
+const PANEL_DEPTH = 90;
+
+/**
+ * How tall a wrapped column of `lines` stands in the panel, in pixels.
+ *
+ * ⚠ COUNTED, NOT MEASURED, AND THAT IS DELIBERATE. The obvious source is a Phaser `Text`'s own
+ * `height` — and it is the wrong one for the only two jobs this has. It is a RENDERED number, so on
+ * any surface that records instead of rendering it is absent, and `y + undefined` is a readout that
+ * has left the screen. Both numbers below are ones this file FIXES — the column's wrap width and a
+ * monospace advance — so the answer is the same in a browser and in a recorder.
+ *
+ * `PANEL_CHAR_PX` is rounded UP for the same reason: over-estimating the advance under-estimates the
+ * characters per row, which over-estimates the rows, which leaves a gap rather than an overlap.
+ *
+ * Exported so a test can ask the layout its own question instead of re-deriving the arithmetic
+ * beside it — a second copy of this sum is a second copy that can drift.
+ */
+export function panelColumnHeight(lines: readonly string[], wrapPx: number = PANEL_TEXT_WRAP_PX): number {
+  const perRow = Math.max(1, Math.floor(wrapPx / PANEL_CHAR_PX));
+  const rows = lines.reduce((n, line) => n + Math.max(1, Math.ceil(line.length / perRow)), 0);
+  return rows * PANEL_LINE_PX;
+}
 const BANNER_HOLD_MS = 1200;
 const BANNER_FADE_MS = 400;
 /**
@@ -4666,6 +5089,49 @@ const BANNER_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
   color: "#ffe9b0",
   backgroundColor: "#0d0f0ccc",
   padding: { x: 5, y: 3 },
+};
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The side panel's three text styles — DERIVED from the two above, never re-typed
+ *
+ * ⚠ SPREAD RATHER THAN WRITTEN OUT, and `tests/unit/survey-view.test.ts` BF-18 is why. That gate
+ * counts the raw colour literals in each file in `game/` against a per-file allowance, because a
+ * hex typed in a scene is a colour `data/palette.json` does not own and a re-freeze cannot move.
+ * Re-typing `#e8f0e0` and `#ffe9b0` here took this file from four literals to seven and reddened it
+ * on the spot. Deriving keeps the count where it was AND keeps the panel the same colour as the
+ * readout it replaced — two reasons for the same three lines. Declared BELOW the two styles they
+ * spread, because a `const` read before its own initialiser is a TDZ throw at import time.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** The readout's own style, at the panel's size. Same ink, same plate, smaller type. */
+const PANEL_TEXT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
+  ...HUD_STYLE,
+  fontSize: `${String(PANEL_FONT_PX)}px`,
+  padding: { x: PANEL_TEXT_PAD_PX, y: 2 },
+};
+
+/**
+ * The fault strip's style — the ONE colour on this panel nothing else wears, which is what makes
+ * the three fault reports unmissable without giving them a second surface.
+ *
+ * `accent` rather than `hot`, and the choice is MEASURED. `hot` is the palette's own alarm role
+ * ("damage number, super-effective flash") and would have been the obvious pick, but on the panel's
+ * plate — `void`, the same black the curtain uses — `c08 #c72a1b` reads at **3.7 : 1**, under
+ * WCAG's 4.5 : 1 for body text. A fault report the player cannot read is the defect it is reporting,
+ * twice. `accent` (`c16 #f8d80f`) reads at **14.51 : 1** on the same plate and is worn by nothing
+ * else on this panel. Both numbers are recomputed from `data/palette.json`, so a re-freeze moves the
+ * colour with everything else (build-doc §8.4) — which a hex typed here would not.
+ */
+const PANEL_FAULT_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
+  ...PANEL_TEXT_STYLE,
+  color: roleHex("accent"),
+};
+
+/** The banner's own style, at the panel's size — its amber comes from {@link BANNER_STYLE}. */
+const PANEL_BANNER_STYLE: Phaser.Types.GameObjects.Text.TextStyle = {
+  ...BANNER_STYLE,
+  fontSize: `${String(PANEL_FONT_PX)}px`,
+  padding: { x: PANEL_TEXT_PAD_PX, y: 2 },
 };
 
 /**

@@ -115,6 +115,19 @@ interface FakeParts {
   /** Scratch canvases the code created and has not removed. */
   scratch: Set<string>;
   registeredScenes: Record<string, unknown>;
+  /**
+   * Every `cameras.main.setBounds` call, in order.
+   *
+   * ⚠ RECORDED RATHER THAN LEFT TO THE NO-OP PROXY, and the reason is the same one `depth` and
+   * `setTexture` are recorded for: the camera bound is a CORRECTNESS property here, not a cosmetic
+   * one. The side panel is painted over a full-width camera, so the bound is the only thing that
+   * stops the followed sprite being pushed under the panel at the world's right edge — where the
+   * player is invisible and the game reads as frozen. Left to the proxy, §24's whole claim would be
+   * asserted against a call that never happened, and deleting the padding would keep it green.
+   */
+  cameraBounds: Array<{ x: number; y: number; width: number; height: number }>;
+  /** Every `cameras.main.startFollow` call — the offset is what centres the sprite in the map. */
+  cameraFollows: Array<{ offsetX: number; offsetY: number }>;
 }
 
 const STUB = { parts: null as FakeParts | null };
@@ -251,6 +264,8 @@ vi.mock("phaser", () => {
         removes: [],
         scratch: new Set<string>(),
         registeredScenes: { Overworld: {}, Battle: {}, YearTurn: {} },
+        cameraBounds: [],
+        cameraFollows: [],
       };
       // The most recently constructed scene is the one under test.
       STUB.parts = parts;
@@ -290,15 +305,34 @@ vi.mock("phaser", () => {
         }) as unknown as (...args: never[]) => unknown,
       };
 
+      /*
+       * Two methods are RECORDED and the rest are chainable no-ops — see {@link FakeParts.cameraBounds}
+       * for why these two and not the others.
+       */
       this.cameras = {
         main: new Proxy(
-          {},
           {
-            get(): unknown {
+            setBounds: (x: number, y: number, width: number, height: number): void => {
+              parts.cameraBounds.push({ x, y, width, height });
+            },
+            startFollow: (
+              _target: unknown,
+              _round?: boolean,
+              _lerpX?: number,
+              _lerpY?: number,
+              offsetX = 0,
+              offsetY = 0,
+            ): void => {
+              parts.cameraFollows.push({ offsetX, offsetY });
+            },
+          } as Record<string, unknown>,
+          {
+            get(target, prop, receiver): unknown {
+              if (prop in target) return Reflect.get(target, prop, receiver);
               return (): void => undefined;
             },
           },
-        ) as Record<string, (...args: never[]) => unknown>,
+        ) as unknown as Record<string, (...args: never[]) => unknown>,
       };
 
       // build-doc §7.6's virtual resolution, so the HUD-width test measures the real screen.
@@ -528,7 +562,7 @@ import {
  * see `fightWithSnares`. A fresh stream per fight is the exact thing `beginWildBattle` warns about.
  */
 import type { Balance, Content, NodeFile, NodeState, OwnedCreature, PropPlacement, SpeciesLine } from "@core/types";
-import { OverworldScene, type OverworldSceneData } from "@game/scenes/OverworldScene";
+import { OverworldScene, panelColumnHeight, type OverworldSceneData } from "@game/scenes/OverworldScene";
 import type { BattleSceneData } from "@game/scenes/BattleScene";
 import { SCENE_KEYS } from "@game/scene-keys";
 import { finishYearTurn, type YearTurnSceneData } from "@game/scenes/YearTurnScene";
@@ -7152,5 +7186,255 @@ describe("§23 the diagnostics are behind ?debug=1, and the player-facing lines 
       visibleHud(withSearch("?debug=0", () => mount())),
       "?debug=0 turned the diagnostics on",
     ).not.toContain("ticks travel ");
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §24 The readout is OFF THE MAP — it is in a panel at the side of the screen
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ⚠ WHAT THIS IS ABOUT, AND WHY §23 WAS NOT ENOUGH. §23 moved the diagnostic half behind `?debug=1`
+ * and twenty-five painted lines became eleven. Hank, looking at the same deployment:
+ * *"The demo overlay is still showing."* Eleven lines of monospace at depth 100 still covered the
+ * town — the classification was right and the LOCATION was wrong. Then the ruling that decided the
+ * shape: *"I do see that the overlay includes some control instructions. Maybe you just have that in
+ * a modal to the side of the screen."*
+ *
+ * So the claim under test is a GEOMETRIC one, and it is the one he can see: **no painted text object
+ * begins inside the map viewport.** The text objects are left-anchored and grow rightward, so a left
+ * edge at or beyond the viewport's right edge is the whole property — a line drawn over the map has
+ * to start over the map.
+ *
+ * ⚠ AND WHY EVERY ASSERTION READS PAINTED OBJECTS. {@link Harness.hud} joins every text object
+ * whether or not Phaser would draw it, and the scene deliberately keeps filling the hidden
+ * diagnostic one — so a bounds check that included hidden objects would red on an object no player
+ * can see, and a content check that included them would go green for a line that is not there.
+ * {@link paintedTexts} is what a player would look at.
+ *
+ * ⚠ AND WHY THE BOUNDS ARE `x` AND `wordWrapWidth` RATHER THAN A RENDERED WIDTH. The stub is a
+ * recorder, not a renderer: it has no glyph metrics and no font. Both numbers below are ones the
+ * SCENE chose and the recorder captured verbatim, and together they bracket the object — a wrapped
+ * Phaser text is never wider than its wrap width plus its padding. Nothing here is inferred from a
+ * measurement the stub cannot make.
+ */
+
+/** Every text object Phaser would actually draw this frame. */
+function paintedTexts(h: Harness): FakeObj[] {
+  return h.parts.objects.filter((o) => o.kind === "text" && o.visible);
+}
+
+describe("§24 the player-facing readout is in a side panel, and the map is clear of text", () => {
+  it("⚠ THE MEASUREMENT: not one painted text object begins inside the map viewport", () => {
+    const h = mount();
+    const map = h.scene.mapViewport();
+    const panel = h.scene.panelRect();
+    expect(panel, "no panel was built — the assertion below would be vacuous").not.toBeNull();
+    expect(map.width, "the map viewport is the whole screen — nothing was moved").toBeLessThan(
+      balance.map.virtualWidth,
+    );
+
+    const painted = paintedTexts(h);
+    expect(painted.length, "nothing is painted at all — this asserts nothing").toBeGreaterThan(0);
+    for (const t of painted) {
+      expect(
+        t.x,
+        `a painted line begins at x=${String(t.x)}, inside the map viewport (0…${String(map.width)}): ` +
+          `"${t.text.split("\n")[0] ?? ""}"`,
+      ).toBeGreaterThanOrEqual(map.width);
+    }
+  });
+
+  it("every painted line is INSIDE the panel — moved off the map, not off the screen", () => {
+    const h = mount();
+    const panel = h.scene.panelRect()!;
+    for (const t of paintedTexts(h)) {
+      expect(t.x, `"${t.text.split("\n")[0] ?? ""}" starts left of the panel`).toBeGreaterThanOrEqual(panel.x);
+      expect(typeof t.wordWrapWidth, `"${t.text.split("\n")[0] ?? ""}" sets no wrap width`).toBe("number");
+      expect(
+        t.x + (t.wordWrapWidth as number),
+        `"${t.text.split("\n")[0] ?? ""}" wraps wider than the panel it is drawn in`,
+      ).toBeLessThanOrEqual(panel.x + panel.width);
+      expect(t.y, "a painted line is off the top of the screen").toBeGreaterThanOrEqual(0);
+      expect(t.y, "a painted line is off the bottom of the screen").toBeLessThanOrEqual(balance.map.virtualHeight);
+    }
+  });
+
+  it("the panel is an OPAQUE plate over the map, above the player and below the blackout", () => {
+    const h = mount();
+    const panel = h.scene.panelRect()!;
+    /*
+     * The plate, not the ring: `drawFrameRingIn` answers null when the `ui-frame` texture has not
+     * loaded (this stub loads nothing), which is a supported answer — but the readout still has to
+     * be legible against SOMETHING, or the panel is a column of text over a painted town, which is
+     * the defect it exists to fix. The plate is drawn either way.
+     */
+    const plate = h.parts.objects.find(
+      (o) => o.kind === "rect" && o.rectW === panel.width && o.rectH === panel.height && o.x === panel.x,
+    );
+    expect(plate, "the panel has no opaque plate — the map shows through the readout").toBeDefined();
+    expect(plate!.visible, "the plate was made and then hidden").toBe(true);
+    // Above the player (20) so it hides the map under it; below the blackout curtain (200), because
+    // a black screen with a lit panel on it is not a black screen.
+    expect(plate!.depth, "the plate is below the player — the sprite draws over the readout").toBeGreaterThan(20);
+    expect(plate!.depth, "the plate is at or above the blackout curtain").toBeLessThan(200);
+    for (const t of paintedTexts(h)) {
+      expect(t.depth as number, "a panel line is drawn under the plate it stands on").toBeGreaterThan(
+        plate!.depth as number,
+      );
+    }
+  });
+
+  it("the column fits inside the panel at EVERY shipped node, not only the one this file starts at", () => {
+    /*
+     * ⚠ A COLUMN THAT OVERRUNS THE FRAME LOSES ITS LAST LINE, AND THE LAST LINE IS A CONTROL PROMPT.
+     * The readout is one text object flowing down a 320px panel; nothing clips it and nothing scrolls
+     * it, so a node whose lines wrap one row further than the frame allows simply prints `[C]
+     * collision overlay · [R] …` off the bottom of the screen. Which node that is depends on the
+     * NAMES in the corpus — a longer town name, one more open event, a second door — so it is asked
+     * at every node rather than at the one `mount()` happens to open on.
+     *
+     * Measured through the scene's own {@link panelColumnHeight}: the stub is a recorder with no
+     * glyph metrics, so a rendered height is not available to either side, and a second copy of the
+     * arithmetic here is a second copy that can drift from the layout it describes.
+     */
+    for (const node of content.nodes) {
+      const h = mount({ save: freshSave(node.id), startNode: node.id });
+      const panel = h.scene.panelRect()!;
+      const readout = paintedTexts(h).find((o) => o.text.includes("[C] collision overlay"));
+      expect(readout, `${node.id}: the readout is not painted at all`).toBeDefined();
+      const bottom = readout!.y + panelColumnHeight(readout!.text.split("\n"), readout!.wordWrapWidth as number);
+      expect(bottom, `${node.id}: the column runs past the bottom of the panel, to y=${String(bottom)}`).toBeLessThanOrEqual(
+        panel.y + panel.height,
+      );
+    }
+  });
+
+  it("⚠ the camera is bounded so the world's right edge stops AT the panel, never under it", () => {
+    /*
+     * THE ONE WAY THIS PANEL COULD HAVE SILENTLY BROKEN THE GAME. The camera's viewport is the whole
+     * 480 and the panel is painted on top of it, so a camera clamped at `worldWidth` pushes the
+     * followed sprite as far as screen x = 480 at the world's right edge — under the panel, where
+     * the player is invisible and the game looks frozen. The bound has to carry the panel's width.
+     */
+    const h = mount();
+    const panel = h.scene.panelRect()!;
+    const bounds = h.parts.cameraBounds.at(-1);
+    expect(bounds, "the scene set no camera bounds").toBeDefined();
+    expect(
+      bounds!.width - h.scene.mapView.worldWidth,
+      "the camera bound does not carry the panel — the player can walk under it at the world's edge",
+    ).toBe(panel.width);
+
+    // The follow offset puts the sprite in the middle of what the player can SEE, not of the canvas.
+    const follow = h.parts.cameraFollows.at(-1);
+    expect(follow, "the camera follows nothing").toBeDefined();
+    expect(follow!.offsetX, "the sprite is centred on the canvas, not on the map").toBe(-panel.width / 2);
+  });
+
+  it("⚠ THE SHELF AND EVERY CONTROL PROMPT ARE IN THE PANEL, with no flag asked for", () => {
+    const h = mount();
+    const map = h.scene.mapViewport();
+    const painted = paintedTexts(h);
+    const node = nodeFile(h.scene.save.currentNode);
+    const joined = painted.map((o) => o.text).join("\n");
+
+    // The same list §23 checks, re-checked here for WHERE it landed rather than THAT it exists.
+    const wanted = [
+      `${node.name} (${node.id})`,
+      "[E] ",
+      "[X] ",
+      "[C] collision overlay · [R] ",
+      "quests ",
+      ...node.adjacency.map((id) => `travel → ${id}`),
+    ];
+    for (const mark of wanted) {
+      const carrier = painted.find((o) => o.text.includes(mark));
+      expect(carrier, `"${mark}" is on no painted surface at all\n${joined}`).toBeDefined();
+      expect(carrier!.x, `"${mark}" is painted over the map`).toBeGreaterThanOrEqual(map.width);
+    }
+    expect(joined, "the act the travel refusals quote is not on screen").toMatch(/(^|\n)act \d/);
+  });
+
+  it("⚠ a fault gets its own painted strip, in a colour nothing else on the panel wears", () => {
+    /*
+     * DRIVEN by §23's own fixture — a mask with exactly one walkable cell, which `readMask` accepts,
+     * so the scene really does put the player down inside a shipped prop and really does raise its
+     * own advisory. The claim here is only WHERE it lands and WHAT it is drawn in.
+     */
+    const standingAt = (tile: { col: number; row: number }): WorldPoint =>
+      spriteWorldPosition(createMovement(tile), movementConfig(balance));
+    const blindSpawn = (node: NodeFile): { col: number; row: number } =>
+      chooseSpawnTile(loadCollision(node.id, node.collisionMask, null, balance).grid, balance).tile;
+    const node = content.nodes.find(
+      (each) => propsOf(each).length > 0 && propAt(each, standingAt(blindSpawn(each)), balance) !== null,
+    );
+    expect(node?.id, "no shipped node spawns inside a prop — the fault fixture cannot be built").toBeDefined();
+    const tile = blindSpawn(node as NodeFile);
+    const prop = propAt(node as NodeFile, standingAt(tile), balance) as PropPlacement;
+
+    const side = balance.map.mapNativePx / balance.map.collisionCellPx;
+    const data = new Uint8ClampedArray(side * side * 4);
+    for (let i = 0; i < side * side; i += 1) data[i * 4 + 3] = 255;
+    const lit = (tile.row * side + tile.col) * 4;
+    data[lit] = 255;
+    data[lit + 1] = 255;
+    data[lit + 2] = 255;
+
+    const h = mount({ save: freshSave((node as NodeFile).id), startNode: (node as NodeFile).id }, (parts) => {
+      parts.maskPixels.set(maskTextureKey((node as NodeFile).collisionMask), { width: side, height: side, data });
+    });
+    expect(h.scene.collision.source, "the one-cell mask was refused instead of loaded").toBe("authored");
+
+    const painted = paintedTexts(h);
+    const strip = painted.find((o) => o.text.includes(`is inside prop ${prop.id}`));
+    expect(strip, "the fault is on no painted surface").toBeDefined();
+    // ITS OWN OBJECT: the fault is not one of twenty grey lines in the readout's column.
+    const readout = painted.find((o) => o.text.includes("[C] collision overlay"));
+    expect(readout, "the readout is not painted at all").toBeDefined();
+    expect(strip, "the fault is buried in the readout instead of having a strip of its own").not.toBe(readout);
+    // FIRST in the column, so it is read before anything else on the panel.
+    expect(strip!.y, "the fault sits below the readout it is supposed to lead").toBeLessThan(readout!.y);
+    expect(strip!.x, "the fault is painted over the map").toBeGreaterThanOrEqual(h.scene.mapViewport().width);
+  });
+
+  it("⚠ ?debug=1 is the OLD screen: no panel, full width, the whole readout at the old anchor", () => {
+    // The panel the DEFAULT screen builds, so the negative below names a real rectangle rather than
+    // a literal this file would have to keep in step with the scene.
+    const panel = mount().scene.panelRect()!;
+    const debugged = withSearch("?debug=1", () => mount());
+    expect(debugged.scene.panelRect(), "?debug=1 still draws the panel over the diagnostics").toBeNull();
+    expect(
+      debugged.scene.mapViewport().width,
+      "?debug=1 narrowed the map — the developers' screen is not the player's",
+    ).toBe(balance.map.virtualWidth);
+
+    const painted = paintedTexts(debugged);
+    const readout = painted.filter((o) => o.text.includes("[C] collision overlay"));
+    expect(readout.length, "the debug readout is split across more than one painted object").toBe(1);
+    // The anchor it has always had: top-left, over the map, at the full screen's wrap width.
+    expect(readout[0]!.x, "the debug readout moved off its anchor").toBeLessThan(balance.map.virtualWidth / 2);
+    expect(readout[0]!.wordWrapWidth as number).toBeGreaterThan(balance.map.virtualWidth / 2);
+    // …and no plate is painted over it.
+    expect(
+      debugged.parts.objects.some(
+        (o) => o.kind === "rect" && o.rectW === panel.width && o.rectH === panel.height && o.visible,
+      ),
+      "?debug=1 still paints the panel plate over the readout",
+    ).toBe(false);
+  });
+
+  it("⚠ ?debug=1 restores EVERY line of the readout, faults in their old place included", () => {
+    const plain = mount();
+    const debugged = withSearch("?debug=1", () => mount());
+    const painted = visibleHud(debugged);
+    // Every line the DEFAULT screen computes — player, fault and diagnostic alike — is painted.
+    for (const line of plain.hud().split("\n")) {
+      if (line.trim().length === 0) continue;
+      expect(painted, `?debug=1 dropped "${line}"`).toContain(line);
+    }
+    expect(
+      painted.split("\n").length,
+      "?debug=1 paints no more lines than the default does — the flag changed nothing",
+    ).toBeGreaterThan(visibleHud(plain).split("\n").length);
   });
 });
