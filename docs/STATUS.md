@@ -183,8 +183,15 @@ its outcome is not an answer.
 
 **The green next door is not evidence the beat is affordable.**
 `tests/integration/demo-beats.test.ts` passes, and separately measures a *different node* — the
-fixture pins `r4`, which is `walkable: false`; the feasibility gate above asserts the walkable slice
-(`brackwater`, `r2`). Worse, `runCascade` (`tests/integration/demo-beats.test.ts:163`) **never
+fixture pins `r4`, while the feasibility gate above asserts `brackwater` and `r2`. ⛔ **THIS SENTENCE
+USED TO SAY "`r4`, WHICH IS `walkable: false`", AND THAT CLAUSE IS STRUCK: the flag gates nothing.**
+`travelTo` refuses on adjacency and the act ladder and never reads `node.walkable`, so a player walks
+all twelve nodes — **`r4` is not off the slice, it is behind the act-4 gate and behind the encounter
+budget**, which are two real barriers and not the same barrier as the one this file kept naming. The
+distinction matters because *"the node is not walkable"* reads as unfixable-without-a-content-edit,
+while *"the act ladder opens it in act 4"* reads as a pacing fact. **T-36 is the ticket, and the flag's
+own status is the owner's; nothing about the cascade argument depends on it.** Worse, `runCascade`
+(`tests/integration/demo-beats.test.ts:163`) **never
 advances the clock**, and its `forays` / `battles` fields are computed and **never asserted** (grep
 for `.forays` / `.battles` in that file returns nothing). Priced at the shipped costs across its own
 24 seeds — measured by replaying `runCascade` verbatim outside the suite:
@@ -760,13 +767,23 @@ mask is on disk, so the synthesised branch IS the game"*), and `tests/unit/overl
 layout-derived masks do exist, git-ignored, at `assets/raw/_layouts/masks/mask-<id>.png`; nothing in
 `data/`, `game/` or the served copy points at them, and promotion is still T-56 behind T-57.
 
-### The encounter mask — derivable exactly, and the engine half is NOT started (**T-65**)
+### ✅ The encounter mask — derivable exactly, and the engine half has LANDED (**T-65**)
 
 Tall grass is a **cell kind** in the layout — `,`, the legend's `scrub` row, `blocks: false` — so a
 per-node encounter mask is now derivable **exactly** rather than by colour-matching a painting.
 `tests/gates/layout-encounter-contract.test.ts` already binds `,` to that legend row by identity.
 
-**The engine half is the code lane's and nothing has started on it.**
+✅ **AND THE ENGINE HALF IS NO LONGER OWED — this subsection said "nothing has started on it" and that
+is false as of `240a16d`.** `core/foodweb.ts` `encounterMaskFromLayout` builds the mask,
+`game/encounters.ts:279` `encounterMaskFor` resolves it per node and returns `null` — never an empty
+mask — for a node that declares none, and **`game/scenes/OverworldScene.ts:2605` calls it on the live
+path.** 177 tests pass across `tests/unit/encounter-mask.test.ts` and the two layout gates. **The
+single-draw constraint below was preserved rather than worked around** (*"a step off the grass still
+costs exactly one draw"*), and G3 is separately bound: the mask decides WHETHER a step meets something
+and never WHICH animal. **The paragraph that follows is kept because it is the reason the
+implementation took the shape it did, not because it is still owed.**
+
+**The engine half as it stood before that landed:**
 `balance.encounter.encounterTileFraction` is **0.25** (`data/balance.json:422`) and it is a **SCALAR,
 not a spatial mask**: `stepEncounterChance` (`core/foodweb.ts:223-225`) is
 `encounterTileFraction × encounterChancePerStep`, one product, and `rollForayStep`
@@ -1139,7 +1156,7 @@ is named case by case, and it is now a set of one thing seen three times.
 | Quests | Objectives, flag writers, sign chains. **Progress survives the year turn** — age is read off the tape's own `gained`, not off the aged individual — the deadline guard fires (it is reachable through Ancients, which never age, G10), and release refuses with a **named reason** both the key and the HUD read from one function | `core/quests.ts:341`, `game/quests.ts:555`/`:770`/`:791` |
 | Quest gates | **They OBSERVE a driven player** rather than confirming a row exists: the expander is deleted, turn-in flags come from a maximal player per node put through the real `syncQuestFlags`, GATE 2f checks satisfiability against a **measured** world, GATE 2g requires the objective's node to be one the quest's own copy names | `tests/gates/quest-layer.test.ts:1462`/`:1660`, `tests/gates/reachability.test.ts:402` |
 | Overworld | Walk, collision, travel, encounters, inn, gym challenge, talk, release | `game/scenes/OverworldScene.ts` |
-| Walkable slice | `hearthollow`, `r1`, `brackwater`, `r2`; the other 8 nodes are travel-only | `data/nodes/*.json` `walkable` |
+| Walkable slice | ⚠ **The FLAG says `hearthollow`, `r1`, `brackwater`, `r2` and the other 8 are travel-only. THE GAME DOES NOT.** All twelve are walked — `travelTo` reads adjacency and the act ladder and never the flag, all twelve ship a composed map and a collision mask, and all twelve pass the spawn-and-connectivity gate. The row is what the data declares, not what the player meets (**T-36**). | `data/nodes/*.json` `walkable` |
 | Battle scene | A replayer over `BattleEvent[]` — it holds no rules | `game/scenes/BattleScene.ts`, `game/ui/` |
 | Year turn + retirement | Meter fills → year turn → prompt → heir in the party | `game/scenes/YearTurnScene.ts`, `RetirementScene.ts` |
 | Finale | Vellsire choice, both outcomes written and flagged, epilogue survey. **The epilogue's season is DERIVED from the projection's published horizon, not stamped from `save.tick`** — it is not a caption, the breed column and the dormant/migrating note are computed from it, so a stamped label made the same animal at the same number carry the opposite biological claim depending on when the player stopped | `game/finale.ts` |
@@ -2648,6 +2665,275 @@ wrong save" is the kind of note that gets re-found.
       tape actions, not one — `payout(-price)` and `grant({id: 1})` — because core's contract is that
       an entry is a price **or** an absolute consequence and never both.
 
+### Opened 2026-08-28 by the eight-domain content survey — agents DROVE the scenes instead of reading them
+
+⚠ **READ THE INSTRUMENT BEFORE THE RESULTS, BECAUSE IT IS WHAT MAKES THEM DIFFERENT FROM EVERY EARLIER
+PASS ON THIS PAGE.** Eight domains were audited by agents that started from a fresh save, drove the
+real scenes through the real seams, and reported what came back — not by agents reading files and
+inferring. **That is the correction this file has been asking for since item 45**, where a confident
+absence read out of source cost a session's planning, and it is why two of the findings below are
+withdrawals rather than defects: **driving something is also how you find out your alarm was wrong.**
+
+⚠ **Everything below is a reading at `240a16d`–`4f1e7aa`, taken while five other lanes were committing
+into the same tree.** One item closed underneath the survey while the survey was writing it up; that is
+recorded in place rather than tidied away.
+
+59. **THE ANCIENTS ARE THE MOST COMPLETELY BUILT AREA AUDITED, AND — the part nobody had evidence for
+    before — THEY ARE REACHABLE END TO END.** Not "the code exists"; the animals were found, fought,
+    caught, and the numbers moved.
+    - **G10 holds UNDER MEASUREMENT, not by inspection.** Six real year turns over a party and a box
+      each holding all three Ancients produced **six `ancientSkipped` events per turn** and left every
+      Ancient at age **E** with the never-ageing sentinel intact, while **mortal controls in both
+      cohorts aged and retired twice.** ⚠ **The controls are what make this evidence**: a lifecycle
+      that aged nothing would have produced the same six skips and the same unchanged Ancients. And a
+      **replay of the tape rebuilds the same never-ageing animal**, so the property survives the
+      serialisation boundary rather than living only in memory.
+    - **Both minor Ancients are reachable through the authored chain, not through a test fixture.** The
+      Kilnback chain was driven to `complete` at act 4 and the Undermere chain to `complete` at act 3 —
+      the latter **satisfying the Ferryman's Wager by actually snaring an Elder at `r2` in the right
+      year** rather than by writing the flag. Each was then rolled, fought and caught through the real
+      encounter → battle → catch path, **moving the node's real number 1 → 0.**
+    - **The Vellsire beat is live on the real scene.** The approach cutscene fires unprompted at the
+      ring; both branches write their flags; the snare opens a scripted `kind:"ancient"` fight; **a
+      real reducer catch (19 of 60 seeds) moves the Sanctum's count and plays `maren.epilogue.caught`**,
+      and standing aside plays `maren.epilogue.released`. Both epilogue ids exist in `data/dialogue.json`
+      (`:4154`, `:4193`) and `game/finale.ts` reads both. **This is the never-cut Vellsire choice,
+      played rather than asserted.**
+
+60. ⚠ **THE UNDERMERE'S PRESENCE EFFECT IS INVERTED AGAINST THE BIBLE'S EVIDENT INTENT — AND IT IS THE
+    OWNER'S, NOT A BUG TO FIX (G2).** Catching the serpent that "steadies the marsh water table" makes
+    the marsh **richer**.
+    - **The mechanism, verified in data rather than inferred.** `data/balance.json`
+      `ecosim.presenceEffects.waterTable` is `{mode: "typeBreedFloor", type: "Water", magnitudeKey:
+      "waterTableBreedFloor"}` and the magnitude is **0.15** — a floor on the breed rate of
+      **Water-typed** lines. `core/ecosim.ts:540-542` applies it over `webTypes(line, balance)`, which
+      is the line's **adult-age-class** types (`ecosim.webRoleAgeClass` is `"A"`).
+    - **At `r2`, the Water-typed lines are the PREDATORS.** mirefin-line (Water/Poison,
+      Mesopredator, breedRate **0.045**) and fenmaw-line (Water, Apex, **0.030**) — both floored from
+      well under 0.15 up to it. **reedrick-line, the grazer the marsh actually runs on, is Plant/Wind**
+      and is floored by nothing. So removing the Ancient removes a subsidy that was flowing to the
+      things that eat the marsh, and the marsh rebounds.
+    - **Measured over 120 seeds: catching the serpent leaves the region RICHER by 73.9 individuals**,
+      with r2 reedrick going **9.9 → 43.9**.
+    - ⚠ **ONE CORRECTION TO THE FINDING, WHICH DOES NOT OVERTURN IT.** The survey said the two
+      predators are *the only* Water lines at `r2`. **They are not — `undermere-line` is itself
+      Water/Dark and stands at `r2`**, and `derivePresence` (`core/ecosim.ts:275-313`) does **not**
+      exclude the source line, so while the serpent is free it floors **its own** breeding too (its
+      `carryCap: 1` is what actually holds it, not its breed rate). Radius is 1
+      (`presenceRadiusNodes`), so the floor also reaches `brackwater` and `bowerdeep`. **Three Water
+      lines, not two. The grazer is still not one of them, which is the whole finding.**
+    - ⛔ **THE CODE IS NOT WRONG AGAINST THE SPEC, WHICH IS EXACTLY WHY THIS IS THE OWNER'S.**
+      `docs/build-doc.md:235` (§7.3) says, verbatim: *"Undermere: Water breedRate floor"* — and that is
+      what shipped, magnitude and all. **`data/balance.json`'s `_presenceEffects` already recorded, in
+      advance, that the bible did not say which type an effect acts on or whether it multiplies or
+      floors, and that both had to be decided in code.** This is that recorded ambiguity arriving with
+      a sign attached. **An agent may not re-point the effect at Plant, may not invert it, and may not
+      declare the bible to have meant something else (G2).**
+    - **For contrast, and to show the finding is about this effect rather than about presence effects
+      in general:** the Kilnback's `ventWarmth` is **correct-signed** — Δ **−31.7** when it is caught —
+      and the Vellsire's keystone is correct-signed but tiny (item 61). ⚠ **AND A SECOND SPEC
+      MISMATCH FOUND IN THE SAME SENTENCE, recorded open rather than resolved:** §7.3's sibling clause
+      reads *"Kilnback: Fire spawns active"*, and what ships is a **×1.25 Fire breed multiplier**, not
+      a spawn activation. The `_presenceEffects` note covers it under the same admitted gap. **Two
+      clauses of one sentence, one implemented as written and one not.**
+
+61. ⚠ **THE NEVER-CUT EPILOGUE SURVEY HAS ALMOST NOTHING TO REPORT, AND THAT IS A DESIGN QUESTION
+    ABOUT A NEVER-CUT FEATURE.** The beat WORKS — item 59 played it — and its measurable consequence
+    is **1.6 individuals of one scavenger line, region-wide, averaged over 120 seeds.**
+    - **Why, arithmetically, and it is not a tuning problem.** `presenceRadiusNodes` is **1**, so the
+      Vellsire's keystone reaches exactly two nodes: `sanctum`, whose populations are
+      `carricrow-line 2` (carryCap 6) and `vellsire-line 1` (**breedRate 0, carryCap 1** — the Ancient
+      cannot breed at all), and `sanctum-approach`, whose only population is `carricrow-line 3`
+      (carryCap 9). **The entire reach of the region's keystone is five scavengers under a combined
+      cap of fifteen.** A ×1.5 breed multiplier on that produces about what was measured.
+    - ⛔ **NOTHING HERE IS AN AGENT'S TO CHANGE.** Widening the radius, raising the multiplier, or
+      giving the Sanctum more populations are three different ways of inventing content (G2), and G6
+      forbids arranging the outcome. **The question — should the ending's survey have something to
+      say, and if so does the keystone need reach or does the Sanctum need animals — is in the
+      *waiting on the owner* register.**
+
+62. ✅ **A LIVE REACHABILITY DEFECT IN THE SHIPPED DEX — FOUND BY DRIVING IT, AND CLOSED BY ANOTHER
+    LANE WHILE THIS WAS BEING WRITTEN.** *(**T-79**.)* Recorded in full anyway, because the reason the
+    suite could not see it outlives the defect.
+    - **The defect, true at `240a16d`.** `game/scenes/MenuScene.ts:583-588` built a `DexSceneData`
+      **without `unlockedSignChains`**, though `game/scenes/DexScene.ts:63` declares the field and
+      `DexScene:231-233` honours it. Absent, the chain reaches `core/foodweb.ts:750` as `undefined`,
+      `!(unlocked?.has(id) ?? false)` is `true`, and the line is emitted `{weight: 0, active: false}`.
+      **`balance.encounter.signChainGatedHabitatTag` is `"hidden"`, carried by exactly the three
+      Ancients** — so **the shipped dex printed *"not in the wild encounter pool"* for all three,
+      forever, including for a player standing on the animal with the chain closed.** `MenuScene` was
+      the only construction site, so there was no second path that worked.
+    - ✅ **Fixed in `4f1e7aa`.** `MenuScene.ts:642` now passes
+      `unlockedSignChains: unlockedSignChainsOf(registry.save(), content)`, backed by
+      `game/ui/SignChains.ts:58-80`, which derives the gated lines from the habitat tag and the
+      `chain.<stem>.complete` flags **rather than from a hardcoded species list**.
+      `tests/unit/ui-frame-panel.test.ts` §7 asserts the real hand-off carries the field, 32/32 green.
+    - ⛔ **THE PART TO KEEP: `tests/gates/dex-path-contract.test.ts` PASSED THROUGHOUT, AND WAS RIGHT
+      TO.** All thirteen of its cases assert **asset-key and manifest grammar** — set identity, no
+      spellable `back` key, injectivity of dex identity → sprite. It never imports `MenuScene`, and at
+      `:396` it calls `buildDexEntries(content.species, "spring", balance)` **with no `opts` at all**,
+      so `unlockedSignChains` is `undefined` inside the gate itself. Its case named *"THE ANCIENTS —
+      the dex asks for the one form their line actually ships"* checks `creatureArtId` against
+      manifest rows. **A gate on key grammar is structurally incapable of seeing a data hand-off, and
+      its green was never evidence about one.** This is the §8.5 shape on a scene prop instead of a
+      dialogue flag: **the field is declared, honoured, and never supplied.**
+
+63. **ECOLOGY IS THE MOST FINISHED DOMAIN IN THE PROJECT, AND IT IS REACHABLE RATHER THAN MERELY
+    BUILT.** Each of these was produced by driving the shipped path, and each moved a number a player
+    can read:
+    - A real catch moved sporantle **32 → 31**, and the survey row said **31**.
+    - **The shipped overcatch script drove r4's apex to 0**, with the survey rendering the starvation
+      season as `0.030 → 0.000` the step before.
+    - A boxed skir aged **J → A → E** and **retired from the box**, while two caught Ancients never
+      aged — G10 and the box rule in one run.
+    - **reedrick appeared 273 times in summer and ZERO times in the other three seasons**, through the
+      live roll on a real grass cell. That is `seasonalWindow` reaching the player rather than the
+      harness.
+    - **Catching the Undermere flipped r2's survey from `presence: Undermere` to `presence: none`.**
+    - **The player reads populations in three places**, and **19 population-gated NPC entries** narrate
+      the web in plain working-people register — a count independently reproduced against
+      `data/dialogue.json`. G7 holds: none of them tells the player they did wrong.
+    - **G3, G6, G7 and G10 hold under sabotage-bound gates**, and **the encounter mask agrees with the
+      collision mask cell-for-cell on all twelve nodes against the shipped PNG bytes.**
+
+64. ⚠ **A CONTROL BOTH CANONICAL DOCS RECORD AS NEVER RUN AND IMPOSSIBLE IN THE HARNESS HAS NOW BEEN
+    RUN TWICE, BY TWO DIFFERENT SEAMS — AND THE DOCS STILL SAY IT HAS NOT.** *(**T-8**, **T-76**.)*
+    - **The survey's route:** `core/lifecycle.ts` `enterPendingActs` already accepts a `yearEvents`
+      override — ⚠ **a field on `ActEntryDeps` (`:966`), not a positional parameter**, and an empty
+      array is truthy in JS, so `yearEvents: []` genuinely suppresses rather than falling through to
+      the default. **With the raid off, r4's apex reaches 0 in 0 of 64 seeds at arrival years 1, 4 and
+      7, and never even touches ≤1.**
+    - ✅ **AND T-8 HAD ALREADY RUN IT, BY THE OTHER SEAM, ON 2026-08-27** — `CATCH_PROFILES` ×
+      `RAID_POLICIES` as a 3×2 matrix in `tools/harness/full-run.ts`, deep-copying balance rather than
+      editing it, **32 seeds, nothing reaches zero anywhere.** ⚠ **The survey did not know that
+      ticket existed, which is what makes the agreement worth something**: two seams, two scales, one
+      answer, and a defect in the suppression itself would have to exist twice in two unrelated places
+      to survive both. **"The raid is the whole cause" is confirmed.**
+    - ⛔ **`docs/build-doc.md:502` and `docs/content-bible.md:176-178` BOTH STILL CARRY IT AS
+      UNMEASURED, AND NEITHER FILE IS THIS PASS'S TO EDIT.** The exact sentences and the constrained
+      replacement wording are in **T-8**; the work is **T-76**. ⚠ **§10.5 is not a heading** — it is
+      numbered item 5 inside `## 10. Test Plan` at `:490`, on one unbroken line at `:502`, and the
+      cite T-8 carried (`:405`) had drifted.
+
+65. ⚠ **content-bible §6's FLAT CLAIM IS A MAJORITY OUTCOME EARLY AND A MINORITY OUTCOME LATE — AND
+    THERE ARE NOW THREE PUBLISHED FIGURE SETS FOR ONE BEAT, MEASURING THREE DIFFERENT PROPERTIES.**
+    ⛔ **This is a number for the owner. G6 forbids tuning it upward and G2 forbids an agent rewriting
+    the bible's reading of its own arrival.**
+    - **The bible's sentence** (`docs/content-bible.md:172-178`): *"Route 4's Apex reaching zero is the
+      intended reading of that arrival, not an imbalance."* Stated flat, for every arrival.
+    - **What the survey measured** — apex REACHES ZERO, raid ON, no player, **64 seeds**:
+      **42/64 at a year-1 arrival, 33/64 at year 4, 18/64 at year 7**; the weaker ≤1 falling from
+      **62/64 to 35/64**. ⚠ **These three figures could not be re-derived by this pass and are carried
+      as the survey's own reading**, on the same standard this file applies to every other unreproduced
+      number.
+    - **What `data/balance.json` publishes** (`_standingStock`, beside `harvestFractionOfStanding`):
+      **39 of 64 at year 1, 1 of 64 at year 4, and "the Apex never goes at all" by year 7** — and these
+      are explicitly the **PRE-fix** figures, the ones that motivated the fraction. ✅ **So the
+      survey's claim that balance publishes only pre-fix numbers is CORRECT**, and the fix moved year 4
+      from 1/64 to 33/64 and year 7 from never to 18/64. **`harvestFractionOfStanding` fixed the
+      HARVEST; it did not remove the arrival-year dependence of the COLLAPSE.**
+    - ⛔ **AND A THIRD SET THAT WILL BE MIS-CITED IF THIS IS NOT WRITTEN DOWN.**
+      `tests/unit/r4-arrival.test.ts:344-345` says the property held *"in 33/64, 14/64 and 5/64 seeds
+      at the three later arrivals; it now holds in all of them."* **That test asserts a DIFFERENT AND
+      WEAKER property** — `isStarvingOrGone`, not "reaches zero" — **over four arrivals keyed in
+      SEASONS (`preSeasons` 0 / 12 / 24 / 40), and its seed constant is `SEEDS = 32`, not 64.** So its
+      "holds in all of them" does **not** contradict the survey's 42/33/18, and **must not be read as
+      "the apex reaches zero at every arrival."** ⚠ **A docblock publishing `/64` denominators in a
+      file whose constant is 32 is an unsourced figure by this file's own standard** — recorded open;
+      the denominator needs re-deriving or the comment needs correcting (**T-77**).
+
+66. **EIGHT OF TWELVE NODE FILES STILL SAY `walkable: false`, AND SEVEN CANONICAL PASSAGES — NOT THREE
+    — STILL DESCRIBE A VIGNETTE FALLBACK THAT DOES NOT EXIST.** *(**T-36**.)* All twelve now ship a
+    composed map **and** a collision mask (24 files, all present on disk), all twelve pass the
+    spawn-and-connectivity gate, and **travel never consults the flag**: `travelTo` refuses on being
+    indoors, on adjacency, and on the act gate, and the only game-side read of `node.walkable` anywhere
+    is `firstWalkableNodeId()` choosing a **default start node**. **`"vignette"` appears nowhere in
+    `core/`, `game/` or `tools/`.**
+    ⛔ **THIS MATTERS BEYOND THE FLAG, AND THE CORRECTION HAS BEEN MADE ON THIS PAGE RATHER THAN
+    NOTED.** This file's own cascade analysis cited *"r4 is `walkable: false`"* in three places as a
+    reason demo beat 1 sits off the playable slice. **It is not a reason.** The clause is struck from
+    all three; **the real barriers are the act-4 gate and the encounter budget**, which are two
+    different facts with two different remedies, and neither of them is a content edit to a boolean.
+    ⚠ **T-36's own enumeration was three of seven** — the four it missed are build-doc §1's effort
+    line, **locked decision L7's status column**, §15's build step C9, and content-bible's audio rule
+    that cuts eight location themes *because* those nodes ship as vignettes. **Ruling "drop the claim"
+    therefore reopens the audio pack and amends a locked decision**; the ticket now says so.
+
+67. **`fixtures/overcatch-script.json`'s SEED-12 RATIONALE IS FALSE — AND ITS NUMBERS ARE FINE, WHICH
+    IS THE WHOLE OF THE FINDING.** *(**T-78**.)* The file is named in `docs/build-doc.md:508` (§11) as
+    *"the demo cascade as an action log — used by tests AND by the demo-recording flow"*, and its `_why`
+    justifies the seed as *"chosen because the release is legible on video (1 → 3 rather than 1 → 1)"*.
+    - ✅ **The recorded trace is EXACT and CURRENT** — re-derived byte-for-byte this pass through
+      `applyCatch` + `step` on the `core/save.ts` `replay` path: opening `{ashvole 14, carricrow 3,
+      cragmar 10, pyrelisk 14, stonewing 3}`, trace `8/2 · 1/1 · 1/0 · 2/0 · 2/0 · 3/0 · 3/0 · 3/0`.
+      **Nothing about the fixture's arithmetic is stale.**
+    - ⛔ **The REASON is false on the path a video would record.** `tests/integration/demo-beats.test.ts:372-381`
+      already says so in a comment and pins it in an assertion: the replay path drives one RNG for the
+      whole log, the game draws from **per-subsystem streams** (§8.1), and at seed 12 *"the prey sits
+      at its floor for all six remaining seasons"* — **`1 → 1`, the exact outcome the fixture says it
+      was chosen to avoid.** `expect(fixtureSeed[last]).toBe(FLOOR)` is green, 6/6. **Seed 24 is the
+      legible one.** The fixture and the test have disagreed in writing for some time, in the same
+      repository, and nothing goes red because they are testing different things.
+
+68. ⚠ **TWO ALARMING FINDINGS WERE WITHDRAWN ON CHECKING, AND THE REASONS ARE WORTH MORE THAN THE
+    FINDINGS WOULD HAVE BEEN.** Recorded here in full; the register at the foot carries the short form.
+    - ⛔ **WITHDRAWN: "eleven of twelve shipped maps are painted PNGs the composer does not produce,
+      and the walkable/blocking sign has FLIPPED on three nodes."** Re-running the shipped composer
+      fresh on four nodes gave **byte-identical output, props included**, and the sign is **positive on
+      all twelve.** ⚠ **The verifier measured inside a SEVEN-MINUTE WINDOW — 03:45 to 03:52 — during
+      which the maps were swapped and reverted underneath it.** **THREE separate findings that night
+      were poisoned by that one window.**
+      ✅ **THE DURABLE FIX IS A PROVENANCE FINGERPRINT, and it is already evidenced rather than
+      proposed: one lane carried an md5 over the concatenated artefacts it measured, and ITS findings
+      survived re-checking. The lanes that did not carry one produced findings that did not.** That is
+      the entire difference between the three withdrawn and the one that stood. It is now a standing
+      rule in `docs/TICKETS.md`. ⚠ **A timestamp is not a substitute** — several lanes commit into this
+      tree concurrently, so "I measured the files on disk" is not a statement about *which* files.
+    - ⛔ **WITHDRAWN BY THE LANE THAT MEASURED IT: "10 of 12 maps are below the composer's 41
+      walkable/blocking luminance floor."** The four worst **read instantly at viewport scale**, by
+      eye. **The floor is the wrong instrument for these maps, and the reason is specific rather than
+      hand-waving.** Gold's 41-to-68 figure came from **grass against tree mass — both green** — where
+      luminance was the ONLY separator available. **These biomes separate by HUE**: tan decking against
+      blue water, tan ash path against dark purple-brown ash field. **A luminance mean cannot see a hue
+      separation**, so it reports a failure that is not there. ⚠ **This does not un-strike `41`**: it
+      remains the floor for a pair that separates on VALUE (the `28.2` entry in the register at the
+      foot is unchanged). It says the instrument must be chosen against the pair being judged.
+
+69. ⛔ **AND THE SAME PASS COMMITTED WRONG-INSTRUMENT #2 FROM OUR OWN LIST — BY THE LANE THAT WROTE
+    THE RULE AGAINST IT. THIS IS THE MOST USEFUL ITEM ON THE PAGE.**
+    - **What happened.** The pass used a **hardcoded walkable set**, mistyping **five of the nine** real
+      characters and inventing one that does not exist.
+    - **The real sets, derived from `DEFAULT_LEGEND` (`tools/mapgen/legend.ts:66-192`) and confirmed
+      independently this pass:** walkable `.,:o~*@^D` — nine, including the four ANCHOR characters that
+      `assertLegendWellFormed` keeps out of the blocking half — and blocking `#BTWRF` — six.
+    - **T-65 carries the rule, in as many words: *"Derive walkability from `legend.ts`, never from a
+      list."*** It was written after a hand-typed set inflated r1, r2 and r5 by omitting `~`. **The
+      lane that wrote it sprang it.**
+    - ⚠ **THE LESSON, AND IT GENERALISES FURTHER THAN THIS REPO: KNOWING THE FAILURE MODE DOES NOT
+      IMMUNISE YOU AGAINST IT.** Having read the rule, having written the rule, and having the source
+      open in front of you are three different states, and **only the third one derives.** Every other
+      entry in this file's register is an argument for checking a claim; **this one is an argument for
+      re-deriving a fact you are certain of**, which is a strictly more expensive habit and is the only
+      one that would have caught it.
+
+70. **TWO PROP DEFECTS SURVIVED CHECKING, AND A DESIGN TENSION CAME WITH THEM — collision is correct
+    and unchanged, so none of this is a bug.** ⚠ **These are the art lane's measurements and were NOT
+    re-derived by this pass; they are recorded as that lane's readings.**
+    - **`cindershelf-shrine-mine` at ΔL 30.2 — reads by eye**, because the separation it has is a HUE
+      separation and ΔL cannot see it (item 68). **Not a defect on the corrected instrument.**
+    - **`sanctum-approach-antler-inner` at ΔL 38.3 — genuinely fails**, and the reason is structural
+      rather than numerical: **its east face abuts the rock mass keyline-against-keyline**, so there is
+      no separator of any kind at that edge, hue or value.
+    - ⛔ **23 WALKABLE CELLS ARE NOW MORE THAN HALF COVERED BY PROP ART, WORST `r3-antler-canopy` AT
+      95.3% — so a player walks through what looks like stone.** **Collision is correct and was not
+      changed**: the cells are walkable in the mask because the layout says they are, and the props
+      overlay the painting rather than entering it (build-doc §7.6: props *"are not baked into
+      collision"*). ⚠ **So the picture and the rule disagree in the direction that is safe for the
+      engine and confusing for the player** — the opposite of item 43's mask hazard, and it arrived
+      with the props landing in `7a27540`. **This is a design tension for the owner: either the prop
+      art shrinks, or the cells under it become blocking, and the second is a content edit to twelve
+      layouts.** It is in the *waiting on the owner* register.
+
 ## What is next
 
 The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
@@ -2692,13 +2978,15 @@ is actually left**, and what is left is smaller and more of it is the owner's.
    **re-measured**, not bumped. ⛔ **The rule that governs the order is per node**: promoting a mask
    against one of the nine generated maps still blocks the painted road and opens the painted house
    (item 43).
-4. **Make grass gating spatial** (**T-65**). The layouts make a per-node encounter mask derivable
-   exactly, the shares are measured, and the engine still rolls one global 0.25 everywhere — a town
-   square is as productive as the reeds. ⛔ **The single `rng` draw per step is the constraint that
-   decides the implementation**: a second draw renumbers every draw after it and desynchronises every
-   determinism fixture. **This does not wait on item 0 and never did** — the layouts are committed and
-   the encounter mask is derived from text, not from a picture, so it is unaffected by which biome's
-   tiles a node ends up painted with.
+4. ~~**Make grass gating spatial** (**T-65**)~~ — ✅ **DONE, and it reached the live path rather than
+   only the model.** `core/foodweb.ts` `encounterMaskFromLayout` builds the mask, `game/encounters.ts:279`
+   `encounterMaskFor` resolves it per node, and **`game/scenes/OverworldScene.ts:2605` calls it**, so a
+   town square is no longer as productive as the reeds for a real player. 177 tests pass across
+   `tests/unit/encounter-mask.test.ts` and the two layout gates. ⛔ **The constraint that decided the
+   implementation held**: the mask costs no extra `rng` draw — *"a step off the grass still costs
+   exactly one draw"* and *"a whole seeded walk replays identically"* are named cases, so no
+   determinism fixture was renumbered. **And G3 is bound in the same file**: the mask gates WHETHER a
+   step meets something and never WHICH animal it meets.
 5. **Fix the replay union's three remaining gaps** (**T-53**, **T-54**, **T-55**). T-53 is a decision,
    not a patch — an existing assertion pins the current behaviour deliberately.
    ~~**Repair the player-sprite assets** (T-24)~~ — **DONE**; the gate reads 16 of 16. **T-20's side
@@ -2770,8 +3058,11 @@ the opposite.
   buy the pass: **r4 and cindershelf never moved and always passed**, at 85% and 97% of seeds. The
   gate is green and the four contested sites are now asserted **infeasible**, so a balance change
   that makes one reachable turns it red and asks the question again. **What is genuinely still his**
-  is the sibling entry below — whether `r4`, which is `walkable: false`, is where the beat should
-  live. **No knob is owed an answer today**, and nothing should be tuned to produce one.
+  is the sibling entry below — whether `r4` is where the beat should live. ⛔ **The clause "which is
+  `walkable: false`" has been struck from that sentence and from its sibling: the flag gates nothing,
+  `travelTo` never reads it, and `r4` is walked like every other node.** What actually stands between a
+  player and the beat at `r4` is the **act-4 gate** and the **encounter budget** — both real, neither
+  the flag. **No knob is owed an answer today**, and nothing should be tuned to produce one.
 
 - **DO GYM WINS PAY?** Unruled, and until now recorded only in a comment. `docs/content-bible.md:285`
   reads, verbatim: *"- Currency from quests + trainer battles; sinks: snares, bait mats, inn,
@@ -2856,7 +3147,12 @@ the opposite.
   Under T-23 these are recorded and not to be re-raised.
 - Whether `r4` gets a content edit to put the cascade beat on the walkable slice. Under G2 an agent
   may not decide it. Note this is now entangled with the budget question above: `r4` is the fixture's
-  node and is `walkable: false`, and the feasibility gate measures `brackwater` and `r2`.
+  node, and the feasibility gate measures `brackwater` and `r2`. ⛔ **The words "and is `walkable:
+  false`" are struck from this entry.** They were doing argumentative work they could not support —
+  the flag has no reader on the travel path, so it never kept anybody off `r4`. **The question that
+  survives is a pacing and content one**: the beat's node opens at act 4, and whether that is where the
+  never-cut cascade should live is his. **The question that does NOT survive is "is r4 reachable" — it
+  is, and has been.**
 - **Whether `node.walkable` gets a real reader, or the claim gets dropped** (**T-36**). The flag gates
   nothing: `travelTo` refuses only on adjacency and the act ladder, so the player walks all twelve
   nodes. `docs/build-doc.md:202`, cut line **C-1** (`:456`) and `docs/content-bible.md:162` all
@@ -3009,12 +3305,79 @@ the opposite.
   claim now rests on the mechanism and on the qualitative half of item 32 alone. **It is no longer
   quantified, and it must not be restated with a number until a number exists.**
 
-  **`docs/build-doc.md:418` states "zero LoRAs"** in the *How was AI used?* answer, which is written
+  **`docs/build-doc.md:515` states "zero LoRAs"** *(re-derived 2026-08-28; this entry cited `:418` and
+  the line had drifted)* in the *How was AI used?* answer, which is written
   for an external audience. **It is still true today, and it has NOT been touched.** An approval to
   edit that sentence was reported through the art session — but that approval was **conditional on a
   LoRA winning**, so it may now apply after all. **The conditionality is recorded and deliberately
   not acted on.** Whether a LoRA is adopted, and whether that sentence changes, is the owner's call;
   no agent may make either, and the sentence must not move ahead of the ruling on the first one.
+
+⚠ **FOUR ENTRIES ADDED 2026-08-28 BY THE EIGHT-DOMAIN CONTENT SURVEY. Every one of them was produced
+by DRIVING a shipped scene rather than by reading source, and every one is a question rather than a
+defect** — which is the point: the survey found the ecology essentially finished and then found four
+places where "finished" and "what the canon evidently wanted" are not the same thing, and none of them
+is an agent's to settle.
+
+- ⛔ **THE UNDERMERE'S PRESENCE EFFECT IS INVERTED AGAINST THE BIBLE'S EVIDENT INTENT, AND THE CODE
+  MATCHES THE SPEC — WHICH IS WHY IT IS YOURS.** Bible §4 says the serpent *"steadies the marsh water
+  table (Water breeding)"*, and `docs/build-doc.md:235` (§7.3) inlines it as *"Undermere: Water
+  breedRate floor"*. That is exactly what shipped: a **0.15 floor on the breed rate of Water-typed
+  lines**. ⛔ **At `r2` the Water-typed lines are the PREDATORS** — mirefin (Mesopredator, 0.045) and
+  fenmaw (Apex, 0.030), plus the serpent itself — **while reedrick-line, the grazer the marsh runs on,
+  is Plant/Wind and is floored by nothing.** Measured over 120 seeds, **catching the serpent leaves
+  the region RICHER by 73.9 individuals**, r2 reedrick **9.9 → 43.9**. **So the beat reads backwards:
+  remove the animal that steadies the marsh and the marsh flourishes.** ⚠ **`data/balance.json`'s
+  `_presenceEffects` predicted this class of question in advance** — it records that nothing in the
+  canon said *which type* an effect acts on or whether it multiplies or floors, so both had to be
+  decided in `core/ecosim.ts`. **This is that admitted gap arriving with a sign attached.** Three
+  readings are available and an agent may pick none of them (G2): the floor acts on the grazer instead;
+  the floor is right and the *narration* is what should change; or it is correct as authored and the
+  marsh rebounding without its Ancient is the intended irony. **For contrast — this is not a general
+  fault in presence effects:** the Kilnback's `ventWarmth` is correct-signed at Δ −31.7, and the
+  Vellsire's keystone is correct-signed. ⚠ **A SECOND CLAUSE OF THE SAME §7.3 SENTENCE ALSO DOES NOT
+  MATCH THE CODE** — *"Kilnback: Fire spawns active"* ships as a **×1.25 Fire breed multiplier**, not
+  a spawn activation. **Recorded open under the same gap, resolved by nobody.**
+
+- ⛔ **SHOULD THE NEVER-CUT EPILOGUE SURVEY HAVE SOMETHING TO SAY? TODAY IT MEASURES 1.6 INDIVIDUALS
+  OF ONE SCAVENGER LINE.** The Vellsire beat is live and was played end to end (item 59); this is not
+  about whether it works. **It is about there being nothing at the far end of it to report.** The
+  arithmetic is short enough to check by hand: `presenceRadiusNodes` is **1**, so the keystone reaches
+  `sanctum` (`carricrow-line` 2 of cap 6, and `vellsire-line` 1 of cap 1 at **breedRate 0** — the
+  Ancient cannot breed) and `sanctum-approach` (`carricrow-line` 3 of cap 9). **The whole reach of the
+  region's keystone is five scavengers under a combined cap of fifteen**, and a ×1.5 breed multiplier
+  on that is worth about 1.6 animals region-wide over 120 seeds. ⛔ **Three ways to change it and an
+  agent may take none: widen the radius, raise the multiplier, or give the Sanctum animals.** Each is
+  inventing content (G2), and arranging the outcome is G6. **What is genuinely yours is whether the
+  ending's last page is supposed to carry a measurable consequence at all** — it may be that the
+  choice is the beat and the survey is the coda, in which case nothing here needs doing and this entry
+  closes as answered.
+
+- ⚠ **IS THE BIBLE'S FLAT READING OF ROUTE 4'S ARRIVAL STILL THE ONE YOU WANT, NOW THAT IT IS
+  MEASURED AT EVERY ARRIVAL?** `docs/content-bible.md:172-178` says *"Route 4's Apex reaching zero is
+  the intended reading of that arrival, not an imbalance"* — flat, for every arrival. **Measured with
+  the raid on and no player, over 64 seeds, it is 42/64 at a year-1 arrival, 33/64 at year 4 and 18/64
+  at year 7** (item 65 carries the caveats and the two other figure sets in circulation). **A majority
+  outcome early and a minority outcome late.** `harvestFractionOfStanding` fixed the harvest and did
+  not remove the arrival-year dependence of the collapse. ⛔ **G6 FORBIDS TUNING THIS UPWARD — it is a
+  number for you, not a repair**, and G2 forbids an agent rewriting the bible's reading of its own
+  scene. The three available readings are that the sentence should acquire the arrival dependence, that
+  the pacing should put the player there earlier, or that a minority collapse is fine because the node
+  is still visibly wrecked either way. **Note the separate, purely factual half is NOT yours and is
+  already ticketed**: both canonical docs still say the no-raid control has never been run, and it has
+  now been run twice (**T-8**, **T-76**).
+
+- ⚠ **THE PROPS NOW COVER GROUND THE PLAYER WALKS THROUGH — 23 CELLS MORE THAN HALF COVERED, WORST
+  `r3-antler-canopy` AT 95.3%.** **Collision is correct and was not changed.** Build-doc §7.6 is
+  explicit that props *"are not baked into collision (they overlay the painted map)"*, and the cells
+  are walkable because the layout says so — **so the engine is doing exactly what it was told and the
+  picture is what disagrees.** ⚠ **This is the opposite direction from item 43's hazard** — there, a
+  mask exact against the wrong picture blocked a road the player could see; here, a correct mask lets
+  the player walk through drawn stone. **Two remedies and both are yours**: the prop art shrinks toward
+  its anchor cell, or the covered cells become blocking, which is a content edit to twelve layouts and
+  changes reachability. **An agent may not pick, and must not "fix" this by editing a mask** — a mask
+  edited to match a picture is precisely what T-57 dissolved by making both stamp from one file. Two
+  prop legibility readings arrived with it and are item 70.
 
 **Struck on the 2026-08-27 economy, layout and tile passes, each checked against the artefact rather
 than against the sentence that carried it.** ⚠ **Four of these were this file's own headline claims,
@@ -3070,6 +3433,68 @@ recruited into was not.
   flipped and the more dangerous direction of the two.** The comment has been corrected in the tree;
   the question is back in the *waiting on the owner* register; item 53 carries the chain and **T-72**
   the work.
+
+**Struck on 2026-08-28 by the content survey and the art lane's own withdrawal — and the pattern is
+the entry, not the figure.** ⚠ **This is the SECOND manufactured permission in as many nights, from a
+different lane, and the two belong side by side.** The cindershelf entry directly above is the first.
+- ⛔ **"THE ART LANE HAS SETTLED ON 16×16 NATIVE / 32×32 WORLD" — STRUCK. THE PLAYER IS 32×48, AND
+  NOBODY EVER RULED OTHERWISE.** Withdrawn by the lane that wrote it, in these words: *"I never had a
+  ruling for 16x16; I turned my own reading of Gold into a decision and it propagated into STATUS."*
+  The true figure is bound in four places and every one was checked against the artefact this pass —
+  `docs/build-doc.md:369` (§9.3) and `:275` (§7.6), `data/balance.json:508-509`, `tools/comfy/manifest.json`
+  `classes.player.targetW/H`, and `tests/unit/manifest.test.ts:724-737`, which binds the class target to
+  the balance keys for `player` and `npc-static` alike and passes 119/119. ⚠ **The cite handed over
+  with the finding — `:666` — was itself off by a gate**; `:666` is the nine-unspellable-ids check.
+  **A file:line in a report has the same shelf life as one in a comment**, which is this file's own
+  standing rule arriving in a hand-off.
+  **The FRAMING is what generalises: this is not a lane changing its mind, it is an inference written
+  down as a decision and then travelling.** §0.4 with the sign reversed — an inferred *constraint*
+  stops work that was permitted, an inferred *permission* starts work that was not, and **the second
+  is the direction nobody audits**, because a sentence that lets you proceed is never the sentence you
+  go back and check.
+  **It also manufactured a supporting calculation, which is how it stayed standing.** The same note
+  claimed *"the spec's `2px` and the balance's `4` AGREE (2 native px at a 16px cell is 4 world px at
+  32px)"* — a conversion factor that exists only if the sprite is 16×16. The balance hop is **2**, and
+  `data/balance.json` `_skipHopPx` had already reconciled it the other way before the note was written:
+  *"2 sprite px is therefore 2 world px, not 4."* **The premise produced the arithmetic and the
+  arithmetic then read as corroboration of the premise.**
+  ✅ **The damage is bounded and the bound is the reason to keep this entry.** A repository-wide grep
+  for the phrase, run before the correction, returned **exactly one hit — the line now struck.** *(The
+  only hits today are this register and the correction that replaced it.)* It reached no code, no data,
+  no test, no canonical document. **Prose is the only layer with no gate on it, which is precisely
+  where an unquotable constraint can live indefinitely.**
+
+**Withdrawn on 2026-08-28 — three findings, and in each case the REASON is worth more than the finding
+would have been.** ⚠ **Two were withdrawn by the lanes that made them, and the third was committed by
+the lane that wrote the rule against it.** The long form is items 68 and 69.
+- ⛔ **"ELEVEN OF TWELVE SHIPPED MAPS ARE PAINTED PNGs THE COMPOSER DOES NOT PRODUCE, AND THE
+  WALKABLE/BLOCKING SIGN HAS FLIPPED ON THREE NODES" — FALSE, not merely unsourced.** Re-running the
+  shipped composer fresh on four nodes gave **byte-identical output, props included**, and the sign is
+  **positive on all twelve**. ⚠ **The verifier measured inside a SEVEN-MINUTE WINDOW — 03:45 to
+  03:52 — while the maps were swapped and reverted underneath it, and THREE separate findings that
+  night were poisoned by that one window.** ✅ **The durable fix is evidenced rather than proposed: the
+  one lane that carried an md5 over the concatenated artefacts it measured produced findings that
+  SURVIVED re-checking; the lanes that did not, did not.** That is the entire difference between the
+  three withdrawals and the one that stood, and it is now a standing rule in `docs/TICKETS.md`. **A
+  timestamp is not a substitute** — several lanes commit into this tree at once, so *"I measured the
+  files on disk"* names no particular files.
+- ⛔ **"10 OF 12 MAPS ARE BELOW THE COMPOSER'S 41 WALKABLE/BLOCKING LUMINANCE FLOOR" — WITHDRAWN BY
+  THE LANE THAT MEASURED IT, ON THE INSTRUMENT RATHER THAN ON THE ARITHMETIC.** The four worst read
+  instantly at viewport scale, by eye. **Gold's 41-to-68 figure came from grass against tree mass —
+  both green — where luminance was the ONLY separator available.** These biomes separate by **HUE**:
+  tan decking against blue water, tan ash path against dark purple-brown ash field. **A luminance mean
+  cannot see a hue separation, so it reports a failure that is not there.** ⚠ **This does NOT un-strike
+  `41`**, which stands as the floor for a pair separating on VALUE — the `28.2` entry below is
+  unchanged. It narrows the instrument to the pair it can judge.
+- ⛔ **AND THE SAME PASS COMMITTED WRONG-INSTRUMENT #2 FROM THIS FILE'S OWN LIST — BY THE LANE THAT
+  WROTE THE RULE AGAINST IT. THIS IS THE ENTRY WORTH THE MOST.** It used a **hardcoded walkable set**,
+  mistyping five of the nine real characters and inventing a tenth. **The real sets come from
+  `DEFAULT_LEGEND` (`tools/mapgen/legend.ts:66-192`) and were confirmed independently: walkable
+  `.,:o~*@^D`, blocking `#BTWRF`.** T-65 carries the rule verbatim — *"Derive walkability from
+  `legend.ts`, never from a list"* — written after a hand-typed set inflated three nodes by omitting
+  `~`. ⚠ **KNOWING THE FAILURE MODE DOES NOT IMMUNISE YOU AGAINST IT.** Every other entry in this
+  register argues for *checking a claim*; this one argues for **re-deriving a fact you are certain
+  of**, which is the more expensive habit and the only one that would have caught it.
 
 **Struck from this file, having been checked and found false:** the claim that
 `tools/comfy/manifest.json`'s `_deviations[]` rows index a ledger the repo no longer keeps (item 10);
@@ -3204,6 +3629,14 @@ takes.
 
 ## IN FLIGHT AT SESSION END — read this before starting anything
 
+⛔ **THIS SECTION IS A HANDOFF FROM AN EARLIER SESSION AND HAS BEEN OVERTAKEN. It said "everything
+below was true at commit `43c95b8`"; the tree is now FOURTEEN COMMITS PAST THAT**, and the section is
+corrected in place rather than deleted so that anyone who inherited a claim from it can see which one
+moved. **Every figure in the block below is `43c95b8`'s and none of it has been re-run here.** The
+`0 0` push count in particular is a claim of exactly the family this file struck once already — **a
+durable-looking statement that stops being checked.** Re-run
+`git rev-list --left-right --count origin/main...HEAD`; do not inherit the number.
+
 Written because the session ended abruptly. Everything below was true at commit
 `43c95b8`, which is pushed. **Re-measure before trusting any of it** — the previous
 handoff was wrong about its headline fact and cost a session's planning.
@@ -3221,8 +3654,12 @@ re-verified by reading the diff rather than by trusting a summary**:
 1. **maps + masks** — believed complete and landed.
 2. **dex placeholder / oversize defect** — the `fitWithin` fix landed. The 35
    `assets/final/dex-painted/` placeholders it generated are **probably dead** (see below).
-3. **content-gap survey** — read-only, eight domains. Result lost; re-run if wanted.
-4. **player forward-facing + skip** — landed in part; two spec terms missing (below).
+3. ✅ **content-gap survey** — read-only, eight domains. **RE-RUN AND LANDED**: items 59–70
+   above are its result, and it drove the scenes rather than reading them. It is no longer
+   lost and must not be re-run a third time.
+4. ✅ **player forward-facing + skip** — **COMPLETE**, in `aba8ff8`, which landed
+   immediately after this line said two spec terms were missing. All three §9.6 terms
+   ship; `tests/unit/skip-walk.test.ts` reads 23 passed. See the corrected subsection below.
 
 ### Owner rulings received but NOT yet implemented
 Both relayed from the art-lane session, which the owner has vouched for
@@ -3241,25 +3678,79 @@ that is true"):
   `fitWithin` fix STAYS and matters more under this ruling: creature sprites are 96²
   going into a 128² dex box, a 96² summary slot and a 48² retirement portrait well.
 
-### The motion spec is two-thirds unimplemented
-`docs/build-doc.md:388` specifies three terms: **"y = 2px sine per tile step, 1px
-lateral sway, horizontal flip alternation."** Only the hop exists (`skipHopPx: 4`,
-`skipHopsPerTile: 1`). `grep -rn "flipX\|setFlip\|sway\|lateral" game/` returns nothing.
-**The flip is load-bearing** — a pure vertical sine on a static sprite reads as a FLOAT
-rather than a skip; the mirror on alternate hops is what makes the eye read a change of
-weight. It is also why ONE bitmap suffices where Gold needs six frames: Gold's character
-turns and ours never does, so the frames Gold spends on facing we do not need and the
-ones it spends on stepping the flip replaces.
+### ✅ THE MOTION SPEC IS IMPLEMENTED IN FULL — and the note that stood here shipped a constraint nobody could quote
 
-Two notes for whoever implements it: the spec's `2px` and the balance's `4` AGREE
-(2 native px at a 16px cell is 4 world px at 32px) and that reconciliation should be
-written down; and the balance comment still reasons from a "48px sprite" when the art
-lane has settled on **16×16 native / 32×32 world**.
+⛔ **THIS SUBSECTION SAID "the motion spec is two-thirds unimplemented" AND CARRIED A
+FALSE FIGURE FOR THE PLAYER SPRITE. Both are corrected below, and the second is the one
+worth reading.** Re-measured at `240a16d`, which is **fourteen commits past the `43c95b8`
+this handoff was written at** — `aba8ff8` *"the player faces forward and skips"* landed
+immediately after the sentence that said it had not.
 
-⚠ The sway is a new way to violate an invariant already carefully protected: the hop is
-deliberately kept OUT of `spriteWorldPosition` because `propUnderPlayer` and
-`chooseSpawnTile` read it. A sway folded in would mean a sign you can talk to at one
-phase and not another.
+**All three of `docs/build-doc.md:388`'s terms — *"y = 2px sine per tile step, 1px lateral
+sway, horizontal flip alternation"* — are on disk and wired.** `data/balance.json`'s `map`
+group reads `skipHopPx: 2`, `skipSwayPx: 1`, `skipHopsPerTile: 1`; `game/movement.ts`
+computes all three (`skipOffsetPx:511`, `skipFlipped:532`, `skipSwayOffsetPx:549`);
+`game/scenes/OverworldScene.ts:1694-1703` applies all three, calling `setFlipX` only when
+the mirror CHANGES rather than sixty times a second. `tests/unit/skip-walk.test.ts` runs
+**23 passed**.
+
+⚠ **AND THE INVARIANT WARNING THAT STOOD HERE WAS HONOURED RATHER THAN TRIPPED — record
+that, because a warning that worked is the only kind that earns another.** The hop and the
+sway are both added at the draw call and to nothing else; `spriteWorldPosition` is
+untouched, so `propUnderPlayer` and `chooseSpawnTile` still measure from the logical tile.
+`OverworldScene.ts:1671-1677` names the sway as *"A SECOND WAY TO COMMIT THAT EXACT
+DEFECT, and it is a worse one"* — horizontal, so a leak would move the player into or out
+of a neighbouring prop's radius — and `tests/unit/skip-walk.test.ts` §5 and
+`tests/unit/overworld-scene.test.ts` §21 **assert the separation for both terms** instead
+of trusting it.
+
+⛔ **STRUCK: "the art lane has settled on 16×16 native / 32×32 world." NO SUCH RULING
+EXISTS. THE PLAYER IS 32×48.** The art lane withdrew it in these words: *"I never had a
+ruling for 16x16; I turned my own reading of Gold into a decision and it propagated into
+STATUS."* The true figure is bound in four places and **each was checked against the
+artefact this pass, not against the sentence carrying it**:
+
+| binding | reads |
+|---|---|
+| `docs/build-doc.md:369` (§9.3) | *"nearest-neighbor downscale to target (battle 96², overworld chars **32×48**, minis 32²)"* — and §7.6 at `:275`, *"Player logical sprite **32×48**, tile step 32px"* |
+| `data/balance.json:508-509` | `playerSpriteW: 32`, `playerSpriteH: 48` |
+| `tools/comfy/manifest.json` `classes.player` | `targetW: 32`, `targetH: 48`, with `_targetSource` reading *"balance.map.playerSpriteW × balance.map.playerSpriteH"* |
+| `tests/unit/manifest.test.ts` | *"class target sizes that have a balance source match it (deviation LB-M4)"* asserts `classes[cls].targetW/H === map.playerSpriteW/H` for **`player` AND `npc-static`**. **119 passed.** |
+
+⚠ **ONE CORRECTION TO THE CORRECTION, because a file:line in a report has the same shelf
+life as one in a comment.** That binding was reported at `tests/unit/manifest.test.ts:666`;
+it is at **`:724-737`**. `:666` is inside a different gate — the one asserting every id the
+old nine-row player world could spell is now unspellable. Both are green; only the cite was
+wrong.
+
+**FRAME THIS CORRECTLY, BECAUSE THE FRAMING IS THE REUSABLE PART. The art lane did not
+change its mind. An inference was written down as a decision and then travelled** — which
+is §0.4's *"a constraint nobody can quote is a constraint somebody inferred"* **with the
+sign flipped**, and the same failure as the `compose.py` comment that manufactured a
+cindershelf ruling earlier the same night. **Two in one night, in two different lanes.** An
+inferred *constraint* stops work that was allowed; an inferred *permission* starts work that
+was not. **The second is the more dangerous direction and it is the one that keeps
+recurring**, because nobody audits a sentence that lets them proceed.
+
+**And it did not merely sit beside the arithmetic — it PRODUCED it.** The note read *"the
+spec's `2px` and the balance's `4` AGREE (2 native px at a 16px cell is 4 world px at
+32px)"*. **Neither half survives.** The balance hop is **2**, not 4; and `_skipHopPx` in
+`data/balance.json` already reconciles it in the opposite direction and had done before this
+note was written: `mapRenderScale` 2× is a property of the painted **map**, not of
+characters, the player is drawn at `playerSpriteW×playerSpriteH` by `setDisplaySize`, so one
+sprite pixel is one world pixel is one screen pixel — *"2 sprite px is therefore 2 world px,
+not 4."* **A 16×16 premise generated a 2× conversion factor that does not exist, and the
+conversion then read as corroboration for the premise.** The note also asked that the
+reconciliation "should be written down". It already was, on the key it governs, which is
+where this project puts a reason.
+
+✅ **THE DAMAGE WAS CONTAINED, AND THAT IS WHY THE PATTERN IS RECORDED HERE RATHER THAN THE
+FIGURE.** `grep -rn '16×16 native\|16x16 native\|32×32 world\|32x32 world'` across the whole
+repository, run before this correction, returned **exactly one hit: the line it struck.**
+*(Today the only hits are this paragraph and the register entry at the foot.)* It reached no
+code, no data, no test and no canonical doc — the four bindings above never moved, and the
+manifest test would have gone red if one had. **The claim propagated into prose only, and
+prose is the one layer with no gate on it.**
 
 ### The one real gap the art lane cannot close alone
 **NPCs are not drawn.** Nothing in `game/scenes/OverworldScene.ts` draws an NPC; anchors

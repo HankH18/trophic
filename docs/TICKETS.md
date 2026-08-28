@@ -10,7 +10,13 @@ A `DONE` ticket keeps its ruling and loses its working detail; git holds the res
 **Order.** Work top-down within each section unless a ticket names a dependency. ⚠ **T-1's open
 decision used to sit first as the one ticket no agent could work; it is DISCHARGED**, and the ticket
 records why the question dissolved rather than being answered. **The tickets that cannot be worked by
-an agent are now T-36, T-37 and T-38.** ⚠ **T-57 has left that list** — it dissolved on the tile
+an agent are now T-36, T-37 and T-38.**
+⚠ **Re-verified on 2026-08-28 by the eight-domain content survey, which DROVE the scenes rather than
+reading them. Four tickets moved and none of them moved by being worked:** **T-65** and **T-75** are
+`DONE` — both were verified by running the files, not by reading the diff, and T-75 was closed against
+its own instruction to confirm before closing; **T-8** gains a second independent control run and its
+remainder is now **T-76**; and **T-36's enumeration went from three canonical passages to seven**,
+which changes what "drop the claim" costs. **T-76 through T-79 are new.** ⚠ **T-57 has left that list** — it dissolved on the tile
 ruling rather than being answered — **and so has the map-composition question, which was never a
 ticket and has been ruled**; both are recorded below and in `docs/STATUS.md`.
 
@@ -322,9 +328,11 @@ the R1 quest row were corrected with it. No effect was fabricated.
 ### T-8 · Record Route 4's apex extinction as intended
 **Status:** DONE · **Hank:** *"Say so in the spec"*
 
-Recorded in both canonical docs: `docs/content-bible.md:170` and `docs/build-doc.md:405` (§10.5),
-the latter naming the raid-suppressed **control run** as the instrument that separates intended from
-unintended extinction.
+Recorded in both canonical docs: `docs/content-bible.md:172-178` and `docs/build-doc.md:502` (§10.5 —
+which is a numbered item inside `## 10. Test Plan` at `:490`, not a heading of its own), the latter
+naming the raid-suppressed **control run** as the instrument that separates intended from unintended
+extinction. *(Both cites re-derived 2026-08-28; the ones this ticket carried, `:170` and `:405`, had
+drifted — see the correction at the foot.)*
 
 **The control run now exists, and the claim it was hedging is now true (2026-08-27).** It was built as
 an **orthogonal flag, not a fourth profile**: `CATCH_PROFILES` (`tools/harness/full-run.ts:250`) ×
@@ -346,18 +354,50 @@ cancellation is not mistaken for correctness: it credited a node to the raid **w
 whether the raid mattered**, and its emergent test was **a year late**. Two wrongs reading right is
 not a working instrument.
 
-⚠ **Both canonical docs still describe the gap as open, and are now wrong.** Correcting them is the
-remainder of this ticket, and the wording is constrained: **any restored §10 claim must cite
-`baseline-no-raid` over 32 seeds, not "the baseline".**
-- `docs/build-doc.md:405` — *"A control run with the raid suppressed has not been run and no such
-  mode exists in the harness"*, and, in the same sentence, that an extinction is attributed to the
-  raid *"by the node the raid script names, not by measurement"*. Both halves are now false.
-- `docs/content-bible.md:176-178` — *"The raid-suppressed control that would show the raid is the
-  whole cause has not been run, and the harness has no mode for it."* Same correction.
+✅ **AND A SECOND, INDEPENDENT CONTROL — DIFFERENT ROUTE, DIFFERENT SCALE, SAME DIRECTION (2026-08-28).**
+The eight-domain content survey ran the no-raid baseline again without knowing this ticket existed, by
+a route that does not touch the harness at all: `core/lifecycle.ts` `enterPendingActs` already accepts
+a `yearEvents` override, so `yearEvents: []` suppresses the act-4 raid at the lifecycle seam rather
+than at the balance seam. **Over 64 seeds with no player: r4's apex reaches 0 in 0 of 64 at arrival
+years 1, 4 and 7, and never even touches ≤1.** ⚠ **Two instruments, two seams, one answer is worth
+more than either alone** — the harness route rebuilds a balance object, the lifecycle route does not,
+so a defect in the suppression itself would have to exist twice in two different places to survive
+both. **"The raid is the whole cause" is confirmed, and neither canonical doc may keep carrying it as
+unmeasured.**
 
-  *(Both citations re-read 2026-08-27 and both are still at the lines given, and both are still wrong
-  in the way described. The bible's line numbers below `:76` have drifted ~5 lines since this file was
-  written and the T-7, T-9, T-10 and T-21 citations are corrected for it; these two had not moved.)*
+⚠ **THE SAME RUN PRODUCED A FIGURE THIS TICKET DOES NOT HAVE, AND IT IS NOT A COMFORTABLE ONE.** With
+the raid ON, r4's apex reaches 0 in **42/64 seeds at a year-1 arrival, 33/64 at year 4 and 18/64 at
+year 7.** So the collapse is a MAJORITY outcome early and a MINORITY outcome late, and content-bible
+§6's flat *"Route 4's Apex reaching zero is the intended reading of that arrival"* is true of some
+arrivals and not others. ⛔ **That is a CONTENT question and it is the owner's — it lives in
+`docs/STATUS.md`'s *waiting on the owner* register, NOT in this queue, and T-76 is explicitly forbidden
+from touching that sentence.** G6 forbids tuning it upward and G2 forbids an agent rewriting the
+bible's reading of its own scene. **Three figure sets are now in circulation for this beat and they
+measure different properties — see T-77 before quoting any of them.**
+
+⛔ **BOTH CANONICAL DOCS STILL DESCRIBE THE GAP AS OPEN AND ARE NOW WRONG. Correcting them is the
+remainder of this ticket and it has NOT been done** — neither file is writable by the pass that
+measured this. The wording is constrained: **any restored §10 claim must cite `baseline-no-raid` over
+32 seeds, and may now cite the 64-seed lifecycle control alongside it — never "the baseline" bare.**
+- `docs/build-doc.md:502` — *"**A control run with the raid suppressed has not been run and no such
+  mode exists in the harness** — so 'the raid is the whole cause' is an open claim resting on
+  `balance.yearEvents.raids` and bible §6, not a measured one (G2: recorded open, never resolved by
+  assertion)"*, and, in the same sentence, that an extinction is attributed to the raid *"by the node
+  the raid script names, not by measurement"*. **Both halves are now false.**
+- `docs/content-bible.md:176-178` — *"The raid-suppressed control that would show the raid is the
+  *whole* cause has not been run, and the harness has no mode for it; the raid is authored here either
+  way (build-doc §10.5)."* Same correction, and §6's *"intended reading of that arrival"* bullet at
+  `:172-178` should carry the arrival-year dependence rather than the flat claim.
+
+⚠ **AND THIS TICKET'S OWN CITATIONS HAD DRIFTED — INCLUDING THE PARENTHETICAL THAT ASSERTED THEY HAD
+NOT.** It read: *"(Both citations re-read 2026-08-27 and both are still at the lines given…)"*. **That
+is false for the build-doc half at `240a16d`.** §10.5 is not a heading at all — `## 10. Test Plan` is
+at `docs/build-doc.md:490` and §10.5 is numbered item 5 inside it, **a single unbroken line at `:502`**;
+`:405` now reads something else entirely. The bible's apex sentence is at **`:172-178`**, not `:170`
+(`:170` is the *"produced, never baked"* bullet). **A durable-looking parenthetical that says "I
+checked, it has not moved" is the most expensive kind of stale cite**, because it discourages the next
+reader from checking — this queue's own standing rule at *"A ticket's own file:line is not a
+measurement either"*, firing on the ticket that quotes it.
 
 ### T-9 · Close the raid list at one
 **Status:** DONE · **Hank:** *"Close the raid list at one."*
@@ -1570,11 +1610,30 @@ field (`core/schemas.ts:216`).
 **So the player walks all twelve nodes, all of them on `synthesiseBorderCollision`.** Four carry
 `walkable: true` — `hearthollow`, `r1`, `brackwater`, `r2` — and eight carry `false`.
 
-**Three canonical sentences describe a path that does not exist in `game/`:**
+⛔ **THE ENUMERATION BELOW SAID "THREE CANONICAL SENTENCES". THERE ARE SEVEN, AND THE FOUR THIS TICKET
+DID NOT NAME ARE EXACTLY THE ONES A "DELETE THE LANGUAGE" RULING WOULD LEAVE STANDING.** Re-derived by
+grep at `240a16d`, both files:
 - `docs/build-doc.md:202` — `walkable: boolean; // false => vignette card fallback`
-- `docs/build-doc.md:456` — cut line **C-1**, *"acts 5–6 towns walkable → vignettes (already
-  default)"*. It is not the default and it is not implemented.
+- `docs/build-doc.md:553` — cut line **C-1**, *"acts 5–6 towns walkable → vignettes (already
+  default)"*. It is not the default and it is not implemented. ⚠ **This ticket cited it at `:456`; it
+  has moved.**
 - `docs/content-bible.md:162` — *"later nodes fall back to vignette cards."*
+- ⚠ `docs/build-doc.md:16` (§1, effort allocation) — *"**~15% — everything else** (remaining nodes as
+  vignettes, audio, dex, polish), all cut-safe."* **The vignette is load-bearing in the project's own
+  budget line**, which is the last place anyone would go looking to delete it.
+- ⚠ `docs/build-doc.md:45` — **locked decision L7's own status column**: *"Locked in ideation; vertical
+  slice walkable, rest vignette-fallback."* **Deleting this is amending a LOCKED DECISION**, which is a
+  materially different act from deleting a comment on a schema field, and it is the reason this
+  ticket's "drop the claim" option is not the cheap side it looks like.
+- ⚠ `docs/build-doc.md:549` — §15 build order, step **C9**: *"C9 remaining nodes as vignette cards +
+  acts 3–6 story beats + finale/epilogue survey."* **A build-order step nobody has struck.**
+- ⚠ `docs/content-bible.md:326-331` — the audio manifest's *"Eleven rows, not sixteen"* rule, which
+  cuts eight location themes **on the grounds that those nodes ship as vignettes**: *"those nodes ship
+  as travel-only vignette cards rather than walkable maps, so a location theme for them has nowhere to
+  play."* ⛔ **This one has a CONSEQUENCE attached, not just a sentence** — ruling "drop the claim"
+  reopens eight audio rows and G9's one-family curation with them, and ruling "build the fallback"
+  leaves it correct as written. **Whoever answers this ticket is also answering the size of the audio
+  pack**, and neither option is free.
 
 And `tests/unit/transcription.test.ts:949` pins which nodes carry the flag —
 `expect(nodes.filter((n) => n.walkable).map((n) => n.id).sort()).toEqual(["brackwater","hearthollow","r1","r2"])`
@@ -1589,7 +1648,16 @@ data field instead of a dialogue flag.
   `walkable` or give it a real reader.
 
 **Done when:** Hank rules; the chosen side is implemented; and the losing side's text is corrected in
-the canonical doc rather than left standing.
+the canonical doc rather than left standing — **all SEVEN sites, enumerated above by grep rather than
+by recall, and L7 and C9 amended explicitly rather than left to rot.** ⚠ **Correcting three of seven
+and calling it done is the failure mode this enumeration exists to prevent.**
+
+⚠ **AND ONE ARGUMENT FOR THE FLAG HAS BEEN STRUCK SINCE THIS TICKET WAS WRITTEN, so do not inherit
+it.** `docs/STATUS.md`'s cascade analysis used to cite *"`r4` is `walkable: false`"* as a reason demo
+beat 1 sat off the playable slice. **It is not a reason** — travel never reads the flag, so `r4` is
+walked like any other node, and the real barriers are the act ladder and the encounter budget. That
+correction is in STATUS; it does not change this ticket's question, but it removes the strongest
+practical argument that the flag is doing work somewhere.
 
 ### T-37 · The enemy AI is blind to move `priority` — a design call, not a defect
 **Status:** TODO — **blocked on Hank; it moves published win rates either way**
@@ -2571,6 +2639,31 @@ a KO that *ends* the battle, the ordinary 1v1 wild encounter, Scrounge heals not
   manufactured prohibition**, because a prohibition only stops work while a permission authorises it —
   **the inferred-constraint failure in `docs/STATUS.md`, with the sign flipped, and it needs the same
   cheap test: find the sentence, quote it, name where it came from.**
+  ⛔ **IT HAPPENED A SECOND TIME THE FOLLOWING NIGHT, IN A DIFFERENT LANE, AND THAT IS WHY THIS RULE
+  IS THE LONGEST ONE HERE.** `docs/STATUS.md` carried *"the art lane has settled on 16×16 native /
+  32×32 world"* as a settled decision. The lane that wrote it withdrew it: *"I never had a ruling for
+  16x16; I turned my own reading of Gold into a decision and it propagated into STATUS."* **The player
+  is 32×48**, bound in build-doc §9.3 and §7.6, `data/balance.json`, the manifest's `player` class and
+  `tests/unit/manifest.test.ts`. **Two manufactured permissions in two nights from two different lanes
+  is a pattern, not a coincidence** — the common factor is that neither author was lying and neither
+  was careless; both simply wrote a reading down in the register where decisions live, and the register
+  does not distinguish. **The test costs one sentence: could I quote the source right now?**
+- **CARRY A PROVENANCE FINGERPRINT WITH ANY FINDING MEASURED OFF ARTEFACTS ON DISK.** ⛔ **Three
+  separate findings on 2026-08-27 were poisoned by a SEVEN-MINUTE WINDOW — 03:45 to 03:52 — during
+  which the maps were swapped and reverted underneath the lanes reading them.** One lane carried an
+  md5 over the concatenated artefacts it measured; **its findings survived re-checking. The lanes that
+  did not carry one produced findings that did not.** That is the whole of the difference, and it is
+  cheap: one hash, printed beside the number. Several lanes commit into this tree concurrently, so
+  **"I measured the files" is not a statement about WHICH files** unless the fingerprint says so. ⚠ A
+  timestamp is not a substitute — it tells you when you looked, not what you were looking at.
+- **DERIVE FROM THE SOURCE EVERY TIME; KNOWING THE FAILURE MODE DOES NOT IMMUNISE YOU AGAINST IT.**
+  ⛔ **The most useful entry in this whole list, because of who committed it.** T-65 records the rule
+  *"Derive walkability from `legend.ts`, never from a list"* — written after a hand-typed walkable set
+  inflated three nodes' figures. **On 2026-08-28 a pass sprang that exact trap again, and it was the
+  lane that had written the rule.** It used a hardcoded walkable set that mistyped five of the nine
+  real characters and invented a tenth that does not exist; the real sets come from `DEFAULT_LEGEND`.
+  **Recall is not a source.** Having read the rule, having written the rule, and having the rule in
+  front of you are three different things, and only the third one derives.
 - **Green tests prove only what they exercise.** Before trusting a metric, ask what produced it and
   sabotage it to see whether it bites. This repo has had a cascade metric that counted the wrong
   animal, a prose linter whose checks were fossils, a gym harness measuring a party size the game
@@ -2711,7 +2804,29 @@ recurring shape this queue keeps a family for: a claim that went false with noth
 
 ## T-65 — `encounterTileFraction` is a scalar, and grass gating is therefore uniform
 
-**Status:** TODO — **the data half exists and is measured; the engine half has not been started.**
+**Status:** ✅ **DONE — the engine half landed, and this ticket's own *done when* is satisfied clause
+by clause.** Verified at `240a16d` by running the files, not by reading the diff:
+`core/foodweb.ts` `encounterMaskFromLayout` builds the mask, `game/encounters.ts:279`
+`encounterMaskFor` resolves it per node, and **`game/scenes/OverworldScene.ts:2605` calls it on the
+live path** — so the fix reaches a player and not only a test. `tests/unit/encounter-mask.test.ts`,
+`tests/gates/layout-encounter-contract.test.ts` and `tests/gates/map-mask-layout-contract.test.ts`
+run **177 passed, 3 files**.
+
+Each clause, against a named case rather than against the summary: *sampled from the layout* —
+"the shipped encounter terrain, pinned" pins all twelve; *the scalar survives as the documented
+fallback* — "a context with no footing rolls exactly as it did before the mask", and `encounterMaskFor`
+returns `null` rather than an empty mask for a node that declares none; *the draw count per step is
+unchanged and a determinism fixture proves it* — "a step off the grass still costs exactly one draw"
+and "a whole seeded walk replays identically", which is the L10 constraint this ticket said would
+decide the implementation; *a town and a route differ* — "routes carry far more encounter terrain than
+towns". **G3 is separately bound**: "the animal a seed meets on grass is the animal the blind roll
+meets" — the mask gates WHETHER, never WHICH.
+
+⚠ **THE WORKING DETAIL BELOW IS KEPT RATHER THAN DROPPED, AGAINST THE QUEUE'S OWN `DONE` RULE, FOR ONE
+REASON: trap (a) was sprung a THIRD time on 2026-08-28**, by a lane that had read this ticket. See
+STATUS's struck-claims register — a walkable set was typed by hand again, mistyping five of the nine
+real characters and inventing a tenth. **The rule survives the ticket: derive walkability from
+`legend.ts`, never from a list.**
 
 **Hank's ruling, from T-1 and unchanged:** *"Grass gating added. Encounters no longer roll on every
 walked step."* **What shipped honours the second sentence and not the first.**
@@ -3344,6 +3459,34 @@ G4). **Nothing here is owed today.**
 
 ## T-75 — the season tint is KEPT by the same ruling, and the seam that draws it has no behaviour test
 
+**Status:** ✅ **DONE — closed on 2026-08-28 against this ticket's own instruction to confirm before
+closing, not on the strength of the paragraph that predicted it.** `tests/unit/season-tint-onscreen.test.ts`
+is **tracked** (`git ls-files` answers) and runs **12 passed, 0 failed** — including the hue-versus-brightness
+case that was the single red when this ticket was written, and which this ticket named as the one that
+had to be confirmed. It landed in `3b617fb` *"the tint is proven to reach the screen, not merely to
+compute"*.
+
+⚠ **AND THE TWO WARNINGS BELOW WERE BOTH ACTED ON RATHER THAN INHERITED — read the ticket knowing
+that, because the body still describes the world before the fix.** **(1) The audio-group trap is
+gone.** `9be90c3` *"the picture's brightness leaves the audio table, and a value above 1 is now
+refused"* moved both constants into a new `season` group; `data/balance.json`'s `_season` note records
+the move and its date, and **BF-17 in `tests/unit/balance-inv3.test.ts` binds both to what reaches
+`setTint`** — so the hazard this ticket described in both directions (retuning sound to change the
+picture, grepping for a visual key and finding none) no longer exists. The one-ramp-two-consumers
+sharing of `yearDarkenPerYear` is KEPT and is now stated as deliberate on the key. **(2) Summer's
+`1.15` is gone**, and the schema now REFUSES a brightness above 1.0 at boot rather than clamping it
+silently — which is the exact defect the ΔL paragraph below diagnosed.
+
+⛔ **THE FOUR ΔL FIGURES IN THE PARAGRAPH BELOW ARE THEREFORE STALE ON BOTH SIDES AND NO NUMBER IS
+PUBLISHED IN THEIR PLACE.** The raw-preset set was already wrong when it was written; the corrected
+set it replaced them with was measured against `seasonBrightness.summer = 1.15`, and that input has
+since moved to 1.0. **Re-measure before quoting either.** What the owning lane has published on the
+keys, and what may be quoted, is `_brightness` — *"summer was authored 1.15 here and rendered at scale
+1.000, byte-identical to spring's 1.0 at every year"* — and `_season`'s year-6 minimum-pairwise CIE76
+ladder on the meadow ground, `yearDarkenPerYear 0.08 → 8.62, 0.10 → 7.36, 0.14 → 4.39, 0.18 → 1.26`.
+**The qualitative finding survives the retune and is the part that mattered: spring and summer
+separate on HUE and not on brightness, and a green meadow is the worst case for it.**
+
 The ruling that demoted the year changes kept the season filter conditionally: *"If there was an easy
 way to put a filter for season changes, that'd be great to keep."* **It is already built, and it is
 cheap in exactly the way that sentence hoped for**, so this ticket is about the gap under it rather
@@ -3416,3 +3559,189 @@ census row. `tests/unit/season-tint-onscreen.test.ts` is that test if the lane w
 green; **confirm it is committed and passing before closing this**, and confirm the hue-vs-brightness
 case in particular, since that is the one that was not running. **Do not weaken BF-13 to get there; add
 alongside it.**
+
+---
+
+## Opened 2026-08-28 by the eight-domain content survey — T-76 onward
+
+**These four are what the survey PROVED was needed and could not do**, because three of them sit in
+files the survey did not own and the fourth closed underneath it. ⚠ **None of them is a balance
+question and none of them is the owner's** — the questions the survey raised that ARE his are in
+`docs/STATUS.md`'s *waiting on the owner* register, not here, and no ticket below may be worked in a
+way that answers one of them. **T-79 is `DONE` on arrival and is written out anyway**, because the
+reason its gate could not see it is the reusable part.
+
+---
+
+## T-76 — two canonical documents still say a control has never been run, and it has now been run twice
+
+**Status:** TODO — **a pure documentation correction, and the measurement it needs already exists in
+two independent places. Nobody is blocked on a ruling.**
+
+**Hank's ruling, from T-8 and unchanged:** *"Say so in the spec"* — which is what makes this the
+remainder of a ticket rather than a new question. T-8 is `DONE`; **this is the half of it that touches
+files T-8's pass did not own.**
+
+**The two sentences, verbatim, at `240a16d`:**
+- `docs/build-doc.md:502` (§10.5 — **numbered item 5 inside `## 10. Test Plan` at `:490`, not a heading
+  of its own**): *"**A control run with the raid suppressed has not been run and no such mode exists in
+  the harness** — so 'the raid is the whole cause' is an open claim resting on `balance.yearEvents.raids`
+  and bible §6, not a measured one (G2: recorded open, never resolved by assertion)."* The same sentence
+  also says an extinction is attributed to the raid *"by the node the raid script names, not by
+  measurement"*. **Both halves are now false.**
+- `docs/content-bible.md:176-178`: *"The raid-suppressed control that would show the raid is the
+  *whole* cause has not been run, and the harness has no mode for it; the raid is authored here either
+  way (build-doc §10.5)."* **Same correction.**
+
+**The two measurements that replace them, and BOTH must be cited rather than one:**
+1. **The harness seam, T-8, 2026-08-27.** `CATCH_PROFILES` × `RAID_POLICIES` as a 3×2 matrix in
+   `tools/harness/full-run.ts`; suppression deep-copies `rawBalance` and empties `yearEvents.raids`
+   rather than editing `data/balance.json`, and throws rather than silently no-op'ing if the raid group
+   is absent. **32 seeds: with no player and the raid suppressed, nothing reaches zero at any node.**
+   The two `collector` extinctions persist under suppression, **which is what proves the instrument is
+   not merely blind.**
+2. **The lifecycle seam, the content survey, 2026-08-28.** `core/lifecycle.ts` `enterPendingActs` takes
+   a `yearEvents` override — **a field on `ActEntryDeps` (`:966`), not a positional parameter** — and
+   an empty array is truthy in JS, so `yearEvents: []` reaches `yearEventsOf`'s `if (override) return
+   override` and genuinely suppresses. **64 seeds: r4's apex reaches 0 in 0 of 64 at arrival years 1, 4
+   and 7, and never even touches ≤1.**
+
+⚠ **CITE BOTH, AND SAY WHICH SEAM EACH USED.** The harness route rebuilds a balance object and the
+lifecycle route does not, so **a defect in the suppression itself would have to exist twice, in two
+unrelated places, to survive both.** That is the whole evidential value of having run it twice, and a
+correction that cites only one throws it away. **The constraint T-8 already set stands: never "the
+baseline" bare — name `baseline-no-raid` over 32 seeds, and the 64-seed lifecycle control beside it.**
+
+⛔ **WHAT THIS TICKET MAY NOT DO.** It may not touch content-bible §6's *"Route 4's Apex reaching zero
+is the intended reading of that arrival"* (`:172-178`). **That sentence is a CONTENT reading and it is
+the owner's** — it is now known to be a majority outcome early and a minority outcome late (42/64,
+33/64, 18/64 at arrival years 1/4/7), and that question is in STATUS's *waiting on the owner* register.
+**Correcting a status claim is recording a measurement; correcting a reading is inventing one (G2).**
+
+**Done when:** both sentences are replaced with what was measured, each citing its seam and its seed
+count; T-8's `:405` and `:170` cites are corrected to `:502` and `:172-178` wherever they are repeated;
+and **the bible's "intended reading" sentence is left exactly as it stands**, with the open question
+pointing at STATUS.
+
+---
+
+## T-77 — a test docblock publishes `/64` denominators in a file whose seed constant is 32
+
+**Status:** TODO — **small, and it is the third figure set in circulation for one beat, which is why it
+matters more than its size.**
+
+`tests/unit/r4-arrival.test.ts:344-345` reads: *"Under the pre-D-Q6-1 rule this held in 33/64, 14/64 and
+5/64 seeds at the three later arrivals; it now holds in all of them."* **The file's own constant is
+`SEEDS = 32` (`:189`).** Either those figures were taken at a different seed count and the denominator
+is a fossil, or the denominator is right and the constant has since moved — **and nothing goes red
+either way, because a comment is not an assertion.**
+
+⛔ **AND THE SHAPE OF THE FIGURE IS WORSE THAN THE DENOMINATOR, so fix both or neither.** The property
+that test asserts is **`isStarvingOrGone`**, over arrivals keyed in SEASONS (`preSeasons` 0 / 12 / 24 /
+40). **That is NOT "the apex reaches zero."** Three sets of numbers are now in circulation for what
+reads like one beat:
+
+| source | property | seeds | arrivals | figures |
+|---|---|---|---|---|
+| `data/balance.json` `_standingStock` | apex reaches **0** | 64 | years 1 / 4 / 7 | 39 · 1 · never *(**pre**-`harvestFractionOfStanding`)* |
+| `tests/unit/r4-arrival.test.ts:344` | **starving OR gone** | **32**, though it says 64 | seasons 0/12/24/40 | 33 · 14 · 5 *(pre-fix)*, "all" *(post)* |
+| the 2026-08-28 content survey | apex reaches **0** | 64 | years 1 / 4 / 7 | 42 · 33 · 18 *(post-fix)* |
+
+**They do not contradict each other** — they measure two different properties across a fix — **but they
+will be quoted against each other by the next reader**, and `33` appears in two rows attached to
+different arrivals and different properties, which is exactly the collision that produces a confident
+wrong citation. ⚠ **Do not "reconcile" them by picking one.** This queue's own rule: an edge figure
+means nothing without its operator, and a seed figure means nothing without its property, its
+denominator and its arrival.
+
+**Done when:** the docblock's denominator is re-derived at the file's actual `SEEDS`, or the figures are
+re-measured and republished with it; the comment says **which property** it is quoting; and it names the
+other two sets so a reader who lands on one can find the others. **Do not change `SEEDS` to make the
+comment true** — that is moving the target to fit the label.
+
+---
+
+## T-78 — the demo fixture's seed is justified by an outcome the demo path does not produce
+
+**Status:** TODO — **the fixture's ARITHMETIC is exact and current; only its REASON is false. Fix the
+sentence, and do not regenerate the trace.**
+
+`fixtures/overcatch-script.json` is named in `docs/build-doc.md:508` (§11) as *"the demo cascade as an
+action log — **used by tests AND by the demo-recording flow**"*, and by §15's integration gate I2,
+*"cascade demo reproducible from `overcatch-script.json` in real play."* **So its `_why` is read by
+whoever records the video.**
+
+**What it says**, verbatim: *"SEED: 12 is a recorded seed, not a special case — the beat holds for a
+majority of low seeds; this one is chosen because the release is legible on video (**1 → 3 rather than
+1 → 1**)."*
+
+✅ **What is TRUE and must not be touched.** The recorded trace was re-derived byte-for-byte on
+2026-08-28 through `applyCatch` + `step` on the `core/save.ts` `replay` path: opening `{ashvole 14,
+carricrow 3, cragmar 10, pyrelisk 14, stonewing 3}`, trace `8/2 · 1/1 · 1/0 · 2/0 · 2/0 · 3/0 · 3/0 ·
+3/0`. **The fixture's own instruction — *"Regenerate the trace, never the rule"* — does not apply here,
+because the trace is fine.**
+
+⛔ **What is FALSE, and the repository has said so in writing for some time without going red.**
+`tests/integration/demo-beats.test.ts:372-381` records the reason and pins it: `replay` drives **one**
+RNG for the whole action log, while the game draws from **per-subsystem streams** (build-doc §8.1), so
+the same seed produces a different and equally legal trajectory in play — *"at 12 the prey sits at its
+floor for all six remaining seasons."* The assertion is `expect(fixtureSeed[last]).toBe(FLOOR)`, and it
+is green, 6/6. **On the path a demo video would actually record, seed 12 ends `1 → 1` — precisely the
+outcome the `_why` says the seed was picked to avoid. Seed 24 is the legible one, and that test already
+names it.**
+
+⚠ **THE SHAPE, because it is this queue's most common one:** two artefacts disagreeing in plain English,
+both green, because **they are testing different things and neither reads the other.** Same family as
+T-68's two reference players and T-70's three docblocks.
+
+⛔ **DO NOT RESOLVE THIS BY CHANGING THE FIXTURE'S SEED TO 24.** The fixture pins a *recorded* seed and
+the replay trace beneath it; swapping the seed regenerates a rule the fixture explicitly says not to
+regenerate, and it would silently move what every test built on that fixture measures. **The correction
+is to the sentence: say that the legibility claim is a property of the REPLAY path, that the game path
+differs by construction (§8.1), and that seed 24 is the one to record.** Whether the demo flow should
+therefore drive 24 is a separate call and is **not** an agent's to make.
+
+**Done when:** the `_why` no longer claims an on-video outcome the game path does not produce, names
+the replay/streams distinction as the reason, and points at `demo-beats.test.ts` for the seed the
+recording flow should use; the trace and the seed are unchanged; and **`demo-beats.test.ts:380` is not
+weakened** — it is the assertion that caught this.
+
+---
+
+## T-79 — the dex hand-off dropped a field the type declares, and the gate on that screen could not see it
+
+**Status:** ✅ **DONE — closed in `4f1e7aa` by a concurrent lane, WHILE the survey that found it was
+writing it up.** Recorded rather than absorbed, because the defect is closed and **the reason it
+survived a green gate is not.**
+
+**The defect, true at `240a16d` and shipped.** `game/scenes/MenuScene.ts:583-588` built a
+`DexSceneData` **without `unlockedSignChains`**, although `game/scenes/DexScene.ts:63` declares the
+field and `DexScene:231-233` honours it when present. Absent, `undefined` reaches `core/foodweb.ts:750`,
+`!(unlocked?.has(lineId) ?? false)` evaluates `true`, and the line is emitted `{weight: 0, active:
+false}` → `survey-view.ts` prints *"not in the wild encounter pool"*.
+`balance.encounter.signChainGatedHabitatTag` is `"hidden"`, carried by **exactly the three Ancients**.
+⛔ **So the shipped dex told every player their Ancients were not in the pool, permanently — including a
+player standing on the animal with the chain closed.** `MenuScene` was the **only** construction site,
+so there was no second path that happened to work.
+
+**The fix.** `MenuScene.ts:642` now passes `unlockedSignChains: unlockedSignChainsOf(registry.save(),
+content)`, backed by `game/ui/SignChains.ts:58-80`, which derives the gated set from the habitat tag and
+the `chain.<stem>.complete` flags **rather than from a hardcoded species list** — the right shape, and
+the one that does not rot when a fourth Ancient is authored. `tests/unit/ui-frame-panel.test.ts` §7
+asserts the real hand-off carries the field; 32/32 green.
+
+⛔ **THE PART TO KEEP: `tests/gates/dex-path-contract.test.ts` PASSED THE ENTIRE TIME AND WAS RIGHT TO.**
+All thirteen of its cases assert **asset-key and manifest grammar** — set identity between screen keys
+and committed rows, no spellable `back` key, injectivity of dex identity → sprite, key-space collisions.
+It never imports `MenuScene`, and at `:396` it calls `buildDexEntries(content.species, "spring",
+balance)` **with no `opts` argument at all**, so `unlockedSignChains` is `undefined` inside the gate
+itself. Even its case named *"THE ANCIENTS — the dex asks for the one form their line actually ships"*
+only checks `creatureArtId` against manifest rows.
+**A gate on key grammar is STRUCTURALLY INCAPABLE of seeing a data hand-off**, and its green was never
+evidence about one. ⚠ **This is build-doc §8.5's shape — "a precondition is only real if something
+outside the test produces it" — arriving on a SCENE PROP instead of a dialogue flag: the field was
+declared, honoured, and never supplied.** **Do not widen `dex-path-contract` to cover it**; it is
+correct at its own job. The hand-off needs its own binding, and now has one.
+
+**Done when:** *(met)* the field reaches `DexScene` from the real `MenuScene` construction site, derived
+rather than hardcoded, with a test that drives that hand-off rather than the key grammar beneath it.
