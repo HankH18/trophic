@@ -119,6 +119,30 @@ verdict attached to it.
    the thing that produced it is not a weaker figure — it is a different figure, and this project has
    now been wrong five times in exactly that way. Below is the list, because the pattern is only
    visible as a list.
+4. **When the corpus cannot be shipped, publish the measurements — and then prove the absence.** Two
+   corpora here are deliberately outside the repository: `assets/reference/**`, which is third-party
+   pipeline input, and `assets/raw/**`, which is generator output. Their figures live in
+   `tools/artverify/published-measurements.json` with the operator and the corpus named beside them,
+   which is rule 3 applied to a corpus nobody else has. Three things then have to hold, and each is
+   here because its absence was measured as a silent pass:
+   - **The absence must be TOTAL.** A corpus is wholly present or wholly absent. A partial one
+     re-measures some rows and takes the rest on trust, which is mixed evidence — and it also shrinks
+     a sweep without saying so: deleting one of the five overlay maps once took that file from 73
+     passed to 68 passed with nothing red, where the code it replaced went red.
+   - **The absence must be EVIDENCED, and a `.gitignore` match is not evidence.** Both rules are
+     directory globs, so they match an invented filename exactly as well as a true one — rewriting
+     every path in the record to a name that never existed left both gates green. What does count:
+     the rule git actually reports for the path (`git check-ignore -v`, not a bare "some rule
+     matched"); the directory being gone too, because a file missing from a directory that IS on the
+     disk is a stale path rather than a deliberate absence; and, where the files were once committed,
+     the blob read back out of history and hashed against the published sha256. Where none of that is
+     available — the four generator maps have no history at all — the record says so in as many words
+     instead of implying more.
+   - **Every published field must be checkable.** A number in an evidence record that nothing asserts
+     is decoration that reads as evidence. Five fields were mutated in one sweep — a byte count, an
+     aggregate, a coordinate pair, an ignore rule and an operator's implementation path — and not one
+     of them reddened anything; the coordinate pair had been transposed since it was written. Bind it
+     or remove it.
 
 ### The five wrong instruments — the same failure five times
 

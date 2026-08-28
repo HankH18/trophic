@@ -62,7 +62,7 @@ import { describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import type { Raster } from '../../tools/postprocess/raster.ts';
 import { blankRaster, idx, readRaster } from '../../tools/postprocess/raster.ts';
 import { REPO_ROOT } from '../../tools/postprocess/palette.ts';
@@ -566,6 +566,183 @@ function gitIgnores(rel: string): boolean {
   }
 }
 
+/**
+ * The .gitignore PATTERN excluding a path, as git reports it — `git check-ignore -v` prints
+ * `<source>:<line>:<pattern>\t<pathname>`. `gitIgnores()` only answers "some rule matches", which a
+ * rule that has moved or widened satisfies just as well as the one the record names.
+ */
+function gitIgnoreRuleFor(rel: string): string | null {
+  try {
+    const out = execFileSync('git', ['check-ignore', '-v', '--', rel], {
+      cwd: REPO_ROOT,
+      stdio: 'pipe',
+      encoding: 'utf8',
+    });
+    const head = (out.split('\n')[0] ?? '').split('\t')[0] ?? '';
+    const parts = head.split(':');
+    return parts.length >= 3 ? parts.slice(2).join(':') : null;
+  } catch {
+    return null;
+  }
+}
+
+/** True when this repository's history holds at least one commit touching the path. */
+function everCommitted(rel: string): boolean {
+  try {
+    const out = execFileSync('git', ['log', '--all', '--oneline', '-1', '--', rel], {
+      cwd: REPO_ROOT,
+      stdio: 'pipe',
+      encoding: 'utf8',
+    });
+    return out.trim() !== '';
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * ⚠ AND WHETHER `everCommitted` CAN BE ASKED AT ALL. `actions/checkout@v4` clones at depth 1 by
+ * default, and in a shallow clone `git log --all -- <path>` reports nothing for every path the tip
+ * commit did not touch — indistinguishable from "never committed". Asserting the record's
+ * `everCommitted: true` against that would red in CI and only in CI, which is the exact shape of
+ * failure this record exists to have removed. So the NEGATIVE half of the claim is checked only
+ * where history is here; the positive half needs no history at all, because a tracked file is in
+ * HEAD by definition.
+ */
+const HISTORY_AVAILABLE = ((): boolean => {
+  try {
+    return (
+      execFileSync('git', ['rev-parse', '--is-shallow-repository'], { cwd: REPO_ROOT, encoding: 'utf8' }).trim() ===
+      'false'
+    );
+  } catch {
+    return false;
+  }
+})();
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * THE CORPUS HAS EXACTLY TWO LEGAL STATES, AND A PARTIAL ONE IS NOT A THIRD.
+ *
+ * ⚠ THIS EXISTS BECAUSE A PARTIAL CORPUS TURNED A LOUD FAILURE INTO A SILENT PASS. The residual
+ * test pinned its counts behind `if (REAL_MAPS.length === PUBLISHED_MAPS.length)`, so deleting ONE
+ * generator map — `pt-map-cindershelf.png`, which contributes four of the eight accepted verdicts —
+ * dropped the file from 73 passed to 68 passed with nothing red. Under the code this replaced, the
+ * same tree went RED. A skip condition that widens on its own is worse than the red it replaced.
+ *
+ * And `tests/gates/asset-palette-contract.test.ts` — written in the same commit, over the same
+ * problem — already refused exactly this: "a partial corpus means some bands would be re-measured
+ * and others silently taken on trust, which is the mixed evidence this file refuses". Two files
+ * ruling opposite ways on one state is not a nuance, it is one of them being wrong. This is the one
+ * that was wrong, and the refusing rule is the one that stands.
+ *
+ * The two legal states, and why they are the only two:
+ *   · WHOLE — every published map is here. The machine that generated them; all 25 pairs measurable.
+ *   · AS CLONED — exactly the tracked map is here and every untracked one is absent. What a clone
+ *     has, permanently, because `.gitignore` carries `assets/raw/**`; 5 pairs measurable.
+ * Anything between the two is a tree somebody has been editing, and the sweep silently shrinks to
+ * fit it. Both counts are pinned below so the shrink cannot go unnoticed either.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const TRACKED_MAPS: readonly string[] = RESIDUAL.corpus.maps.filter((m) => m.trackedInGit).map((m) => m.file);
+const UNTRACKED_MAPS: readonly string[] = RESIDUAL.corpus.maps.filter((m) => !m.trackedInGit).map((m) => m.file);
+const UNTRACKED_PRESENT = UNTRACKED_MAPS.filter((p) => existsSync(resolve(REPO_ROOT, p)));
+
+/** Every published map is on this disk. */
+const CORPUS_WHOLE = ABSENT_MAPS.length === 0 && PUBLISHED_MAPS.length > 0;
+/** Exactly what a clone has: the tracked map, and none of the untracked ones. */
+const CORPUS_AS_CLONED = UNTRACKED_PRESENT.length === 0;
+
+/**
+ * Every way this tree is neither WHOLE nor AS CLONED. Collected once, asserted in the always-running
+ * corpus test AND again inside the sweep, so the sweep cannot run over a state nobody has vouched for.
+ */
+function corpusStateProblems(): string[] {
+  const problems: string[] = [];
+  for (const m of RESIDUAL.corpus.maps) {
+    const present = existsSync(resolve(REPO_ROOT, m.file));
+    const tracked = gitTracks(m.file);
+    if (tracked !== m.trackedInGit) {
+      problems.push(`${m.file}: the record says trackedInGit=${m.trackedInGit}, git says ${tracked}`);
+      continue;
+    }
+    if (present) continue;
+    if (tracked) {
+      problems.push(`${m.file}: TRACKED and missing from the working tree — restore it, this is not the recorded absence`);
+      continue;
+    }
+    if (!gitIgnores(m.file)) {
+      problems.push(
+        `${m.file}: absent, untracked, and NOT ignored by any .gitignore rule. The recorded reason ` +
+          'is `assets/raw/**` generator output; an absence that is not that one is a stale path or ' +
+          'a file nobody ever committed, and either way the published verdicts for it are unsourced',
+      );
+      continue;
+    }
+    // ⛔ …AND THE DIRECTORY IT WOULD LIVE IN MUST BE ABSENT TOO. `assets/raw/**` is a directory
+    // glob, so `git check-ignore` says yes to any invented name underneath it — measured, by
+    // rewriting all four pt-map rows to `…-NEVER-EXISTED.png` and watching this file stay green.
+    // These four have NO history to check them against (`git log --all -- assets/raw/palette-trials/`
+    // is empty; they were never committed), so the directory is the only witness there is: a clone
+    // does not have `assets/raw/palette-trials/` at all, and a disk that DOES have it and does not
+    // have the named map is holding a stale path, not the deliberate absence.
+    const dir = dirname(m.file);
+    if (existsSync(resolve(REPO_ROOT, dir))) {
+      problems.push(
+        `${m.file}: ${dir}/ IS on this disk and this map is not in it. The recorded absence is the ` +
+          'whole generator directory being absent, which is what a clone has; a map missing from a ' +
+          'directory that is here is a stale path in the published record',
+      );
+    }
+  }
+  if (!CORPUS_WHOLE && !CORPUS_AS_CLONED) {
+    problems.push(
+      `the corpus is PARTLY present: ${UNTRACKED_PRESENT.length} of the ${UNTRACKED_MAPS.length} ` +
+        'untracked maps are on disk and the rest are not. That is neither legal state — some pairs ' +
+        'would be re-measured and the rest taken on trust, which is the mixed evidence this file ' +
+        'refuses, exactly as tests/gates/asset-palette-contract.test.ts refuses it for the reference ' +
+        `captures. Present: ${UNTRACKED_PRESENT.join(' ') || 'none'}. Restore the rest or move them all aside.`,
+    );
+  }
+  return problems;
+}
+
+/**
+ * The open-ground patch the fixture copies over the vacated block, as (x, y) in map pixels. Named
+ * because the record publishes it and the record HAD IT TRANSPOSED — `groundPatchSource: [900, 20]`
+ * against a `moveBlock(…, 20, 900)` whose `gx` is 20 and whose `gy` is 900 — and nothing read the
+ * field, so nothing said so. The verdicts are unaffected: the operator never moved, only the note
+ * beside it was wrong.
+ */
+const GROUND_PATCH_SOURCE: readonly [number, number] = [20, 900];
+const [GPX, GPY] = GROUND_PATCH_SOURCE;
+
+/** This file's own repo-relative path and source — the record names it, so the name is checked. */
+const SELF_PATH = 'tests/unit/overlay-diff.test.ts';
+const SELF_SOURCE = readFileSync(resolve(REPO_ROOT, SELF_PATH), 'utf8');
+
+/**
+ * `"<file> :: <symbol>() and <symbol>()"` → the file and the symbols it names. Every `name()` in the
+ * tail counts; when the tail names none in that form, its first word is taken as the symbol, which
+ * is how `"tools/overlay-diff/index.ts :: overlayDiff — called, never reimplemented"` resolves.
+ */
+function implementationRefs(spec: string): { file: string; symbols: string[] } | null {
+  const [file, rest] = spec.split(' :: ');
+  if (file === undefined || rest === undefined) return null;
+  const called = [...rest.matchAll(/([A-Za-z_$][\w$]*)\(\)/g)].map((m) => m[1]!);
+  if (called.length > 0) return { file, symbols: called };
+  const first = rest.trim().split(/[\s(]/)[0] ?? '';
+  return /^[A-Za-z_$][\w$]*$/.test(first) ? { file, symbols: [first] } : null;
+}
+
+/**
+ * True when a source PROVIDES the symbol: declares it as a function or a const, or re-exports it —
+ * `tools/overlay-diff/index.ts` is a barrel and provides `overlayDiff` by the third route.
+ */
+const declaresSymbol = (source: string, symbol: string): boolean =>
+  new RegExp(`(?:^|\\n)(?:export )?(?:async )?function ${symbol}\\(`).test(source) ||
+  new RegExp(`(?:^|\\n)(?:export )?const ${symbol}(?::| =)`).test(source) ||
+  new RegExp(`export\\s*\\{[^}]*\\b${symbol}\\b[^}]*\\}`).test(source);
+
 if (ABSENT_MAPS.length > 0) {
   // Loud, named, and in the log of every run that measures less than the published record. A skip
   // that reads like a pass is the failure this whole block exists to remove.
@@ -706,6 +883,39 @@ describe('overlay_diff — the published 32px residual, and the corpus it was me
       RESIDUAL.positions.map((p) => [p[0], p[1]]),
       'the published positions are not the positions this file sweeps',
     ).toEqual(MOVE_POSITIONS.map((p) => [p[0], p[1]]));
+
+    // ⛔ AND THE GROUND PATCH THE FIXTURE COPIES FROM, which nothing read. It was published as
+    // `[900, 20]` against a `moveBlock(…, gx = 20, gy = 900)` — the two transposed — and the field
+    // was mutated to `[10, 10]` in a sabotage sweep without a single test noticing. It is part of
+    // the operator: a different patch of ground is a different candidate image and therefore a
+    // different verdict.
+    expect(
+      RESIDUAL.operator.groundPatchSource.map((v) => v),
+      `the record publishes the fixture's open-ground patch at (${RESIDUAL.operator.groundPatchSource.join(', ')}); ` +
+        `moveBlock() copies from (${GPX}, ${GPY}). A different patch is a different candidate image.`,
+    ).toEqual([GPX, GPY]);
+
+    // …and the two files the operator claims to be implemented in must declare what it names. A
+    // figure whose operator cannot be re-run is withdrawn by tools/artverify/EVAL-STANDARD.md before
+    // it may be quoted; a record naming an operator that does not exist is worse than one naming none.
+    const specs: { what: string; spec: string }[] = [
+      { what: 'operator.implementation', spec: RESIDUAL.operator.implementation },
+      { what: 'operator.fixture', spec: RESIDUAL.operator.fixture },
+    ];
+    const badSpecs = specs.flatMap(({ what, spec }) => {
+      const parsed = implementationRefs(spec);
+      if (parsed === null) return [`${what}: "${spec}" is not "<file> :: <symbol>"`];
+      const abs = resolve(REPO_ROOT, parsed.file);
+      if (!existsSync(abs)) return [`${what}: names ${parsed.file}, which is not in this tree`];
+      const source = parsed.file === SELF_PATH ? SELF_SOURCE : readFileSync(abs, 'utf8');
+      return parsed.symbols
+        .filter((s) => !declaresSymbol(source, s))
+        .map((s) => `${what}: names ${s}(), which ${parsed.file} does not declare`);
+    });
+    expect(
+      badSpecs,
+      `the published operator does not point at a real operator:\n  ${badSpecs.join('\n  ')}`,
+    ).toEqual([]);
   });
 
   it('the published verdict table is complete and its aggregate is its own count', () => {
@@ -745,6 +955,26 @@ describe('overlay_diff — the published 32px residual, and the corpus it was me
       'the published residual rejects nothing — a gate that accepts every 32px displacement is not ' +
         'a residual, it is a broken gate',
     ).toBeGreaterThan(0);
+
+    // ⛔ THE COMPANION CLAIM — the 64px half of the pair, whose whole job is to make a retune that
+    // "fixes" 32px by loosening 64px impossible to do quietly. Its `accepted: 0` was mutated to 7
+    // and NOTHING in this repository read the field. Here is its shape; the number itself is
+    // re-measured against real pixels in "REJECTS a 64px feature…" on every map this tree holds.
+    const cc = RESIDUAL.companionClaim;
+    expect(cc.of, 'the companion claim does not cover the same corpus × positions the residual does').toBe(
+      PUBLISHED_MAPS.length * MOVE_POSITIONS.length,
+    );
+    expect(cc.blockPx, 'the companion claim is not the DOUBLE-size case — it is the same size as the residual').toBe(
+      4 * CELL,
+    );
+    expect(cc.blockPx, 'the companion block is not twice the residual block').toBe(2 * RESIDUAL.operator.blockPx);
+    expect(
+      cc.accepted,
+      `the companion claim publishes ${cc.accepted} of ${cc.of} 64px displacements ACCEPTED. It must ` +
+        'stay at 0: a retune that tightens the 32px residual by loosening the 64px case is exactly ' +
+        'the failure the pair of claims is arranged to catch, and a non-zero count here would need a ' +
+        'per-pair table of its own before it could be quoted — the residual has one for that reason.',
+    ).toBe(0);
   });
 
   it('the residual was measured at the balance this tree still carries', () => {
@@ -786,40 +1016,74 @@ describe('overlay_diff — the published 32px residual, and the corpus it was me
     // holds, and the ONLY absence that licenses is "the file is deliberately untracked generator
     // output". A tracked map that has gone missing, or a path that has gone stale, is a broken
     // checkout and must red here rather than quietly shrink the sweep.
-    const wrong: string[] = [];
-    for (const m of RESIDUAL.corpus.maps) {
-      const present = existsSync(resolve(REPO_ROOT, m.file));
-      const tracked = gitTracks(m.file);
-      if (tracked !== m.trackedInGit) {
-        wrong.push(`${m.file}: the record says trackedInGit=${m.trackedInGit}, git says ${tracked}`);
-        continue;
-      }
-      if (present) continue;
-      if (tracked) {
-        wrong.push(`${m.file}: TRACKED and missing from the working tree — restore it, this is not the recorded absence`);
-      } else if (!gitIgnores(m.file)) {
-        wrong.push(
-          `${m.file}: absent, untracked, and NOT ignored by any .gitignore rule. The recorded reason ` +
-            'is `assets/raw/**` generator output; an absence that is not that one is a stale path or ' +
-            'a file nobody ever committed, and either way the published verdicts for it are unsourced',
-        );
-      }
-    }
+    const wrong = corpusStateProblems();
     expect(
       wrong,
       `the real-map corpus is not in one of its two legal states:\n  ${wrong.join('\n  ')}\n` +
-        'Legal states are (a) the file is present, or (b) the file is untracked AND ignored, which is ' +
-        'the deliberate absence of assets/raw/** generator output.',
+        'Legal states are (a) WHOLE — every published map is present — or (b) AS CLONED — the tracked ' +
+        'map is present and every untracked one is absent, ignored, and absent along with its whole ' +
+        'directory. Anything between the two is a tree somebody has been editing, and the sweep below ' +
+        'shrinks silently to fit it.',
     ).toEqual([]);
 
     // …and at least the tracked part of the corpus must be reachable, or the re-measurement below
     // measures nothing at all and `describe.runIf` would skip the block in silence.
-    const trackedMaps = RESIDUAL.corpus.maps.filter((m) => m.trackedInGit).map((m) => m.file);
-    expect(trackedMaps.length, 'no map in the published corpus is tracked — nothing can be re-measured anywhere').toBeGreaterThan(0);
+    expect(TRACKED_MAPS.length, 'no map in the published corpus is tracked — nothing can be re-measured anywhere').toBeGreaterThan(0);
     expect(
-      trackedMaps.filter((p) => !REAL_MAPS.includes(p)),
+      TRACKED_MAPS.filter((p) => !REAL_MAPS.includes(p)),
       'a tracked corpus map is not in REAL_MAPS, so the sweep below cannot reach a single real pixel',
     ).toEqual([]);
+
+    // The number of pairs the sweep may cover is therefore one of exactly TWO numbers, and both are
+    // pinned. Without this, "how many pairs did we measure" is answered by whatever happened to be
+    // on the disk — which is how deleting one map took the file from 73 passed to 68 passed with
+    // nothing red.
+    expect(
+      REAL_MAPS.length,
+      `${REAL_MAPS.length} of the ${PUBLISHED_MAPS.length} published maps are on this disk. The only ` +
+        `two legal counts are ${PUBLISHED_MAPS.length} (WHOLE) and ${TRACKED_MAPS.length} (AS CLONED).`,
+    ).toBe(CORPUS_WHOLE ? PUBLISHED_MAPS.length : TRACKED_MAPS.length);
+
+    // ⛔ EVERY FIELD THE CORPUS BLOCK PUBLISHES, BOUND. `gitignoreRule` was mutated to "nonsense/**"
+    // and nothing noticed, because `gitIgnores()` only ever asked whether SOME rule matched.
+    const wrongRule = UNTRACKED_MAPS.map((p) => ({ file: p, rule: gitIgnoreRuleFor(p) })).filter(
+      (e) => e.rule !== RESIDUAL.corpus.gitignoreRule,
+    );
+    expect(
+      wrongRule.map((e) => `${e.file}: git applies ${e.rule ?? 'NO RULE'}, the record publishes ${RESIDUAL.corpus.gitignoreRule}`),
+      'the record names a .gitignore rule that is not the one excluding these maps. The recorded ' +
+        'reason for their absence IS that rule; if the rule moved, the recorded reason moved with it.',
+    ).toEqual([]);
+
+    // …and whether each map was ever committed, which is the difference between "this path is real
+    // and history can prove it" and "this path is real only because it is on somebody's disk". The
+    // four generator maps are the second kind and the record says so; asserting the claim keeps it
+    // honest in both directions — if one is ever committed, the record has to stop saying it wasn't.
+    const wrongHistory = RESIDUAL.corpus.maps.flatMap((m) => {
+      // The POSITIVE half needs no history: a tracked file is in HEAD by definition, so it is
+      // committed, and a shallow clone knows that as well as a full one does.
+      if (m.trackedInGit) {
+        return m.everCommitted ? [] : [`${m.file}: git tracks it, so it IS committed; the record says everCommitted=false`];
+      }
+      // The NEGATIVE half — "this path was never committed" — is only askable where history is here.
+      // In a shallow clone `git log` reports nothing for every path the tip commit did not touch,
+      // which is not the same answer and must not be read as one.
+      if (!HISTORY_AVAILABLE) return [];
+      const seen = everCommitted(m.file);
+      return seen === m.everCommitted
+        ? []
+        : [`${m.file}: the record says everCommitted=${m.everCommitted}, git log --all says ${seen}`];
+    });
+    expect(
+      wrongHistory,
+      'the record misstates which corpus maps this repository has ever held:\n  ' +
+        wrongHistory.join('\n  ') +
+        '\nIt matters because history is the only evidence that an ABSENT path is a real path. The ' +
+        'reference-capture corpus has it; these four generator maps do not, and the record must not ' +
+        'imply otherwise.',
+    ).toEqual([]);
+
+    expect(RESIDUAL.publishedBy, 'the record names a different file as the publisher of these verdicts').toBe(SELF_PATH);
   });
 });
 
@@ -858,7 +1122,7 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
 
           // 128px = 8 collision cells of building, displaced by one cell. Under the old gate a
           // 256×256 block displaced FOUR cells scored 0.8557 and was ACCEPTED.
-          const moved = moveBlock(map, 300, 300, 8 * CELL, CELL, 20, 900);
+          const moved = moveBlock(map, 300, 300, 8 * CELL, CELL, GPX, GPY);
           const verdict = run(map, moved, mask);
           expect(verdict.accepted, `${rel} moved building: ${verdict.reason}`).toBe(false);
           expect(verdict.largestDrift).toBeGreaterThanOrEqual(verdict.driftLimit);
@@ -881,17 +1145,53 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
         async () => {
           const map = await readRaster(resolve(REPO_ROOT, rel));
           const mask = maskFromLuminance(map);
+          const stillAccepted: string[] = [];
+          const accepted1Cell: string[] = [];
+          const wrongCriterion: string[] = [];
           for (const [px, py] of MOVE_POSITIONS) {
             for (const cells of [1, 2]) {
-              const moved = moveBlock(map, px, py, 4 * CELL, cells * CELL, 20, 900);
+              const moved = moveBlock(map, px, py, 4 * CELL, cells * CELL, GPX, GPY);
               const v = run(map, moved, mask);
-              expect(v.accepted, `${rel} 64px at (${px},${py}) moved ${cells} cell(s): ${v.reason}`).toBe(false);
+              const at = `(${px},${py}) moved ${cells} cell(s)`;
+              // Collected rather than asserted in the loop, so one acceptance does not abort the
+              // sweep before the count below has anything to compare — and so a failure names every
+              // pair that moved instead of only the first.
+              if (v.accepted) {
+                stillAccepted.push(`${at}: ${v.reason}`);
+                if (cells === 1) accepted1Cell.push(at);
+              }
               // …and it fails LOCALLY. The frame-wide ratio is 0.973–0.997 on every one of these:
               // §8.2's own criterion (1) says ACCEPT to all 50, which is the whole reason (2) exists.
-              expect(v.globalPass, `${rel} 64px at (${px},${py})`).toBe(true);
-              expect(v.localPass).toBe(false);
+              if (!v.globalPass || v.localPass) {
+                wrongCriterion.push(`${at}: globalPass ${v.globalPass}, localPass ${v.localPass} — ${v.reason}`);
+              }
             }
           }
+          expect(stillAccepted, `${rel} 64px ACCEPTED at:\n  ${stillAccepted.join('\n  ')}`).toEqual([]);
+          expect(
+            wrongCriterion,
+            `${rel}: a 64px displacement must pass §8.2's frame-wide criterion and fail its local one — ` +
+              `that split is the whole reason criterion (2) exists:\n  ${wrongCriterion.join('\n  ')}`,
+          ).toEqual([]);
+
+          // ⛔ AND THE PUBLISHED COMPANION CLAIM IS COMPARED AGAINST THIS MEASUREMENT, not merely
+          // printed next to it. `companionClaim.accepted: 0 of 25` is a UNIVERSAL statement — no
+          // (map, position) pair accepts — so it must hold over this map's five one-cell pairs too,
+          // and the published count scaled to them is what the sweep is checked against. Mutating
+          // that 0 to a 7 used to change nothing anywhere in this repository. The day the count is
+          // legitimately non-zero, this equality is the right place to red: the claim would then
+          // need a per-pair table of its own, exactly as the 32px residual has one.
+          const publishedAcceptedHere =
+            (RESIDUAL.companionClaim.accepted * MOVE_POSITIONS.length) / RESIDUAL.companionClaim.of;
+          expect(
+            accepted1Cell.length,
+            `${rel}: 64px displaced ONE cell was accepted at ${accepted1Cell.join(', ') || 'no position'}. ` +
+              `tools/artverify/published-measurements.json publishes companionClaim ` +
+              `${RESIDUAL.companionClaim.accepted} of ${RESIDUAL.companionClaim.of}, which over this ` +
+              `map's ${MOVE_POSITIONS.length} pairs is ${publishedAcceptedHere}. The 64px case and the ` +
+              '32px residual are one pair of claims: a retune that tightens one by loosening the other ' +
+              'is what they exist together to catch, so neither may move without the other being read.',
+          ).toBe(publishedAcceptedHere);
         },
         120_000,
       );
@@ -905,7 +1205,7 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
           const map = await readRaster(resolve(REPO_ROOT, rel));
           const mask = maskFromLuminance(map);
           const [x0, y0, S] = [400, 400, 4 * CELL];
-          const v = run(map, moveBlock(map, x0, y0, S, CELL, 20, 900), mask);
+          const v = run(map, moveBlock(map, x0, y0, S, CELL, GPX, GPY), mask);
           expect(v.accepted).toBe(false);
           const box = v.worstRegion?.pixelRect;
           expect(box, v.reason).toBeDefined();
@@ -1010,7 +1310,7 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
         const walk = walkableMaskFor(mask, GRID, map.width, map.height);
         const eb = edgeMap(map, CFG, walk);
         for (const [px, py] of MOVE_POSITIONS) {
-          const cand = moveBlock(map, px, py, 4 * CELL, CELL, 20, 900);
+          const cand = moveBlock(map, px, py, 4 * CELL, CELL, GPX, GPY);
           const v = run(map, cand, mask);
           const ec = edgeMap(cand, CFG, walk);
           let zeroOverlapCells = 0;
@@ -1075,6 +1375,23 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
   it(
     'STATES THE LIMIT: a 32px feature displaced one cell is still ACCEPTED at some pairs',
     async () => {
+      // ⛔ THE CORPUS STATE, REFUSED BEFORE A SINGLE PIXEL IS READ. The always-running test above
+      // asserts the same thing, and it is asserted AGAIN here because this is the arm whose scope
+      // moves with the disk: `measured.length` is derived from REAL_MAPS, so on a partial corpus the
+      // sweep quietly measures less and the pins below are skipped by a guard that widens with it.
+      // Measured: deleting `pt-map-cindershelf.png` — four of the eight accepted verdicts — took the
+      // file from 73 passed to 68 passed with nothing red, where the code this replaced went RED.
+      const stateProblems = corpusStateProblems();
+      expect(
+        stateProblems,
+        `this tree's corpus is in neither legal state, so the sweep below would measure a subset ` +
+          `nobody has vouched for:\n  ${stateProblems.join('\n  ')}\n` +
+          'WHOLE (all five maps) or AS CLONED (the tracked map only). A partial corpus means some ' +
+          'pairs are re-measured and the rest taken on trust, which is the mixed evidence ' +
+          'tests/gates/asset-palette-contract.test.ts refuses for the reference captures and which ' +
+          'this file now refuses for the same reason.',
+      ).toEqual([]);
+
       const verdictOf = new Map(RESIDUAL.pairs.map((p) => [`${p.map}@(${p.x},${p.y})`, p.accepted]));
       const measured: { map: string; x: number; y: number; accepted: boolean }[] = [];
       const acceptedAt: string[] = [];
@@ -1096,7 +1413,7 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
         const mask = maskFromLuminance(map);
         for (const [px, py] of MOVE_POSITIONS) {
           // 2 × CELL = 32px, against the 4 × CELL = 64px the test above rejects at 25 of 25.
-          const v = run(map, moveBlock(map, px, py, 2 * CELL, CELL, 20, 900), mask);
+          const v = run(map, moveBlock(map, px, py, 2 * CELL, CELL, GPX, GPY), mask);
           measured.push({ map: rel, x: px, y: py, accepted: v.accepted });
           (v.accepted ? acceptedAt : rejectedAt).push(`${rel.split('/').pop()}@(${px},${py})`);
           const key = `${rel}@(${px},${py})`;
@@ -1139,6 +1456,18 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
           'that ran over fewer pairs than this tree can reach leaves the difference asserting nothing.',
       ).toBe(REAL_MAPS.length * MOVE_POSITIONS.length);
 
+      // …and that product is one of exactly TWO numbers, both pinned, because the corpus has exactly
+      // two legal states. The assertion above alone cannot notice a shrinking sweep — it compares the
+      // sweep with the disk, and the disk is the thing that shrank.
+      const WHOLE_PAIRS = PUBLISHED_MAPS.length * MOVE_POSITIONS.length;
+      const CLONED_PAIRS = TRACKED_MAPS.length * MOVE_POSITIONS.length;
+      expect(
+        measured.length,
+        `the sweep covered ${measured.length} (map, position) pairs. The only two legal counts are ` +
+          `${WHOLE_PAIRS} — the whole published corpus — and ${CLONED_PAIRS}, which is every pair a ` +
+          'clone can reach. Any other number is a corpus somebody has been editing.',
+      ).toBe(CORPUS_WHOLE ? WHOLE_PAIRS : CLONED_PAIRS);
+
       // ⛔ THE HALF THAT CATCHES THE NUMBERS DRIFTING FROM THE ART. Every pair this tree can reach
       // must reproduce its published verdict exactly. This is the assertion that reds if the gate
       // is retuned, if a fixture changes, or if the published table was edited to make something
@@ -1153,10 +1482,18 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
           'figure. Do not edit the published verdicts to match a partial sweep.',
       ).toEqual([]);
 
-      // PINNED, and only assertable where the whole corpus is. On a partial tree the same claim is
-      // made from the published table by "the published verdict table is complete and its aggregate
-      // is its own count" above, which runs everywhere.
-      if (REAL_MAPS.length === PUBLISHED_MAPS.length) {
+      // PINNED, and only assertable where the whole corpus is — on `town-map.png` alone a 32px
+      // displacement is accepted at NONE of its five positions, so these four claims would report the
+      // opposite of what is true. On an AS-CLONED tree the same claim is made from the published
+      // table by "the published verdict table is complete and its aggregate is its own count" above,
+      // which runs everywhere.
+      //
+      // ⚠ THE GUARD IS `CORPUS_WHOLE`, NOT A BARE LENGTH COMPARISON, and the difference is the whole
+      // of what this file got wrong. `REAL_MAPS.length === PUBLISHED_MAPS.length` is false for a
+      // clone AND false for a tree missing one map, so it silently swallowed the second along with
+      // the first. `CORPUS_WHOLE` is the same test, but a partial corpus can no longer reach it: it
+      // is refused at the top of this arm and by the always-running corpus test.
+      if (CORPUS_WHOLE) {
         const total = acceptedAt.length + rejectedAt.length;
         expect(total, 'the sweep must cover every (map, position) pair').toBe(
           PUBLISHED_MAPS.length * MOVE_POSITIONS.length,
@@ -1509,7 +1846,7 @@ describe('collision-mask encoding — mask.ts is the single declaration', () => 
         for (const node of content.nodes) {
           const map = await readRaster(resolve(REPO_ROOT, node.mapAsset));
           const mask = await readRaster(resolve(REPO_ROOT, node.collisionMask));
-          const moved = run(map, moveBlock(map, 300, 300, 8 * CELL, CELL, 20, 900), mask);
+          const moved = run(map, moveBlock(map, 300, 300, 8 * CELL, CELL, GPX, GPY), mask);
           if (moved.accepted) accepted.push(node.id);
         }
         expect(

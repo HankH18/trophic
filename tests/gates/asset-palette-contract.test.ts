@@ -158,7 +158,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import sharp from 'sharp';
 
 import { loadPalette, loadPaletteFile, REPO_ROOT, type PaletteRgb } from '../../tools/postprocess/palette.ts';
@@ -551,6 +551,21 @@ function edgePercent(data: Buffer, width: number, height: number): number {
  */
 const GROUND_PATCH_PX = 64;
 
+/**
+ * The alpha at or above which a pixel is OPAQUE, and therefore counted. Every figure this file
+ * publishes — `colours`, `edge`, `conc`, `alt` — is taken over exactly this population, so the
+ * threshold is part of each operator's definition and not an implementation detail.
+ *
+ * ⚠ **IT LIVES HERE BECAUSE IT USED TO LIVE IN THREE PLACES AND ONLY THE THIRD WAS CHECKED.** The
+ * value was a bare `128` inside `patchProfile` and a second bare `128` inside `census`, with a
+ * third hand-typed copy in `tools/artverify/published-measurements.json` — and the assertion that
+ * called itself a live-constant check compared the JSON literal with a literal typed beside it.
+ * Measured: changing BOTH operators to 200 left this file GREEN, while the same mutation applied to
+ * `GROUND_PATCH_PX` — the one parameter compared against the actual named constant — went red. A
+ * "the record still matches the code" assertion is only that if the code has ONE place to read.
+ */
+const OPAQUE_ALPHA_MIN = 128;
+
 interface PatchProfile {
   /** `1 / Σ pᵢ²` over exact-RGB shares: the effective number of colours the patch spends. */
   effective: number;
@@ -571,7 +586,7 @@ function patchProfile(
 ): PatchProfile | null {
   const xEnd = Math.min(x0 + size, width);
   const yEnd = Math.min(y0 + size, height);
-  const opaqueAt = (x: number, y: number): boolean => data[(y * width + x) * 4 + 3]! >= 128;
+  const opaqueAt = (x: number, y: number): boolean => data[(y * width + x) * 4 + 3]! >= OPAQUE_ALPHA_MIN;
   const rgbAt = (x: number, y: number): number => {
     const i = (y * width + x) * 4;
     return (data[i]! << 16) | (data[i + 1]! << 8) | data[i + 2]!;
@@ -725,7 +740,7 @@ async function census(repoRelative: string): Promise<Census> {
   };
   for (let i = 0; i < data.length; i += 4) {
     c.alphaValues.add(data[i + 3]!);
-    if (data[i + 3]! < 128) continue;
+    if (data[i + 3]! < OPAQUE_ALPHA_MIN) continue;
     c.opaque += 1;
     const h = hexAt(data, i);
     const seen = c.swatches.get(h);
@@ -1084,6 +1099,94 @@ function gitIgnores(repoRelative: string): boolean {
   }
 }
 
+/**
+ * The .gitignore PATTERN that excludes a path, as git itself reports it — `null` when none does.
+ * `git check-ignore -v` prints `<source>:<line>:<pattern>\t<pathname>`, so the record's stated rule
+ * can be compared with the rule actually doing the work instead of being taken on trust.
+ */
+function gitIgnoreRuleFor(repoRelative: string): string | null {
+  try {
+    const out = execFileSync('git', ['check-ignore', '-v', '--', repoRelative], {
+      cwd: REPO_ROOT,
+      stdio: 'pipe',
+      encoding: 'utf8',
+    });
+    const head = (out.split('\n')[0] ?? '').split('\t')[0] ?? '';
+    const parts = head.split(':');
+    return parts.length >= 3 ? parts.slice(2).join(':') : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * ⛔ THE EVIDENCE THAT AN ABSENT PATH IS A REAL PATH.
+ *
+ * `gitIgnores()` answers a question about a PATTERN, not about a file: `assets/reference/**` matches
+ * every string under that directory, so an invented filename is "ignored" exactly as convincingly as
+ * a real one. Measured: rewriting all ten capture paths to `…-STALE.png` left this file GREEN, under
+ * an assertion whose own message said a stale path would red it.
+ *
+ * These ten captures were COMMITTED once and removed with `git rm --cached` in `1da8cf0`, so their
+ * bytes are still in this repository's history. `git show 1da8cf0^:<path>` therefore reproduces each
+ * one exactly, sha256 and byte count included — and a path that never existed has no such blob. That
+ * is the strongest evidence available without redistributing anything: the blob is read, hashed and
+ * discarded, never written to the tree.
+ *
+ * ⚠ It requires HISTORY. `actions/checkout@v4` clones at depth 1 by default, so on CI as configured
+ * today the commit is not there and this check cannot run — it says so loudly rather than passing
+ * quietly. (`fetch-depth: 0` would give CI both this and the re-measurement; that is a third-party
+ * asset decision for the owner, not for this file.)
+ */
+const HISTORY_REV = `${PUBLISHED_REF.corpus.untrackedInCommit}^`;
+
+function historyIsAvailable(): boolean {
+  try {
+    if (execFileSync('git', ['rev-parse', '--is-shallow-repository'], { cwd: REPO_ROOT, encoding: 'utf8' }).trim() === 'true')
+      return false;
+    execFileSync('git', ['rev-parse', '--verify', '--quiet', `${HISTORY_REV}^{commit}`], { cwd: REPO_ROOT, stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** The bytes a path held at `HISTORY_REV`, or `null` when nothing was committed at that path. */
+function blobAtHistoryRev(repoRelative: string): Buffer | null {
+  try {
+    return execFileSync('git', ['show', `${HISTORY_REV}:${repoRelative}`], {
+      cwd: REPO_ROOT,
+      stdio: 'pipe',
+      maxBuffer: 64 * 1024 * 1024,
+    });
+  } catch {
+    return null;
+  }
+}
+
+const HISTORY_AVAILABLE = historyIsAvailable();
+
+/**
+ * This gate's own repo-relative path and source. The record names this file as the publisher of
+ * every figure in it AND as the implementation of all four operators; both are claims about a file
+ * that can be read, so they are read.
+ */
+const SELF_PATH = 'tests/gates/asset-palette-contract.test.ts';
+const SELF_SOURCE = readFileSync(resolve(REPO_ROOT, SELF_PATH), 'utf8');
+
+/** `"<file> :: <symbol>(…) -> …"` → the symbol, or `null` if the string is not that shape. */
+function implementationSymbol(impl: string): { file: string; symbol: string } | null {
+  const [file, rest] = impl.split(' :: ');
+  if (file === undefined || rest === undefined) return null;
+  const symbol = rest.split('(')[0]?.trim() ?? '';
+  return symbol === '' ? null : { file, symbol };
+}
+
+/** True when the file declares the symbol as a function or a const — the two forms this file uses. */
+const declaresSymbol = (source: string, symbol: string): boolean =>
+  new RegExp(`(?:^|\\n)(?:export )?(?:async )?function ${symbol}\\(`).test(source) ||
+  new RegExp(`(?:^|\\n)(?:export )?const ${symbol}(?::| =)`).test(source);
+
 if (!CORPUS_COMPLETE) {
   // ⛔ LOUD, NAMED, AND IN THE LOG OF EVERY RUN THAT CANNOT MEASURE THE PIXELS. A skip that reads
   // like a pass is the exact failure `tests/gates/reachability.test.ts` exists because of, so the
@@ -1129,6 +1232,49 @@ if (!CORPUS_COMPLETE) {
  * shipped art, exactly as `GOLD_BAND_LOW` and the vacuity floors do.
  */
 const REFERENCE_CAPTURE_COUNT = 10;
+
+/**
+ * How many decimal places every measured figure in the published record carries.
+ * `parameters.rounding` states it — "figures below are the operator's output rounded to 2 decimal
+ * places; `colours` is exact" — and that sentence is asserted against the rows themselves below,
+ * so it is a checkable claim rather than a caption.
+ */
+const ROW_DECIMALS = 2;
+
+/** Round DOWN / UP / to nearest at a decimal precision the RECORD supplies, never one typed here. */
+const floorAt = (v: number, dp: number): number => Math.floor(v * 10 ** dp) / 10 ** dp;
+const ceilAt = (v: number, dp: number): number => Math.ceil(v * 10 ** dp) / 10 ** dp;
+const roundAt = (v: number, dp: number): number => Number(v.toFixed(dp));
+
+/**
+ * THE RECORD'S OWN DERIVATION RULE, EXECUTED — `bands._derivation` states it in prose and this is
+ * the only place it exists as arithmetic. Both precisions are read OUT OF THE RECORD, which is the
+ * point: a rule stated in words beside figures it cannot reproduce is worse than no rule, and that
+ * is precisely what was here. `conc.mean` was published as 3.42 and `alt.mean` as 48.73 under a
+ * sentence saying the mean is "rounded to the stated precision" with `precision: 1` beside it — 3.4
+ * and 48.7. Nothing compared the two, because `precision` was only ever matched literal-to-literal
+ * against a literal in this file. The figures were right (every row in this record is published at
+ * two decimals) and the SENTENCE was wrong, so the rule now names its two precisions separately:
+ * `precision` rounds the band edges OUTWARD, `meanPrecision` rounds the mean.
+ */
+function deriveBand(
+  values: readonly number[],
+  spec: { readonly precision: number; readonly meanPrecision: number },
+): { low: number; high: number; mean: number } {
+  return {
+    low: floorAt(Math.min(...values), spec.precision),
+    high: ceilAt(Math.max(...values), spec.precision),
+    mean: roundAt(values.reduce((a, b) => a + b, 0) / values.length, spec.meanPrecision),
+  };
+}
+
+/** The four bands, paired with the record rows they are published in. Iterated, never retyped. */
+const BAND_SPECS = [
+  ['colours', PUBLISHED_REF.bands.colours],
+  ['edge', PUBLISHED_REF.bands.edge],
+  ['conc', PUBLISHED_REF.bands.conc],
+  ['alt', PUBLISHED_REF.bands.alt],
+] as const;
 
 /**
  * The band the advisory prints and the docs publish. Held as literals so they can go STALE against
@@ -1232,7 +1378,7 @@ function altFlag(c: Census, isMap: boolean): string {
 /** A reference capture measured exactly the way `census` measures a shipped asset. */
 async function referenceColours(
   file: string,
-): Promise<{ colours: number; edge: number; conc: number; alt: number; width: number; height: number }> {
+): Promise<{ colours: number; edge: number; conc: number; alt: number; width: number; height: number; bytes: number }> {
   const c = await census(file);
   return {
     colours: c.swatches.size,
@@ -1241,6 +1387,9 @@ async function referenceColours(
     alt: c.altPct,
     width: c.width,
     height: c.height,
+    // Published beside the sha256 and, until now, checked only for being greater than zero — so a
+    // row could publish 12,345 bytes for a 25,813-byte file and no run would ever say so.
+    bytes: c.bytes,
   };
 }
 
@@ -1332,49 +1481,80 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     // the table, and the published band goes on saying what it always said.
     const counts = GOLD_CAPTURES.map((r) => r.colours);
     expect(counts.length, 'no Gold reference capture is recorded; the band has no source').toBeGreaterThan(0);
-    const mean = counts.reduce((a, b) => a + b, 0) / counts.length;
-    expect(Math.min(...counts), `the published band floor ${GOLD_BAND_LOW} is not the lowest recorded capture`).toBe(
+
+    // ⛔ THE RECORD'S OWN RULE, RUN OVER THE RECORD'S OWN ROWS, BEFORE ANYTHING ELSE IS COMPARED.
+    // `bands._derivation` is a sentence describing arithmetic; a sentence that cannot produce the
+    // figures printed underneath it is a false provenance, and this file already shipped one — see
+    // the note on `deriveBand`. Both precisions come out of the record, so the rule and the figures
+    // are checked against each other rather than each against a copy in this file.
+    const BAND_VALUES: Record<string, readonly number[]> = {
+      colours: counts,
+      edge: GOLD_CAPTURES.map((r) => r.edge),
+      conc: GOLD_CAPTURES.map((r) => r.conc),
+      alt: GOLD_CAPTURES.map((r) => r.alt),
+    };
+    const cannotDerive = BAND_SPECS.flatMap(([name, band]) => {
+      const d = deriveBand(BAND_VALUES[name]!, band);
+      if (d.low === band.low && d.high === band.high && d.mean === band.mean) return [];
+      return [
+        `${name}: the record publishes {low ${band.low}, high ${band.high}, mean ${band.mean}}; its ` +
+          `own derivation over its own ${BAND_VALUES[name]!.length} Gold rows, at the precisions it ` +
+          `states (edges ${band.precision} dp outward, mean ${band.meanPrecision} dp), gives ` +
+          `{low ${d.low}, high ${d.high}, mean ${d.mean}}`,
+      ];
+    });
+    expect(
+      cannotDerive,
+      'tools/artverify/published-measurements.json states a derivation it cannot perform on its own ' +
+        'rows:\n  ' +
+        cannotDerive.join('\n  ') +
+        '\nOne of the three is wrong — the rows, the figures, or the stated precisions. Decide which ' +
+        'and fix THAT; do not retype a figure until the sentence stops being true.',
+    ).toEqual([]);
+
+    const dColours = deriveBand(counts, PUBLISHED_REF.bands.colours);
+    expect(dColours.low, `the published band floor ${GOLD_BAND_LOW} is not the lowest recorded capture`).toBe(
       GOLD_BAND_LOW,
     );
-    expect(Math.max(...counts), `the published band ceiling ${GOLD_BAND_HIGH} is not the highest recorded capture`).toBe(
+    expect(dColours.high, `the published band ceiling ${GOLD_BAND_HIGH} is not the highest recorded capture`).toBe(
       GOLD_BAND_HIGH,
     );
     expect(
-      Number(mean.toFixed(1)),
+      dColours.mean,
       `the published band mean ${GOLD_BAND_MEAN} disagrees with the recorded captures (${counts.join('/')})`,
     ).toBe(GOLD_BAND_MEAN);
 
     // The ground-texture band, same table, same guard. Rounded OUTWARD from the extremes so the
     // captures the band is derived from are inside it rather than on its rim.
-    const edges = GOLD_CAPTURES.map((r) => r.edge);
-    const edgeMean = edges.reduce((a, b) => a + b, 0) / edges.length;
+    const edges = BAND_VALUES.edge!;
+    const dEdge = deriveBand(edges, PUBLISHED_REF.bands.edge);
     expect(
-      Math.floor(Math.min(...edges) * 10) / 10,
+      dEdge.low,
       `the published edge-band floor ${GOLD_EDGE_LOW} is not the lowest recorded capture, rounded down`,
     ).toBe(GOLD_EDGE_LOW);
     expect(
-      Math.ceil(Math.max(...edges) * 10) / 10,
+      dEdge.high,
       `the published edge-band ceiling ${GOLD_EDGE_HIGH} is not the highest recorded capture, rounded up`,
     ).toBe(GOLD_EDGE_HIGH);
     expect(
-      Number(edgeMean.toFixed(1)),
+      dEdge.mean,
       `the published edge-band mean ${GOLD_EDGE_MEAN} disagrees with the recorded captures ` +
         `(${edges.map((e) => e.toFixed(2)).join('/')})`,
     ).toBe(GOLD_EDGE_MEAN);
 
     // The colour-concentration band, same table, same guard, same outward rounding.
-    const concs = GOLD_CAPTURES.map((r) => r.conc);
-    const concMean = concs.reduce((a, b) => a + b, 0) / concs.length;
+    const concs = BAND_VALUES.conc!;
+    const dConc = deriveBand(concs, PUBLISHED_REF.bands.conc);
     expect(
-      Math.floor(Math.min(...concs) * 10) / 10,
+      dConc.low,
       `the published concentration floor ${GOLD_CONC_LOW} is not the lowest recorded capture, rounded down`,
     ).toBe(GOLD_CONC_LOW);
     expect(
-      Math.ceil(Math.max(...concs) * 10) / 10,
+      dConc.high,
       `the published concentration ceiling ${GOLD_CONC_HIGH} is not the highest recorded capture, rounded up`,
     ).toBe(GOLD_CONC_HIGH);
     expect(
-      Number(concMean.toFixed(2)),
+      dConc.mean,
       `the published concentration mean ${GOLD_CONC_MEAN} disagrees with the recorded captures ` +
         `(${concs.map((c) => c.toFixed(2)).join('/')})`,
     ).toBe(GOLD_CONC_MEAN);
@@ -1389,18 +1569,18 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     ).toBeGreaterThan(1);
 
     // The alternation band, same table, same guard, same outward rounding.
-    const alts = GOLD_CAPTURES.map((r) => r.alt);
-    const altMean = alts.reduce((a, b) => a + b, 0) / alts.length;
+    const alts = BAND_VALUES.alt!;
+    const dAlt = deriveBand(alts, PUBLISHED_REF.bands.alt);
     expect(
-      Math.floor(Math.min(...alts) * 10) / 10,
+      dAlt.low,
       `the published alternation floor ${GOLD_ALT_LOW} is not the lowest recorded capture, rounded down`,
     ).toBe(GOLD_ALT_LOW);
     expect(
-      Math.ceil(Math.max(...alts) * 10) / 10,
+      dAlt.high,
       `the published alternation ceiling ${GOLD_ALT_HIGH} is not the highest recorded capture, rounded up`,
     ).toBe(GOLD_ALT_HIGH);
     expect(
-      Number(altMean.toFixed(2)),
+      dAlt.mean,
       `the published alternation mean ${GOLD_ALT_MEAN} disagrees with the recorded captures ` +
         `(${alts.map((a) => a.toFixed(2)).join('/')})`,
     ).toBe(GOLD_ALT_MEAN);
@@ -1445,7 +1625,7 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     const malformed = ALL_CAPTURES.filter(
       (r) =>
         !/^[0-9a-f]{64}$/.test(r.sha256) ||
-        !r.file.startsWith('assets/reference/') ||
+        !r.file.startsWith(`${PUBLISHED_REF.corpus.root}/`) ||
         !Number.isInteger(r.colours) ||
         r.colours <= 0 ||
         !(r.bytes > 0) ||
@@ -1486,9 +1666,10 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     ).toBe(GROUND_PATCH_PX);
     expect(
       PUBLISHED_REF.parameters.opaqueAlphaMin,
-      'the record publishes a different opacity threshold than patchProfile/census use, so the ' +
-        'published figures were taken over a different set of pixels than this file counts',
-    ).toBe(128);
+      `the record publishes an opacity threshold of ${PUBLISHED_REF.parameters.opaqueAlphaMin}; this ` +
+        `file counts a pixel from alpha ${OPAQUE_ALPHA_MIN} up. The published figures were then taken ` +
+        'over a different set of pixels than this file measures. Re-measure and republish.',
+    ).toBe(OPAQUE_ALPHA_MIN);
 
     // 4. THE BANDS THE RECORD ITSELF PUBLISHES must be the ones this file derives, or a reader of
     // the JSON and a reader of the gate get different answers to the same question.
@@ -1502,11 +1683,30 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
       'the bands published in tools/artverify/published-measurements.json are not the bands this ' +
         'gate derives from the same rows. One of the two was edited and the other was not.',
     ).toEqual({
-      colours: { low: GOLD_BAND_LOW, high: GOLD_BAND_HIGH, mean: GOLD_BAND_MEAN, precision: 0 },
-      edge: { low: GOLD_EDGE_LOW, high: GOLD_EDGE_HIGH, mean: GOLD_EDGE_MEAN, precision: 1 },
-      conc: { low: GOLD_CONC_LOW, high: GOLD_CONC_HIGH, mean: GOLD_CONC_MEAN, precision: 1 },
-      alt: { low: GOLD_ALT_LOW, high: GOLD_ALT_HIGH, mean: GOLD_ALT_MEAN, precision: 1 },
+      colours: { low: GOLD_BAND_LOW, high: GOLD_BAND_HIGH, mean: GOLD_BAND_MEAN, precision: 0, meanPrecision: ROW_DECIMALS },
+      edge: { low: GOLD_EDGE_LOW, high: GOLD_EDGE_HIGH, mean: GOLD_EDGE_MEAN, precision: 1, meanPrecision: ROW_DECIMALS },
+      conc: { low: GOLD_CONC_LOW, high: GOLD_CONC_HIGH, mean: GOLD_CONC_MEAN, precision: 1, meanPrecision: ROW_DECIMALS },
+      alt: { low: GOLD_ALT_LOW, high: GOLD_ALT_HIGH, mean: GOLD_ALT_MEAN, precision: 1, meanPrecision: ROW_DECIMALS },
     });
+
+    // …and `parameters.rounding` — "the operator's output rounded to 2 decimal places; `colours` is
+    // exact" — is a claim about the rows, so it is checked against them. It is also what makes
+    // `meanPrecision` above the right number rather than a taste: the mean of figures published at
+    // two decimals is published at two decimals.
+    const overPrecise = ALL_CAPTURES.filter(
+      (r) =>
+        !Number.isInteger(r.colours) ||
+        roundAt(r.edge, ROW_DECIMALS) !== r.edge ||
+        roundAt(r.conc, ROW_DECIMALS) !== r.conc ||
+        roundAt(r.alt, ROW_DECIMALS) !== r.alt,
+    );
+    expect(
+      overPrecise.map((r) => `${r.file}: edge ${r.edge} conc ${r.conc} alt ${r.alt} colours ${r.colours}`),
+      `parameters.rounding says every figure in this record is the operator's output at ` +
+        `${ROW_DECIMALS} decimal places and that \`colours\` is exact. These rows are not, so either ` +
+        'the record was republished at a different precision and the caption was not, or a figure ' +
+        'was typed rather than measured.',
+    ).toEqual([]);
     expect(
       PUBLISHED_REF.crossOperatorAgreement.reportedGoldAlt,
       "the record's independently-reported Gold alternation is not this file's REPORTED_GOLD_ALT",
@@ -1527,6 +1727,99 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
         `${r.file} is published at ${r.conc} effective colours, inside the Gold band ${concBandLabel}`,
       ).toBeGreaterThan(GOLD_CONC_HIGH);
     }
+
+    /* 6. EVERY OTHER FIELD THE RECORD PUBLISHES, BOUND TO SOMETHING THAT CAN CONTRADICT IT.
+     *
+     * ⚠ Written because five published fields were mutated and none of them reddened anything:
+     * `captures[].bytes`, `operator.groundPatchSource`, `corpus.gitignoreRule`, an aggregate in the
+     * companion record, and `operators.*.implementation`, which was never read at all. A figure or a
+     * path in an evidence record that nothing checks is decoration that reads as evidence, and this
+     * record's whole purpose is to be the evidence. Anything published here is either asserted or
+     * removed. */
+    expect(
+      PUBLISHED_REF.publishedBy,
+      'the record names a different file as the publisher of these figures than the file asserting them',
+    ).toBe(SELF_PATH);
+
+    // The four operators are the four bands. An operator row leaving the record would take a
+    // definition and a region with it and leave the band it produced looking self-evident.
+    expect(
+      Object.keys(PUBLISHED_REF.operators)
+        .filter((k) => !k.startsWith('_'))
+        .sort(),
+      'the record publishes a different set of operators than the set of bands it publishes',
+    ).toEqual(BAND_SPECS.map(([n]) => n).slice().sort());
+
+    // …and each one names a symbol in THIS file. `implementation` is the field that makes a figure
+    // re-runnable — EVAL-STANDARD.md refuses a figure without one — so it is checked as a reference
+    // rather than read as a caption. The region is cross-checked against the symbol: only
+    // `groundReading` measures over patches, so only its operators may claim the ground-patch region.
+    const opRows = [
+      ['colours', PUBLISHED_REF.operators.colours],
+      ['edge', PUBLISHED_REF.operators.edge],
+      ['conc', PUBLISHED_REF.operators.conc],
+      ['alt', PUBLISHED_REF.operators.alt],
+    ] as const;
+    const badOps = opRows.flatMap(([name, op]) => {
+      const parsed = implementationSymbol(op.implementation);
+      if (parsed === null) return [`${name}: implementation "${op.implementation}" is not "<file> :: <symbol>(…)"`];
+      if (parsed.file !== SELF_PATH) return [`${name}: implementation names ${parsed.file}, not ${SELF_PATH}`];
+      if (!declaresSymbol(SELF_SOURCE, parsed.symbol))
+        return [`${name}: implementation names ${parsed.symbol}(), which ${SELF_PATH} does not declare`];
+      const expectedRegion = parsed.symbol === 'groundReading' ? 'ground-patch' : 'whole-image';
+      if (op.region !== expectedRegion)
+        return [`${name}: region "${op.region}" but ${parsed.symbol}() measures ${expectedRegion}`];
+      if (op.definition.trim() === '') return [`${name}: no definition`];
+      return [];
+    });
+    expect(
+      badOps,
+      'an operator row in tools/artverify/published-measurements.json does not point at a real ' +
+        `operator:\n  ${badOps.join('\n  ')}\n` +
+        'A figure whose operator cannot be re-run is withdrawn by tools/artverify/EVAL-STANDARD.md ' +
+        'before it may be quoted; a record that names one that does not exist is worse than one that ' +
+        'names none.',
+    ).toEqual([]);
+
+    // THE CORPUS FIELDS. `trackedInGit` is checked against git in "the reference corpus is present in
+    // full…"; here it is checked for INTERNAL sense: a file is in a clean clone exactly when git
+    // tracks it, so the two flags may not disagree.
+    expect(
+      PUBLISHED_REF.corpus.presentInACleanClone,
+      'the record says these captures are untracked AND present in a clean clone, or tracked AND ' +
+        'absent from one. A clean clone holds exactly what git tracks.',
+    ).toBe(PUBLISHED_REF.corpus.trackedInGit);
+
+    // The .gitignore rule the record blames the absence on must be the rule git actually applies.
+    // `gitIgnores()` alone only says SOME rule matches, which a moved or widened rule also satisfies.
+    const wrongRule = ALL_CAPTURES.map((r) => ({ file: r.file, rule: gitIgnoreRuleFor(r.file) })).filter(
+      (e) => e.rule !== PUBLISHED_REF.corpus.gitignoreRule,
+    );
+    expect(
+      wrongRule.map((e) => `${e.file}: git applies ${e.rule ?? 'no rule'}, the record publishes ${PUBLISHED_REF.corpus.gitignoreRule}`),
+      'the record names a .gitignore rule that is not the one excluding these captures:\n  ' +
+        wrongRule.map((e) => `${e.file} → ${e.rule ?? 'NOT IGNORED'}`).join('\n  ') +
+        '\nThe recorded reason for the absence is that rule. If the rule moved, the recorded reason ' +
+        'moved with it and the record has to say so.',
+    ).toEqual([]);
+
+    // `howToObtain` is the only route the next reader has to the corpus. It names a tracked file, so
+    // the file is required to be there — a pointer into nothing is how a deliberate absence turns
+    // into an unexplained one.
+    const howTo = PUBLISHED_REF.corpus.howToObtain.split(/\s/)[0] ?? '';
+    expect(
+      existsSync(resolve(REPO_ROOT, howTo)),
+      `corpus.howToObtain points at ${howTo}, which is not in this tree. It is the record's only ` +
+        'route back to the corpus.',
+    ).toBe(true);
+
+    // The commit the record blames for the untracking must be a commit. When history is shallow this
+    // cannot be resolved and the capture-provenance test below says so; the string is still checked
+    // for shape here so a typo cannot hide behind a shallow clone.
+    expect(
+      PUBLISHED_REF.corpus.untrackedInCommit,
+      'corpus.untrackedInCommit is not a git object name',
+    ).toMatch(/^[0-9a-f]{7,40}$/);
   });
 
   it('the reference corpus is present in full, or absent in full for the recorded reason', () => {
@@ -1578,12 +1871,34 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     // The tracked-and-missing case is already red above (a tracked capture is a failure whether the
     // file is there or not), so what is left to check is that the absence is the IGNORED one — i.e.
     // that a `.gitignore` rule actually explains it, rather than the path having gone stale.
-    const wrong = ALL_CAPTURES.filter((r) => !gitIgnores(r.file)).map(
-      (r) =>
-        `${r.file}: absent, untracked, and NOT matched by any .gitignore rule. The recorded reason ` +
-        'is the `assets/reference/**` rule; an absence that is not that one is a stale path in the ' +
-        'published record, and every figure published for it is unsourced.',
-    );
+    const wrong: string[] = [];
+    for (const r of ALL_CAPTURES) {
+      if (!gitIgnores(r.file)) {
+        wrong.push(
+          `${r.file}: absent, untracked, and NOT matched by any .gitignore rule. The recorded reason ` +
+            'is the `assets/reference/**` rule; an absence that is not that one is a stale path in ' +
+            'the published record, and every figure published for it is unsourced.',
+        );
+        continue;
+      }
+      // ⛔ …AND THE DIRECTORY IT WOULD LIVE IN MUST BE ABSENT TOO. The rule above is about a
+      // PATTERN: `assets/reference/**` matches every string under that directory, so an invented
+      // filename passes it exactly as convincingly as a real one — measured, by rewriting all ten
+      // paths to `…-STALE.png` and watching this file stay green under an assertion whose own
+      // message promised a stale path would red it. A clone that does not have the corpus does not
+      // have the DIRECTORY either (`.gitignore` un-ignores only README.md and .gitkeep, so nothing
+      // creates `gen2/` or `gen3/`). A directory that IS here with a published file missing from it
+      // is therefore not the deliberate absence — it is a path that has gone stale under an
+      // untracked corpus, which is where a stale path is hardest to notice and cheapest to make.
+      const dir = dirname(r.file);
+      if (existsSync(resolve(REPO_ROOT, dir))) {
+        wrong.push(
+          `${r.file}: ${dir}/ IS on this disk and this capture is not in it. The recorded absence is ` +
+            'the whole corpus being absent, which takes its directories with it; a file missing from ' +
+            'a directory that is here is a stale path in the published record.',
+        );
+      }
+    }
     expect(
       wrong,
       'the reference corpus is absent, but not for the reason the published record gives:\n  ' +
@@ -1593,6 +1908,51 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
         '1da8cf0 untracked. That absence is permanent and intended. Any OTHER absence is a defect.',
     ).toEqual([]);
   });
+
+  it.skipIf(!HISTORY_AVAILABLE)(
+    'every published capture is a path this repository once held, at the bytes it publishes' +
+      (HISTORY_AVAILABLE
+        ? ''
+        : ` — SKIPPED, NO HISTORY: ${HISTORY_REV} is not in this checkout (a shallow clone, which is ` +
+          'what actions/checkout@v4 makes at its default depth of 1). Nothing here is taken on trust ' +
+          'instead: the ignore RULE and the corpus DIRECTORIES are still asserted by the two tests ' +
+          'above, which run everywhere. Only the byte-level provenance is out of reach.'),
+    () => {
+      // ⛔ THE ASSERTION THAT AN ABSENT PATH IS A REAL PATH — see the note on `blobAtHistoryRev`.
+      // Everything else about these ten rows is checked against the record or against a pattern; this
+      // is the only check that can tell a capture that exists from a filename somebody typed. The
+      // blobs are read out of history, hashed, and discarded. Nothing is written to the tree: these
+      // are third-party bitmaps and committing one back is the repair this whole arrangement refuses.
+      const wrong: string[] = [];
+      for (const r of ALL_CAPTURES) {
+        const blob = blobAtHistoryRev(r.file);
+        if (blob === null) {
+          wrong.push(
+            `${r.file}: NOTHING WAS EVER COMMITTED AT THIS PATH — \`git show ${HISTORY_REV}:${r.file}\` ` +
+              'finds no blob. The record publishes a sha256, a byte count and four measurements for a ' +
+              'file this repository has never held. Either the path is stale (the corpus was renamed ' +
+              'or re-fetched and the record was not republished) or the row is fabricated.',
+          );
+          continue;
+        }
+        const sha = createHash('sha256').update(blob).digest('hex');
+        if (sha !== r.sha256) {
+          wrong.push(`${r.file}: the blob at ${HISTORY_REV} hashes to ${sha}, the record publishes ${r.sha256}`);
+        }
+        if (blob.length !== r.bytes) {
+          wrong.push(`${r.file}: the blob at ${HISTORY_REV} is ${blob.length} bytes, the record publishes ${r.bytes}`);
+        }
+      }
+      expect(
+        wrong,
+        'the published capture rows are not the files this repository untracked in ' +
+          `${PUBLISHED_REF.corpus.untrackedInCommit}:\n  ${wrong.join('\n  ')}\n` +
+          'This is the check that distinguishes a deliberately absent file from a path that never ' +
+          'existed — `.gitignore` matching cannot, because its rule is a directory glob and matches ' +
+          'any invented name underneath it just as well.',
+      ).toEqual([]);
+    },
+  );
 
   it('build-doc §8.4 still quotes the bands this gate derives', () => {
     // The half that catches a DOCUMENT drifting from its own evidence. §8.4 states these figures as
@@ -2092,7 +2452,15 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
       // that was mistyped, or re-measured under a changed operator and never republished — and the
       // bands are derived from these rows, so a wrong row silently moves the band.
       expect(
-        { colours: m.colours, edge: at2(m.edge), conc: at2(m.conc), alt: at2(m.alt), width: m.width, height: m.height },
+        {
+          colours: m.colours,
+          edge: at2(m.edge),
+          conc: at2(m.conc),
+          alt: at2(m.alt),
+          width: m.width,
+          height: m.height,
+          bytes: m.bytes,
+        },
         `${ref.file} no longer measures what tools/artverify/published-measurements.json publishes ` +
           'for it. The bands in this file are DERIVED from that row, so this figure moving moves the ' +
           'band. Re-measure the whole corpus, republish the record (the console line below is the ' +
@@ -2104,6 +2472,7 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
         alt: at2(ref.alt),
         width: ref.width,
         height: ref.height,
+        bytes: ref.bytes,
       });
       expect(
         m.conc,
@@ -2164,7 +2533,15 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
       // are true of the file — a Gen-3 row that drifted toward the Gold band and was never
       // re-published would turn the discrimination test below into a tautology.
       expect(
-        { colours: m.colours, edge: at2(m.edge), conc: at2(m.conc), alt: at2(m.alt), width: m.width, height: m.height },
+        {
+          colours: m.colours,
+          edge: at2(m.edge),
+          conc: at2(m.conc),
+          alt: at2(m.alt),
+          width: m.width,
+          height: m.height,
+          bytes: m.bytes,
+        },
         `${ref.file} no longer measures what tools/artverify/published-measurements.json publishes ` +
           'for it. These two rows are the discrimination control; re-measure and republish the whole ' +
           'record rather than editing one row.',
@@ -2175,6 +2552,7 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
         alt: at2(ref.alt),
         width: ref.width,
         height: ref.height,
+        bytes: ref.bytes,
       });
       expect(
         m.colours,

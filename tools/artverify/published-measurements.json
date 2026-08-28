@@ -21,8 +21,19 @@
     "    A corpus present and disagreeing is a hard failure, never a skip.",
     "",
     "The skip condition is 'the corpus is absent', never 'the assertion is inconvenient', and the",
-    "absence is itself asserted to be the deliberate untracked one (git ls-files says nothing tracks",
-    "it, git check-ignore says .gitignore ignores it). A missing file that is neither is a broken",
+    "absence is itself asserted to be the deliberate untracked one. `git check-ignore` alone does NOT",
+    "establish that: both rules are directory globs, so they match an invented filename exactly as",
+    "well as a true one, and rewriting every path in this record to a name that never existed left",
+    "both gates green. Three checks stand in its place — the ignore RULE git reports must be the rule",
+    "named here; a published file missing from a directory that IS on the disk is a stale path, since",
+    "the recorded absence takes its whole directory with it; and where history is present, the ten",
+    "reference captures are read back out of it and must hash to the sha256 and byte count published",
+    "below. See `referenceCaptures.corpus.pathEvidence` and `overlayDiff32pxResidual.corpus.pathEvidence`.",
+    "",
+    "AND A CORPUS IS WHOLLY PRESENT OR WHOLLY ABSENT — never partly. A partial corpus re-measures some",
+    "rows and takes the rest on trust, which is mixed evidence, and it also shrinks a sweep silently:",
+    "deleting ONE of the five overlay maps once took that file from 73 passed to 68 passed with nothing",
+    "red. Both gates refuse it. A missing file that is neither of the two legal states is a broken",
     "checkout and reds."
   ],
 
@@ -45,6 +56,24 @@
         "deliberately absent, permanently, and no test may be written that requires it to be present."
       ],
       "gitignoreRule": "assets/reference/**",
+      "untrackedInCommit": "1da8cf0",
+      "pathEvidence": [
+        "THAT THESE TEN PATHS ARE REAL PATHS IS CHECKABLE, AND IS CHECKED. `.gitignore` matching is",
+        "not the evidence: `assets/reference/**` is a directory glob and matches an invented filename",
+        "exactly as well as a true one — measured, by rewriting all ten rows to `…-STALE.png` and",
+        "watching the gate stay green. What settles it is that these ten were COMMITTED once and",
+        "removed with `git rm --cached` in `untrackedInCommit`, so `git show 1da8cf0^:<file>`",
+        "reproduces each one and hashes to the sha256 published below, at the byte count published",
+        "below. A path that never existed has no such blob. The gate reads those blobs, hashes them",
+        "and discards them; nothing is written back into the tree.",
+        "",
+        "That check needs HISTORY. A shallow clone — `actions/checkout@v4` at its default depth of 1,",
+        "which is how CI is configured today — cannot resolve the commit, and the gate says so and",
+        "skips that arm by name. Two weaker checks still run everywhere: the ignore rule the gate",
+        "reads back from `git check-ignore -v` must be the rule named here, and any capture missing",
+        "from a directory that IS on the disk is a stale path, because the recorded absence takes the",
+        "whole directory with it."
+      ],
       "howToObtain": "assets/reference/README.md — tracked, holds no third-party art, records what the set is and how to re-fetch it."
     },
 
@@ -204,11 +233,11 @@
     ],
 
     "bands": {
-      "_derivation": "Over the `gen2` rows ONLY — the two gen3 rows are the discrimination control and are deliberately outside every band. floor = min rounded DOWN to the stated precision, ceiling = max rounded UP, mean = the arithmetic mean rounded to the stated precision. The gen2 count is 8 and the whole corpus is 10; both are pinned in the gate so the table cannot be emptied from either side.",
-      "colours": { "low": 12, "high": 18, "mean": 16.0, "precision": 0 },
-      "edge": { "low": 51.0, "high": 78.7, "mean": 64.2, "precision": 1 },
-      "conc": { "low": 2.6, "high": 3.8, "mean": 3.42, "precision": 1 },
-      "alt": { "low": 28.7, "high": 64.3, "mean": 48.73, "precision": 1 }
+      "_derivation": "Over the `gen2` rows ONLY — the two gen3 rows are the discrimination control and are deliberately outside every band. `precision` rounds the BAND EDGES outward: floor = min rounded DOWN to it, ceiling = max rounded UP to it. `meanPrecision` rounds the MEAN, and it is 2 for every band because `parameters.rounding` publishes every row at 2 decimal places and the mean of figures at 2 dp is quoted at 2 dp. TWO PRECISIONS, NAMED SEPARATELY, BECAUSE ONE WAS WRONG: this block used to say the mean was 'rounded to the stated precision' with `precision: 1` beside `conc.mean 3.42` and `alt.mean 48.73` — 3.4 and 48.7 under its own rule. The figures were right and the sentence was wrong; the gate now runs this derivation over these rows at these two precisions and reds if it cannot reproduce every figure printed here. The gen2 count is 8 and the whole corpus is 10; both are pinned in the gate so the table cannot be emptied from either side.",
+      "colours": { "low": 12, "high": 18, "mean": 16.0, "precision": 0, "meanPrecision": 2 },
+      "edge": { "low": 51.0, "high": 78.7, "mean": 64.2, "precision": 1, "meanPrecision": 2 },
+      "conc": { "low": 2.6, "high": 3.8, "mean": 3.42, "precision": 1, "meanPrecision": 2 },
+      "alt": { "low": 28.7, "high": 64.3, "mean": 48.73, "precision": 1, "meanPrecision": 2 }
     },
 
     "crossOperatorAgreement": {
@@ -228,12 +257,29 @@
     "measuredOn": "2026-08-28",
 
     "corpus": {
-      "_note": "FIVE real 1024x1024 painted maps. ONE of them is tracked; the other four are generator output under assets/raw/**, which .gitignore excludes, so a clean clone measures 5 of the 25 pairs and not 25. That is why the aggregate is published as a per-pair table: the 5 pairs a clean clone CAN measure are re-measured there for real, and the other 20 are asserted against this record rather than skipped.",
+      "_note": "FIVE real 1024x1024 painted maps. ONE of them is tracked; the other four are generator output under assets/raw/**, which .gitignore excludes, so a clean clone measures 5 of the 25 pairs and not 25. That is why the aggregate is published as a per-pair table: the 5 pairs a clean clone CAN measure are re-measured there for real, and the other 20 are asserted against this record rather than skipped. THE CORPUS HAS EXACTLY TWO LEGAL STATES — WHOLE (all five here) or AS CLONED (the tracked map here, every untracked one absent) — and the gate refuses anything between them. It did not, and that cost a real regression: deleting pt-map-cindershelf.png, which carries four of the eight accepted verdicts, dropped the file from 73 passed to 68 passed with nothing red, because the pins were behind a guard that widened along with the shrinking corpus.",
       "gitignoreRule": "assets/raw/**",
+      "pathEvidence": [
+        "THE FOUR GENERATOR MAPS HAVE NO PROVENANCE IN THIS REPOSITORY, AND THIS RECORD SAYS SO RATHER",
+        "THAN IMPLYING OTHERWISE. `git log --all -- assets/raw/palette-trials/` is empty: they were",
+        "never committed, so unlike the ten reference captures there is no blob in history to check a",
+        "path against, and `everCommitted: false` on each row is asserted against git so the claim",
+        "cannot quietly stop being true. What IS checked everywhere: the ignore rule git reports for",
+        "each must be the `gitignoreRule` named here, and — the part that does the work — a named map",
+        "missing from a directory that IS on this disk is a stale path. A clone has no",
+        "assets/raw/palette-trials/ at all, so the directory's presence means the generator ran here",
+        "and its output should be in it. Without that, rewriting all four rows to names that never",
+        "existed left the gate green.",
+        "",
+        "So: on the machine that holds them, the four paths are real because the files are there. On a",
+        "clone, nothing can confirm them, and the verdicts measured over them rest on this record and",
+        "on the conditions in `measuredWith` being unchanged. That is the whole of the claim."
+      ],
       "maps": [
         {
           "file": "assets/approved-trials/town-map.png",
           "trackedInGit": true,
+          "everCommitted": true,
           "sha256": "69402d18fac70073f4af4b8acfdb4912b3c43aef426a0adf9c8cd0003627935e",
           "width": 1024,
           "height": 1024
@@ -241,6 +287,7 @@
         {
           "file": "assets/raw/palette-trials/pt-map-brackwater.png",
           "trackedInGit": false,
+          "everCommitted": false,
           "sha256": "3bdbf30d6444292e5119df72a1d6b1567acdc9f80c99519d35a90c6275604299",
           "width": 1024,
           "height": 1024
@@ -248,6 +295,7 @@
         {
           "file": "assets/raw/palette-trials/pt-map-cindershelf.png",
           "trackedInGit": false,
+          "everCommitted": false,
           "sha256": "cea103684f6ebef28bb3d70af174e78670ca05b94d1da70799ff8f3716dba36b",
           "width": 1024,
           "height": 1024
@@ -255,6 +303,7 @@
         {
           "file": "assets/raw/palette-trials/pt-map-duskhollow.png",
           "trackedInGit": false,
+          "everCommitted": false,
           "sha256": "80571f2010ab3187fe8e156d26ef839da8d7432588c7d95328ea76e5a5f3e96b",
           "width": 1024,
           "height": 1024
@@ -262,6 +311,7 @@
         {
           "file": "assets/raw/palette-trials/pt-map-r2.png",
           "trackedInGit": false,
+          "everCommitted": false,
           "sha256": "7e41d143364d8f8f53fd5948ad212551f28efc9aa3a945ce11a4ad05d9f6e847",
           "width": 1024,
           "height": 1024
@@ -270,12 +320,12 @@
     },
 
     "operator": {
-      "definition": "overlayDiff({ base, candidate, mask, grid, config }).accepted, where `candidate` is the base with an SxS block copied over from open ground at (900, 20) and the original block re-stamped d px down-and-right, and `mask` is the map's own luminance thresholded at 0.45.",
+      "definition": "overlayDiff({ base, candidate, mask, grid, config }).accepted, where `candidate` is the base with an SxS block copied over from open ground at (x 20, y 900) and the original block re-stamped d px down-and-right, and `mask` is the map's own luminance thresholded at 0.45.",
       "implementation": "tools/overlay-diff/index.ts :: overlayDiff — called, never reimplemented",
       "fixture": "tests/unit/overlay-diff.test.ts :: moveBlock() and maskFromLuminance()",
       "blockPx": 32,
       "displacementPx": 16,
-      "groundPatchSource": [900, 20],
+      "groundPatchSource": [20, 900],
       "note": "blockPx is 2 x collisionCellPx and displacementPx is 1 x collisionCellPx, both DERIVED from data/balance.json at test time (G11) and asserted equal to the values recorded here."
     },
 
