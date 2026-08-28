@@ -146,8 +146,9 @@ function shelf(balance: Balance): Shelf[] {
  * row on the shelf it cannot charge for rather than silently pricing it at zero.
  *
  * ⚠ `economy.baitPrice` is NOT consulted, and cannot be: it is keyed by `BaitMatch`
- * (`none` / `role` / `species`, core/types.ts:1269) — the words core uses for how well a bait
- * matches a target — not by any bag key. There is no id it could price, so no bait row exists here.
+ * (`BAIT_MATCHES` — `none` / `role` / `species`, core/types.ts:294) — the words core uses for how
+ * well a bait matches a target — not by any bag key. There is no id it could price, so no bait row
+ * exists here.
  */
 function priceOf(id: string, balance: Balance): number | null {
   const economy = balance.economy;
@@ -161,8 +162,18 @@ function priceOf(id: string, balance: Balance): number | null {
  * How many the player is carrying, or an em dash when the bag does not track this key.
  *
  * The same convention — and the same string — as `battle-input.ts` `stock()`, deliberately: an
- * ABSENT key is not zero anywhere in this game. `core/battle.ts:1208` `bagHas` reads a missing key
+ * ABSENT key is not zero anywhere in this game. `core/battle.ts:1226` `bagHas` reads a missing key
  * as UNLIMITED, so printing "×0" for one would be a claim the battle menu contradicts.
+ *
+ * ⚠ WHICH KEYS REACH THE DASH CHANGED, AND THE SHELF VISIBLY CHANGED WITH IT. `core/save.ts`
+ * `emptyMeteredBag` seeds every `SNARE_TIERS` tier and both `balance.medicine` ids at 0, and
+ * {@link shelf} sells nothing else — so from a save `newSave` produced this pane prints "×0" on a
+ * brand-new game where it used to print "—", and the battle menu's own `stock()` turned over in the
+ * same breath for the same keys. The two panes still agree with each other, which is what this
+ * convention is for; no test had pinned the em dash for those keys, so nothing went red saying so.
+ * The dash is not dead code: `battle-input.ts` shares it and DOES still render an unseeded family
+ * (baits, whose rows come from the bag's own keys), and it is what keeps an absent key off the
+ * screen as "×undefined" if a shelf ever offers an id nothing seeds.
  */
 function stock(save: Pick<SaveFile, "items">, id: string): string {
   const held = save.items[id];

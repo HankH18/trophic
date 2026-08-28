@@ -2181,9 +2181,11 @@ export class OverworldScene extends Phaser.Scene {
      * the field was validated by `core/dialogue-schema.ts` (a real bag id, and a must-write path
      * analysis proving a granting entry cannot fire twice) and consumed by nobody, so
      * `maren.tutorial.snare`'s "Three of them, in the satchel by the door." handed over nothing.
-     * It also means this line CHANGES CATCHING: `core/battle.ts` `bagHas` reads a key absent from
-     * `items` as untracked-and-unlimited, so until the first grant exists the player has infinite
-     * snares. From here `items.base` exists from the tutorial onward and the meter is on.
+     * It also means this line CHANGES CATCHING, though no longer by switching the meter ON: while
+     * `newSave` seeded `items: {}`, `core/battle.ts` `bagHas` read the absent key as unlimited and
+     * the un-granted player could catch for ever. `core/save.ts` `emptyMeteredBag` seeds every tier
+     * at 0 from boot now, so before this runs the player has NO base snares rather than infinite
+     * ones, and this is the line that puts the tutorial's three into a bag already metering them.
      *
      * Unlike `applyRunFlags` this one writes the ACTION LOG as well as the save — see
      * `applyRunGrants` for why a bag mutation that skips the tape makes L10 quietly false.

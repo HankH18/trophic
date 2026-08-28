@@ -271,23 +271,27 @@ export function buildWildBattle(opts: {
     nodeId: encounter.nodeId,
     // The bag IS the save's items (build-doc §7.8). No snare is conjured for the fight.
     //
-    // ⚠ THIS COMMENT USED TO CLAIM "a player with no snares cannot catch anything, which is the
-    // honest state and the one the economy tunes." THAT WAS FALSE, and it never went red. Measured
-    // through this exact seam from a real `startNewGame`: a fresh save's `items` is `{}` (core/
-    // save.ts:421, and no production caller passes `opts.items`), and `bagHas` in core/battle.ts:1208
-    // returns TRUE for a key that is ABSENT — "untracked", an affordance for the balance harness,
-    // which carries no bag. `bagConsume` likewise returns early on an absent key. So the guard at
-    // core/battle.ts:1537 never fires for a new player: snares throw at the shipped chance, the count
-    // never decrements, and catching is UNLIMITED rather than impossible.
+    // ⚠ THIS SEAM CARRIED THE UNMETERED-BAG DEFECT, AND THE HALF THAT MADE IT POSSIBLE IS STILL
+    // HERE. `bagHas` (core/battle.ts:1226) returns TRUE for a key that is ABSENT — "untracked", an
+    // affordance for the balance harness, which carries no bag — and `bagConsume` returns early on
+    // that same key. That is unchanged. What changed is what a fresh save hands this line: it used
+    // to be `items: {}`, so every tier and medicine the player had never been granted was UNLIMITED
+    // rather than impossible, and the comment here described the opposite for months without ever
+    // going red. `core/save.ts` `newSave` now builds `items` as `{...emptyMeteredBag(balance),
+    // ...opts.items}` — every one of `SNARE_TIERS` and both `balance.medicine` ids a PRESENT key at
+    // 0 from boot — so the guards at core/battle.ts:1554 (tier) and :1533 (medicine) fire for a new
+    // player, and Maren's "three of them, in the satchel by the door" is the stock they meter.
     //
-    // The guard itself is sound — with `items: {base: 2}` the two throws decrement and the third is
-    // refused with `actionRejected`. The economy is enforced only for a key that is PRESENT, and
-    // nothing writes one. That is why Maren's "three of them, in the satchel by the door" has never
-    // corresponded to anything.
+    // ⚠ THE AFFORDANCE STILL BITES FOR THE FAMILIES `emptyMeteredBag` DOES NOT SEED — baits and
+    // relics. An absent bait is genuinely untracked to the reducer; what keeps that unreachable is
+    // `game/battle-input.ts` `baitIdsIn`, which builds its rows from the bag's OWN KEYS and demands
+    // a positive count. Offer a bag family from a FIXED LIST instead and the hole above reopens.
     //
-    // Every catching test mints its own bag (`{master: 99}`, `{master: 4}`), so the suite's green
-    // about catching is evidence about FIXTURES. Nothing in tests/ covers the player's real bag —
-    // which is how a false comment survived 2,954 passing tests. If you add a grant, add that test.
+    // Every catching test still mints its own bag (`{master: 99}`, `{master: 4}`), so that green is
+    // evidence about FIXTURES. The player's REAL bag is covered by §6 of
+    // `tests/unit/economy-wiring.test.ts` and §5 of `tests/unit/dialogue-grants.test.ts`, which walk
+    // the meter down on saves the game produced rather than on maps a test wrote. A grant added
+    // anywhere belongs in those — a fixture bag cannot fail the way this comment once did.
     bag: { ...save.items },
   };
   return { input, ctx };

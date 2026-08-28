@@ -733,11 +733,14 @@ export type GameAction =
    * shop purchase's goods half: anything that puts stock in the bag rides here.
    *
    * ⚠ ADDITIVE, NEVER A REPLACEMENT, AND THAT IS LOAD-BEARING RATHER THAN STYLISTIC.
-   * `core/battle.ts` `bagHas` reads a key the bag does not carry as UNTRACKED = UNLIMITED, so the
-   * bag's meter is off for every id the save has never been granted. A grant is what switches it
-   * on, and it stays on because `applyGrant` never deletes a key and `bagConsume` decrements to 0
-   * rather than removing it. Replacing the map wholesale would switch the meter back off for every
-   * id the grant did not mention.
+   * `core/battle.ts` `bagHas` reads a key the bag does not carry as UNTRACKED = UNLIMITED, and
+   * which ids that applies to now splits in two. For the families `core/save.ts` `emptyMeteredBag`
+   * seeds — every `SNARE_TIERS` tier and both `balance.medicine` ids — the meter is on from boot
+   * and a grant only puts stock in. For every other family, baits and relics among them, the meter
+   * is still off until a grant creates the key, and a grant is still what switches it on. Either
+   * way it stays on once on, because `applyGrant` never deletes a key and `bagConsume` decrements
+   * to 0 rather than removing it. Replacing the map wholesale would switch the meter back off for
+   * every id the grant did not mention — the seeded ones included, which is the worse half.
    */
   | { t: "grant"; items: Record<string, number> };
 

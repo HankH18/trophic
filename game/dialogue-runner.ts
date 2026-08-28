@@ -489,10 +489,11 @@ export function applyRunFlags<S extends { questFlags: Record<string, FlagValue> 
  * without a replay arm. `applyGrant` is the same applier `replay`'s `case "grant"` calls, so the
  * live path and the replay path cannot disagree about what is in the bag: they are one function.
  *
- * ⚠ AND IT SWITCHES THE BAG'S METER ON. `core/battle.ts` `bagHas` reads an ABSENT key as
- * untracked-and-therefore-unlimited, so a save whose `items` has never carried `base` has infinite
- * base snares. The moment this lands `items.base` exists and every throw decrements it. That is the
- * intended effect of wiring the corpus's one `grants` entry up, not a side effect of it.
+ * ⚠ AND IT IS THE ONLY STOCK A NEW PLAYER HAS. It used to be what switched the bag's METER on:
+ * `core/battle.ts` `bagHas` reads an ABSENT key as untracked-and-therefore-unlimited, so a save
+ * whose `items` had never carried `base` had infinite base snares. `core/save.ts` `emptyMeteredBag`
+ * seeds every tier at 0 from boot now, so what wiring the corpus's one `grants` entry up changes is
+ * the COUNT — a `base` that is refused at 0 becomes a `base` that throws three times and runs out.
  *
  * `Object.keys(...).length === 0` early-returns for the reason {@link applyRunFlags}'s does, with
  * one more consequence here: without it every dialogue in the game — 215 entries of which exactly
