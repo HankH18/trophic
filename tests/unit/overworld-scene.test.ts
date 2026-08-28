@@ -467,7 +467,16 @@ import { createMovement, movementConfig, placeAt, spriteWorldPosition } from "@g
 // §15's reach question is asked through the SAME helpers `interact()` asks it through, so the
 // fixture and the scene cannot disagree about where a player standing on a tile actually is.
 import { propAt, propLabel, propsOf, type WorldPoint } from "@game/props";
-import { deserialize, newSave, openStreams, readBlackout, serialize, type SaveEnvelope } from "@core/save";
+import {
+  deserialize,
+  newSave,
+  openStreams,
+  readBlackout,
+  readPayout,
+  serialize,
+  trainerPayout,
+  type SaveEnvelope,
+} from "@core/save";
 /*
  * `subsystemRng` is deliberately NOT imported. §3 used to open its own battle stream with it; the
  * stream a battle must run off is the RUN's, which the scene hands over as `BattleSceneData.rng` —
@@ -5621,5 +5630,307 @@ describe("§18 [X] reads game/quests.ts releaseRefusal — the key and the line 
     });
     expect(saidB, "the key answered for the node the SAVE names").toContain(sentence);
     expect(countAt(b, here, lineId), "a count moved at a node the player is not standing in").toBe(beforeB);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §19 the trainer's purse is levied EXACTLY ONCE — counted by EXECUTION, not by source text
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * WHY THIS SECTION EXISTS, AND WHAT IT IS NOT A SECOND COPY OF.
+ *
+ * `game/wild-battle.ts` `applyBattleResult` is the one place a beaten trainer's purse is levied,
+ * and it is deliberately NOT idempotent — `tests/unit/trainer-payout.test.ts` §5 says so in its own
+ * title: "calling it twice pays twice — so 'once' is a property of the WIRING". Two gates already
+ * guard that wiring, and BOTH OF THEM READ CHARACTERS:
+ *
+ *   • trainer-payout §5 brace-matches `game/scenes/OverworldScene.ts` and counts four
+ *     `applyBattleResult(` calls, each supplying the balance — so a FIFTH written call is red;
+ *   • trainer-payout §5 and economy-wiring §5 count the payout entries ONE call appends — so a
+ *     second levy written inside `applyBattleResult` itself is red.
+ *
+ * Neither can see a call site written once and EXECUTED twice: a finish handler bound to two
+ * events, a retry, a second levy hung off the post-battle beat. A parse of a file's characters has
+ * no execution count in it. So every test below RUNS the shipping scene, hands the launcher's own
+ * `onFinished` a fight the real reducer could have produced, and then reads `save.money` and the
+ * tape the scene wrote.
+ *
+ * WHAT MAKES THE READING TRUSTWORTHY. `core/save.ts` `applyPayout` is the only writer of `money` in
+ * the repo, and `game/scenes/OverworldScene.ts` does not contain the word `money` at all — so a
+ * purse that moved here moved through production's own levy, and a purse that moved twice is two
+ * levies. Every expected amount is derived from `data/balance.json` and the levels the fight
+ * actually fielded (G11); no test below types a number.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/** Every purse on the tape, in order. `readPayout` is the reader `core/save.ts` `replay` uses. */
+function pursesOn(save: SaveEnvelope): number[] {
+  const paid: number[] = [];
+  for (const entry of save.actionLog) {
+    const amount = readPayout(entry.action);
+    if (amount !== null) paid.push(amount);
+  }
+  return paid;
+}
+
+/**
+ * The levels the LOSING side actually fielded.
+ *
+ * `enemyOrder` and not a filter of `battlers` on side, for `trainerPurse`'s own reason: a creature
+ * caught during a fight is in `battlers` too, and the roster the loser fielded is what is priced.
+ */
+function enemyLevelsOf(state: BattleSceneState): number[] {
+  const levels: number[] = [];
+  for (const uid of state.enemyOrder) {
+    const battler = state.battlers[uid];
+    if (battler) levels.push(battler.level);
+  }
+  return levels;
+}
+
+/** What one beaten roster is worth — the balance's rate against the levels, never a literal (G11). */
+function purseFor(state: BattleSceneState): number {
+  return trainerPayout(enemyLevelsOf(state), balance);
+}
+
+/** A fight the scene has opened and nobody has answered yet, with a sentence naming it. */
+interface OpenedFight {
+  h: Harness;
+  data: BattleSceneData;
+  where: string;
+}
+
+/**
+ * Walk onto the route bible §8's rival stands on and close his pre-battle box — §10.6's own route
+ * to a trainer fight, so what is measured afterwards is the shipping launcher and not a rig.
+ */
+async function openTheRivalsFight(): Promise<OpenedFight> {
+  const first = LADDER[0]!;
+  const row = content.rival.find((r) => r.act === first.act);
+  expect(row, `data/gyms.json ships no rival for act ${String(first.act)} — §19 has no trainer to beat`).toBeDefined();
+  const h = mount({ save: { ...freshSave(first.town), currentNode: first.town } });
+  withDialogueBox(h);
+  await h.scene.travelTo(row!.node);
+  expect(boxIsUp(h), `arriving at ${row!.node} opened no beat, so no rival fight can follow`).toBe(true);
+  answerBox(h);
+  const launch = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop();
+  expect(launch, `closing ${row!.id}'s pre-battle box at ${row!.node} started no fight`).toBeDefined();
+  const data = launch!.data as BattleSceneData;
+  expect(data.input.kind, "the rival's fight is not the trainer kind the purse is priced for").toBe("trainer");
+  return { h, data, where: `${row!.id}, fought on ${row!.node}` };
+}
+
+/** Open a fight of a kind that owes NOTHING, so the four kinds can be checked side by side. */
+function unpaidFight(kind: "wild" | "gym" | "ancient"): OpenedFight {
+  if (kind === "wild") {
+    const h = mount();
+    const data = walkIntoABattle(h);
+    return { h, data, where: `a wild encounter at ${data.input.nodeId}` };
+  }
+  if (kind === "gym") {
+    const first = LADDER[0]!;
+    const h = mount({ save: { ...freshSave(first.town), currentNode: first.town } });
+    withDialogueBox(h);
+    h.press(KEY_G);
+    h.frame();
+    answerBox(h); // the leader's pre-battle line; the fight starts when the box closes
+    const launch = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop();
+    expect(launch, `[G] at ${first.town} started no gym fight`).toBeDefined();
+    return { h, data: launch!.data as BattleSceneData, where: `${first.id} at ${first.town}` };
+  }
+  const run = playSlowRun();
+  const h = mount({ save: { ...run.save, questFlags: { ...run.save.questFlags } } }, registerBox);
+  answerBox(h, () => 0); // "Set the snare." — the ring's own first choice
+  const launch = h.parts.launches.filter((l) => l.key === SCENE_KEYS.battle).pop();
+  expect(launch, "setting the snare at the ring opened no fight").toBeDefined();
+  return {
+    h,
+    data: launch!.data as BattleSceneData,
+    where: `the Ancient at ${balance.encounter.finaleGatedNode}`,
+  };
+}
+
+describe("§19 the trainer's purse is levied exactly once, by the running game", () => {
+  it("THE RIG'S OWN PRICE is the balance's price — trainerPayoutFlat + Σ enemy levels × trainerPayoutPerLevel", async () => {
+    /*
+     * Asserted before anything is spent, because every test below compares against `purseFor`. If
+     * that helper and `data/balance.json` ever disagreed, a doubled levy could still land on the
+     * "expected" number and the whole section would pass while the game paid twice.
+     */
+    const { data, where } = await openTheRivalsFight();
+    const state = settledState(data, "win");
+    const levels = enemyLevelsOf(state);
+    expect(levels.length, `${where} fielded nobody — there is no roster to price`).toBeGreaterThan(0);
+
+    // Both halves of the purse, neither taken on trust: zero either and the arithmetic below would
+    // hold over nothing. `balance.economy._trainerPayout` records why the flat half exists.
+    const flat = balance.economy.trainerPayoutFlat;
+    const rate = balance.economy.trainerPayoutPerLevel;
+    expect(flat, "the flat per-fight fee is zero — the purse's flat half proves nothing").toBeGreaterThan(0);
+    expect(rate, "the per-level rate is zero — the purse's per-level half proves nothing").toBeGreaterThan(0);
+
+    const summed = levels.reduce((a, b) => a + b, 0);
+    expect(purseFor(state), `${where}: the price and the balance's own arithmetic disagree`).toBe(
+      Math.round(flat + rate * summed),
+    );
+    // The flat half really is levied by what the scene will pay from, not only by the primitive's
+    // own tests: a purse reverted to `rate × Σ` lands short by exactly the fee and fails here.
+    expect(
+      purseFor(state),
+      `${where}: the price is the per-level half alone — the flat per-fight fee is missing`,
+    ).not.toBe(Math.round(rate * summed));
+    expect(
+      purseFor(state),
+      `${where} prices at nothing — every "the purse moved" assertion in §19 would be vacuous`,
+    ).toBeGreaterThan(0);
+  });
+
+  it("⚠ A RIVAL BEATEN pays ONE purse — on the save and on the tape, for one finished fight", async () => {
+    /*
+     * THE ASSERTION THE SOURCE-TEXT GATES CANNOT MAKE. One fight is handed back exactly once; what
+     * is counted is what the SCENE then did. A launcher whose levy runs twice — a duplicated line,
+     * a re-entrant handler, a retry — moves `money` by twice the roster's price and puts two
+     * entries on the tape, and both halves of that are read below.
+     */
+    const { h, data, where } = await openTheRivalsFight();
+    const state = settledState(data, "win");
+    const owed = purseFor(state);
+    const moneyBefore = h.scene.save.money;
+    const pursesBefore = pursesOn(h.scene.save).length;
+
+    data.onFinished({ state, caught: null });
+
+    const paid = h.scene.save.money - moneyBefore;
+    expect(
+      paid,
+      `${where}: ONE finished fight moved the purse by ${String(paid)}, and the roster it fielded ` +
+        `(levels ${enemyLevelsOf(state).join(", ")}) prices at ${String(owed)}. ` +
+        `${String(owed * 2)} means the levy ran twice for one fight; 0 means it did not run at all.`,
+    ).toBe(owed);
+
+    const written = pursesOn(h.scene.save).slice(pursesBefore);
+    expect(
+      written,
+      `${where}: one finished fight wrote ${String(written.length)} payout entries on the tape ` +
+        `(${written.join(", ") || "none"}). L10 wants exactly one, of ${String(owed)} — a second ` +
+        `entry is a second levy, and a missing one is money the replay cannot reproduce.`,
+    ).toEqual([owed]);
+
+    // The two halves are one fact: what the tape says was paid IS what the save is holding.
+    expect(
+      written.reduce((a, b) => a + b, 0),
+      `${where}: the save moved by ${String(paid)} and its own tape accounts for something else`,
+    ).toBe(paid);
+  });
+
+  it("⚠ …and the BEAT THAT FOLLOWS the fight pays nothing more — the levy is bound to one event", async () => {
+    /*
+     * THE OTHER SHAPE OF "EXECUTED TWICE", and it is not the same test as the one above: a second
+     * levy hung off the rival's post-battle line, or off the frame that reopens the overworld,
+     * fires AFTER `onFinished` has returned and after the assertions above have already passed.
+     * So the fight is finished, the win beat is answered the way a player answers it, the scene is
+     * given frames to act on, and the purse is read again.
+     */
+    const { h, data, where } = await openTheRivalsFight();
+    const state = settledState(data, "win");
+    const owed = purseFor(state);
+    const moneyBefore = h.scene.save.money;
+
+    data.onFinished({ state, caught: null });
+    const settled = h.scene.save.money;
+    expect(
+      settled - moneyBefore,
+      `${where}: the fight itself paid ${String(settled - moneyBefore)} where its roster prices at ` +
+        `${String(owed)} — the levy is already wrong at the finish handler, before the beat this ` +
+        `test is about has played at all.`,
+    ).toBe(owed);
+
+    // The rival's own answer to a win — this is what writes `rival.act<N>.fought`.
+    expect(boxIsUp(h), `${where}: winning opened no post-battle beat, so nothing follows to test`).toBe(true);
+    answerBox(h);
+    for (let i = 0; i < 3; i += 1) h.frame();
+
+    expect(
+      h.scene.save.money,
+      `${where}: the purse moved again AFTER the fight was over — from ${String(settled)} to ` +
+        `${String(h.scene.save.money)} while the post-battle beat played. The levy belongs to the ` +
+        `finish handler and to nothing else.`,
+    ).toBe(settled);
+    expect(
+      pursesOn(h.scene.save),
+      `${where}: the tape grew a payout entry after the fight had already been paid for`,
+    ).toEqual([owed]);
+  });
+
+  it("⚠ A RIVAL FIGHT LOST pays NOTHING — a purse follows a win and only a win", async () => {
+    /*
+     * `trainerPurse` gates on `outcome === "win"`, and a build that dropped that clause would pay
+     * the player for being wiped. The loss is driven all the way through: the rival's loss line,
+     * the blackout, and the innkeeper of the town the party woke in — all of which run inside the
+     * same finish handler, and any of which could be where a stray levy lives.
+     */
+    const { h, data, where } = await openTheRivalsFight();
+    const state = settledState(data, "loss");
+    const moneyBefore = h.scene.save.money;
+
+    data.onFinished({ state, caught: null });
+    answerBox(h); // the rival's loss line
+    expect(answerBox(h), `${where}: a wiped party did not black out`).toBe(BLACKOUT_ENTRY_ID);
+    answerBox(h); // the innkeeper of the town the party woke in
+
+    expect(
+      h.scene.save.money,
+      `${where}: losing paid the player ${String(h.scene.save.money - moneyBefore)}. A beaten ` +
+        `trainer pays; a beaten PLAYER is paid by nobody.`,
+    ).toBe(moneyBefore);
+    expect(pursesOn(h.scene.save), `${where}: a lost fight put a payout entry on the tape`).toEqual([]);
+  });
+
+  it.each(["wild", "gym", "ancient"] as const)(
+    "a %s fight pays NOTHING — bible §11's currency comes from trainer battles, and that is one kind",
+    (kind) => {
+      /*
+       * The three kinds that are NOT the trainer, each driven to a WIN through its own shipping
+       * launcher. A win rather than a loss on purpose: `trainerPurse` refuses on two conditions and
+       * a fight the player lost would be refused by the outcome clause even if the kind clause were
+       * gone, so only a WON non-trainer fight can see the kind check on its own.
+       */
+      const { h, data, where } = unpaidFight(kind);
+      const state = settledState(data, "win");
+      expect(state.kind, `${where} is not the ${kind} kind the launcher was asked for`).toBe(kind);
+      const moneyBefore = h.scene.save.money;
+      const pursesBefore = pursesOn(h.scene.save).length;
+
+      data.onFinished({ state, caught: null });
+
+      expect(
+        h.scene.save.money - moneyBefore,
+        `winning ${where} minted ${String(h.scene.save.money - moneyBefore)} — a ${kind} fight owes ` +
+          `nothing, so this is currency the region has no source for.`,
+      ).toBe(0);
+      expect(
+        pursesOn(h.scene.save).length - pursesBefore,
+        `winning ${where} wrote a payout entry; a fight that owes nothing appends nothing`,
+      ).toBe(0);
+    },
+  );
+
+  it("A WHOLE PLAYED RUN of gym wins is worth nothing — five real fights, five real finish handlers", () => {
+    /*
+     * The execution count across a SESSION rather than across one fight. `playSlowRun` climbs the
+     * whole ladder through `challengeGym` and answers every fight through the launcher's own
+     * `onFinished`, so a levy that fired on the wrong kind — or fired twice — would have had five
+     * separate chances to leave a mark on this save.
+     */
+    const run = playSlowRun();
+    expect(LADDER.length, "the ladder is empty — this run fought nobody").toBeGreaterThan(0);
+    expect(
+      pursesOn(run.save),
+      `a run of ${String(LADDER.length)} gym wins left ${String(pursesOn(run.save).length)} purses ` +
+        `on the tape (${pursesOn(run.save).join(", ") || "none"}) — no gym owes one`,
+    ).toEqual([]);
+    expect(
+      run.save.money,
+      `a run of ${String(LADDER.length)} gym wins ended holding ${String(run.save.money)}`,
+    ).toBe(0);
   });
 });

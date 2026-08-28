@@ -37,7 +37,9 @@
  * chance drawn only for an Elder, then one `pick` per slot) so collapsing them is a delete.
  *
  * NUMBERS (G11): `balance.traits`, `balance.xp.starterLevel`, `balance.party.maxPartySize`,
- * `balance.economy`/`balance.snare` item ids through the save's own bag. No literal.
+ * `balance.economy`/`balance.snare` item ids through the save's own bag, and the purse a beaten
+ * trainer pays through `core/save.ts` `trainerPayout` (`balance.economy.trainerPayoutPerLevel`,
+ * never restated here). No literal.
  * RANDOMNESS (G11): the injected `core/rng.ts` stream. No `Math.random`.
  */
 
@@ -57,8 +59,11 @@ import {
   appendAction,
   applyBattleAftermath,
   applyCaught,
+  applyPayout,
   battleAftermathAction,
   catchAction,
+  payoutAction,
+  trainerPayout,
   type BattleAftermath,
   type SaveEnvelope,
 } from "../core/save";
@@ -67,6 +72,7 @@ import type {
   Balance,
   BattleInput,
   BattlerSpec,
+  BattleKind,
   BattleState,
   Content,
   NodeFile,
@@ -263,8 +269,25 @@ export function buildWildBattle(opts: {
     playerParty: partySpecs(save),
     enemyParty: [{ ...wildBattlerSpec(encounter), uid: wildUid(encounter, opts.seq ?? save.actionLog.length) }],
     nodeId: encounter.nodeId,
-    // The bag IS the save's items (build-doc §7.8). No snare is conjured for the fight: a player
-    // with no snares cannot catch anything, which is the honest state and the one the economy tunes.
+    // The bag IS the save's items (build-doc §7.8). No snare is conjured for the fight.
+    //
+    // ⚠ THIS COMMENT USED TO CLAIM "a player with no snares cannot catch anything, which is the
+    // honest state and the one the economy tunes." THAT WAS FALSE, and it never went red. Measured
+    // through this exact seam from a real `startNewGame`: a fresh save's `items` is `{}` (core/
+    // save.ts:421, and no production caller passes `opts.items`), and `bagHas` in core/battle.ts:1208
+    // returns TRUE for a key that is ABSENT — "untracked", an affordance for the balance harness,
+    // which carries no bag. `bagConsume` likewise returns early on an absent key. So the guard at
+    // core/battle.ts:1537 never fires for a new player: snares throw at the shipped chance, the count
+    // never decrements, and catching is UNLIMITED rather than impossible.
+    //
+    // The guard itself is sound — with `items: {base: 2}` the two throws decrement and the third is
+    // refused with `actionRejected`. The economy is enforced only for a key that is PRESENT, and
+    // nothing writes one. That is why Maren's "three of them, in the satchel by the door" has never
+    // corresponded to anything.
+    //
+    // Every catching test mints its own bag (`{master: 99}`, `{master: 4}`), so the suite's green
+    // about catching is evidence about FIXTURES. Nothing in tests/ covers the player's real bag —
+    // which is how a false comment survived 2,954 passing tests. If you add a grant, add that test.
     bag: { ...save.items },
   };
   return { input, ctx };
@@ -484,6 +507,50 @@ export function battleAftermath(
   return { party, items: { ...state.bag } };
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * The purse (bible §11 — "Currency from quests + trainer battles")
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The `BattleKind` a beaten TRAINER wears, named once so a typo is a compile error rather than a
+ * fight that silently pays nothing. `core/types.ts` `BATTLE_KINDS` is
+ * `["wild", "trainer", "gym", "ancient"]` — there is no `"rival"` kind: `game/rival.ts` builds its
+ * input with `kind: "trainer"`, and the rival IS the trainer the bible's §11 line is about.
+ */
+const TRAINER_KIND: BattleKind = "trainer";
+
+/**
+ * WHAT A FINISHED FIGHT OWES, in money. Zero for everything that is not a WON trainer battle, and
+ * zero is not a special case — it is the answer for the other three kinds, for a loss, for a flee
+ * and for an unresolved state.
+ *
+ * WHY ONLY `"trainer"`. content-bible §11: "Currency from quests + trainer battles; sinks: snares,
+ * bait mats, inn, forge." The four launchers build four distinct kinds — `game/wild-battle.ts`
+ * `"wild"`, `game/gym-battle.ts` `"gym"`, `game/rival.ts` `"trainer"`, `game/finale.ts`
+ * `"ancient"` — so "trainer battles" names exactly one of them. Whether a GYM leader is also a
+ * "trainer" for the purposes of that sentence is an OPEN question and is recorded as one rather
+ * than answered here (G2): the bible's audio manifest groups them ("Trainer/gym battle"), its
+ * economy line does not, and inventing the wider reading would mint currency no document asks for.
+ *
+ * THE LEVELS COME OFF `enemyOrder`, NOT off a filter of `battlers` on `side`. A caught wild
+ * battler is in `battlers` too, and `enemyOrder` is the roster the loser actually fielded — which
+ * is what `core/save.ts` `trainerPayout` prices. The arithmetic itself is entirely that function's:
+ * nothing here multiplies, and `balance.economy.trainerPayoutPerLevel` is never named as a number
+ * (G11).
+ */
+export function trainerPurse(
+  state: Pick<BattleState, "battlers" | "enemyOrder" | "kind" | "outcome">,
+  balance: Balance,
+): number {
+  if (state.kind !== TRAINER_KIND || state.outcome !== "win") return 0;
+  const levels: number[] = [];
+  for (const uid of state.enemyOrder) {
+    const battler = state.battlers[uid];
+    if (battler) levels.push(battler.level);
+  }
+  return trainerPayout(levels, balance);
+}
+
 /**
  * Apply a finished fight to the save: the tape entry, then the write. The ONE call all four
  * launchers' finish handlers make.
@@ -499,13 +566,41 @@ export function battleAftermath(
  * Safe to call BEFORE or AFTER `applyWildBattleOutcome`/`resolveVellsireCatch` on the same fight:
  * the aftermath names only battlers that were fielded, and a creature caught in that fight is not
  * one of them. Call it first, so the tape reads as the fight and then its prize.
+ *
+ * ══ AND NOW THE PURSE (bible §11), LEVIED HERE FOR THE REASON THE AFTERMATH IS ══
+ * This is where the four launchers converge, so it is the only place a payout can be levied exactly
+ * ONCE per fight without four copies of the clause. {@link trainerPurse} decides whether anything is
+ * owed; a fight that owes nothing appends nothing, so a wild, gym or ancient fight's tape is
+ * byte-identical to what it was before this paragraph existed.
+ *
+ * IT GOES ON THE TAPE, through `payoutAction` + `applyPayout` — the same applier `replay`'s
+ * `case "payout"` reaches. A write that skipped the tape would make L10 silently false in exactly
+ * the shape `{t:"innRest"}` once shipped in: the live save richer than its own replay, and the
+ * divergence loading cleanly.
+ *
+ * ⚠ `balance` IS OPTIONAL, AND WITHOUT IT NOTHING IS PAID. That is not a policy, it is a
+ * compatibility seam and it is the one hazard in this function: `SaveEnvelope` carries no `Balance`
+ * and `BattleState` carries no `Balance`, so the purse cannot be priced from the two arguments this
+ * function had. Making the third argument REQUIRED would have been a compile error in three test
+ * files and in `game/scenes/OverworldScene.ts`, none of which this lane may edit. So the production
+ * launchers MUST pass it — `ctx.balance` is in scope at all four call sites — and a launcher that
+ * forgets pays nothing while looking correct. `tests/unit/trainer-payout.test.ts` §5 asserts the
+ * four call sites in `OverworldScene` supply it, so forgetting is a red test rather than a quiet
+ * zero.
  */
 export function applyBattleResult(
   save: SaveEnvelope,
-  state: Pick<BattleState, "battlers" | "playerOrder" | "bag">,
+  state: Pick<BattleState, "battlers" | "playerOrder" | "bag" | "enemyOrder" | "kind" | "outcome">,
+  balance?: Balance,
 ): SaveEnvelope {
   const aftermath = battleAftermath(state);
-  return applyBattleAftermath(appendAction(save, battleAftermathAction(aftermath)), aftermath);
+  const next = applyBattleAftermath(appendAction(save, battleAftermathAction(aftermath)), aftermath);
+  if (balance === undefined) return next;
+  const purse = trainerPurse(state, balance);
+  // Nothing owed, nothing written — the "nothing to do" early return `applyRunFlags` uses, and the
+  // reason a wild fight's tape did not grow a `{"t":"payout","amount":0}` entry.
+  if (purse === 0) return next;
+  return applyPayout(appendAction(next, payoutAction(purse)), purse);
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

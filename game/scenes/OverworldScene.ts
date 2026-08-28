@@ -57,6 +57,8 @@ import { deriveStream, subsystemRng, type Rng } from "../../core/rng";
 import { validateContent } from "../../core/schemas";
 import {
   appendAction,
+  applyGrant,
+  grantAction,
   newSave,
   openStreams,
   type RngStreams,
@@ -72,7 +74,16 @@ import type {
   RivalEncounter,
   SaveFile,
   Season,
+  SnareTier,
 } from "../../core/types";
+/*
+ * THE SHOP IS A ROW MODEL, NOT A SCENE. `game/shop.ts` is Phaser-free and holds every rule — what is
+ * on the shelf, what each row costs (`balance.economy`, G11), which row is still locked behind a
+ * badge, and the two tape entries a purchase writes. This file draws those rows and presses the
+ * keys, exactly as it does for `game/battle-input.ts`'s rows in the battle menu, and decides
+ * nothing about them.
+ */
+import { ShopError, buy, shopRows, type ShopRow } from "../shop";
 /*
  * THE INTERIOR MODEL, AND NOTHING ELSE FROM IT. `core/interiors.ts` holds the blueprints, their
  * schema and the second pass over the ASCII plan that reads its anchors; it deliberately does NOT
@@ -148,6 +159,7 @@ import { SCENE_KEYS, sceneRegistered } from "../scene-keys";
 import {
   actOf,
   awardBadge,
+  hasBadge,
   markRunCompleteShown,
   prologueExitFlags,
   runCompleteShown,
@@ -161,6 +173,7 @@ import { buildGymBattle, gymAtNode, gymBattleProblem, gymBattleWon } from "../gy
 import {
   DIALOGUE,
   applyRunFlags,
+  applyRunGrants,
   autoplayEntryFor,
   battleEntryFor,
   battleOutcomeKind,
@@ -265,6 +278,81 @@ const BATTLE_STREAM = "battle";
  * that checks the tag against `balance.rng.subsystemTags`. A copy of it here is exactly how the two
  * replay harnesses ended up modelling a stream the game no longer used.
  */
+
+/**
+ * The role tag the corpus puts on a shopkeeper — the same read `core/recovery.ts` makes with
+ * `INNKEEPER_ROLE` to answer "is there an inn here", and for the same reason: the answer is in
+ * `data/dialogue.json`, and a list of shop nodes written out here would be the second table G3
+ * forbids.
+ *
+ * ⚠ `kind: "service"` DOES NOT MEAN "SHOP". `core/interiors.ts` counts twelve `kind:"service"`
+ * entries and one of them is `narration.blackout`, the black screen a wiped party wakes from; the
+ * five inns are service entries too. The question this file asks is therefore about the SPEAKER —
+ * who is standing on the other side of the anchor — and not about the entry's kind.
+ */
+const VENDOR_ROLE = "vendor";
+
+/**
+ * The snare tier Hank's ruling grants at the fifth gym. `game/shop.ts` names the same tier as the
+ * one it does NOT sell (`UNSOLD_TIER`), out of the same vocabulary: `SnareTier` is core's own, so a
+ * retune that renames a tier is a compile error here rather than a grant of an item that does not
+ * exist.
+ */
+const MASTER_GRANT_TIER: SnareTier = "master";
+
+/**
+ * The leader whose defeat hands over the master snares — Hank's ruling: *"the player be given three
+ * master snares at the completion of the fifth gym."* `noct` is the fifth leader (`data/gyms.json`,
+ * `act: 5`), read out of shipped content rather than invented (G2), and checked against
+ * `content.gyms` where it is used rather than trusted.
+ *
+ * ⚠ BLOCKER, AND IT IS `game/shop.ts` `WEIGHTED_UNLOCK_GYM`'S BLOCKER AGAIN: this is a content id in
+ * code because the balance key that would replace it does not exist, and a key added to
+ * `data/balance.json` alone never arrives — `core/schemas.ts` validates balance with a plain
+ * `z.object`, which STRIPS unknown keys, so the tunable has to be declared in `core/types.ts`
+ * `Balance` and in `zBalance` too. All three files are outside this file's grant.
+ */
+const MASTER_GRANT_GYM = "noct";
+
+/**
+ * The `balance.economy` key that says HOW MANY master snares that victory hands over.
+ *
+ * ⚠ BLOCKER — THE KEY IS NOT IN `data/balance.json` YET, and this file may not add it. Until it is,
+ * the grant does not fire and {@link OverworldScene.grantMasterSnares} says so on screen, which is
+ * this scene's standing answer to a seam nothing is on the other side of. It is NOT defaulted to a
+ * number here: three is a gameplay constant and G11 gives it exactly one home.
+ */
+const MASTER_GRANT_KEY = "masterSnareGrant";
+
+/**
+ * The shopkeeper an interior anchor's entry belongs to, or null when nobody who sells anything is on
+ * the other side of it.
+ *
+ * A THIN READ OF THE CORPUS, on `core/recovery.ts` `innkeeperAt`'s terms: the entry names its
+ * speaker and the speaker table tags the role, so "this anchor opens a shop" is the data's own
+ * statement rather than a second table in `game/`.
+ */
+function vendorOfEntry(entryId: string): string | null {
+  const entry = DIALOGUE.entries.find((e) => e.id === entryId);
+  if (!entry) return null;
+  const speaker = DIALOGUE.speakers.find((s) => s.id === entry.speaker);
+  return speaker !== undefined && speaker.role === VENDOR_ROLE ? speaker.id : null;
+}
+
+/**
+ * How many master snares the fifth gym hands over, or null when `data/balance.json` does not say.
+ *
+ * READ THROUGH A CAST because the key is not on the `Balance` type yet (see {@link MASTER_GRANT_KEY}
+ * for why this file cannot put it there). Everything `core/save.ts` `applyGrant` refuses — a
+ * fraction, a negative, a non-number — is refused here instead of reaching it as a
+ * `SaveCorruptError` out of a finish handler.
+ */
+function masterGrantCount(balance: Balance): number | null {
+  const economy = balance.economy as unknown as Record<string, unknown>;
+  const raw = economy[MASTER_GRANT_KEY];
+  if (typeof raw !== "number" || !Number.isInteger(raw) || raw < 0) return null;
+  return raw;
+}
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Seams
@@ -410,6 +498,30 @@ export class OverworldScene extends Phaser.Scene {
    * screen, and that is the path every shipped room takes today.
    */
   private interiorArt: Phaser.GameObjects.Image | null = null;
+
+  /**
+   * The shop the player has open, as `game/shop.ts` rows — null when nobody is being served.
+   *
+   * HELD RATHER THAN RE-DERIVED EVERY FRAME, and re-derived on every purchase: the rows carry the
+   * purse's answer (`disabled` / `reason`), so a list left standing after a buy would keep offering
+   * a row the player can no longer afford. {@link buySelected} rebuilds it in the same statement it
+   * adopts the new save.
+   */
+  private shop: ShopRow[] | null = null;
+  /** Which row the cursor is on. Clamped to the list on every rebuild, never trusted across one. */
+  private shopCursor = 0;
+  /** The speaker serving — for the HUD line, so the room says WHO is being bought from. */
+  private shopVendor: string | null = null;
+  /**
+   * Why the fifth gym's master snares were not handed over, or null when nothing is wrong.
+   *
+   * ⚠ PERSISTENT, ON THE SAME CHANNEL AS {@link spawnProblem}, AND THAT IS THE POINT. A banner is
+   * a two-second tween and this beat fires from inside a finish handler that immediately plays the
+   * leader's answer — measured: the grant's own banner was overwritten by the badge line in the
+   * same frame, so a missing tunable was reported to nobody. A line that stays on the HUD is what
+   * makes "it says so" true.
+   */
+  private grantProblem: string | null = null;
 
   private hooks: OverworldHooks = {};
   private startNodeId: string | null = null;
@@ -618,6 +730,12 @@ export class OverworldScene extends Phaser.Scene {
     // drop one — a restart taken inside the single frame between a beat closing and the next
     // opening, which needs the in-run menu to be keyed in that frame.
     this.pendingEntry = null;
+    // …and the shop, for the same reason and one more: the rows are a snapshot of a save this
+    // restart may have replaced outright (`init` takes a new one), so a list that survived would be
+    // priced against a purse that no longer exists.
+    this.shop = null;
+    this.shopCursor = 0;
+    this.shopVendor = null;
     this.handingBack = false;
     this.autoplayed = new Set<string>();
     this.spokenHere = new Set<string>();
@@ -1145,7 +1263,173 @@ export class OverworldScene extends Phaser.Scene {
       this.flashBanner(`${bp.id}.${anchor.id} — nothing to say`);
       return;
     }
-    this.playEntry(entryId, `${bp.name} · ${anchor.id}`);
+    /*
+     * ⚠ THE VENDOR'S ANCHOR OPENS THE SHOP, AND THE LINE STILL PLAYS FIRST.
+     *
+     * Before this, the service branch ended at `playEntry` and returned: standing on the tile
+     * `data/interiors/hearthollow-supply.json` calls "the tile the player stands on to trigger the
+     * shop service" played Kett's three lines about her stock and sold nothing. `game/shop.ts` was
+     * a row model with no caller anywhere in the running game.
+     *
+     * WHICH ANCHORS THESE ARE IS THE CORPUS'S ANSWER, not a name match and not the anchor's `kind`:
+     * {@link vendorOfEntry} asks who speaks the entry and whether the speaker table tags them
+     * `vendor`. `narration.blackout` is a `kind:"service"` entry too and its speaker is `narration`,
+     * so the black screen cannot open a shop; the five inns' service beats belong to speakers tagged
+     * `innkeeper`, so [R] keeps the inn and the shop does not appear in it.
+     *
+     * THE LINE IS NOT REPLACED BY THE SHOP. Kett's own copy is her whole shipped corpus — three
+     * lines, and the only place the bait crate and the smith with no iron are said — so the beat
+     * plays and the rows open behind it, as the continuation `playEntry` already takes for a
+     * battle-pre. A headless run (no dialogue box registered) runs the continuation too, so the
+     * shop is reachable in a rig that has no box.
+     */
+    const vendor = vendorOfEntry(entryId);
+    this.playEntry(
+      entryId,
+      `${bp.name} · ${anchor.id}`,
+      vendor === null ? undefined : () => this.openShop(vendor),
+    );
+  }
+
+  /* ── the shop (content-bible §11) ─────────────────────────────────────── */
+
+  /**
+   * Open the shelf. `game/shop.ts` decides what is on it and what each row costs; this decides only
+   * that it is on screen.
+   */
+  private openShop(vendor: string): void {
+    if (this.isHandedOver() || this.travelling) return;
+    this.shopVendor = vendor;
+    this.shopCursor = 0;
+    this.shop = shopRows(this.save, this.balance);
+    this.hudDirty = true;
+    this.refreshHud();
+    this.flashBanner(`${vendor} · ${String(this.shop.length)} rows · purse ${String(this.save.money)}`);
+  }
+
+  private closeShop(): void {
+    const vendor = this.shopVendor;
+    this.shop = null;
+    this.shopCursor = 0;
+    this.shopVendor = null;
+    this.hudDirty = true;
+    this.refreshHud();
+    if (vendor !== null) this.flashBanner(`left ${vendor}`);
+  }
+
+  /** Whether the shelf has the screen. Read by tests and by {@link update}'s first question. */
+  isShopping(): boolean {
+    return this.shop !== null;
+  }
+
+  /** The rows on screen, or an empty list when the shop is shut. A copy: the field is not handed out. */
+  shopOnScreen(): ShopRow[] {
+    return this.shop === null ? [] : [...this.shop];
+  }
+
+  /** Which row the cursor is on, or -1 when the shop is shut. */
+  shopCursorAt(): number {
+    return this.shop === null ? -1 : this.shopCursor;
+  }
+
+  /**
+   * THE SHELF HAS THE KEYS WHILE IT IS OPEN — up/down choose, [E] buys, [X] closes.
+   *
+   * ⚠ MODAL, AND THAT IS WHY {@link update} RETURNS ON IT. A shop drawn over a scene that still
+   * answered [R], [G], [X] and 1–6 would let the player rest, fight a leader, release a creature and
+   * fast-travel out of the room with the shelf still on screen and its rows priced against a purse
+   * three actions old. Nothing else in this frame is read.
+   *
+   * NO NEW KEY IS BOUND. Every key here is one {@link bindKeys} already binds, and the direction
+   * read is `pressedDirections`/`newlyPressed` — the movement model's own edge detector — so the
+   * cursor answers a tap the way a step does, and a direction held down does not run the list.
+   */
+  private updateShop(): void {
+    const rows = this.shop;
+    if (rows === null) return;
+
+    const pressed = this.pressedDirections();
+    const fresh = newlyPressed(pressed, this.heldLastFrame);
+    // Tracked here as well as in the walking half of `update`, or a direction held across the frame
+    // the shop closes on would be read as a fresh press and take a step nobody asked for.
+    this.heldLastFrame = new Set<Direction>(pressed);
+
+    if (this.releaseKey && Phaser.Input.Keyboard.JustDown(this.releaseKey)) {
+      this.closeShop();
+      return;
+    }
+    if (this.talkKey && Phaser.Input.Keyboard.JustDown(this.talkKey)) {
+      this.buySelected();
+      return;
+    }
+    if (rows.length === 0) return;
+    let cursor = this.shopCursor;
+    if (fresh.includes("up")) cursor -= 1;
+    if (fresh.includes("down")) cursor += 1;
+    // Clamped rather than wrapped: a list that jumps from the last row to the first under a held key
+    // is how a player buys the wrong thing.
+    cursor = Math.max(0, Math.min(rows.length - 1, cursor));
+    if (cursor !== this.shopCursor) {
+      this.shopCursor = cursor;
+      this.hudDirty = true;
+    }
+  }
+
+  /**
+   * Buy the row under the cursor.
+   *
+   * ⚠ THE REFUSAL IS ASKED HERE AND ANSWERED ON SCREEN, because `core/save.ts` `applyPayout` throws
+   * `SaveCorruptError` on an overdraw — `core/schemas.ts` types `money` as `z.number().min(0)`, so a
+   * negative purse is a save that will not load. `game/shop.ts` reports both refusals as a greyed
+   * row with a `reason`, and this reads that rather than reaching the throw. The `catch` is the belt
+   * to that braces: a `ShopError` out of an id the shelf stopped offering between two frames is a
+   * banner, not a crash inside a room the player cannot leave.
+   */
+  private buySelected(): void {
+    const rows = this.shop;
+    if (rows === null) return;
+    const row = rows[this.shopCursor];
+    if (row === undefined) {
+      this.flashBanner(`${this.shopVendor ?? "shop"} — nothing on the shelf`);
+      return;
+    }
+    if (row.disabled) {
+      this.flashBanner(`${row.id} — ${row.reason ?? "not for sale"}`);
+      return;
+    }
+    try {
+      this.save = buy(this.save, row.id, this.balance);
+    } catch (err) {
+      this.flashBanner(`${row.id} — ${err instanceof ShopError ? err.message : describe(err)}`);
+      return;
+    }
+    // Re-derived off the SAVE the purchase produced, so the next press is priced against the purse
+    // the last one left behind.
+    this.shop = shopRows(this.save, this.balance);
+    this.shopCursor = Math.max(0, Math.min(this.shop.length - 1, this.shopCursor));
+    this.hudDirty = true;
+    this.refreshHud();
+    this.hooks.onSaveChanged?.(this.save, this);
+    // G7 — an id, two integers and nothing about the player.
+    this.flashBanner(
+      `bought ${row.id} · ${String(row.price)} · purse ${String(this.save.money)} · ` +
+        `${row.id} ${String(this.save.items[row.id] ?? 0)}`,
+    );
+  }
+
+  /** The shelf, for the HUD. Empty when the shop is shut, so the caller spreads it unconditionally. */
+  private shopLines(): string[] {
+    const rows = this.shop;
+    if (rows === null) return [];
+    const lines = [`shop ${this.shopVendor ?? ""} · purse ${String(this.save.money)}`];
+    if (rows.length === 0) lines.push("  (nothing on the shelf)");
+    rows.forEach((row, i) => {
+      const cursor = i === this.shopCursor ? ">" : " ";
+      const why = row.reason === null ? "" : ` — ${row.reason}`;
+      lines.push(`${cursor} ${row.label} · ${row.detail}${why}`);
+    });
+    lines.push("[up/down] choose · [E] buy · [X] close");
+    return lines;
   }
 
   /* ── input ────────────────────────────────────────────────────────────── */
@@ -1209,6 +1493,21 @@ export class OverworldScene extends Phaser.Scene {
     if (pending !== null) {
       this.pendingEntry = null;
       this.openBox(pending);
+      return;
+    }
+    /*
+     * ⚠ THE SHELF IS MODAL AND IT IS ASKED SECOND, after the queued beat and before every key. See
+     * {@link updateShop}: a shop drawn over a scene that still answered [R], [G], [X] and 1–6 is a
+     * player resting, fighting and fast-travelling with a price list on screen. The HUD is still
+     * refreshed at the foot of this method — the shelf redraws when its cursor moves — so the frame
+     * is not dead, only spent on the shop.
+     */
+    if (this.shop !== null) {
+      this.updateShop();
+      if (this.hudDirty) {
+        this.hudDirty = false;
+        this.refreshHud();
+      }
       return;
     }
     if (this.overlayKey && Phaser.Input.Keyboard.JustDown(this.overlayKey)) this.toggleOverlay();
@@ -1614,7 +1913,7 @@ export class OverworldScene extends Phaser.Scene {
      * creature caught in this fight is not one of them — but written this way the tape reads as
      * the fight and then its prize.
      */
-    this.save = applyBattleResult(this.save, result.state);
+    this.save = applyBattleResult(this.save, result.state, this.balance);
 
     const applied = applyWildBattleOutcome({
       save: this.save,
@@ -1871,6 +2170,25 @@ export class OverworldScene extends Phaser.Scene {
   private finishDialogue(state: DialogueRunState, who: string): void {
     this.scene.stop(SCENE_KEYS.dialogue);
     this.save = applyRunFlags(this.save, state);
+    /*
+     * THE RUN'S GRANTS LAND HERE, BESIDE ITS FLAGS, AND THAT ADJACENCY IS THE POINT. This is the one
+     * place in `game/` a dialogue run's writes reach the save, so it is the only place a grant can
+     * land without inventing a second writer — and landing it on the line after `applyRunFlags`
+     * means the stock and the `setFlags` latch that stops it being handed over twice are adopted in
+     * the same statement pair, off the same `state`.
+     *
+     * ⚠ NOTHING READ `DialogueEntry.grants` BEFORE THIS LINE. Measured across `game/` and `core/`:
+     * the field was validated by `core/dialogue-schema.ts` (a real bag id, and a must-write path
+     * analysis proving a granting entry cannot fire twice) and consumed by nobody, so
+     * `maren.tutorial.snare`'s "Three of them, in the satchel by the door." handed over nothing.
+     * It also means this line CHANGES CATCHING: `core/battle.ts` `bagHas` reads a key absent from
+     * `items` as untracked-and-unlimited, so until the first grant exists the player has infinite
+     * snares. From here `items.base` exists from the tutorial onward and the meter is on.
+     *
+     * Unlike `applyRunFlags` this one writes the ACTION LOG as well as the save — see
+     * `applyRunGrants` for why a bag mutation that skips the tape makes L10 quietly false.
+     */
+    this.save = applyRunGrants(this.save, state);
     const said = transcript(DIALOGUE, state);
     this.lastSpoken = said[said.length - 1] ?? "";
     if (state.problem !== null) this.flashBanner(state.problem);
@@ -2588,7 +2906,7 @@ export class OverworldScene extends Phaser.Scene {
         this.hudDirty = true;
         // The damage, the levels and the bag, before anything reads the party again — see
         // `finishWildBattle` for why this call is the one that was missing.
-        this.save = applyBattleResult(this.save, result.state);
+        this.save = applyBattleResult(this.save, result.state, this.balance);
         // A badge on a WIN and on nothing else — `gymBattleWon` enumerates the outcome rather than
         // reading "not a loss", so a fled fight is not a badge.
         const won = gymBattleWon(result.state);
@@ -2678,7 +2996,7 @@ export class OverworldScene extends Phaser.Scene {
         this.scene.resume();
         this.hudDirty = true;
         // Same one writer, same position — see `finishWildBattle`.
-        this.save = applyBattleResult(this.save, result.state);
+        this.save = applyBattleResult(this.save, result.state, this.balance);
         const won = rivalBattleWon(result.state);
         this.flashBanner(`${rival.id} act ${String(rival.act)} — ${result.state.outcome ?? "unresolved"}`);
         // The entry writes `rival.act<N>.fought` on a WIN only, so a loss leaves the encounter
@@ -2752,7 +3070,7 @@ export class OverworldScene extends Phaser.Scene {
         this.hudDirty = true;
         // Same one writer, same position — see `finishWildBattle`. Before `resolveVellsireCatch`,
         // which is this fight's catch writer.
-        this.save = applyBattleResult(this.save, result.state);
+        this.save = applyBattleResult(this.save, result.state, this.balance);
         const resolution = resolveVellsireCatch({
           save: this.save,
           content: this.content,
@@ -2797,8 +3115,17 @@ export class OverworldScene extends Phaser.Scene {
   winGym(gymId: string): void {
     if (this.isHandedOver() || this.travelling) return;
     const before = this.act();
+    /*
+     * ⚠ READ BEFORE THE BADGE IS WRITTEN, AND THAT IS THE WHOLE RE-ENTRANCY LATCH. See
+     * {@link grantMasterSnares}: `applyGrant` is additive and not idempotent, and there is no latch
+     * on the finish handlers (T-64), so "has this victory already happened" is the only question
+     * that can be asked once. `awardBadge` is idempotent — it sets the flag to `true` — so a second
+     * pass through this method for the same leader sees `alreadyWon` and hands over nothing.
+     */
+    const alreadyWon = hasBadge(this.save, gymId, this.balance);
     this.save = appendAction(this.save, { t: "gymVictory", gymId });
     this.save = { ...this.save, ...awardBadge(this.save, gymId, this.balance) };
+    if (!alreadyWon) this.grantMasterSnares(gymId);
     this.advanceActs();
     const after = this.act();
     this.flashBanner(
@@ -2808,6 +3135,62 @@ export class OverworldScene extends Phaser.Scene {
     );
     this.hudDirty = true;
     this.hooks.onSaveChanged?.(this.save, this);
+  }
+
+  /**
+   * THE FIFTH GYM HANDS OVER MASTER SNARES — Hank's ruling: *"the player be given three master
+   * snares at the completion of the fifth gym."*
+   *
+   * ⚠ ONCE, AND THE KEY IS THE BADGE FLAG — read in {@link winGym} BEFORE `awardBadge` writes it,
+   * and passed in as `alreadyWon`. `core/save.ts` `applyGrant` is deliberately additive: called
+   * twice it hands over six. There is no re-entrancy latch on the finish handlers (T-64), so a
+   * launcher whose `onFinished` ran twice would otherwise double the stock — and the badge flag is
+   * the one piece of state that cannot be true before the first victory and cannot be false after
+   * it. Nothing here writes a second latch of its own; a flag invented for this would be a flag the
+   * corpus does not know about.
+   *
+   * ON THE TAPE, BOTH HALVES — `appendAction(grantAction(...))` and `applyGrant`, exactly as
+   * `game/dialogue-runner.ts` `applyRunGrants` lands the tutorial's three snares. A direct write to
+   * `save.items` would make L10 silently false: `replay()` has no production caller, so nothing in
+   * the running game would ever notice that the replayed run held a different bag.
+   *
+   * ⚠ IT DOES NOT FIRE YET, AND IT SAYS SO. The count lives in `data/balance.json` and the key is
+   * not there (see {@link MASTER_GRANT_KEY}). Rather than default to a literal — which is the one
+   * thing G11 forbids — the scene reports the missing tunable on the banner and hands over nothing.
+   */
+  private grantMasterSnares(gymId: string): void {
+    if (gymId !== MASTER_GRANT_GYM) return;
+    // The id is checked against shipped content rather than trusted: a leader renamed in
+    // `data/gyms.json` must be a loud line on screen, not a grant that quietly stopped happening.
+    if (!this.content.gyms.some((gym) => gym.id === MASTER_GRANT_GYM)) {
+      this.reportGrantProblem(
+        `no leader "${MASTER_GRANT_GYM}" in data/gyms.json — no ${MASTER_GRANT_TIER} granted`,
+      );
+      return;
+    }
+    const count = masterGrantCount(this.balance);
+    if (count === null) {
+      this.reportGrantProblem(
+        `balance.economy.${MASTER_GRANT_KEY} is not set — no ${MASTER_GRANT_TIER} granted`,
+      );
+      return;
+    }
+    this.grantProblem = null;
+    const items = { [MASTER_GRANT_TIER]: count };
+    this.save = appendAction(this.save, grantAction(items));
+    this.save = applyGrant(this.save, items);
+    // G7 — an id and two integers.
+    this.flashBanner(
+      `${gymId} · ${MASTER_GRANT_TIER} +${String(count)} · ` +
+        `${MASTER_GRANT_TIER} ${String(this.save.items[MASTER_GRANT_TIER] ?? 0)}`,
+    );
+  }
+
+  /** Put a grant refusal where it will still be legible a frame later. See {@link grantProblem}. */
+  private reportGrantProblem(problem: string): void {
+    this.grantProblem = problem;
+    this.hudDirty = true;
+    this.flashBanner(problem);
   }
 
   /**
@@ -3407,6 +3790,9 @@ export class OverworldScene extends Phaser.Scene {
       // A door with nothing on screen pointing at it is a door nobody finds. Indoors this is the way
       // out; outdoors it is every way in. Identifiers and integers only (G7).
       ...this.doorLines(),
+      // The shelf, when one is open — the rows `game/shop.ts` built, with the cursor on one of them.
+      // Empty at every other moment, so this costs one array spread and no branch on screen.
+      ...this.shopLines(),
       `tile ${this.movement.tile.col},${this.movement.tile.row} facing ${this.movement.facing}`,
       `party ${this.save.party.length}/${this.balance.party.maxPartySize} · box ${this.save.box.length}`,
       `weight ${totalActiveWeight(table).toFixed(1)} over ${active.length}/${table.length} lines`,
@@ -3422,6 +3808,9 @@ export class OverworldScene extends Phaser.Scene {
       lines.push(`last: ${this.lastEncounter.lineId} ${this.lastEncounter.age} L${this.lastEncounter.level}`);
     }
     if (this.spawnProblem) lines.push(this.spawnProblem);
+    // Same channel, same reason: a grant that did not happen is invisible on a banner that the next
+    // beat overwrites in the same frame. See {@link grantProblem}.
+    if (this.grantProblem) lines.push(this.grantProblem);
     // Same channel, same reason: a mask the loader calls healthy can still put the player down
     // where the talk key is answered by a signpost, and nothing else on screen would say so.
     if (this.spawnInsideProp) lines.push(this.spawnInsideProp);
