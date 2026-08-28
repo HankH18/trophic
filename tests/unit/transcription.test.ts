@@ -1337,28 +1337,230 @@ describe("ecology — the shipped numbers must be able to produce the cascade", 
       ),
     );
     const seasonsPerYear = balance.clock.ticksPerYear / balance.clock.ticksPerSeason;
+    // The share below is averaged UNWEIGHTED over `seasonOrder`, which is only honest because every
+    // season is the same length — core/schemas.ts refuses to boot unless
+    // ticksPerYear === ticksPerSeason × seasonOrder.length. Pinned so the two cannot drift apart
+    // and quietly turn a mean into a mis-weighting.
+    expect(balance.clock.seasonOrder.length).toBe(seasonsPerYear);
 
-    const sites = nodes
-      .filter((n) => n.walkable)
-      .flatMap((n) => Object.keys(n.populations).filter((id) => roleOf(id) === "Apex").map((id) => ({ n, id })));
-    // Guard against the gate going vacuous: the slice must contain the cascade sites.
-    expect(sites.map((s) => `${s.n.id}/${s.id}`).sort()).toEqual(["brackwater/fenmaw-line", "r2/fenmaw-line"]);
+    /*
+     * ⚠ THE THIRD ERROR IN THE SAME FAMILY, AND THIS IS ITS REPAIR. The share term below used to be
+     *
+     *     const preyShare = preyPool / encounterable;
+     *
+     * which IGNORES `seasonalWindow` — the very first filter build-doc §7.2 lists on the weight.
+     * `core/foodweb.ts` `encounterWeights()` gives an out-of-season line
+     * `balance.encounter.outOfSeasonWeight` and `active: false`, and `rollEncounter()` picks on
+     * `w.active ? w.weight : 0`, so three seasons in four a summer migrant cannot be met at all.
+     *
+     * WHAT IT PRICED: a player who can hunt `reedrick-line` all year. No such player exists.
+     * Reedrick is bible §5's summer migrant and it is 18 of brackwater's 24-strong prey pool and 24
+     * of r2's 32 — 75% of the apex's food at both marsh sites, reachable one season in four. The
+     * flat form therefore read brackwater at 11.42 net removals a year and r2 at 9.46; driving the
+     * real seams (stepEncounterChance → encounterWeights → rollEncounter → encounterCatchChance →
+     * applyCatch, charging foray + battle ticks as tools/harness/full-run.ts does) over 100 seeds
+     * with the player camped at the node measures 3.14 and 1.15. The seasonality-weighted form
+     * below reads 3.63 and 1.72 — and it also tracks the simulator at the two sites the old filter
+     * never reached: bowerdeep 6.56 against a measured 6.54, r4 9.08 against 8.49.
+     *
+     * WHY NOBODY SAW IT. The two errors named above both lived in the TICK BUDGET, so that is where
+     * every later reading looked; the share read as pure content arithmetic — counts over counts,
+     * every number straight off the shipped JSON, nothing to be wrong. And it erred GENEROUS. A
+     * gate that over-reports the player's reach never goes red, and a green gate is not read.
+     *
+     * A gate whose number diverges from the simulator is worse than no gate: tuning toward it moves
+     * the game away from the beat while the light stays green.
+     */
 
-    for (const { n, id } of sites) {
+    /** Encounter-active in season `s` — exactly what core/foodweb.ts `migrantStatus()` decides. */
+    const activeIn = (lineId: string, season: Season): boolean => {
+      const window = line(lineId).seasonalWindow;
+      return window === undefined || window === season;
+    };
+    /** Out of the ordinary pool in EVERY season: bible §4's sign-chain gate (weight 0, never active). */
+    const signGated = (lineId: string): boolean =>
+      line(lineId).habitat.includes(balance.encounter.signChainGatedHabitatTag);
+    // The share treats "out of season" as a hard removal from the pool, which is only faithful
+    // because `outOfSeasonWeight` ships as 0 AND `rollEncounter()` zeroes an inactive entry anyway.
+    // Retuned non-zero, a migrant would have to be carried as a reduced WEIGHT rather than dropped —
+    // so the number the assumption rests on is pinned here beside it.
+    expect(balance.encounter.outOfSeasonWeight).toBe(0);
+    // Not modelled, and deliberately: the Scavenger × (1 + recentDeaths/divisor) term is 1 at the
+    // shipped state (recentDeaths is a runtime field, 0 before any death) and only ever DILUTES the
+    // prey share, so omitting it keeps this a maximum — the direction a feasibility gate may err in.
+
+    const apexSites = nodes.flatMap((n) =>
+      Object.keys(n.populations)
+        .filter((id) => roleOf(id) === "Apex")
+        .map((id) => ({ n, id })),
+    );
+    // Guard against the gate going vacuous: every shipped apex site is measured below.
+    expect(apexSites.map((s) => `${s.n.id}/${s.id}`).sort()).toEqual([
+      "bowerdeep/duskstalk-line",
+      "brackwater/fenmaw-line",
+      "cindershelf/stonewing-line",
+      "r2/fenmaw-line",
+      "r3/duskstalk-line",
+      "r4/stonewing-line",
+    ]);
+
+    /*
+     * WHERE THE BEAT IS ASSERTED, AND WHY IT IS NOT WHERE IT USED TO BE.
+     *
+     * This loop used to run over `nodes.filter((n) => n.walkable)` — brackwater and r2. Walkability
+     * is the vertical slice's build order (build-doc §1); it is not the content's statement of where
+     * demo beat 1 happens, and at those two nodes the content says the opposite. From
+     * `fixtures/overcatch-script.json`'s own `_why`: the beat's second half — "a new apex risen" —
+     * "needs the over-catching to leave the mesopredator standing AND to leave its own food intact.
+     * On shipped content that holds only where the apex's primary prey IS the mesopredator … the
+     * Cinder Steppe (r4 …). At the vertical-slice marsh (brackwater / r2) the same protocol produces
+     * a two-tier COLLAPSE instead." So the gate was demanding the apex-starve budget at the two
+     * sites the shipped script says are not the beat, and demanding it nowhere at the site that is.
+     *
+     * The beat's sites are DERIVED from that sentence rather than listed: a site qualifies when the
+     * apex's whole derived prey pool is its mesopredator, and none of that mesopredator's own food
+     * is in the pool the player is hammering. `tools/harness/fixture.ts` reaches the same two nodes
+     * by the same property ("It is a no-op only at `r4` and `cindershelf`"), and the shipped
+     * script's `nodeId` is required to be one of them below — so re-pointing the fixture at a node
+     * where the beat cannot happen fails here rather than silently publishing a collapse as its
+     * opposite.
+     */
+    const script = read("fixtures/overcatch-script.json") as {
+      nodeId: string;
+      actions: Array<{ t: string; nodeId?: string; lineId?: string }>;
+    };
+    const hammered = script.actions.find((a) => a.t === "catch");
+    expect(hammered?.lineId, "fixtures/overcatch-script.json records no catch action").toBeDefined();
+
+    /** The mesopredator tier's own food at this node — what the beat must leave standing. */
+    const releasedTierFood = (n: NodeFile, apexId: string): Set<string> => {
+      const mesos = preyAt(n, apexId).filter((p) => roleOf(p) === "Mesopredator");
+      return new Set(mesos.flatMap((m) => preyAt(n, m)));
+    };
+    const contestedAt = (n: NodeFile, apexId: string): string[] => {
+      const food = releasedTierFood(n, apexId);
+      return preyAt(n, apexId).filter((p) => food.has(p));
+    };
+
+    const beatSites = apexSites.filter(({ n, id }) => contestedAt(n, id).length === 0);
+    expect(beatSites.map((s) => `${s.n.id}/${s.id}`).sort()).toEqual([
+      "cindershelf/stonewing-line",
+      "r4/stonewing-line",
+    ]);
+    // The fixture's other half of the same sentence, checked independently: at those sites the
+    // apex's prey pool IS the mesopredator tier, nothing else.
+    for (const { n, id } of beatSites) {
       const prey = preyAt(n, id);
+      expect(prey.length, `${n.id}/${id} has prey at all`).toBeGreaterThan(0);
+      expect(prey.every((p) => roleOf(p) === "Mesopredator"), `${n.id}/${id} prey pool is the mesopredator tier`).toBe(true);
+    }
+    // …and the node the shipped script actually names is one of them, hammering a line that IS the
+    // apex's prey there. This is the tie between the gate and the recorded beat.
+    const scripted = beatSites.find((s) => s.n.id === script.nodeId);
+    expect(scripted, `fixtures/overcatch-script.json targets ${script.nodeId}, which is not a beat site`).toBeDefined();
+    expect(preyAt(scripted!.n, scripted!.id), `${script.nodeId}: the script hammers ${hammered?.lineId}`).toContain(
+      hammered?.lineId,
+    );
+
+    for (const { n, id } of apexSites) {
+      const prey = preyAt(n, id);
+      expect(prey.length, `${n.id}/${id} has prey at all`).toBeGreaterThan(0);
       const preyPool = prey.reduce((sum, p) => sum + n.populations[p]!.count, 0);
+      const countOf = (pid: string) => n.populations[pid]!.count;
       // Ancients are gated out of the ordinary encounter pool, so they do not dilute the weights.
-      const encounterable = Object.entries(n.populations)
-        .filter(([pid]) => !line(pid).habitat.includes(balance.encounter.signChainGatedHabitatTag))
-        .reduce((sum, [, p]) => sum + p.count, 0);
-      const preyShare = preyPool / encounterable;
+      const encounterableIds = Object.keys(n.populations).filter((pid) => !signGated(pid));
+      const encounterable = encounterableIds.reduce((sum, pid) => sum + countOf(pid), 0);
+      const flatShare = preyPool / encounterable;
+
+      /** The prey's share of what can actually be ROLLED in season `s` (build-doc §7.2 filter 1). */
+      const shareIn = (s: Season): number => {
+        const activePrey = prey.filter((p) => activeIn(p, s)).reduce((sum, p) => sum + countOf(p), 0);
+        const activePool = encounterableIds.filter((pid) => activeIn(pid, s)).reduce((sum, pid) => sum + countOf(pid), 0);
+        return activePool === 0 ? 0 : activePrey / activePool;
+      };
+      const preyShare =
+        balance.clock.seasonOrder.reduce((sum, s) => sum + shareIn(s), 0) / balance.clock.seasonOrder.length;
+
+      /*
+       * THE IDENTITY THAT MAKES DROPPING THE SEASON TERM IMPOSSIBLE TO DO QUIETLY — the sibling of
+       * the tick-conservation check above, and the thing that would have caught this error the day
+       * it was written. Under the flat form `preyShare` is `flatShare` EXACTLY, so both branches go
+       * red on the reversion rather than merely drifting.
+       *
+       * Both directions are theorems, not observations. Where the seasonal line is PREY, the
+       * out-of-season share is (P−x)/(E−x) < P/E and the in-season share is P/E, so the mean is
+       * strictly under the flat form. Where it is not prey, the out-of-season share is P/(E−y) >
+       * P/E and the mean is strictly over it. Each holds only while a node's seasonal lines sit on
+       * ONE side of the diet edge, which is true of all four migrants at all six apex sites — so
+       * that precondition is asserted rather than assumed. A node hosting both would need the
+       * direction re-derived; that is a red light to look at, never one to loosen.
+       */
+      const seasonalPrey = prey.filter((p) => line(p).seasonalWindow !== undefined);
+      const seasonalOther = encounterableIds.filter((pid) => line(pid).seasonalWindow !== undefined && !prey.includes(pid));
+      expect(
+        seasonalPrey.length === 0 || seasonalOther.length === 0,
+        `${n.id}/${id}: seasonal lines on BOTH sides of the diet edge — re-derive the direction below`,
+      ).toBe(true);
+      if (seasonalPrey.length > 0) {
+        expect(
+          preyShare,
+          `${n.id}/${id}: ${seasonalPrey.join(", ")} is out of season 3 seasons in 4 — the share term dropped seasonalWindow`,
+        ).toBeLessThan(flatShare);
+      } else if (seasonalOther.length > 0) {
+        expect(
+          preyShare,
+          `${n.id}/${id}: ${seasonalOther.join(", ")} leaves the pool out of season — the share term dropped seasonalWindow`,
+        ).toBeGreaterThan(flatShare);
+      }
 
       const removalsNeeded = preyPool - balance.ecosim.starveThreshold * demandOf(id, n.populations[id]!.count);
       const catchesPerYear = maxEncountersPerYear * preyShare * referenceCatchP;
-      const birthsPerYear = prey.reduce((sum, p) => sum + n.populations[p]!.count * n.populations[p]!.breedRate, 0) * seasonsPerYear;
+      const birthsPerYear = prey.reduce((sum, p) => sum + countOf(p) * n.populations[p]!.breedRate, 0) * seasonsPerYear;
       const netRemovalPerYear = catchesPerYear - birthsPerYear;
 
+      // THIS assertion runs at all six apex sites. The one BELOW does not — see the split. An
+      // earlier revision of this comment said "at EVERY apex site — six, where the walkable filter
+      // reached two" without saying which assertion it meant, which read as though the whole test
+      // had widened. Only this one did; the starve-budget assertion went from two sites to two
+      // sites, and they are a DISJOINT pair.
       expect(netRemovalPerYear, `${n.id}: regrowth of ${id}'s prey outpaces the maximum catch rate`).toBeGreaterThan(0);
+
+      if (contestedAt(n, id).length > 0) {
+        // NOT a beat site: the mesopredator's own food sits inside the pool the player must empty
+        // to starve the apex, so the protocol takes two tiers down instead of releasing one.
+        //
+        // ⚠ WHAT THIS BRANCH USED TO DO, AND WHY IT WAS WORSE THAN NOTHING. It asserted
+        // `contestedAt(n, id).every((p) => prey.includes(p))`. `contestedAt` is defined above as
+        // `preyAt(n, apexId).filter((p) => food.has(p))` — a SUBSET OF `prey` BY CONSTRUCTION — so
+        // that expectation was true for every possible `food` set, including the empty one and the
+        // universe. It could not fail. It sat where a real assertion had been removed, and the
+        // branch `continue`d past exactly and only the four sites where the assertion below fails.
+        // That is the shape this project's own conduct rule forbids: a green obtained by skipping,
+        // with something that looks like coverage left in the gap.
+        //
+        // ⚠ AND THE CITATION IT CARRIED WAS FALSE. It claimed the removed assertion was covered by
+        // tests/property/ecosim.test.ts's "the cascade travels DOWN the web as well". That test
+        // FORCES the removal by direct field assignment (`pop.count = Math.min(pop.count, target)`)
+        // — no applyCatch, no rollEncounter, no tick budget. It proves the web propagates a removal
+        // that has already happened. The assertion removed here proved a removal is ACHIEVABLE BY
+        // PLAYING. Different properties; the second is not covered anywhere else.
+        //
+        // So the skip is replaced by the measured truth, which CAN fail. These four sites are
+        // infeasible for the year-1 beat, and by a wide margin — the seasonality correction made
+        // the shortfall worse, not better (brackwater 5.3x short, r2 14.4x). Pinning it means a
+        // balance change that makes one of them reachable turns this RED and asks whether the beat
+        // should move, instead of passing quietly at a site the fixture says is not the beat's.
+        expect(
+          netRemovalPerYear * oc.yearsBudget,
+          `${n.id}/${id}: recorded as a two-tier-collapse site (${contestedAt(n, id).join(", ")} feeds ` +
+            `both tiers), so the year-1 apex-starve beat is NOT expected here — but it is now ` +
+            `reachable: ${(netRemovalPerYear * oc.yearsBudget).toFixed(2)} available against ` +
+            `${removalsNeeded.toFixed(2)} needed. Either the beat moved or the balance did; decide ` +
+            `which before making this pass.`,
+        ).toBeLessThan(removalsNeeded);
+        continue;
+      }
+
       expect(
         netRemovalPerYear * oc.yearsBudget,
         `${n.id}: ${removalsNeeded.toFixed(1)} removals needed to starve ${id}, only ${netRemovalPerYear.toFixed(1)}/yr available`,
