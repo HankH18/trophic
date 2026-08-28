@@ -23,6 +23,7 @@
  * truthfully, not that it holds any particular value.
  */
 import { describe, expect, it, beforeAll, afterAll } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import { mkdtemp, rm, readFile, writeFile, mkdir } from 'node:fs/promises';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -472,6 +473,39 @@ function swatchRaster(rows: ReadonlyArray<ReadonlyArray<{ r: number; g: number; 
   return r;
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * WHAT A CLONE CARRIES — the instrument the two self-enumerating corpora below are pinned against.
+ *
+ * `discoverPalettes()` and `toolSources()` both build their own corpus by WALKING THE DISK, and a
+ * working tree holds files a clone does not. Measured, not supposed: this file ran 76 assertions
+ * here and 70 in a `git archive HEAD` checkout, because
+ * `assets/approved-trials/_palette-refreeze/palette.expanded.json` is untracked — six `it`s that
+ * exist only on this machine. The tool scan is the same defect with the count hidden: its
+ * assertions sit OUTSIDE the per-file loop, so two untracked `tools/comfy/*.mjs` scripts narrow
+ * what the G11 rule is enforced on without moving the number a reader checks.
+ *
+ * Neither corpus can be pinned as a literal — palettes and tools are added on purpose — so the
+ * expected membership is asked of git, the only thing that knows what a clone gets. `ls-files` and
+ * not `ls-tree HEAD`: a staged file is going into the next commit and is part of the corpus; a file
+ * nobody has staged is not.
+ *
+ * FAILS CLOSED. If git is missing, or this is not a working tree, the call throws instead of
+ * returning an empty list — "no tracked files" and "cannot tell" must not produce the same green.
+ * ──────────────────────────────────────────────────────────────────────────── */
+function trackedUnder(...dirs: string[]): string[] {
+  let out: string;
+  try {
+    out = execFileSync('git', ['-C', REPO_ROOT, 'ls-files', '-z', '--', ...dirs], { encoding: 'utf8' });
+  } catch (e) {
+    throw new Error(
+      `git ls-files failed under ${REPO_ROOT} (${String(e)}). Two corpora in this file are pinned ` +
+        'against what a clone carries; without git they cannot tell a complete corpus from a ' +
+        'shrunken one, and the whole point of the pin is that a shrink is never silent.',
+    );
+  }
+  return out.split('\0').filter(Boolean).sort();
+}
+
 /** Every palette file the repo carries, found on disk — data/ and the trial proposals alike. */
 function discoverPalettes(): Array<{ label: string; path: string }> {
   const found: Array<{ label: string; path: string }> = [];
@@ -522,6 +556,33 @@ describe('§9.3 step 3 survives a palette swap', () => {
     expect(palettes.map((p) => p.label)).toContain('data/palette.json');
     // The two re-freeze proposals are bound by everything below exactly as the frozen palette is.
     expect(palettes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it('…and the corpus is EXACTLY what a clone carries — these six tests may not shrink in silence', () => {
+    // Everything below is parameterised over `palettes`, so the corpus decides how many assertions
+    // run: SIX per file found. The two guards above are true of a corpus of one, which is how this
+    // block came to run four palettes' worth of checks here and three in CI with nothing to read.
+    // The membership is therefore stated, and stated in terms of git rather than of a number.
+    const found = palettes.map((p) => p.label).sort();
+    const tracked = trackedUnder('data', 'assets/approved-trials').filter((p) => /(^|\/)palette[^/]*\.json$/.test(p));
+    const extra = found.filter((f) => !tracked.includes(f));
+    const missing = tracked.filter((t) => !found.includes(t));
+    expect(
+      found,
+      'The palette corpus on this disk is not the palette corpus a clone gets, so this block runs a\n' +
+        'different number of assertions in the two places and every one of them still passes.\n' +
+        (extra.length > 0
+          ? `ON DISK, NOT IN GIT — bound here, bound by NOTHING in CI:\n  ${extra.join('\n  ')}\n` +
+            '  Commit it, and CI binds it exactly as this run does. Or move it out of data/ and\n' +
+            '  assets/approved-trials/. Leaving it where it is means this suite proves something\n' +
+            '  about a palette that the suite protecting the build never sees.\n'
+          : '') +
+        (missing.length > 0
+          ? `IN GIT, NOT FOUND BY THE WALK:\n  ${missing.join('\n  ')}\n` +
+            '  The walk roots or the /^palette.*\\.json$/ pattern in discoverPalettes() have drifted\n' +
+            '  off the corpus they claim to enumerate, and a palette ships unchecked.\n'
+          : ''),
+    ).toEqual(tracked);
   });
 
   it('at least one class actually runs background removal — otherwise this suite proves nothing', () => {
@@ -833,6 +894,34 @@ describe('§9.3 step 3’s tolerance has ONE home — the manifest (G11)', () =>
     expect(rels).toContain('tools/palette/at-game-size-compare.mjs');
     expect(rels).toContain('tools/palette/cross-view.mjs');
     expect(rels).toContain('tools/postprocess/chain.ts');
+  });
+
+  it('…and it scans EXACTLY the tool sources a clone carries — the rule may not narrow in silence', () => {
+    // THE COUNT CANNOT CATCH THIS ONE. Both rules below are a single `expect` over an array built
+    // by a loop, so dropping files from `sources` leaves the number of `it`s in this file untouched
+    // and simply stops enforcing G11 on whatever was dropped. The five `toContain`s above are
+    // satisfied by a corpus missing every other file in tools/. Two `tools/comfy/*.mjs` scripts
+    // were untracked when this was written: the tolerance rule ran against them here and against
+    // nothing at all in CI, which is the failure this test exists to convert into a red.
+    const found = sources.map((s) => s.rel).sort();
+    const tracked = trackedUnder('tools').filter((p) => /\.(ts|mjs|tsx)$/.test(p) && !p.includes('/node_modules/'));
+    const extra = found.filter((f) => !tracked.includes(f));
+    const missing = tracked.filter((t) => !found.includes(t));
+    expect(
+      found,
+      'The tool sources on this disk are not the tool sources a clone gets, so the two G11 rules\n' +
+        'below are enforced over a different set of files here than they are in CI.\n' +
+        (extra.length > 0
+          ? `ON DISK, NOT IN GIT — scanned here, scanned by NOTHING in CI:\n  ${extra.join('\n  ')}\n` +
+            '  Commit it, and the rule follows it into CI. Or move it out of tools/. A tool that\n' +
+            '  exists but is checked nowhere the build can see is exactly how BF-5 shipped.\n'
+          : '') +
+        (missing.length > 0
+          ? `IN GIT, NOT FOUND BY THE WALK:\n  ${missing.join('\n  ')}\n` +
+            '  toolSources() has drifted off the corpus it claims to enumerate — a skipped directory,\n' +
+            '  a missing extension, or a tracked file deleted from the working tree.\n'
+          : ''),
+    ).toEqual(tracked);
   });
 
   it('no tool declares a background tolerance of its own (G11)', () => {

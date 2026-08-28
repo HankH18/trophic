@@ -32,8 +32,8 @@ import { tmpdir } from 'node:os';
 import { loadPalette, loadPaletteFile, REPO_ROOT } from '../../tools/postprocess/palette.ts';
 import { loadManifest } from '../../tools/comfy/comfy-batch.ts';
 import { writePlaceholders } from '../../tools/postprocess/run.ts';
-import { finalPathOf, rawPathOf } from '../../tools/postprocess/chain.ts';
-import { readRaster } from '../../tools/postprocess/raster.ts';
+import { finalPathOf, processRow, rawPathOf } from '../../tools/postprocess/chain.ts';
+import { blankRaster, readRaster, writeRaster } from '../../tools/postprocess/raster.ts';
 import { placeholderLabel } from '../../tools/postprocess/placeholder.ts';
 import { assetId, placeholderHex } from '@game/placeholder';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
@@ -88,6 +88,43 @@ const REAL_ID = 'battle-cindril-j-front';
  */
 const NO_RAW_ROW = manifest.rows.find((r) => r.class !== 'player' && !existsSync(rawPathOf(manifest, r)));
 
+/**
+ * …AND THE OTHER HALF OF THAT PROPERTY, because a selection is only a selection when both answers
+ * are available to it. `assets/raw/**` is gitignored (.gitignore:8), so A CLONE HAS NONE OF IT:
+ * every non-player row qualifies, `find` returns the first one, and the fixture is picked by
+ * position rather than by the property it names. The suite stayed green through that and said
+ * nothing — the same silent degeneracy in CI that this file's `NO_RAW_ROW` comment was written to
+ * prevent locally.
+ *
+ * THE SEPARATION IS BOUND TO SOMETHING TRACKED. Exactly one manifest row — `player-front` — points
+ * its `file` at `assets/approved-trials/player-APPROVED.png`, which is committed. So there is a row
+ * whose raw file exists in EVERY tree, clone included, and `existsSync ∘ rawPathOf` can be shown to
+ * return both answers here rather than being assumed to. That is why `NO_RAW_ROW` excludes the
+ * `player` class: it is the one class that would never satisfy the search.
+ */
+const TRACKED_RAW_ROW = manifest.rows.find((r) => r.file !== undefined && existsSync(rawPathOf(manifest, r)));
+
+/** The rows `NO_RAW_ROW` actually searches, and the ones among them the generator has produced. */
+const CANDIDATES_WITH_RAW = manifest.rows.filter((r) => r.class !== 'player' && existsSync(rawPathOf(manifest, r)));
+
+/**
+ * Every PNG sitting in a searched class's declared rawDir, whatever it happens to be named.
+ *
+ * The disambiguator for the clone case: "this tree has no generated art" and "`rawPathOf` names
+ * something other than what the generator writes" produce the identical green above, and only one
+ * of them is a working test.
+ */
+function rawArtOnDisk(): string[] {
+  const out: string[] = [];
+  for (const [name, spec] of Object.entries(manifest.classes)) {
+    if (name === 'player') continue;
+    const dir = resolve(REPO_ROOT, spec.rawDir);
+    if (!existsSync(dir)) continue;
+    for (const f of readdirSync(dir)) if (f.endsWith('.png')) out.push(`${spec.rawDir}/${f}`);
+  }
+  return out.sort();
+}
+
 describe('tools/postprocess/run.ts refuses a filter that selects no rows (BF-6)', () => {
   it('the fixture filters are real — this test is measuring a refusal, not a typo of its own', () => {
     expect(Object.keys(manifest.classes)).toContain(REAL_CLASS);
@@ -102,6 +139,72 @@ describe('tools/postprocess/run.ts refuses a filter that selects no rows (BF-6)'
         '"filter matched, no work to do" path. Clear assets/raw/ or add a row.',
     ).toBeDefined();
     expect(existsSync(rawPathOf(manifest, NO_RAW_ROW!))).toBe(false);
+
+    // …AND THE FIXTURE IS NOT DEGENERATE, whichever tree this is. See TRACKED_RAW_ROW.
+    // First: the property really does have two answers here. In a clone every non-player row lacks
+    // a raw, so `find` returns row 0 and discriminates nothing; without this, "no raw file" could be
+    // a constant rather than a measurement and the whole file would still be green.
+    expect(
+      TRACKED_RAW_ROW,
+      'no manifest row has a raw file that a clone carries. `player-front` is supposed to point its ' +
+        '`file` at assets/approved-trials/player-APPROVED.png, which is committed — without it there ' +
+        'is no tree in which `existsSync ∘ rawPathOf` is shown to answer BOTH ways, and every ' +
+        '"no raw file yet" assertion below is unfalsifiable.',
+    ).toBeDefined();
+    expect(existsSync(rawPathOf(manifest, TRACKED_RAW_ROW!)), TRACKED_RAW_ROW!.id).toBe(true);
+
+    // Second: if not one SEARCHED row has a raw, that must be because no generated art is on disk —
+    // not because `rawPathOf` and the generator's naming have come apart. Those two states produce
+    // the identical pass above, and only one of them leaves this file testing anything.
+    if (CANDIDATES_WITH_RAW.length === 0) {
+      expect(
+        rawArtOnDisk(),
+        'not one searched manifest row resolves to a file on disk, yet the classes’ own rawDirs hold ' +
+          'PNGs. That is `rawPathOf` naming something other than what the generator writes — not an ' +
+          'empty tree — and the fixture below is measuring nothing.',
+      ).toEqual([]);
+    }
+  });
+
+  it('“N rows have no raw file yet” is a FILESYSTEM answer — bound in a tree with no assets/raw at all', async () => {
+    // WHY THIS EXISTS. In a clone every row is a no-raw row, so the case above and the case below
+    // are the only ones this file can reach, and `processRow` could have stopped looking at the
+    // disk entirely — returning `skipped` unconditionally — with the whole file still green. The
+    // control produces BOTH answers for the SAME row, in a temp root the test owns, with nothing
+    // changing between them but a file appearing. It runs identically in both trees because it
+    // depends on no generator output at all.
+    //
+    // It calls the function rather than the CLI on purpose: `run.ts` takes no --root, so a
+    // command-level control would have to write into the repo's own assets/raw and assets/final.
+    const row = NO_RAW_ROW!;
+    const root = await mkdtemp(join(tmpdir(), 'trophic-rawroot-'));
+    try {
+      const before = await processRow(manifest, row, { root });
+      expect(before.skipped, `${row.id}: an empty root must report the row as having no raw file`).toBe('no-raw-file');
+      expect(existsSync(finalPathOf(row, root)), 'a skipped row must not write a final asset').toBe(false);
+
+      // The source is a real palette swatch — the one furthest from the white background key — so
+      // quantize maps it to itself and no colour is invented here. Opaque and flat, so trim and the
+      // background flood both have nothing to take.
+      const [w, h] = row.targetSize.split('x').map(Number);
+      const darkest = [...loadPalette()].sort((a, b) => a.r + a.g + a.b - (b.r + b.g + b.b))[0]!;
+      const src = blankRaster(w!, h!);
+      for (let i = 0; i < src.data.length; i += 4) {
+        src.data[i] = darkest.r;
+        src.data[i + 1] = darkest.g;
+        src.data[i + 2] = darkest.b;
+        src.data[i + 3] = 255;
+      }
+      await writeRaster(rawPathOf(manifest, row, root), src);
+
+      const after = await processRow(manifest, row, { root });
+      expect(after.skipped, `${row.id}: a raw file is sitting at ${after.from} and the row was skipped anyway`).toBe(
+        undefined,
+      );
+      expect(existsSync(finalPathOf(row, root)), 'a processed row must write its final asset').toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it('a mistyped --class exits non-zero and names the near miss, instead of "0 processed" at exit 0', async () => {

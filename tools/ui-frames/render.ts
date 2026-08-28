@@ -17,6 +17,9 @@
  * gets worse is measuring the wrong thing, and every number below is exactly the kind that can.
  * The output ends by saying so, and by naming the contact sheet, because the contact sheet is the
  * artefact this lane is actually judged on.
+ *
+ * All three are also ENFORCED, not merely printed: a failed check names itself and the number it
+ * measured in the summary, and the process exits non-zero. See `main`.
  */
 
 import { mkdir, writeFile } from "node:fs/promises";
@@ -80,8 +83,9 @@ async function renderTheme(theme: FrameTheme): Promise<BuiltFrame[]> {
   return frames;
 }
 
-function reportFrames(theme: FrameTheme, frames: readonly BuiltFrame[]): boolean {
-  let ok = true;
+/** Prints the table; RETURNS one line per over-budget frame, naming the count it measured. */
+function reportFrames(theme: FrameTheme, frames: readonly BuiltFrame[]): string[] {
+  const failures: string[] = [];
   console.log(`\n── ${theme.id} ──────────────────────────────────────────────────────`);
   console.log(`${pad("frame", 22)} ${pad("size", 9)} ${pad("colours", 8)} ${pad("slice", 16)} note`);
   for (const frame of frames) {
@@ -90,7 +94,9 @@ function reportFrames(theme: FrameTheme, frames: readonly BuiltFrame[]): boolean
     // card, whose exterior is the map behind it, and the title banner, which has no plate at all.
     const opaque = [...colours].filter((k) => !k.endsWith(",0")).length;
     const over = opaque > COLOUR_BUDGET;
-    if (over) ok = false;
+    if (over) {
+      failures.push(`colour budget — ${theme.id}/${frame.size.id}: ${opaque} opaque colours, budget is ${COLOUR_BUDGET}`);
+    }
     // FRAME_CHROME_PX, not the invariance margin: this column is what `game/ui/FramePanel.ts` will
     // actually cut the texture at, and a printed boundary the drawer does not use is worse than no
     // column at all — it was printing 10 while the shipped slicer cut at 4.
@@ -103,7 +109,7 @@ function reportFrames(theme: FrameTheme, frames: readonly BuiltFrame[]): boolean
         `${pad(`${opaque}${over ? " ⚠" : ""}`, 8)} ${pad(slice, 16)} ${frame.note}`,
     );
   }
-  return ok;
+  return failures;
 }
 
 /**
@@ -153,22 +159,27 @@ export function checkEdgesRepeat(frame: BuiltFrame, margin: number = INVARIANT_M
   return null;
 }
 
-function reportPairings(theme: FrameTheme): boolean {
-  let ok = true;
+/** Prints the table; RETURNS one line per pairing under its floor, naming the ratio it measured. */
+function reportPairings(theme: FrameTheme): string[] {
+  const failures: string[] = [];
   console.log(`\n   pairings this polarity introduces — every one is a Surface entry`);
   console.log(`   tests/gates/ui-contrast-contract.test.ts does NOT currently carry:`);
   console.log(
     `   ${pad("what", 30)} ${pad("fg", 18)} ${pad("bg", 18)} ${pad("kind", 9)} ${padStart("ratio", 7)} ${padStart("floor", 6)}`,
   );
   for (const p of framePairings(theme).map(measure)) {
-    if (!p.clears) ok = false;
+    if (!p.clears) {
+      failures.push(
+        `contrast floor — ${theme.id}/"${p.what}" (${p.kind}): ${p.ratio.toFixed(2)}:1, floor is ${p.floor.toFixed(1)}:1`,
+      );
+    }
     console.log(
       `   ${pad(p.what, 30)} ${pad(`${p.foreground}(${p.foregroundId})`, 18)} ` +
         `${pad(`${p.background}(${p.backgroundId})`, 18)} ${pad(p.kind, 9)} ` +
         `${padStart(p.ratio.toFixed(2), 7)} ${padStart(p.floor.toFixed(1), 6)} ${p.clears ? "" : "  ✗ FAILS"}`,
     );
   }
-  return ok;
+  return failures;
 }
 
 async function main(): Promise<void> {
@@ -177,18 +188,29 @@ async function main(): Promise<void> {
   const themes = wanted ? THEMES.filter((t) => t.id === wanted) : THEMES;
   if (themes.length === 0) throw new Error(`tools/ui-frames: no theme "${wanted}" (dark | light)`);
 
-  let allOk = true;
+  /*
+   * WHY THIS IS A LIST OF NAMES AND NOT A BOOLEAN, AND WHY IT REACHES `process.exitCode`.
+   *
+   * It was `let allOk = true`, and a failure printed "⚠ a mechanical check failed" and then exited
+   * 0. A verifier whose exit status is 0 whatever it measured is decoration: `npx tsx render.ts &&
+   * <next step>` runs the next step over art that failed the sweep, and anything reading `$?` — a
+   * shell chain, a CI step, a future `npm run` — is told the frames are clean when they are not.
+   * The names are collected rather than counted so the summary can say WHICH of the three checks
+   * failed, on which frame or pairing, and what number it measured; a reader who only sees the tail
+   * of a long log otherwise has to scroll back for a ⚠ to find out what happened.
+   */
+  const failures: string[] = [];
   for (const theme of themes) {
     const frames = await renderTheme(theme);
-    allOk = reportFrames(theme, frames) && allOk;
+    failures.push(...reportFrames(theme, frames));
     for (const frame of frames) {
       const problem = checkEdgesRepeat(frame);
       if (problem) {
-        allOk = false;
+        failures.push(`edge invariance — ${theme.id}/${frame.size.id}: ${problem} (margin ${INVARIANT_MARGIN_PX}px)`);
         console.log(`   ✗ ${frame.size.id}: ${problem}`);
       }
     }
-    allOk = reportPairings(theme) && allOk;
+    failures.push(...reportPairings(theme));
   }
 
   await writeFile(
@@ -217,11 +239,13 @@ async function main(): Promise<void> {
   );
 
   console.log(`\nwrote ${OUT_DIR}`);
-  console.log(
-    allOk
-      ? "\nevery mechanical check passed — which proves nothing about whether they look like Gold."
-      : "\n⚠ a mechanical check failed (see ⚠ / ✗ above).",
-  );
+  if (failures.length === 0) {
+    console.log("\nevery mechanical check passed — which proves nothing about whether they look like Gold.");
+  } else {
+    console.log(`\n⚠ ${failures.length} mechanical check${failures.length === 1 ? "" : "s"} FAILED:`);
+    for (const failure of failures) console.log(`   ✗ ${failure}`);
+    process.exitCode = 1;
+  }
   console.log("Judge them on tools/ui-frames/_CONTACT-SHEET-*.png, with real text in them, not on this table.");
 }
 
