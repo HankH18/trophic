@@ -1,0 +1,12 @@
+{
+  "id": "act-0",
+  "seed": 1337,
+  "prologue": false,
+  "tapeDigest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+  "notOnTape": [
+    "the gym fight — the badge is written the way tools/harness/full-run.ts writes it, so no battleAftermath and no payout from a leader reach the tape",
+    "OverworldScene.winGym's master-snare grant — a private scene method this lane cannot call, so the bag is short the tiers a real run is handed at a victory",
+    "wild encounters, catches and shop purchases — this run forages for the time, not for the animals"
+  ],
+  "tape": []
+}
