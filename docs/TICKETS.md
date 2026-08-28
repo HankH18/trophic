@@ -903,8 +903,12 @@ without its definition** — threshold, channels, neighbours, denominator.
 ANOTHER.** `28.2` is sound as the separation between Gold's two grass greens, and it was reused as the
 bar for telling a **walkable** material from a **blocking** one, where it is wrong by about a factor of
 2.5. Gold spends **26.76** on the encounter marker (tall grass against plain ground — both walkable)
-and **41.29 to 68.04** on walkable against blocking. **The floor for a walkable/blocking pair is 41,
-not the twenties.** `docs/STATUS.md` item 53 carries the table, the Rec.601 definition and an
+and **70.51–77.24** on walkable against blocking, with a **measured minimum of 43.40** (tall grass
+against the lightest whole tree tile). **The floor for a walkable/blocking pair is 41 — a conservative
+ROUND number chosen to sit below that 43.40 measurement, not itself an observation — and it is
+certainly not the twenties.** ⚠ **An earlier version of this note gave the aim as 68.04 and the floor
+as 41.29; both were differences taken against a `tree mass` value of 115.72 that does not exist in the
+corpus.** `docs/STATUS.md` item 53 carries the table, the Rec.601 definition and an
 independent re-measurement; T-72 and T-73 are the tickets it binds.
 `tools/artverify/EVAL-STANDARD.md` has since been marked by the lane that owns it; the figures there
 now carry `[WITHDRAWN]` in place.
@@ -3106,7 +3110,8 @@ unstamped rather than deleted.
   ⏳ **The approved heather swap is the fix and is measured**: `,`/`R` separation to **53.4** (heather
   123.6, open ash 84.3, basalt 70.2), and `verify.py`'s seam check on `,` from FAIL ×2.55 to **PASS
   ×0.90**. **Do not record this defect as closed until the swap lands.** **Read 53.4 against the 41
-  floor and the 68 aim, not against "about 28"** — see the figure-reuse rule under T-17.
+  round 41 floor (43.40 measured) and the 70.5–77.2 aim, not against "about 28"** — see the
+  figure-reuse rule under T-17.
   ✅ **THE COMPETING FIGURES ARE RECONCILED AND THE SET IS CLOSED** — `docs/STATUS.md` item 53 carries
   the table and the independent re-measurement. **The number of record, quoted with its definition or
   not at all: 3.4 — `ash-scrub` 66.80 against `basalt-rock` 70.19, Rec.601, over every pixel of the
@@ -3123,8 +3128,8 @@ unstamped rather than deleted.
   `c05`/`c07` **pair spread**, not a cap. Re-proportioning the entries the tiles already contain
   reaches **91.60** in the correct direction, and `c09` (125.16) is already in the walkable tile at
   2.7% and absent from the blocking one. **What is true is narrower: both tiles are `c05`/`c07`-dominant
-  (85.4% and 72.2%), and holding that dominance the ceiling is 44.80** — past the 41 floor, nowhere
-  near the 68 aim. **So the heather swap is one correct answer, not the only one**; a darker,
+  (85.4% and 72.2%), and holding that dominance the ceiling is 44.80** — past the round 41 floor,
+  nowhere near the 70.5–77.2 aim. **So the heather swap is one correct answer, not the only one**; a darker,
   more strongly shaped ash is another, and a redraw separating on texture or silhouette is not subject
   to a luminance ceiling at all. **What defeated the earlier attempts was three redraws staying inside
   the same two dominant inks, not the colour set.**

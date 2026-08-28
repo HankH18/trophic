@@ -631,14 +631,23 @@ compositions are structurally correct. They are not the authored region.**
    |---|---|
    | ash-scrub | **3.87 – 125.16** (`c00` – `c09`) |
    | basalt-rock | **3.87 – 95.47** (`c00` – `c07`) |
-   | max separation, rock bright / scrub dark (**correct sign**) | **91.60** |
-   | max separation, scrub bright / rock dark | 121.29 |
+   | ceiling using only the **five entries BOTH tiles carry** (extremes `c00` 3.87 and `c07` 95.47) | **91.60**, available in **either** direction |
+   | ceiling once ash-scrub spends its **`c09`** (125.16) | **121.29**, and **only with the WALKABLE tile brighter** |
    | `c05`/`c07` pair spread only | *37.23 — the figure that was mistaken for a cap* |
 
-   **So re-proportioning the colours these tiles already contain reaches 91.60 — past the 41 floor and
-   past the 68 aim.** ⚠ **And `c09` at 125.16 was already sitting in the WALKABLE tile at 2.7% and is
-   absent from the blocking one** — the rung the heather fix reached for was in the drawer the whole
-   time.
+   ⚠ **BOTH CEILINGS ARE TRUE OF DIFFERENT QUESTIONS AND EACH IS USELESS WITHOUT ITS CONDITION — which
+   is the whole point of this passage, since a bound stated without its condition closes options that
+   are open.** `c00` and `c07` are the darkest and lightest entries **both** tiles carry, so the 91.60
+   ceiling holds whichever tile is made the brighter one — **including the shipped sign, walkable
+   darker.** **121.29 is not available in the shipped sign at all**: it needs `c09`, which is in
+   ash-scrub and absent from basalt-rock, so reaching it means making the **walkable** tile the bright
+   one and inverting the convention. **Quote the number with the direction, or it recommends a recut
+   that flips the sign rule.**
+
+   **Either way, re-proportioning the colours these tiles already contain reaches 91.60 — past the 41
+   floor and past the 70.5–77.2 aim.** ⚠ **And `c09` at 125.16 was already sitting in the WALKABLE tile
+   at 2.7% and is absent from the blocking one** — the rung the heather fix reached for was in the
+   drawer the whole time.
 
    ✅ **THE TRUE CLAIM, WHICH IS WEAKER AND IS THE ONE THE MEASUREMENT SUPPORTS:** no re-proportioning
    that keeps **both tiles `c05`/`c07`-dominant** gets anywhere near the aim — and both are, at
@@ -646,7 +655,7 @@ compositions are structurally correct. They are not the authored region.**
    to its extreme (scrub's to `c00` 3.87, rock's to `c06` 94.06), the ceiling is 44.80** — scrub floor
    50.27 against rock ceiling 95.07. ⛔ **So a dominance-preserving recut SCRAPES PAST THE 41 FLOOR and
    comes nowhere near the 68 AIM.** State it that way: not *"cannot clear the bar"*, which depends on
-   which bar is meant, but **44.80 against a 41 floor and a 68 aim.**
+   which bar is meant, but **44.80 against a round 41 floor (43.40 measured) and a 70.5–77.2 aim.**
 
    ⛔ **WHY THIS MATTERS RATHER THAN BEING PEDANTRY, and it is the reason the weaker claim is the one
    to keep.** The struck version says the heather swap was **structurally required**. The true one says
@@ -2170,8 +2179,8 @@ wrong save" is the kind of note that gets re-found.
       ⏳ **The swap above is the fix, measured and NOT YET APPLIED**: it is reported to take the `,`/`R`
       separation to **53.4** (heather 123.6, open ash 84.3, basalt 70.2) and `verify.py`'s seam check on
       `,` from **FAIL ×2.55 to PASS ×0.90**. **Recorded as pending with its measurement attached, not
-      as closed** — it closes when the swap lands. **Read 53.4 against the 41 floor and the 68 aim
-      established below, NOT against "about 28"** — it clears the floor and approaches the aim, which
+      as closed** — it closes when the swap lands. **Read 53.4 against the round 41 floor (43.40 measured)
+      and the 70.5–77.2 aim established below, NOT against "about 28"** — it clears the floor and approaches the aim, which
       is a considerably better result than the bar it was originally set against.
 
       ⛔ **AND THE BAR ITSELF WAS WRONG, BY ABOUT A FACTOR OF 2.5. THIS IS THE CORRECTION THAT MATTERS
@@ -2180,34 +2189,59 @@ wrong save" is the kind of note that gets re-found.
       legibility.** Gold spends two different contrast budgets on two different jobs, and ~28 is the
       smaller one:
 
+      ⛔ **AND THE FIRST VERSION OF THIS TABLE WAS ARITHMETIC ON A VALUE THAT DOES NOT EXIST. It read
+      `tree mass 115.72`, and BOTH derived figures — an aim of `68.04` and a floor of `41.29` — were
+      differences taken against it.** The corrected table, every row reproduced independently here:
+
       | Gold pair | job | separation |
       |---|---|---|
-      | plain ground **183.76** − tall grass **157.00** | **both walkable** — the ENCOUNTER marker | **26.76** |
-      | tall grass **157.00** − tree mass **115.72** | darkest walkable vs **BLOCKING** | **41.29** |
-      | plain ground **183.76** − tree mass **115.72** | walkable vs **BLOCKING** | **68.04** |
+      | plain ground **183.7556** − tall grass **157.0033** | **both walkable** — the ENCOUNTER marker | **26.75** |
+      | plain ground − tree pair (**113.2503** / **106.5190**) | walkable vs **BLOCKING** | **70.51 – 77.24** (73.87 against the pair's mean) |
+      | tall grass **157.0033** − lightest whole tree tile **113.60** | **darkest walkable vs lightest blocking — the MEASURED MINIMUM** | **43.40** |
 
       **So ~28 answers *which ground has encounters in it*. *Which ground can I walk into* is a
-      different question with a different budget, and Gold spends 68 on it.** ⛔ **The floor for a
-      walkable/blocking pair is 41, not "the twenties."** The art lane set the target too low itself,
-      has accepted this, and asked for it to be recorded.
+      different question with a different budget, and Gold spends 70.5–77.2 on it — MORE than the 68
+      it was credited with.**
+      ⛔ **AND THE FLOOR MUST BE WRITTEN AS WHAT IT IS: 41 IS A CONSERVATIVE ROUND NUMBER, NOT AN
+      OBSERVATION.** The measured minimum behind it is **43.40**, and 41 is safe precisely because it
+      sits below that. **Do not present 41 as measured** — quote it as the round floor and 43.40 as the
+      measurement, or the next reader will go looking for the tile pair that produced 41 and not find
+      one. The art lane set the original target too low itself, has accepted this, and asked for it to
+      be recorded.
 
       ✅ **VERIFIED HERE INDEPENDENTLY, AND THE METHOD IS WORTH KEEPING BECAUSE IT IS NOT A SCREENSHOT
-      READING.** Tiles clustered by **exact bytes** across all eight `assets/reference/gen2/` captures
-      (246 distinct 16×16 tiles), Rec.601 as defined above. **Both anchor figures reproduce to the
-      digit and corpus-wide, not on one capture:** plain ground **183.76 at 811 occurrences repo-wide**,
-      tall grass **157.00 at 328**. On `johto-route-29-gsc.png` alone they are the two most common
-      ground tiles at n=286 and n=160.
+      READING.** Exact-byte clustering over all eight `assets/reference/gen2/` captures: **8,640 tiles
+      → 246 clusters**, every capture an exact multiple of 16 in both axes (**zero remainder — all 1×
+      native**), Rec.601 as defined above. Reproduced to four decimals: plain ground **183.7556 at
+      n=811**, tall grass **157.0033 at n=328**, the tree pair **113.2503** and **106.5190** at
+      **n=706 each** — one 16×32 tree counted twice, which is why the counts are identical.
 
-      ⚠ **ONE FIGURE OF THE THREE DID NOT REPRODUCE HERE, AND IT MOVES THE CONCLUSION THE SAFE WAY —
-      say so rather than passing the table through whole.** **Tree mass 115.72 is grouping-dependent
-      and no exact-byte cluster in the corpus sits there.** The two obvious tree tiles are a matched
-      pair at **113.25 and 106.52, 706 occurrences each** (mean 109.9), and a wider eye-grouping across
-      the darker tree clusters lands near 114.5 — so **110–116 is the defensible band, and 115.72 sits
-      at its top edge.** ⛔ **Every value in that band makes the blocking budget LARGER, not smaller**:
-      at 109.9 the floor would be **47.1** and the aim **73.9**. **So 41 is a CONSERVATIVE floor and
-      the correction is if anything understated.** The two figures the argument actually turns on —
-      that ~28 is the encounter budget and that the blocking budget is far above it — are verified
-      exactly; the third is a reading whose grouping was not published, and it is recorded as one.
+      ⛔ **`115.72` IS A PHANTOM. IT IS NOT IN THE CORPUS AT ALL, AND IT IS THE ONE FIGURE HERE THAT WAS
+      NEVER MEASURED.** ⚠ **This entry previously called it "grouping-dependent" and put the band at
+      110–116. That was right as far as it went and it did not go far enough** — the consequence is
+      that *both* the aim and the floor were differences against a number with no cluster behind it.
+      **The nearest cluster is 115.27 at n=4**, with nothing else above n=10 anywhere near it; the
+      tree tiles that actually carry the corpus are the n=706 pair. **A figure that fails to reproduce
+      is not merely unsupported — everything derived from it has to be re-derived, and the derived
+      figures are usually the ones that have already travelled.**
+      ✅ **The direction of the error is the reassuring half and it is worth stating: every correction
+      here moved the blocking budget UP** — the aim from 68.04 to 70.51–77.24, and the measured minimum
+      to 43.40 above the round 41. **The claim "~28 is the encounter budget and the blocking budget is
+      far above it" was never in doubt; only the numbers attached to it were.**
+
+      ⚠ **TWO CORPUS FINDINGS THAT BEAR DIRECTLY ON THE PER-BIOME GUARD WHEN IT SHIPS, recorded here
+      because they would otherwise be discovered the hard way.**
+      1. ⛔ **157 IS NOT A SIGNATURE FOR "ENCOUNTER TERRAIN".** Gold's brown dirt **path** clusters at
+         **157.75 (n=330)** and **157.87 (n=298)** — **628 occurrences across those two, nearly twice
+         tall grass's 328, and LIGHTER than tall grass by under one luminance unit.** ⚠ **Two further
+         clusters sit in the same band (157.83 n=44, 157.79 n=25), taking the near-157.8 population to
+         697** — which strengthens the point rather than softening it. **So a guard that keys terrain
+         off a luminance band near 157 will also select walkable PATH.** Mean luminance alone cannot
+         separate encounter terrain from a road in the corpus we are imitating.
+      2. ⚠ **A cluster at 126.41 (n=135) is a tree crown clipped by the top edge of the rip.** It is
+         **blocking**, and tall grass sits only **30.59** above it. **Judged a rip artifact** — a
+         partial tile, not a design decision — **but recorded so a later reader who finds it does not
+         conclude the floor is 30.**
       ✅ **THE COMPETING FIGURES ARE NOW RECONCILED AND THE SET IS CLOSED. Every one of them was
       right about a different corpus, and the reconciliation is below — reproduced independently here,
       to the digit, rather than accepted.** **The number of record, and it is quoted with its
