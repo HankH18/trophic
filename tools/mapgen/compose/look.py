@@ -2,7 +2,7 @@
 be made at. Nothing here composes a map; it exists so the ground-material choice
 for '.' and 'o' is made by looking rather than by argument.
 
-Scope: assets/raw/_trials/tiles/v2/compose/ only.
+Scope: tools/mapgen/compose/ only.
 """
 
 import os
@@ -18,7 +18,11 @@ FIELDS = [
     ("ground", ["short-grass-%d" % i for i in range(1, 9)]),
     ("ground", ["tall-grass-%d" % i for i in range(1, 9)]),
     ("ground", ["turf-%d" % i for i in range(1, 9)]),
-    ("ground", ["plaza-%d" % i for i in range(1, 9)]),
+    # There is no plaza row. A `plaza-1..8` row stood here and referenced tiles that
+    # were never committed: the eight that existed were untracked trial output under a
+    # tree that has since been deleted, no materials table in compose.py ever named
+    # them, and `git ls-files | grep -i plaza` is empty. The row made this file raise
+    # SystemExit from lib.load on the first sheet. Do not restore it without the tiles.
     ("path", ["path-1", "path-2", "path-3", "path-4"]),
     ("path", ["pave-1", "pave-2", "pave-3"]),
     ("path", ["mouth-1", "mouth-2"]),

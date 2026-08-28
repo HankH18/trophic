@@ -74,6 +74,102 @@ KEYLINE = (0x04, 0x03, 0x08)   # c00 #040308 — the darkest swatch; Gold's outl
 SHADOW = (0x27, 0x29, 0x40)    # c30 #272940 — a cool near-black, for the south shade
 SAND = (0xC8, 0xBC, 0xA5)      # c12 #c8bca5 — shoreline rim
 
+# ── THE CONTRAST SIGN RULE — READ THIS BEFORE CUTTING A NEW BIOME'S TILES ────
+# Every table below has to satisfy one rule that is not about which tiles are handsome, and so does
+# every table a FOREST, SANCTUM or VALE family adds. Gold tells the player what can be walked on
+# with VALUE, and it tells it in one consistent direction, so a player who was never taught the rule
+# obeys it anyway. Getting the direction wrong does not read as ugly; it reads as a map that lies.
+#
+#   THE FORMULA, for every luminance figure in this block: Rec.601 luminance 0.299R+0.587G+0.114B
+#   over 8-bit sRGB, with NO gamma linearisation.
+#   CORPUS G — Gold itself: the GSC captures under assets/reference/gen2/, cut into 16x16 tiles,
+#   clustered by EXACT BYTE IDENTITY, and averaged per cluster over the whole set of captures.
+#   CORPUS A — our own cut: every pixel of the named PNGs under tools/mapgen/compose/tiles/.
+#   Both are named on every figure because four different numbers for one luminance gap have already
+#   circulated on this lane, and they circulated precisely because nobody said which pixels or which
+#   operator. A luminance quoted without its formula and its corpus is not checkable; do not quote
+#   one, and do not accept one.
+#
+# GOLD'S LADDER (corpus G). The corpus is the eight captures under assets/reference/gen2/. All eight
+# are 1x native — tested for uniform NxN blocks at N in {2,3,4,6,8}, none holds at N=2 — and every
+# dimension is a multiple of 16, so 8,640 whole tiles resolve into 246 exact-byte clusters with no
+# remainder dropped. By occurrence:
+#     town pavement, WALKABLE    234.96    (1119 — the most common tile in the whole corpus)
+#     plain walkable ground      183.76    (811)
+#     tall grass / encounter     157.00    (328)
+#     tree mass, BLOCKING        a BAND, not a point. GSC draws a tree as ONE 16x32 object, and its
+#                                two halves cluster separately at 113.25 and 106.52, 706 occurrences
+#                                EACH — the per-capture counts match exactly, which is how you know
+#                                it is one object counted twice, not two tiles. The corpus's other
+#                                palettes give the same pair at 113.60/106.87 and 110.32/103.76.
+#                                The 115.72 usually quoted for tree mass EXISTS NOWHERE HERE: the
+#                                nearest cluster is 115.27 at 4 occurrences, and the occurrence-
+#                                weighted mean over all six tree clusters is 109.53. Every figure
+#                                derived from 115.72 inherits that. Quote the band.
+# So: WALKABLE IS BRIGHT, ENCOUNTER-WALKABLE IS DARKER, BLOCKING IS DARKEST.
+#
+# THAT HAS TWO CONSEQUENCES AND THEY ARE SEPARATE THINGS. Satisfying one does not satisfy the other.
+#
+# 1. MAGNITUDE. The walkable-against-blocking pair is the one the player collides with, and Gold
+#    spends 70.51 to 77.24 on it — plain ground against the upper and lower halves of its own tree,
+#    73.87 against their mean, and 70.15 to 80.00 taken across every tree palette in the corpus. Even
+#    Gold's DARKEST walkable surface, tall grass, sits 43.75 and 50.48 above those two halves, and
+#    43.40 above the LIGHTEST whole tree tile anywhere in the corpus. So THE FLOOR FOR ANY
+#    WALKABLE/BLOCKING PAIR WE CUT IS 41 — deliberately held under the measured 43.40 minimum, and
+#    conservative in the only direction that matters, since a darker true tree mass makes the real
+#    gap larger and never smaller.
+#    THE "ABOUT 68" AND THE "41.28" THAT CIRCULATE ARE 183.76 - 115.72 AND 157.00 - 115.72, i.e.
+#    arithmetic on the figure that does not reproduce. Neither is measurable in this corpus. 41
+#    survives only as a round number below the measured floor; it is not itself a measurement.
+#    DO NOT AIM AT "about 28". 26.75 is 183.76 - 157.00, Gold's separation between two WALKABLE
+#    surfaces — plain ground against tall grass. That is the ENCOUNTER MARKER's budget, which is a
+#    different job with a different size. A figure measured for one job is not a target for another,
+#    and this particular figure has already been mistaken for the collision budget once.
+#    TWO THINGS THAT BREAK A NAIVE READING OF THIS LADDER, both measured in the same pass:
+#    (a) 157 IS NOT A SIGNATURE FOR "ENCOUNTER". Gold's brown dirt path clusters at 157.75 and
+#        157.87 — 628 occurrences between them, nearly twice tall grass's 328, and LIGHTER than tall
+#        grass by under one luminance unit. The ladder is a target for a CUT, never a classifier:
+#        anything that keys terrain off a luminance band near 157 also selects walkable path.
+#    (b) THE 43.40 FLOOR IS OVER WHOLE TREE TILES. One cluster at 126.41 (135 occurrences) is a
+#        crown clipped by the top edge of the rip — half canopy, half ground — and tall grass sits
+#        only 30.59 above it. Judged a rip-boundary artifact rather than an in-game tile, and
+#        written down here so the next reader does not rediscover it and conclude the floor is 30.
+#
+# 2. SIGN. cindershelf is what an inverted ladder looks like. On corpus A, basalt-rock — which
+#    BLOCKS — measures 71.70, against ash-scrub — which is WALKABLE — at 65.14: the blocking
+#    material is the BRIGHTER of the two. The magnitude was the visible failure and got all the
+#    attention. The SIGN is the half that would still have been wrong after a successful recut,
+#    because a map cut that way teaches the opposite of the rule the player arrives already holding.
+#
+# AND THE CAUSE, STATED CORRECTLY — IT WAS WRITTEN DOWN WRONG TWICE, AND THE WRONG VERSION CLOSES
+# OPTIONS FOR THE NEXT FAMILY. It is NOT that the palette caps the separation. Measured over the
+# entries actually present in those two tiles (corpus A, per-pixel census): ash-scrub uses SIX
+# entries — c05 58.6%, c07 26.8%, c00 7.0%, c04 4.3%, c09 2.7%, c06 0.6% — and basalt-rock FIVE, a
+# strict subset of them, c09 being the only entry not shared. With the proportions left free,
+# ash-scrub's mean can be driven anywhere in 3.87..125.16 and basalt-rock's in 3.87..95.47, so
+# RE-PROPORTIONING THE INKS ALREADY IN THESE TILES REACHES 91.60 — that is ash-scrub at pure c07
+# (95.47) over basalt-rock at pure c00 (3.87), using only the five entries BOTH already carry, and
+# it is twice past the 41 floor. Spending ash-scrub's c09 as well takes it to 121.29. The
+# 37.23 that keeps getting quoted as the limit is the c05/c07 PAIR SPREAD (c05 #642c16 L 58.24,
+# c07 #8c5230 L 95.47), and it bounds the mean ONLY while both tiles stay c05/c07-dominant, which
+# they are: 85.4% of ash-scrub and 72.2% of basalt-rock. THE CONSTRAINT WAS A PROPERTY OF HOW THE
+# TILES WERE DRAWN, NOT OF THE COLOURS AVAILABLE — and a redraw that separates the two materials on
+# TEXTURE or SILHOUETTE rather than on mean value is not subject to a luminance bound at all.
+# Writing "the palette capped us" would tell the next cutter that the colour set won, when what
+# actually won was three redraws that all stayed inside the same two inks.
+#
+# KEEP THAT APART FROM THE ONE GENUINE PALETTE LIMIT, WHICH IS A DIFFERENT CLAIM AND IS STILL TRUE.
+# The frozen 32 holds NO DARK NEUTRAL between #272940 and #74564e: every entry in that window is
+# strongly chromatic, and the only neutral in the window is c30 itself, which is navy. That is why
+# the ash cannot be BLACK, and it is a fact about the palette. "The ash cannot be black" and "the
+# two materials could not be separated" are not the same statement, and merging them produces the
+# false conclusion that the palette caused the contrast defect. docs/STATUS.md carries the full
+# working for the palette half; this file carries the drawing half, because this file is where the
+# next table gets written.
+#
+# The per-biome guard that would ENFORCE the 41 floor is not written here. It ships with the tables
+# it guards, enumerated from data/nodes/, in the same package as the FOREST/SANCTUM/VALE cut.
+
 # ── which tiles serve which legend character ─────────────────────────────────
 # One table per map, because the two are not made of the same materials. A
 # character with no entry is a loud failure, never a silent flat fill.
