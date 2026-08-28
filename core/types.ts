@@ -511,6 +511,52 @@ export interface CollisionGrid {
   bits: Uint8Array;
 }
 
+/**
+ * WHERE a wild encounter can happen at one node — one boolean per collision cell.
+ *
+ * ══ IT SAYS WHERE. `data/nodes/<id>.json` SAYS WHAT. ══
+ * G3 gives the node file one job and this type must never take it: the node's `populations` are the
+ * encounter table ("encounter weight of species s = populations[s].count", build-doc §7.2), and
+ * nothing here knows a species id, a weight or a role. A mask can silence a cell; it can never
+ * change WHICH animal a cell hands over, nor make one appear that the node does not declare.
+ *
+ * ══ IT IS DERIVED, NEVER AUTHORED ══
+ * The cells come from `tools/mapgen/layouts/<id>.txt` — the hand-authored 64×64 ASCII layout the art
+ * lane already composes the map from — by reading the ONE character `balance.encounter
+ * .encounterTerrainChar` names. So the grass a player sees and the grass that rolls are the same
+ * grass by construction, and there is no second file to keep in step. `core/foodweb.ts`
+ * `encounterMaskFromLayout` is the only thing that builds one.
+ *
+ * ══ TWO KINDS OF NODE, STATED SEPARATELY ══
+ *   • A node that draws encounter terrain has `encounterCells > 0`, and a step completed on one of
+ *     those cells may roll against the node's derived table.
+ *   • A node that draws NONE has `encounterCells === 0`, and that is a claim the layout makes rather
+ *     than an accident: no step anywhere on it can roll, at any seed. `tests/gates/
+ *     layout-encounter-contract.test.ts` holds such a node to declaring no populations either, so on
+ *     the shipped twelve the case does not arise — but a reader of this type must not assume it away,
+ *     because the roll has to answer honestly on a node that has been redrawn and not yet re-peopled.
+ */
+export interface EncounterMask {
+  nodeId: string;
+  cols: number;
+  rows: number;
+  /**
+   * Row-major, `cols × rows` long. `true` ⇒ a step completed on this cell may roll an encounter.
+   * Read it through `core/foodweb.ts` `cellRollsEncounters`, which is total: a cell outside the grid
+   * reads `false` rather than throwing or wrapping.
+   */
+  cells: readonly boolean[];
+  /** How many cells are encounter terrain. */
+  encounterCells: number;
+  /**
+   * How many cells the player can stand on at all — the honest denominator for
+   * {@link EncounterMask.encounterCells}. Blockedness is the art lane's fact (`tools/mapgen/
+   * legend.ts` `blocks`), so it is passed IN to the derivation rather than decided in `core/`, which
+   * `tests/gates/guardrails.test.ts` forbids from reaching `tools/` at all.
+   */
+  walkableCells: number;
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * §7.7 Gyms — ghost-compatible schema (G8: schema only, never a ghost feature)
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -1065,24 +1111,59 @@ export interface Balance {
     stepsPerForay: number;
     /**
      * Chance of meeting something on ONE step **taken on an encounter tile**. It is not the chance
-     * per walked step: see `encounterTileFraction`, which is the other half of the product.
+     * per walked step.
+     *
+     * With the mask in hand this is the whole rate and not half a product: a step completed on a
+     * cell `EncounterMask` marks rolls at exactly this, and a step completed anywhere else rolls at
+     * nothing. `encounterTileFraction` is still the other half for a caller that cannot say where
+     * the player is standing — see its own note.
      */
     encounterChancePerStep: number;
     /**
-     * GRASS GATING — the fraction of a node's walkable cells that are encounter tiles.
+     * THE POSITION-BLIND AVERAGE. It is no longer the spatial gate, and the difference is the whole
+     * of this note.
      *
-     * Encounters do not roll on every walked step; they roll on the tall-grass share of the map.
-     * The effective per-step rate is `encounterTileFraction * encounterChancePerStep`, so this key
-     * is the lever on how dense the region is without touching what an encounter tile itself is
-     * worth.
+     * ⚠ WHAT IT USED TO BE. Until the encounter mask landed this key WAS grass gating: every walked
+     * step, anywhere on a node, rolled at `encounterTileFraction × encounterChancePerStep` — so a
+     * player standing on a road, in a town square or on a building's doorstep met wild animals at
+     * exactly the rate of one standing in tall grass. The scalar was a stand-in for a mask nobody
+     * had yet, and `core/foodweb.ts` folded it into a single draw.
      *
-     * It is a NUMBER rather than a mask because no maps exist yet — `assets/final/` holds one empty
-     * file and 287 of 288 manifest rows are unstarted. When painted maps land, each node gains an
-     * encounter mask beside its `collisionMask` and the sampled share replaces this value per node;
-     * this stays as the fallback for any node that declares none, which is why it is a fraction of
-     * walkable cells and not a step count. Nothing about the roll order changes when that happens.
+     * ⚠ WHAT IT IS NOW. Where the player is standing is a FACT, read off `EncounterMask` — so a
+     * positioned roll needs no fraction: it is `encounterChancePerStep` on encounter terrain and
+     * nothing anywhere else. This key survives for the callers that have no position to read:
+     *
+     *   • the year's encounter budget (`tests/unit/transcription.test.ts`), which asks what a whole
+     *     year of foraying is worth and cannot be asked cell by cell;
+     *   • `tools/harness/full-run.ts`, which walks a headless region and never places the player.
+     *
+     * For those, the honest per-step rate is (share of encounter terrain) × `encounterChancePerStep`,
+     * and this is that share as one number. `core/foodweb.ts` `stepEncounterChance` is its one reader
+     * and says the same thing from the other side.
+     *
+     * ⚠ IT IS THE ROUTE SHARE, NOT THE REGION'S. Measured over the twelve committed layouts: the
+     * five routes run 24.10 / 24.67 / 25.27 / 25.16 / 25.99 % of walkable cells, pooling to 24.96 %
+     * — which is what the shipped 0.25 is. The towns run 5.46–10.16 % and the Sanctum 31.02 %, so
+     * the whole region pools to 18.63 %. That is the right choice rather than a stale one: a foray is
+     * an excursion into the wild, and the budget this feeds is a claim about walking routes. It is
+     * pinned to the measured route band by `tests/unit/encounter-mask.test.ts`, so it cannot drift
+     * away from the maps in silence — which is what stops it being a second opinion about where the
+     * grass is (G3). The mask is the only authority on that.
      */
     encounterTileFraction: number;
+    /**
+     * The ONE layout character that is encounter terrain — `,`, the legend's `scrub` row
+     * ("walkable but textured — long grass, ferns, heather").
+     *
+     * It lives here rather than as a literal in code for the same reason
+     * `signChainGatedHabitatTag` does (G11): which terrain produces animals is a gameplay decision,
+     * and `core/` may not reach `tools/mapgen/legend.ts` to ask the art lane
+     * (`tests/gates/guardrails.test.ts` `no_phaser_in_core` holds `core/` to `data/` and zod). The
+     * two lanes are BOUND rather than trusted to agree: `tests/gates/layout-encounter-contract.test
+     * .ts` asserts this character is exactly the legend's scrub row and that it is walkable, so
+     * re-lettering the legend reddens instead of silently moving what the game counts as grass.
+     */
+    encounterTerrainChar: string;
     outOfSeasonWeight: number;
     scavengerRecentDeathsDivisor: number;
     /**

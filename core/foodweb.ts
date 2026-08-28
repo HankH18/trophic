@@ -23,6 +23,7 @@ import type {
   AgeClass,
   BaitMatch,
   Balance,
+  EncounterMask,
   EncounterWeight,
   FoodWeb,
   HabitatSentinel,
@@ -202,26 +203,214 @@ export function isMesopredator(line: SpeciesLine, balance: Balance): boolean {
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
- * The chance that ONE walked step meets something — grass gating, and the ONLY definition of it.
+ * The chance that ONE walked step meets something WHEN NOBODY KNOWS WHERE THE PLAYER IS STANDING.
  *
- * Encounters roll on tall grass, not on every cell of a map, so a step must first BE on an
- * encounter tile (`encounter.encounterTileFraction`) and then roll (`encounter.encounterChancePerStep`).
+ * ⚠ THIS IS NO LONGER THE GATE THE GAME ROLLS. It was, and the note is worth keeping because the
+ * shape of the old defect is the argument for the new shape: `encounterTileFraction` was a scalar
+ * stand-in for a mask nobody had, so this product was applied to EVERY walked cell of every node —
+ * a step on a road, in a town square, or on a building's doorstep met wild animals at exactly the
+ * rate of a step in tall grass. Where the player is standing is now a fact, not a probability:
+ * {@link cellRollsEncounters} reads it off the node's {@link EncounterMask}, and a positioned step
+ * rolls at `encounterChancePerStep` on encounter terrain and at nothing anywhere else.
+ *
+ * What survives here is the POSITION-BLIND expectation, for the two callers that genuinely have no
+ * cell to read: the year's encounter budget (`tests/unit/transcription.test.ts`), which asks what a
+ * whole year of foraying is worth, and `tools/harness/full-run.ts`, which walks a headless region.
+ * For them the honest rate is (share of encounter terrain) × `encounterChancePerStep`, and
+ * `encounter.encounterTileFraction` is that share as one number — measured against the twelve
+ * committed layouts and pinned to the route band by `tests/unit/encounter-mask.test.ts`, so it
+ * cannot drift away from the maps and become a second opinion about where the grass is (G3).
  *
  * It lives in core/ rather than in game/ because BOTH the game and the balance harness need it and
  * they must not each own a copy. `tools/harness/full-run.ts` rolled the raw `encounterChancePerStep`
  * while the overworld rolled the gated product, which would have made every published encounter,
  * catch and extinction figure describe a region four times denser than the one the player walks —
  * an instrument measuring a different game. One function, both callers.
- *
- * Collapsing the two factors into ONE draw is deliberate and load-bearing: L10 requires that a
- * replay of the same seed meets the same creatures, and the draw ORDER is the contract. A second
- * draw for the tile would renumber every draw after it and desynchronise every existing fixture.
- *
- * When painted maps land the fraction becomes a sampled property of a node's encounter mask and
- * this takes the node; the product and the single draw stay exactly as they are.
  */
 export function stepEncounterChance(balance: Balance): number {
   return balance.encounter.encounterTileFraction * balance.encounter.encounterChancePerStep;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * §7.2 Derivation 3 — the encounter MASK. It says WHERE; the node file says WHAT.
+ *
+ * G3 IS THE CONSTRAINT THAT SHAPES EVERY LINE BELOW. There is no second encounter table here and
+ * there cannot be one: nothing in this section knows a species id, a role, a weight or a count. A
+ * mask can silence a cell. It can never change WHICH animal a cell hands over, nor conjure one the
+ * node's `populations` do not declare — that answer stays {@link encounterWeights}'s alone, derived
+ * from `data/nodes/<id>.json`, which remains the single source of truth for what lives at a node.
+ *
+ * THE MASK IS DERIVED, NEVER AUTHORED. Its source is `tools/mapgen/layouts/<id>.txt` — the same
+ * hand-authored 64×64 ASCII grid the art lane composes the painted map from — so the grass the
+ * player SEES and the grass that ROLLS are the same grass by construction, with no second file to
+ * keep in step and nothing to sample out of a painting.
+ *
+ * WHY core/ PARSES THE LAYOUT BUT DOES NOT READ IT. `tests/gates/guardrails.test.ts`
+ * `no_phaser_in_core` holds core/'s whole import closure to `data/` and zod, so this file may not
+ * reach `tools/` for the layout text OR for the legend's blocking characters, and L11 forbids it
+ * doing filesystem work at an engine's behest. Both therefore arrive as ARGUMENTS: `game/
+ * encounters.ts` holds the twelve layouts (static imports, exactly as `core/schemas.ts` holds the
+ * twelve node JSONs) and hands the text and the blocking set in. The derivation is pure.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** One maximal run of consecutive lines that are each exactly the grid's width. */
+export interface LayoutRun {
+  /** 1-based line number of the run's first line, so a complaint names a line a human can open. */
+  firstLine: number;
+  length: number;
+}
+
+/** What {@link findLayoutGrid} could make of a layout file. */
+export interface LayoutGridParse {
+  /** The grid rows, verbatim. Empty when the file holds no run at all. */
+  rows: string[];
+  /** 1-based line the grid starts on, or 0 when there is no run. */
+  firstLine: number;
+  /** Every maximal run in the file, longest first — reported so a bad parse is legible. */
+  runs: LayoutRun[];
+  /** Two or more runs tie for longest: the file is ambiguous and must not be guessed at. */
+  ambiguous: boolean;
+}
+
+/**
+ * Isolate a layout's grid: THE LONGEST RUN OF CONSECUTIVE LINES THAT ARE EACH EXACTLY `lineWidth`
+ * CHARACTERS.
+ *
+ * ⚠ A LAYOUT `.txt` IS NOT A BARE GRID, and every cheaper rule gets a different answer:
+ *
+ *   • Counting the encounter character over the WHOLE FILE is wrong by roughly double. The files
+ *     open with a long prose header — the coordinate space, the seed data, the author's decisions
+ *     and a legend — and all of it is full of commas; the legend contains the literal line
+ *     `#   ,  floor  scrub`. Measured on the committed tree: cindershelf's file holds 255 commas and
+ *     its grid holds 180.
+ *   • Splitting on the `---` separator every shipped layout carries is the fragile one. A separator
+ *     split takes the FIRST `---`, so the day a header contains one — a rule under a heading, an
+ *     em-dash run in prose, a quoted diff — the "grid" silently starts in the middle of the prose.
+ *   • Taking the FIRST run of full-width lines is wrong TODAY, not hypothetically: three of the
+ *     twelve (`cindershelf`, `duskhollow`, `r2`) carry a prose line of exactly grid width ABOVE the
+ *     grid, so a first-run rule parses a one-line comment as the map.
+ *
+ * A TIE IS A FAILURE, never a coin-flip: {@link LayoutGridParse.ambiguous} is set and the caller
+ * must refuse. Picking either run would be a parse that looks confident and is guessing.
+ *
+ * This function does NOT enforce the shape — it returns whatever the longest run is, however short,
+ * so a malformed file is reported as "63 lines" by its caller rather than silently parsing to
+ * something with no encounter cells. `tests/gates/layout-encounter-contract.test.ts` calls this same
+ * function, so the gate that measures the layouts and the game that plays them cannot come to
+ * different conclusions about where a grid starts.
+ */
+export function findLayoutGrid(text: string, lineWidth: number): LayoutGridParse {
+  const lines = text.split("\n");
+  const runs: LayoutRun[] = [];
+  let start = -1;
+  for (let i = 0; i <= lines.length; i += 1) {
+    const isGridWidth = i < lines.length && (lines[i] as string).length === lineWidth;
+    if (isGridWidth) {
+      if (start === -1) start = i;
+    } else if (start !== -1) {
+      runs.push({ firstLine: start + 1, length: i - start });
+      start = -1;
+    }
+  }
+  runs.sort((a, b) => b.length - a.length || a.firstLine - b.firstLine);
+  const best = runs[0];
+  if (best === undefined) return { rows: [], firstLine: 0, runs, ambiguous: false };
+  const ambiguous = runs.length > 1 && (runs[1] as LayoutRun).length === best.length;
+  return {
+    rows: lines.slice(best.firstLine - 1, best.firstLine - 1 + best.length),
+    firstLine: best.firstLine,
+    runs,
+    ambiguous,
+  };
+}
+
+/** A layout that cannot be read as a grid. Loud on purpose — see {@link encounterMaskFromLayout}. */
+export class EncounterMaskError extends Error {}
+
+/**
+ * Derive one node's encounter mask from its layout.
+ *
+ * `blockingChars` is the art lane's answer to "which characters can the player not stand on"
+ * (`tools/mapgen/legend.ts` `blocks`), passed in because core/ may not import it — see this
+ * section's header. It affects only {@link EncounterMask.walkableCells}, the denominator of the
+ * node's encounter-terrain share; whether a CELL rolls is decided by the encounter character alone,
+ * and that character is `balance.encounter.encounterTerrainChar` rather than a literal here (G11).
+ *
+ * ⚠ IT THROWS ON A MALFORMED LAYOUT RATHER THAN RETURNING AN EMPTY MASK. The two failures a bad
+ * parse can produce are a mask with no cells set and a mask with the wrong cells set, and the first
+ * is indistinguishable from a node that honestly draws no grass. A game that quietly stops producing
+ * encounters is the worst available outcome, so a layout that is not exactly
+ * `balance.map.collisionCols × collisionRows` is a loud failure at the moment it is read.
+ * `tests/gates/layout-encounter-contract.test.ts` holds all twelve to that shape, so on the shipped
+ * tree this cannot fire.
+ */
+export function encounterMaskFromLayout(
+  nodeId: string,
+  layoutText: string,
+  balance: Balance,
+  blockingChars: ReadonlySet<string>,
+): EncounterMask {
+  const cols = balance.map.collisionCols;
+  const rows = balance.map.collisionRows;
+  const parse = findLayoutGrid(layoutText, cols);
+
+  if (parse.ambiguous) {
+    throw new EncounterMaskError(
+      `${nodeId}: the layout holds two runs of ${String(parse.runs[0]?.length ?? 0)} lines of exactly ` +
+        `${String(cols)} characters, so which one is the map is a guess. The parse refuses to make it.`,
+    );
+  }
+  if (parse.rows.length !== rows) {
+    throw new EncounterMaskError(
+      `${nodeId}: the layout's longest run of ${String(cols)}-character lines is ` +
+        `${String(parse.rows.length)} rows, not ${String(rows)}` +
+        (parse.firstLine > 0 ? ` (it starts at line ${String(parse.firstLine)})` : "") +
+        `. An encounter mask derived from a bad parse would silence the node instead of saying so.`,
+    );
+  }
+
+  const terrain = balance.encounter.encounterTerrainChar;
+  const cells: boolean[] = [];
+  let encounterCells = 0;
+  let walkableCells = 0;
+  for (let row = 0; row < rows; row += 1) {
+    const line = parse.rows[row] as string;
+    for (let col = 0; col < cols; col += 1) {
+      const ch = line[col] as string;
+      const isTerrain = ch === terrain;
+      cells.push(isTerrain);
+      if (isTerrain) encounterCells += 1;
+      if (!blockingChars.has(ch)) walkableCells += 1;
+    }
+  }
+  return { nodeId, cols, rows, cells, encounterCells, walkableCells };
+}
+
+/**
+ * Can a step completed on this cell roll an encounter?
+ *
+ * TOTAL BY DESIGN: a cell outside the grid reads `false` rather than throwing or wrapping. An
+ * out-of-bounds cell is not a place the player can be standing, and the honest answer for a place
+ * nobody is standing is "no animals here" — never an exception thrown out of a movement step, and
+ * never a wrap that would make the north edge of the map roll the south edge's grass.
+ */
+export function cellRollsEncounters(mask: EncounterMask, col: number, row: number): boolean {
+  if (!Number.isInteger(col) || !Number.isInteger(row)) return false;
+  if (col < 0 || row < 0 || col >= mask.cols || row >= mask.rows) return false;
+  return mask.cells[row * mask.cols + col] === true;
+}
+
+/**
+ * The node's own encounter-terrain share: encounter cells over cells the player can stand on.
+ *
+ * This is the per-node number `encounter.encounterTileFraction` is a single region-wide stand-in
+ * for, and it is what a position-blind caller SHOULD use once it knows which node it is walking.
+ * Zero for a node that draws no encounter terrain, and zero — rather than a division by nothing —
+ * for the degenerate mask with nowhere to stand at all.
+ */
+export function encounterCellShare(mask: EncounterMask): number {
+  if (mask.walkableCells <= 0) return 0;
+  return mask.encounterCells / mask.walkableCells;
 }
 
 /**

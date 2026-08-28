@@ -140,6 +140,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { findLayoutGrid, type LayoutGridParse, type LayoutRun } from "../../core/foodweb";
 import { validateContent } from "../../core/schemas";
 import { DEFAULT_LEGEND } from "../../tools/mapgen/legend.ts";
 
@@ -215,59 +216,32 @@ const ENCOUNTER_KIND = "scrub";
  * 1. The parse. Everything below is only as good as this.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-/** One maximal run of consecutive lines that are each exactly `GRID_SIDE` characters long. */
-interface Run {
-  /** 1-based line number of the run's first line, for a message a human can act on. */
-  firstLine: number;
-  length: number;
-}
-
-interface GridParse {
-  /** The grid rows, verbatim. Empty when the file holds no run at all. */
-  rows: string[];
-  /** 1-based line number the grid starts on, or 0 when there is no run. */
-  firstLine: number;
-  /** Every maximal run in the file, longest first — reported so a bad parse is legible. */
-  runs: Run[];
-  /** Set when two or more runs tie for longest: the file is ambiguous and must not be guessed at. */
-  ambiguous: boolean;
-}
-
 /**
- * Isolate the grid: the LONGEST run of consecutive lines of exactly `GRID_SIDE` characters.
+ * THE PARSE IS `core/foodweb.ts` `findLayoutGrid`, NOT A COPY OF IT.
  *
- * Deliberately NOT a split on the `---` separator, and deliberately not the FIRST such run — the
- * header explains both, and `BINDS — the longest-run parse is doing real work` measures the second
- * one against the shipped files.
+ * It used to live here, and the rule it implements is documented at its new home in as much detail:
+ * the grid is the LONGEST RUN of consecutive lines that are each exactly `GRID_SIDE` characters,
+ * deliberately not a split on `---` and deliberately not the FIRST such run, with a tie treated as a
+ * failure rather than a coin-flip.
  *
- * Note this function does NOT enforce the shape. It returns whatever the longest run is, however
- * short, so that a malformed file is reported as "63 lines" by the shape gate rather than silently
- * parsing to something with zero encounter cells and reddening the biconditional FOR THE WRONG
- * REASON. That ordering is the whole point of the shape gate running first.
+ * It MOVED because the engine now needs the same answer. `game/encounters.ts` derives each node's
+ * encounter mask from these same twelve files, so the parse decides what the player can meet and
+ * where — and two implementations of "where does the grid start" would be a gate measuring one map
+ * while the game plays another. That is the same defect this file's header describes for comma
+ * counting, arrived at from the other side. One function, both readers.
+ *
+ * `GRID_SIDE` stays here and is passed IN, so the G11 argument in the header is unchanged: the file
+ * format's shape is this gate's constant, not a gameplay one. `core/foodweb.ts` takes its own width
+ * from `balance.map.collisionCols`, and the two are asserted equal below.
+ *
+ * `Run` and `GridParse` are kept as local aliases so every message and helper below reads exactly as
+ * it did.
  */
+type Run = LayoutRun;
+type GridParse = LayoutGridParse;
+
 function findGrid(text: string): GridParse {
-  const lines = text.split("\n");
-  const runs: Run[] = [];
-  let start = -1;
-  for (let i = 0; i <= lines.length; i += 1) {
-    const isGridWidth = i < lines.length && (lines[i] as string).length === GRID_SIDE;
-    if (isGridWidth) {
-      if (start === -1) start = i;
-    } else if (start !== -1) {
-      runs.push({ firstLine: start + 1, length: i - start });
-      start = -1;
-    }
-  }
-  runs.sort((a, b) => b.length - a.length || a.firstLine - b.firstLine);
-  const best = runs[0];
-  if (best === undefined) return { rows: [], firstLine: 0, runs, ambiguous: false };
-  const ambiguous = runs.length > 1 && (runs[1] as Run).length === best.length;
-  return {
-    rows: lines.slice(best.firstLine - 1, best.firstLine - 1 + best.length),
-    firstLine: best.firstLine,
-    runs,
-    ambiguous,
-  };
+  return findLayoutGrid(text, GRID_SIDE);
 }
 
 /** `null` when the grid is exactly `GRID_SIDE`², otherwise the reason it is not, spelled out. */
@@ -489,6 +463,40 @@ describe("the layout census cannot pass vacuously", () => {
     // Encounter terrain the player cannot stand in is not encounter terrain.
     expect(entry?.blocks).toBe(false);
     expect(BLOCKING_CHARS.has(ENCOUNTER_CHAR)).toBe(false);
+  });
+
+  /**
+   * BINDS THE THIRD LANE. The character is now stated in THREE places that must agree, and until the
+   * mask landed only two of them existed:
+   *
+   *   • `tools/mapgen/legend.ts` — the art lane's meaning ("scrub: walkable but textured");
+   *   • this file — what the census counts;
+   *   • `data/balance.json` `encounter.encounterTerrainChar` — what the GAME rolls on, which is the
+   *     new one, and which G11 puts in balance.json rather than as a literal in `core/`.
+   *
+   * A re-lettering that moved only the legend would leave the game rolling on a character that no
+   * longer means grass and this gate counting a third thing. All three are asserted equal here
+   * because this is the only file that imports all three.
+   */
+  it("BINDS — balance.json's encounter terrain character is that same legend row", () => {
+    expect(
+      content.balance.encounter.encounterTerrainChar,
+      "data/balance.json encounter.encounterTerrainChar and this gate disagree about which " +
+        "character is grass — the game and the census would be counting different terrain",
+    ).toBe(ENCOUNTER_CHAR);
+    const entry = DEFAULT_LEGEND.find((e) => e.char === content.balance.encounter.encounterTerrainChar);
+    expect(entry?.kind, "balance.json names a character the legend does not call scrub").toBe(ENCOUNTER_KIND);
+  });
+
+  /**
+   * BINDS THE PARSE WIDTH. `GRID_SIDE` is this file's constant and `core/foodweb.ts` takes its own
+   * from `balance.map.collisionCols`; the shared parser is only shared if the two are the same
+   * number. If they ever differ, this gate and the running game isolate different grids out of the
+   * same file, and both would look fine on their own.
+   */
+  it("BINDS — the gate's grid width is the one core/foodweb.ts parses with", () => {
+    expect(content.balance.map.collisionCols).toBe(GRID_SIDE);
+    expect(content.balance.map.collisionRows).toBe(GRID_SIDE);
   });
 });
 

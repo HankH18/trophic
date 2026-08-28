@@ -469,12 +469,25 @@ describe("bible §9 — a Bloom Year is a node whose producers are thriving", ()
     expect(surface, "ForayContext is gone — the encounter roll's input surface moved").toBeDefined();
     const fields = [...(surface as string).matchAll(/^\s{2}([A-Za-z_$][\w$]*)\??:/gmu)].map((m) => m[1]);
     expect(fields, "ForayContext declares no fields — the scan is looking in the wrong place").not.toHaveLength(0);
+    /*
+     * ⚠ `footing` WAS ADDED DELIBERATELY, AND IT IS NOT THE THING THIS LIST GUARDS AGAINST.
+     *
+     * The enumeration is a whitelist, so every widening of `ForayContext` has to come past this
+     * assertion and be argued — which is exactly what it is for, and exactly what happened here. The
+     * field carries the CELL the player is standing on and that node's encounter mask, so the roll
+     * can stop firing on roads and town squares. It is spatial, derived from the hand-authored
+     * layout, and carries no event, no window, no flag and no multiplier: what it can do is silence a
+     * cell, and what it cannot do is change which animal a cell hands over or how heavily it is
+     * weighted. bible §9's bonus-spawn half is exactly as unbuilt after it as before, which is why
+     * the balance-key assertions above and the event-vocabulary sweep below are untouched — those two
+     * are where this test's teeth actually are, and neither was loosened to let this through.
+     */
     expect(
       fields.sort(),
       "ForayContext grew a field. If it carries a regional event, a window or an event flag, the " +
         "bonus-spawn half is being built — bible §9 D10 is no longer unclaimed and this test must " +
         "become an assertion of what the multiplier DOES.",
-    ).toEqual(["act", "balance", "node", "season", "species", "unlockedSignChains"]);
+    ).toEqual(["act", "balance", "footing", "node", "season", "species", "unlockedSignChains"]);
     // …and no event vocabulary has appeared in the module either, under any key name.
     expect(encounters, "game/encounters.ts now names a regional event").not.toMatch(
       /\b(bloom|regionalEvent|activeWindow|windowFlag|festival|migrationWindow)\w*/iu,

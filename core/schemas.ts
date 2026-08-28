@@ -549,9 +549,13 @@ const zBalanceShape = {
   encounter: z.object({
     stepsPerForay: zInt.min(1),
     encounterChancePerStep: zFrac,
-    // Grass gating — the share of walkable cells that are encounter tiles. 1 means the whole map
-    // rolls, which is what shipped before the gate existed and is a legal (if dense) retune.
+    // The POSITION-BLIND average share of walkable cells that are encounter terrain — the balance
+    // budget's and the headless harness's stand-in for a mask they cannot read. The spatial gate is
+    // core/foodweb.ts's EncounterMask; see core/types.ts for what this key stopped being.
     encounterTileFraction: zFrac,
+    // Exactly one character: the layout cell that IS encounter terrain. Bound to the art lane's
+    // legend by tests/gates/layout-encounter-contract.test.ts rather than trusted to match it.
+    encounterTerrainChar: z.string().length(1),
     outOfSeasonWeight: z.number().min(0),
     scavengerRecentDeathsDivisor: z.number().positive(),
     signChainGatedHabitatTag: z.enum(HABITAT_SENTINELS),
