@@ -430,6 +430,7 @@ import {
   payoutAction,
   readGrant,
   readPayout,
+  serialize,
   type SaveEnvelope,
 } from "@core/save";
 import { validateContent } from "@core/schemas";
@@ -1235,5 +1236,307 @@ describe("§S4 beating the fifth leader hands over master snares, exactly once",
       save = h.scene.save;
     }
     expect(h, "the ladder ran no fights at all").not.toBeNull();
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §S5 THE REFUSAL THE PLAYER MEETS — asserted at the banner, layer by layer
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * WHY THIS SECTION EXISTS: TWO LAYERS, NEITHER ASSERTED, MUTUALLY MASKING
+ * ──────────────────────────────────────────────────────────────────────
+ * A refused purchase is refused TWICE in this game, and until this section neither refusal was
+ * pinned — so each one hid the other's absence. Measured, not reasoned about:
+ *
+ *   LAYER 1, the scene. `OverworldScene.buySelected` returns on `if (row.disabled)` BEFORE it calls
+ *     `buy`. Deleting that early return while `game/shop.ts` still throws left the whole suite
+ *     green: the model's `ShopError` took over silently, the `catch` below it flashed a banner, and
+ *     nothing was measuring WHICH banner.
+ *   LAYER 2, the model. `game/shop.ts` `buy` throws on a row `shopRows` has greyed. Replacing both
+ *     throws with `return save` — a silent no-op — left 111 tests green across four shop files.
+ *   BOTH REMOVED. The scene runs `this.shop = shopRows(…)`, `hudDirty = true`, `refreshHud()`,
+ *     `hooks.onSaveChanged?.(…)` and flashes `bought basic · 3 · purse 0 · basic 3` against a purse,
+ *     a bag and a tape that never moved — a completed transaction SIGNALLED to the host and to the
+ *     screen, and the suite still passed.
+ *
+ * `tests/unit/shop.test.ts` pins layer 2 at the model. THIS section pins layer 1 at the scene, which
+ * is the layer a player actually meets: a key press, and what the screen says back.
+ *
+ * ⚠ WHY THE BANNER IS COMPARED WHOLE AND NOT SEARCHED FOR A SUBSTRING. The two layers produce two
+ * DIFFERENT strings for the same refusal, and only their full text tells them apart:
+ *
+ *   layer 1 →  `weighted — locked until story.badge.odo`
+ *   layer 2 →  `weighted — "weighted" cannot be bought — locked until story.badge.odo`
+ *
+ * Both carry the row's id and the row's `reason`, both leave the purse, the bag and the tape
+ * untouched, and both keep the shelf open. A test that asked "does the banner mention the reason"
+ * would pass on either — which is exactly how deleting layer 1 stayed green. The equality below is
+ * therefore the whole assertion, not a stylistic preference, and `not.toContain(`"${row.id}"`)`
+ * names the tell in the other direction: the quoted id is `ShopError`'s own grammar
+ * (`"${itemId}" cannot be bought — …`, game/shop.ts) and appears in no banner the scene writes
+ * itself. Neither string is typed here — both are built from the row the model handed the scene.
+ *
+ * The positive control (§S5.2) is what stops all of this passing on a shop where nothing works at
+ * all, and it doubles as the proof that {@link bannerObj} names the right object: it is the only
+ * test here that requires the banner to say a purchase HAPPENED.
+ */
+
+/**
+ * THE BANNER OBJECT ITSELF — not "some text somewhere on screen", and the difference is the point.
+ *
+ * `refreshHud` prints every greyed row's own `reason` into the shelf (`shopLines`), so a test that
+ * read {@link Harness.hud} for the refusal would find it there whether or not the key press was
+ * answered AT ALL — the shelf says "locked until …" on a frame nobody pressed anything. The banner
+ * is the only surface on this screen that says something happened BECAUSE a key was pressed.
+ *
+ * Found by POSITION, not by copy: the scene builds it as
+ * `this.add.text(HUD_PAD, this.scale.height - HUD_PAD, "", BANNER_STYLE)`, so it is the bottom-most
+ * text on a 480×320 screen — below the HUD and below `game/ui/SeasonMeter.ts`'s label, both of which
+ * sit at `HUD_PAD` from the top. The uniqueness check turns a future third text object at the foot
+ * of the screen into a red test rather than a silent misreading, and §S5.2 proves the identification
+ * from the other end by requiring this object to carry the success line.
+ */
+function bannerObj(h: Harness): FakeObj {
+  const texts = h.parts.objects.filter((o) => o.kind === "text");
+  expect(texts.length, "the overworld drew no text at all — there is no banner to read").toBeGreaterThan(0);
+  const lowest = texts.reduce((a, b) => (b.y > a.y ? b : a), texts[0]!);
+  expect(
+    texts.filter((o) => o.y === lowest.y).length,
+    "two text objects share the bottom of the screen, so the bottom-most one is no longer the banner",
+  ).toBe(1);
+  return lowest;
+}
+
+/** What the banner is saying right now. */
+function bannerText(h: Harness): string {
+  return bannerObj(h).text;
+}
+
+/**
+ * The whole save, canonically serialised — `core/save.ts` `serialize`, which is build-doc §8.1's own
+ * comparison and not a hand-rolled projection of it.
+ *
+ * Used instead of reading `money`, `items` and `actionLog` one at a time BECAUSE a refused press is
+ * a claim about the entire save: with the shelf open `update` spends the frame on `updateShop` and
+ * returns, so nothing else in the scene may write anything either. The named fields are asserted
+ * beside it anyway, because "the save moved" is not a failure message anyone can act on.
+ */
+function savedAs(save: SaveEnvelope): string {
+  return serialize(save);
+}
+
+/** More than the whole shelf costs, summed from the shelf itself so no purse figure is typed (G11). */
+const RICH_PURSE = shopRows(freshSave(), balance).reduce((sum, row) => sum + row.price, 0) * 2;
+
+/** The row under the cursor right now — the one the next [E] will actually reach. */
+function rowUnderCursor(h: Harness) {
+  const rows = h.scene.shopOnScreen();
+  const at = h.scene.shopCursorAt();
+  const row = rows[at];
+  expect(row, `the shop cursor is at ${String(at)} and the shelf has ${String(rows.length)} rows`).toBeDefined();
+  return row!;
+}
+
+/**
+ * Everything that must be true after [E] on a greyed row, in one place because §S5.1 makes the same
+ * statement about two DIFFERENT refusals (a purse that cannot pay, and a badge that has not been
+ * won) and the statement is the interesting thing, not the number of copies of it.
+ */
+function expectRefusedAtTheScene(h: Harness, label: string): void {
+  const row = rowUnderCursor(h);
+  expect(row.disabled, `${label}: the row under the cursor is not greyed — this asserts nothing`).toBe(true);
+  expect(row.reason, `${label}: a greyed row carries no reason to surface`).not.toBeNull();
+  const reason = row.reason!;
+  const before = savedAs(h.scene.save);
+  const moneyBefore = h.scene.save.money;
+  const itemsBefore = { ...h.scene.save.items };
+  const tapeBefore = [...h.scene.save.actionLog];
+
+  h.press(KEY_E);
+  h.frame();
+
+  // 1. THE PLAYER IS TOLD, and told by the SCENE. See the section docblock: the equality is what
+  //    separates the scene's own refusal from the model's exception being caught behind it.
+  expect(
+    bannerText(h),
+    `${label}: [E] on a greyed row must answer with the shelf's own refusal. A banner reading ` +
+      `\`${row.id} — "${row.id}" cannot be bought — …\` means the scene stopped refusing and is ` +
+      "reporting game/shop.ts's exception instead; an unchanged banner means the press was swallowed",
+  ).toBe(`${row.id} — ${reason}`);
+  expect(
+    bannerText(h),
+    `${label}: the banner is quoting ShopError, so the scene's own guard did not fire`,
+  ).not.toContain(`"${row.id}"`);
+
+  // 2. NOTHING ANYWHERE CLAIMS A PURCHASE. `bought ` is the first word of the success banner and of
+  //    nothing else the overworld writes, so this covers the HUD and the shelf as well as the banner.
+  expect(
+    h.hud(),
+    `${label}: something on screen reports a purchase that did not happen`,
+  ).not.toMatch(/(^|\n)bought /);
+
+  // 3. AND THE SAVE DID NOT MOVE — byte-identical, not "close enough".
+  expect(h.scene.save.money, `${label}: a refused press moved the purse`).toBe(moneyBefore);
+  expect(h.scene.save.items, `${label}: a refused press moved the bag`).toEqual(itemsBefore);
+  expect(h.scene.save.actionLog, `${label}: a refused press wrote to the tape`).toEqual(tapeBefore);
+  expect(savedAs(h.scene.save), `${label}: the save is not byte-identical after a refused press`).toBe(before);
+
+  // 4. …and the room is still a shop. A refusal that closed the shelf would strand the player one
+  //    press away from a conversation they have already read.
+  expect(h.scene.isShopping(), `${label}: a refused purchase closed the shop`).toBe(true);
+}
+
+describe("§S5 [E] on a greyed row refuses AT THE SCENE, and says so", () => {
+  it("⚠ a purse that cannot pay — the banner is the shelf's refusal, and the save is byte-identical", () => {
+    const { h, label } = openShopWith(0);
+    expectRefusedAtTheScene(h, `${label} · unaffordable`);
+  });
+
+  it("⚠ a badge that has not been won — same statement, a refusal that is not about money", () => {
+    /*
+     * THE SECOND REFUSAL, AND IT IS NOT THE SAME TEST TWICE. `shopRows` orders the two reasons —
+     * a locked row says "locked until <flag>" even when the purse is also short — so this row is
+     * greyed with a full purse behind it. A scene that gated the press on affordability alone
+     * (`save.money >= row.price`) rather than on the row's own `disabled` would sell it, and the
+     * unaffordable case above could not see that.
+     */
+    const { h, label } = openShopWith(RICH_PURSE);
+    selectRow(h, GATED_ROW);
+    expect(rowUnderCursor(h).id, "the cursor did not land on the gated row").toBe(GATED_ROW);
+    expect(
+      h.scene.save.money >= rowUnderCursor(h).price,
+      "the rig cannot afford the gated row, so this is the unaffordable test again",
+    ).toBe(true);
+    expectRefusedAtTheScene(h, `${label} · ${WEIGHTED_FLAG}`);
+  });
+
+  it("⚠ THE POSITIVE CONTROL — [E] on an affordable row says `bought`, and it is true when it says it", () => {
+    /*
+     * WITHOUT THIS, EVERY ASSERTION ABOVE PASSES ON A SHOP THAT CANNOT SELL ANYTHING AT ALL — a
+     * `buySelected` that returned on its first line would satisfy all of them. This is also the
+     * proof that `bannerObj` names the banner: it is the one test here that requires that object to
+     * carry a string only `flashBanner` writes.
+     *
+     * The expected banner is BUILT from the row and the measured save, never typed: `bought <id> ·
+     * <price> · purse <after> · <id> <held>` with every number derived, so a retune of
+     * `economy.snarePrice` moves this test with it (G11).
+     */
+    const priced = shopRows(withPurse(freshSave(), RICH_PURSE), balance).find((r) => !r.disabled && r.price > 0);
+    expect(priced, "the shelf offers nothing that both costs something and can be bought").toBeDefined();
+    const { h, label } = openShopWith(RICH_PURSE);
+    selectRow(h, priced!.id);
+    const row = rowUnderCursor(h);
+    expect(row.disabled, `${label}: ${row.id} is greyed with a full purse — this is not a positive control`).toBe(
+      false,
+    );
+    const before = h.scene.save;
+    const heldBefore = before.items[row.id] ?? 0;
+    const tapeBefore = before.actionLog.length;
+
+    h.press(KEY_E);
+    h.frame();
+
+    const after = h.scene.save;
+    expect(after.money, `${label}: ${row.id} did not cost ${String(row.price)}`).toBe(before.money - row.price);
+    expect(after.items[row.id], `${label}: ${row.id} was paid for and not handed over`).toBe(heldBefore + 1);
+
+    // TWO tape entries, not one: `game/shop.ts` `buy` logs the price and the consequence separately,
+    // because core/save.ts's contract is that an entry is a price or an absolute consequence and
+    // never both. Asserted as the exact delta, so a third entry is as red as a missing one.
+    const appended = after.actionLog.slice(tapeBefore).map((entry) => {
+      const paid = readPayout(entry.action);
+      return paid === null ? readGrant(entry.action) : paid;
+    });
+    expect(
+      appended,
+      `${label}: the purchase appended ${String(appended.length)} tape entries; L10 wants the price ` +
+        "and then the goods, and an entry core/save.ts cannot read back comes through as null",
+    ).toEqual([-row.price, { [row.id]: 1 }]);
+
+    expect(
+      bannerText(h),
+      `${label}: the purchase did not report itself on the banner the way the scene writes it`,
+    ).toBe(`bought ${row.id} · ${String(row.price)} · purse ${String(after.money)} · ${row.id} ${String(heldBefore + 1)}`);
+  });
+
+  it("⚠ a shelf that went stale between two frames refuses — the catch is a refusal, not a receipt", () => {
+    /*
+     * THE `catch` AT THE FOOT OF `buySelected`, DRIVEN RATHER THAN ASSUMED. Its docblock says it is
+     * there for "a `ShopError` out of an id the shelf stopped offering between two frames", and this
+     * is that state, reached through a shipped seam and not by poking the scene:
+     *
+     *   `buySelected` rebuilds `this.shop` from the new save, refreshes the HUD, and THEN calls
+     *   `hooks.onSaveChanged?.(this.save, this)`. A host that writes a different save back inside
+     *   that hook — the seam is documented "the save changed — persist it", and it is handed the
+     *   scene precisely so it can act on it — leaves the shelf holding rows priced against a purse
+     *   that no longer exists. `game/boot.ts` does not do this (it calls `registry.setSave`), so
+     *   this is a reachable configuration rather than the shipped one; it is the only route from
+     *   outside the scene to a stale shelf, because the shop is modal and `update` returns on it.
+     *
+     * What it pins: under a no-op `buy` the `catch` NEVER FIRES, control falls through to the
+     * success banner, and the scene reports a transaction to the screen and to the host. Here the
+     * refusal must reach the player, and it must be the model's — the row the scene is holding says
+     * `disabled: false`, so layer 1 cannot fire and layer 2 is the only thing standing.
+     *
+     * The purse is drained through `core/save.ts`'s own writers, tape and all, for {@link withPurse}'s
+     * reason: a save that minted or destroyed coins beside the tape is not a save the game can hold.
+     */
+    const priced = shopRows(withPurse(freshSave(), RICH_PURSE), balance).find((r) => !r.disabled && r.price > 0);
+    expect(priced, "the shelf offers nothing buyable — the stale-row race is unreachable").toBeDefined();
+
+    let armed = false;
+    const hooks: NonNullable<OverworldSceneData["hooks"]> = {
+      onSaveChanged: (save, scene) => {
+        if (!armed) return;
+        armed = false;
+        const purse = save.money;
+        if (purse <= 0) return;
+        scene.save = applyPayout(appendAction(save, payoutAction(-purse)), -purse);
+      },
+    };
+
+    const anchor = SERVICE_ANCHORS.find((a) => roleOfEntry(a.target) === "vendor")!;
+    const h = mount({
+      save: withPurse(saveAtTown(anchor.bp), RICH_PURSE),
+      startNode: anchor.bp.parentNode,
+      hooks,
+    });
+    standAt(h, anchor.bp, anchor);
+    h.press(KEY_E);
+    h.frame();
+    expect(h.scene.isShopping(), "the vendor's anchor did not open the shelf").toBe(true);
+
+    selectRow(h, priced!.id);
+    armed = true;
+    h.press(KEY_E);
+    h.frame();
+    expect(bannerText(h), "the first press did not buy — the race cannot be set up from here").toContain(
+      `bought ${priced!.id}`,
+    );
+
+    // THE STATE IS PROVED BEFORE IT IS TESTED. If the shelf had re-derived itself after the hook,
+    // the row would be greyed and this would be §S5.1 again, testing layer 1 a third time.
+    const stale = h.scene.shopOnScreen().find((r) => r.id === priced!.id);
+    expect(stale?.disabled, "the shelf re-priced itself after the hook, so no row is stale").toBe(false);
+    expect(h.scene.save.money, "the hook did not drain the purse").toBe(0);
+
+    const before = savedAs(h.scene.save);
+    const tapeBefore = [...h.scene.save.actionLog];
+    h.press(KEY_E);
+    h.frame();
+
+    expect(
+      bannerText(h),
+      "the scene reported a second purchase against a purse of 0 — the ShopError was never raised, " +
+        "or it was raised and the success banner ran anyway",
+    ).not.toMatch(/^bought /);
+    expect(h.hud(), "something on screen reports the stale row as sold").not.toMatch(/(^|\n)bought /);
+    expect(
+      bannerText(h),
+      "the refusal does not name the row the player pressed on",
+    ).toContain(priced!.id);
+    expect(h.scene.save.actionLog, "a refused stale row wrote to the tape").toEqual(tapeBefore);
+    expect(savedAs(h.scene.save), "the save is not byte-identical after a refused stale row").toBe(before);
+    expect(h.scene.isShopping(), "the caught refusal closed the shop").toBe(true);
   });
 });
