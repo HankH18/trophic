@@ -92,11 +92,14 @@
  *    band, and the reason there is no cap, are in the GOLD BAND section below.
  *
  * 6. **A second reading sits beside it — WHOLE-IMAGE EDGE DENSITY — because the colour count alone
- *    cannot tell
- *    a good map from the one this project has been shipping.** A map at 16 colours and 9% edge
- *    density is flat and wrong; a map at 16 colours and 45% is right. Both satisfy a colour-count
- *    check identically, and the flat one is the failure that has actually been shipping. Note 4's
- *    principle — reuse the repo's instrument — was applied here and it **failed the measurement**:
+ *    cannot tell a good map from the one this project has been shipping.** Two maps can hold the
+ *    same sixteen colours and be, respectively, flat and wrong or textured and right. Both satisfy
+ *    a colour-count check identically, and the flat one is the failure that has actually been
+ *    shipping. (This claim used to be stated as "16 colours at ~~9%~~ against 16 colours at
+ *    ~~45%~~" — ⚠ those are the withdrawn ~~8.83%~~ and ~~44.74%~~ rounded to a digit, and they are
+ *    struck for the reason the WITHDRAWN-OPERATOR RULE below gives. The claim never needed them.)
+ *    Note 4's principle — reuse the repo's instrument — was applied here and it **failed the
+ *    measurement**:
  *    §8.2's Sobel is structurally blind to a one-pixel dither, so `edgePercent` defines its own
  *    operator and the control below proves both halves of that. Reuse an existing instrument, but
  *    measure that it can see the thing before you trust it.
@@ -112,8 +115,43 @@
  * 8. **Every number this file emits prints the definition of the operator that produced it.** Two
  *    figures for one property have been produced twice in this project's history, and both times
  *    the cause was the same: a measurement quoted without its instrument attached. One of them —
- *    Gold's whole-map edge density — is struck through in the GROUND-TEXTURE section below rather
- *    than deleted, with the reason, because the trail is worth more than the tidiness.
+ *    Gold's whole-map edge density — is struck through in the WHOLE-IMAGE EDGE READING section
+ *    below rather than deleted, with the reason, because the trail is worth more than the tidiness.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * THE WITHDRAWN-OPERATOR RULE — read this before quoting, comparing to, or deriving from any edge
+ * figure that appears anywhere in this file
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * **THE WITHDRAWAL IS ON THE INSTRUMENT, NOT ON A LIST OF NUMBERS.** Every figure produced by the
+ * unpublished luminance neighbour-difference operator at threshold 25 is withdrawn — wherever it
+ * appears, in this file, in a doc, in a commit message, or in a number nobody has written down yet.
+ * That operator was never published, and a second lane could not reproduce its headline figure at
+ * any threshold.
+ *
+ * So the question to ask of a figure is **"was it made with that instrument?"** — never "is it on
+ * the list?". A list invites the second question, and the second question is exactly how a withdrawn
+ * figure survives a withdrawal: it was not enumerated, so it gets read as sound. This file has
+ * already made that mistake once, in writing, about `6.89%`. The figures that HAVE been written down
+ * — 47.51 · 43.59 · 8.83 · 44.74 · the amplitude ladder 12.88 / 24.09 / 40.02 / 63.77 · 6.89 ·
+ * 54.84 · 60.10 — are worked examples of the rule, not the extent of it. Rounded restatements of
+ * them (a "45%", a "9%") are the same figures wearing fewer digits and go the same way.
+ *
+ * **What the withdrawal does NOT reach**, because these come from other instruments that reproduce:
+ *   • the COLOUR counts standing beside the struck figures — 16, 17 and 43 colours. Counting
+ *     distinct colours reproduces exactly, and this file re-derives the Gold half of it from the
+ *     reference PNGs on every run (`GOLD_BAND_LOW/HIGH/MEAN`, 12–18, mean 16.0).
+ *   • `28.2` luminance points between Gold's two grass greens. That is a colour difference computed
+ *     from reference pixels, not an edge-density percentage, and it reproduces.
+ *   • `GOLD_EDGE_LOW/HIGH/MEAN` below, and every figure this file prints. They come from THIS file's
+ *     own `edgePercent` over PNGs in the tree and are re-asserted against them every run — a
+ *     different operator entirely, live rather than quoted. **Do not touch them.**
+ *
+ * **Struck, never deleted.** A withdrawn figure stays on the page in `~~strikethrough~~` with a ⚠
+ * beside it, because the trail is worth more than the tidiness — and because a number that has been
+ * deleted cannot be recognised when it walks back in. **Every argument these figures were making
+ * survives the loss of them.** Each site below says which argument that is and what may be cited in
+ * its place; the replacement is nearly always this file's own 44.34%-whole-image-against-0.00%-ground
+ * synthetic, which carries its operator with it.
  */
 
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -278,9 +316,25 @@ const hexAt = (d: Buffer, i: number): string =>
  * **A whole-map number is not a ground measurement, and objects supply most of it.** Buildings,
  * trees and props are keyline-dense by construction, so they carry an edge figure upward while the
  * ground underneath stays flat — and the ground is the thing every finding in this file is actually
- * about. The art session isolated this on their own numbers: a dither that read **44.74%** across a
- * whole map read **6.89%** on the ground alone. Same image, same operator, **more than six-fold
+ * about. The art session isolated this on their own numbers: a dither that read ~~44.74%~~ across a
+ * whole map read ~~6.89%~~ on the ground alone. Same image, same operator, **more than six-fold
  * apart**, and the gap is furniture.
+ *
+ * ⚠ **BOTH OF THOSE FIGURES ARE WITHDRAWN — the whole-map one AND the ground one.** They are the
+ * same unpublished luminance neighbour-difference operator at threshold 25, pointed at two regions of
+ * one image; `tools/artverify/EVAL-STANDARD.md` withdraws the operator, and the withdrawal therefore
+ * follows every figure it produced rather than an enumerated set. See THE WITHDRAWN-OPERATOR RULE in
+ * this file's header. An earlier revision of this very comment recorded 6.89% as "NOT named in that
+ * withdrawal, and OPEN". That was wrong twice: it was made with the withdrawn instrument, and asking
+ * whether a figure is *named* is precisely the question the rule exists to replace.
+ *
+ * **THE ARGUMENT IS UNTOUCHED, AND IT IS THE PART THAT MATTERS: a whole-map aggregate cannot stand
+ * in for a ground measurement, because objects are keyline-dense by construction and carry the figure
+ * upward while the ground underneath stays flat.** That is still sound; what it has lost is the right
+ * to be quoted as a measurement. This file reproduces the same point independently, on its own
+ * synthetic, with the operator attached — **44.34% whole-image against 0.00% on the ground**, in
+ * `THE GROUND READING discriminates` below. Cite THAT pair wherever the withdrawn one used to be
+ * cited. It is the one that carries its instrument with it.
  *
  * Measured here on a synthetic built for it — flat ground, seven of sixteen 64² cells filled with
  * dense keyline object — `edgePercent` reads **44.34%** while the ground-patch reading reads
@@ -353,14 +407,35 @@ function edgePercent(data: Buffer, width: number, height: number): number {
  * A 64×64 patch of open ground, the share held by the top three EXACT-RGB colours, and how many
  * distinct colours the patch spends:
  *
- *     Gold new-bark              78.9%        8 colours
+ *     Gold new-bark              78.9%     ~~8~~ colours ⚠
  *     our postprocess dither     78.3%       12
  *     C64 LoRA output             6.3%     2451
  *     plain generation, no LoRA   4.9%     2385
  *
  * **That is the difference between a look and a structure.** The LoRA's ground is ~2,451 colours
  * differing by about one per channel — continuous noise that reads as stipple to the eye and to any
- * operator that counts neighbour differences. Gold uses EIGHT colours, three covering 79%.
+ * operator that counts neighbour differences. Gold spends a handful of colours, three of them
+ * covering 79%.
+ *
+ * ⚠ **GOLD'S OPEN GROUND IS 3–4 COLOURS, NOT 6–9, AND THE `8` IN THAT ROW SITS INSIDE THE WITHDRAWN
+ * RANGE.** The 6–9 figure came from five inherited patch coordinates that turned out to be
+ * four-fifths trees, ledges and fences: a contaminated sample, measuring furniture and reporting it
+ * as ground — the same region fault `edgePercent`'s note records in the other axis, arrived at from
+ * the other direction. Struck rather than deleted, per the header rule. **The top-three SHARE half of
+ * that row (78.9%) is a different reading and is unaffected**; it is the one hand-picked figure the
+ * sampling rule below exists to replace with a median. And the correction is corroborated inside this
+ * file rather than taken on trust: `GOLD_CONC_LOW/HIGH` are re-derived from the eight Gen-2 captures
+ * on every run and read **2.62–3.80 effective colours per median 64² patch**. That is a different
+ * reading from a distinct count — effective, not distinct — but it points the same way: Gold's ground
+ * spends three to four colours' worth of variation, not eight or nine.
+ *
+ * **AND THE PALETTE HAS NEVER BEEN THE CONSTRAINT.** The lane that owns `tools/artverify/`
+ * EVAL-STANDARD.md measured both projections: **Gold's ground projects onto our frozen 32-colour
+ * palette LOSSLESSLY** — every colour it spends already has an exact home — **while our own raw
+ * ground projects onto ONE swatch.** So the dither is not under-amplifying variation against a
+ * palette too small to hold it; it is starting from something the palette sees as a single flat
+ * colour, and no amount of amplitude turns one swatch into a weave. Widening the palette buys
+ * nothing here, and that pair of projections is the answer to every proposal that it would.
  *
  * Neither edge operator can see it. `edgePercent` above counts colour CHANGES, and its own note
  * already concedes the limit: an unquantized airbrushed image reads near 100% for the same reason a
@@ -819,10 +894,13 @@ const MIN_DISTINCT_NATIVE = 8;
  * it reports. The full finding, the six-fold measured gap, and the judgement to keep the reading
  * under an unambiguous name are on `edgePercent` itself. Nothing below is a ground figure.
  *
- * **The colour count alone cannot tell a good map from the one this project has been shipping.** A
- * map at 16 colours and 9% edge density is flat and wrong; a map at 16 colours and 45% is right. Both
- * satisfy a colour-count check identically, and the flat one is the failure that has actually been
- * shipping. So the count is printed beside a second reading and neither is printed alone.
+ * **The colour count alone cannot tell a good map from the one this project has been shipping.** Two
+ * maps can hold the same sixteen colours and be, respectively, flat and wrong or textured and right;
+ * both satisfy a colour-count check identically, and the flat one is the failure that has actually
+ * been shipping. So the count is printed beside a second reading and neither is printed alone.
+ * (⚠ This was written as "16 colours at ~~9%~~ against 16 colours at ~~45%~~". Those are the
+ * withdrawn ~~8.83%~~ and ~~44.74%~~ rounded to a digit — a rounded restatement of a withdrawn
+ * figure is the same figure — and the claim stands without either.)
  *
  * The art session's diagnosis of the "MS Paint" verdict is a POSTPROCESS fact, not a generation one:
  * **Gold never uses a flat fill anywhere.** Grass is a dense checkerboard between two greens, paths
@@ -833,7 +911,11 @@ const MIN_DISTINCT_NATIVE = 8;
  *
  * ⚠ **THOSE FIGURES ARE WITHDRAWN AS UNSOURCED — struck rather than deleted, so the trail survives.**
  * Their author cannot reproduce 47.51% at any threshold and has withdrawn it pending republication
- * WITH THE OPERATOR ATTACHED. An independent re-measurement of the same eight captures reads
+ * WITH THE OPERATOR ATTACHED. **The withdrawal is on the operator — the unpublished luminance
+ * neighbour-difference operator at threshold 25 — and so it reaches EVERY figure that operator
+ * produced, not the three struck in the paragraph above.** See THE WITHDRAWN-OPERATOR RULE in the
+ * file header before quoting anything from this section. An independent re-measurement of the same
+ * eight captures reads
  * **50.4–78.8% at 1:1 native** and **30.3–51.5% density-matched at 2×** — two answers for one
  * property, which is what a figure quoted without its instrument always produces. It may come back
  * sound; until it does, do not cite it, do not compare anything to it, and do not derive from it.
@@ -852,16 +934,39 @@ const MIN_DISTINCT_NATIVE = 8;
  *   **A — ordered dither buys EDGE DENSITY.** It does nothing to the colour count.
  *   **B — a per-map colour subset buys COLOUR DISCIPLINE.** It does nothing to edge density.
  * Measured by the art session, each disproving the other's sufficiency: dither at amplitude 45
- * without the subset → **40.02% in 43 colours**; the subset without dither → **16 colours at
- * 12.88%**; both together → **44.74% in 16**, against ~~Gold's 47.51% in 17~~ — that last comparison
- * is the WITHDRAWN figure above and carries no weight; the colour half of it (17) still does. Do one
- * and the map is still wrong in the other axis, and the number you were watching will have improved.
+ * without the subset → ~~40.02%~~ **in 43 colours**; the subset without dither → **16 colours** at
+ * ~~12.88%~~; both together → ~~44.74%~~ **in 16**, against Gold's ~~47.51%~~ **in 17**.
+ *
+ * ⚠ **ALL FOUR EDGE FIGURES IN THAT COMPARISON ARE WITHDRAWN — ours and Gold's alike.** They are one
+ * unpublished operator's output, and the withdrawal follows the operator rather than a list of
+ * numbers (THE WITHDRAWN-OPERATOR RULE, file header). Successive revisions of this line struck two of
+ * the four and then three, each time leaving whichever figure had not been enumerated standing —
+ * which is exactly what an enumerated withdrawal does to the figures it forgot to enumerate, and the
+ * reason the rule is now written as a property of the instrument.
+ *
+ * **The COLOUR halves — 43, 16, 16, 17 — are unaffected and carry the whole of fact B on their own.**
+ * They come from counting distinct colours, which reproduces exactly, and this file re-derives Gold's
+ * half of it from the reference PNGs every run (`GOLD_BAND_LOW/HIGH/MEAN`, 12–18, mean 16.0).
+ * **Fact A survives unchanged in substance too** — ordered dither moves edge density and does nothing
+ * to the colour count — it simply has no quotable number attached to it any more. Do one and the map
+ * is still wrong in the other axis, and the number you were watching will have improved.
  *
  * ── AND IT IS ADVISORY, MORE FIRMLY THAN THE COLOUR COUNT IS ─────────────────────────────────────
  * **An edge-density figure is even more gameable than a colour count**, because the art session
- * measured the response to dither amplitude as near-linear — 0 → 12.88%, 24 → 24.09%, 40 → 40.02%,
- * 56 → 63.77% — so a generator can be tuned to ANY figure you name. They have already hit the failure
- * that implies: applied globally the dither speckles roofs and walls, so a thatched roof comes out
+ * measured the response to dither amplitude as near-linear — 0 → ~~12.88%~~, 24 → ~~24.09%~~,
+ * 40 → ~~40.02%~~, 56 → ~~63.77%~~ — so a generator can be tuned to ANY figure you name.
+ *
+ * ⚠ **THE LADDER IS WITHDRAWN, AND THE IRONY IN THAT IS WORTH KEEPING RATHER THAN TIDYING AWAY.**
+ * The ladder is the ARGUMENT FOR the withdrawal — a figure a knob can be dialled to any value of is
+ * worthless without the instrument that produced it — and it was itself produced by the withdrawn
+ * instrument, so it is worthless in precisely the way it warns about. Four rungs, one operator, all
+ * four struck (THE WITHDRAWN-OPERATOR RULE, file header). **The claim outlives its numbers**: the
+ * response to dither amplitude is monotone and roughly proportional, amplitude is a knob, and a knob
+ * that reaches any target is what makes the target meaningless. Nothing in this file asserts on the
+ * ladder and nothing should ever be tuned toward a figure it produced.
+ *
+ * They have already hit the failure that implies: applied globally the dither speckles roofs and
+ * walls, so a thatched roof comes out
  * dirty rather than textured. **A map that reached the band by ruining its buildings would pass a
  * hard assertion on this number.** That is the clearest worked example this project has of the §16
  * standing caution — two numbers both moving the right way while the artefact gets worse — so this
@@ -968,9 +1073,21 @@ const GOLD_CONC_MEAN = 3.42;
  *
  * **The mean is the corroborated number here, not the extremes.** 48.73 is what this operator makes
  * of the eight Gen-2 captures; 48.7 is what the art session independently reports for Gold new-bark
- * ground with an operator of their own. Two instruments agreeing to a tenth of a point is the thing
- * the withdrawn edge figure never managed, and `the alternation operator reproduces the figure it
- * was validated against` below holds them together so a silent drift in either cannot pass.
+ * ground with an operator of their own. `the alternation operator reproduces the figure it was
+ * validated against` below holds them together so a silent drift in either cannot pass.
+ *
+ * ⚠ **BUT THE AGREEMENT IS NOT CORROBORATION, AND THIS COMMENT USED TO SAY IT WAS.** It read "two
+ * instruments agreeing to a tenth of a point is the thing the withdrawn edge figure never managed".
+ * Two instruments, two sessions — and **two different REGIONS**. `GOLD_ALT_MEAN` is this operator
+ * over eight WHOLE CAPTURES, which the paragraph below states outright; `REPORTED_GOLD_ALT` is a
+ * figure for Gold GROUND. A whole-map number standing in for a ground number is the precise error
+ * the WHOLE-IMAGE EDGE READING section above exists to catch, and this file committed it about
+ * itself. The owning lane's hand-verified Gold open ground alternates at **56.5%** (route-29 tall
+ * grass, 704,192) and **78.2%** (short grass, 448,104) — **neither is 48.7**, which is what you would
+ * expect if the two sides are measuring different things and landing on one number by coincidence.
+ * **Keep the constant and keep the assertion** — the figure is not withdrawn, it is an alternation
+ * reading rather than a threshold-25 edge density, and two operators do reproduce it. What is
+ * retired is the CLAIM that their agreement is evidence about ground.
  *
  * The spread is wide (28.7–64.3) because these are whole maps, not hand-picked ground: Olivine is
  * mostly flat sea and pier, Route 29 is almost all dithered grass. That width is why this band flags
@@ -1196,9 +1313,12 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
   });
 
   it('the alternation operator reproduces the figure it was validated against', () => {
-    // Two operators, two sessions, one number — the property the withdrawn edge figure in the
-    // GROUND-TEXTURE section above never had. This asserts the AGREEMENT, not the value: if either
-    // side re-measures and the two stop matching, that is exactly when somebody needs to look,
+    // Two operators, two sessions, TWO REGIONS, one number. The third of those was missing here and
+    // it changes what this proves: `GOLD_ALT_MEAN` is eight whole captures, `REPORTED_GOLD_ALT` is
+    // Gold ground, so their agreement is a coincidence of unlike quantities rather than corroboration
+    // — see the ⚠ note at the constants. The assertion is still worth keeping, and is unchanged: it
+    // pins the AGREEMENT, not the value: if either side re-measures and the two stop matching, that
+    // is exactly when somebody needs to look,
     // because a figure whose instrument has silently moved is how this project got two answers for
     // one property twice already.
     expect(
@@ -1216,6 +1336,13 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
     // obvious instrument to have reused does precisely that: a 3×3 Sobel cancels on a period-2
     // checkerboard, because the x±1 samples in each row share parity. Measured here rather than
     // asserted in a comment, because the comment above this file's `edgePercent` claims it.
+    //
+    // ⚠ DIGIT COLLISION, and it is a trap for whoever reads this output next. At this 128² build
+    // `edgePercent` reads flat at 0.78% — the SAME TWO DIGITS as the Sobel pair below it (0.78 /
+    // 0.78). Three 0.78s, two different operators, inside one control about how they DIFFER. They
+    // are not agreeing: the Sobel is structurally blind, while `edgePercent` is reading an image
+    // that genuinely is nearly flat. At 256² with the object box scaled to 96-160 the same operator
+    // reads 0.39 / 93.94 and the collision disappears, which is the build the docs quote.
     const N = 128;
     const ground = [58, 90, 42];
     const speck = [86, 122, 60];
@@ -1446,10 +1573,22 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
 
     /* ── E. FLAT GROUND, DENSE OBJECTS — THE REGION FAULT, NOT THE OPERATOR FAULT ─────────────── */
     // The second error the art session separated, and it is about WHERE a number is measured rather
-    // than HOW. Their dither read 44.74% across a whole map and 6.89% on the ground alone — the same
-    // image, six-fold apart, the gap entirely furniture. `edgePercent` walks every pixel, so it
-    // carries that fault by construction; the ground reading takes a median over patches, so it does
-    // not. This case pins the difference so the two can never quietly be read as one property again.
+    // than HOW. Their dither read ~~44.74%~~ across a whole map and ~~6.89%~~ on the ground alone —
+    // the same image, six-fold apart, the gap entirely furniture.
+    //
+    // ⚠ BOTH figures are WITHDRAWN. They are one unpublished operator pointed at two regions, and the
+    // withdrawal is on the operator, not on an enumerated set of numbers — THE WITHDRAWN-OPERATOR
+    // RULE, file header. An earlier revision of this comment recorded 6.89% as "not named in that
+    // withdrawal, and OPEN"; not being named is not a clean bill of health, and that is the whole
+    // reason the rule is now stated as a property of the instrument.
+    //
+    // THE ARGUMENT IS UNTOUCHED — a whole-map aggregate is not a ground measurement, because objects
+    // are keyline-dense and carry the figure upward — and THIS CASE is what may be cited for it:
+    // 44.34% whole-image against 0.00% ground, measured right here, on a synthetic built for it, with
+    // the operator attached. That is why the case exists and why the withdrawn quotation was never
+    // the load-bearing part. `edgePercent` walks every pixel, so it carries that fault by
+    // construction; the ground reading takes a median over patches, so it does not. This case pins
+    // the difference so the two can never quietly be read as one property again.
     expect(
       objectWhole,
       `flat ground with dense objects reads ${objectWhole.toFixed(2)}% WHOLE-IMAGE edge. It must read ` +

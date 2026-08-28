@@ -335,7 +335,13 @@ describe('manifest seed-reuse enforcement (G5 / build-doc §8.4)', () => {
 
   it('and the escape DOES move the seed for a derived row — measured, not assumed', () => {
     const m = clone(manifest);
-    m._versions = { 'battle-fenmaw-e-front': 3 };
+    // EXTEND `_versions`, never REPLACE it — the sibling at the test above already does, and this
+    // one did not. A bare assignment wiped the twelve `map-*` entries the manifest ships at version
+    // 2, so `versionOf` fell through to its `fallback ?? 1` and every map row re-derived at version
+    // 1 against a stored row at version 2. The deep-equal below then failed on 285 rows while
+    // claiming to prove that "nothing else in the manifest moved with it" — having itself moved
+    // twelve of them in the setup. Extending makes the assertion check what its comment says.
+    m._versions = { ...(m._versions ?? {}), 'battle-fenmaw-e-front': 3 };
     const row = deriveRows(m, content).find((r) => r.id === 'battle-fenmaw-e-front')!;
     expect(row.version).toBe(3);
     expect(row.seed).toBe(deriveSeed('battle-fenmaw-e-front', 3));
@@ -1407,12 +1413,23 @@ describe('the §8.2 layout gate runs on the live path (G4)', () => {
   });
 
   it('THE REAL GATE refuses a variant when the node has no collision mask on disk — "no mask" is not a pass', async () => {
-    // The repo's true state today: no node has a base map or a mask on disk, so the honest verdict
-    // for every year variant is REFUSE. Falling back to "every pixel is walkable" would compare the
-    // whole frame and quietly turn a gate into decoration.
+    // The repo's true state today: TEN of the twelve base maps are on disk and NOT ONE of the twelve
+    // collision masks is, so the honest verdict for every year variant is still REFUSE. Falling back
+    // to "every pixel is walkable" would compare the whole frame and quietly turn a gate into
+    // decoration.
+    //
+    // This precondition used to assert the BASE MAP was absent too. That claim expired the day the
+    // map lane committed ten paintings (af82c46) and the setup went red for a reason that has nothing
+    // to do with masks — T-46. The map half is gone; the MASK half is the claim this test owns, and it
+    // is now made over ALL TWELVE nodes instead of r1 alone, so promoting a mask for ANY node reds
+    // this line rather than only a mask for r1. That is deliberate, and it is T-56: landing a mask is
+    // a gate RECALIBRATION, not an art approval — the overlay-diff IoU is restricted to the mask's
+    // walkable cells, and its residual limits were calibrated against a luminance-derived stand-in
+    // that a real mask replaces. The day a mask ships, this line must stop and be re-decided with the
+    // rest of that recalibration; it must not quietly keep passing.
     const node = content.nodes.find((n) => n.id === 'r1')!;
-    expect(existsSync(resolve(REPO_ROOT, node.mapAsset))).toBe(false);
-    expect(existsSync(resolve(REPO_ROOT, node.collisionMask))).toBe(false);
+    const masked = content.nodes.filter((n) => existsSync(resolve(REPO_ROOT, n.collisionMask)));
+    expect(masked.map((n) => n.id), 'a collision mask shipped — see T-56 before touching this').toEqual([]);
 
     const maskless = await mkdtemp(join(tmpdir(), 'trophic-nomask-'));
     try {
@@ -1445,6 +1462,17 @@ describe('the §8.2 layout gate runs on the live path (G4)', () => {
       expect(batch[0]!.reviewReason).toMatch(/G4/);
       expect(batch[0]!.reviewReason).toMatch(/nothing was billed/);
       expect(batch[0]!.layoutGate).toBeUndefined();
+
+      // BINDS — the refusal above is caused by the MASK and by nothing else. `runBatch` refuses
+      // through `gate.precheck` (tools/comfy/comfy-batch.ts:1444, "G4: no mask on disk ⇒ nothing to
+      // gate against"), so drive that same precheck directly: it throws on this root, and the moment
+      // the mask exists on the SAME root it stops throwing. Without this the block above would read
+      // "refused" for any precondition at all, and a gate that refuses everything is no evidence that
+      // it refuses THIS. The mask is written into the scratch root, never into assets/.
+      const gate = overlayDiffGate(content);
+      expect(() => gate.precheck!(batch[0]!, maskless)).toThrow(/collision mask/);
+      await writeRaster(resolve(maskless, node.collisionMask), townMask(size));
+      expect(() => gate.precheck!(batch[0]!, maskless)).not.toThrow();
     } finally {
       await rm(maskless, { recursive: true, force: true });
     }
