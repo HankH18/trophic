@@ -1388,15 +1388,53 @@ export interface Balance {
   };
   audio: {
     seasonLowpassHz: Record<Season, number>;
+    /**
+     * The SOUND's per-season brightness — `game/audio.ts` `seasonTreatment`, and nothing visual.
+     *
+     * It drove the painted map too until 2026-08-28, which meant retuning the summer track retuned
+     * the summer map. The picture's is `season.brightness`, and unlike this one it is refused above
+     * 1.0: a filter can be brighter than neutral, a `setTint` multiply cannot. Independent now —
+     * retune either without consulting the other (Hank: "you do not have to tune audio to the
+     * seasons").
+     */
     seasonBrightness: Record<Season, number>;
+    /**
+     * The mix levels `game/audio.ts` `AudioDirector` is handed as `AudioConfig`, 0–1 each.
+     *
+     * Here rather than in that file because a default there would be the literal G11 forbids — and
+     * here rather than anywhere else because a volume's only consumer is the sound, which is the
+     * test `season.brightness` failed. `muted` is NOT one of these: it is a player setting, and a
+     * preference in the tuning table is the same category error the split above corrected.
+     */
+    volume: { master: number; music: number; sfx: number };
+  };
+  /**
+   * The two MAGNITUDES the season reading is built from — `seasonTint` below is the hues, this is
+   * what dims them. Both lived under `audio` until 2026-08-28, where a retune made for the music
+   * silently moved the picture and no gate covered it (BF-17).
+   */
+  season: {
+    /**
+     * The PICTURE's per-season brightness, ≤ 1.0 with spring as the 1.0 reference. `setTint`
+     * MULTIPLIES, so a season can only darken from the painted map; `zBalance` refuses anything
+     * above 1.0 rather than clamping it silently.
+     */
+    brightness: Record<Season, number>;
+    /**
+     * bible §12a's progressive year darkening, per year elapsed since `clock.startYear`.
+     *
+     * ⚠ ONE RAMP, TWO CONSUMERS, deliberately: `game/season-tint.ts` `yearDarkening` reads this and
+     * both the painted map and `game/audio.ts` `seasonTreatment`'s cutoff read that function. It is
+     * filed here rather than under `audio` because it belongs to neither alone.
+     */
     yearDarkenPerYear: number;
   };
   /**
    * Hard Requirement 6 — the four season HUES the runtime tint multiplies over the painted map.
    * Channels are 0–255 (255 = leave this channel alone; `setTint` multiplies); `overlayAlpha` is
-   * the optional full-screen overlay pass above the tinted map. The two magnitudes that dim them
-   * live in `audio` (`seasonBrightness`, `yearDarkenPerYear`) and always did — these are the hues,
-   * which were literals in `game/season-tint.ts` until 2026-08-26.
+   * the optional full-screen overlay pass above the tinted map — INERT for the overworld, see the
+   * key's own note in data/balance.json. The two magnitudes that dim them are `season` above; these
+   * are the hues, which were literals in `game/season-tint.ts` until 2026-08-26.
    */
   seasonTint: Record<Season, { r: number; g: number; b: number; overlayAlpha: number }>;
   harness: {

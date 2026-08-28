@@ -20,6 +20,9 @@
  *
  *   BF-11  rng.subsystemTags "lifecycle"     → core/save.ts openStreams / captureStreams
  *   BF-13  seasonTint                        → game/season-tint.ts seasonTint + applySeasonTint
+ *   BF-17  season.brightness /               → game/season-tint.ts seasonTint + applySeasonTint (the
+ *          season.yearDarkenPerYear            two MAGNITUDES BF-13's hues are dimmed by) and, for
+ *                                             the ramp only, game/audio.ts seasonTreatment
  *   BF-14  map.battleSpritePx / miniSpritePx → game/ui/BattleHud.ts defaultCardStyle (what the panel
  *                                              DRAWS with) + BattleLayout.ts spriteRect + the manifest
  *   BF-15  overlayDiff.driftFootprintCells   → tools/overlay-diff/config.ts overlayDiffConfig
@@ -37,9 +40,12 @@ import { heirStreamKey, LIFECYCLE_STREAM } from "../../core/lifecycle";
 import {
   applySeasonTint,
   packRgb,
+  seasonBrightness,
   seasonTint,
   seasonTintTable,
   seasonTintsForYear,
+  SeasonTintError,
+  yearDarkening,
   type TintTarget,
 } from "../../game/season-tint";
 import { battleSpritePx, spriteRect } from "../../game/ui/BattleLayout";
@@ -75,10 +81,12 @@ describe("INV-3 — a balance key with no schema declaration is a silent no-op",
     expect(parsedMap["tileStepPx"]).toBe(balance.map.tileStepPx);
   });
 
-  it("all five keys survive the parse, so each one reaches a reader", () => {
+  it("all six keys survive the parse, so each one reaches a reader", () => {
     const reparsed = zBalance.parse(JSON.parse(JSON.stringify(balance))) as Balance;
     expect(reparsed.rng.subsystemTags).toContain("lifecycle");
     expect(reparsed.seasonTint).toBeTypeOf("object");
+    expect(reparsed.season.brightness).toBeTypeOf("object");
+    expect(reparsed.season.yearDarkenPerYear).toBeTypeOf("number");
     expect(reparsed.map.battleSpritePx).toBeTypeOf("number");
     expect(reparsed.map.miniSpritePx).toBeTypeOf("number");
     expect(reparsed.map.walkMsPerTile).toBeTypeOf("number");
@@ -299,6 +307,166 @@ describe("BF-13 — the season hues are balance.seasonTint, not literals in game
     const tints = { ...(raw["seasonTint"] as Record<string, unknown>) };
     tints[season] = { r: 0, g: 0, b: 0, overlayAlpha: 0.1 };
     expect(() => zBalance.parse({ ...raw, seasonTint: tints })).toThrow();
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * BF-17 — balance.season.brightness / season.yearDarkenPerYear (Hard Requirement 6)
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * THE HOLE BF-13 LEFT, AND WHY IT WAS WORTH A ROW OF ITS OWN.
+ *
+ * BF-13 above binds the four season HUES. It says nothing about the two MAGNITUDES those hues are
+ * dimmed by, and until 2026-08-28 both of them lived under `balance.audio` — a group of four keys,
+ * two of which decided how the painted map looked. So the census had a gap exactly where a retune
+ * was most likely to be made for the wrong reason: someone tuning the summer track's brightness was
+ * tuning the summer MAP, and someone deepening the year ramp for the music was deciding whether the
+ * player could tell the seasons apart at all. Measured on the ground
+ * `tests/unit/season-tint-onscreen.test.ts` uses, at year 6, the minimum pairwise CIE76 ΔE across
+ * the four seasons runs 8.62 at the shipped `yearDarkenPerYear` of 0.08, 7.36 at 0.10, 4.39 at 0.14
+ * and 1.26 at 0.18 — the seasons stop being tellable apart well before the number looks alarming.
+ *
+ * The keys are `balance.season.*` now, and the brightness is SPLIT: this is the picture's, and
+ * `balance.audio.seasonBrightness` is a separate number for the sound (Hank: "you do not have to
+ * tune audio to the seasons"). The year RAMP is deliberately not split — `game/audio.ts`
+ * `seasonTreatment` reads the same `yearDarkening` this file drives, which is bible §12a's "one
+ * track, six readings" and is bound on the audio side by `tests/unit/audio.test.ts` ("the year ramp
+ * darkens the cutoff, and it is season-tint's ramp — not a second one"). This row owns the picture.
+ */
+describe("BF-17 — the season MAGNITUDES are balance.season, and the audio's brightness is not the map's", () => {
+  /** Every colour the shipped applier hands a target, for one balance. */
+  const painted = (b: Balance, year: number): number[] => {
+    const out: number[] = [];
+    const target: TintTarget = {
+      setTint(color: number) {
+        out.push(color);
+      },
+    };
+    for (const season of b.clock.seasonOrder) applySeasonTint(target, seasonTint(b, season, year));
+    return out;
+  };
+
+  it("BINDS — a brightness retune reaches setTint, through the shipped applier", () => {
+    const season = balance.clock.seasonOrder[0] as Season;
+    const retuned = clone(balance);
+    retuned.season.brightness[season] = balance.season.brightness[season] / 2;
+
+    const before = seasonTint(balance, season, balance.clock.startYear);
+    const after = seasonTint(retuned, season, balance.clock.startYear);
+    expect(after.brightness).toBe(balance.season.brightness[season] / 2);
+    expect(after.scale).toBeLessThan(before.scale);
+
+    const applied: number[] = [];
+    const target: TintTarget = {
+      setTint(color: number) {
+        applied.push(color);
+      },
+    };
+    applySeasonTint(target, before);
+    applySeasonTint(target, after);
+    expect(applied[0], "the brightness was halved in balance.json and setTint got the same colour").not.toBe(
+      applied[1],
+    );
+  });
+
+  it("BINDS — a yearDarkenPerYear retune reaches setTint, and year 1 is the reference it doesn't move", () => {
+    const deeper = clone(balance);
+    deeper.season.yearDarkenPerYear = balance.season.yearDarkenPerYear * 2;
+
+    // Year 1 is 1.0 by construction — the first year is what the later ones are read against — so
+    // the retune must NOT move it. This is also what makes the next assertion non-vacuous: the
+    // colours differ because of the ramp, not because the two balances differ in some other way.
+    expect(yearDarkening(deeper, balance.clock.startYear)).toBe(1);
+    expect(painted(deeper, balance.clock.startYear)).toEqual(painted(balance, balance.clock.startYear));
+
+    const late = balance.clock.startYear + balance.clock.yearsTotal - 1;
+    expect(yearDarkening(deeper, late)).toBeLessThan(yearDarkening(balance, late));
+    const shipped = painted(balance, late);
+    const darker = painted(deeper, late);
+    expect(darker).toHaveLength(shipped.length);
+    expect(darker, "the year ramp was retuned in balance.json and setTint got the same colours").not.toEqual(
+      shipped,
+    );
+  });
+
+  /**
+   * THE HARM, AS THE MECHANISM RATHER THAN AS A COLOUR SCIENCE FIGURE.
+   *
+   * `scale` is `brightness × yearDarkening`, and `yearDarkening` is the SAME for all four seasons —
+   * so the spread of luminance across the seasons is `(max brightness − min brightness) ×
+   * yearDarkening`, and deepening the ramp multiplies that spread down toward zero. That is why a
+   * retune of one number closes the seasons on each other, and why it is the picture's business
+   * even though the sound reads the same ramp. The perceptual reading of the same fact is
+   * `tests/unit/season-tint-onscreen.test.ts`, which computes six live ΔE and asserts a floor.
+   */
+  it("BINDS — deepening the year ramp shrinks the seasons' separation, toward none at all", () => {
+    const late = balance.clock.startYear + balance.clock.yearsTotal - 1;
+    const spread = (b: Balance, year: number): number => {
+      const scales = b.clock.seasonOrder.map((s) => seasonTint(b, s, year).scale);
+      return Math.max(...scales) - Math.min(...scales);
+    };
+    expect(spread(balance, late), "the four seasons already share one luminance").toBeGreaterThan(0);
+
+    let previous = spread(balance, late);
+    for (const rate of [0.1, 0.14, 0.18]) {
+      const retuned = clone(balance);
+      retuned.season.yearDarkenPerYear = rate;
+      const now = spread(retuned, late);
+      expect(now, `yearDarkenPerYear ${String(rate)} did not close the seasons further`).toBeLessThan(previous);
+      previous = now;
+    }
+  });
+
+  it("BINDS — the SOUND's brightness reaches no pixel, and the old address is gone from the schema", () => {
+    /*
+     * The split, asked of the picture. Halve `audio.seasonBrightness` for every season across every
+     * year: before 2026-08-28 this moved all four readings, because it WAS the picture's key.
+     */
+    const quieter = clone(balance);
+    for (const season of balance.clock.seasonOrder) {
+      quieter.audio.seasonBrightness[season] = balance.audio.seasonBrightness[season] / 2;
+    }
+    for (let i = 0; i < balance.clock.yearsTotal; i += 1) {
+      const year = balance.clock.startYear + i;
+      expect(painted(quieter, year), `year ${String(year)}: an audio retune repainted the map`).toEqual(
+        painted(balance, year),
+      );
+    }
+
+    /*
+     * …and the reverse, which is the INV-3 trap this whole file is about: the OLD address does not
+     * merely go unread, it does not survive the parse. Putting `yearDarkenPerYear` back under
+     * `audio` is silently discarded by `z.object`, so a retune written there would reach nothing —
+     * the same decoy-knob failure `zBalance strips an undeclared key` opens the file with.
+     */
+    const raw = JSON.parse(JSON.stringify(balance)) as Record<string, unknown>;
+    const audio = { ...(raw["audio"] as Record<string, unknown>), yearDarkenPerYear: 0.5 };
+    const reparsed = zBalance.parse({ ...raw, audio }) as unknown as Record<string, unknown>;
+    const parsedAudio = reparsed["audio"] as Record<string, unknown>;
+    expect(
+      parsedAudio["yearDarkenPerYear"],
+      "balance.audio declares a year ramp again — the picture's magnitudes are back in the audio group",
+    ).toBeUndefined();
+    expect(parsedAudio["seasonBrightness"], "the sound lost its own brightness in the split").toBeTypeOf("object");
+  });
+
+  it("the cap is at the data boundary: a visual brightness above 1 is refused, not clamped", () => {
+    // `setTint` MULTIPLIES, so there is no colour that draws the map brighter than it was painted.
+    // Authoring one used to be accepted and then silently discarded — summer sat at 1.15 and
+    // rendered at the same scale as spring's 1.0 at every year. The full argument, and the
+    // inversion of the assertion that used to specify the discard, is in tests/unit/year-turn-ux.
+    const season = balance.clock.seasonOrder[0] as Season;
+    const raw = JSON.parse(JSON.stringify(balance)) as Record<string, unknown>;
+    const group = { ...(raw["season"] as Record<string, unknown>) };
+    group["brightness"] = { ...(group["brightness"] as Record<string, number>), [season]: 1.15 };
+    expect(() => zBalance.parse({ ...raw, season: group })).toThrow();
+
+    const overbright = clone(balance);
+    overbright.season.brightness[season] = 1.15;
+    expect(() => seasonBrightness(overbright, season)).toThrow(SeasonTintError);
+    // Non-vacuity: the shipped value at the same call site returns.
+    expect(seasonBrightness(balance, season)).toBe(balance.season.brightness[season]);
   });
 });
 

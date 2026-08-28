@@ -693,9 +693,44 @@ const zBalanceShape = {
     trainerPayoutFlat: z.number().min(0),
     trainerPayoutPerLevel: z.number().min(0),
   }),
+  /**
+   * bible §12a's DSP presets. `seasonBrightness` here is the SOUND's, and it may exceed 1.0 — the
+   * picture's is `season.brightness`, which may not. They were one key until 2026-08-28.
+   */
   audio: z.object({
     seasonLowpassHz: zSeasonRecord,
     seasonBrightness: zSeasonRecord,
+    // `game/audio.ts` `AudioConfig`. `muted` is deliberately not here — it is a player setting, not
+    // a tunable, and the balance table is not where preferences live.
+    volume: z.object({ master: zFrac, music: zFrac, sfx: zFrac }),
+  }),
+  /**
+   * The two magnitudes the season reading is built from (`game/season-tint.ts`).
+   *
+   * ⚠ `brightness` IS CAPPED AT 1.0, AND THE CAP IS THE POINT. `setTint` multiplies the painted
+   * map, so 1.0 is "leave it alone" and there is no colour that draws it brighter — a value above
+   * 1.0 is a brightening the renderer structurally cannot perform. It used to be accepted and then
+   * lost: summer was authored 1.15 and rendered at scale 1.000, byte-identical to spring's 1.0 at
+   * every year, with the surplus spent quietly desaturating the hue toward white. Hank's ruling
+   * chose "seasons only ever darken, spring is the 1.0 reference" over adding an overlay/additive
+   * brightening path (Hard Req 6, `game/mapview.ts`: "season is a runtime multiply, never a
+   * different texture"), so the honest thing is to refuse the value at boot where it can still be
+   * read, rather than clamp it at a frame nobody is watching.
+   */
+  season: z.object({
+    brightness: z.record(
+      zSeason,
+      z
+        .number()
+        .min(0)
+        .max(1, {
+          message:
+            "a season's tint brightness cannot exceed 1.0 — `setTint` MULTIPLIES the painted map, " +
+            "so 1.0 already means 'leave this season undimmed' and there is no colour that draws " +
+            "the map brighter than it was painted (Hard Requirement 6: season is a runtime " +
+            "multiply, never a different texture). Brighten the ART, or dim the other seasons.",
+        }),
+    ),
     yearDarkenPerYear: z.number().min(0),
   }),
   /**

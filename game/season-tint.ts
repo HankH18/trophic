@@ -12,13 +12,22 @@
  *
  * ⚠ WHERE THE NUMBERS COME FROM — read this before changing a value.
  *
- *   MAGNITUDES are data. `balance.audio.seasonBrightness` is the per-season preset (bible §12a:
- *   "spring: neutral; summer: +brightness; autumn: lowpass + slight slow; winter: heavier lowpass")
- *   and `balance.audio.yearDarkenPerYear` is the progressive year darkening ("Year aging
+ *   MAGNITUDES are data: `balance.season.brightness` is the per-season dimming and
+ *   `balance.season.yearDarkenPerYear` is the progressive year darkening (bible §12a, "Year aging
  *   progressively darkens town-theme EQ so Hearthollow year 5 sounds like a memory of year 1").
- *   Those four numbers plus the darkening rate have exactly one home, data/balance.json, and this
- *   module reads them (G11). A retune of the season presets moves the picture and the sound
- *   together, which is what "one track, six readings" means.
+ *   Both have exactly one home, data/balance.json, and this module reads them (G11).
+ *
+ *   ⚠ THEY LIVED UNDER `balance.audio` UNTIL 2026-08-28, and that was the defect. `audio` had four
+ *   keys and TWO of them decided how the painted map looked, so a retune made for the music moved
+ *   the picture with nothing gating it — measured on the meadow ground at year 6, the min pairwise
+ *   CIE76 ΔE between the four seasons runs 8.62 at the shipped `yearDarkenPerYear` 0.08, 7.36 at
+ *   0.10 and 1.26 at 0.18, i.e. the seasons stop being tellable apart well before the number looks
+ *   alarming. The brightness is SPLIT now: `balance.season.brightness` is the picture's (capped at
+ *   1.0, see {@link seasonBrightness}) and `balance.audio.seasonBrightness` is the sound's, and the
+ *   two are independent — Hank: "you do not have to tune audio to the seasons". The year ramp is
+ *   NOT split: {@link yearDarkening} is read by this module AND by game/audio.ts `seasonTreatment`,
+ *   one ramp for the picture and the sound, which is what §12a's "one track, six readings" means.
+ *   BF-17 in tests/unit/balance-inv3.test.ts binds both magnitudes to what reaches `setTint`.
  *
  *   HUES are data too, as of 2026-08-26: `balance.seasonTint` carries one preset per season and
  *   {@link seasonTintTable} is what every default in this file reads. They used to be literals here
@@ -80,18 +89,25 @@ export interface SeasonTint {
   rgb: SeasonTintRgb;
   /** 24-bit 0xRRGGBB of {@link rgb}. */
   color: number;
-  /** balance.audio.seasonBrightness[season]. */
+  /** balance.season.brightness[season] — the PICTURE's, never balance.audio.seasonBrightness. */
   brightness: number;
-  /** 1 − balance.audio.yearDarkenPerYear × (year − startYear), clamped to [0, 1]. */
+  /** 1 − balance.season.yearDarkenPerYear × (year − startYear), clamped to [0, 1]. */
   yearDarkening: number;
   /**
-   * The reading's actual luminance ceiling: `min(brightness, 1) × yearDarkening`. The brightest
-   * channel of {@link rgb} is exactly `round(255 × scale)`, so the picture's brightness is the two
-   * numbers balance.json states and nothing else. Brightness above 1 cannot raise this — a multiply
-   * cannot brighten past the painted map — and is spent on desaturation instead (see
-   * {@link seasonTint}).
+   * The reading's luminance: `brightness × yearDarkening`. The brightest channel of {@link rgb} is
+   * exactly `round(255 × scale)`, so the picture's brightness is the two numbers balance.json
+   * states and nothing else. Both terms are ≤ 1 — a multiply cannot brighten past the painted map,
+   * and {@link seasonBrightness} refuses a brightness that claims otherwise.
    */
   scale: number;
+  /**
+   * Strength of the optional overlay pass, from the preset.
+   *
+   * ⚠ INERT FOR THE OVERWORLD. {@link applySeasonOverlay} is the only thing that reads it and its
+   * one call site in the tree is `game/scenes/YearTurnScene.ts`, over the year-turn card's own
+   * backdrop. `game/mapview.ts` calls {@link applySeasonTint} and nothing else, so retuning
+   * `balance.seasonTint.<season>.overlayAlpha` does not change the map by one pixel.
+   */
   overlayAlpha: number;
   /** True while any term of this reading is a placeholder rather than data. */
   provisional: boolean;
@@ -145,6 +161,11 @@ export function seasonTintTable(balance: Balance): SeasonTintTable {
  * the missing-preset and unreachable-extra paths and the `provisional` flag itself. Retuning it
  * changes no pixel the player sees. It should be deleted together with the assertions in
  * `tests/unit/year-turn-ux.test.ts` that construct tables out of it.
+ *
+ * ⚠ IT HAS DRIFTED FROM balance.json AND THAT IS NOT A BUG TO FIX: spring's red was re-authored to
+ * 160 there on 2026-08-28 and deliberately left at 198 here. Resyncing them would be the first step
+ * back toward treating this as a second home for the hues. If these four ever have to match
+ * balance.json to keep a test green, that test is reading the wrong table.
  */
 export const PROVISIONAL_SEASON_TINTS: SeasonTintTable = {
   spring: { rgb: { r: 198, g: 232, b: 178 }, overlayAlpha: 0.1, provisional: true },
@@ -220,12 +241,30 @@ export function assertCoversSeasonOrder(table: SeasonTintTable, balance: Balance
   warnUnreachable(table, balance);
 }
 
-/** bible §12a season preset, from data/balance.json (G11 — never a literal here). */
+/**
+ * The PICTURE's per-season brightness, from `balance.season.brightness` (G11 — never a literal
+ * here). Not `balance.audio.seasonBrightness`: that is the sound's, it is a different number, and
+ * it is allowed to exceed 1.0.
+ *
+ * ⚠ ABOVE 1.0 IS REFUSED, NOT CLAMPED. `setTint` multiplies, so 1.0 already means "leave this
+ * season undimmed" and no colour draws the map brighter than it was painted. `zBalance` refuses it
+ * at boot; this refuses it again for a `Balance` built in code that never went through the schema,
+ * because the alternative is what used to happen — the surplus vanished into a clamp and summer
+ * rendered at the same scale as spring at every year, with nothing on screen or in the log saying
+ * a value had been discarded.
+ */
 export function seasonBrightness(balance: Balance, season: Season): number {
-  const value = balance.audio.seasonBrightness[season];
+  const value = balance.season.brightness[season];
   if (typeof value !== "number" || !Number.isFinite(value)) {
     throw new SeasonTintError(
-      `balance.audio.seasonBrightness.${season} is ${String(value)}, not a finite number`,
+      `balance.season.brightness.${season} is ${String(value)}, not a finite number`,
+    );
+  }
+  if (value > 1) {
+    throw new SeasonTintError(
+      `balance.season.brightness.${season} is ${String(value)}, above 1 — the tint is a MULTIPLY ` +
+        `over the painted map, so it cannot brighten past it (Hard Requirement 6). ` +
+        `balance.audio.seasonBrightness is the sound's, and that one may exceed 1.`,
     );
   }
   return value;
@@ -234,7 +273,18 @@ export function seasonBrightness(balance: Balance, season: Season): number {
 /**
  * bible §12a — "Year aging progressively darkens … so Hearthollow year 5 sounds like a memory of
  * year 1". Linear in the years elapsed since `balance.clock.startYear`, at
- * `balance.audio.yearDarkenPerYear` a year.
+ * `balance.season.yearDarkenPerYear` a year.
+ *
+ * ⚠ ONE RAMP, TWO CONSUMERS. This function is read by {@link seasonTint} for the painted map AND by
+ * game/audio.ts `seasonTreatment` for the filter cutoff — that is §12a's "one track, six readings",
+ * and it is why the key is filed under `balance.season` rather than under either `audio` or a
+ * picture-only group. Retuning it moves the sound and the picture together, deliberately. It is the
+ * BRIGHTNESS that is split in two (see {@link seasonBrightness}).
+ *
+ * ⚠ HOW DARK YEAR 6 GETS IS THIS KEY'S QUESTION, NOT THE SEASONS'. Measured across the twelve
+ * composed maps, the darkest reading is cindershelf under winter at year 6: mean L601 37.2 against
+ * 106.3 untinted, a 0.45 total multiply. Whether that is too dark to ship is the owner's call and
+ * this key is where it would be answered; nothing here should be retuned to work around it.
  *
  * Year 1 is 1.0 by construction: the first year is the reference the later ones are read against.
  *
@@ -249,7 +299,7 @@ export function seasonBrightness(balance: Balance, season: Season): number {
 export function yearDarkening(balance: Balance, year: number): number {
   const elapsed = Math.max(0, year - balance.clock.startYear);
   const deepest = Math.max(0, balance.clock.yearsTotal - 1);
-  return clamp(1 - balance.audio.yearDarkenPerYear * Math.min(elapsed, deepest), 0, 1);
+  return clamp(1 - balance.season.yearDarkenPerYear * Math.min(elapsed, deepest), 0, 1);
 }
 
 /**
@@ -281,12 +331,18 @@ export function hueOf(rgb: SeasonTintRgb): SeasonTintRgb {
  *     spec names. Winter at year 6 came out at rgb(68, 84, 102) — 27% of the painted map's own
  *     brightness — where the two stated terms (0.75 × 0.60) ask for 45%. Fixed by splitting the
  *     preset into a hue ({@link hueOf}) and letting `scale` carry all of the luminance.
- *  2. **`brightness > 1` cannot brighten a multiply.** `seasonBrightness.summer = 1.15` pushed r
- *     255→293 and g 224→258; both clamped, turning a 255:224 red:green ratio into 1:1 — a hue
- *     change dressed up as a brightening. There is no colour that makes `setTint` draw the map
- *     brighter than it was painted, so the surplus is spent the only way it can be: moving the hue
- *     TOWARD white, i.e. taking the season's cast off the picture. bible §12a's "summer:
- *     +brightness" reads on screen as "summer is the season the map is least tinted".
+ *  2. **`brightness > 1` cannot brighten a multiply.** The old `seasonBrightness.summer = 1.15`
+ *     pushed r 255→293 and g 224→258; both clamped, turning a 255:224 red:green ratio into 1:1 — a
+ *     hue change dressed up as a brightening. This file then spent the surplus desaturating toward
+ *     white instead, which was honest arithmetic but still a value the author wrote and the screen
+ *     did not show: summer rendered at scale 1.000, the same as spring, at every year. Hank ruled
+ *     for the other branch — seasons only ever DARKEN from the base, spring is the 1.0 reference —
+ *     over adding the overlay/additive pass a real brightening would need (which a multiply cannot
+ *     do, which would be new rendering machinery, and which risks pushing pixels off the frozen 32
+ *     the palette gate enforces). So the surplus has nowhere to go and is not accepted: the schema
+ *     refuses a `season.brightness` above 1.0 and {@link seasonBrightness} refuses it again. bible
+ *     §12a's "summer: +brightness" reads on screen as "summer is, with spring, the season the map
+ *     is least dimmed", and summer is told apart from spring by its HUE.
  *  3. Nothing checked the table covered `balance.clock.seasonOrder` on this path — only the preview
  *     path did — so retuning seasonOrder could leave a season with no preset and no warning. The
  *     check throws for a MISSING preset only; an extra one is warned about (see
@@ -314,12 +370,10 @@ export function seasonTint(
   const darkening = yearDarkening(balance, year);
   const hue = hueOf(preset.rgb);
 
-  // (2) — above 1.0 the surplus desaturates toward white; at or below 1.0 it dims, which a multiply
-  // can do. `scale` is the honest luminance either way, and it is what `rgb`'s peak channel equals.
-  const toWhite = clamp(brightness - 1, 0, 1);
-  const scale = Math.min(brightness, 1) * darkening;
-  const lit = (channel: number): number =>
-    clamp(Math.round((channel + (CHANNEL_MAX - channel) * toWhite) * scale), 0, CHANNEL_MAX);
+  // (2) — brightness is ≤ 1 by construction ({@link seasonBrightness} refuses more), so `scale` is
+  // a plain product of the two magnitudes and it is exactly what `rgb`'s peak channel equals.
+  const scale = brightness * darkening;
+  const lit = (channel: number): number => clamp(Math.round(channel * scale), 0, CHANNEL_MAX);
 
   const rgb: SeasonTintRgb = { r: lit(hue.r), g: lit(hue.g), b: lit(hue.b) };
   return {
@@ -379,7 +433,16 @@ export function applySeasonTint(target: TintTarget, tint: SeasonTint): void {
   target.setTint(tint.color);
 }
 
-/** Colour the optional overlay rectangle at the preset's strength. */
+/**
+ * Colour the optional overlay rectangle at the preset's strength.
+ *
+ * ⚠ THIS IS NOT ON THE MAP'S PATH. Its one call site in the tree is `game/scenes/YearTurnScene.ts`,
+ * over the year-turn card's own opaque backdrop; `game/mapview.ts` calls {@link applySeasonTint}
+ * and never this. So `balance.seasonTint.<season>.overlayAlpha` moves the year-turn card and
+ * nothing in the overworld — and measured over the composed maps, adding this pass would RAISE
+ * luminance and barely move spring against summer while shrinking spring against winter. It is a
+ * mood pass, not a season separator; separation is the hues' and the two magnitudes' job.
+ */
 export function applySeasonOverlay(target: OverlayTarget, tint: SeasonTint): void {
   target.setFillStyle(packRgb(tint.base), tint.overlayAlpha);
 }

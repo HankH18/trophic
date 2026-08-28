@@ -43,7 +43,7 @@ import {
 } from "@core/lifecycle";
 import { appendAction, newSave, replay, type SaveEnvelope } from "@core/save";
 import { subsystemRng } from "@core/rng";
-import { validateContent, zOwnedCreature } from "@core/schemas";
+import { validateContent, zBalance, zOwnedCreature } from "@core/schemas";
 import type {
   ActionLogEntry,
   Balance,
@@ -73,6 +73,7 @@ import {
   hueOf,
   packRgb,
   PROVISIONAL_SEASON_TINTS,
+  seasonBrightness,
   seasonTint,
   seasonTintForClock,
   seasonTintsForYear,
@@ -493,9 +494,17 @@ describe("season tint — Hard Req 6 'season variation is a runtime tint; never 
   });
 
   it("reads its magnitudes from balance.json — brightness per season, darkening per year", () => {
+    /*
+     * ⚠ THE ADDRESS MOVED ON 2026-08-28, AND THAT IS THE POINT OF THE TEST, NOT AN ACCIDENT OF IT.
+     * This read `balance.audio.seasonBrightness` until then — the picture's brightness and the
+     * music's were literally the same key, so retuning the summer track retuned the summer map with
+     * nothing gating it. Hank's ruling ("you do not have to tune audio to the seasons") split them:
+     * `balance.season.brightness` is the picture's, `balance.audio.seasonBrightness` is the sound's,
+     * and the second half of this test is the binding that the split actually took.
+     */
     for (const season of balance.clock.seasonOrder) {
       const tint = seasonTint(balance, season, balance.clock.startYear);
-      expect(tint.brightness).toBe(balance.audio.seasonBrightness[season]);
+      expect(tint.brightness).toBe(balance.season.brightness[season]);
       expect(tint.yearDarkening).toBe(1);
       expect(tint.color).toBe(packRgb(tint.rgb));
       expect(tint.color).toBeGreaterThanOrEqual(0);
@@ -504,11 +513,32 @@ describe("season tint — Hard Req 6 'season variation is a runtime tint; never 
 
     // A retune of the season preset moves the picture (INV-3), and nothing else does.
     const retuned = clone(balance);
-    const target = balance.clock.seasonOrder[0] as keyof typeof retuned.audio.seasonBrightness;
-    retuned.audio.seasonBrightness[target] = balance.audio.seasonBrightness[target] / 2;
+    const target = balance.clock.seasonOrder[0] as Season;
+    retuned.season.brightness[target] = balance.season.brightness[target] / 2;
     const dimmed = seasonTint(retuned, target, retuned.clock.startYear);
     const shipped = seasonTint(balance, target, balance.clock.startYear);
     expect(dimmed.rgb.r).toBeLessThan(shipped.rgb.r);
+
+    /*
+     * BINDS — the SOUND's brightness reaches no pixel. Halve `audio.seasonBrightness` for every
+     * season and the four readings come back byte-identical; before the split this same edit moved
+     * all four. `game/audio.ts` `seasonTreatment` still reads that key, so it is not dead — it is
+     * simply no longer the picture's.
+     */
+    const quieter = clone(balance);
+    for (const season of balance.clock.seasonOrder) {
+      quieter.audio.seasonBrightness[season] = balance.audio.seasonBrightness[season] / 2;
+      expect(quieter.audio.seasonBrightness[season]).not.toBe(balance.audio.seasonBrightness[season]);
+    }
+    for (const season of balance.clock.seasonOrder) {
+      for (let i = 0; i < balance.clock.yearsTotal; i += 1) {
+        const year = balance.clock.startYear + i;
+        expect(
+          seasonTint(quieter, season, year),
+          `${season} y${String(year)}: retuning balance.audio.seasonBrightness moved the MAP`,
+        ).toEqual(seasonTint(balance, season, year));
+      }
+    }
   });
 
   it("darkens progressively across the six years and never inverts", () => {
@@ -545,7 +575,7 @@ describe("season tint — Hard Req 6 'season variation is a runtime tint; never 
     // Years 1..6 are byte-identical to the un-saturated ramp.
     for (let i = 0; i < balance.clock.yearsTotal; i += 1) {
       const year = balance.clock.startYear + i;
-      expect(yearDarkening(balance, year)).toBeCloseTo(1 - balance.audio.yearDarkenPerYear * i, 12);
+      expect(yearDarkening(balance, year)).toBeCloseTo(1 - balance.season.yearDarkenPerYear * i, 12);
     }
   });
 
@@ -574,10 +604,9 @@ describe("season tint — Hard Req 6 'season variation is a runtime tint; never 
       expect(reading.overlayAlpha).toBe(authored.overlayAlpha);
       /*
        * A retune of the hue moves the picture, and nothing but balance.json has to change (INV-3).
-       * The claim is RELATIVE, not absolute: the reading is a ratio (hueOf normalises the preset to
-       * peak 255) and `seasonBrightness > 1` spends its surplus moving the hue toward WHITE, so
-       * zeroing a channel does not zero the pixel — summer's red comes back as 38, not 0. Halving
-       * the authored red lowers the reading's red under every one of those terms.
+       * The claim is RELATIVE, not absolute: the reading is a ratio, because `hueOf` normalises the
+       * preset to peak 255 before the magnitudes are applied — so halving the authored red lowers
+       * the reading's red without the test having to know what either number is.
        */
       const retuned = clone(balance);
       retuned.seasonTint[season] = { ...authored, r: authored.r / 2 };
@@ -606,10 +635,15 @@ describe("season tint — Hard Req 6 'season variation is a runtime tint; never 
       const year = balance.clock.startYear + i;
       for (const season of balance.clock.seasonOrder) {
         const tint = seasonTint(balance, season, year);
-        expect(tint.scale).toBeCloseTo(
-          Math.min(balance.audio.seasonBrightness[season], 1) * yearDarkening(balance, year),
-          10,
-        );
+        /*
+         * ⚠ NO `Math.min(…, 1)` HERE ANY MORE, AND ITS REMOVAL IS A STRENGTHENING. It used to wrap
+         * the brightness because the key was allowed above 1 and the reading capped it internally —
+         * which meant this assertion agreed with the code about a value the author had written and
+         * the screen never showed. The cap is now at the DATA boundary (core/schemas.ts refuses a
+         * `season.brightness` above 1, `seasonBrightness` refuses it again), so the plain product is
+         * the honest claim: if either cap ever failed open, this line reds instead of absorbing it.
+         */
+        expect(tint.scale).toBeCloseTo(balance.season.brightness[season] * yearDarkening(balance, year), 10);
         expect(peak(tint.hue)).toBe(255);
         expect(peak(tint.rgb)).toBe(Math.round(255 * tint.scale));
         // Nothing clamps: a clamped channel is a hue the author did not choose.
@@ -628,27 +662,102 @@ describe("season tint — Hard Req 6 'season variation is a runtime tint; never 
     }
   });
 
-  it("BINDS — brightness above 1 desaturates instead of clamping the hue to white", () => {
-    // bible §12a's "summer: +brightness". A multiply cannot draw the map brighter than it was
-    // painted, so the surplus HAS to go somewhere; it used to go into the clamp, which turned
-    // summer's 255:224 red:green ratio into 1:1 — a hue change dressed up as a brightening.
-    const bright = balance.clock.seasonOrder.find((s) => balance.audio.seasonBrightness[s] > 1);
-    expect(bright).toBeDefined();
-    if (!bright) return;
+  /**
+   * ⚠ THIS TEST WAS "BINDS — brightness above 1 desaturates instead of clamping the hue to white"
+   * UNTIL 2026-08-28, and it is INVERTED here rather than deleted.
+   *
+   * WHAT IT ENCODED. bible §12a says "summer: +brightness", and `setTint` MULTIPLIES the painted
+   * map, so there is no colour that draws the map brighter than it was painted. The old assertion
+   * accepted a brightness above 1 and pinned down what the reading DID with the surplus: rather
+   * than let it clamp — which turned summer's 255:224 red:green ratio into 1:1, a hue change
+   * dressed up as a brightening — it spent the surplus moving the hue toward white, and the test
+   * asserted the result was less saturated than the same hue at brightness 1.0 and no brighter.
+   *
+   * WHY THAT IS NO LONGER THE CONTRACT. The arithmetic was honest and the outcome still was not:
+   * summer rendered at `scale` 1.000, byte-identical to spring's 1.0 at every year, so a value the
+   * author wrote was a value the screen never showed and nothing said so. Hank ruled between adding
+   * the overlay/additive pass a real brightening needs — new rendering machinery, and a route to
+   * pushing pixels off the frozen 32 the palette gate enforces — and accepting that seasons only
+   * ever DARKEN from the base with spring as the 1.0 reference. He chose the second. Under it, an
+   * authored visual brightness above 1.0 is not a behaviour to specify; it is a statement that
+   * cannot be true, and the right place to answer it is the data boundary.
+   *
+   * WOULD THE OLD ASSERTION STILL FAIL IF THE SPLIT WERE REVERTED? No — it would pass again
+   * exactly as it did, because it needs a shipped season authored above 1.0 to find (it looked one
+   * up with `.find(s => …> 1)`) and the desaturation branch to spend it. That is precisely why it
+   * had to be replaced rather than repaired: it is well-formed, it simply describes a state the
+   * game can no longer be in. Its own failure said so — `expected 0.8784313725490196 to be greater
+   * than 0.8784313725490196`, the value compared against itself once the input stopped exceeding 1.
+   *
+   * WHY THE REPLACEMENT IS STRONGER. It asserts the impossible state is UNREACHABLE rather than
+   * well-behaved: refused at the schema with a message that says why, refused again by the reader
+   * for a `Balance` built in code, and refused in BOTH senses of "refused" — the value does not
+   * reach a pixel, and the boot does not proceed. A loss that cannot be authored cannot be silent.
+   */
+  it("BINDS — a visual brightness above 1 is refused at boot, not spent silently", () => {
+    const season = balance.clock.seasonOrder[0] as Season;
 
-    const tint = seasonTint(balance, bright, balance.clock.startYear);
-    const base = PROVISIONAL_SEASON_TINTS[bright].rgb;
-    // The ratio survives: still recognisably the authored hue, not flattened to grey-white.
-    expect(tint.rgb.g / tint.rgb.r).toBeGreaterThan(base.g / base.r);
-    expect(tint.rgb.g / tint.rgb.r).toBeLessThan(1);
-    // …and it really is less saturated than the same hue at brightness 1.0.
-    const neutral = clone(balance);
-    neutral.audio.seasonBrightness[bright] = 1;
-    const plain = seasonTint(neutral, bright, neutral.clock.startYear);
-    const spread = (rgb: { r: number; g: number; b: number }): number =>
-      Math.max(rgb.r, rgb.g, rgb.b) - Math.min(rgb.r, rgb.g, rgb.b);
-    expect(spread(tint.rgb)).toBeLessThan(spread(plain.rgb));
-    expect(tint.scale).toBe(plain.scale); // and no brighter: a multiply cannot exceed the source
+    // 1. The shipped file honours the ruling: every season ≤ 1, and the reference is exactly 1.
+    for (const s of balance.clock.seasonOrder) {
+      expect(balance.season.brightness[s], `${s} is authored above 1 — a multiply cannot brighten`)
+        .toBeLessThanOrEqual(1);
+    }
+    expect(
+      balance.clock.seasonOrder.some((s) => balance.season.brightness[s] === 1),
+      "no season is the 1.0 reference — every season is dimmed and nothing says what from",
+    ).toBe(true);
+
+    // 2. The schema refuses more than 1, and says why. Asked of `zBalance` on raw JSON, which is
+    //    the shape `validateContent` parses at boot — not of a hand-built object.
+    const raw = JSON.parse(JSON.stringify(balance)) as Record<string, unknown>;
+    const brightness = { ...(raw["season"] as Record<string, unknown>) };
+    brightness["brightness"] = { ...(brightness["brightness"] as Record<string, number>), [season]: 1.15 };
+    let refusal = "";
+    try {
+      zBalance.parse({ ...raw, season: brightness });
+      expect.unreachable("zBalance accepted a season brightness of 1.15 — the cap is not enforced");
+    } catch (err) {
+      refusal = err instanceof Error ? err.message : String(err);
+    }
+    // The message has to carry the REASON, or the next author retunes it back and learns nothing.
+    expect(refusal, `the refusal does not explain itself: ${refusal}`).toContain("MULTIPLIES");
+    expect(refusal).toContain("Hard Requirement 6");
+
+    // 3. …and the parse that differs only in staying at the ceiling SUCCEEDS, so §2 is not passing
+    //    on some unrelated malformation of the object it built.
+    const atCeiling = { ...(raw["season"] as Record<string, unknown>) };
+    atCeiling["brightness"] = { ...(atCeiling["brightness"] as Record<string, number>), [season]: 1 };
+    expect(() => zBalance.parse({ ...raw, season: atCeiling })).not.toThrow();
+
+    // 4. The READER refuses it too — for a `Balance` assembled in code that never met the schema,
+    //    which is exactly how every test in this file builds its retunes.
+    const overbright = clone(balance);
+    overbright.season.brightness[season] = 1.15;
+    expect(() => seasonBrightness(overbright, season)).toThrow(SeasonTintError);
+    expect(() => seasonTint(overbright, season, balance.clock.startYear)).toThrow(SeasonTintError);
+    // Non-vacuity: the same call at the ceiling returns, so §4 is not throwing for another reason.
+    const ceiling = clone(balance);
+    ceiling.season.brightness[season] = 1;
+    expect(seasonBrightness(ceiling, season)).toBe(1);
+
+    // 5. THE CONSEQUENCE THE RULING ACCEPTS, asserted so it cannot be forgotten: two seasons at the
+    //    same brightness now have the SAME luminance, and only their HUE tells them apart. That is
+    //    why `balance.seasonTint.spring.r` was re-authored in the same change — with the cap in
+    //    place it is the one term left separating spring from summer.
+    const tied = balance.clock.seasonOrder.filter(
+      (s) => balance.season.brightness[s] === balance.season.brightness[season],
+    );
+    expect(tied.length, "no two seasons share a brightness — §5 has nothing to observe").toBeGreaterThan(1);
+    for (let i = 1; i < tied.length; i += 1) {
+      const a = seasonTint(balance, tied[0] as Season, balance.clock.startYear);
+      const b = seasonTint(balance, tied[i] as Season, balance.clock.startYear);
+      expect(b.scale, `${a.season}/${b.season} share a brightness but not a scale`).toBe(a.scale);
+      expect(
+        b.color,
+        `${a.season} and ${b.season} are the same brightness AND the same colour — the hue is the ` +
+          `only thing left to separate them and it is not doing it`,
+      ).not.toBe(a.color);
+    }
   });
 
   it("BINDS — the LIVE path checks the table covers seasonOrder, not just the preview path", () => {
