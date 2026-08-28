@@ -3238,3 +3238,181 @@ its filename; the missing families exist; the authored buildings are drawn rathe
 criterion 6 is met on the node it was raised against; and the composer's own contract about loud
 failure is either made true or amended to say what it actually checks. **Ship it one node at a time,
 painting and mask together** — T-56.
+
+---
+
+## Opened 2026-08-28 by the year-variant demotion — T-74 onward
+
+Two tickets from one ruling and one correction. The ruling moved a feature off the current queue; the
+correction removed a spec that had gone on reading as current after the pipeline under it was replaced.
+
+---
+
+## T-74 — year-variant maps are stretch goal S6, and the branch is the owner's before the art is anybody's
+
+**RULED, FIRST-HAND, TO THIS SESSION'S TRANSCRIPT — not relayed, and not a consequence somebody drew
+from a sentence of his.** Verbatim:
+
+> **"We are going to get rid of that as a current goal and make it a stretch goal for the future. The
+> year changes, that is. If there was an easy way to put a filter for season changes, that'd be great
+> to keep, but otherwise we can ditch that too."**
+
+**Provenance is stated because this queue's standing rule asks for words and a named source, not
+because the ruling is in any doubt.** The source is this session, directly, unprompted by any proposal.
+Keep it distinct from the two records of the tiles ruling above — one relayed from the art lane, one
+first-hand — and do not hedge any of the three.
+
+**What is recorded, and where.** `docs/build-doc.md` §15 now carries **S6** in the stretch list; §9.5 is
+retitled and rewritten; §1's beat-1 line, §7.5's step-6 paragraph, §9.7's counts and §13's interview
+answer all carry the deferral. `docs/STATUS.md` carries the full account, the measurements and the open
+questions in its own year-variants section.
+
+⚠ **THIS SUPERSEDES CUT LINE C-2 AND THE BUILD DOC SAYS SO.** C-2 read *"year variants beyond year 2
+for non-slice nodes"* — it permitted cutting variants **only** past year 2 and **only** away from
+Hearthollow / R1 / Brackwater / R2. The ruling covers the slice nodes and year 2 too. **Do not quote
+C-2 to argue that a slice-node year-2 variant is still owed.** C-2 is struck through rather than
+deleted, because the 28 manifest rows were generated to its shape and `tests/unit/manifest.test.ts`
+still names it in a test title.
+
+⚠ **AND THIS DOES NOT CUT DEMO BEAT 1 — IT DEFERS ONE THIRD OF IT.** Beat 1 is *"hammer a prey species
+in year 1; open year 2 with its predator gone, a new apex risen, **and the aged map**"*. The ecology
+two-thirds are built and gated: `tests/integration/demo-beats.test.ts` (I2) ran green during this pass,
+`1 passed (1) · 6 passed (6)`, watched rather than inherited. **Read the deferral in both directions:**
+"beat 1 is never-cut" is not an obligation to ship variant art, and "year variants are a stretch goal"
+is not licence to touch the cascade half.
+
+### The reason this ticket is not simply "build it later"
+
+⛔ **EVERY AUTHORED AGING ARC IS CONDITIONAL AND `yearVariants` IS NOT.** Four of the six branch on how
+the region was played — `docs/content-bible.md:155-158`, verbatim: *"fields flourish **or** wither with
+Route 1 health"*, *"docks rot **or** get rebuilt"*, *"canopy thins **if** Barkhide over-caught"*,
+*"vents flare, mine expands **or** closes"*. The schema is
+`yearVariants: Partial<Record<2|3|4|5|6, string>>` (`core/types.ts:162`, `core/schemas.ts:218`) — **a
+flat key per year, no branch** — and each of the 28 `map-variant` manifest rows carries **both outcomes
+in one subject string**, because a prompt can hold an ambiguity and a filename cannot. **Nothing in the
+tree says which branch a save takes or where that would be read**; `mapAssetForYear` resolves by year
+and by nothing else.
+
+⛔ **So a naive revival — one image per year — is a map that withers regardless of how the player
+played, which is a SCRIPTED CASCADE, and G6 forbids scripting the cascade: it must emerge from the §7.3
+rules.** That makes the branch **plausibly the feature rather than an omission in it**, and it makes
+this a content decision, not an art task. **It is registered in `docs/STATUS.md`'s *Waiting on the
+owner* as OPEN (G2).** An agent may not pick a branch, may not declare the arcs decorative, and may not
+decide one image per year is close enough — three different ways of inventing a value.
+
+### What must NOT be done to the tree in the name of this demotion
+
+- ⛔ **Do not delete the 28 `map-variant` rows from `tools/comfy/manifest.json`.** They are the authored
+  record S6 restarts from, and `tests/unit/manifest.test.ts` binds their count, their `mode:
+  "img2img"`, their `initImage` (each node's own `mapAsset`), their denoise (checked against
+  `balance.overlayDiff.denoiseStart`, not a literal) and their overlay-diff `gate` string. That file is
+  held by another lane.
+- ⛔ **Do not report "28 of 60 missing".** The spread is authored: `hearthollow`, `r1`, `brackwater`,
+  `r2` carry y2–y6 (five each), the other eight carry y2 only — 4×5 + 8×1 = **28**, inside §9.7's cap
+  of 30, with years 3–6 resolving downward through §7.5 step 6. `manifest.json`'s `_yearVariantPolicy`
+  says so and the test names `map-sanctum-y3` as deliberately absent.
+- ⛔ **Do not delete `yearVariants`, `mapAssetForYear` or the empty `{}` on the twelve nodes.** The
+  resolver is built and tested; the emptiness is G4 doing its job (nothing enters unmeasured), and two
+  tests assert it. A revival supplies art to a working resolver rather than writing code.
+- **Do not touch the season tint on this ticket.** It is kept by the same ruling and is decoupled — see
+  T-75 and the measurements in `docs/STATUS.md`.
+
+### And the reason §9.5 had to be rewritten regardless of the demotion
+
+**It specified a producer that no longer exists.** The old body read, verbatim: *"img2img on the
+approved base map, denoise start 0.35, prompt appends the node's aging arc (bible §6: "docks rot",
+"canopy thins", "vents flare", …), layout frozen; every candidate runs `overlay-diff` (§8.2) before
+entering the node JSON. Budget: ≤ 3 regen attempts per variant, then that year reuses the nearest
+passing variant (visual continuity beats variant count)."* **There is no generated approved base map to
+img2img against.** All twelve shipped maps are composed offline — `tools/mapgen/layouts/<id>.txt` (64×64
+ASCII, one character per 16-px collision cell) → `tools/mapgen/compose/compose.py` → 1024² PNG, landed
+with its mask by `npx tsx tools/mapgen/land.ts`. Verified against the files, not taken on report.
+
+⚠ **This is the L7/G1 failure with the sign flipped, and it belongs in this queue's standing rules by
+example.** There, a canonical doc forbade work the owner had ordered, so **the more carefully an agent
+read it, the more reliably it refused.** Here, a canonical doc described a dead process, so **the more
+carefully an agent read it, the more reliably it went looking for an artefact nobody had produced in
+weeks.** Neither is visible to a test suite; both punish diligence specifically. **When a pipeline is
+replaced, the spec for everything downstream of it is stale until somebody reads it.**
+
+**Done when:** S6 is picked up — which requires the branch ruling first, then a supervised trial of the
+`map-variant` class (it is `trialled: false` and every row is `status: "pending"`, so the img2img graph
+has never been run), then overlay-diff on every candidate before anything enters a node JSON (§8.2 /
+G4). **Nothing here is owed today.**
+
+---
+
+## T-75 — the season tint is KEPT by the same ruling, and the seam that draws it has no behaviour test
+
+The ruling that demoted the year changes kept the season filter conditionally: *"If there was an easy
+way to put a filter for season changes, that'd be great to keep."* **It is already built, and it is
+cheap in exactly the way that sentence hoped for**, so this ticket is about the gap under it rather
+than about building it.
+
+**The decoupling, verified.** `MapView.setSeason` (`game/mapview.ts:452-456`) sets `this.season`,
+recomputes `seasonTint(this.balance, season, this.year)` and calls `applySeasonTint` — **it never
+touches the texture.** `this.year` in that call is the calendar year, not the variant asset; the
+texture swap is `setYear`'s, a separate method. `game/mapview.ts:451` states the spec on the line
+above: *"Hard Req 6 — season is a runtime multiply, never a different texture."* **Demoting year
+variants therefore costs the season filter nothing** — no shared state, no shared asset, no shared
+call.
+
+**THE GAP: `setSeason`, `seasonTintTable`, `SeasonTintPreset` and `applySeasonOverlay` had no covering
+behaviour test.** What existed is `tests/unit/balance-inv3.test.ts` BF-13, which is an **INV-3
+balance-invariant** test by construction: it retunes a hue in a *copy* of balance and asserts the 24-bit
+colour handed to a fake `setTint` moves. That is a correct and useful binding — **but it proves the file
+reads `balance.json`, not that the map changes colour when the season turns.** Nothing drove
+`MapView.setSeason` and observed the image; `applySeasonOverlay` appears in the test tree only inside a
+symbol→file census in `year-turn-ux.test.ts`. **Green there is evidence the tint is data-driven, not
+evidence the seam works** — this queue's standing rule, applied to the one visual system the owner just
+said he wants kept.
+
+⚠ **AND THE GAP WAS BEING CLOSED WHILE THIS TICKET WAS BEING WRITTEN — WHICH IS WHY IT IS WORDED AS A
+READING WITH A TIMESTAMP AND NOT AS A STANDING DEFECT.** `tests/unit/season-tint-onscreen.test.ts`
+exists and is aimed at exactly this seam: it drives `restAtInn` → `spendTicks` → `seasonBoundary` →
+`handleClockEvents` → `MapView.setSeason` → `setTint` through the real `OverworldScene`, records
+`setTint` explicitly rather than through the repo's chainable-no-op Proxy double (its docblock names
+that stub trap and says the file is built around it), and carries a §5 whose job is to prove the
+recorder would notice if the tint stopped arriving. **It is another lane's in-flight work and not a
+landed gate.** Read at the time of writing it was **untracked** and **RED**: `1 failed | 11 passed
+(12)`, `ReferenceError: minPairwise is not defined` at `:787`. ⛔ **Do not touch that file** — it is
+outside this ticket's scope and inside another lane's. ⛔ **And do not close this ticket on the strength
+of this paragraph**: the single failing case is *"the seasons separate on HUE, further than they
+separate on BRIGHTNESS"*, which is precisely the measurement the paragraph below says the decision
+needs. **Re-run the file before believing either the gap or its closure.**
+
+⚠ **BEFORE ANYBODY TUNES A TINT: THE FOUR ΔL FIGURES IN CIRCULATION ARE MEASURED ON THE WRONG COLOURS.**
+The quoted set — mid-grey source, Rec.601 luma, Phaser multiply `out = src × tint/255` — is spring
+rgb(198,232,178) −19.7, summer rgb(255,224,160) −14.6, autumn rgb(226,150,76) −45.5, winter
+rgb(150,186,226) −37.7. **The arithmetic is right** (−19.74, −14.57, −45.53, −37.75 to two decimals)
+**and the colours are wrong**: those are the raw presets in `balance.seasonTint`, and the raw preset is
+not what reaches `setTint`. `game/season-tint.ts` `hueOf` normalises each preset to peak 255 first — on
+purpose, because a multiply preset carries a dimming nobody asked for — then applies `seasonBrightness`
+and `yearDarkening`. Measured by running the shipped `seasonTint()` at `clock.startYear`: **spring
+rgb(218,255,196) ΔL −8.93 · summer rgb(255,229,174) ΔL −12.30 · autumn rgb(230,152,77) ΔL −44.29 ·
+winter rgb(127,157,191) ΔL −51.75.** Three consequences: **spring and summer swap order** (summer is
+the *darker* on screen — `seasonBrightness.summer = 1.15` cannot brighten a multiply, so the surplus is
+spent moving the hue toward white); **winter, not autumn, is the darkest season**; and **the
+spring/summer collision is tighter than warned** — 3.37 apart at year 1 and **2.10 apart at year 6**,
+separating on hue rather than brightness, which a green meadow is the worst case for. The full table,
+including year 6, is in `docs/STATUS.md`. A twelve-map × four-tint contact sheet is **reported** to be
+rendering in the art lane, and it is the right instrument for this decision — **but that is a relay and
+not a check**: nothing matching it was found on disk during this pass. **Judge whatever sheet arrives
+against the right-hand numbers, not the presets.**
+
+⚠ **AND A TRAP, CONFIRMED BY READING THE LINE RATHER THAN FLAGGED: the map's year-darkening constant
+lives in the AUDIO group.** `game/season-tint.ts:249-253` computes `clamp(1 -
+balance.audio.yearDarkenPerYear * min(elapsed, deepest), 0, 1)`, and `seasonBrightness` (`:224-232`)
+reads `balance.audio.seasonBrightness`. `audio` has four keys and **two of them decide how the painted
+map looks**. `balance.json`'s `_seasonTint` note names them there and bible §12a is where the
+aging-darkens idea comes from, so it is a shared constant rather than a typo — **not a defect, not
+urgent.** The hazard is in both directions: an agent grepping `balance.json` for a *visual*
+year-darkening key finds nothing, and an agent retuning `audio` to fix a sound changes the picture.
+Moving it is a schema change with an INV-3 gate attached, so it is a proposal and not a patch.
+
+**Done when:** a test drives `MapView.setSeason` across the four seasons and observes the colour handed
+to the image — not a retune of balance, the seam itself — and `applySeasonOverlay` has one that is not a
+census row. `tests/unit/season-tint-onscreen.test.ts` is that test if the lane writing it lands it
+green; **confirm it is committed and passing before closing this**, and confirm the hue-vs-brightness
+case in particular, since that is the one that was not running. **Do not weaken BF-13 to get there; add
+alongside it.**

@@ -10,7 +10,7 @@ Trophic is a 2D Pokémon-Gold-style monster-catching RPG in which the region is 
 
 **Judged output: demo video + AI interview.** There is no hidden rubric beyond these, so effort allocates to what the video shows and the interview probes:
 
-- **~40% — the two demo beats** (never-cut): (1) *Cascade*: hammer a prey species in year 1; open year 2 with its predator gone, a new apex risen, and the aged map. (**§10.2 is where this beat's guarantees live** — the predator's collapse is asserted as a law; which node produces a risen apex on top of it is a property of that node's food web, never a script.) (2) *Legacy*: starter retires before the league; its heir fights the finale.
+- **~40% — the two demo beats** (never-cut): (1) *Cascade*: hammer a prey species in year 1; open year 2 with its predator gone, a new apex risen, and the aged map. (**§10.2 is where this beat's guarantees live** — the predator's collapse is asserted as a law; which node produces a risen apex on top of it is a property of that node's food web, never a script.) ⚠ **"and the aged map" is DEFERRED by the owner, first-hand — the beat is not cut, its map third is** (§9.5, §15 S6). The ecology two-thirds are built and gated by §15 I2; year-variant art is a stretch goal and `yearVariants` is empty on all twelve nodes. Do not read the beat as unplayable because of it, and do not read the deferral as licence to cut the ecology half. (2) *Legacy*: starter retires before the league; its heir fights the finale.
 - **~25% — vertical slice walkability**: Hearthollow → R1 → Brackwater → R2 as painted walkable maps with encounters, battles, catching, survey.
 - **~20% — deterministic core + tests**: battle engine, ecology sim, aging — headless, property-tested, harness-tunable. This is the interview ammunition.
 - **~15% — everything else** (remaining nodes as vignettes, audio, dex, polish), all cut-safe.
@@ -269,7 +269,7 @@ Year turn, numbered: (1) every owned + boxed non-Ancient creature: `yearsRemaini
 
 **Regional events are season-long windows.** Each of bible §9's four events opens on a season boundary and lasts exactly `balance.clock.ticksPerSeason` ticks (`core/regional-events.ts`). Two are DERIVED (Festival = the year's final season; Great Migration = the migrant's own `seasonalWindow`) and two are LATCHED (Bloom Year latches on the *rise* across the flora threshold; Cullbrand raid latches on act entry) — because a window must be able to **close while its opening condition is still true**, or it is a state and not an event.
 
-**Step 6 resolves through §9.5's fallback, not an exact-year lookup.** `yearVariants` only ever holds keys 2–6 and the calendar is unbounded, so `mapAssetForYear` resolves **downward** to the nearest passing variant and the turn reports a swap when the RESOLVED asset changes. A year-9 Hearthollow renders as year-6 Hearthollow, never as the base map.
+**Step 6 resolves through §9.5's fallback, not an exact-year lookup.** `yearVariants` only ever holds keys 2–6 and the calendar is unbounded, so `mapAssetForYear` resolves **downward** to the nearest passing variant and the turn reports a swap when the RESOLVED asset changes. A year-9 Hearthollow renders as year-6 Hearthollow, never as the base map. ⚠ **`yearVariants` is `{}` on all twelve nodes today and is expected to stay that way**: year-variant art is stretch goal S6 (§9.5, demoted by the owner first-hand), so step 6 currently resolves to the base map at every year and emits no swap. That is the correct shipped behaviour, not a wiring defect — the resolver is built and tested, and a revival supplies art to it rather than code.
 
 ### 7.6 Maps & Collision
 Virtual resolution 480×320, integer-scaled. Painted maps 1024×1024 native rendered 2× (2048² world). Collision mask: 1-bit PNG at map native res, sampled on a 16px grid (64×64 cells) into a packed bitfield at build time. Player logical sprite 32×48, tile step 32px, grid movement Gold-style. Props are entries in `props[]` with interaction radius, not baked into collision (they overlay the painted map).
@@ -373,8 +373,105 @@ Per sprite: (1) nearest-neighbor downscale to target (battle 96², overworld cha
 ### 9.4 Untrialed class gate — painted dex illustration
 First task of the batch phase (build order B2): a SUPERVISED trial of the painted (non-pixel) dex class. Prompt direction: `painted storybook illustration, natural-history field-guide style, [SUBJECT], soft watercolor texture, muted palette` — iterate to approval before generating the 35. If it can't reach approval in one supervised loop, cut line C4 applies (dex falls back to upscaled pixel sprites on parchment frames) — the game must not block on it.
 
-### 9.5 Aged map variants
-img2img on the approved base map, denoise start 0.35, prompt appends the node's aging arc (bible §6: "docks rot", "canopy thins", "vents flare", …), layout frozen; every candidate runs `overlay-diff` (§8.2) before entering the node JSON. Budget: ≤ 3 regen attempts per variant, then that year reuses the nearest passing variant (visual continuity beats variant count).
+### 9.5 Aged map variants — A STRETCH GOAL, and the METHOD this section used to specify is dead
+
+⛔ **THE OWNER DEMOTED THIS, FIRST-HAND, TO THIS SESSION'S TRANSCRIPT — not relayed.** Verbatim:
+
+> **"We are going to get rid of that as a current goal and make it a stretch goal for the future. The
+> year changes, that is. If there was an easy way to put a filter for season changes, that'd be great
+> to keep, but otherwise we can ditch that too."**
+
+It is **S6** in §15's stretch list. It **supersedes cut line C-2**, which permitted cutting year
+variants only *beyond year 2 for non-slice nodes*: the demotion covers the four vertical-slice nodes
+and year 2 as well, so C-2 is no longer the binding line and must not be read as one. **It does not
+cut demo beat 1.** §1 beat 1 is *"hammer a prey species in year 1; open year 2 with its predator gone,
+a new apex risen, **and the aged map**"* — the ecology two-thirds are built and gated (§15 I2,
+`tests/integration/demo-beats.test.ts`, 6 cases, green on a run watched at the time of writing), and it
+is the **map third that is deferred, not the beat that is cut**. The season filter the ruling asks to
+keep is separate work and costs this nothing — see the decoupling note below.
+
+⛔ **AND THE METHOD IS DEAD INDEPENDENTLY OF THE DEMOTION.** This section read, verbatim, until now:
+
+> *"img2img on the approved base map, denoise start 0.35, prompt appends the node's aging arc (bible
+> §6: "docks rot", "canopy thins", "vents flare", …), layout frozen; every candidate runs
+> `overlay-diff` (§8.2) before entering the node JSON. Budget: ≤ 3 regen attempts per variant, then
+> that year reuses the nearest passing variant (visual continuity beats variant count)."*
+
+**There is no generated base map left to run img2img against.** All twelve shipped maps are **composed
+offline from tiles**: `tools/mapgen/layouts/<id>.txt` is a 64×64 ASCII layout, one character per 16-px
+collision cell, which `tools/mapgen/compose/compose.py` stamps into a 1024² PNG, and which
+`npx tsx tools/mapgen/land.ts` lands into `assets/final/maps/` together with the collision mask derived
+from the same text file. Twelve layouts, twelve maps, twelve masks are on disk. The owner ruled that
+switch himself and overrode the build doc to do it (L7, G1, and the tiled-maps section of
+`docs/STATUS.md`). **A spec that describes a dead producer still reads as current, which is the trap
+pointed the other way from the one L7 and G1 were caught in a day earlier: the more carefully an agent
+read this section, the more reliably it walked down a path with nothing at the end of it.**
+
+**What changed is the METHOD, not the INTENT — and the intent is preserved deliberately, because it is
+the record this stretch goal starts from.** Every one of these survives the demotion:
+
+- **The aging arcs are authored and still valid.** `docs/content-bible.md:153-160`, the Towns table's
+  **Aging arc** column, verbatim: Hearthollow *"fields flourish or wither with Route 1 health"* ·
+  Brackwater *"docks rot or get rebuilt"* · Bowerdeep *"canopy thins if Barkhide over-caught"* ·
+  Cindershelf *"vents flare, mine expands or closes"* · Duskhollow *"dark encroaches as the Sanctum
+  destabilizes"* · The Sanctum Fallow *"revealed in the state your ecology earned"*. And
+  `docs/content-bible.md:168-169`, verbatim: *"**Routes have no aging arc here**; a route inherits the
+  arc of the town sharing its biome (`tools/comfy/manifest.json` `_nodes`)."* **Six arcs cover twelve
+  nodes**, and the shipped manifest honours that inheritance exactly — `map-r1-*` carries Hearthollow's
+  arc, `map-r5-*` Duskhollow's, `map-sanctum-approach-y2` the Sanctum's.
+- **The manifest rows already carry the arc and the year appended to the base subject, exactly as the
+  old text specified.** `map-hearthollow-y2`'s subject ends *"…, 2D game asset, fields flourish or
+  wither with Route 1 health, year 2 of six"*; `map-brackwater-y4`'s ends *"…, docks rot or get
+  rebuilt, year 4 of six"*. Each row is `mode: "img2img"`, `denoise: 0.35`, `initImage` = that node's
+  own `mapAsset`, `status: "pending"`, and a `gate` string naming overlay-diff. **Do not delete these
+  rows.** They are the authored record, and `tests/unit/manifest.test.ts` binds their count, their
+  mode, their init image and their gate; deleting them turns a stretch goal into a hole and reds a
+  gate held by another lane.
+- **The gate and the fallback stay specified.** No candidate enters a node JSON without passing
+  `tools/overlay-diff` (§8.2 / G4); ≤ 3 regen attempts, then that year reuses the nearest passing
+  variant, visual continuity beating variant count. The numbers are already data, not literals —
+  `balance.overlayDiff` carries `denoiseStart 0.35`, `denoiseStep 0.05`, `denoiseFloor 0.2`,
+  `iouThreshold 0.85`, `maxRegenAttempts 3` (G11), and `manifest.test.ts` binds every row's denoise to
+  `balance.overlayDiff.denoiseStart` rather than to the number written here.
+- **The engine half is built and unaffected.** `yearVariants` (§7.2) exists on every node, is `{}` on
+  all twelve, and `core/lifecycle.ts` `mapAssetForYear` resolves **downward** to the nearest passing
+  variant (§7.5 step 6). An empty map is the correct shipped state, not an omission: G4 says nothing
+  enters `yearVariants` unmeasured, and `tests/unit/manifest.test.ts` and
+  `tests/unit/transcription.test.ts` both assert the emptiness. **A revival supplies art to a resolver
+  that already works** — it does not need engine work.
+
+⛔ **THE FIRST THING THIS STRETCH GOAL MUST DECIDE IS A GUARDRAIL PROBLEM, AND IT IS WORTH MORE THAN
+THE FEATURE WAS. EVERY AUTHORED ARC IS CONDITIONAL AND `yearVariants` IS NOT.** Read the arcs again:
+*"flourish **or** wither"*, *"rot **or** get rebuilt"*, *"thins **if** Barkhide over-caught"*, *"vents
+flare, mine expands **or** closes"*. Four of the six branch on how the region was played. But
+`yearVariants` is `Partial<Record<2|3|4|5|6, string>>` (`core/types.ts:162`, `core/schemas.ts:218`) —
+**a flat key per year with no branch anywhere in it** — and each manifest row carries **both outcomes
+in one subject string**, because a prompt can hold an ambiguity and a file path cannot. **Nothing in
+the tree says which branch a save takes, or where that would be read.** So a naive revival generates
+one image per year, and one image per year is a **wither ladder that runs whatever the player did** —
+i.e. **a scripted cascade, which G6 forbids**: the cascade must emerge from the §7.3 rules, and a map
+that always rots is the sim's outcome pre-decided in a filename. **The branch is therefore plausibly
+the feature rather than an omission in it**, and it is **the owner's to rule on, not an agent's to
+invent** (G2). Recorded open in `docs/STATUS.md`'s *Waiting on the owner* register and as a ticket;
+whoever picks this up starts from that decision, not from the ladder.
+
+**The 28 rows are unevenly spread ON PURPOSE — this is the authored shape, not "28 of 60 missing".**
+`hearthollow`, `r1`, `brackwater` and `r2` carry `y2`–`y6` (five each); the other eight nodes carry
+`y2` only, and resolve downward for years 3–6 through `mapAssetForYear`. 4×5 + 8×1 = **28**, inside
+§9.7's cap of 30 and matching what cut line C-2 used to permit. `manifest.json`'s `_yearVariantPolicy`
+states this and `tests/unit/manifest.test.ts` binds the 28 by name, including
+`expect(byId.has('map-sanctum-y3')).toBe(false)`.
+
+**The season filter the ruling keeps is DECOUPLED from all of the above, measured.** `MapView.setSeason`
+(`game/mapview.ts:452-456`) recomputes the tint from `(season, this.year)` and calls `applySeasonTint`;
+it **never touches the texture**, and `this.year` there is the calendar year, not the variant asset.
+`game/mapview.ts:451` states the spec on the line above it: *"Hard Req 6 — season is a runtime multiply,
+never a different texture."* The texture swap is `setYear`'s, and it is a separate method. **Demoting
+year variants costs the season filter nothing**, and the four authored tints in `balance.seasonTint` are
+unaffected. What the tints actually read as on screen — and the one place the numbers everybody quotes
+are the wrong numbers — is in `docs/STATUS.md`, because it is a measurement and not a spec.
+
+⚠ **The two img2img findings below OUTLIVE the demotion and are not filed here for the maps' sake.** They were measured on this model, they bind §9.6 (the walk-cycle trial, which is live), and they are what a revival of the aged maps would otherwise re-derive at full price. Keep them.
 
 **Spec limit — img2img on this model is for deltas WITHIN a view and cannot turn one.** Identity drift begins at a lower denoise than view rotation does, so there is no denoise that rotates a subject while holding its identity. A new view must be *derived*, or generated and re-approved as a new identity. This binds §9.6 too: its denoise sweep is sound for a walk frame and does not generalise to a view change.
 
@@ -388,7 +485,7 @@ Precondition: gate B0 (player sprite finalized) passed. SUPERVISED, timeboxed to
 4. Pass ⇒ pack 4-dir × 3-frame sheet. Fail ⇒ **fall to bob without discussion**: y = 2px sine per tile step, 1px lateral sway, horizontal flip alternation. Bob ships in either case as the NPC animation (NPCs are turn-to-face statics regardless).
 
 ### 9.7 Asset manifest (counts)
-Derived from the shipped roster, not from the bible's arithmetic: **24 aging lines × 3 forms + 3 Ancients × 1 form = 75 forms ⇒ 150 battle sprites** (front/back). (Bible §4 and its "77 forms / 154 sprites" predate the third Ancient; this doc wins, and `manifest.test.ts` and `battle-view.test.ts` bind 150.) Plus: 35 painted dex identities (gated §9.4) · 12 base maps + up to 30 accepted year variants (only vertical-slice nodes guaranteed variants; others cut-safe) · overworld minis for encounterable species (~25) · 8 trainer battle sprites (5 leaders + Greaves + Wick + Maren) · ambient NPC statics (~12 reusable) · prop set (antler stones, shell-kiln shrines, sunken idols, sign-card frame) · UI frames · player statics + walk sheet (or bob). Manifest rows carry: id, class, subject string, view, seed, target size, status (pending/raw/final/approved).
+Derived from the shipped roster, not from the bible's arithmetic: **24 aging lines × 3 forms + 3 Ancients × 1 form = 75 forms ⇒ 150 battle sprites** (front/back). (Bible §4 and its "77 forms / 154 sprites" predate the third Ancient; this doc wins, and `manifest.test.ts` and `battle-view.test.ts` bind 150.) Plus: 35 painted dex identities (gated §9.4) · 12 base maps (**composed offline from `tools/mapgen/layouts/*.txt`, not generated — §9.5**) + up to 30 accepted year variants, of which **28 are authored as manifest rows and 0 are accepted: year variants are stretch goal S6, not current work (§9.5)**. The 28 are 4 slice nodes × y2–y6 + 8 other nodes × y2, bound by name in `manifest.test.ts`; the spread is the authored shape, not a shortfall against 60 · overworld minis for encounterable species (~25) · 8 trainer battle sprites (5 leaders + Greaves + Wick + Maren) · ambient NPC statics (~12 reusable) · prop set (antler stones, shell-kiln shrines, sunken idols, sign-card frame) · UI frames · player statics + walk sheet (or bob). Manifest rows carry: id, class, subject string, view, seed, target size, status (pending/raw/final/approved).
 
 ## 10. Test Plan
 
@@ -417,7 +514,7 @@ Modest, but tested: overworld 60fps at 480×320 integer scale (painted map is on
 Sections: what it is (2 paragraphs + the two demo beats as GIFs), architecture diagram, "real numbers, no moralizing" design note, honest known-gaps list (§ `docs/STATUS.md` is the source for these). **Pre-written answers, full arguments, to the evaluation questions the AI interview will probe:**
 - *How was AI used?* Full pipeline: agent-built code from this doc; all art via Comfy Cloud API batch (settings §9.2), style held by a locked prompt skeleton + frozen palette, zero LoRAs; balance tuned by an autonomous harness loop.
 - *How do you know the ecology works?* It's a law, not a script: `cascade_emerges` property test; deterministic replay; the demo cascade is a recorded action log any reviewer can re-run.
-- *Why one painted image per node rather than a runtime tilemap?* A node is one 1024² PNG plus one collision mask, so the engine draws a single image and the layout-freeze overlay-diff test is what makes six-year aging affordable. ⚠ **The answer is no longer "no tilesets" and must not be given that way** — the PNG is now **composed offline** from an authored 64×64 layout and a committed tile set, one character per collision cell, which is the layout being authored rather than asked of a model. Nothing is assembled at run time, so the runtime half of the answer is unchanged. See L7 (amended by Hank) and G1.
+- *Why one painted image per node rather than a runtime tilemap?* A node is one 1024² PNG plus one collision mask, so the engine draws a single image and the layout-freeze overlay-diff test is what makes six-year aging affordable. ⚠ **The aging half of that sentence is now a stretch goal and must not be answered as shipped work** — the owner demoted year variants first-hand (§9.5, S6), `yearVariants` is empty on all twelve nodes, and what the year actually changes on screen today is the tint's `yearDarkening` term, not the texture. The one-image-per-node answer stands on its own without it. ⚠ **The answer is no longer "no tilesets" and must not be given that way** — the PNG is now **composed offline** from an authored 64×64 layout and a committed tile set, one character per collision cell, which is the layout being authored rather than asked of a model. Nothing is assembled at run time, so the runtime half of the answer is unchanged. See L7 (amended by Hank) and G1.
 - *What would break at scale?* Honest: JSON-in-localStorage saves, O(n²) web derivation fine at 27 lines, palette lock limits art variety.
 - *What was cut and why* — filled from the cut-line record at submission time.
 
@@ -453,9 +550,9 @@ C1 boot/save/menus. C2 overworld: painted map + mask movement + encounters off n
 
 **Integration gates:** I1 vertical slice playable end-to-end (catch, battle, survey moves, year turn). I2 **cascade demo reproducible from `overcatch-script.json` in real play.** I3 **retirement/heir beat playable.** I4 finale + both endings + epilogue survey. I5 full test suite + harness targets green. I6 demo-video dry run.
 
-**Cut lines (in order — cut from the bottom up):** C-1 acts 5–6 towns walkable → vignettes (already default). C-2 year variants beyond year 2 for non-slice nodes. C-3 side quests beyond the 4 slice quests. C-4 painted dex class (fallback §9.4). C-5 Kilnback/Undermere catch chains → lore-only. C-6 forge/relics UI → auto-apply relics. **Never cut:** the two demo beats, vertical-slice walkability, real-number survey, retirement flow, Vellsire choice + epilogue survey, determinism tests.
+**Cut lines (in order — cut from the bottom up):** C-1 acts 5–6 towns walkable → vignettes (already default). C-2 ~~year variants beyond year 2 for non-slice nodes~~ — **SUPERSEDED by the owner's first-hand demotion of year variants entire (§9.5, S6).** C-2 permitted cutting variants only *beyond year 2* and only for *non-slice* nodes; the ruling covers the four slice nodes and year 2 as well, so this line no longer describes the binding decision and must not be quoted as though a slice-node variant were still owed. It is kept rather than deleted because the 28 manifest rows were generated to its shape and `manifest.test.ts` still names it. C-3 side quests beyond the 4 slice quests. C-4 painted dex class (fallback §9.4). C-5 Kilnback/Undermere catch chains → lore-only. C-6 forge/relics UI → auto-apply relics. **Never cut:** the two demo beats, vertical-slice walkability, real-number survey, retirement flow, Vellsire choice + epilogue survey, determinism tests.
 
-**Stretch (flagged, cut-safe):** S1 Retro Diffusion walk-sheet exploration (only if B5 fails AND schedule is ahead). S2 full per-species seasonal tables. S3 ghost gym ingestion of saved teams (schema exists). S4 Dockerfile. S5 Nuzlocke permadeath toggle.
+**Stretch (flagged, cut-safe):** S1 Retro Diffusion walk-sheet exploration (only if B5 fails AND schedule is ahead). S2 full per-species seasonal tables. S3 ghost gym ingestion of saved teams (schema exists). S4 Dockerfile. S5 Nuzlocke permadeath toggle. **S6 year-variant / aged maps (§9.5) — moved here from current work by the owner, first-hand to this session: *"We are going to get rid of that as a current goal and make it a stretch goal for the future. The year changes, that is."* Supersedes cut line C-2. Its first task is not art: it is the owner's ruling on which BRANCH of a conditional aging arc a save takes, because every authored arc branches and `yearVariants` does not, and generating one image per year without that ruling ships a scripted cascade (G6). The season tint the same ruling keeps is separate and already built — S6 does not gate it.**
 
 ## 16. Agent Guardrails — DO NOT
 - G1 **AMENDED BY HANK — this line used to read *"Do not build or generate tilesets, or slice painted maps into tiles,"* and it forbade work he had ordered and that had already landed.** Offline tile composition is **permitted**: `tools/mapgen/compose/` stamps an authored 64×64 layout — one character per 16px collision cell — into a single 1024² PNG per node, and that composer, its committed tile set and the twelve node compositions are sanctioned work. **No agent may refuse them, revert them, or raise them as a violation on this guardrail's authority.** He said it first-hand, in answer to being shown this contradiction: ***"I override the build doc!"*** (L7 carries both sources, the first-hand override and the earlier relayed ruling, with their provenance kept distinct — and carries the boundary too: this reaches the tileset question and **nothing else in this document**). **WHAT IS STILL FORBIDDEN, and it is the half that was always load-bearing: nothing is assembled at RUN TIME.** A node renders as ONE image scaled to the world — no `tilemap`, no tileset atlas, no assembling the ground from tiles a cell at a time in `game/`, and no cutting a finished painted map back into tiles to render it. (The interior footprint stand-in at `game/mapview.ts:529` is not an exception and says so: it is two `fillRect` families over the collision grid, and the painting that replaces it is one image like any other.) Composition is a build step that produces exactly the artefact §7.6 always specified, and `tests/unit/collision.test.ts` enforces the runtime half over the shipped source of `game/collision.ts` and `game/mapview.ts` — **that test is still correct and must not be weakened**, and neither may the runtime-side comments that cite G1 (`game/mapview.ts:10`, `game/collision.ts:13`, `game/scenes/OverworldScene.ts:1080`), which are right about the engine even where their shorthand "no tilesets" now over-states the rule. ⚠ **One thing this amendment deliberately does NOT decide:** whether *offline* slicing of a finished painting into tiles is still barred. He was asked about composing from a tile set and answered that; nothing in the landed pipeline slices a painting — its tiles are authored as tiles — so the question has not arisen and is **recorded open rather than resolved by inference** (G2). Do not read the permission wider than the question it answered.

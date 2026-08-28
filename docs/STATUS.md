@@ -813,6 +813,209 @@ saying which nodes that names.** Stated over all seven non-town nodes the range 
 
 ---
 
+## ⛔ YEAR-VARIANT MAPS ARE A STRETCH GOAL — THE OWNER SAID SO FIRST-HAND, AND §9.5 WAS DESCRIBING A PIPELINE THAT NO LONGER EXISTS
+
+Two separate things happened to the same feature and they must not be collapsed into one. **The owner
+demoted it**, and **independently of that, the method the build doc specified for it had already
+stopped existing.** Either alone would be worth writing down; together they mean a careful reader of
+§9.5 was being sent down a path with nothing at the end of it.
+
+### The ruling — FIRST-HAND, to this session's transcript, not relayed
+
+> **"We are going to get rid of that as a current goal and make it a stretch goal for the future. The
+> year changes, that is. If there was an easy way to put a filter for season changes, that'd be great
+> to keep, but otherwise we can ditch that too."**
+
+**Provenance, stated the way this file states every other one:** said directly, in this session, in
+answer to nothing an agent proposed. It is **not** a relay from another lane, and it is **not** a
+consequence somebody drew from a sentence of his — it is the sentence. This matters for exactly the
+reason the standing rule in `docs/TICKETS.md` gives: a first-hand ruling recorded loosely ends up
+looking like the softer of two records, and the tiled-maps ruling above is in this file twice because
+that already happened once.
+
+It is now **§15 stretch item S6** in the build doc, and §9.5, §1, §7.5, §9.7 and §13 all carry the
+demotion.
+
+⚠ **IT SUPERSEDES CUT LINE C-2, AND SAYING SO IS THE POINT.** C-2 read *"year variants beyond year 2
+for non-slice nodes"* — i.e. it permitted cutting variants **only** past year 2 and **only** away from
+Hearthollow / R1 / Brackwater / R2. The ruling covers the slice nodes and year 2 as well, so **C-2 no
+longer describes the binding decision** and nobody should quote it to argue a slice-node year-2 variant
+is still owed. C-2 is struck through rather than deleted in the build doc, because the 28 manifest rows
+were generated to its shape and `tests/unit/manifest.test.ts` still names it.
+
+⚠ **DEMO BEAT 1 IS NOT CUT. ITS MAP THIRD IS DEFERRED.** Build-doc §1 beat 1 is *"hammer a prey species
+in year 1; open year 2 with its predator gone, a new apex risen, **and the aged map**"*. The ecology
+two-thirds are **built and gated**: `tests/integration/demo-beats.test.ts` is I2, and it ran green here
+— `1 passed (1) · 6 passed (6)`, watched, not inherited from a previous pass. The aged map is the third
+that the owner has now deferred. **Record it that way in both directions**: do not let "beat 1 is
+never-cut" be read as an obligation to ship variant art, and do not let "year variants are a stretch
+goal" be read as licence to touch the cascade half.
+
+### What §9.5 actually said, and why it was false
+
+Verbatim, the whole of the old body paragraph:
+
+> *"img2img on the approved base map, denoise start 0.35, prompt appends the node's aging arc (bible
+> §6: "docks rot", "canopy thins", "vents flare", …), layout frozen; every candidate runs
+> `overlay-diff` (§8.2) before entering the node JSON. Budget: ≤ 3 regen attempts per variant, then
+> that year reuses the nearest passing variant (visual continuity beats variant count)."*
+
+**The false clause is "img2img on the approved base map", and it is false because there is no generated
+base map any more.** Verified here, not taken on report: `tools/mapgen/layouts/` holds twelve 64×64
+ASCII layouts (one character per 16-px collision cell — `hearthollow.txt` is 154 lines including its
+header commentary, 93 characters to the row); `tools/mapgen/compose/compose.py`'s own docstring opens
+*"paint one 1024x1024 map PNG by stamping tiles per collision cell"*; `tools/mapgen/land.ts` lands the
+painting **and** the mask from that same text file into `assets/final/maps/`, where twelve maps and
+twelve masks now sit. The composer is deterministic by FNV-1a hash of `(col,row)` — no `Math.random`,
+no clock (G11) — and `verify.py` asserts it by composing twice and diffing.
+
+**This is the same shape as the L7/G1 problem this file records above, pointed the other way.** There,
+a canonical doc forbade work the owner had ordered, so the more carefully an agent read it the more
+reliably it refused. Here, a canonical doc *described a process that no longer runs*, so the more
+carefully an agent read it the more reliably it went looking for an approved base map to denoise. Both
+failures are invisible to a test suite and both punish diligence.
+
+**What was NOT wrong, and is preserved rather than erased:** the intent. The aging arcs are authored
+content and still valid — `docs/content-bible.md:153-160` (the Towns table's **Aging arc** column, six
+arcs) and `docs/content-bible.md:168-169`, verbatim, *"**Routes have no aging arc here**; a route
+inherits the arc of the town sharing its biome"*, which is how six arcs cover twelve nodes. The 28
+`map-variant` manifest rows already append the arc and the year to the base subject exactly as §9.5
+specified — `map-hearthollow-y2` ends *"…, 2D game asset, fields flourish or wither with Route 1 health,
+year 2 of six"* — and the route rows carry their town's arc verbatim, `map-r1-*` Hearthollow's,
+`map-sanctum-approach-y2` the Sanctum's. **So what changed is the METHOD, not the intent.** §9.5 now
+says that in those words.
+
+⚠ **THE BIBLE IS NOT EDITED FOR THIS AND SHOULD NOT BE.** `docs/content-bible.md:153-160` and `:167-169`
+describe **authored content and its intent**, both of which survive intact; the demotion is a *schedule*
+decision and the build doc is where schedule lives (CLAUDE.md: where the two overlap, the build doc
+wins). ⚠ The one line to read carefully is `docs/content-bible.md:167` — *"The **Aging arc** column stays
+on the calendar: a player who rushes sees a younger town, correctly."* **That is the intent, not shipped
+behaviour.** No town's art changes with the calendar today; what changes on screen with the year is the
+tint's `yearDarkening` term. Nobody should read `:167` as a description of the running game.
+
+⛔ **DO NOT DELETE THE 28 MANIFEST ROWS.** They are the authored record this stretch goal restarts from,
+`tests/unit/manifest.test.ts` binds their count, their `mode: "img2img"`, their `initImage` (each node's
+own `mapAsset`), their denoise (against `balance.overlayDiff.denoiseStart`, not a literal) and their
+overlay-diff `gate` string, and that file is currently held by another lane.
+
+### The first thing S6 must decide is a GUARDRAIL problem, and it is worth more than the feature was
+
+**Every authored aging arc is CONDITIONAL. `yearVariants` is not.** Four of the six branch outright:
+*"fields flourish **or** wither with Route 1 health"*, *"docks rot **or** get rebuilt"*, *"canopy thins
+**if** Barkhide over-caught"*, *"vents flare, mine expands **or** closes"*. But the schema is
+`yearVariants: Partial<Record<2|3|4|5|6, string>>` — `core/types.ts:162`, `core/schemas.ts:218` — **a
+flat key per year with no branch in it**, and each manifest row carries **both outcomes in one subject
+string**, because a prompt can hold an ambiguity and a filename cannot. **Nothing anywhere in the tree
+says which branch a save takes, or where that would be read.** `mapAssetForYear` resolves by year and
+by nothing else.
+
+⛔ **A map that always withers regardless of how the region was played is a SCRIPTED CASCADE, and G6
+forbids scripting the cascade — it must emerge from the §7.3 rules.** So the naive revival — one image
+per year, wither ladder — is not merely thin, it violates a guardrail: it is the sim's outcome
+pre-decided in a file path, at the one node the demo beat is about. **Which means the branch is
+plausibly the feature and not an omission in it**, and either way it is a content decision.
+
+**RECORDED OPEN, NOT RESOLVED (G2).** It is in the *Waiting on the owner* register below. An agent may
+not pick a branch, may not decide the arcs are decorative, and may not decide one image per year is
+"close enough" — those are three different ways of inventing a value. Whoever picks S6 up starts from
+the ruling, not from the ladder.
+
+### The 28 rows are unevenly spread ON PURPOSE — this is the shape, not "28 of 60 missing"
+
+Measured off `tools/comfy/manifest.json`: `hearthollow`, `r1`, `brackwater`, `r2` carry **y2–y6, five
+each**; `bowerdeep`, `r3`, `cindershelf`, `r4`, `duskhollow`, `r5`, `sanctum-approach`, `sanctum` carry
+**y2 only**. 4×5 + 8×1 = **28**, inside §9.7's cap of 30, matching what C-2 used to permit. The other
+eight nodes resolve **downward** for years 3–6, which is what §7.5 step 6's fallback is for. The
+manifest states this itself in `_yearVariantPolicy`, and `manifest.test.ts` binds it by name, including
+`expect(byId.has('map-sanctum-y3')).toBe(false)`. **Anyone diffing 28 against a mental 12×5 = 60 will
+report a shortfall that was never authored.** Every one of the 28 is `status: "pending"` and the class
+is `trialled: false` — the img2img graph was never trialled, so a revival's first run is a SUPERVISED
+gate regardless.
+
+### The season filter is KEPT, and it is decoupled — verified, not assumed
+
+The ruling keeps the season tint if it is cheap. **It is already built and it does not touch the
+year-variant path at all.** `MapView.setSeason` (`game/mapview.ts:452-456`) sets `this.season`,
+recomputes `seasonTint(this.balance, season, this.year)` and calls `applySeasonTint` — **it never
+touches the texture**; the texture swap lives in the separate `setYear`. `this.year` in that call is
+the calendar year, which is what the tint's darkening term reads; it is not the variant asset.
+`game/mapview.ts:451` states the spec on the line directly above: *"Hard Req 6 — season is a runtime
+multiply, never a different texture."* **So demoting year variants costs the season filter nothing.**
+
+⛔ **AND HERE IS A NUMBER THIS PASS WAS HANDED AND HAD TO CORRECT — THE FOUR ΔL FIGURES EVERYBODY IS
+QUOTING ARE MEASURED ON THE WRONG COLOURS.** The figures in circulation are, on a mid-grey source,
+Rec.601 luma, Phaser multiply `out = src × tint/255`: spring rgb(198,232,178) → **−19.7**, summer
+rgb(255,224,160) → **−14.6**, autumn rgb(226,150,76) → **−45.5**, winter rgb(150,186,226) → **−37.7**.
+**That arithmetic is correct** — reproduced here to two decimals: −19.74, −14.57, −45.53, −37.75. **But
+those are the RAW AUTHORED PRESETS in `balance.seasonTint`, and the raw preset is not what reaches
+`setTint`.** `game/season-tint.ts` `hueOf` first normalises each preset so its brightest channel is
+exactly 255 — deliberately, because a multiply preset carries a dimming nobody asked for on top of the
+one the spec names — and then applies `seasonBrightness` and `yearDarkening`. **Measured by running the
+shipped `seasonTint()` itself, at `clock.startYear` (year 1):**
+
+| season | authored preset | ΔL of the preset | **what `setTint` actually gets** | **ΔL on screen, y1** | ΔL on screen, y6 |
+|---|---|---|---|---|---|
+| spring | rgb(198,232,178) a0.10 | −19.74 | **rgb(218,255,196)** | **−8.93** | −56.56 |
+| summer | rgb(255,224,160) a0.12 | −14.57 | **rgb(255,229,174)** | **−12.30** | −58.66 |
+| autumn | rgb(226,150,76) a0.18 | −45.53 | **rgb(230,152,77)** | **−44.29** | −77.84 |
+| winter | rgb(150,186,226) a0.22 | −37.75 | **rgb(127,157,191)** | **−51.75** | −82.32 |
+
+**Two of the conclusions people are drawing from the preset figures are wrong, and one is worse than
+advertised.**
+1. **The spring/summer order INVERTS.** On the presets, summer is the brighter of the pair (−14.6 vs
+   −19.7). On screen, **summer is the darker** (−12.30 vs −8.93 — spring is brighter). `seasonBrightness
+   .summer = 1.15` cannot brighten a multiply, so `season-tint.ts` spends the surplus moving the hue
+   toward white instead; summer is therefore *the least tinted season*, not the brightest picture.
+2. **Winter, not autumn, is the darkest season on screen** (−51.75 vs −44.29). The preset table says the
+   opposite, because winter's authored blue is normalised up and then scaled by `brightness 0.75`.
+3. **The spring/summer collision is REAL and TIGHTER than the warning says.** The preset figures put the
+   pair 5.1 apart; on the shipped path at year 1 they are **3.37 apart**, and by year 6 they are **2.10
+   apart** (−56.56 vs −58.66). They separate on **hue**, not on brightness, and a green meadow is the
+   worst case for that. **This is still an open art question**, and it should be decided against the
+   numbers in the right-hand columns, not the left. ⚠ A twelve-map × four-tint contact sheet is
+   **reported** to be rendering in the art lane for the owner to judge from; **that is a relay, not
+   something checked here** — nothing matching it was found on disk during this pass, and the search
+   was shallow. Confirm before waiting on it.
+
+**The lesson is this file's own standing one, and it caught a figure that was otherwise fine:** the ΔL
+values were quoted *with* their operator, which is what the project spent the day learning to demand —
+and they were still the wrong numbers, because the operator named was the last step of a three-step
+chain. **Naming the operator is necessary and not sufficient; name the INPUT too.**
+
+### Two open items on the season seam
+
+1. **THE SEASON SEAM HAD NO BEHAVIOUR TEST — AND A LANE LANDED ONE WHILE THIS SECTION WAS BEING
+   WRITTEN, WHICH IS WHY THE ITEM READS THE WAY IT DOES.** The gap was real and is stated first: what
+   covered `setSeason`, `seasonTintTable`, `SeasonTintPreset` and `applySeasonOverlay` was
+   `tests/unit/balance-inv3.test.ts` BF-13, an **INV-3 balance-invariant** test by construction and by
+   its own words — it retunes a hue in a *copy* of balance and asserts the 24-bit colour handed to a
+   fake `setTint` moves. A real binding, and the right test for what it tests, **but it proves the file
+   reads balance, not that the map changes colour when the season turns**; `applySeasonOverlay` appears
+   in the test tree only inside a symbol→file census in `year-turn-ux.test.ts`.
+   ⚠ **`tests/unit/season-tint-onscreen.test.ts` now exists and is aimed at exactly this**, driving
+   `restAtInn` → `spendTicks` → `seasonBoundary` → `handleClockEvents` → `MapView.setSeason` →
+   `setTint` through the real `OverworldScene`, with a §5 that proves its own recorder is not vacuous
+   and a docblock that names the Proxy-swallows-`setTint` stub trap it was built to avoid. **It is
+   another lane's in-flight work, not a landed gate**: at the moment it was read it was **untracked**
+   and **RED** — `1 failed | 11 passed (12)`, `ReferenceError: minPairwise is not defined` at `:787`.
+   ⛔ **Do not touch that file, and do not record the gap as closed on the strength of this note.** The
+   failing case is *"the seasons separate on HUE, further than they separate on BRIGHTNESS"* — i.e. the
+   one case that would measure the spring/summer collision below, and the one that is not yet running.
+   **This item is a reading with a timestamp** (the standing rule in `docs/TICKETS.md`): re-run the
+   file before believing either the gap or its closure.
+2. ✅ **`yearDarkening` IS KEYED TO AN AUDIO CONSTANT — CONFIRMED, not merely flagged.** This reached the
+   pass as "flagged, not confirmed, an agent is tracing it"; it is confirmed by reading the line.
+   `game/season-tint.ts:249-253` is `clamp(1 - balance.audio.yearDarkenPerYear * min(elapsed, deepest),
+   0, 1)`, and its sibling `seasonBrightness` (`:224-232`) reads `balance.audio.seasonBrightness`. **So
+   the two magnitudes that decide how the painted map looks live in the `audio` group** — `audio` has
+   exactly four keys and two of them are the map's. `balance.json`'s own `_seasonTint` note names them
+   there and bible §12a is where the aging-darkens idea comes from, so this is a shared constant rather
+   than a typo, and moving it is a schema change with an INV-3 gate attached. **It is not a defect and
+   it is not urgent. It is a trap**: an agent grepping `balance.json` for a *visual* year-darkening key
+   finds nothing, and an agent retuning `audio` to fix a sound changes the picture.
+
+---
+
 ## Verified state
 
 **Re-measured on 2026-08-27, one complete run, on a tree that is for once nearly clean.** What landed
@@ -2543,6 +2746,23 @@ the tiled-maps section). The tile ruling has both, from two sources. The cinders
 and it moved a question out of this register for the length of an afternoon. **A consequence of one of
 his sentences is not one of his sentences** — least of all when a sibling file by the same author says
 the opposite.
+
+- ⛔ **WHICH BRANCH OF A CONDITIONAL AGING ARC A SAVE TAKES — NEW, AND IT IS THE GATE ON STRETCH GOAL
+  S6.** He demoted year-variant maps to a stretch goal first-hand this session (*"We are going to get
+  rid of that as a current goal and make it a stretch goal for the future. The year changes, that
+  is."* — the full account is the year-variants section above). **The question that outlives the
+  demotion is not "when do we build it", it is a guardrail question that must be answered before
+  anybody generates a single image.** Four of the six authored arcs branch on play —
+  `docs/content-bible.md:155-158`, verbatim: *"fields flourish **or** wither with Route 1 health"*,
+  *"docks rot **or** get rebuilt"*, *"canopy thins **if** Barkhide over-caught"*, *"vents flare, mine
+  expands **or** closes"* — while `yearVariants` (`core/types.ts:162`, `core/schemas.ts:218`) is a flat
+  key 2–6 with **no branch**, and each of the 28 manifest rows carries **both outcomes in one subject
+  string**. Nothing reads a branch anywhere. **One image per year is therefore a wither ladder that
+  runs whatever the player did — a scripted cascade, which G6 forbids.** So the branch is plausibly the
+  feature. ⛔ **An agent may not pick it, may not declare the arcs decorative, and may not decide one
+  image per year is close enough** — those are three ways of inventing a value (G2). **Nothing is
+  blocked on this today**, because S6 is not current work; it is registered so that a revival starts
+  from a ruling instead of from a ladder.
 
 - **The cascade budget — the question has CHANGED SHAPE, because the gate that framed it was
   measuring wrong.** ⚠ **The knob table is no longer a decision waiting to be made.** `preyShare`
