@@ -1153,6 +1153,41 @@ describe("§3 a wild encounter becomes a battle, and a catch moves a real number
   }
 
   /**
+   * Fight one launched wild battle to a terminal outcome WITHOUT trying to catch anything: the
+   * active battler's own first move, every turn, until the reducer resolves it.
+   *
+   * The wipe test needs this and `fightWithSnares` cannot give it. A snare that lands ENDS the
+   * fight as a catch, and against a healthy wild creature the strongest snare usually lands on the
+   * first throw — so the snare policy resolves 20 of 24 encounters as `caught` and the enemy never
+   * gets to finish anybody. Measured, walking the wipe test's own route with the party on 1 HP:
+   * every encounter came back `caught` or `unresolved`, and not one came back `loss`.
+   */
+  function fightToTheEnd(data: BattleSceneData): WildBattleState {
+    let state = startBattle(data.input, data.ctx).state;
+    for (let turn = 0; state.outcome === null && turn < THROWS_PER_ENCOUNTER; turn += 1) {
+      const active = state.battlers[state.activePlayerUid];
+      const moveId = active?.moves[0];
+      if (moveId === undefined) break;
+      const stepped = battleStep(state, { kind: "move", moveId }, data.rng, data.ctx);
+      state = stepped.state;
+      if (stepped.events.some((e) => e.t === "actionRejected")) break;
+    }
+    return state;
+  }
+
+  /**
+   * The same save with everything it owns standing on 1 HP — the wipe test's rig, and ONLY the
+   * wipe test's. `curHp` on an owned creature is what `buildWildBattle` fields (proved in
+   * tests/unit/battle-persistence.test.ts §2), so this is a save a player could really be holding:
+   * one walk into the grass away from a blackout. It forces the LOSS rather than fabricating it —
+   * the reducer still has to decide the fight.
+   */
+  function saveOnItsLastLegs(): SaveEnvelope {
+    const save = saveWithSnares();
+    return { ...save, party: save.party.map((c) => ({ ...c, curHp: 1 })) };
+  }
+
+  /**
    * Fight one launched wild battle through the REAL reducer, the way a player holding snares does:
    * throw until core/battle.ts resolves the fight, or refuses the throw.
    *
@@ -1450,7 +1485,25 @@ describe("§3 a wild encounter becomes a battle, and a catch moves a real number
      * heals nothing, and `core/lifecycle.ts` keeps a zero at zero through the year turn. Hank's
      * closed ruling is that a forced choice exists precisely so the game cannot block.
      */
-    const h = mount({ save: saveWithSnares() });
+    /*
+     * THE WIPE IS NOW FORCED, AND THAT IS THE REPAIR — read this before changing the rig again.
+     *
+     * This test used to walk real encounters and wait for one to kill the party, which worked only
+     * because the party kept dying. `damage.divisor` (1 -> 4) and `stats.levelCoefficient`
+     * (0.02 -> 0.1) were landed precisely to stop that, and the test then walked all
+     * ENCOUNTERS_TO_TRY encounters WITHOUT EVER LOSING ONE — so the state it certifies became
+     * unreachable and the blackout path stopped being covered at all. That is this project's
+     * signature failure arriving from the pleasant direction: a green suite certifying a branch
+     * nothing reached.
+     *
+     * The fix is NOT to walk further until a loss happens by luck — that would put the coverage of
+     * a never-cut recovery path at the mercy of the damage curve, which is exactly what just broke.
+     * The party is put on 1 HP instead, so the first enemy swing wipes it deterministically. The
+     * LOSS is still the reducer's own: it is fought through the real launcher with the real snare
+     * policy, nothing injects an outcome, and every assertion below — the inn, the cost, the tape,
+     * the un-blocked run — is untouched and is what this test is actually for.
+     */
+    const h = mount({ save: saveOnItsLastLegs() });
     const seen: string[] = [];
     let consumed = h.parts.launches.length;
     let lost: { tickBefore: number; subTickBefore: number } | null = null;
@@ -1462,7 +1515,7 @@ describe("§3 a wild encounter becomes a battle, and a catch moves a real number
       consumed += 1;
       if (launch.key !== SCENE_KEYS.battle) continue;
       const data = launch.data as BattleSceneData;
-      const state = fightWithSnares(data);
+      const state = fightToTheEnd(data);
       seen.push(`— ${h.scene.lastEncounterMet()?.lineId ?? "?"} → ${state.outcome ?? "unresolved"}`);
       const before = { tickBefore: h.scene.save.tick, subTickBefore: h.scene.save.subTick ?? 0 };
       data.onFinished({ state, caught: caughtIndividual(state, data.ctx) });
@@ -1470,7 +1523,12 @@ describe("§3 a wild encounter becomes a battle, and a catch moves a real number
     }
 
     const where = `encounters met on the way:\n${seen.join("\n")}`;
-    expect(lost, `§3.1 walked ${String(ENCOUNTERS_TO_TRY)} encounters and never lost one.\n${where}`).not.toBeNull();
+    expect(
+      lost,
+      `§3.1 walked ${String(ENCOUNTERS_TO_TRY)} encounters and never lost one — with the whole ` +
+        `party on 1 HP, which means the wipe is no longer reachable AT ALL and the blackout path ` +
+        `below is certifying nothing. Fix the rig, do not delete the assertions.\n${where}`,
+    ).not.toBeNull();
 
     // 1. SOMETHING IS STANDING AGAIN — the only property the ruling actually fixes.
     expect(h.scene.save.party.some((c) => c.curHp === undefined || c.curHp > 0), where).toBe(true);

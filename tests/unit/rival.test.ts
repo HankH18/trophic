@@ -291,23 +291,75 @@ describe("the rival fight is playable, and its difficulty is MEASURED not assume
     expect(playOut(build).outcome, "the rig cannot win any fight — the measurement below is void").toBe("win");
   });
 
-  it("MEASURED — the party the game actually gives at act 1 loses, and it is not a lock", () => {
+  it("MEASURED — what the party the game actually gives at act 1 does, and how long it takes", () => {
     /*
-     * The shipped act-1 party: `game/boot.ts` seeds exactly one `provisionalStarter` at
-     * `balance.xp.starterLevel` and an empty bag.
+     * ⚠ THIS ASSERTION WAS `toBe("loss")` AND THE OUTCOME GENUINELY INVERTED. Read this before
+     * changing it back or flipping it further.
+     *
+     * The claim the title makes is that the act-1 difficulty is MEASURED rather than assumed. So
+     * it is measured — over many seeds, through the real reducer — and the measurement is what is
+     * asserted. Both figures below were taken with this file's own `playOut`, varying only the
+     * save seed:
+     *
+     *   BEFORE (levelCoefficient 0.02, no damage.divisor):  21 wins / 379 losses over 400 seeds
+     *                                                        = 5.25%, mean fight length 1.1 turns
+     *   NOW    (levelCoefficient 0.1, damage.divisor 4):    400 wins / 0 losses over 400 seeds
+     *                                                        = 100%,  fights of 6-8 turns
+     *
+     * THE OLD NUMBER ENCODED THE DEFECT AS THE CONTRACT, which is why re-pinning it would have been
+     * wrong in a way that a stale figure is not. A mean fight length of 1.1 turns is not a hard
+     * fight; it is the one-shot bug the owner reported ("I keep getting one-shot before I can catch
+     * anything"), and `toBe("loss")` was asserting that it kept happening. `damage.divisor` was
+     * added to core/battle.ts to stop exactly that, so this test had to move.
+     *
+     * WHAT IS ASSERTED NOW, and why each half is here:
+     *   - every seed RESOLVES — the fight is playable, which is the thing this describe exists for
+     *     and the thing that was never tested until it was written;
+     *   - the measured win rate, exactly, so it is a reading rather than a vibe;
+     *   - and the fight takes MORE THAN ONE EXCHANGE, which is the property that was actually
+     *     broken before and the one a future retune is most likely to break again.
+     *
+     * ⚠ THE 100% IS AN OVERSHOOT AND IS NOT BEING BLESSED. data/balance.json
+     * `stats._levelCoefficient` records that the arrival levels — not this coefficient — are the
+     * clean fix, and docs/STATUS.md carries it as an OPEN OWNER DECISION. When those levels move,
+     * this assertion goes red and hands whoever is here the new reading to record. That is the
+     * intended behaviour of this test, not a fragility in it.
      */
     const starter = provisionalStarter(content);
     expect(starter, "boot no longer seeds a provisional starter — re-measure").toBeDefined();
     const asGiven: SaveEnvelope = { ...freshSave(act1.node), party: [starter!] };
     expect(asGiven.party).toHaveLength(1);
     expect(starter!.level).toBe(balance.xp.starterLevel);
-    const given = buildRivalBattle({
-      content,
-      save: asGiven,
-      rival: act1,
-      node: liveNodeOf(content, save0(act1.node), act1.node),
-    });
-    expect(playOut(given).outcome).toBe("loss");
+
+    /** The shipped act-1 party against the shipped act-1 rival, on one save seed. */
+    function asShipped(seed: number): { outcome: string | null; turns: number } {
+      const save: SaveEnvelope = {
+        ...newSave({ seed, currentNode: act1.node, nodes: content.nodes }, balance),
+        party: [starter!],
+      };
+      return playOut(
+        buildRivalBattle({ content, save, rival: act1, node: liveNodeOf(content, save, act1.node) }),
+      );
+    }
+
+    const SEEDS = 200;
+    const tally = { win: 0, loss: 0, unresolved: 0 };
+    let shortest = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < SEEDS; i += 1) {
+      const played = asShipped(1000 + i);
+      if (played.outcome === "win") tally.win += 1;
+      else if (played.outcome === "loss") tally.loss += 1;
+      else tally.unresolved += 1;
+      shortest = Math.min(shortest, played.turns);
+    }
+    const reading = `measured ${JSON.stringify(tally)} over ${String(SEEDS)} seeds, shortest ${String(shortest)} turns`;
+
+    // Every fight terminates — without this the rate below could be counting hangs.
+    expect(tally.unresolved, reading).toBe(0);
+    // The reading itself, pinned exactly rather than as a band.
+    expect(tally.win, reading).toBe(SEEDS);
+    // …and it is a FIGHT: the one-shot the divisor was added to remove does not come back quietly.
+    expect(shortest, `${reading} — a fight decided in one exchange is the one-shot defect`).toBeGreaterThan(1);
 
     /*
      * …AND IT IS NOT A DEAD END, which is the half that decides whether this is a defect or a

@@ -201,10 +201,10 @@ function hurtEncounter(): Encounter {
 }
 
 /** A long enemy roster, as `BattlerSpec[]`. Age and level are the roster's, never a rule. */
-function roster(lineId: string, count: number): BattlerSpec[] {
+function roster(lineId: string, count: number, age: BattlerSpec["age"]): BattlerSpec[] {
   const out: BattlerSpec[] = [];
   for (let i = 0; i < count; i += 1) {
-    out.push({ uid: `grind-${String(i)}`, lineId, age: "E", level: 1, traits: [] });
+    out.push({ uid: `grind-${String(i)}`, lineId, age, level: 1, traits: [] });
   }
   return out;
 }
@@ -230,27 +230,44 @@ let grindRosterCache: BattlerSpec[] | null = null;
  */
 function grindRoster(): BattlerSpec[] {
   if (grindRosterCache) return grindRosterCache;
-  // FIXTURE RE-FOUND, exactly as the throw below instructs, and NO assertion moved: the checks at
-  // the call sites still demand a win AND a level gained. 12 -> 48 because the fixture is sized
-  // against the cost of leaving `xp.starterLevel`, and both terms moved under Hank's "make the
-  // whole game easier": the starter is handed over at 14 rather than 5, and the curve is
-  // 38 × l^1.0 rather than 15 × l^1.4, so the first level-up costs 38 × 14 = 532 where it used to
-  // cost 15 × 5^1.4 = 142.8. A level-1 Elder of a Route 1 line pays 12 + 4 × 1 × 1.3 = 17, so 12
-  // of them bank 204 — short of 532, which is exactly what the throw was reporting. 48 banks 816,
-  // a 1.53x margin over the threshold (the shipped 12 carried 1.43x over the old one), so the
-  // fixture is no more marginal than it was. The starter survives the roster for the reason it
-  // always did: it one-shots each enemy, and core/battle.ts `fieldNextEnemy` does not let a
-  // replacement act on the turn it enters.
+  /*
+   * FIXTURE RE-FOUND AGAIN, exactly as the throw below instructs, and NO assertion moved: the
+   * checks at the call sites still demand a win AND a level gained.
+   *
+   * PREVIOUSLY (kept, because it explains the count): 12 -> 48 because the fixture is sized against
+   * the cost of leaving `xp.starterLevel`, and both terms moved under Hank's "make the whole game
+   * easier": the starter is handed over at 14 rather than 5, and the curve is 38 × l^1.0 rather
+   * than 15 × l^1.4, so the first level-up costs 38 × 14 = 532 where it used to cost
+   * 15 × 5^1.4 = 142.8. A level-1 Elder of a Route 1 line pays 12 + 4 × 1 × 1.3 = 17, so 12 of them
+   * bank 204 — short of 532. 48 banks 816.
+   *
+   * NOW: the AGE is searched rather than fixed at Elder, because `damage.divisor` (1 -> 4, the term
+   * that ties hit size to HP size) broke the sentence this fixture rested on — "the starter
+   * survives the roster because it one-shots each enemy, and `fieldNextEnemy` does not let a
+   * replacement act on the turn it enters." It no longer one-shots, so every enemy now gets to
+   * swing back, and a 48-long roster became a war of attrition with no healing in it. MEASURED at
+   * the shipped constants, level-1 ELDERS, best line first: carricrow 16 kills of 48 before the
+   * starter died, bramblehog 11, pollywisp 7, skir 7, nibbin 2, loamunder 2 — no line survivable,
+   * which is exactly what the throw was reporting. Against level-1 JUVENILES (age multiplier 0.875
+   * rather than 1.075, so they are both squishier and weaker) carricrow-line goes the distance:
+   * 48/48, the starter ends at 121/131 HP and reaches level 15.
+   *
+   * So the SEARCH widened and the DEMAND did not. Ages are tried weakest-first, which is the order
+   * that finds a survivable roster soonest; the assertions at the call sites are untouched, and the
+   * throw still fires if nothing works.
+   */
   const count = 48;
-  for (const lineId of NODE_LINES) {
-    const save = saveWith([starter()]);
-    const enemies = roster(lineId, count);
-    const state = playOut(grindInput(save, enemies), ctxAt(NODE), firstMove);
-    const battler = state.battlers[save.party[0]!.uid];
-    if (!battler) continue;
-    if (state.outcome === "win" && battler.level > save.party[0]!.level) {
-      grindRosterCache = enemies;
-      return enemies;
+  for (const age of ["J", "A", "E"] as const) {
+    for (const lineId of NODE_LINES) {
+      const save = saveWith([starter()]);
+      const enemies = roster(lineId, count, age);
+      const state = playOut(grindInput(save, enemies), ctxAt(NODE), firstMove);
+      const battler = state.battlers[save.party[0]!.uid];
+      if (!battler) continue;
+      if (state.outcome === "win" && battler.level > save.party[0]!.level) {
+        grindRosterCache = enemies;
+        return enemies;
+      }
     }
   }
   throw new Error(

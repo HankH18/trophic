@@ -32,7 +32,7 @@ import { createRng } from "../../core/rng";
 import { AGE_CLASSES } from "../../core/types";
 import type { AgeClass, BattleInput, GymLeader, GymTeamSlot, SpeciesLine, Trait } from "../../core/types";
 
-import { bestMoveId, mirrorPolicy, runBattle } from "../../tools/harness/arena";
+import { bestMoveId, expectedDamageOf, mirrorPolicy, runBattle } from "../../tools/harness/arena";
 import { loadContent, loadContentFromRaw, seedFor, subsystemTags } from "../../tools/harness/content";
 import { replayOvercatchFixture } from "../../tools/harness/fixture";
 import {
@@ -742,15 +742,48 @@ describe("the reasonable player model (build-doc §10.5(a))", () => {
     const active = state.battlers[state.activePlayerUid];
     if (!active) throw new Error("no active battler");
 
-    // Just under the no-waste threshold, against the year-6 leader: the hit outruns the heal, so
-    // healing would be a surrendered turn and the policy must attack instead.
+    // Just under the no-waste threshold: the policy only spends the salve when the heal outpaces
+    // the incoming hit, so BOTH sides of that comparison have to be exercised.
     active.curHp = Math.floor(active.maxHp * balance.medicine.salveHealFracMaxHp) - 1;
+    const enemy = state.battlers[state.activeEnemyUid];
+    if (!enemy) throw new Error("no active enemy");
+
+    /*
+     * The threshold, read the same way `reasonablePolicy` reads it — `bestMoveId` then
+     * `expectedDamageOf`, which is `expectedIncoming`'s own call chain, so this is not a second
+     * damage model standing next to the harness's.
+     */
+    const heal = Math.floor(active.maxHp * balance.medicine.salveHealFracMaxHp);
+    const incomingNow = (): number => {
+      const moveId = bestMoveId(enemy, active, loaded.battle, { usePredation: true });
+      const m = loaded.battle.moves.get(moveId);
+      if (!m) throw new Error("the enemy knows no move to price");
+      return expectedDamageOf(enemy, active, m, loaded.battle, { usePredation: true });
+    };
+
+    /*
+     * RECORDED AS AN ASSERTION, because it is what changed and a comment would rot: AS SHIPPED the
+     * year-6 leader's best hit NO LONGER outruns the salve. `damage.divisor` (1 -> 4) is the term
+     * that ties hit size to HP size, and the salve heals a FRACTION of max HP — so the heal kept
+     * its full size while every hit lost three quarters of its own, and a half-bar salve now beats
+     * any single hit the shipped ladder can throw.
+     *
+     * This case used to reach the "hit outruns the heal" branch through the shipped leader alone.
+     * It cannot any more, at either coefficient, so the branch is driven the same way its mirror
+     * below has always been driven — by moving the enemy's Attack — rather than being deleted. If a
+     * future retune makes the leader hit hard enough again, THIS line fails and says so.
+     */
+    expect(incomingNow(), "gym 6's hit outruns the salve again — this rig can go back to shipped stats").toBeLessThan(heal);
+
+    // Attack scales the incoming hit linearly, so raise it until the hit really does outrun the
+    // heal — then healing is a surrendered turn and the policy must attack instead.
+    while (incomingNow() <= heal) enemy.stats = { ...enemy.stats, atk: enemy.stats.atk * 2 };
+    expect(incomingNow()).toBeGreaterThan(heal);
     expect(policy(state, loaded.battle).kind).toBe("move");
 
     // Same HP fraction, but with the enemy's damage crushed to nothing: now the salve pays.
-    const enemy = state.battlers[state.activeEnemyUid];
-    if (!enemy) throw new Error("no active enemy");
     enemy.stats = { ...enemy.stats, atk: 1 };
+    expect(incomingNow()).toBeLessThan(heal);
     expect(policy(state, loaded.battle).kind).toBe("item");
 
     // With no salves in the bag it attacks regardless.
