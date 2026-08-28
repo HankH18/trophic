@@ -54,6 +54,16 @@ export interface BackgroundOptions {
   key: Rgb;
   /** Per-channel tolerance, 0–255. */
   tolerance: number;
+  /**
+   * Per-channel tolerance the border flood GROWS at, defaulting to `tolerance` so every existing
+   * caller is byte-unchanged. §9.3 runs removal AFTER quantize, so what that step must clear is not
+   * the generator's backdrop but the set of PALETTE SWATCHES a background pixel can land on — and a
+   * soft cast shadow lands on a swatch further from the key than flat white does. `tolerance` is
+   * also what `trimBackground` reads off the RAW, where a looser number crops differently, so the
+   * two jobs cannot share one number. The SEEDS stay at `tolerance`: a pale region that touches the
+   * frame edge but is not continuous with the backdrop is never seeded into.
+   */
+  shadowTolerance?: number;
 }
 
 /** White: what `plain white background` in every §9.2 prompt skeleton produces. */
@@ -267,16 +277,28 @@ export function quantize(src: Raster, palette: readonly PaletteRgb[]): Raster {
  * a lucky one is asserted per palette in tests/unit/postprocess.test.ts: the palette's image of the
  * key must be INSIDE the tolerance, and every other swatch OUTSIDE it. A future palette freeze that
  * moves the white-image turns that test red instead of shipping 154 sprites in boxes.
+ *
+ * ONE TOLERANCE WAS DOING TWO JOBS, AND THE SECOND ONE FAILED. At tolerance 24 the flood can only
+ * ever clear `c03 #faf7eb` (20 off white). A soft cast shadow under a creature's feet quantizes to
+ * `c02 #d2e0e2`, 45 off, so it survived the flood and shipped as an opaque pale puddle — invisible
+ * on a white review background, plain on mid-grey. Raising the single tolerance to 50 is not the
+ * fix: `trimBackground` reads the same number off the RAW and would crop every sprite differently.
+ * So the flood now GROWS at `shadowTolerance` (50 in the manifest: admits c02 at 45, excludes c15
+ * at 75 and c12 at 90) while still SEEDING at `tolerance`. The seeds staying strict is the whole
+ * safety argument — a pale wing or belly that merely touches the frame edge is not seeded into, and
+ * an enclosed pale region is unreachable from the border either way.
  */
 export function removeFlatBackground(src: Raster, opts: BackgroundOptions): Raster {
   assertWellFormed(src, 'removeFlatBackground');
   const key = opts.key;
+  const grow = opts.shadowTolerance ?? opts.tolerance;
   const out = cloneRaster(src);
   const { width, height } = out;
   const visited = new Uint8Array(width * height);
   const stack: number[] = [];
 
-  const push = (x: number, y: number) => {
+  /** Strict — only the generator's own backdrop colour may START a flood. */
+  const seed = (x: number, y: number) => {
     if (x < 0 || y < 0 || x >= width || y >= height) return;
     const cell = y * width + x;
     if (visited[cell]) return;
@@ -284,14 +306,23 @@ export function removeFlatBackground(src: Raster, opts: BackgroundOptions): Rast
     visited[cell] = 1;
     stack.push(cell);
   };
+  /** Loose — a flood already rooted in the backdrop may grow through its shadow. */
+  const push = (x: number, y: number) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
+    const cell = y * width + x;
+    if (visited[cell]) return;
+    if (!isBackgroundPixel(out, cell * CHANNELS, key, grow)) return;
+    visited[cell] = 1;
+    stack.push(cell);
+  };
 
   for (let x = 0; x < width; x++) {
-    push(x, 0);
-    push(x, height - 1);
+    seed(x, 0);
+    seed(x, height - 1);
   }
   for (let y = 0; y < height; y++) {
-    push(0, y);
-    push(width - 1, y);
+    seed(0, y);
+    seed(width - 1, y);
   }
   while (stack.length > 0) {
     const cell = stack.pop()!;

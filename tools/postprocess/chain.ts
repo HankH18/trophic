@@ -44,6 +44,12 @@ export interface ChainRecipe {
   removeBackground: boolean;
   atlas: string | null;
   backgroundTolerance: number;
+  /**
+   * The tolerance the removal flood GROWS at — see `backgroundOf`. Defaults to
+   * `backgroundTolerance` when the class does not declare one, which is what keeps every class
+   * that has not opted in byte-identical.
+   */
+  backgroundShadowTolerance: number;
   backgroundKey: Rgb;
   targetW: number;
   targetH: number;
@@ -62,6 +68,7 @@ export function recipeFor(spec: ClassSpec, row?: ManifestRow): ChainRecipe {
     removeBackground: spec.postprocess.removeBackground,
     atlas: spec.postprocess.atlas,
     backgroundTolerance: spec.postprocess.backgroundTolerance,
+    backgroundShadowTolerance: spec.postprocess.shadowTolerance ?? spec.postprocess.backgroundTolerance,
     backgroundKey: parseHex(spec.postprocess.backgroundKey),
     targetW: w,
     targetH: h,
@@ -79,9 +86,18 @@ export function recipeFor(spec: ClassSpec, row?: ManifestRow): ChainRecipe {
  * the number honest across a palette freeze. `tools/comfy/player-views.ts` did exactly that and its
  * sprites would have shipped inside an opaque off-white rectangle under either re-freeze candidate.
  * So every call site goes through here, and the invariant test asserts that none has its own copy.
+ *
+ * It pairs a SECOND tolerance for the same reason. `tolerance` is read off the raw by step 0's trim;
+ * `shadowTolerance` is read after quantize by step 3's flood, where the thing to clear is the
+ * palette's image of the backdrop AND of the soft shadow the generator drew on it. A class that
+ * declares no `shadowTolerance` gets `backgroundTolerance` and behaves exactly as before.
  */
 export function backgroundOf(recipe: ChainRecipe): BackgroundOptions {
-  return { key: recipe.backgroundKey, tolerance: recipe.backgroundTolerance };
+  return {
+    key: recipe.backgroundKey,
+    tolerance: recipe.backgroundTolerance,
+    shadowTolerance: recipe.backgroundShadowTolerance,
+  };
 }
 
 /**

@@ -106,6 +106,7 @@
         "removeBackground": true,
         "atlas": "creatures",
         "backgroundTolerance": 24,
+        "shadowTolerance": 50,
         "backgroundKey": "#ffffff"
       }
     },
