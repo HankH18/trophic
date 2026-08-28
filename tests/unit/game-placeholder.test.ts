@@ -19,6 +19,10 @@
  * restated here.
  */
 
+import { readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { validateContent } from "../../core/schemas";
@@ -520,6 +524,79 @@ describe("textureFor / the real-art census", () => {
 
     textures.present.add("ui/probe-c1");
     expect(queueRealAssets(s)).not.toContain("ui/probe-c1");
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The packed sheets are NOT art
+ *
+ * THE DEFECT THIS BINDS, and it was live on every boot: `assets/final/atlas/` holds four packed
+ * sheets, and a packed sheet is a PNG under `assets/final/`. The census glob had no exclusion for
+ * that directory, so all four registered as ordinary art, `queueRealAssets` handed them to
+ * `scene.load.image`, and `BootScene.preload` downloaded and GPU-uploaded ~104KB of sheet on every
+ * boot — ON TOP OF the individual PNGs they were packed to replace, and drawn by nothing, because
+ * no `textureFor` call in `game/` names an `atlas/*` id.
+ *
+ * These assert the exclusion from the FILES ON DISK rather than from a written-down list, so a
+ * fifth sheet is covered the day it is packed, and the premise is asserted rather than assumed: if
+ * `assets/final/atlas/` ever holds no PNG at all, the first expectation reddens and says so instead
+ * of the rest passing for free.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const ATLAS_DIR = resolve(fileURLToPath(new URL("../../", import.meta.url)), "assets/final/atlas");
+
+/** The `assetId()` of every packed sheet actually sitting in `assets/final/atlas/`. */
+function packedSheetIds(): string[] {
+  let names: string[];
+  try {
+    names = readdirSync(ATLAS_DIR);
+  } catch {
+    names = [];
+  }
+  return names.filter((n) => n.endsWith(".png")).map((n) => assetId(`assets/final/atlas/${n}`)).sort();
+}
+
+describe("assets/final/atlas/ — packed sheets are build artefacts, never registered art", () => {
+  it("the sheets are really there, so the assertions below are about something", () => {
+    // The premise. A packed sheet is what the exclusion is FOR; with none on disk the rest of this
+    // block would pass by absence, which is the shape of green this project refuses.
+    expect(packedSheetIds().length, `no packed sheet under ${ATLAS_DIR} — this block is vacuous`)
+      .toBeGreaterThan(0);
+  });
+
+  it("not one of them is in the real-art census", () => {
+    const registered = new Set(realAssetIds());
+    for (const id of packedSheetIds()) {
+      expect(registered.has(id), `${id} is registered as art — the atlas/ exclusion is gone`).toBe(false);
+      expect(hasRealAsset(`assets/final/${id}.png`)).toBe(false);
+      expect(realAssetUrl(id)).toBeNull();
+    }
+    // Stronger, and derived: NO census id lives under the atlas directory, whatever it is called.
+    expect(realAssetIds().filter((id) => id.startsWith("atlas/"))).toEqual([]);
+  });
+
+  it("and the boot loader is therefore never handed one", () => {
+    // The cost the exclusion exists to remove, measured where it was actually paid: `queueRealAssets`
+    // is what `BootScene.preload` calls, and what it queues is what the browser downloads.
+    const { scene, loaded } = fakeScene();
+    queueRealAssets(scene as unknown as Parameters<typeof queueRealAssets>[0]);
+    const queued = loaded.map((l) => l.key);
+    for (const id of packedSheetIds()) {
+      expect(queued, `boot queued the packed sheet ${id}`).not.toContain(id);
+    }
+    expect(queued.filter((k) => k.startsWith("atlas/"))).toEqual([]);
+  });
+
+  it("the individual art the sheets pack is still registered — the exclusion is a directory, not a class", () => {
+    // The counter-check that makes the three above mean something: subtracting `atlas/` must not
+    // have taken the creature, npc, player or ui-frame plates with it.
+    const ids = realAssetIds();
+    for (const dir of ["creature-battle", "npc-static", "ui-frame"]) {
+      expect(
+        ids.filter((id) => id.startsWith(`${dir}/`)).length,
+        `${dir}/ lost its art when atlas/ was subtracted`,
+      ).toBeGreaterThan(0);
+    }
   });
 });
 

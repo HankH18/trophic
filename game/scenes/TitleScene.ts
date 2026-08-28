@@ -9,6 +9,7 @@
 
 import Phaser from "phaser";
 
+import { applyMusicSituation, audio } from "../audio";
 import { SCENE_KEYS } from "../boot";
 import { stackFromBottom, titleNotes } from "../menu-model";
 import { placeholderImage } from "../placeholder";
@@ -39,6 +40,12 @@ export class TitleScene extends Phaser.Scene {
   }
 
   create(): void {
+    // §12a's Title cue. Asked for on ENTRY, and asked for again every time the player backs out of
+    // the slot list or the settings screen — `playMusic` answers `already-playing` and leaves the
+    // track alone, which is the whole reason the director outlives the scene (game/audio.ts).
+    // Before boot has installed one this is the silent stand-in, so it is never a reason not to draw.
+    applyMusicSituation(audio(), { screen: "title" });
+
     this.cameras.main.setBackgroundColor(UI.bg);
     const width = this.scale.width;
     const height = this.scale.height;

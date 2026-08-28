@@ -70,7 +70,9 @@
 import Phaser from "phaser";
 
 import { caughtIndividual, startBattle, step, type BattleContext, type CaughtIndividual, type RngSource } from "../../core/battle";
-import type { BattleAction, BattleInput as BattleInputSpec, BattleState, TypeName } from "../../core/types";
+import type { BattleAction, BattleInput as BattleInputSpec, BattleKind, BattleState, TypeName } from "../../core/types";
+
+import { audio, takeOverMusic, type MusicTakeover } from "../audio";
 
 import { BattleView, VIEW_TIMING, type BattleViewNames, type BattlerView, type ViewStep } from "../battle-view";
 import { BattleInput, applyKey, menuContextLine, type BattleKey } from "../battle-input";
@@ -133,6 +135,10 @@ export class BattleScene extends Phaser.Scene {
    * and this is the only route that number takes to a drawn sprite — see game/ui/BattleHud.ts.
    */
   private cardStyle!: CombatantCardStyle;
+  /** `BattleInput.kind` — the only thing §12a's battle cue is selected from (game/audio.ts). */
+  private battleKind!: BattleKind;
+  /** The fight's takeover of the music, and the way to give back what it interrupted. */
+  private music: MusicTakeover | null = null;
   private retirementYears: Record<string, number> = {};
   /**
    * Core's last refusal string. A DIAGNOSTIC — never printed (core/types.ts), kept for debugging.
@@ -164,6 +170,7 @@ export class BattleScene extends Phaser.Scene {
   init(data: BattleSceneData): void {
     this.ctx = data.ctx;
     this.rng = data.rng;
+    this.battleKind = data.input.kind;
     this.retirementYears = data.projectedRetirementYears ?? {};
     this.onFinished = data.onFinished;
     this.lureLabel = this.lureMoveName();
@@ -212,7 +219,42 @@ export class BattleScene extends Phaser.Scene {
       this.view.snapshot.lureActive,
     );
     this.bindKeys();
+    this.enterBattleMusic();
     this.pump();
+  }
+
+  /**
+   * §12a's battle cue, and the promise to give the overworld its theme back.
+   *
+   * The cue is selected by `musicCueFor` from `BattleInput.kind` and nothing else — there is no
+   * second table here (G3), and this scene holds no opinion about which fight sounds like what.
+   * `wild` → the wild cue, `trainer`/`gym` → the one track §12a gives both, `ancient` → the Ancient
+   * cue.
+   *
+   * ⚠ THE "Greaves / finale" CUE IS NOT SELECTABLE FROM HERE, and that is a missing input rather
+   * than a missing branch: `core/types.ts` `BATTLE_KINDS` is `wild | trainer | gym | ancient`, and
+   * Greaves is a gym leader, so his fight arrives indistinguishable from the other five. Naming him
+   * in this file would be inventing content (G2) and would put a species/character name in a string
+   * literal under game/, which `tests/property/foodweb.test.ts` refuses. It needs a flag on
+   * `BattleSceneData` written by whoever launches that fight.
+   *
+   * THE RESTORE. `BattleSceneData` says this scene routes nowhere: the caller stops it and resumes
+   * the overworld. The overworld's `create` does NOT run again on a resume, so nothing there would
+   * ever re-ask for its theme — without the hook below, the battle track would play over the town
+   * for the rest of the run. `takeOverMusic` (game/audio.ts) is that memory, and it is shared
+   * rather than written here because the retirement card and the year-turn card are launched over
+   * the overworld the same way and need the identical two lines. If nothing was playing, nothing is
+   * started.
+   *
+   * The event name is the string rather than `Phaser.Scenes.Events.SHUTDOWN` because this scene is
+   * executed headlessly against a stub Phaser that exports only `Scene`
+   * (`tests/unit/battle-view.test.ts`), and reaching through a namespace that stub does not have
+   * would throw inside `create`. `this.events` is optional-chained for the same reason: a stub
+   * without an emitter must lose the restore, not the battle.
+   */
+  private enterBattleMusic(): void {
+    this.music = takeOverMusic(audio(), { screen: "battle", battle: this.battleKind });
+    this.events?.once?.("shutdown", () => this.music?.restore());
   }
 
   /* ── content lookups. Names, not rules. ─────────────────────────────────── */

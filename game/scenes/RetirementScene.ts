@@ -820,6 +820,7 @@ export function clampLines(lines: readonly string[], maxLines: number): string[]
  * ──────────────────────────────────────────────────────────────────────────── */
 
 import type PhaserNS from "phaser";
+import { audio, takeOverMusic, type MusicTakeover } from "@game/audio";
 import { battleSpriteKey } from "@game/ui/BattleHud";
 import { placeholderImage } from "@game/placeholder";
 import { SCENE_KEYS } from "@game/scene-keys";
@@ -1157,6 +1158,8 @@ export function createRetirementScene(
      * Reset per prompt: a card with three prompts must not answer all three from one held key.
      */
     private framesShown = 0;
+    /** The card's takeover of the music, and the way to give back what it interrupted. */
+    private music: MusicTakeover | null = null;
 
     constructor() {
       super({ key: RETIREMENT_SCENE_KEY });
@@ -1174,6 +1177,22 @@ export function createRetirementScene(
     }
 
     create(): void {
+      /*
+       * §12a's Retirement cue — the one the audio catalogue says "carries the game's emotional
+       * beat", on the never-cut Legacy screen. A TAKEOVER rather than a plain play, because this
+       * card is launched OVER a paused overworld (or over the year-turn card, which is itself over
+       * the overworld): what it interrupts has to come back when it closes, or the town falls
+       * silent for the rest of the run.
+       *
+       * ⚠ THE LITERAL `"shutdown"`, AND BOTH OPTIONAL CHAINS. This class is built against a caller
+       * -supplied Phaser namespace and is driven headlessly by an engine stub that exports `Scene`
+       * and NOTHING ELSE — no `Phaser.Scenes.Events` to reach through, and no `events` emitter on
+       * the scene at all. Reaching through either without a guard throws inside `create()`, which
+       * would take the whole Legacy beat down in every headless test that opens this card. A stub
+       * with no emitter must lose the RESTORE, never the card.
+       */
+      this.music = takeOverMusic(audio(), { screen: "retirement" });
+      this.events?.once?.("shutdown", () => this.music?.restore());
       const style = this.style;
       this.add.rectangle(0, 0, style.width, style.height, style.bgColor).setOrigin(0, 0);
       const keyboard = this.input.keyboard;

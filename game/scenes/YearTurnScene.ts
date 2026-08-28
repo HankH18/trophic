@@ -840,6 +840,7 @@ export function beatLines(beat: YearTurnBeat): string[] {
  * ──────────────────────────────────────────────────────────────────────────── */
 
 import type PhaserNS from "phaser";
+import { audio, takeOverMusic, type MusicTakeover } from "@game/audio";
 import type { KeyLike, PlaceholderPainter, RetirementSceneData } from "@game/scenes/RetirementScene";
 import { RETIREMENT_SCENE_KEY } from "@game/scenes/RetirementScene";
 import { SCENE_KEYS, sceneRegistered } from "@game/scene-keys";
@@ -937,6 +938,8 @@ export function createYearTurnScene(
     private finished = false;
     /** Frames the CURRENT beat has been on screen. Reset on every advance — see `next`. */
     private framesShown = 0;
+    /** The card's takeover of the music, and the way to give back what it interrupted. */
+    private music: MusicTakeover | null = null;
 
     constructor() {
       super({ key: YEAR_TURN_SCENE_KEY });
@@ -957,6 +960,20 @@ export function createYearTurnScene(
     }
 
     create(): void {
+      /*
+       * §12a's Festival cue. A TAKEOVER rather than a plain play: this card is launched OVER a
+       * paused overworld, so whatever the town was playing has to come back when the card closes.
+       * The restore also covers the hand-off to the retirement card, which takes the music over
+       * again from here and gives THIS back on its own shutdown.
+       *
+       * ⚠ THE LITERAL `"shutdown"`, AND BOTH OPTIONAL CHAINS — same reason as
+       * `game/scenes/RetirementScene.ts`: this class is built against a caller-supplied Phaser
+       * namespace and is driven headlessly by an engine stub that exports `Scene` and nothing else,
+       * with no `events` emitter on the scene. A stub with no emitter must lose the RESTORE, never
+       * the year turn.
+       */
+      this.music = takeOverMusic(audio(), { screen: "year-turn" });
+      this.events?.once?.("shutdown", () => this.music?.restore());
       const style = this.style;
       this.add.rectangle(0, 0, style.width, style.height, style.bgColor).setOrigin(0, 0);
       /*

@@ -7,12 +7,32 @@
  * built to prevent, so a failed `validateContent()` stops here and prints every issue on screen,
  * scrollable, with the file each one came from.
  *
- * Everything else this scene does is short on purpose: load whatever real art exists, install
- * storage and settings, and hand off to the title.
+ * Everything else this scene does is short on purpose: load whatever real art exists, load the
+ * audio cues, install storage and settings, and hand off to the title.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  AUDIO IS LOADED HERE, AND NOT THROUGH `game/placeholder.ts`
+ * ─────────────────────────────────────────────────────────────────────────────
+ * `registerRealAsset` (game/placeholder.ts) says in its own docstring that it takes "an audio pack
+ * file". IT DOES NOT WORK FOR AUDIO: everything registered there is queued by `queueRealAssets`
+ * with `scene.load.image(id, url)`, so an `.ogg` would go to the TEXTURE loader, fail to decode,
+ * and never appear in `scene.cache.audio` — the cache `phaserSoundHost` asks. The cue would read
+ * `no-file` forever while the loader logged a texture error. So cues are queued below with
+ * `load.audio`, through `game/audio.ts`'s own `CueLoader`, and the two loaders stay separate.
  */
 
 import Phaser from "phaser";
 
+import {
+  audioConfigFromBalance,
+  createAudioDirector,
+  globbedCueFiles,
+  indexCueFiles,
+  installAudio,
+  phaserCueLoader,
+  phaserSoundHost,
+  queueCues,
+} from "../audio";
 import { SCENE_KEYS, contentProblems, installStorage, loadContent } from "../boot";
 import { queueRealAssets } from "../placeholder";
 import { registry } from "../registry";
@@ -56,6 +76,13 @@ function failText(
 
 export class BootScene extends Phaser.Scene {
   #storageWarning: string | null = null;
+  /**
+   * `{cueId: url}` for every audio file the build can see, resolved in `preload` and handed to the
+   * director in `create`. The director needs BOTH this and the decoded cache: a file the build
+   * emitted that then failed to decode satisfies one and not the other, and playing it is the throw
+   * `game/audio.ts` exists to prevent.
+   */
+  #cueFiles: ReadonlyMap<string, string> = new Map();
 
   constructor() {
     super(SCENE_KEYS.boot);
@@ -66,7 +93,19 @@ export class BootScene extends Phaser.Scene {
     // game/placeholder.ts. A file that fails to load is reported and then treated as unbuilt —
     // one missing PNG must not be the difference between a game and a black screen.
     const queued = queueRealAssets(this);
-    if (queued.length > 0) {
+
+    // The audio cues, through their OWN loader — see the header for why this must not go through
+    // `registerRealAsset`. `indexCueFiles` drops nothing silently: a file under assets/audio/ whose
+    // basename answers to no §12a cue comes back as `unclaimed` and is said out loud, because an
+    // audio file nobody plays is still an audio file whose licence has to be defensible.
+    const cues = indexCueFiles(globbedCueFiles());
+    this.#cueFiles = cues.urls;
+    const queuedCues = queueCues(phaserCueLoader(this), cues.urls);
+    for (const path of cues.unclaimed) {
+      console.warn(`[trophic] audio file "${path}" answers to no cue in the §12a catalogue`);
+    }
+
+    if (queued.length > 0 || queuedCues.length > 0) {
       this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {
         console.warn(`[trophic] asset "${file.key}" failed to load from ${file.url}`);
       });
@@ -83,6 +122,28 @@ export class BootScene extends Phaser.Scene {
     registry.setContent(load.content);
     this.#storageWarning = installStorage();
     if (this.#storageWarning) console.warn(`[trophic] ${this.#storageWarning}`);
+
+    // THE RUN'S ONE DIRECTOR, installed before any scene can ask for a cue.
+    //
+    // It is installed HERE rather than in `main.ts` because the mix comes from
+    // `balance.audio.volume` (G11 — no volume is written in code), and the balance does not exist
+    // until `loadContent()` has passed the zod gate above. On the failure path it is deliberately
+    // never installed: the screen that reports data/ being broken plays nothing, and every
+    // `audio()` call in the game answers with the silent stand-in instead of throwing.
+    //
+    // The host is built from THIS scene on purpose. `Scene.sound` and `Scene.cache` are the GAME's
+    // sound manager and cache in Phaser 3 (Systems only nulls them on `destroy`, which is scene
+    // REMOVAL, not `stop`), so the boot scene stopping below does not take the audio with it.
+    installAudio(
+      createAudioDirector({
+        host: phaserSoundHost(this),
+        // `muted` is a player setting and `game/registry.ts` `Settings` carries none yet, so a run
+        // with no expressed preference is unmuted. One argument moves when that setting lands.
+        config: audioConfigFromBalance(load.content.balance, false),
+        files: this.#cueFiles,
+        onWarning: (message: string) => console.warn(`[trophic] audio: ${message}`),
+      }),
+    );
 
     this.scene.start(SCENE_KEYS.title, { storageWarning: this.#storageWarning });
   }

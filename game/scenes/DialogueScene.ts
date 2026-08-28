@@ -37,6 +37,7 @@ import {
 import { placeholderImage, realAssetIds } from "@game/placeholder";
 import { SCENE_KEYS } from "@game/scene-keys";
 import { TEXT_SPEED_CPS, registry, type TextSpeed } from "@game/registry";
+import { FRAME_CHROME_PX, drawFrameRing, type FrameSceneLike } from "../ui/FramePanel";
 import { swatchColor, swatchHex } from "@game/ui/Palette";
 
 /** From the ONE registry (game/scene-keys.ts) — never a second spelling declared here. */
@@ -144,29 +145,25 @@ export function speakerHasFace(speaker: DialogueSpeaker | undefined): speaker is
  * every ratio that gate measures true of the pixels. Reading the frame's interior as the body is a
  * palette-role change (build-doc §8.4) and is not this file's call to make.
  *
- * WHY NOT `this.add.nineslice`. Phaser 3.90 HAS `GameObjects.NineSlice` — and ships it with
- * `NineSliceWebGLRenderer.js` and NO canvas sibling. `game/boot.ts` starts the game with `P.AUTO`,
- * which falls back to Canvas wherever WebGL is unavailable, and there the whole frame would render
- * as nothing at all: not a crash, not a warning, just a box with no edge. A nine-slice is eight
- * images and a rule about which of them stretch, so it is drawn here instead — corners at natural
- * size, edges stretched along their own axis only, no centre. Renderer-independent, and it cannot
- * squash a corner.
+ * WHY THE SLICER IS NOT HERE. It was: this file hand-rolled the eight-piece ring as two private
+ * methods, because lane scope put a shared UI module out of reach when the frame first reached a
+ * screen. `game/ui/FramePanel.ts` is that slicer, extracted, and it is now THE one — the menu, the
+ * dex and the combatant card draw through it too, and a second copy living here would be a second
+ * answer to "where does a corner stop" for the same six PNGs. {@link drawFrameRing} carries the
+ * rest of the reasoning, including why `this.add.nineslice` is not used (Phaser 3.90 ships
+ * `NineSliceWebGLRenderer.js` with no canvas sibling, and `game/boot.ts` starts with `P.AUTO`, so
+ * under a Canvas fallback the whole frame would render as nothing at all).
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/** `tools/comfy/manifest.json` row `ui-dialogue-box` at `classes["ui-frame"].finalDir`. */
+/**
+ * `tools/comfy/manifest.json` row `ui-dialogue-box` at `classes["ui-frame"].finalDir`.
+ *
+ * Kept as this file's own export rather than read off `UI_FRAME_ASSET_ID.dialogueBox`: this is the
+ * id the scene's CALL SITE passes, and `tests/gates/asset-reachability.test.ts` counts a row as
+ * consumed from the ids call sites really pass — never from the declared table, which names two
+ * rows nothing draws.
+ */
 export const DIALOGUE_FRAME_ASSET_ID = "ui-frame/ui-dialogue-box";
-
-/** The eight pieces of the ring, in draw order. `stretchX`/`stretchY` say which axis may scale. */
-const FRAME_PIECES = [
-  { name: "slice-tl", col: 0, row: 0 },
-  { name: "slice-t", col: 1, row: 0 },
-  { name: "slice-tr", col: 2, row: 0 },
-  { name: "slice-l", col: 0, row: 1 },
-  { name: "slice-r", col: 2, row: 1 },
-  { name: "slice-bl", col: 0, row: 2 },
-  { name: "slice-b", col: 1, row: 2 },
-  { name: "slice-br", col: 2, row: 2 },
-] as const;
 
 /* ────────────────────────────────────────────────────────────────────────────
  * The box's colours (build-doc §8.4)
@@ -265,6 +262,10 @@ export interface DialogueStyle {
    * `tests/unit/dialogue-scene.test.ts` re-derives it from that file's pixels and fails if the art
    * lane regenerates the frame with a different edge, because a slice wider than the border smears
    * interior into the corners and a slice narrower than it leaves a seam.
+   *
+   * Still a style field, and not simply `FRAME_CHROME_PX` at the call site, because the box's
+   * FIELD is inset by it: `drawPanel` reads the same number for the rectangle it paints inside the
+   * ring, and a style a test overrides has to be able to move both together.
    */
   frameSlice: number;
   boxColor: number;
@@ -299,7 +300,7 @@ export function defaultDialogueStyle(balance: Balance): DialogueStyle {
     advanceArmFrames: 4,
     portraitW: balance.map.playerSpriteW,
     portraitH: balance.map.playerSpriteH,
-    frameSlice: 4,
+    frameSlice: FRAME_CHROME_PX,
     // Resolved through `game/ui/Palette.ts`, never typed — see {@link DIALOGUE_SWATCH_ID}. Two
     // forms because Phaser takes `0xRRGGBB` for a fill and a CSS string for text, and a style block
     // that resolved one correctly and the other by hand is precisely how this file got here.
@@ -476,30 +477,14 @@ interface DrawnObject {
   destroy: () => void;
 }
 
-/**
- * The slice of Phaser's texture manager the frame needs, described structurally.
- *
- * Structural rather than `Phaser.Textures.TextureManager` because this scene is engine-free at
- * runtime and every one of these calls has to be answerable — or absent — in a node test. Absent is
- * a supported answer: {@link DialogueScene.frameTexture} returns null and the box falls back to the
- * rectangles it has always drawn, which is a box, not a claim about art.
+/*
+ * The structural view of the texture manager, the frame texture and an `add.image` result used to
+ * live here, one interface each. They are `FrameTextureManagerLike`, `FrameTextureLike` and
+ * `FrameImageLike` in `game/ui/FramePanel.ts` now, and the reason they are structural at all is
+ * unchanged: this scene is engine-free at runtime, so every call the ring makes has to be
+ * answerable — or ABSENT — in a node test. Absent stays a supported answer, not a crash:
+ * `drawFrameRing` returns null and the box falls back to the rectangles it has always drawn.
  */
-interface TextureManagerLike {
-  exists?: (key: string) => boolean;
-  get?: (key: string) => TextureLike | undefined;
-}
-
-interface TextureLike {
-  has?: (frame: string) => boolean;
-  add?: (frame: string, source: number, x: number, y: number, width: number, height: number) => unknown;
-  get?: (frame?: string) => { width?: number; height?: number } | undefined;
-}
-
-/** An `add.image` result, as much of it as the frame and the portrait use. */
-interface ImageLike extends DrawnObject {
-  setOrigin: (x: number, y: number) => unknown;
-  setDisplaySize: (width: number, height: number) => unknown;
-}
 
 /**
  * Build the dialogue scene against a caller-supplied Phaser namespace.
@@ -751,7 +736,14 @@ export function createDialogueScene(
      */
     private drawPanel(rect: DialogueBoxRect): void {
       const style = this.style;
-      const slice = this.drawFrame(rect);
+      const pieces = drawFrameRing(
+        this as unknown as FrameSceneLike,
+        DIALOGUE_FRAME_ASSET_ID,
+        rect,
+        style.frameSlice,
+      );
+      const slice = pieces === null ? null : style.frameSlice;
+      if (pieces !== null) for (const piece of pieces) this.drawn.push(piece);
       if (slice === null) {
         // No frame art loaded (and no crash on the way to finding out): the Gold box this file has
         // always drawn — a light hairline around a dark field. Honest chrome, not a stand-in: a
@@ -771,67 +763,6 @@ export function createDialogueScene(
       );
       fill.setOrigin(0, 0);
       this.drawn.push(fill);
-    }
-
-    /**
-     * Draw the eight-piece ring, and return the border width it drew at — or null when there is no
-     * frame texture to slice, which is the caller's signal to fall back.
-     *
-     * Corners keep their natural size; the top and bottom edges stretch on X only and the sides on Y
-     * only. That asymmetry is the whole point of slicing, and it is why the frame is not one image
-     * scaled to the box: at 480×96 into a 464×68 box a single stretched image would thin the border
-     * to 3.87px across and 2.83px down — a frame whose weight changes with the shape of the panel.
-     */
-    private drawFrame(rect: DialogueBoxRect): number | null {
-      const source = this.frameTexture();
-      if (source === null) return null;
-      const { texture, width: srcW, height: srcH } = source;
-      const s = this.style.frameSlice;
-      // A panel too small to hold two corners and a seam would draw its edges inside out.
-      if (rect.width <= s * 2 || rect.height <= s * 2) return null;
-
-      const srcSpan = [s, srcW - s * 2, s];
-      const srcAt = [0, s, srcW - s];
-      const srcDown = [s, srcH - s * 2, s];
-      const srcTop = [0, s, srcH - s];
-      const dstSpan = [s, rect.width - s * 2, s];
-      const dstAt = [rect.x, rect.x + s, rect.x + rect.width - s];
-      const dstDown = [s, rect.height - s * 2, s];
-      const dstTop = [rect.y, rect.y + s, rect.y + rect.height - s];
-
-      for (const piece of FRAME_PIECES) {
-        const cutX = srcAt[piece.col] ?? 0;
-        const cutY = srcTop[piece.row] ?? 0;
-        const cutW = srcSpan[piece.col] ?? s;
-        const cutH = srcDown[piece.row] ?? s;
-        if (typeof texture.has === "function" && !texture.has(piece.name)) {
-          texture.add?.(piece.name, 0, cutX, cutY, cutW, cutH);
-        }
-        const image = (this.add as unknown as {
-          image: (x: number, y: number, key: string, frame?: string) => ImageLike;
-        }).image(dstAt[piece.col] ?? rect.x, dstTop[piece.row] ?? rect.y, DIALOGUE_FRAME_ASSET_ID, piece.name);
-        image.setOrigin(0, 0);
-        image.setDisplaySize(dstSpan[piece.col] ?? s, dstDown[piece.row] ?? s);
-        this.drawn.push(image);
-      }
-      return s;
-    }
-
-    /** The frame texture and its source size, or null when it has not loaded. */
-    private frameTexture(): { texture: TextureLike; width: number; height: number } | null {
-      const manager = (this as unknown as { textures?: TextureManagerLike }).textures;
-      if (typeof manager?.exists !== "function" || typeof manager.get !== "function") return null;
-      if (!manager.exists(DIALOGUE_FRAME_ASSET_ID)) return null;
-      const texture = manager.get(DIALOGUE_FRAME_ASSET_ID);
-      if (!texture || typeof texture.add !== "function") return null;
-      const base = texture.get?.();
-      const width = base?.width ?? 0;
-      const height = base?.height ?? 0;
-      const s = this.style.frameSlice;
-      // A "frame" narrower than two corners is not a frame. Refusing it here is what keeps a
-      // mis-sized or half-loaded texture from drawing eight overlapping smears over the box.
-      if (width <= s * 2 || height <= s * 2) return null;
-      return { texture, width, height };
     }
 
     /**

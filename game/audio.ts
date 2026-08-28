@@ -356,6 +356,87 @@ export function globbedCueFiles(): Record<string, string> {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * Loading — the queue side of the same engine-as-an-argument boundary
+ *
+ * ⚠ AUDIO MUST NOT GO THROUGH `game/placeholder.ts`. `registerRealAsset` there advertises itself as
+ * the place to register "an audio pack file", and it is not: EVERY id it registers is loaded by
+ * `queueRealAssets` with `scene.load.image(id, url)`. An `.ogg` queued through that path is handed
+ * to the texture loader, fails to decode as an image, and lands in `scene.textures` — never in
+ * `scene.cache.audio`, which is the cache {@link phaserSoundHost} asks. The cue would then be
+ * permanently `no-file` while the loader logged a texture error, which is the quietest possible way
+ * for audio to be broken. So cues are queued HERE, with `load.audio`, under their cue id.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * What the cue layer needs from a LOADER, and nothing more — the mirror of {@link SoundHost}, and
+ * engine-free for the same reason (see the header: Phaser cannot be imported under vitest's node
+ * environment, so the engine arrives as an argument).
+ */
+export interface CueLoader {
+  /** Is this key already queued or already decoded? Asked so a re-entered scene does not re-queue. */
+  has(key: string): boolean;
+  /** Queue the file at `url` to be decoded under `key`. */
+  audio(key: string, url: string): void;
+}
+
+/**
+ * The Phaser adapter for the loader half. `import type` only, like {@link phaserSoundHost}.
+ *
+ * `scene.cache.audio.exists(key)` is the same honest question the host asks, and asking it here is
+ * what makes queueing idempotent across a scene restart.
+ */
+export function phaserCueLoader(scene: Phaser.Scene): CueLoader {
+  return {
+    has(key: string): boolean {
+      try {
+        return scene.cache.audio.exists(key);
+      } catch {
+        return false;
+      }
+    },
+    audio(key: string, url: string): void {
+      try {
+        scene.load.audio(key, url);
+      } catch {
+        /* a cue that cannot be queued is a cue with no file — the director already handles that */
+      }
+    },
+  };
+}
+
+/**
+ * Queue every indexed cue under its own cue id, and return the ids actually queued.
+ *
+ * Nothing here throws, for the reason the header gives: a loader that refuses one file must not be
+ * the difference between a game and a black screen. A key already in the cache is skipped rather
+ * than queued twice.
+ */
+export function queueCues(loader: CueLoader, files: ReadonlyMap<string, string>): string[] {
+  const queued: string[] = [];
+  for (const cueId of [...files.keys()].sort()) {
+    const url = files.get(cueId);
+    if (url === undefined || url === "") continue;
+    if (!CUE_BY_ID.has(cueId)) continue;
+    let already = false;
+    try {
+      already = loader.has(cueId);
+    } catch {
+      /* a cache that cannot answer is a cache with nothing in it; queue anyway */
+    }
+    if (already) continue;
+    try {
+      loader.audio(cueId, url);
+    } catch {
+      // A loader that refuses one file must not stop the rest, and must never reach the caller:
+      // this runs inside `preload`, where a throw is a boot that never happens.
+      continue;
+    }
+    queued.push(cueId);
+  }
+  return queued;
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
  * Config — arguments, never literals (G11)
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -653,6 +734,93 @@ export function createAudioDirector(options: AudioDirectorOptions): AudioDirecto
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * The mix, from data (G11)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The three mix levels, read off `balance.audio.volume` — the group the header said this module
+ * would NOT default, and which now exists (data/balance.json + `Balance` in core/types.ts +
+ * `zBalance` in core/schemas.ts, the INV-3 three-file change). No volume is written in this file.
+ *
+ * `muted` is NOT in that group and deliberately so: balance.json's own note calls a preference in
+ * the tuning table a category error. It is a player setting, so it arrives as an argument. The
+ * settings holder (`game/registry.ts` `Settings`) carries only `textSpeed` today, so the boot call
+ * site passes "not muted" — the state of a preference nobody has expressed — and moves to the
+ * stored setting the day one exists.
+ */
+export function audioConfigFromBalance(balance: Balance, muted: boolean): AudioConfig {
+  const volume = balance.audio.volume;
+  return { master: volume.master, music: volume.music, sfx: volume.sfx, muted };
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * The one director the scenes share
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  WHY A MODULE-LEVEL HOLDER, AND WHY THE CONTINUITY RULE NEEDS ONE
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Music continuity is a fact about the RUN, not about a scene: "the town theme keeps playing while
+ * the player opens a menu, and stops when a battle starts" is only expressible if the thing that
+ * knows what is playing outlives every scene that asks. A director built per-scene would restart
+ * the same track on every `create()` — the exact defect {@link AudioDirector}'s `already-playing`
+ * outcome exists to prevent — because a fresh director believes nothing is playing.
+ *
+ * It is here and not in `game/registry.ts` because the registry is the holder for CONTENT and SAVE
+ * state, and because everything the director needs is already in this file. It is a holder, not a
+ * cache: nothing is memoised, and {@link resetAudio} exists so a test starts from silence.
+ *
+ * THE FALLBACK IS NOT AN ERROR PATH. Before boot installs one — and in every test that never
+ * installs one — {@link audio} answers with a director over {@link silentHost}, so a scene may call
+ * `audio().playMusic(...)` unconditionally and get a no-op instead of a crash. That is the same
+ * rule the header states for a missing file, applied one level up.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+let installedDirector: AudioDirector | null = null;
+let fallbackDirector: AudioDirector | null = null;
+
+/**
+ * The silent stand-in. Its config is all zeros and muted — not a tuning (nothing here is a level
+ * anyone would retune), but the statement "there is no engine behind this", which is why it does
+ * not read balance.
+ */
+function silentDirector(): AudioDirector {
+  fallbackDirector ??= createAudioDirector({
+    host: silentHost(),
+    config: { master: 0, music: 0, sfx: 0, muted: true },
+  });
+  return fallbackDirector;
+}
+
+/** Install the run's director. Returns it, so a caller can keep the reference it just made. */
+export function installAudio(director: AudioDirector): AudioDirector {
+  installedDirector = director;
+  return director;
+}
+
+/** The run's director, or the permanently-silent stand-in. Never null, never throws. */
+export function audio(): AudioDirector {
+  return installedDirector ?? silentDirector();
+}
+
+/** True once boot has installed a real director. */
+export function audioInstalled(): boolean {
+  return installedDirector !== null;
+}
+
+/** Forget the installed director and stop whatever it was playing. For tests and for a teardown. */
+export function resetAudio(): void {
+  const previous = installedDirector;
+  installedDirector = null;
+  fallbackDirector = null;
+  if (previous === null) return;
+  try {
+    previous.stopMusic();
+  } catch {
+    /* a director being discarded is not worth a throw */
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
  * Selection — a pure function of game state, never of a clock or an RNG
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -729,6 +897,79 @@ export function musicCueFor(situation: MusicSituation): string | null {
     default:
       return null;
   }
+}
+
+/**
+ * Ask for whatever cue this situation names. THE ONE CALL A SCENE MAKES.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  THE CONTINUITY RULE, WRITTEN WHERE IT IS ENFORCED
+ * ─────────────────────────────────────────────────────────────────────────────
+ * A scene calls this on ENTRY (`create`), never per frame, and the two halves of the rule are:
+ *
+ *   • **Same cue → it keeps playing.** {@link AudioDirector.playMusic} answers `already-playing`
+ *     and touches nothing, so walking Hearthollow → its shop → back does not restart the theme, and
+ *     re-entering a scene is free. This is why the director is shared (see the holder above): a
+ *     per-scene director would restart the track every time.
+ *   • **Different cue → the old one stops and the new one starts.** A hard change, not a fade:
+ *     §12a specifies mood per cue and no crossfade, and a fade would need a per-frame ramp this
+ *     layer deliberately does not have (nothing here reads a clock — see the header's determinism
+ *     note). Gold-era hardware cut, and so does this.
+ *
+ * **A situation that names NO cue leaves the music alone**, and returns null rather than silence.
+ * That is the honest answer for a node outside §12a's walkable slice: the bible gives it no theme,
+ * and stopping the music would be inventing "silence" as its theme (G2). A caller that means
+ * silence says `stopMusic()`, which is a different sentence.
+ */
+export function applyMusicSituation(
+  director: AudioDirector,
+  situation: MusicSituation,
+): CueResult | null {
+  const cueId = musicCueFor(situation);
+  if (cueId === null) return null;
+  return director.playMusic(cueId);
+}
+
+/**
+ * A cue that INTERRUPTS what is playing, plus the way to put the old one back.
+ *
+ * Every scene the game LAUNCHES OVER a paused overworld needs this and needs it identically — the
+ * battle, the retirement card, the year-turn card. The reason is structural rather than stylistic:
+ * those scenes are stopped and the overworld is RESUMED, and a resumed scene's `create` does not run
+ * again, so nothing on the overworld side would ever re-ask for its theme. Without a restore, the
+ * first battle's music plays over the town for the rest of the run.
+ *
+ * It lives here rather than in each scene so the three of them cannot drift into three answers, and
+ * so a scene's whole audio wiring is two lines: take over on `create`, restore on `"shutdown"`.
+ */
+export interface MusicTakeover {
+  /** What was playing when the takeover happened, or null. */
+  readonly previous: string | null;
+  /** The cue that took over, or null when the situation named none. */
+  readonly cueId: string | null;
+  /**
+   * Put `previous` back — or stop, when there was nothing to put back. Idempotent: a scene that is
+   * shut down twice, or restored by hand and then by its own hook, restores once.
+   */
+  restore(): void;
+}
+
+export function takeOverMusic(director: AudioDirector, situation: MusicSituation): MusicTakeover {
+  const previous = director.currentMusic();
+  const result = applyMusicSituation(director, situation);
+  let restored = false;
+  return {
+    previous,
+    cueId: result?.cueId ?? null,
+    restore(): void {
+      if (restored) return;
+      restored = true;
+      // Both arms are already safe when nothing took over: `playMusic` on the track still playing
+      // answers `already-playing`, and `stopMusic` with no music is a no-op.
+      if (previous === null) director.stopMusic();
+      else director.playMusic(previous);
+    },
+  };
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

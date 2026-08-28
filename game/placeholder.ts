@@ -91,7 +91,9 @@ declare global {
   // here rather than by widening the project's ambient types from a game module.
   interface ImportMeta {
     glob(
-      pattern: string,
+      // An ARRAY is Vite's form for "these, minus those": an entry beginning `!` is a negative
+      // pattern subtracted from the ones before it. {@link GLOBBED_FINAL} needs it.
+      pattern: string | readonly string[],
       options?: { eager?: boolean; query?: string; import?: string },
     ): Record<string, unknown>;
   }
@@ -119,12 +121,33 @@ declare global {
  *
  * `query: "?url"` asks Vite for the emitted URL rather than the file contents, so the strings below
  * are correct in `vite dev` AND in a hashed production build.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  WHY `atlas/` IS SUBTRACTED, AND WHY IT IS NOT REPLACED BY AN ATLAS LOADER
+ * ─────────────────────────────────────────────────────────────────────────────
+ * MEASURED: `assets/final/atlas/` holds four PACKED SHEETS (`creatures.png`, `npcs.png`,
+ * `player.png`, `ui.png` — ~104KB) plus a descriptor JSON each. A sheet is a PNG under
+ * `assets/final/`, so before this subtraction the glob registered all four as ordinary art, which
+ * made `queueRealAssets` hand them to `scene.load.image` and `BootScene.preload` download and
+ * upload every one of them ON EVERY BOOT — ON TOP OF the 161 individual PNGs the sheets were
+ * packed to replace, and drawn by NOTHING: no `textureFor` call anywhere in `game/` names an
+ * `atlas/*` id, because ids like `creature-battle/vellsire` are what the data references.
+ *
+ * The subtraction is deliberately NOT paired with `this.load.atlas(...)`. The descriptors are not
+ * in Phaser's atlas format and their frame ids do not match this project's key space, so wiring a
+ * loader would trade a silent cost for a silently WRONG texture cache. Whoever finishes the packing
+ * lane emits a Phaser-format descriptor whose frames are `assetId()` keys and loads it here on
+ * purpose; until then a sheet is a build artefact, not art, and
+ * `tests/unit/game-placeholder.test.ts` §atlas asserts none of them is registered.
  */
-const GLOBBED_FINAL = import.meta.glob("../assets/final/**/*.png", {
-  eager: true,
-  query: "?url",
-  import: "default",
-}) as Record<string, string>;
+const GLOBBED_FINAL = import.meta.glob(
+  ["../assets/final/**/*.png", "!../assets/final/atlas/**"],
+  {
+    eager: true,
+    query: "?url",
+    import: "default",
+  },
+) as Record<string, string>;
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Files under assets/final/ that are NOT art
@@ -181,12 +204,19 @@ export function declaredStandInIds(): string[] {
 const realAssets = new Map<string, string>();
 
 /**
- * Register an asset that exists but is not a PNG under `assets/final/` — an audio pack file, an
- * atlas produced at build time, anything a later lane loads by URL. Keeps one answer to "is this
- * real" instead of a second private list.
+ * Register an asset that exists but is not a PNG under `assets/final/` — anything a later lane
+ * loads by URL through the TEXTURE loader. Keeps one answer to "is this real" instead of a second
+ * private list.
+ *
+ * ⚠ NOT AUDIO, AND NOT AN ATLAS. Everything registered here is queued by {@link queueRealAssets}
+ * with `scene.load.image(id, url)`, so an `.ogg` down this path lands in the TEXTURE cache and
+ * never in `cache.audio` — the cue would read no-file forever while the census reported the sound
+ * as shipped. Cues are queued by `game/audio.ts::queueCues` with `load.audio`, under their cue id,
+ * and that is the audio path. A packed sheet is likewise not an image asset: see the block on
+ * {@link GLOBBED_FINAL} for why `assets/final/atlas/` is subtracted rather than registered.
  *
  * A declared stand-in is REFUSED, and refused here rather than at each call site, so no route into
- * this module can register one: the glob below, a lane calling this directly, a future loader. It
+ * this module can register one: the glob above, a lane calling this directly, a future loader. It
  * returns whether the id was taken so a caller that cares can say so.
  */
 export function registerRealAsset(idOrPath: string, url: string): boolean {

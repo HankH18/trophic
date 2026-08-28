@@ -43,6 +43,7 @@ import {
   type WebPage,
 } from "../web-view";
 import { SCENE_KEYS } from "../scene-keys";
+import { UI_FRAME_ASSET_ID, drawFrameRingIn } from "../ui/FramePanel";
 import type { Content, NodeState, Season } from "../../core/types";
 
 /**
@@ -287,6 +288,28 @@ export class SurveyScene extends Phaser.Scene {
     const bg = this.add.graphics();
     bg.fillStyle(BACKDROP, 1).fillRect(0, 0, width, height);
     this.layer.add(bg);
+
+    /*
+     * The shipped `ui-ledger-panel` art, as a RING and nothing else — the ecology ledger's own
+     * frame (manifest class `ui-frame`), which until now was generated, committed and drawn by
+     * nothing.
+     *
+     * ⚠ RING ONLY, AND THAT IS NOT A SHORTCUT. MEASURED: every `ui-frame` PNG is a chrome edge
+     * around a flat `#faf7eb` plate, and `#faf7eb` IS `SCREEN_HEX.ink` — the colour this scene
+     * draws every number and every label in. Adopt the plate as the ledger's field and the whole
+     * survey is painted at 1 : 1 against its own background: invisible, while
+     * `tests/gates/ui-contrast-contract.test.ts` stays green, because that gate measures a role
+     * against a SWATCH and cannot see a PNG painted behind the text. `drawFrameRing` has no way to
+     * ask for a centre piece for exactly this reason; the field stays `BACKDROP`.
+     *
+     * The pieces go into `this.layer`, which is the container `redraw` clears on its way in — a
+     * ring parked anywhere else would survive the clear and stack one ring per redraw, and this
+     * screen redraws on every arrow key.
+     */
+    const ring = drawFrameRingIn(this, UI_FRAME_ASSET_ID.ledgerPanel, { x: 0, y: 0, width, height });
+    // Null is a supported answer, not a failure: with no frame texture loaded the survey draws the
+    // screen it has always drawn. A missing PNG must not take the numbers down with it.
+    if (ring) for (const piece of ring) this.layer.add(piece);
 
     const page = this.page();
     if (!page) {

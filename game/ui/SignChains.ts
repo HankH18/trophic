@@ -17,20 +17,25 @@
  * ─────────────────────────────────────────────────────────────────────────────
  *  WHY IT LIVES HERE, AND WHERE IT SHOULD LIVE
  * ─────────────────────────────────────────────────────────────────────────────
- * ⚠ THIS IS A SECOND SPELLING OF A RULE THAT ALREADY EXISTS. `game/scenes/OverworldScene.ts`'s
- * private `unlockedSignChains()` derives the same set for the ENCOUNTER ROLL, plus one clause this
- * must not have: the finale node is gated on the finale as well as on the chain
- * (`balance.encounter.finaleGatedNode`), which is a question about a NODE, and a dex entry is not
- * per-node. `game/quests.ts` is the home this wants — it already owns the chain flags' lifecycle —
- * and it is outside the file scope of the change that found this, so the rule sits in `game/ui/`,
- * which is this project's PHASER-FREE view-model half (`BattleLayout.ts`'s header states the
- * standard: "a layout nobody can test headlessly is a layout that is checked by looking at it").
- * That is a real gain over parking it in a scene: a node test imports this with no `vi.mock`.
+ * THIS IS NOW THE ONLY SPELLING. It was a second one: `game/scenes/OverworldScene.ts`'s private
+ * `unlockedSignChains()` wrote the same flag→line join out again for the ENCOUNTER ROLL. That
+ * method is now its finale clause plus a call to {@link unlockedSignChainLines} — the finale node
+ * is gated on the finale as well as on the chain (`balance.encounter.finaleGatedNode`), which is a
+ * question about a NODE, and a dex entry is not per-node, so that ONE clause stays in the scene and
+ * must never arrive here.
  *
- * THE REDUCTION THAT FINISHES IT: `OverworldScene.unlockedSignChains()` becomes its finale clause
- * plus a call to {@link unlockedSignChainLines}. Until that lands,
- * `tests/unit/ui-frame-panel.test.ts` §7 drives both spellings over the corpus's own completion
- * flags and asserts they agree.
+ * `game/quests.ts` is the home this file eventually wants — it already owns the chain flags'
+ * lifecycle — and it was outside the file scope of the change that found the defect, so the rule
+ * sits in `game/ui/`, this project's PHASER-FREE view-model half (`BattleLayout.ts`'s header states
+ * the standard: "a layout nobody can test headlessly is a layout that is checked by looking at
+ * it"). That is a real gain over parking it in a scene: a node test imports this with no `vi.mock`.
+ *
+ * ⚠ WHAT BINDS THE TWO IS `tests/unit/overworld-scene.test.ts` §22, NOT
+ * `tests/unit/ui-frame-panel.test.ts` §7. §7's "BINDS" case calls `unlockedSignChainsOf` twice
+ * under two names and never mounts the overworld, so it agrees with ITSELF and stayed green when
+ * the scene's copy was deliberately drifted (`line.id === stem` in place of `startsWith`). §22
+ * mounts the real scene and reads `forayContext()` — the set the running game actually rolls
+ * against — so a third answer growing in the scene reddens there.
  *
  * ENGINE: no Phaser import of any kind, not even a type one.
  */

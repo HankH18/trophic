@@ -470,8 +470,9 @@ import {
   type FlagValue,
 } from "@core/dialogue-schema";
 import { validateContent } from "@core/schemas";
-import { EPILOGUE_SHOWN_FLAG, recordVellsireOutcome } from "@game/finale";
+import { EPILOGUE_SHOWN_FLAG, finaleNodeId, finaleUnlocked, recordVellsireOutcome } from "@game/finale";
 import { linesMetAt } from "@game/quests";
+import { unlockedSignChainLines } from "@game/ui/SignChains";
 import { isNever, newOwnedCreature } from "@core/lifecycle";
 import { propDialogueFor, runHeadless, talkEntryFor, transcript, type DialogueRunState } from "@game/dialogue-runner";
 import type { DialogueSceneData } from "@game/scenes/DialogueScene";
@@ -6750,5 +6751,110 @@ describe("§21 the player never turns, and the skip stays in the picture", () =>
     expect(playerArtIds()).toEqual([playerArtId(PLAYER_FORWARD_VIEW)]);
     const h = mount();
     expect(String(playerObj(h).texture)).toContain(playerArtId(PLAYER_FORWARD_VIEW));
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §22 The sign-chain rule has ONE derivation, and one clause on top of it
+ *
+ * THE DEFECT THIS BINDS. The flag→line join was written out TWICE: once in
+ * `game/ui/SignChains.ts::unlockedSignChainLines`, which `MenuScene` reads to fill
+ * `DexSceneData.unlockedSignChains`, and once inside this scene's private `unlockedSignChains()`
+ * for the ENCOUNTER ROLL. Two spellings of one rule is how the shipped dex came to print "not in
+ * the wild encounter pool" for all three Ancients on every save forever while the overworld was
+ * rolling them correctly — the dex half was simply never filled in, and nothing compared them.
+ *
+ * ⚠ WHY THIS SECTION EXISTS RATHER THAN `tests/unit/ui-frame-panel.test.ts` §7. That section calls
+ * `unlockedSignChainsOf` twice, under two names, and never touches this scene — so it agrees with
+ * itself and would stay green if the overworld grew a third answer tomorrow. Both spellings have to
+ * be DRIVEN, and only one of them is a Phaser scene, so the comparison lives where the scene can be
+ * mounted. `forayContext()` is the public road: it is what `update()` hands `game/encounters.ts` on
+ * every step, so what is asserted here is the set the running game actually rolls against.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("§22 the encounter roll and the dex derive sign chains from the same rule", () => {
+  /** Every `chain.*.complete` flag `data/dialogue.json` really sets. Derived, never typed (G2). */
+  const CHAIN_COMPLETE_FLAGS: readonly string[] = [
+    ...new Set(
+      DIALOGUE.entries.flatMap((entry) =>
+        Object.entries(entry.setFlags ?? {})
+          .filter(([flag, value]) => value === true && flag.startsWith("chain.") && flag.endsWith(".complete"))
+          .map(([flag]) => flag),
+      ),
+    ),
+  ].sort();
+
+  /** A walkable node that is NOT the finale's — so the one clause the scene keeps stays out of it. */
+  const PLAIN_NODE: string = ((): string => {
+    const finale = finaleNodeId(balance);
+    const node = content.nodes.find((n) => n.walkable && n.id !== finale) ?? content.nodes[0]!;
+    return node.id;
+  })();
+
+  it("the corpus writes chain completions, and they unlock something — the premise", () => {
+    // Non-vacuity, asserted rather than assumed: with no completion flag in the corpus, or none of
+    // them naming a gated line, every comparison below would hold over two empty sets.
+    expect(CHAIN_COMPLETE_FLAGS.length, "data/dialogue.json writes no chain completion").toBeGreaterThan(0);
+    const everything: Record<string, boolean> = {};
+    for (const flag of CHAIN_COMPLETE_FLAGS) everything[flag] = true;
+    expect(
+      [...unlockedSignChainLines(everything, content.species, balance)].length,
+      "no shipped completion flag unlocks any line — the join names nothing",
+    ).toBeGreaterThan(0);
+    expect(PLAIN_NODE, "no walkable node outside the finale's").not.toBe(finaleNodeId(balance));
+  });
+
+  it("DRIVEN — for every completion flag the corpus writes, the two agree exactly", () => {
+    for (const flag of CHAIN_COMPLETE_FLAGS) {
+      const base = freshSave(PLAIN_NODE);
+      const save: SaveEnvelope = { ...base, questFlags: { ...base.questFlags, [flag]: true } };
+      const h = mount({ save, startNode: PLAIN_NODE });
+
+      // The dex's spelling, over the same save the scene is standing in.
+      const dexSide = [...unlockedSignChainLines(save.questFlags, content.species, balance)].sort();
+      // The DISCRIMINATOR: if this flag unlocks nothing, the comparison below is `[] === []` and
+      // proves nothing about either side.
+      expect(dexSide.length, `${flag} unlocks no line — this iteration is vacuous`).toBeGreaterThan(0);
+
+      // The scene's spelling, read where the running game reads it: what `update()` hands the roll.
+      const rollSide = [...(h.scene.forayContext(PLAIN_NODE).unlockedSignChains ?? [])].sort();
+      expect(rollSide, `${flag}: the encounter roll and the dex disagree about what it unlocks`).toEqual(dexSide);
+    }
+  });
+
+  it("…and a save with no completion unlocks nothing on either side", () => {
+    const save = freshSave(PLAIN_NODE);
+    const h = mount({ save, startNode: PLAIN_NODE });
+    expect([...unlockedSignChainLines(save.questFlags, content.species, balance)]).toEqual([]);
+    expect(h.scene.forayContext(PLAIN_NODE).unlockedSignChains).toBeUndefined();
+  });
+
+  it("the ONE clause the dex must never have is still the scene's: the finale node", () => {
+    /*
+     * `maren.keystone.6` writes `chain.vellsire.complete` with no Greaves requirement, and the
+     * finale node ships the stag at a real count — so without this clause a player could close the
+     * chain, walk in, forage and snare an animal the scripted meeting was still owed. It is a
+     * question about a NODE, and a dex entry is not per-node, which is exactly why it stays here
+     * and not in `game/ui/SignChains.ts`.
+     */
+    const finale = finaleNodeId(balance);
+    const base = freshSave(PLAIN_NODE);
+    const everything: Record<string, boolean> = {};
+    for (const flag of CHAIN_COMPLETE_FLAGS) everything[flag] = true;
+    const save: SaveEnvelope = { ...base, questFlags: { ...base.questFlags, ...everything } };
+    const h = mount({ save, startNode: PLAIN_NODE });
+
+    // The premise: the chains ARE closed, and the finale is NOT unlocked.
+    expect(finaleUnlocked(save, balance), "the fixture already unlocked the finale").toBe(false);
+    const closed = [...unlockedSignChainLines(save.questFlags, content.species, balance)].sort();
+    expect(closed.length, "the fixture closed no chain").toBeGreaterThan(0);
+
+    // Anywhere else the roll sees them…
+    expect([...(h.scene.forayContext(PLAIN_NODE).unlockedSignChains ?? [])].sort()).toEqual(closed);
+    // …and at the finale's node it sees none of them, while the dex still would.
+    expect(
+      h.scene.forayContext(finale).unlockedSignChains,
+      "the finale node's weight table honoured the chain alone",
+    ).toBeUndefined();
   });
 });

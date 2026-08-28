@@ -97,7 +97,7 @@ export const UI_FRAME_ASSET_ID = {
   menuPanel: `${UI_FRAME_DIR}/ui-menu-panel`,
   /** 240×64 — the combatant card. Wired by `game/ui/BattleHud.ts`. */
   battleHud: `${UI_FRAME_DIR}/ui-battle-hud-frame`,
-  /** 480×320 — the ecology ledger. UNWIRED: `game/scenes/SurveyScene.ts` still draws rectangles. */
+  /** 480×320 — the ecology ledger. Wired by `game/scenes/SurveyScene.ts`. */
   ledgerPanel: `${UI_FRAME_DIR}/ui-ledger-panel`,
   /** 320×320 — the dex card. Wired by `game/scenes/DexScene.ts`. */
   dexCard: `${UI_FRAME_DIR}/ui-dex-card-frame`,
@@ -109,11 +109,19 @@ export const UI_FRAME_ASSET_ID = {
  * Every `ui-frame` texture key this file knows how to draw.
  *
  * ⚠ THIS IS THE DECLARED SET, NOT THE CONSUMED SET, and it must never be handed to
- * `tests/gates/asset-reachability.test.ts` as a key builder. Two of these six — `ledgerPanel` and
- * `signCard` — have no call site, and a census built from this list would report them as asked for
- * on the strength of the other four being drawn. That is precisely the "the class exists, therefore
- * the row is reachable" reasoning that gate was written to refuse. A builder there must name the
- * ids its call sites actually pass, one per wired screen.
+ * `tests/gates/asset-reachability.test.ts` as a key builder. `signCard` still has no call site —
+ * and a census built from this list would report it as asked for on the strength of the other five
+ * being drawn. That is precisely the "the class exists, therefore the row is reachable" reasoning
+ * that gate was written to refuse. A builder there must name the ids its call sites actually pass,
+ * one per wired screen.
+ *
+ * ⚠ AND `signCard` IS NOT A PANEL, so it is not merely "the next one to wire". `tools/ui-frames/
+ * SPEC.md` §4.6 paints it from the palette's WOOD band with a 7px bevel — 3px lit along the top and
+ * left, 3px shadowed along the bottom and right, over a 2px keyline base edge on the bottom only —
+ * so its edge is `#040308 · #ca9164×2 · #aa7241×3 · #040308` and not the symmetric two-ring idiom
+ * the other five share. {@link drawFrameRing} at {@link FRAME_CHROME_PX} would cut straight through
+ * that bevel, and the same SPEC row calls the frame "fixed 1:1" and places it "wherever the prop
+ * is". `tests/unit/ui-frame-panel.test.ts` holds it out of the panel assertions for this reason.
  */
 export const UI_FRAME_ASSET_IDS: readonly string[] = Object.values(UI_FRAME_ASSET_ID);
 

@@ -235,7 +235,9 @@ import {
  * other letterbox in the game is, and a re-freeze of `data/palette.json` moves all of them at once.
  * A `0x000000` typed here would be the one colour on this screen the palette does not own.
  */
+import { applyMusicSituation, audio } from "../audio";
 import { roleColor } from "../ui/Palette";
+import { unlockedSignChainLines } from "../ui/SignChains";
 import {
   actEntryBeats,
   beatLines,
@@ -998,6 +1000,29 @@ export class OverworldScene extends Phaser.Scene {
    * {@link chooseSpawnTile} returns the sentence instead, and the HUD prints it.
    */
   private buildNodeView(): void {
+    /*
+     * §12a's overworld cue, asked for HERE rather than in `create` because this method has exactly
+     * two callers — `create`, and the node change — which is precisely the set of moments the town
+     * theme should change. Putting it in `create` alone would start Hearthollow's theme on boot and
+     * then walk the player to Brackwater and out onto the routes with it still playing.
+     *
+     * Asked on ENTRY, never per frame: `playMusic` on the track already playing answers
+     * `already-playing` and leaves it alone (game/audio.ts), so re-entering a node the player is
+     * already standing in is free, and a node that names NO cue leaves the music where it is rather
+     * than inventing silence as its theme.
+     *
+     * ⚠ THE FINAL SEASON BEATS THE PLACE. §12a puts the Festival cue on the CALENDAR — the year's
+     * final season, every year — and `musicCueFor` reads this flag before it reads the node. The
+     * season order is DATA (G11), so the last season is `seasonOrder.at(-1)` and never a literal.
+     *
+     * Before boot has installed a director this is the silent stand-in, which is why it is safe as
+     * the first line of a method that must never fail to draw a map.
+     */
+    applyMusicSituation(audio(), {
+      screen: "overworld",
+      nodeId: this.node.id,
+      finalSeasonOfYear: this.currentSeason() === this.balance.clock.seasonOrder.at(-1),
+    });
     const keys = nodeArtKeys(this.node, this.save.year, this.balance);
     const pixels = readMaskPixelsSafe(this, keys.maskKey);
     this.collision = loadCollision(this.node.id, keys.maskPath, pixels, this.balance);
@@ -2624,6 +2649,13 @@ export class OverworldScene extends Phaser.Scene {
    * `core/types.ts` + `data/species.json` change this stream does not own. It is derived rather
    * than typed — no species id appears here, which the species-name gate in
    * tests/property/foodweb.test.ts requires and which also means a renamed line follows the data.
+   *
+   * ⚠ THE DERIVATION ITSELF IS NOT HERE, AND MUST NOT COME BACK. It is
+   * `game/ui/SignChains.ts::unlockedSignChainLines`, which `game/scenes/MenuScene.ts` also reads to
+   * fill `DexSceneData.unlockedSignChains`. A copy of the flag→line join lived in this method until
+   * this reduction, and it is exactly the kind of second spelling that let the shipped dex print
+   * "not in the wild encounter pool" for a chain the overworld had already opened. What is left
+   * here is the ONE clause the dex must never have: a question about a NODE.
    */
   private unlockedSignChains(nodeId: string = this.node.id): ReadonlySet<string> {
     /*
@@ -2640,20 +2672,7 @@ export class OverworldScene extends Phaser.Scene {
     if (nodeId === finaleNodeId(this.balance) && !finaleUnlocked(this.save, this.balance)) {
       return new Set<string>();
     }
-    const gatedTag = this.balance.encounter.signChainGatedHabitatTag;
-    const gatedLines = this.content.species.filter((s) => s.habitat.includes(gatedTag));
-    const out = new Set<string>();
-    for (const [flag, value] of Object.entries(this.save.questFlags)) {
-      if (value !== true || !flag.startsWith(CHAIN_FLAG_PREFIX) || !flag.endsWith(CHAIN_COMPLETE_SUFFIX)) {
-        continue;
-      }
-      const stem = flag.slice(CHAIN_FLAG_PREFIX.length, flag.length - CHAIN_COMPLETE_SUFFIX.length);
-      if (stem.length === 0) continue;
-      for (const line of gatedLines) {
-        if (line.id.startsWith(stem)) out.add(line.id);
-      }
-    }
-    return out;
+    return unlockedSignChainLines(this.save.questFlags, this.content.species, this.balance);
   }
 
   /** Every sign chain the save has completed, by CHAIN id — what the HUD reports. */
