@@ -30,11 +30,19 @@
  * A layout `.txt` is NOT a bare grid. It opens with a long prose header — the coordinate space, the
  * seed data, the decisions the author made, and a legend — and only then the 64 rows. **Every one of
  * those header sections is full of commas**, and the legend contains the literal line
- * `#   ,  floor  scrub`. Measured on the shipped tree: counting `,` over the whole cindershelf file
- * gives 498 while its grid held 435, and at the moment the defect was live the whole-file count was
- * 63 against a grid holding ZERO. A naive count does not merely wobble — **it reports the opposite
- * answer, and it reports it as a pass.** Any parse that does not isolate the grid first is an
- * instrument that certifies success.
+ * `#   ,  floor  scrub`. Measured on the COMMITTED tree, so you can reproduce it: counting `,` over
+ * the whole cindershelf file gives 255 while its grid holds 180. The gap is the header.
+ *
+ * That gap is not a wobble, and the reason this matters is the case where the two counts disagree
+ * about the ANSWER rather than the amount. When cindershelf's defect was live its grid held ZERO
+ * scrub cells while its file still counted dozens of commas in the prose — so a whole-file count
+ * reported the node as having encounter terrain, i.e. **it reported "no bug", and reported it as a
+ * pass.** Any parse that does not isolate the grid first is an instrument that certifies success.
+ *
+ * ⚠ That defective file was never committed — it lived in a gitignored directory and is gone — so
+ * the exact figure from that moment is NOT reproducible from this repository and is deliberately
+ * not quoted here. The 255/180 pair above is. A number nobody can reproduce is a number that will
+ * be repeated into briefs long after it stopped being true; this file does not add to that stock.
  *
  * ── HOW THE GRID IS ISOLATED, AND WHY IT IS NOT A SPLIT ON `---` ─────────────────────────────────
  * The grid is **the longest run of CONSECUTIVE lines that are each EXACTLY `GRID_SIDE` characters
@@ -611,10 +619,16 @@ describe("GATE — the layout and the populations agree, in both directions", ()
   /**
    * DIRECTION 2 — zero encounter cells ⇒ populations empty.
    *
-   * The same fact from the other side, and it is not redundant: it is what makes "no encounter cells
-   * means no wild encounters here" a STATEMENT the layout is allowed to make, rather than a hole.
-   * A node may legitimately draw no scrub — a town of ash where nothing grows — but then its node
-   * file must not go on declaring animals to catch there.
+   * ⚠ BE HONEST ABOUT WHAT THIS IS: it is the CONTRAPOSITIVE of DIRECTION 1, not a second direction.
+   * "populations non-empty ⇒ some scrub" and "no scrub ⇒ no populations" are the same proposition,
+   * and the two filters below select the same violating set with the conjuncts swapped. An earlier
+   * version of this comment claimed the pair was a biconditional; it was not, and the commit that
+   * landed it repeated the claim. The genuinely independent direction is asserted separately below.
+   *
+   * It is kept anyway, and the reason is the failure message rather than the logic: this one reads
+   * from the LAYOUT's side and names what the layout was claiming, which is the sentence an author
+   * looking at a grid needs. Two readings of one fact is a reasonable thing to have. Two readings
+   * of one fact described as two facts is not.
    */
   it("DIRECTION no encounters ⇒ no populations: a node with no scrub declares no lines", () => {
     const silent = MEASURABLE.filter((l) => encounterCells(l.parse) === 0 && l.lines.length > 0);
@@ -626,6 +640,32 @@ describe("GATE — the layout and the populations agree, in both directions", ()
         .map((s) => `  • ${s.id} — 0 encounter cells, still declares: ${s.lines.join(", ")}`)
         .join("\n");
     expect(silent.length === 0 || report).toBe(true);
+  });
+
+  /**
+   * DIRECTION 3 — encounter cells ⇒ populations non-empty. THE ONE THE OTHER TWO DO NOT COVER.
+   *
+   * Direction 1 and its contrapositive both catch "species with nowhere to meet them". Neither
+   * catches the inverse: a node that PAINTS encounter terrain while declaring no species at all.
+   * That is scrub a player can walk into forever and never meet anything in — the encounter roll
+   * fires and the table it draws from is empty. Once the encounter mask derives from this file the
+   * grass is a promise the layout makes to the player, and this is what keeps the node file good
+   * for it.
+   *
+   * It is green on all twelve today because every shipped node declares at least one line — the
+   * thinnest is sanctum-approach at one. That is exactly the condition under which an unasserted
+   * direction goes unnoticed, which is why it is written down rather than left to the census.
+   */
+  it("DIRECTION encounters ⇒ populations: a node that draws scrub has something living in it", () => {
+    const empty = MEASURABLE.filter((l) => encounterCells(l.parse) > 0 && l.lines.length === 0);
+    const report =
+      `${String(empty.length)} node(s) draw encounter terrain while their node file declares no ` +
+      "lines at all. The grass is a promise the layout makes — a player walking into it rolls an " +
+      "encounter against an empty table and meets nothing, forever:\n" +
+      empty
+        .map((s) => `  • ${s.id} — ${String(encounterCells(s.parse))} encounter cells, 0 declared lines`)
+        .join("\n");
+    expect(empty.length === 0 || report).toBe(true);
   });
 
   /**
