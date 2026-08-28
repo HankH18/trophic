@@ -348,6 +348,7 @@ import { roleHex } from "../../game/ui/Palette";
 import { unlockedSignChainsOf } from "../../game/ui/SignChains";
 import { DexScene, type DexSceneData } from "../../game/scenes/DexScene";
 import { MenuScene, menuPlateRect } from "../../game/scenes/MenuScene";
+import { SurveyScene, type SurveySceneData } from "../../game/scenes/SurveyScene";
 
 const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 const content: Content = validateContent();
@@ -994,6 +995,208 @@ describe("§5 DexScene draws the ui-dex-card-frame ring", () => {
     scene.create();
     expect(imagesOf(scene, UI_FRAME_ASSET_ID.dexCard)).toHaveLength(0);
     expect(rec(scene).stubObjects.filter((o) => o.kind === "text").length).toBeGreaterThan(0);
+  });
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * SurveyScene — the last unwired `ui-frame` row that IS a panel
+ *
+ * `ui-ledger-panel` was generated, committed and drawn by nothing while the survey painted
+ * rectangles. Wiring it is worth one paragraph of care beyond the other four screens, because this
+ * is the screen where getting it wrong is INVISIBLE: every `ui-frame` PNG is chrome around a flat
+ * `#faf7eb` plate, and `#faf7eb` is `SCREEN_HEX.ink` — the colour this scene draws every count and
+ * every label in. A ring drawn with its centre would print the whole survey at 1 : 1 against its own
+ * background while `tests/gates/ui-contrast-contract.test.ts` stayed green, because that gate
+ * measures a role against a SWATCH and cannot see a PNG behind text.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** A real save, so the ledger is drawn over the region the shipped game would hand it. */
+function mountSurvey(seed = true): SurveyScene {
+  bootRegistry();
+  expect(startNewGame({ slot: 0 }).ok, "the rig could not start a run").toBe(true);
+  const save = registry.save();
+  const scene = new SurveyScene();
+  if (seed) seedFrame(scene, UI_FRAME_ASSET_ID.ledgerPanel);
+  const season = balance.clock.seasonOrder[0];
+  expect(season, "data/balance.json ships no season order").toBeDefined();
+  scene.init({
+    content,
+    states: save.nodeStates,
+    year: save.year,
+    season: season as never,
+    onClose: () => undefined,
+  } satisfies SurveySceneData);
+  scene.create();
+  return scene;
+}
+
+describe("§5 SurveyScene draws the ui-ledger-panel ring", () => {
+  it("the ledger's edge is the manifest's row, around the whole screen", () => {
+    const scene = mountSurvey();
+    const ring = imagesOf(scene, UI_FRAME_ASSET_ID.ledgerPanel);
+    expect(ring, "the survey drew no painted ledger frame").toHaveLength(8);
+    expect(new Set(ring.map((i) => i.frame)).size).toBe(8);
+    for (const piece of ring) expect(piece.originX, "a ring piece is centred, not corner-anchored").toBe(0);
+    const bounds = ring.map(boundsOf);
+    expect(Math.min(...bounds.map((b) => b.left))).toBe(0);
+    expect(Math.min(...bounds.map((b) => b.top))).toBe(0);
+    expect(Math.max(...bounds.map((b) => b.right))).toBeCloseTo(balance.map.virtualWidth, 9);
+    expect(Math.max(...bounds.map((b) => b.bottom))).toBeCloseTo(balance.map.virtualHeight, 9);
+  });
+
+  it("RING ONLY — no piece carries the plate, on the one screen where that is invisible", () => {
+    /*
+     * The hazard, MEASURED off the shipped PNG rather than asserted from the header.
+     *
+     * ⚠ `plateOf` IS THE WRONG PROBE FOR THIS ONE FRAME, and the rig says so where it is defined:
+     * `ui-ledger-panel`'s centre pixel is its RECESS BAND, not its field, so "the middle pixel is
+     * the ink" is FALSE here while the danger is entirely real. Counted instead: how much of the
+     * interior is `SCREEN_HEX.ink` — the colour this scene writes every count and every label in.
+     * Paint that interior and the survey is drawn at 1 : 1 against itself over most of the screen.
+     */
+    const px = pixelsOf(UI_FRAME_ASSET_ID.ledgerPanel);
+    const s = FRAME_CHROME_PX;
+    let inkPixels = 0;
+    for (let y = s; y < px.height - s; y += 1) {
+      for (let x = s; x < px.width - s; x += 1) {
+        if (px.at(x, y).toLowerCase() === SCREEN_HEX.ink.toLowerCase()) inkPixels += 1;
+      }
+    }
+    const interior = (px.width - s * 2) * (px.height - s * 2);
+    expect(
+      inkPixels / interior,
+      "the ledger's interior no longer carries the survey's own ink — re-read the ring-only rule",
+    ).toBeGreaterThan(0.2);
+
+    const scene = mountSurvey();
+    const ring = imagesOf(scene, UI_FRAME_ASSET_ID.ledgerPanel);
+    expect(ring, "no ring at all — this assertion would hold over nothing").toHaveLength(8);
+    for (const piece of ring) {
+      const coversPlate = piece.width > FRAME_CHROME_PX && piece.height > FRAME_CHROME_PX;
+      expect(coversPlate, `ledger piece "${String(piece.frame)}" paints the plate`).toBe(false);
+    }
+    // …and nothing else painted the field either: the only fill on this screen is the backdrop
+    // graphics, which is not an image and carries no plate.
+    expect(rec(scene).stubObjects.filter((o) => o.kind === "rect")).toHaveLength(0);
+  });
+
+  it("the ring goes into the layer the redraw clears — one ring, however long ←/→ is held", () => {
+    // `redraw()` opens with `this.layer.removeAll(true)`. A ring added to the SCENE instead would
+    // survive that and stack eight more images per node the player pages through.
+    const scene = mountSurvey();
+    for (let i = 0; i < 5; i += 1) scene.step(1);
+    const all = imagesOf(scene, UI_FRAME_ASSET_ID.ledgerPanel);
+    expect(all.length, "the survey stopped paging — nothing was redrawn").toBeGreaterThan(8);
+    const live = all.filter((i) => !i.destroyed);
+    expect(live, "the ledger ring accumulated across redraws").toHaveLength(8);
+  });
+
+  it("the survey's own lines are still drawn, and clear of the chrome", () => {
+    const scene = mountSurvey();
+    const texts = rec(scene).stubObjects.filter(
+      (o): o is { kind: "text"; x: number; y: number } => o.kind === "text",
+    );
+    expect(texts.length, "the ledger frame took the numbers down with it").toBeGreaterThan(1);
+    for (const t of texts) {
+      expect(t.x, "a survey line starts under the chrome").toBeGreaterThanOrEqual(FRAME_CHROME_PX);
+      expect(t.y, "a survey line starts under the chrome").toBeGreaterThanOrEqual(FRAME_CHROME_PX);
+      expect(t.y, "a survey line is under the bottom chrome").toBeLessThan(
+        balance.map.virtualHeight - FRAME_CHROME_PX,
+      );
+    }
+  });
+
+  it("without the texture the survey still draws its numbers, and no ring", () => {
+    const scene = mountSurvey(false);
+    expect(imagesOf(scene, UI_FRAME_ASSET_ID.ledgerPanel)).toHaveLength(0);
+    expect(
+      rec(scene).stubObjects.filter((o) => o.kind === "text").length,
+      "the numbers did not survive the missing frame",
+    ).toBeGreaterThan(1);
+  });
+
+  it("BLIND TWIN — the RING-ONLY claim is unsatisfiable under a stub that forgets the cuts", () => {
+    /*
+     * ⚠ WHY THE SIZE DISCRIMINATOR §6 USES CANNOT BE THE ONE FOR THIS SCREEN. `ui-ledger-panel` is
+     * the virtual screen's own size, so the ledger's ring is drawn 1 : 1 and every
+     * `setDisplaySize(w, h)` on it passes the cut's own numbers straight back. A `setDisplaySize`
+     * that swallowed its arguments would be UNDETECTABLE here — the assertion above would pass
+     * either way. Asserted, not asserted about:
+     */
+    const px = pixelsOf(UI_FRAME_ASSET_ID.ledgerPanel);
+    expect([px.width, px.height]).toEqual([balance.map.virtualWidth, balance.map.virtualHeight]);
+
+    /*
+     * So the twin blinds the thing this screen's claim actually rests on: the FRAME CUTS. The ring's
+     * evidence for "no piece carries the plate" is each piece's natural `width`/`height`, which the
+     * recorder derives from the frames `texture.add(...)` registered. A texture stub that accepts
+     * `add` and remembers nothing hands every piece the WHOLE 480×320 texture — eight full-screen
+     * plates — and the claim above becomes false for all eight. That is what makes it a claim.
+     */
+    const forgetful = new Map<string, { width: number; height: number }>();
+    const blind: StubImageLike[] = [];
+    const swallowing: FrameSceneLike = {
+      add: {
+        image: (x, y, key, frame) => {
+          const cut = frame === undefined ? undefined : forgetful.get(frame);
+          const image = {
+            kind: "image",
+            x,
+            y,
+            key,
+            frame,
+            width: cut?.width ?? px.width,
+            height: cut?.height ?? px.height,
+            displayWidth: cut?.width ?? px.width,
+            displayHeight: cut?.height ?? px.height,
+            originX: 0.5,
+            destroyed: false,
+            setOrigin: (ox: number): unknown => {
+              image.originX = ox;
+              return image;
+            },
+            setDisplaySize: (w: number, h: number): unknown => {
+              image.displayWidth = w;
+              image.displayHeight = h;
+              return image;
+            },
+            destroy: (): void => {
+              image.destroyed = true;
+            },
+          } as StubImageLike;
+          blind.push(image);
+          return image;
+        },
+      },
+      textures: {
+        exists: () => true,
+        get: () => ({
+          // `has` answers false forever and `add` drops the cut on the floor — the ONE difference
+          // between this and `bareScene`. Everything else about it is honest.
+          has: () => false,
+          add: () => ({}),
+          get: (frame?: string) =>
+            frame === undefined ? { width: px.width, height: px.height } : forgetful.get(frame),
+        }),
+      },
+    };
+
+    const rect: FrameRect = { x: 0, y: 0, width: balance.map.virtualWidth, height: balance.map.virtualHeight };
+    const drew = drawFrameRing(swallowing, UI_FRAME_ASSET_ID.ledgerPanel, rect);
+    expect(drew, "the blind twin refused to draw at all — it is not the same path").not.toBeNull();
+    expect(blind).toHaveLength(8);
+    // UNSATISFIABLE under the twin: every piece reports the whole plate.
+    for (const piece of blind) {
+      expect(piece.width > FRAME_CHROME_PX && piece.height > FRAME_CHROME_PX).toBe(true);
+    }
+
+    // …and the honest recorder satisfies it, over the identical call sequence.
+    const honest = bareScene([UI_FRAME_ASSET_ID.ledgerPanel]);
+    drawFrameRing(honest.scene, UI_FRAME_ASSET_ID.ledgerPanel, rect);
+    expect(honest.drawn).toHaveLength(8);
+    for (const piece of honest.drawn) {
+      expect(piece.width > FRAME_CHROME_PX && piece.height > FRAME_CHROME_PX).toBe(false);
+    }
   });
 });
 

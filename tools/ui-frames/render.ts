@@ -26,7 +26,11 @@ import { dirname, join } from "node:path";
 import sharp from "sharp";
 
 import { Canvas, scale } from "./raster.ts";
-import { buildAll, SLICE_PX, type BuiltFrame } from "./frames.ts";
+// TWO CONSTANTS, and this file is the reason they had to be split: it is the only module that needs
+// BOTH. `reportFrames` prints the SLICER's boundaries (FRAME_CHROME_PX — what the widget cuts at),
+// `checkEdgesRepeat` sweeps OUTSIDE THE CORNER MARK (INVARIANT_MARGIN_PX). They were one number
+// named `SLICE_PX = 10`, which printed a boundary the shipped slicer does not use. See frames.ts.
+import { buildAll, FRAME_CHROME_PX, INVARIANT_MARGIN_PX, type BuiltFrame } from "./frames.ts";
 import { DARK, LIGHT, framePairings, measure, THEMES, type FrameTheme } from "./theme.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -87,8 +91,12 @@ function reportFrames(theme: FrameTheme, frames: readonly BuiltFrame[]): boolean
     const opaque = [...colours].filter((k) => !k.endsWith(",0")).length;
     const over = opaque > COLOUR_BUDGET;
     if (over) ok = false;
+    // FRAME_CHROME_PX, not the invariance margin: this column is what `game/ui/FramePanel.ts` will
+    // actually cut the texture at, and a printed boundary the drawer does not use is worse than no
+    // column at all — it was printing 10 while the shipped slicer cut at 4.
     const slice = frame.nineSlice
-      ? `x ${SLICE_PX}/${frame.size.width - SLICE_PX}  y ${SLICE_PX}/${frame.size.height - SLICE_PX}`
+      ? `x ${FRAME_CHROME_PX}/${frame.size.width - FRAME_CHROME_PX}  ` +
+        `y ${FRAME_CHROME_PX}/${frame.size.height - FRAME_CHROME_PX}`
       : "fixed 1:1";
     console.log(
       `${pad(frame.size.id, 22)} ${pad(`${frame.size.width}x${frame.size.height}`, 9)} ` +
@@ -103,11 +111,17 @@ function reportFrames(theme: FrameTheme, frames: readonly BuiltFrame[]): boolean
  * different pixels and the frame is only correct in whichever mode the implementer happened to
  * pick.
  *
- * Checked, not asserted in prose: every column of the top and bottom edge strips between the slice
- * boundaries must equal every other, and likewise every row of the left and right strips. It is the
- * one mechanical property of this lane that a reader cannot verify by looking at the picture.
+ * Checked, not asserted in prose: every column of the top and bottom edge strips outside the corner
+ * marks must equal every other, and likewise every row of the left and right strips. It is the one
+ * mechanical property of this lane that a reader cannot verify by looking at the picture.
+ *
+ * THE MARGIN IS NOT THE SLICE. `margin` is {@link INVARIANT_MARGIN_PX} — far enough in to clear the
+ * corner bracket, which is a corner MARK and is deliberately not translation-invariant. Passing
+ * `FRAME_CHROME_PX` here sweeps from x = 4, lands inside the bracket, and reddens on correct art.
+ * The parameter exists so `tests/unit/ui-frames-slice-constants.test.ts` can drive both values and
+ * prove that — the production call below never passes one.
  */
-function checkEdgesRepeat(frame: BuiltFrame): string | null {
+export function checkEdgesRepeat(frame: BuiltFrame, margin: number = INVARIANT_MARGIN_PX): string | null {
   if (!frame.nineSlice) return null;
   const c = frame.canvas;
   const colOf = (x: number, y0: number, y1: number): string => {
@@ -120,21 +134,21 @@ function checkEdgesRepeat(frame: BuiltFrame): string | null {
     for (let x = x0; x < x1; x += 1) s += c.get(x, y).join(",") + ";";
     return s;
   };
-  const first = colOf(SLICE_PX, 0, SLICE_PX);
-  for (let x = SLICE_PX + 1; x < c.width - SLICE_PX; x += 1) {
-    if (colOf(x, 0, SLICE_PX) !== first) return `top edge is not translation-invariant at x=${x}`;
+  const first = colOf(margin, 0, margin);
+  for (let x = margin + 1; x < c.width - margin; x += 1) {
+    if (colOf(x, 0, margin) !== first) return `top edge is not translation-invariant at x=${x}`;
   }
-  const firstBottom = colOf(SLICE_PX, c.height - SLICE_PX, c.height);
-  for (let x = SLICE_PX + 1; x < c.width - SLICE_PX; x += 1) {
-    if (colOf(x, c.height - SLICE_PX, c.height) !== firstBottom) return `bottom edge varies at x=${x}`;
+  const firstBottom = colOf(margin, c.height - margin, c.height);
+  for (let x = margin + 1; x < c.width - margin; x += 1) {
+    if (colOf(x, c.height - margin, c.height) !== firstBottom) return `bottom edge varies at x=${x}`;
   }
-  const firstLeft = rowOf(SLICE_PX, 0, SLICE_PX);
-  for (let y = SLICE_PX + 1; y < c.height - SLICE_PX; y += 1) {
-    if (rowOf(y, 0, SLICE_PX) !== firstLeft) return `left edge varies at y=${y}`;
+  const firstLeft = rowOf(margin, 0, margin);
+  for (let y = margin + 1; y < c.height - margin; y += 1) {
+    if (rowOf(y, 0, margin) !== firstLeft) return `left edge varies at y=${y}`;
   }
-  const firstRight = rowOf(SLICE_PX, c.width - SLICE_PX, c.width);
-  for (let y = SLICE_PX + 1; y < c.height - SLICE_PX; y += 1) {
-    if (rowOf(y, c.width - SLICE_PX, c.width) !== firstRight) return `right edge varies at y=${y}`;
+  const firstRight = rowOf(margin, c.width - margin, c.width);
+  for (let y = margin + 1; y < c.height - margin; y += 1) {
+    if (rowOf(y, c.width - margin, c.width) !== firstRight) return `right edge varies at y=${y}`;
   }
   return null;
 }

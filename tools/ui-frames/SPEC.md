@@ -148,9 +148,18 @@ pixel-rounded. They are not — the reference shows every building's keyline tur
 corner — and at 1× the missing pixel read as damage rather than rounding. A chamfer is a Gen 3 habit.
 
 **The one mark that is ours** is a **corner bracket**: the outer ring's colour laid over the inner
-ring for **6px along each axis** from each corner, so the corner thickens to the full 4px for a short
+ring for **8px along each axis** from each corner, so the corner thickens to the full 4px for a short
 run and reads as a reinforced tab, the way a field register's corners are. Hold content distance, not
 visual distance — the idiom stays Gold's; the corner is where this game signs it.
+
+> ⚠ **6 AND 8 ARE THE SAME MARK FROM TWO ORIGINS, and this note had the colours backwards.** Read off
+> `assets/final/ui-frame/ui-dialogue-box.png` at y = 2 (a bracket row): `#040308` — the OUTER ring's
+> colour — runs x = 0…7, and the inner ring's `#74564e` RESUMES at x = 8. So it is not `#74564e` that
+> "runs to 8"; `#74564e` is what the bracket is painted over. `frames.ts` `BRACKET_LEN = 6` measures
+> the run from the inner ring's corner (x = `RING_PX` = 2), which lands at 8 from the edge. Both
+> numbers are right about different things; **8 from the edge is the one a sweep starting at the edge
+> has to clear**, and it is what `INVARIANT_MARGIN_PX` is sized against. All three nine-sliced frames
+> agree on 8; the sign card is a different idiom (§4.6) and does not carry a bracket at all.
 
 **Colour counts, measured** (`render.ts` prints them): 3 for the five plain frames, 4 for the ledger
 and the dex card (they add the recess fill), 5 for the sign card, 3 for the banner. The brief's budget
@@ -165,17 +174,56 @@ carry interior structure — a recess, a rule, a wordmark — that a stretching 
 
 | frame | file | mode | slice boundaries | drawn at |
 |---|---|---|---|---|
-| `ui-dialogue-box` | 480×96 | **nine-slice** | x **10** / **470**, y **10** / **86** | 464×68 at (8, 244) |
-| `ui-menu-panel` | 160×320 | **nine-slice** | x **10** / **150**, y **10** / **310** | caller's size |
-| `ui-battle-hud-frame` | 240×64 | **nine-slice** | x **10** / **230**, y **10** / **54** | 150×46 |
+| `ui-dialogue-box` | 480×96 | **nine-slice** | x **4** / **476**, y **4** / **92** | 464×68 at (8, 244) |
+| `ui-menu-panel` | 160×320 | **nine-slice** | x **4** / **156**, y **4** / **316** | caller's size |
+| `ui-battle-hud-frame` | 240×64 | **nine-slice** | x **4** / **236**, y **4** / **60** | 150×46 |
 | `ui-ledger-panel` | 480×320 | fixed 1:1 | — | 480×320 at (0, 0) |
 | `ui-dex-card-frame` | 320×320 | fixed 1:1 | — | 320×320 at (0, 0) |
 | `ui-sign-card-frame` | 240×160 | fixed 1:1 | — | wherever the prop is |
 | `ui-title-banner` | 208×48 | fixed 1:1 | — | 208×48, centred at (240, 46) |
 
-`SLICE_PX = 10`: it has to cover the 4px of chrome plus the 6px corner bracket, and stay small enough
-that the smallest size any of the three is drawn at still has a middle (the combatant card is 46px
-tall — 10 + 10 fixed leaves 26 rows of stretch).
+✅ **LANDED. `SLICE_PX` IS GONE; IT WAS TWO NUMBERS AND IT IS NOW TWO CONSTANTS.** `frames.ts` exports
+`FRAME_CHROME_PX = 4` (the slicer's boundary — where chrome ends) and `INVARIANT_MARGIN_PX = 10` (the
+verifier's sweep — outside the corner mark). `render.ts` prints the first and sweeps with the second;
+`contact-sheet.ts` slices with the first. Each constant carries its own reason, what it is NOT, and
+what breaks if they are unified again, and `tests/unit/ui-frames-slice-constants.test.ts` requires
+each one to FAIL at the other's job so the merge cannot come back green. The rest of this section is
+the argument that produced the split, kept because it is the measurement.
+
+⛔ **THE ORIGINAL REASONING WAS WRONG TWICE OVER** — "it has to cover the 4px of chrome plus the 6px
+corner bracket" — and the second error is the damaging one.
+
+**THE SLICE IS THE CHROME, AND THE CHROME IS 4.** Measured on `assets/final/ui-frame/ui-dialogue-box.png`
+at y = 8, scanning in from the left edge: `#040308` at x = 0–1, `#74564e` at x = 2–3, and plate
+`#faf7eb` from x = 4. So the boundary between chrome and plate is at **4**.
+
+**A corner piece cut at any slice wider than the chrome contains PLATE**, and a nine-slice draws its
+corners at natural size into the corners of whatever it is stretched to. At a 10px slice each of the
+four corners therefore carries a **6×6 block of `#faf7eb`** — the plate colour, which is also the
+invisible-text colour — painted into the panel's corners. At 8 it is a 4×4 block. Only at 4 is the
+corner chrome and nothing else. Counted rather than quoted: `nineSlice`-ing `ui-dialogue-box` down to
+its drawn 464×68 at 10 leaves exactly **36** plate pixels in the top-left corner piece, and **0** at
+`FRAME_CHROME_PX`. `game/ui/FramePanel.ts` slices at 4 and is bound by a pixel sweep over all six PNGs.
+
+**The table above now prints the real boundaries** — x 4 / width−4, y 4 / height−4 — and so does
+`render.ts`'s `slice` column, which used to print 10 while the shipped drawer cut at 4.
+
+⚠ **AND THE TRADE THIS BUYS, recorded rather than glossed:** the bracket runs to 8, so with a 4px slice
+its outer 4px (x = 4…8) falls inside the **stretched edge strip**, not the fixed corner. A stretched
+edge resamples those 4px by the panel's scale factor, so the corner tab does not hold its natural size
+the way the chrome does. That is a real cost of slicing at the chrome width; it is accepted because the
+alternative is a block of invisible-text-coloured plate in every corner, which is worse. Both halves of
+that trade are in the comment on `FRAME_CHROME_PX`, so nobody widens the slice back to make the tab
+crisp on the strength of half of it.
+
+⚠ **AND WHY THE VERIFIER KEEPS 10.** `render.ts`'s translation-invariance check inspects the strip
+*outside* the corner marks, and at 4 it sweeps x = 4…width−4, which includes the bracket — a corner
+mark, deliberately **not** translation-invariant. Driven at `FRAME_CHROME_PX` it reports
+`top edge is not translation-invariant at x=8` on all three sliced frames, and note *which* column
+that is: the sweep anchors on x = 4, inside the bracket, so the first column that disagrees with the
+anchor is the first **correct** one. A verifier run at the slicer's number does not merely go red — it
+names the sound part of the frame as the defect and the mark as the norm, and anyone fixing the art to
+satisfy it would file the bracket off. That inversion is asserted, not described.
 
 **Tile or stretch — it does not matter, and that is checked, not asserted.** Every edge strip of every
 nine-sliced frame is *translation-invariant*: `render.ts` verifies that every column of the top and
@@ -186,8 +234,9 @@ every stretchy frame through it, so the sheet shows the frame at the size the *w
 not at the size the PNG happens to be.
 
 **Never resample.** `pixelArt: true` means the only legal transform is integer nearest-neighbour.
-Phaser's `NineSlice` game object with `leftWidth/rightWidth/topHeight/bottomHeight` all `10` does the
-right thing; a plain `Image` with `setDisplaySize` does not and will smear the keyline.
+Phaser's `NineSlice` game object with `leftWidth/rightWidth/topHeight/bottomHeight` all
+`FRAME_CHROME_PX` (**4**, never the verifier's 10) does the right thing; a plain `Image` with
+`setDisplaySize` does not and will smear the keyline.
 
 ---
 

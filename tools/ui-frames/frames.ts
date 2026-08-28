@@ -118,8 +118,8 @@ export const TITLE_BANNER: FrameSize = {
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
- * The thickness of ONE ring. Two rings, so {@link CHROME_PX} of chrome, and text is never drawn
- * inside it.
+ * The thickness of ONE ring. Two rings, so {@link FRAME_CHROME_PX} of chrome, and text is never
+ * drawn inside it.
  *
  * 2, not 1, and the reason is measured rather than aesthetic. Gold's text box carries a 1px border
  * on a 160×144 screen. build-doc §9 records that this project's art pixel is "1 native px, tile 16
@@ -130,19 +130,72 @@ export const TITLE_BANNER: FrameSize = {
  */
 export const RING_PX = 2;
 
-/** Chrome thickness: the outer ring plus the inner ring. Text is never drawn inside it. */
-export const CHROME_PX = RING_PX * 2;
+/* ────────────────────────────────────────────────────────────────────────────
+ * TWO NUMBERS, TWO JOBS. They were one constant called `SLICE_PX = 10` and the collapse cost real
+ * pixels: read both comments below before touching either, and never re-merge them.
+ * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
- * The nine-slice corner, in pixels, for the three stretching frames.
+ * WHERE CHROME ENDS. The slicer's boundary: the nine-slice corner for the three stretching frames,
+ * and the inset every rule and recess band starts at. Text is never drawn inside it.
  *
- * It has to cover everything that is NOT translation-invariant — the 4px of chrome plus the corner
- * bracket, which runs {@link BRACKET_LEN} along each axis from the inner ring's corner — and it has
- * to stay small enough that the smallest size any of these three is drawn at still has a middle. The
- * combatant card is 46px tall (`BattleHud` `CARD_GEOMETRY.cardH`), so 10 + 10 = 20 fixed rows leave
- * 26 of stretch. A short menu — three rows, about 44px — leaves 24.
+ * MEASURED, not chosen. On all five PANEL frames in `assets/final/ui-frame/`, a scanline at y = 8
+ * reads `#040308` at x = 0–1 (outer ring), `#74564e` at x = 2–3 (inner ring), plate `#faf7eb` from
+ * x = 4. Two rings of {@link RING_PX} and nothing else, so the boundary is `RING_PX * 2`. (The sixth
+ * row, `ui-sign-card-frame`, is a 7px wood bevel and is never sliced — see {@link signCardFrame}.)
+ *
+ * IT IS NOT the verifier's sweep margin. See {@link INVARIANT_MARGIN_PX}.
+ *
+ * WHAT BREAKS IF THEY ARE UNIFIED AGAIN, at this value: `render.ts`'s `checkEdgesRepeat` would sweep
+ * x = 4 … width − 4, which contains the corner bracket. A bracket is a corner MARK and is
+ * deliberately not translation-invariant, so the check would go red on correct art.
+ *
+ * THE TRADE THIS NUMBER BUYS — both halves, so nobody widens it back to make the bracket crisp:
+ *   · COST: the bracket runs to x = 8, so a 4px cut leaves its outer 4px inside the STRETCHED edge
+ *     strip rather than the fixed corner. A stretched strip is resampled by the panel's scale
+ *     factor, so the corner tab does not hold its natural size the way the chrome does — a panel
+ *     drawn narrower than its texture wears a slightly short tab.
+ *   · WHY IT IS ACCEPTED ANYWAY: a corner piece cut at any slice WIDER than the chrome contains
+ *     PLATE. At 10 each of the four corners carries a 6×6 block of `#faf7eb`, at 8 a 4×4 block —
+ *     painted into the panel's corners over whatever the screen already drew there, in the exact hex
+ *     `game/survey-view.ts` `SCREEN_HEX.ink` and `game/ui/Palette.ts` `roleHex("text")` draw type
+ *     in. A 4px mark changing length loses to a block of invisible-text colour in every corner.
+ *
+ * DUPLICATED, NOT IMPORTED, and that is checked rather than assumed. `game/ui/FramePanel.ts` exports
+ * `FRAME_CHROME_PX = 4` under this same name and slices at it, but importing it here is forbidden:
+ * `tools/ui-frames/` is node-hosted (no `index.html`, no `vite.config.ts`), so
+ * `tests/gates/guardrails.test.ts` `no_phaser_in_node_reachable` walks it, and `FramePanel.ts` opens
+ * with `import type PhaserNS from "phaser"` — which that gate's parser counts as an engine import,
+ * type-only or not. Verified by adding the import and watching the gate go red. The two sites are
+ * bound by MEASUREMENT instead of by a symbol: `tests/unit/ui-frame-panel.test.ts` re-derives the
+ * game-side number from the shipped PNGs, `tests/unit/ui-frames-slice-constants.test.ts` this one.
  */
-export const SLICE_PX = 10;
+export const FRAME_CHROME_PX = RING_PX * 2;
+
+/**
+ * OUTSIDE THE CORNER MARK. The verifier's sweep margin, and nothing else — `render.ts`'s
+ * `checkEdgesRepeat` is its only consumer. It sets how far in from each edge the
+ * translation-invariance sweep starts AND how deep the strip it compares is.
+ *
+ * MEASURED floor is 8. {@link plate} lays the outer ring's colour over the inner ring for
+ * {@link BRACKET_LEN} from the inner ring's corner — from `RING_PX` = 2, so x = 2…7 — and on every
+ * shipped frame rows 2–3 read `#040308` out to x = 7 with `#74564e` resuming at x = 8. So x = 8 is
+ * the first column of a settled edge and this is that floor plus 2px of slack. (`SPEC.md` said the
+ * bracket was 6px from the edge. That was the number the generator was ASKED for, written down as
+ * though it were the number that came back off the raster. It is 8.)
+ *
+ * IT IS NOT a slice boundary. Never pass it to `nineSlice()` or to `game/ui/FramePanel.ts`'s drawer.
+ * See {@link FRAME_CHROME_PX}.
+ *
+ * WHAT BREAKS IF THEY ARE UNIFIED AGAIN, at this value: every corner piece is cut 10px wide and
+ * carries a 6×6 block of plate colour into the panel's corners — the exact defect
+ * {@link FRAME_CHROME_PX} exists to prevent, in the one colour the panels draw text in.
+ *
+ * A LITERAL, deliberately, rather than `RING_PX + BRACKET_LEN`: a verifier that recomputes its own
+ * tolerance from the thing it is verifying verifies nothing. If the bracket ever grows past 10 the
+ * check goes red and names the column — which is the correct outcome, not a maintenance chore.
+ */
+export const INVARIANT_MARGIN_PX = 10;
 
 /**
  * The corner bracket: how far the OUTER ring's colour runs along the INNER ring from each corner.
@@ -152,6 +205,12 @@ export const SLICE_PX = 10;
  * where this game signs it — every corner reads as a reinforced tab, the way a field register's
  * corners are. Six pixels along each axis at 1× is the shortest run that is unmistakably deliberate
  * rather than an artefact of the two rings meeting.
+ *
+ * SIX FROM THE INNER RING'S CORNER IS EIGHT FROM THE EDGE, and the two numbers get confused because
+ * they are quoted from different origins. {@link plate} starts the run at `x = RING_PX`, so it
+ * covers x = 2…7 and the settled edge resumes at x = 8. `SPEC.md` §2's "8px along each axis" and
+ * this 6 are the same mark measured from the outside and from the inside. {@link INVARIANT_MARGIN_PX}
+ * is sized against the 8.
  */
 const BRACKET_LEN = 6;
 
@@ -186,7 +245,7 @@ export function plate(c: Canvas, x: number, y: number, w: number, h: number, the
   // habit. It also read as a chipped corner at 1× rather than as a rounding.
   //
   // The bracket is what the corner gets instead: the outer ring's colour, laid over the inner ring
-  // for BRACKET_LEN along each axis, so the corner thickens to the full CHROME_PX for a short run.
+  // for BRACKET_LEN along each axis, so the corner thickens to the full FRAME_CHROME_PX for a short run.
   const corners = [
     [x + RING_PX, y + RING_PX, 1, 1],
     [x + w - RING_PX - 1, y + RING_PX, -1, 1],
@@ -204,7 +263,7 @@ export function plate(c: Canvas, x: number, y: number, w: number, h: number, the
 }
 
 /** A 1px horizontal separator spanning the plate's interior. */
-function rule(c: Canvas, y: number, theme: FrameTheme, left = CHROME_PX, right = c.width - CHROME_PX): void {
+function rule(c: Canvas, y: number, theme: FrameTheme, left = FRAME_CHROME_PX, right = c.width - FRAME_CHROME_PX): void {
   c.hline(left, y, right - left, rgba(themeHex(theme, "rule")));
 }
 
@@ -217,8 +276,8 @@ function rule(c: Canvas, y: number, theme: FrameTheme, left = CHROME_PX, right =
  * the band on the horizontal only gives the recess its read without ever approaching a glyph.
  */
 function recessBand(c: Canvas, y: number, h: number, theme: FrameTheme): void {
-  const left = CHROME_PX;
-  const w = c.width - CHROME_PX * 2;
+  const left = FRAME_CHROME_PX;
+  const w = c.width - FRAME_CHROME_PX * 2;
   const line = rgba(themeHex(theme, "recessLine"));
   c.fillRect(left, y, w, h, rgba(themeHex(theme, "recessFill")));
   c.hline(left, y, w, line);
@@ -310,7 +369,7 @@ function ledgerPanel(size: FrameSize, theme: FrameTheme): Canvas {
   for (let i = 0; i < LEDGER.rows; i += 1) {
     const y = LEDGER.firstRowY + i * LEDGER.rowPitch + LEDGER.rowRuleOffset;
     if (y >= LEDGER.wellY + LEDGER.wellHeight - 1) break;
-    c.hline(CHROME_PX, y, size.width - CHROME_PX * 2, ruleColour);
+    c.hline(FRAME_CHROME_PX, y, size.width - FRAME_CHROME_PX * 2, ruleColour);
   }
   rule(c, LEDGER.ruleBeforeFooterY, theme);
   return c;
@@ -386,7 +445,7 @@ function dexCardFrame(size: FrameSize, theme: FrameTheme): Canvas {
   for (let i = 0; i < DEX_CARD.bodyLines; i += 1) {
     const y = DEX_CARD.bodyY + i * DEX_CARD.bodyPitch + DEX_CARD.bodyRuleOffset;
     if (y >= DEX_CARD.ruleBeforeFooterY) break;
-    c.hline(CHROME_PX, y, size.width - CHROME_PX * 2, ruleColour);
+    c.hline(FRAME_CHROME_PX, y, size.width - FRAME_CHROME_PX * 2, ruleColour);
   }
   rule(c, DEX_CARD.ruleBeforeFooterY, theme);
   return c;

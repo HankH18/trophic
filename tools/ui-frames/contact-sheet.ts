@@ -40,7 +40,12 @@ import {
 } from "../../game/survey-view.ts";
 
 import { Canvas, nineSlice, rgba, scale } from "./raster.ts";
-import { buildAll, DEX_CARD, LEDGER, SLICE_PX, virtualScreen, type BuiltFrame } from "./frames.ts";
+// FRAME_CHROME_PX, never INVARIANT_MARGIN_PX. Every `nineSlice()` below is the SLICER, and the whole
+// point of this sheet is that it shows the frame at the size — and cut at the boundary — the widget
+// will actually draw it at. `game/ui/FramePanel.ts` cuts at the chrome; so does this. Sliced at the
+// verifier's 10 the sheet would show four 6×6 plate blocks the shipped panels do not have, which is
+// a contact sheet lying about the thing it exists to let someone judge. See `frames.ts`.
+import { buildAll, DEX_CARD, FRAME_CHROME_PX, LEDGER, virtualScreen, type BuiltFrame } from "./frames.ts";
 import { PROPOSED_PLATE_INK_DIM, THEMES, proposedInkDimHex, themeHex, type FrameTheme } from "./theme.ts";
 import { roleHex } from "../../game/ui/Palette.ts";
 import { textLayer, withText, type TextRun } from "./text.ts";
@@ -234,7 +239,7 @@ async function screenDialogue(frames: FrameMap, theme: FrameTheme): Promise<Scre
   const box = dialogueRect();
   const src = frames.get("ui-dialogue-box");
   if (!src) throw new Error("no dialogue frame");
-  const sliced = nineSlice(src.canvas, box.w, box.h, SLICE_PX);
+  const sliced = nineSlice(src.canvas, box.w, box.h, FRAME_CHROME_PX);
   const { speaker, body } = dialogueSample();
   const columns = Math.floor((box.w - DIALOGUE_STYLE.pad * 2) / DIALOGUE_STYLE.charWidth);
   const rows = wrap(body, columns).slice(0, DIALOGUE_STYLE.bodyLines);
@@ -293,7 +298,7 @@ async function screenSessionMenu(frames: FrameMap, theme: FrameTheme): Promise<S
   const h = SESSION_PANEL.pad * 2 + SESSION_PANEL.rowH * rows.length;
   const x = SCREEN.width - SESSION_PANEL.w - SESSION_PANEL.gap;
   const y = SESSION_PANEL.gap;
-  const panel = nineSlice(src.canvas, SESSION_PANEL.w, h, SLICE_PX);
+  const panel = nineSlice(src.canvas, SESSION_PANEL.w, h, FRAME_CHROME_PX);
 
   // The focused row's detail goes in a one-line strip at the foot of the screen, which is where
   // Gold puts it and where it stops being a second column fighting the labels for 132px.
@@ -301,7 +306,7 @@ async function screenSessionMenu(frames: FrameMap, theme: FrameTheme): Promise<S
   const stripH = DIALOGUE_STYLE.pad * 2 + DIALOGUE_STYLE.lineHeight;
   const stripY = SCREEN.height - DIALOGUE_STYLE.margin - stripH;
   const stripW = SCREEN.width - DIALOGUE_STYLE.margin * 2;
-  const stripCanvas = nineSlice(strip.canvas, stripW, stripH, SLICE_PX);
+  const stripCanvas = nineSlice(strip.canvas, stripW, stripH, FRAME_CHROME_PX);
 
   // THE TWO CLOSED ROWS ARE PAINTED DIFFERENTLY ON PURPOSE — this is the A/B for
   // `PROPOSED_PLATE_INK_DIM`. BAG takes the role that exists (`cursorInkDim`, c19, 5.68 : 1) and
@@ -356,9 +361,9 @@ async function screenBattle(frames: FrameMap, theme: FrameTheme): Promise<Screen
   const playerX = SCREEN.width - BATTLE.cardW - BATTLE.edge;
   const playerY = menuY - BATTLE.cardH - BATTLE.edge;
 
-  const card = await canvasPng(nineSlice(hud.canvas, BATTLE.cardW, BATTLE.cardH, SLICE_PX));
-  const menu = await canvasPng(nineSlice(menuSrc.canvas, BATTLE.menuW, menuH, SLICE_PX));
-  const msg = await canvasPng(nineSlice(msgSrc.canvas, SCREEN.width, BATTLE.msgH, SLICE_PX));
+  const card = await canvasPng(nineSlice(hud.canvas, BATTLE.cardW, BATTLE.cardH, FRAME_CHROME_PX));
+  const menu = await canvasPng(nineSlice(menuSrc.canvas, BATTLE.menuW, menuH, FRAME_CHROME_PX));
+  const msg = await canvasPng(nineSlice(msgSrc.canvas, SCREEN.width, BATTLE.msgH, FRAME_CHROME_PX));
 
   const b = battleStrings();
   const cardRuns = (x: number, y: number, title: string, hp: string): TextRun[] => [
@@ -487,7 +492,7 @@ async function screenDex(frames: FrameMap, theme: FrameTheme): Promise<Screen> {
   const under = rest.slice(DEX_CARD.sideLines);
 
   const cardX = 0;
-  const list = nineSlice(listSrc.canvas, DEX_LIST.w, SCREEN.height, SLICE_PX);
+  const list = nineSlice(listSrc.canvas, DEX_LIST.w, SCREEN.height, FRAME_CHROME_PX);
   const allDexIds = content.species.flatMap((sp) => sp.dexIds);
   const shown = allDexIds.slice(0, DEX_LIST.rows);
 
@@ -564,7 +569,7 @@ async function screenTitle(frames: FrameMap, theme: FrameTheme): Promise<Screen>
   ];
   const detailLines = rows.filter(([, d]) => d).length;
   const panelH = TITLE_MENU.pad * 2 + rows.length * TITLE_MENU.rowPitch + detailLines * 12;
-  const panel = nineSlice(panelSrc.canvas, TITLE_MENU.w, panelH, SLICE_PX);
+  const panel = nineSlice(panelSrc.canvas, TITLE_MENU.w, panelH, FRAME_CHROME_PX);
 
   const runs: TextRun[] = [];
   let ry = TITLE_MENU.y + TITLE_MENU.pad;
