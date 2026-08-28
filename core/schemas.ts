@@ -359,6 +359,8 @@ const zBalanceShape = {
     critChanceBase: zFrac,
     critChancePerInstinct: z.number().min(0),
     minDamage: z.number().min(0),
+    // Strictly positive: a zero divisor is not "no scaling", it is every hit becoming Infinity.
+    divisor: z.number().positive(),
   }),
   status: z.object({
     burnChipFracPerTurn: zFrac,

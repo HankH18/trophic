@@ -219,6 +219,15 @@ describe("catch chance (build-doc §7.4)", () => {
  *
  * Every expected number below is hand-computed in the comment above it, all the way from
  * data/species.json's base stats through bible §2's effective-stat chain.
+ *
+ * The effective-stat arithmetic in this section was re-derived when Hank raised
+ * `stats.levelCoefficient` 0.02 → 0.1 as a temporary stopgap: levelMult is now 1 + 0.1 × level, so
+ * an adult at level 20 carries ×3.0 where it carried ×1.4. Every expectation below is COMPUTED
+ * FROM THE FORMULA and then checked against the code, never read off it; the ones that moved say so
+ * at the assertion. Note how few moved. The level term is common to all five stats and cancels out
+ * of the share, so a line whose effective stats land on whole numbers scores exactly what it scored
+ * before — which is the property this whole section exists to state. Only lines carrying the
+ * metamorphic ×1.15, where the five roundings do not cancel, could move at all.
  * ════════════════════════════════════════════════════════════════════════════ */
 
 /** A catcher built the way the reducer builds one — the player side of a wild encounter. */
@@ -249,34 +258,41 @@ function traitNamed(id: string): Trait {
 describe("the bait term's Instinct factor (build-doc §7.4 as amended)", () => {
   it("is 1 + 3 × (insShare − 0.15) — table-driven, hand-computed across the Instinct range", () => {
     // Every row is an ADULT at level 20, so the effective-stat chain is base × ageMult 1.0 ×
-    // levelMult (1 + 0.02 × 20) = base × 1.4, plus ×1.15 where the line is metamorphic and ×1.1
+    // levelMult (1 + 0.1 × 20) = base × 3.0, plus ×1.15 where the line is metamorphic and ×1.1
     // where the adult form is Beast. Those factors are COMMON to all five stats, so they cancel out
     // of the share; the share is the base-stat allocation, which is the whole point of the shape.
     const rows: readonly [string, number, number, string][] = [
-      // Fenmaw  80/90/65/35/30 (Water)        ×1.4 ⇒ 112/126/91/49/42, total 420
-      //   share 42/420 = 0.10        ⇒ 1 + 3 × (0.10 − 0.15)        = 0.85
+      // Fenmaw  80/90/65/35/30 (Water)        ×3.0 ⇒ 240/270/195/105/90, total 900
+      //   share 90/900 = 0.10        ⇒ 1 + 3 × (0.10 − 0.15)        = 0.85
       ["fenmaw-line", 30, 0.85, "the roster floor: 30 of 300 points in Instinct"],
-      // Barkhide 90/60/85/35/30 (Plant/Earth) ×1.4 ⇒ 126/84/119/49/42, total 420
-      //   share 42/420 = 0.10        ⇒ 0.85 — a different animal, the same ALLOCATION
+      // Barkhide 90/60/85/35/30 (Plant/Earth) ×3.0 ⇒ 270/180/255/105/90, total 900
+      //   share 90/900 = 0.10        ⇒ 0.85 — a different animal, the same ALLOCATION
       ["barkhide-line", 30, 0.85, "same allocation as Fenmaw, same answer"],
-      // Mirefin 65/70/50/75/40 (Water/Poison, metamorphic) ×1.15×1.4 ⇒ 105/113/80/121/64, total 483
-      //   share 64/483 = 0.1325052   ⇒ 1 + 3 × (−0.0174948)         = 0.9475155
-      ["mirefin-line", 40, 0.9475155, "rounding of five integers moves the share off 40/300"],
-      // Webvern 60/70/45/80/45 (Poison)       ×1.4 ⇒ 84/98/63/112/63, total 420
-      //   share 63/420 = 0.15 EXACTLY ⇒ 1 + 3 × 0                   = 1.00
+      // Mirefin 65/70/50/75/40 (Water/Poison, metamorphic) ×1.15×3.0 ⇒ 224/242/172/259/138,
+      // total 1035 — and 1035 is 300 × 3.45 and 138 is 40 × 3.45, so at this level multiplier the
+      // five roundings happen to cancel and the share lands back ON the base allocation:
+      //   share 138/1035 = 40/300 = 0.1333333 ⇒ 1 + 3 × (−0.0166667) = 0.95
+      // [levelCoefficient 0.02 → 0.1, Hank's stopgap: 0.9475155 → 0.95, derived above, not observed.
+      //  At ×1.4 the roundings did NOT cancel (105/113/80/121/64, total 483, share 64/483) — so the
+      //  row's old claim that rounding moves the share off 40/300 is what stopped being true here,
+      //  not the shape being tested. It is still the only metamorphic row and still the only row
+      //  whose answer is not fixed by the base allocation alone.]
+      ["mirefin-line", 40, 0.95, "the metamorphic ×1.15 rides on top of the level term"],
+      // Webvern 60/70/45/80/45 (Poison)       ×3.0 ⇒ 180/210/135/240/135, total 900
+      //   share 135/900 = 0.15 EXACTLY ⇒ 1 + 3 × 0                  = 1.00
       ["webvern-line", 45, 1.0, "the roster MEDIAN allocation — the pivot, unchanged from before"],
-      // Umbrat  75/55/70/45/55 (Dark)          ×1.4 ⇒ 105/77/98/63/77, total 420
-      //   share 77/420 = 0.1833333   ⇒ 1 + 3 × 0.0333333            = 1.10
+      // Umbrat  75/55/70/45/55 (Dark)          ×3.0 ⇒ 225/165/210/135/165, total 900
+      //   share 165/900 = 0.1833333  ⇒ 1 + 3 × 0.0333333            = 1.10
       // REPLACES Sporantle, which held this row at base ins 65. T-11 re-spent the Producer template
       // — a zero-sum transfer of 20 points off Instinct onto Attack — so Sporantle is now
-      // 85/60/75/35/45: ×1.4 ⇒ 119/84/105/49/63, share 63/420 = 0.15 EXACTLY, multiplier 1.00. It no
+      // 85/60/75/35/45: ×3.0 ⇒ 255/180/225/105/135, share 135/900 = 0.15 EXACTLY, multiplier 1.00. It no
       // longer demonstrates an above-pivot buy; it ties Webvern ON the pivot, which the row above
       // already states, so the row would have stopped testing what this table exists to test.
       // Umbrat is the largest Instinct allocation the roster still carries under Carricrow's
       // ceiling, so a strictly-above-pivot row survives and the floor-to-ceiling span is unchanged.
       ["umbrat-line", 55, 1.1, "tied with Gloomoth for the roster's second-highest Instinct buy, now the Producers have stopped competing for it"],
-      // Carricrow 50/60/45/75/70 (Dark/Wind)  ×1.4 ⇒ 70/84/63/105/98, total 420
-      //   share 98/420 = 0.2333333   ⇒ 1 + 3 × 0.0833333            = 1.25
+      // Carricrow 50/60/45/75/70 (Dark/Wind)  ×3.0 ⇒ 150/180/135/225/210, total 900
+      //   share 210/900 = 0.2333333  ⇒ 1 + 3 × 0.0833333            = 1.25
       ["carricrow-line", 70, 1.25, "the roster ceiling: 70 of 300 points in Instinct"],
     ];
     expect(B.catch.instinctBaitSlope).toBe(3);
@@ -293,7 +309,7 @@ describe("the bait term's Instinct factor (build-doc §7.4 as amended)", () => {
   });
 
   it("leaves a MID-Instinct creature exactly where the pre-amendment formula had it", () => {
-    // Webvern's share is 63/420 = 0.15 = instinctBaitPivot, so its factor is exactly 1 and every
+    // Webvern's share is 135/900 = 0.15 = instinctBaitPivot, so its factor is exactly 1 and every
     // catch it makes is bit-for-bit the number this file asserted before the amendment.
     const mid = catcher("webvern-line", "A", 20);
     expect(catchInstinctMultiplier(mid, B)).toBe(1);
@@ -323,24 +339,31 @@ describe("the bait term's Instinct factor (build-doc §7.4 as amended)", () => {
   });
 
   it("reads ALLOCATION, not the raw stat — so it does not become a level-scaled global catch buff", () => {
-    // This is the reason the term is a share. Webvern's RAW effective Instinct swings by 2.03× over
-    // a playthrough: J at level 1 is 45 × 0.875 × 1.02 = 40.1625 → 40, A at level 40 is 45 × 1.8 = 81.
+    // This is the reason the term is a share, and raising `stats.levelCoefficient` 0.02 → 0.1 has
+    // made the reason FOUR TIMES stronger rather than weaker. Webvern's RAW effective Instinct now
+    // swings by 5.23× over a playthrough: J at level 1 is 45 × 0.875 × (1 + 0.1 × 1) = 45 × 0.875 ×
+    // 1.1 = 43.3125 → 43, and A at level 40 is 45 × 1.0 × (1 + 0.1 × 40) = 45 × 5.0 = 225 exactly.
     // A term reading the raw stat would hand a level-40 party a catch rate the level-1 one cannot
     // have, which is a global buff wearing a rebalance's clothes. The SHARE moves by under 1%.
-    // (The swing was 2.38× before T-10 halved the age multiplier's deviation from neutral, J
-    // 0.75 → 0.875; the juvenile's raw stat rose, so the raw-vs-share gap narrowed without closing.)
-    expect(catcher("webvern-line", "J", 1).stats.ins).toBe(40);
-    expect(catcher("webvern-line", "A", 40).stats.ins).toBe(81);
-    expect(catcher("webvern-line", "A", 40).stats.ins / catcher("webvern-line", "J", 1).stats.ins).toBeCloseTo(2.025, 6);
+    // (T-10's halving of the age multiplier's deviation from neutral, J 0.75 → 0.875, still narrows
+    // the raw swing without closing it: at J 0.75 the juvenile would be 45 × 0.75 × 1.1 = 37.125 →
+    // 37 and the swing 225/37 = 6.08×.)
+    // [levelCoefficient 0.02 → 0.1, Hank's stopgap: 40 → 43, 81 → 225, 2.025 → 5.232558. All three
+    //  are derived from the chain above, not observed; they were correct at 0.02 and only stale now.]
+    expect(catcher("webvern-line", "J", 1).stats.ins).toBe(43);
+    expect(catcher("webvern-line", "A", 40).stats.ins).toBe(225);
+    expect(catcher("webvern-line", "A", 40).stats.ins / catcher("webvern-line", "J", 1).stats.ins).toBeCloseTo(5.232558, 6);
     const configs: readonly [AgeClass, number][] = [["J", 1], ["J", 4], ["A", 10], ["A", 20], ["E", 34], ["A", 40]];
     for (const [age, level] of configs) {
       // The residual is integer rounding of five effective stats, nothing else: age, level and the
       // metamorphic and Beast multipliers are common factors and cancel exactly. The worst case
-      // over the whole roster is the juvenile ×0.875, and it costs 0.63% (0.006291, at thornlet J1;
-      // webvern's own peak is 0.002632 at J4) — against the 102% swing a raw-stat reading would
-      // have produced over these same six configurations, where webvern's ins runs 40 → 81.
-      // The 0.01 bound below is UNCHANGED by T-10: the halved age multiplier moved the worst
-      // residual 0.56% → 0.63%, and the bound had headroom for it.
+      // over the whole roster is the juvenile ×0.875, and it costs 0.48% (0.004844, at cindril J1;
+      // webvern's own peak is 0.002083 at J1) — against the 423% swing a raw-stat reading would
+      // have produced over these same six configurations, where webvern's ins runs 43 → 225.
+      // The 0.01 bound below is UNCHANGED by levelCoefficient 0.02 → 0.1, and now has MORE room,
+      // not less: a bigger common multiplier makes the five effective stats larger, so a rounding
+      // of at most half a point is a smaller fraction of the total. The worst residual fell
+      // 0.63% → 0.48% (and its owner moved from thornlet J1 to cindril J1).
       const drift = Math.abs(catchInstinctMultiplier(catcher("webvern-line", age, level), B) - 1);
       expect(drift, `webvern ${age}${String(level)} drifts off the pivot by ${drift.toFixed(5)}`).toBeLessThan(0.01);
     }
@@ -364,11 +387,15 @@ describe("the bait term's Instinct factor (build-doc §7.4 as amended)", () => {
     const plain = catchInstinctMultiplier(catcher("webvern-line", "A", 20), B);
     const keen = catchInstinctMultiplier(catcher("webvern-line", "A", 20, [traitNamed("keen-eye")]), B);
     const dull = catchInstinctMultiplier(catcher("webvern-line", "A", 20, [traitNamed("dulled-sense")]), B);
-    // Keen Eye: ins 63 → raw 63 + 6.3 = 69.3 → 69, total 84+98+63+112+69 = 426.
-    //   share 69/426 = 0.1619718 ⇒ 1 + 3 × 0.0119718 = 1.0359155
-    expect(keen).toBeCloseTo(1.0359155, 7);
-    // Dulled Sense: 63 − 6.3 = 56.7 → 57, total 414. share 57/414 = 0.1376812 ⇒ 0.9630435
-    expect(dull).toBeCloseTo(0.9630435, 7);
+    // Webvern A20 is 180/210/135/240/135 (base ×3.0), so the untouched four total 765.
+    // Keen Eye: ins 135 → raw 135 + 13.5 = 148.5 → 149, total 765 + 149 = 914.
+    //   share 149/914 = 0.1630197 ⇒ 1 + 3 × 0.0130197 = 1.0390591
+    // [levelCoefficient 0.02 → 0.1, Hank's stopgap: 1.0359155 → 1.0390591, derived, not observed.]
+    expect(keen).toBeCloseTo(1.0390591, 7);
+    // Dulled Sense: 135 − 13.5 = 121.5 → 122, total 765 + 122 = 887.
+    //   share 122/887 = 0.1375423 ⇒ 1 + 3 × (−0.0124577) = 0.9626268
+    // [same ruling, same derivation: 0.9630435 → 0.9626268, derived, not observed.]
+    expect(dull).toBeCloseTo(0.9626268, 7);
     expect(dull).toBeLessThan(plain);
     expect(plain).toBeLessThan(keen);
   });
@@ -486,6 +513,13 @@ describe("the bait term's Instinct factor (build-doc §7.4 as amended)", () => {
  * Throwing a snare inside the reducer.
  * ════════════════════════════════════════════════════════════════════════════ */
 
+/**
+ * One figure in this section moved when Hank raised `stats.levelCoefficient` 0.02 → 0.1 as a
+ * temporary stopgap: the Puddlisk's lured chance, at the bottom. Every other chance here is thrown
+ * by a Fenmaw, whose effective stats stay whole numbers under the bigger level term, so its
+ * Instinct share is still exactly 0.10 and its 0.85 — and the 0.2125 and 0.2805 built on it — did
+ * not move at all.
+ */
 describe("snare throws (build-doc §7.4 / Hard Req 2)", () => {
   const wild: BattleInput = {
     seed: 21,
@@ -499,8 +533,9 @@ describe("snare throws (build-doc §7.4 / Hard Req 2)", () => {
   it("shakes balance.catch.shakes times, all of which must pass", () => {
     const started = startBattle(wild, CTX);
     // p = 0.25 (J, base snare, no bait, full HP) × the CATCHER's Instinct term (§7.4 as amended).
-    // The thrower is the Fenmaw: base stats 80/90/65/35/30, so its Instinct share is 30/300 = 0.10
-    // exactly at every age and level, and instinctBait = 1 + 3 × (0.10 − 0.15) = 0.85.
+    // The thrower is the Fenmaw at A20: base stats 80/90/65/35/30 × levelMult 3.0 ⇒ 240/270/195/
+    // 105/90, total 900, so its Instinct share is 90/900 = 30/300 = 0.10 on the nose — the level
+    // term is a common factor and cancels — and instinctBait = 1 + 3 × (0.10 − 0.15) = 0.85.
     //   p = 0.25 × 0.85 = 0.2125 ⇒ each shake passes below 0.2125^(1/3) = 0.596742.
     // Three draws under it ⇒ three shakes ⇒ caught.
     // (The literal below is 0.2125 to the last bit the IEEE-754 product actually lands on —
@@ -678,20 +713,26 @@ describe("snare throws (build-doc §7.4 / Hard Req 2)", () => {
     // Lure spends the turn; the wild Mirefin replies with [damage roll, crit].
     const lured = step(started.state, { kind: "move", moveId: "lure" }, scripted([0.5, 0.99]), CTX);
     expect(lured.state.lureActive).toBe(true);
-    // The catcher is the Puddlisk (65/70/50/75/40) at A15: effective 97/105/75/112/60, total 449,
-    // Instinct share 60/449 = 0.1336303, so instinctBait = 1 + 3 × (0.1336303 − 0.15) = 0.9508909.
-    //   0.3 × 1.0 × (1.0 × 0.9508909) × 0.5 × 1.5 = 0.2139504 — the throw sees the lure without
+    // The catcher is the Puddlisk (65/70/50/75/40, metamorphic ⇒ ×1.15) at A15, where levelMult is
+    // 1 + 0.1 × 15 = 2.5, so the chain is ×1.15 × 2.5 = ×2.875:
+    //   65 × 2.875 = 186.875 → 187 · 70 → 201.25 → 201 · 50 → 143.75 → 144 · 75 → 215.625 → 216 ·
+    //   40 → 115.0 → 115, total 187 + 201 + 144 + 216 + 115 = 863.
+    // Instinct share 115/863 = 0.1332561, so instinctBait = 1 + 3 × (0.1332561 − 0.15) = 0.9497683.
+    //   0.3 × 1.0 × (1.0 × 0.9497683) × 0.5 × 1.5 = 0.2136979 — the throw sees the lure without
     // being told about it.
     const thrown = step(lured.state, { kind: "snare", tier: "base" }, scripted([0.1, 0.1, 0.1]), CTX);
     const event = thrown.events.find((e) => e.t === "snareThrown");
     // (Written to the last bit the IEEE-754 chain lands on, so the assertion stays as tight as the
     //  0.225 it replaces — the tolerance is unchanged at 10 decimal places.)
-    expect(event?.t === "snareThrown" ? event.chance : 0).toBeCloseTo(0.21395044543429845, 10);
+    // [levelCoefficient 0.02 → 0.1, Hank's stopgap: 0.21395044543429845 → 0.21369785631517957.
+    //  Derived from the chain above, not observed — this is the one metamorphic thrower in the file,
+    //  so its five roundings are the only thing here the level term does not cancel out of.]
+    expect(event?.t === "snareThrown" ? event.chance : 0).toBeCloseTo(0.21369785631517957, 10);
     // …which is exactly the un-lured chance for the SAME catcher times balance.catch.lureMult.
     const thrower = lured.state.battlers["p"];
     if (!thrower) throw new Error("no catcher");
     expect(catchChance(target("mirefin-line", "A", 6), "base", undefined, false, CTX, "r2", thrower) * B.catch.lureMult).toBeCloseTo(
-      0.21395044543429845,
+      0.21369785631517957,
       10,
     );
   });
@@ -701,18 +742,26 @@ describe("snare throws (build-doc §7.4 / Hard Req 2)", () => {
  * Flee.
  * ════════════════════════════════════════════════════════════════════════════ */
 
+/**
+ * NOTHING in this section changed when Hank raised `stats.levelCoefficient` 0.02 → 0.1 as a
+ * temporary stopgap, and the reason is worth stating: flee reads a RATIO of two Speeds, both taken
+ * at level 10, so the common level multiplier cancels exactly the way it cancels out of the
+ * Instinct share. The two effective Speeds below are twice what they were (levelMult 1.2 → 2.0) and
+ * every probability is unmoved. Only the arithmetic in the comments is restated.
+ */
 describe("flee chance (build-doc §7.4)", () => {
   const skir = () => makeBattler({ uid: "s", lineId: "skir-line", age: "A", level: 10, traits: [] }, "player", CTX, { isWild: false, enteredOnTurn: 1 });
   const fenmaw = () => makeBattler({ uid: "f", lineId: "fenmaw-line", age: "A", level: 10, traits: [] }, "enemy", CTX, { isWild: true, enteredOnTurn: 1 });
 
   it("is 0.4 + 0.4 × (mySpd/theirSpd)", () => {
-    // Fenmaw spd 35 × 1.2 = 42; Skir spd 85 × 1.2 = 102.
-    //   Fenmaw fleeing Skir: 0.4 + 0.4 × (42/102) = 0.5647…
+    // Both at A10, so levelMult = 1 + 0.1 × 10 = 2.0: Fenmaw spd 35 × 2.0 = 70; Skir spd 85 × 2.0 = 170.
+    //   Fenmaw fleeing Skir: 0.4 + 0.4 × (70/170) = 0.4 + 0.4 × 0.4117647 = 0.5647…
+    //   (70/170 is 7/17, exactly what 42/102 was at levelCoefficient 0.02 — the ratio is unmoved.)
     expect(fleeChance(fenmaw(), skir(), B)).toBeCloseTo(0.564706, 6);
   });
 
   it("BINDS the upper clamp at .95", () => {
-    //   Skir fleeing Fenmaw: 0.4 + 0.4 × (102/42) = 1.3714… — far outside the band.
+    //   Skir fleeing Fenmaw: 0.4 + 0.4 × (170/70) = 1.3714… — far outside the band.
     expect(fleeChance(skir(), fenmaw(), B)).toBe(B.flee.clampMax);
     expect(B.flee.clampMax).toBe(0.95);
     const looser = retuned((b) => {
@@ -725,7 +774,7 @@ describe("flee chance (build-doc §7.4)", () => {
     // With the shipped constants the floor is unreachable — the base term alone is 0.4, so the
     // formula can never dip below it (worth knowing: the lower clamp is inert until `flee.base` is
     // retuned). This case retunes a COPY (INV-3) so the clamp has something to do:
-    //   base 0 + 0.1 × (42/102) = 0.04118 ⇒ clamped up to .1
+    //   base 0 + 0.1 × (70/170) = 0.04118 ⇒ clamped up to .1
     expect(fleeChance(fenmaw(), skir(), B)).toBeGreaterThan(B.flee.clampMin);
     const stuck = retuned((b) => {
       b.flee.base = 0;
@@ -750,7 +799,7 @@ describe("flee chance (build-doc §7.4)", () => {
 
   it("reads Speed through Soak (bible §2: −30% Speed)", () => {
     const soaked: Battler = { ...fenmaw(), status: { name: "Soak", turnsActive: 0 } };
-    // 0.4 + 0.4 × (42 × 0.7 / 102) = 0.4 + 0.4 × 0.28824 = 0.51529…
+    // 0.4 + 0.4 × (70 × 0.7 / 170) = 0.4 + 0.4 × 0.28824 = 0.51529…
     expect(fleeChance(soaked, skir(), B)).toBeCloseTo(0.515294, 6);
   });
 
@@ -775,8 +824,18 @@ describe("flee chance (build-doc §7.4)", () => {
     expect(away.events.at(-1)).toEqual({ t: "battleEnd", outcome: "fled" });
 
     // 0.96 ≥ 0.95 ⇒ the escape fails and the Fenmaw takes its swing ([damage roll, crit]).
-    // (Under the §7.4 damage formula that swing knocks the Skir out, which is the point of the
-    //  clamp: a failed flee costs the turn.)
+    // (The point of the clamp is that a failed flee costs the turn, which is what the two
+    //  assertions below check. This comment used to add that the swing knocks the Skir out. It no
+    //  longer does, and that is a REAL behavioural change rather than a stale figure — from two
+    //  independent shifts, both of which belong to the damage lane and not to flee:
+    //    · `stats.levelCoefficient` 0.02 → 0.1 scaled the HP BAR without scaling the hit. §7.4
+    //      damage is (atk × power / def) × … ÷ `damage.divisor`, and atk/def is a RATIO of two
+    //      stats, so the level term cancels straight out of it — while maxHp IS a stat and does
+    //      carry it. The Skir's bar doubled; the swing did not.
+    //    · `damage.divisor` then divides the hit itself, and it is no longer 1.
+    //  No figure is restated here on purpose: read both off data/balance.json (G11). Nothing in
+    //  this file ever asserted the KO, and no assertion below depends on either constant, which is
+    //  why none of them moved when both changed.)
     const cornered = step(started.state, { kind: "flee" }, scripted([0.96, 0.5, 0.99]), CTX);
     expect(cornered.events.find((e) => e.t === "fleeAttempt")).toMatchObject({ success: false });
     expect(cornered.state.outcome).not.toBe("fled");

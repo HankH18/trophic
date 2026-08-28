@@ -3290,10 +3290,28 @@ describe("BattleScene, executed: the beats the fixtures do not contain", () => {
     }
 
     const uncovered = VIEW_STEP_KINDS.filter((kind) => !covered.has(kind));
-    // Declared, not silent: these are the branches no reachable fight in this suite reaches.
-    // They are covered by `compileBattleEvents` tests only.
+    /*
+     * Declared, not silent: these are the branches no reachable fight in this suite reaches.
+     * All but `rejected` are covered by `compileBattleEvents` tests only.
+     *
+     * `rejected` JOINED this list when `damage.divisor` landed, and the reason is worth keeping,
+     * because it is this census doing exactly the job it was written for. It was never covered by
+     * a deliberate refusal — it was covered by the `buffInput` run BLUNDERING INTO one. Measured
+     * on that run at the old constants (levelCoefficient 0.02, no divisor): the enemy is a LEVEL-6
+     * wild Nibbin and the player a LEVEL-20 Skir with 77 max HP, and the Nibbin's opening hit took
+     * 74 of those 77. The salve healed 38, the next hit took the remaining 41, `p1` fainted, and
+     * the third command — the second salve — was refused with "the active battler has fainted —
+     * only a switch is accepted". THAT was the `rejected` step.
+     *
+     * At divisor 4 the same hit is 12 of 165, nobody faints and nothing is refused. So the kind
+     * left the census because the one-shot-kill defect it depended on was FIXED; the coverage was
+     * an artifact of the bug. It is not left untested: the refusal path has its own case in this
+     * same describe — the full-HP salve, which commits an illegal item deliberately and asserts
+     * the `rejected` step, its `diagnostic` flag, its reason and its empty caption. That test is
+     * green, so this line is a re-declaration of where the coverage lives, not a loss of it.
+     */
     expect([...uncovered].sort()).toEqual(
-      ["evade", "levelUp", "statusApply", "statusClear", "statusSkip", "statusTick"].sort(),
+      ["evade", "levelUp", "rejected", "statusApply", "statusClear", "statusSkip", "statusTick"].sort(),
     );
     expect(covered.size).toBeGreaterThan(14);
   });

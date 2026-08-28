@@ -12,6 +12,21 @@
  * needs, in core/battle.ts's documented draw order (damage roll, then crit, then one per chanced
  * effect), and THROWS when a test draws more than it scripted — a miscounted draw fails loudly
  * instead of silently cycling. No Math.random anywhere (G11).
+ *
+ * ⚠ RE-DERIVED for `balance.stats.levelCoefficient` 0.02 → 0.1 — Hank's ruling, verbatim: "as a
+ * temporary fix, just switch the level coefficient to be 0.1", a stopgap while a separate lane
+ * finds the real cause of one-shot kills. Every figure below that moved was RECOMPUTED from
+ * build-doc §7.4's formula and then checked against core/battle.ts — DERIVED, never read off the
+ * run. The level term is the only input that moved, so `levelMult = 1 + 0.1 × level` is 1.1 at
+ * level 1 (was 1.02), 2.0 at level 10 (was 1.2), 2.5 at level 15 (was 1.3).
+ *
+ * Note which numbers did NOT move, because it is the whole shape of the change: damage is
+ * `atk × power / def`, and at EQUAL levels attacker and defender carry the same level term, so it
+ * cancels and the damage is unchanged. Max HP has no such partner and scales with the term
+ * outright. That is why most damage cases below still read exactly what they read at 0.02 while
+ * every HP, heal and status-chip figure moved — and why the comments beside the unchanged
+ * assertions still had to be corrected: this file promises a human can check the arithmetic
+ * without running anything, and a comment reading "× 1.2" beside a 2.0 coefficient breaks it.
  */
 
 import { describe, expect, it } from "vitest";
@@ -130,6 +145,14 @@ const move = (id: string): MoveDef => {
   return found;
 };
 
+/**
+ * build-doc §7.4's level term, READ from balance.json rather than restated (G11). The figures in
+ * this file are still written out as literals — they are the hand-computation a human checks the
+ * arithmetic against, which is this file's whole job — but where a case's claim IS "the level term
+ * is the balance file's", it asserts against this instead of against a copy of the number.
+ */
+const LEVEL_MULT = (level: number): number => 1 + B.stats.levelCoefficient * level;
+
 function battler(
   lineId: string,
   age: AgeClass,
@@ -146,33 +169,43 @@ function battler(
  * Effective stats — build-doc §7.4 / bible §2.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-describe("effective stats (build-doc §7.4: base × ageMult × (1 + 0.02 × level) + traitMods)", () => {
+describe("effective stats (build-doc §7.4: base × ageMult × (1 + levelCoefficient × level) + traitMods)", () => {
+  // The coefficient is the ONLY thing this block measures, so it is read rather than restated
+  // (G11): every row below is `base × ageMult × LEVEL_MULT(level)`, hand-computed in its comment.
   it("applies age multiplier and the level coefficient", () => {
-    // mosslet-line base def 75, Plant (no Beast bonus), Adult ×1.0, level 10 ⇒ 1 + 0.02×10 = 1.2
-    //   75 × 1.0 × 1.2 = 90
-    expect(battler("mosslet-line", "A", 10).stats.def).toBe(90);
-    // RE-DERIVED for the T-10 halving of balance.age.multiplier (J 0.75 → 0.875, E 1.15 → 1.075;
-    // A is neutral and did not move, which is why the Adult line above is unchanged). Half the
-    // deviation from neutral, not half the value — see data/balance.json `age._multiplier`.
-    // Juvenile ×0.875: 75 × 0.875 × 1.2 = 78.75  → 79
-    expect(battler("mosslet-line", "J", 10).stats.def).toBe(79);
-    // Elder ×1.075:    75 × 1.075 × 1.2 = 96.75  → 97
-    expect(battler("mosslet-line", "E", 10).stats.def).toBe(97);
+    // mosslet-line base def 75, Plant (no Beast bonus), Adult ×1.0, level 10 ⇒ 1 + 0.1×10 = 2.0
+    //   75 × 1.0 × 2.0 = 150     [re-derived for levelCoefficient 0.02 → 0.1, Hank's stopgap]
+    expect(battler("mosslet-line", "A", 10).stats.def).toBe(150);
+    // The age factors are T-10's halved ones (J 0.75 → 0.875, E 1.15 → 1.075; A is neutral and did
+    // not move). Half the deviation from neutral, not half the value — data/balance.json
+    // `age._multiplier`. Only the LEVEL term moved this time; the age term is untouched.
+    // Juvenile ×0.875: 75 × 0.875 × 2.0 = 131.25 → 131   [derived, not observed]
+    expect(battler("mosslet-line", "J", 10).stats.def).toBe(131);
+    // Elder ×1.075:    75 × 1.075 × 2.0 = 161.25 → 161   [derived, not observed]
+    expect(battler("mosslet-line", "E", 10).stats.def).toBe(161);
+    // …and the level term really is the balance file's, not a literal that happens to agree: the
+    // Adult row above is exactly `base × LEVEL_MULT(10)`, whatever the coefficient is retuned to.
+    expect(battler("mosslet-line", "A", 10).stats.def).toBe(Math.round(75 * LEVEL_MULT(10)));
   });
 
   it("gives Beast +10% BASE stats instead of an offensive advantage (bible §1)", () => {
+    // RE-DERIVED for levelCoefficient 0.02 → 0.1 (Hank's stopgap): the level term is 2.0 at level
+    // 10, was 1.2. The Beast bonus itself did not move — this test's claim is the RATIO between
+    // the four rows, and all four carry the same new level term, so the claim is untouched.
     // nibbin-line is Beast, base atk 60, Adult, level 10:
-    //   60 × 1.10 × 1.0 × 1.2 = 79.2 → 79
-    expect(battler("nibbin-line", "A", 10).stats.atk).toBe(79);
-    // Same line with the bonus tuned to zero:  60 × 1.0 × 1.2 = 72
+    //   60 × 1.10 × 1.0 × 2.0 = 132       [derived, not observed]
+    expect(battler("nibbin-line", "A", 10).stats.atk).toBe(132);
+    // Same line with the bonus tuned to zero:  60 × 1.0 × 2.0 = 120
     const noBeast = retuned((b) => {
       b.types.beastBaseStatBonus = 0;
     });
-    expect(effectiveStats({ line: line("nibbin-line"), age: "A", level: 10, balance: noBeast }).atk).toBe(72);
-    // And the bonus reaches every stat, not just Attack: hp 80 × 1.1 × 1.2 = 105.6 → 106
-    expect(battler("nibbin-line", "A", 10).stats.hp).toBe(106);
-    // A non-Beast line is untouched by it: mosslet atk 50 × 1.0 × 1.2 = 60
-    expect(battler("mosslet-line", "A", 10).stats.atk).toBe(60);
+    expect(effectiveStats({ line: line("nibbin-line"), age: "A", level: 10, balance: noBeast }).atk).toBe(120);
+    // …and 132 / 120 is exactly the +10% the bible sells, which is what this case is really for.
+    expect(132 / 120).toBeCloseTo(1 + B.types.beastBaseStatBonus, 10);
+    // And the bonus reaches every stat, not just Attack: hp 80 × 1.1 × 2.0 = 176
+    expect(battler("nibbin-line", "A", 10).stats.hp).toBe(176);
+    // A non-Beast line is untouched by it: mosslet atk 50 × 1.0 × 2.0 = 100
+    expect(battler("mosslet-line", "A", 10).stats.atk).toBe(100);
   });
 
   it("applies the metamorphic ×1.15 exactly once, at and after the J→A transition", () => {
@@ -182,21 +215,24 @@ describe("effective stats (build-doc §7.4: base × ageMult × (1 + 0.02 × leve
     expect(line("webvern-line").metamorphic).toBe(false);
     expect(line("cindril-line").baseStats.atk).toBe(line("webvern-line").baseStats.atk);
 
-    // The J and E rows are RE-DERIVED for the T-10 age halving (J 0.75 → 0.875, E 1.15 → 1.075).
-    // The metamorphic ×1.15 is deliberately NOT halved — it is build-doc §7.4's separate once-only
-    // term, not the J/A/E multiplier — so the Adult rows below are untouched, and this test's whole
-    // claim (the jump lands exactly once) is unchanged. Only the age factor moved.
-    // Juvenile — no jump yet:            70 × 0.875 × (1 + 0.02) = 62.475 → 62
-    expect(battler("cindril-line", "J", 1).stats.atk).toBe(62);
-    expect(battler("webvern-line", "J", 1).stats.atk).toBe(62);
-    // Adult — jump applied ONCE:         70 × 1.000 × 1.15 × 1.02 = 82.11  → 82
-    expect(battler("cindril-line", "A", 1).stats.atk).toBe(82);
-    //   …against the non-metamorphic:    70 × 1.000 × 1.02        = 71.4   → 71
-    expect(battler("webvern-line", "A", 1).stats.atk).toBe(71);
-    // Elder — STILL exactly one jump:    70 × 1.075 × 1.15 × 1.02 = 88.268 → 88
-    //   (twice would be 70 × 1.075 × 1.15² × 1.02 = 101.5 → 102, which this pins out)
-    expect(battler("cindril-line", "E", 1).stats.atk).toBe(88);
-    expect(battler("webvern-line", "E", 1).stats.atk).toBe(77);
+    // RE-DERIVED for levelCoefficient 0.02 → 0.1 (Hank's stopgap): every row is at level 1, so the
+    // level term is 1.1 where it was 1.02. The age factors are T-10's (J 0.875, E 1.075) and the
+    // metamorphic ×1.15 is deliberately NOT halved — build-doc §7.4's separate once-only term, not
+    // the J/A/E multiplier. Both are untouched here; only the level term moved, and it moved
+    // IDENTICALLY on every row, so this test's whole claim (the jump lands exactly once) is
+    // unchanged. Each figure below is computed from the formula, not read off the run.
+    // Juvenile — no jump yet:            70 × 0.875 × 1.1 = 67.375  → 67
+    expect(battler("cindril-line", "J", 1).stats.atk).toBe(67);
+    expect(battler("webvern-line", "J", 1).stats.atk).toBe(67);
+    // Adult — jump applied ONCE:         70 × 1.000 × 1.15 × 1.1 = 88.55   → 89
+    expect(battler("cindril-line", "A", 1).stats.atk).toBe(89);
+    //   …against the non-metamorphic:    70 × 1.000 × 1.1        = 77
+    expect(battler("webvern-line", "A", 1).stats.atk).toBe(77);
+    // Elder — STILL exactly one jump:    70 × 1.075 × 1.15 × 1.1 = 95.19125 → 95
+    //   (twice would be 70 × 1.075 × 1.15² × 1.1 = 109.47 → 109, which this pins out)
+    expect(battler("cindril-line", "E", 1).stats.atk).toBe(95);
+    //   …and the non-metamorphic Elder:  70 × 1.075 × 1.1        = 82.775  → 83
+    expect(battler("webvern-line", "E", 1).stats.atk).toBe(83);
 
     expect(hasMetamorphosed(line("cindril-line"), "J")).toBe(false);
     expect(hasMetamorphosed(line("cindril-line"), "A")).toBe(true);
@@ -209,11 +245,12 @@ describe("effective stats (build-doc §7.4: base × ageMult × (1 + 0.02 × leve
   it("adds trait modifiers as a flat ±10% of the pre-trait stat (bible §2)", () => {
     const thickPelt = B.traits.pool.find((t) => t.id === "thick-pelt");
     expect(thickPelt).toBeDefined();
-    // RE-DERIVED for the T-10 age halving: the Elder factor is 1.075, not 1.15. The CLAIM this
-    // test makes — that the trait is a flat ±10% of the PRE-TRAIT stat — is unchanged, and the two
-    // numbers below still stand in exactly that ratio (109.263 = 99.33 × 1.1).
-    // nibbin-line Elder level 10 def: 70 × 1.1(Beast) × 1.075 × 1.2 = 99.33
-    //   + Thick Pelt (+10%):          99.33 × 1.1 = 109.263 → 109
+    // RE-DERIVED for levelCoefficient 0.02 → 0.1 (Hank's stopgap): the level term is 2.0, was 1.2.
+    // The Elder factor is T-10's 1.075 and the trait magnitude is unmoved. The CLAIM this test
+    // makes — that the trait is a flat ±10% of the PRE-TRAIT stat — is unchanged, and the two
+    // numbers below still stand in exactly that ratio (182.105 = 165.55 × 1.1).
+    // nibbin-line Elder level 10 def: 70 × 1.1(Beast) × 1.075 × 2.0 = 165.55
+    //   + Thick Pelt (+10%):          165.55 × 1.1 = 182.105 → 182   [derived, not observed]
     const withTrait = effectiveStats({
       line: line("nibbin-line"),
       age: "E",
@@ -221,9 +258,12 @@ describe("effective stats (build-doc §7.4: base × ageMult × (1 + 0.02 × leve
       balance: B,
       traits: [thickPelt as Trait],
     });
-    expect(withTrait.def).toBe(109);
-    // …and 99.33 → 99 without it.
-    expect(battler("nibbin-line", "E", 10).stats.def).toBe(99);
+    expect(withTrait.def).toBe(182);
+    // …and 165.55 → 166 without it.
+    expect(battler("nibbin-line", "E", 10).stats.def).toBe(166);
+    // The ratio the claim rests on, asserted rather than left to the two roundings above: the
+    // trait is traitModPct of the pre-trait stat, whatever the level coefficient is.
+    expect(182.105 / 165.55).toBeCloseTo(1 + B.stats.traitModPct, 10);
   });
 
   it("knows exactly the moves its level has unlocked (bible §3: 1/5/10/15)", () => {
@@ -249,10 +289,28 @@ describe("effective stats (build-doc §7.4: base × ageMult × (1 + 0.02 × leve
 const MID_ROLL_NO_CRIT = [0.5, 0.99];
 
 describe("damage formula (build-doc §7.4), hand-computed", () => {
+  /*
+   * RE-DERIVED throughout for TWO changes to §7.4's inputs, both landed deliberately:
+   *   1. `stats.levelCoefficient` 0.02 → 0.1 — Hank's ruling, verbatim: "as a temporary fix, just
+   *      switch the level coefficient to be 0.1".
+   *   2. `damage.divisor` 1 → 4 — the term that ties hit size to HP size, added to core/battle.ts
+   *      as the real fix for one-shot kills. `data/balance.json` `damage._divisor` carries the
+   *      measurement that chose 4.
+   *
+   * Read the pattern before the cases, because it is why so few of these numbers are interesting.
+   * Damage is `(atk × power / def) × … / divisor`. Every pairing here is at EQUAL level, so the
+   * attacker's and defender's level terms CANCEL and the coefficient contributes NOTHING to the
+   * amounts below — it moved only the atk and def the comments are written from. The divisor is
+   * what actually moved the amounts, and it moved every one of them by the same ÷4.
+   *
+   * Each figure below is recomputed from the formula and then checked against core/battle.ts —
+   * derived, never read off the run. The pre-floor product is written out beside each so a human
+   * can check it without running anything.
+   */
   it("neutral: Maul (Beast 70) Nibbin → Mosslet", () => {
-    // atk 79 (60 × 1.1 × 1.0 × 1.2) · def 90 (75 × 1.2) · Beast strongVs nothing, and Plant's
+    // atk 132 (60 × 1.1 × 1.0 × 2.0) · def 150 (75 × 2.0) · Beast strongVs nothing, and Plant's
     // strongVs is [Water, Earth] so Beast is not resisted either ⇒ ×1.0 · no predation ⇒ ×1.0
-    //   79 × 70 / 90 = 61.444… × 1.0 × 1.0 × 1.0 = 61.444… → floor 61
+    //   132 × 70 / 150 = 61.6 × 1.0 × 1.0 × 1.0 = 61.6, ÷ divisor 4 = 15.4 → floor 15
     const result = computeDamage(
       battler("nibbin-line", "A", 10),
       battler("mosslet-line", "A", 10, "enemy"),
@@ -260,12 +318,12 @@ describe("damage formula (build-doc §7.4), hand-computed", () => {
       scripted(MID_ROLL_NO_CRIT),
       NO_WEB,
     );
-    expect(result).toEqual({ amount: 61, effectiveness: "neutral", predation: false, crit: false, evadeMult: 1 });
+    expect(result).toEqual({ amount: 15, effectiveness: "neutral", predation: false, crit: false, evadeMult: 1 });
   });
 
   it("super-effective: Pyre (Fire 70) Vulkindle → Mosslet", () => {
-    // atk 97 (70 × 1.15 metamorphic × 1.2) · def 90 · Fire strongVs Plant ⇒ ×1.5
-    //   97 × 70 / 90 = 75.444… × 1.5 = 113.166… → floor 113
+    // atk 161 (70 × 1.15 metamorphic × 2.0) · def 150 · Fire strongVs Plant ⇒ ×1.5
+    //   161 × 70 / 150 = 75.133… × 1.5 = 112.7, ÷ divisor 4 = 28.175 → floor 28
     const result = computeDamage(
       battler("cindril-line", "A", 10),
       battler("mosslet-line", "A", 10, "enemy"),
@@ -273,12 +331,12 @@ describe("damage formula (build-doc §7.4), hand-computed", () => {
       scripted(MID_ROLL_NO_CRIT),
       NO_WEB,
     );
-    expect(result).toEqual({ amount: 113, effectiveness: "super", predation: false, crit: false, evadeMult: 1 });
+    expect(result).toEqual({ amount: 28, effectiveness: "super", predation: false, crit: false, evadeMult: 1 });
   });
 
   it("resisted: Riptide (Water 70) Rillisk → Mosslet", () => {
-    // atk 97 (70 × 1.15 × 1.2) · def 90 · Plant strongVs Water ⇒ ×0.67
-    //   97 × 70 / 90 = 75.444… × 0.67 = 50.548… → floor 50
+    // atk 161 (70 × 1.15 × 2.0) · def 150 · Plant strongVs Water ⇒ ×0.67
+    //   161 × 70 / 150 = 75.133… × 0.67 = 50.339…, ÷ divisor 4 = 12.584… → floor 12
     const result = computeDamage(
       battler("puddlisk-line", "A", 10),
       battler("mosslet-line", "A", 10, "enemy"),
@@ -286,12 +344,12 @@ describe("damage formula (build-doc §7.4), hand-computed", () => {
       scripted(MID_ROLL_NO_CRIT),
       NO_WEB,
     );
-    expect(result).toEqual({ amount: 50, effectiveness: "resisted", predation: false, crit: false, evadeMult: 1 });
+    expect(result).toEqual({ amount: 12, effectiveness: "resisted", predation: false, crit: false, evadeMult: 1 });
   });
 
   it("dual-type defender multiplies both halves: Pyre → Barkhide (Plant/Earth)", () => {
-    // atk 97 · def 102 (85 × 1.2) · Fire strongVs Plant ⇒ ×1.5, Earth strongVs Fire ⇒ ×0.67
-    //   97 × 70 / 102 = 66.568… × 1.5 × 0.67 = 66.801… → floor 66
+    // atk 161 · def 170 (85 × 2.0) · Fire strongVs Plant ⇒ ×1.5, Earth strongVs Fire ⇒ ×0.67
+    //   161 × 70 / 170 = 66.294… × 1.5 × 0.67 = 66.626…, ÷ divisor 4 = 16.656… → floor 16
     const result = computeDamage(
       battler("cindril-line", "A", 10),
       battler("barkhide-line", "A", 10, "enemy"),
@@ -304,7 +362,7 @@ describe("damage formula (build-doc §7.4), hand-computed", () => {
     // the renderer is told "neutral" rather than announcing a super-effective hit worth +0.5%
     // (build-doc §15 C3 — the log is what the scene narrates from). This case previously pinned
     // "super", which is how the mismatch shipped.
-    expect(result).toEqual({ amount: 66, effectiveness: "neutral", predation: false, crit: false, evadeMult: 1 });
+    expect(result).toEqual({ amount: 16, effectiveness: "neutral", predation: false, crit: false, evadeMult: 1 });
     expect(typeMultiplier("Fire", ["Plant", "Earth"], content.moves.typeChart, B).mult).toBeCloseTo(1.005, 10);
     expect(typeMultiplier("Fire", ["Plant", "Earth"], content.moves.typeChart, B).band).toBe("neutral");
   });
@@ -333,10 +391,10 @@ describe("damage formula (build-doc §7.4), hand-computed", () => {
 
   it("PREDATION applies ×1.25 iff the derived diet contains the defender's line", () => {
     // Fenmaw → Reedrick is bible §5's exceptions row, so the derived web carries the edge.
-    // atk 108 (90 × 1.2) · def 90 (75 × 1.2) · Water into Plant/Wind: Plant strongVs Water ⇒ ×0.67
-    //   and Wind strongVs Water ⇒ ×0.67, so typeMult = 0.4489
-    //   108 × 70 / 90 = 84 exactly
-    //   with predation:    84 × 0.4489 × 1.25 = 47.134… → floor 47
+    // atk 180 (90 × 2.0) · def 150 (75 × 2.0) · Water into Plant/Wind: Plant strongVs Water ⇒
+    //   ×0.67 and Wind strongVs Water ⇒ ×0.67, so typeMult = 0.4489
+    //   180 × 70 / 150 = 84 exactly   (the same 84 as at 0.02: the level term cancels)
+    //   with predation:    84 × 0.4489 × 1.25 = 47.134…, ÷ divisor 4 = 11.783… → floor 11
     const fed = ctxWith({ "fenmaw-line": ["reedrick-line", "mirefin-line"] });
     const withPredation = computeDamage(
       battler("fenmaw-line", "A", 10, "player", fed),
@@ -345,9 +403,9 @@ describe("damage formula (build-doc §7.4), hand-computed", () => {
       scripted(MID_ROLL_NO_CRIT),
       fed,
     );
-    expect(withPredation).toEqual({ amount: 47, effectiveness: "resisted", predation: true, crit: false, evadeMult: 1 });
+    expect(withPredation).toEqual({ amount: 11, effectiveness: "resisted", predation: true, crit: false, evadeMult: 1 });
 
-    //   without it:        84 × 0.4489        = 37.707… → floor 37
+    //   without it:        84 × 0.4489        = 37.707…, ÷ 4 = 9.426… → floor 9
     const starved = ctxWith({ "fenmaw-line": [] });
     const withoutPredation = computeDamage(
       battler("fenmaw-line", "A", 10, "player", starved),
@@ -356,14 +414,15 @@ describe("damage formula (build-doc §7.4), hand-computed", () => {
       scripted(MID_ROLL_NO_CRIT),
       starved,
     );
-    expect(withoutPredation).toEqual({ amount: 37, effectiveness: "resisted", predation: false, crit: false, evadeMult: 1 });
-    // 47 / 37.707… is the 1.25 of build-doc §7.4 — the bump is real, not rounding.
+    expect(withoutPredation).toEqual({ amount: 9, effectiveness: "resisted", predation: false, crit: false, evadeMult: 1 });
+    // 11.783… / 9.426… is the 1.25 of build-doc §7.4 — the bump is real, not rounding. (The
+    // divisor cannot fake it: it divides both sides equally, so the RATIO is divisor-invariant.)
     expect(B.types.predation).toBe(1.25);
   });
 
   it("Trample carries bible §3's +25 power against a Producer, and nothing against others", () => {
-    // atk 79 · Loamunder def 102 (85 × 1.2) · Loamunder is a Producer ⇒ power 50 + 25 = 75
-    //   79 × 75 / 102 = 58.088… → floor 58
+    // atk 132 · Loamunder def 170 (85 × 2.0) · Loamunder is a Producer ⇒ power 50 + 25 = 75
+    //   132 × 75 / 170 = 58.235…, ÷ divisor 4 = 14.558… → floor 14
     expect(
       computeDamage(
         battler("nibbin-line", "A", 10),
@@ -372,8 +431,9 @@ describe("damage formula (build-doc §7.4), hand-computed", () => {
         scripted(MID_ROLL_NO_CRIT),
         NO_WEB,
       ).amount,
-    ).toBe(58);
-    // Mosslet is a Grazer ⇒ power stays 50, def 90:  79 × 50 / 90 = 43.888… → floor 43
+    ).toBe(14);
+    // Mosslet is a Grazer ⇒ power stays 50, def 150:
+    //   132 × 50 / 150 = 44 exactly, ÷ divisor 4 = 11 exactly → floor 11
     expect(
       computeDamage(
         battler("nibbin-line", "A", 10),
@@ -382,20 +442,23 @@ describe("damage formula (build-doc §7.4), hand-computed", () => {
         scripted(MID_ROLL_NO_CRIT),
         NO_WEB,
       ).amount,
-    ).toBe(43);
+    ).toBe(11);
   });
 
   it("spends the damage roll across its full 0.9–1.1 band, then the crit roll", () => {
     const attacker = battler("nibbin-line", "A", 10);
     const defender = battler("mosslet-line", "A", 10, "enemy");
     const maul = move("maul");
-    // roll draw 0 ⇒ 0.9:  61.444… × 0.9 = 55.3 → 55
-    expect(computeDamage(attacker, defender, maul, scripted([0, 0.99]), NO_WEB).amount).toBe(55);
-    // roll draw ~1 ⇒ 1.1: 61.444… × 1.1 = 67.588… → 67
-    expect(computeDamage(attacker, defender, maul, scripted([0.999999, 0.99]), NO_WEB).amount).toBe(67);
-    // crit draw below the chance ⇒ ×1.5: 61.444… × 1.5 = 92.166… → 92
+    // Re-derived for levelCoefficient 0.02 → 0.1 AND damage.divisor 1 → 4: the undodged product
+    // is 132 × 70 / 150 / 4 = 15.4. The BAND is what this case measures, and the divisor cannot
+    // move it — it scales all three amounts alike.
+    // roll draw 0 ⇒ 0.9:  15.4 × 0.9 = 13.86 → 13
+    expect(computeDamage(attacker, defender, maul, scripted([0, 0.99]), NO_WEB).amount).toBe(13);
+    // roll draw ~1 ⇒ 1.1: 15.4 × 1.1 = 16.94 → 16
+    expect(computeDamage(attacker, defender, maul, scripted([0.999999, 0.99]), NO_WEB).amount).toBe(16);
+    // crit draw below the chance ⇒ ×1.5: 15.4 × 1.5 = 23.1 → 23
     const crit = computeDamage(attacker, defender, maul, scripted([0.5, 0]), NO_WEB);
-    expect(crit).toEqual({ amount: 92, effectiveness: "neutral", predation: false, crit: true, evadeMult: 1 });
+    expect(crit).toEqual({ amount: 23, effectiveness: "neutral", predation: false, crit: true, evadeMult: 1 });
   });
 
   it("never deals less than balance.damage.minDamage", () => {
@@ -429,10 +492,12 @@ describe("status tick math (build-doc §7.4)", () => {
 
   it("ramps Toxin over successive turns inside a real battle", () => {
     // Sporantle (Producer, Poison/Plant, base atk 60/def 75/hp 85) vs Loamunder (Producer,
-    // Earth/Plant, base hp 85 → max HP 85 × 1.2 = 102).
+    // Earth/Plant, base hp 85 → max HP 85 × 1.0 × 2.0 = 170).
     //
-    // THE ASSERTION BELOW IS UNCHANGED — [4, 6, 8] and max HP 102 are exactly what they were. What
-    // moved is the STAGE. This used to throw Blight on all three turns, justified by "both are slow
+    // RE-DERIVED for levelCoefficient 0.02 → 0.1 (Hank's stopgap). Max HP is the one term with no
+    // partner to cancel against — damage is atk/def and cancels at equal levels, HP does not — so
+    // 102 → 170 and the chips with it. The CLAIM is untouched: three turns of one application,
+    // 4%/6%/8% of max HP. Earlier, this note recorded that what moved was the STAGE. This used to throw Blight on all three turns, justified by "both are slow
     // tanks, so the fight lasts"; T-11 re-spent the Producer template (atk 40 → 60), that sentence
     // stopped being true, and Loamunder now dies on turn 3 before the third tick can be observed.
     // Turns 2 and 3 are Regrow instead — Sporantle's own role move, which heals and deals no
@@ -447,7 +512,7 @@ describe("status tick math (build-doc §7.4)", () => {
       enemyParty: [{ uid: "loam", lineId: "loamunder-line", age: "A", level: 10, traits: [] }],
     };
     let { state } = startBattle(input, ctx);
-    expect(state.battlers["loam"]?.maxHp).toBe(102);
+    expect(state.battlers["loam"]?.maxHp).toBe(170);
     const ticks: number[] = [];
     // Turn 1 draws: [damage roll, crit, Blight's 20% Toxin roll] then the enemy's [roll, crit];
     // 0.05 < 0.2 applies Toxin. Regrow does no damage and rolls no status, so turns 2 and 3 draw
@@ -462,8 +527,12 @@ describe("status tick math (build-doc §7.4)", () => {
       state = out.state;
       for (const e of out.events) if (e.t === "statusTick") ticks.push(e.amount);
     }
-    // floor(102 × 0.04) = 4 · floor(102 × 0.06) = 6 · floor(102 × 0.08) = 8
-    expect(ticks).toEqual([4, 6, 8]);
+    // floor(170 × 0.04) = floor(6.8) = 6 · floor(170 × 0.06) = floor(10.2) = 10
+    //   · floor(170 × 0.08) = floor(13.6) = 13     [derived from max HP, not read off the run]
+    expect(ticks).toEqual([6, 10, 13]);
+    // …and they really are the ramp taken against THIS creature's max HP, not three copied
+    // integers: the same three fractions, floored against the same 170.
+    expect(ticks).toEqual([0.04, 0.06, 0.08].map((f) => Math.floor(170 * f)));
     expect(state.battlers["loam"]?.status?.name).toBe("Toxin");
     // The ramp is driven by turnsActive, so this is the claim the three amounts above rest on: one
     // application, carried three turns. A re-application anywhere would read 1 or 2 here and the
@@ -489,9 +558,12 @@ describe("status tick math (build-doc §7.4)", () => {
     const applied = out.events.find((e) => e.t === "statusApplied");
     expect(applied).toEqual({ t: "statusApplied", uid: "loam", status: "Toxin", replaced: "Burn" });
     expect(out.state.battlers["loam"]?.status).toEqual({ name: "Toxin", turnsActive: 1 });
-    // The replaced Burn's 6% never ticks again — the single tick this turn is Toxin's 4%.
+    // The replaced Burn's 6% never ticks again — the single tick this turn is Toxin's 4%:
+    // floor(170 × 0.04) = 6, where at levelCoefficient 0.02 the same 4% of 102 was 4. Re-derived
+    // for Hank's stopgap; the claim (Burn's 6% does NOT tick) is unchanged, and Burn's own chip
+    // against this creature would read floor(170 × 0.06) = 10, which this pins out.
     const tick = out.events.find((e) => e.t === "statusTick");
-    expect(tick).toEqual({ t: "statusTick", uid: "loam", status: "Toxin", amount: 4 });
+    expect(tick).toEqual({ t: "statusTick", uid: "loam", status: "Toxin", amount: 6 });
   });
 
   it("Daze skips the actor's turn 25% of the time, and Soak takes 30% off Speed", () => {
@@ -515,11 +587,14 @@ describe("status tick math (build-doc §7.4)", () => {
     const acted = step(dazed, { kind: "move", moveId: "blight" }, scripted([0.3, 0.5, 0.99, 0.9, 0.5, 0.99]), ctx);
     expect(acted.events.some((e) => e.t === "moveUsed" && e.uid === "spore")).toBe(true);
 
-    // Soak: pollywisp spd 50 × 1.2 = 60 → × 0.7 = 42.
+    // Soak: pollywisp spd 50 × 1.0 × 2.0 = 100 → × 0.7 = 70.  Re-derived for levelCoefficient
+    // 0.02 → 0.1 (Hank's stopgap) — Speed carries the level term outright, nothing cancels it.
     const soaked = battler("pollywisp-line", "A", 10);
-    expect(effectiveSpeed(soaked, B)).toBe(60);
+    expect(effectiveSpeed(soaked, B)).toBe(100);
     const wet: Battler = { ...soaked, status: { name: "Soak", turnsActive: 0 } };
-    expect(effectiveSpeed(wet, B)).toBeCloseTo(42, 10);
+    expect(effectiveSpeed(wet, B)).toBeCloseTo(70, 10);
+    // The 30% is balance.json's, not this file's: the ratio holds under a retune of the level term.
+    expect(effectiveSpeed(wet, B) / effectiveSpeed(soaked, B)).toBeCloseTo(B.status.soakSpdMult, 10);
   });
 });
 
@@ -532,7 +607,8 @@ describe("turn order (build-doc §7.4 / bible §3)", () => {
   const input: BattleInput = {
     seed: 4,
     kind: "wild",
-    // webvern spd 80 × 1.2 = 96 · skir spd 85 × 1.2 = 102 ⇒ the enemy is faster.
+    // webvern spd 80 × 2.0 = 160 · skir spd 85 × 2.0 = 170 ⇒ the enemy is faster. (Re-derived for
+    // levelCoefficient 0.02 → 0.1; both sides carry the same term, so the ORDER is unchanged.)
     playerParty: [{ uid: "web", lineId: "webvern-line", age: "A", level: 10, traits: [] }],
     enemyParty: [{ uid: "skir", lineId: "skir-line", age: "A", level: 10, traits: [] }],
   };
@@ -740,8 +816,12 @@ describe("KO is a faint and nothing else (Hard Req 8)", () => {
     expect(started.state.battlers["nib"]?.curHp).toBe(1);
     const out = step(started.state, { kind: "move", moveId: "bramble" }, cyclic([0.5, 0.99]), ctx);
 
-    // The roll is unchanged and still reachable at the formula's own boundary: Bramble into this
-    // defender on the mid roll with no crit is 26, four-and-twenty more than the target owns.
+    // The roll is still reachable at the formula's own boundary: Bramble into this defender on the
+    // mid roll with no crit is 6, five more than the target owns — so it is still an overkill and
+    // this case still measures what it was written to measure.
+    // RE-DERIVED for levelCoefficient 0.02 → 0.1 AND damage.divisor 1 → 4: mosslet atk 50 × 2.0 =
+    // 100, nibbin def 70 × 1.1 × 2.0 = 154, Bramble power 40 ⇒ 100 × 40 / 154 = 25.974…,
+    // ÷ divisor 4 = 6.493… → floor 6.  Derived, then checked against core/battle.ts.
     const roll = computeDamage(
       battler("mosslet-line", "A", 10),
       battler("nibbin-line", "A", 10, "enemy"),
@@ -749,7 +829,7 @@ describe("KO is a faint and nothing else (Hard Req 8)", () => {
       scripted(MID_ROLL_NO_CRIT),
       ctx,
     );
-    expect(roll.amount).toBe(26);
+    expect(roll.amount).toBe(6);
 
     // …and the log reports the one point of HP that actually left the creature.
     const hit = out.events.find((e) => e.t === "damage" && e.uid === "nib");
@@ -759,8 +839,9 @@ describe("KO is a faint and nothing else (Hard Req 8)", () => {
 
   it("logs the HP an overkilling status chip actually removed", () => {
     // The same arithmetic, at the other site that moves HP without going through `dealDamage`.
-    // loamunder-line at level 10 has 102 max HP and balance.status Burn chips 6% ⇒ floor(6.12) = 6.
-    // Standing at 2 HP, the tick removes 2.
+    // RE-DERIVED for levelCoefficient 0.02 → 0.1 (Hank's stopgap): loamunder-line at level 10 has
+    // 85 × 2.0 = 170 max HP (was 102) and balance.status Burn chips 6% ⇒ floor(10.2) = 10 (was 6).
+    // Standing at 2 HP, the tick still removes 2 — which is the claim, and it did not move.
     const ctx = NO_WEB;
     const input: BattleInput = {
       seed: 9,
@@ -772,8 +853,8 @@ describe("KO is a faint and nothing else (Hard Req 8)", () => {
     const burning: BattleState = structuredClone(started.state);
     const victim = burning.battlers["loam"];
     if (!victim) throw new Error("no victim");
-    expect(victim.maxHp).toBe(102);
-    expect(Math.floor(victim.maxHp * statusChipFraction({ name: "Burn", turnsActive: 0 }, B))).toBe(6);
+    expect(victim.maxHp).toBe(170);
+    expect(Math.floor(victim.maxHp * statusChipFraction({ name: "Burn", turnsActive: 0 }, B))).toBe(10);
     victim.status = { name: "Burn", turnsActive: 0 };
     victim.curHp = 2;
     const out = step(burning, { kind: "move", moveId: "regrow" }, scripted([0.5, 0.99]), ctx);
@@ -807,7 +888,9 @@ describe("KO is a faint and nothing else (Hard Req 8)", () => {
     };
 
     // The roll, read at the formula's own boundary — this is the number the heal USED to be, and it
-    // is 32× the HP the target owns.
+    // is 8× the HP the target owns.  RE-DERIVED for levelCoefficient 0.02 → 0.1 AND damage.divisor
+    // 1 → 4: carricrow atk 60 × 2.0 = 120, mosslet def 75 × 2.0 = 150, Scrounge power 40 ⇒
+    // 120 × 40 / 150 = 32 exactly, ÷ divisor 4 = 8 exactly → floor 8.
     const roll = computeDamage(
       battler("carricrow-line", "A", 10),
       battler("mosslet-line", "A", 10, "enemy"),
@@ -815,7 +898,7 @@ describe("KO is a faint and nothing else (Hard Req 8)", () => {
       scripted(MID_ROLL_NO_CRIT),
       ctx,
     );
-    expect(roll.amount).toBe(32);
+    expect(roll.amount).toBe(8);
 
     const started = startBattle(overkill, ctx);
     expect(started.state.battlers["moss"]?.curHp).toBe(1);
@@ -832,7 +915,7 @@ describe("KO is a faint and nothing else (Hard Req 8)", () => {
     expect(out.state.outcome).toBeNull(); // the fight carried on, so the effects really did run
 
     // The control, on the SAME roll into a target that can absorb all of it: nothing is clamped, so
-    // the heal is the whole 32. Without this the case above would also pass for "Scrounge heals 1".
+    // the heal is the whole 8. Without this the case above would also pass for "Scrounge heals 1".
     const survivable: BattleInput = {
       ...overkill,
       enemyParty: [
@@ -841,12 +924,14 @@ describe("KO is a faint and nothing else (Hard Req 8)", () => {
       ],
     };
     const full = startBattle(survivable, ctx);
-    expect(full.state.battlers["moss"]?.curHp).toBe(96);
+    // mosslet max HP 80 × 1.0 × 2.0 = 160, re-derived for levelCoefficient 0.02 → 0.1 (was 96).
+    // The 8 below is the same roll as above, now genuinely dealt: 120 × 40 / 150 / 4 = 8.
+    expect(full.state.battlers["moss"]?.curHp).toBe(160);
     const fed = step(full.state, { kind: "move", moveId: "scrounge" }, scripted([0.5, 0.99, 0.5, 0.99]), ctx);
     const bite = fed.events.find((e) => e.t === "damage" && e.uid === "moss");
-    expect(bite?.t === "damage" ? bite.amount : -1).toBe(32);
+    expect(bite?.t === "damage" ? bite.amount : -1).toBe(8);
     const meal = fed.events.find((e) => e.t === "heal" && e.uid === "crow");
-    expect(meal?.t === "heal" ? meal.amount : -1).toBe(32);
+    expect(meal?.t === "heal" ? meal.amount : -1).toBe(8);
     expect(fed.events.some((e) => e.t === "faint" && e.uid === "moss")).toBe(false);
   });
 
@@ -1155,8 +1240,13 @@ describe("action handling", () => {
     a.curHp = 10;
     a.status = { name: "Burn", turnsActive: 1 };
     const healed = step(hurt, { kind: "item", itemId: B.medicine.salveItemId }, scripted([0.5, 0.99]), ctx);
-    // salveHealFracMaxHp 0.5 of mosslet's 96 max HP = 48
-    expect(healed.events.find((e) => e.t === "heal")).toEqual({ t: "heal", uid: "a", amount: 48 });
+    // salveHealFracMaxHp 0.5 of mosslet's 160 max HP = 80.  RE-DERIVED for levelCoefficient
+    // 0.02 → 0.1 (Hank's stopgap): max HP 80 × 1.0 × 2.0 = 160, was 96, and the heal is a fraction
+    // of it. Derived from the formula, then checked against core/battle.ts.
+    expect(healed.events.find((e) => e.t === "heal")).toEqual({ t: "heal", uid: "a", amount: 80 });
+    // …and it is balance.json's fraction of THIS creature's max HP, not a copied integer.
+    const aMax = healed.state.battlers["a"]?.maxHp ?? 0;
+    expect(80).toBe(Math.floor(aMax * B.medicine.salveHealFracMaxHp));
     expect(healed.state.bag["salve"]).toBe(0);
     const cured = step(hurt, { kind: "item", itemId: B.medicine.tonicItemId }, scripted([0.5, 0.99]), ctx);
     expect(cured.events.some((e) => e.t === "statusCleared" && e.status === "Burn")).toBe(true);
@@ -1251,7 +1341,8 @@ describe("Burrow/Roost and the un-wired food web", () => {
   const input: BattleInput = {
     seed: 13,
     kind: "wild",
-    // pollywisp spd 50 × 1.3 = 65 vs nibbin spd 45 × 1.1 × 1.3 = 64.35 → 64, so the evader moves
+    // pollywisp spd 50 × 2.5 = 125 vs nibbin spd 45 × 1.1 × 2.5 = 123.75 → 124, so the evader moves
+    // (re-derived for levelCoefficient 0.02 → 0.1: was 65 vs 64, the order is unchanged)
     // first and the evasion is up before the swing lands.
     playerParty: [{ uid: "polly", lineId: "pollywisp-line", age: "A", level: 15, traits: [] }],
     enemyParty: [{ uid: "nib", lineId: "nibbin-line", age: "A", level: 15, traits: [] }],
@@ -1264,7 +1355,8 @@ describe("Burrow/Roost and the un-wired food web", () => {
     const slow: BattleInput = {
       seed: 14,
       kind: "wild",
-      // nibbin spd 45 × 1.1 × 1.3 = 64 vs skir spd 85 × 1.3 = 111 ⇒ the enemy is much faster.
+      // nibbin spd 45 × 1.1 × 2.5 = 123.75 → 124 vs skir spd 85 × 2.5 = 212.5 → 213 ⇒ the enemy is
+      // much faster. (Re-derived for levelCoefficient 0.02 → 0.1; the ORDER is unchanged.)
       playerParty: [{ uid: "nib", lineId: "nibbin-line", age: "A", level: 15, traits: [] }],
       enemyParty: [{ uid: "skir", lineId: "skir-line", age: "A", level: 15, traits: [] }],
     };
@@ -1279,8 +1371,34 @@ describe("Burrow/Roost and the un-wired food web", () => {
     const fullAmount = full?.t === "damage" ? full.amount : 0;
     const cutAmount = cut?.t === "damage" ? cut.amount : 0;
     expect(fullAmount).toBeGreaterThan(0);
-    // ×(1 − evasionBonus), the same magnitude the faster case below gets.
-    expect(cutAmount).toBe(Math.floor(fullAmount * (1 - magnitude("evasionBonus"))));
+
+    /*
+     * RE-DERIVED for levelCoefficient 0.02 → 0.1 AND damage.divisor 1 → 4 — and the DERIVATION
+     * ITSELF had to change, not just the number.
+     *
+     * Skir answers with Squall (Wind 70, neutral into Beast). Hand-computed:
+     *   atk 175 (skir base atk 70 × 2.5) × 70 / def 193 (nibbin 70 × 1.1 Beast × 2.5 = 192.5 → 193)
+     *   = 63.471…
+     *   ÷ divisor 4 = 15.867…  ⇒ floor 15 undodged, and × (1 − evasionBonus 0.3) = 11.107… ⇒ 11.
+     *
+     * This case USED to assert `cutAmount === floor(fullAmount × 0.7)`. That reconstruction is not
+     * the formula: core/battle.ts:764 applies `evadeMult` INSIDE the single floor, so the reduction
+     * is taken on the unfloored product. Flooring twice — once for `fullAmount`, once for the
+     * reduction — gives floor(15 × 0.7) = 10, and the reducer gives 11. The two agreed only while
+     * the amounts were four times larger, before `damage.divisor` landed; the divisor did not
+     * create this discrepancy, it exposed one that was always latent. So the relationship is now
+     * asserted the way the reducer actually computes it, off the battlers' own stats rather than a
+     * copied integer, and both integers are pinned beside it as the human-checkable arithmetic.
+     */
+    const skirAtk = (started.state.battlers["skir"] as Battler).stats.atk;
+    const nibDef = (started.state.battlers["nib"] as Battler).stats.def;
+    expect([skirAtk, nibDef]).toEqual([175, 193]);
+    const unfloored = (skirAtk * move("squall").power) / nibDef / B.damage.divisor;
+    expect(fullAmount).toBe(15);
+    expect(fullAmount).toBe(Math.floor(unfloored));
+    // ×(1 − evasionBonus), the same magnitude the faster case below gets — taken before the floor.
+    expect(cutAmount).toBe(11);
+    expect(cutAmount).toBe(Math.floor(unfloored * (1 - magnitude("evasionBonus"))));
     // The evader still moved second in Speed terms — it is the evade's priority that saves it, and
     // the priority does not leak to other moves.
     expect(ducked.events.filter((e) => e.t === "moveUsed").map((e) => e.uid)).toEqual(["nib", "skir"]);
@@ -1353,27 +1471,33 @@ describe("Burrow/Roost and the un-wired food web", () => {
 
   it("cuts the damage of the hit it ducks, for exactly one turn", () => {
     const started = startBattle(input, ctx);
-    // Nibbin's Maul into a Wind/Plant defender is neutral:
-    //   atk 86 (60 × 1.1 × 1.3) × 70 / def 91 (70 × 1.3) = 66.15… → 66 undodged
-    //   × (1 − evasionBonus 0.3) = 46.30… → 46 while Burrow is up
+    // Nibbin's Maul into a Wind/Plant defender is neutral. RE-DERIVED for levelCoefficient
+    // 0.02 → 0.1 AND damage.divisor 1 → 4; both battlers are level 15, so the level term cancels
+    // and only the divisor moves these:
+    //   atk 165 (60 × 1.1 × 2.5) × 70 / def 175 (70 × 2.5) = 66, ÷ 4 = 16.5 → 16 undodged
+    //   × (1 − evasionBonus 0.3) = 11.55 → 11 while Burrow is up
     const ducked = step(started.state, { kind: "move", moveId: "burrow-roost" }, scripted([0.5, 0.99]), ctx);
     const hit = ducked.events.find((e) => e.t === "damage");
-    expect(hit?.t === "damage" ? hit.amount : 0).toBe(46);
+    expect(hit?.t === "damage" ? hit.amount : 0).toBe(11);
     // balance.additions.A3.json evadeTurns = 1 ⇒ it is gone by the next turn.
     //
-    // Polly's maximum is 98 and the ducked blow left it at 52, so the undodged 66 would be an
-    // OVERKILL — and `dealDamage` logs the HP it actually removes, so the event would read 52 and
-    // the fight would end in a loss here. That is the zero-clamp talking, not the evade, and the
-    // clamp has its own cases in the KO block. Topping the evader up removes the confound: the
-    // expected 66 is unchanged, still read off the damage event, and now genuinely dealt.
+    // Polly's maximum is 188 (75 × 2.5, re-derived for levelCoefficient 0.02 → 0.1; was 98) and
+    // the ducked blow of 11 leaves it at 177. Topping the evader up is kept from the version of
+    // this case written before damage.divisor existed: back then the undodged 66 was an OVERKILL
+    // against a 98-point bar, `dealDamage` logs the HP it actually removes, and the event read 52
+    // instead of the damage — the zero-clamp talking, not the evade. At divisor 4 the hit no
+    // longer overkills, so the top-up is now belt-and-braces rather than load-bearing; it is left
+    // in place because it costs nothing and re-arms automatically if the divisor is retuned down.
     const healthy: BattleState = structuredClone(ducked.state);
     const evader = healthy.battlers["polly"];
     if (!evader) throw new Error("no evader");
-    expect(evader.curHp).toBe(52);
+    // 188 − 11 = 177.  Derived from max HP and the ducked hit above, not read off the run.
+    expect(evader.curHp).toBe(177);
+    expect(evader.curHp).toBe(evader.maxHp - 11);
     evader.curHp = evader.maxHp;
     const after = step(healthy, { kind: "move", moveId: "trample" }, scripted([0.5, 0.99, 0.5, 0.99]), ctx);
     const full = after.events.filter((e) => e.t === "damage").find((e) => e.uid === "polly");
-    expect(full?.t === "damage" ? full.amount : 0).toBe(66);
+    expect(full?.t === "damage" ? full.amount : 0).toBe(16);
     expect(after.state.battlers["polly"]?.fainted).toBe(false);
   });
 
@@ -1417,7 +1541,10 @@ describe("predation and bait read core/foodweb.ts's derivation", () => {
       scripted(MID_ROLL_NO_CRIT),
       ctx,
     );
-    expect(fed).toEqual({ amount: 47, effectiveness: "resisted", predation: true, crit: false, evadeMult: 1 });
+    // RE-DERIVED for levelCoefficient 0.02 → 0.1 AND damage.divisor 1 → 4, the same chain as the
+    // doubles-driven case above: fenmaw atk 180 × riptide 70 / reedrick def 150 = 84 exactly,
+    // × 0.4489 (Plant and Wind each resist Water) × 1.25 predation = 47.134…, ÷ 4 = 11.783… → 11.
+    expect(fed).toEqual({ amount: 11, effectiveness: "resisted", predation: true, crit: false, evadeMult: 1 });
     // …and the reverse edge does not exist, so the prey gets no bonus swinging back.
     const back = computeDamage(
       battler("reedrick-line", "A", 10, "player", ctx),
@@ -1717,12 +1844,16 @@ describe("retuning the type chart moves only the type term (build-doc §6 INV-3)
 
   it("leaves the crit multiplier and the predation bonus exactly as balance.json states them", () => {
     const fed = ctxWith({ "nibbin-line": ["mosslet-line"] });
-    // Hand-computed: 79 × 70 / 90 = 61.444… ⇒ plain floor 61, crit floor(61.444 × 1.5) = 92,
-    // predation floor(61.444 × 1.25) = 76. The ratios below carry the floor, hence precision 1.
+    // Hand-computed, RE-DERIVED for levelCoefficient 0.02 → 0.1 AND damage.divisor 1 → 4:
+    //   132 × 70 / 150 / 4 = 15.4 ⇒ plain floor 15, crit floor(15.4 × 1.5) = floor(23.1) = 23,
+    //   predation floor(15.4 × 1.25) = floor(19.25) = 19.
+    // The RATIOS are what this case is for, and they are divisor-invariant — the divisor divides
+    // every one of the three alike, so it cannot manufacture or hide either bonus. The floor is
+    // coarser at these smaller amounts, which the existing precision of 1 already allows for.
     const plain = computeDamage(attacker(), defender(), move("maul"), scripted([0.5, 0.99]), NO_WEB).amount;
     const crit = computeDamage(attacker(), defender(), move("maul"), scripted([0.5, 0]), NO_WEB);
-    expect(plain).toBe(61);
-    expect(crit.amount).toBe(92);
+    expect(plain).toBe(15);
+    expect(crit.amount).toBe(23);
     expect(crit.crit).toBe(true);
     expect(crit.amount / plain).toBeCloseTo(B.damage.critMultiplier, 1);
     const eaten = computeDamage(
@@ -1733,7 +1864,7 @@ describe("retuning the type chart moves only the type term (build-doc §6 INV-3)
       fed,
     );
     expect(eaten.predation).toBe(true);
-    expect(eaten.amount).toBe(76);
+    expect(eaten.amount).toBe(19);
     expect(eaten.amount / plain).toBeCloseTo(B.types.predation, 1);
     // Both ratios survive a type-chart retune untouched, because neither factor is a type factor.
     const shifted = ctxWith({ "nibbin-line": ["mosslet-line"] });
@@ -1742,7 +1873,21 @@ describe("retuning the type chart moves only the type term (build-doc §6 INV-3)
     });
     const plainShifted = computeDamage(attacker(), defender(), move("maul"), scripted([0.5, 0.99]), shifted).amount;
     const critShifted = computeDamage(attacker(), defender(), move("maul"), scripted([0.5, 0]), shifted).amount;
-    expect(critShifted / plainShifted).toBeCloseTo(B.damage.critMultiplier, 2);
+    /*
+     * `shifted` also carries the predation edge, so the chain is 15.4 × 1.25 × 0.5 = 9.625 plain
+     * and × critMultiplier 1.5 = 14.4375 crit ⇒ floors 9 and 14.
+     *
+     * This was `expect(critShifted / plainShifted).toBeCloseTo(critMultiplier, 2)`. At divisor 4
+     * the amounts are small enough that the FLOOR alone moves the ratio of the two integers to
+     * 14 / 9 = 1.5555…, which is 0.055 off 1.5 — the floor's own granularity, not a drift in the
+     * multiplier. Rather than widen that tolerance (which would stop the case from proving
+     * anything), the claim is asserted where it is exact: `critShifted` is the floor of the
+     * UNFLOORED plain product times balance.json's critMultiplier. That binds the multiplier
+     * harder than ±0.005 on a ratio ever did, and it stays true at any divisor.
+     */
+    const plainRawShifted = 9.625; // 15.4 × predation 1.25 × the retuned neutral 0.5
+    expect(plainShifted).toBe(Math.floor(plainRawShifted));
+    expect(critShifted).toBe(Math.floor(plainRawShifted * B.damage.critMultiplier));
   });
 });
 

@@ -23,8 +23,20 @@
  *
  * So {@link StubImage} is a CLASS, not a proxy: `setDisplaySize` really sets a scale, `width`/
  * `height` really report the texture's natural size, and any method the scene calls that this class
- * does not define is a `TypeError` rather than a silent success. The portrait's drawn size is
+ * does not define is a `TypeError` rather than a silent success. The frame ring's sliced size is
  * asserted off those recorded numbers and off nothing else.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  READ PAINTED OBJECTS ONLY — AND THAT IS WHY THIS RIG DOES NOT SCREENSHOT
+ * ─────────────────────────────────────────────────────────────────────────────
+ * A screenshot of this game comes back black in the agent environment (Chrome sits behind a
+ * terminal, `requestAnimationFrame` never fires, nothing composites), so "no portrait is drawn" is
+ * verified at the OBJECT layer: `rig.images()` is the live display list — {@link StubImage.destroy}
+ * really splices the object out of `stub.objects`, so a destroyed object is absent rather than
+ * flagged. ⚠ The convenience helpers other suites use (`Harness.hud()` and friends) JOIN hidden
+ * objects, which cannot tell "never drawn" from "drawn and hidden"; nothing here goes through one.
+ * Every assertion below reads the display list directly, and §7's absence claims are sabotage-checked
+ * (re-add a portrait draw and they redden) rather than assumed from a missing method.
  */
 
 import { readFileSync } from "node:fs";
@@ -54,7 +66,6 @@ import {
   dialogueBoxRect,
   dialogueChoiceColumns,
   dialogueColumns,
-  dialoguePortraitRect,
   dialogueTextLeft,
   pageCount,
   pageOf,
@@ -95,19 +106,15 @@ const MANIFEST = JSON.parse(
 
 const ROW_BY_ID = new Map(MANIFEST.rows.map((row) => [row.id, row]));
 
-/**
- * The size the pipeline generates a manifest row at — read from the manifest that generates it,
- * never written down here. This is what makes the fit assertion non-vacuous: `npc-static` targets
- * 32×48 and lands in a 32×48 slot at scale 1, where a missing fit is invisible, while
- * `trainer-battle` targets 96×96 and is the case that reddens.
+/*
+ * `generatedSize(rowId)` WAS HERE — the size the pipeline generates a manifest row at, read from the
+ * manifest rather than written down, and used by one assertion: that a 96² `trainer-battle` plate
+ * was FITTED into the box's 32² portrait slot instead of covering the words. There is no slot (see
+ * §7), so there is no fit to make non-vacuous, and a helper whose only caller is gone is dead
+ * weight. The fit contract itself is not lost with it: `tests/unit/art-slot-fit.test.ts` binds it
+ * for the dex, team and retirement slots, and `tests/gates/npc-onscreen.test.ts` binds it for the
+ * fifty overworld NPCs — which is the surface that still draws `npc-static` art.
  */
-function generatedSize(rowId: string): { width: number; height: number } {
-  const row = ROW_BY_ID.get(rowId);
-  if (!row) throw new Error(`tools/comfy/manifest.json has no row "${rowId}"`);
-  const spec = MANIFEST.classes[row.class];
-  if (!spec) throw new Error(`tools/comfy/manifest.json has no class "${row.class}"`);
-  return { width: spec.targetW, height: spec.targetH };
-}
 
 /** The texture key the game loads a manifest row under: its `finalFile`, minus `assets/final/`. */
 function keyOf(rowId: string): string {
@@ -428,7 +435,6 @@ interface SceneLike {
   renderedLines(): string[];
   entryOnScreen(): string;
   cursor(): number;
-  portraitOnScreen(): string | null;
 }
 
 interface Rig {
@@ -519,11 +525,15 @@ function advance(rig: Rig): void {
  * ⚠ ONE PRESS IS NOT ONE LINE, AND NEVER RELIABLY WAS. `wrapDialogue` fills `bodyLines` rows and
  * `onConfirm` turns the page before it advances, so a line long enough to wrap past three rows costs
  * two presses. This helper replaces a loop that pressed exactly once per line — an assumption that
- * held only because no line of `maren.opening` happened to wrap that far at the box's old width.
- * Reserving the portrait slot narrowed the body column from 74 characters to 68 and 43 of the
- * corpus's 512 authored lines now take one more page (559 page-turns to read it all, was 559 − 43);
- * the assumption broke, the assertions it fed did not change, and this is what carries them now.
- * `pageCount` is the same function the scene pages by, so the two cannot disagree.
+ * held only because no line of `maren.opening` happened to wrap that far at the box's width of the
+ * day, and which broke the moment the box's width moved.
+ *
+ * IT HAS NOW MOVED TWICE, WHICH IS THE POINT. Reserving a portrait slot took the body column from 74
+ * characters to 68 and pushed 43 lines onto an extra page; removing the portrait on the owner's
+ * instruction took it back to 74 and gave those 43 pages back (602 pages to read the corpus at 68,
+ * 559 at 74). 47 lines still page at 74, so the helper is not decoration at either width — and no
+ * assertion it feeds was touched by either move. `pageCount` is the same function the scene pages
+ * by, so the two cannot disagree.
  */
 function advanceLine(rig: Rig): void {
   const from = rig.scene.runState().lineIndex;
@@ -654,23 +664,55 @@ describe("§2 rendered text", () => {
   });
 
   it("a line with a second page hands over its whole body, page by page", () => {
-    // The other half of the rename above, asserted rather than assumed: paging is not a detail of
-    // the rig, it is the mechanism that keeps a long line readable in a box the portrait narrowed.
+    /*
+     * JUSTIFIED EDIT — THE SUBJECT MOVED, THE CLAIM DID NOT. This drove `maren.opening` and guarded
+     * itself with `expect(index, "no line of the opening pages …").toBeGreaterThanOrEqual(0)`. That
+     * guard FIRED when the owner's instruction ("get rid of the portraits from the message boxes")
+     * widened the body column from 68 characters to 74: no line of the opening wraps past
+     * `bodyLines` at 74 any more, so driving that entry would have exercised nothing. The guard did
+     * exactly its job and is not weakened here — it is repointed.
+     *
+     * REVERT CHECK: would the old row still fail with my change reverted? NO — it passes at 68. It
+     * is red only because of a decision the OWNER made, which is the one ground on which a stale
+     * fixture may be repointed. The contract itself ("a long line hands over its whole body, page by
+     * page") is untouched and every assertion below is the same one.
+     *
+     * NOT WEAKENED, AND STRICTLY BROADER: the subject is no longer one named entry that happened to
+     * page at one width, but the first entry in the whole corpus that pages at WHATEVER width the
+     * box currently has. The non-vacuity guard now says "no line in the corpus pages", which is
+     * harder to satisfy vacuously than "no line of the opening pages" and cannot go stale the next
+     * time the column moves. 47 of the corpus's lines page at 74; the guard proves it rather than
+     * this comment doing so.
+     */
     const columns = dialogueColumns(STYLE);
-    const index = OPENING.lines.findIndex(
-      (l) => pageCount(wrapDialogue(l.text, columns), STYLE.bodyLines) > 1,
-    );
-    expect(index, "no line of the opening pages — this test is exercising nothing").toBeGreaterThanOrEqual(0);
-    const rig = mount({ entryId: OPENING.id });
+    const found = DIALOGUE.entries
+      .map((entry) => ({
+        entry,
+        index: entry.lines.findIndex(
+          (l) => pageCount(wrapDialogue(l.text, columns), STYLE.bodyLines) > 1,
+        ),
+      }))
+      // Choices are §4b's subject: this test is the PLAIN paging path, with nothing pending.
+      .find((c) => c.index >= 0 && (c.entry.choices ?? []).length === 0);
+    expect(
+      found,
+      "no entry in data/dialogue.json wraps a line past bodyLines — this test is exercising nothing",
+    ).toBeDefined();
+    if (!found) return;
+    const { entry, index } = found;
+    const rig = mount({ entryId: entry.id });
     for (let i = 0; i < index; i += 1) advanceLine(rig);
-    const rows = wrapDialogue(OPENING.lines[index]!.text, columns);
+    const rows = wrapDialogue(entry.lines[index]!.text, columns);
     const pages = pageCount(rows, STYLE.bodyLines);
     const gathered: string[] = [];
     for (let p = 0; p < pages; p += 1) {
       gathered.push(...rig.scene.renderedLines().slice(1));
       if (p < pages - 1) {
         advance(rig);
-        expect(rig.scene.runState().lineIndex, "the press advanced the line instead of the page").toBe(index);
+        expect(
+          rig.scene.runState().lineIndex,
+          `${entry.id}: the press advanced the line instead of the page`,
+        ).toBe(index);
       }
     }
     expect(gathered.filter((r) => r.length > 0)).toEqual(rows);
@@ -684,8 +726,8 @@ describe("§2 rendered text", () => {
     expect(after).not.toBe(before);
     expect(rig.stub.objects.every((o) => !o.destroyed)).toBe(true);
     expect(rectsOf(rig.stub).length).toBeLessThanOrEqual(4);
-    // The frame and the portrait are redrawn too, never accumulated: eight ring pieces and at most
-    // one face, however many lines have gone by.
+    // The frame is redrawn too, never accumulated: eight ring pieces, however many lines have gone
+    // by — and, since the portrait went, eight images in total. §7 asserts the "in total" half.
     expect(rig.images().filter((i) => i.key === DIALOGUE_FRAME_ASSET_ID)).toHaveLength(8);
   });
 });
@@ -1087,14 +1129,24 @@ describe("§5 input", () => {
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
- * §7 The speaker's face
+ * §7 The speaker's face — REMOVED FROM THE BOX, AND THE RESOLVER THAT OUTLIVED IT
  *
- * `DialogueSpeaker.portrait` was authored on all 63 speakers and read by nothing until the box
- * reserved a slot for it. Everything below drives the REAL scene and asserts on what `add.image`
- * actually received — never on the scene's own account of what it meant to draw.
+ * Owner's instruction, verbatim: "get rid of the portraits from the message boxes. Most of them are
+ * broken, and so I'd rather just do away with them entirely."
+ *
+ * This section used to prove a face reached a draw call and fitted its slot. It now proves the
+ * INVERSE — that no face reaches the box — plus the two halves of the old section that were never
+ * about the box at all: `portraitAssetId` still turns a manifest row id into the texture key the
+ * pipeline writes, because `game/npcs.ts` draws the fifty overworld NPCs through it, and
+ * `balance.map.npcSpriteW/H` still has to equal the size the `npc-static` class is cut at.
+ *
+ * ⚠ ABSENCE IS ASSERTED, NOT ASSUMED, AND NOT SCREENSHOTTED. Every test below reads the live display
+ * list (`rig.images()`), where `destroy()` really splices an object out — so "no portrait" is read
+ * off painted objects and cannot be confused with "drawn and hidden" (see the file header). A rig
+ * that could not draw an image at all would satisfy an absence claim vacuously, so both absence
+ * tests SEED the real shipped PNG for the speaker they drive and assert the same display list still
+ * carries eight frame pieces. Re-add a portrait draw to the scene and both redden.
  * ════════════════════════════════════════════════════════════════════════════ */
-
-const SLOT = dialoguePortraitRect(STYLE);
 
 function speakerOf(entry: DialogueEntry): DialogueSpeaker {
   const line = entry.lines[0];
@@ -1127,16 +1179,27 @@ function boundsOf(image: StubImage): { left: number; top: number; right: number;
   };
 }
 
-describe("§7 the portrait slot", () => {
+/** The shipped PNG for a speaker's portrait, or null when the art lane has not produced one. */
+const SHIPPED_ART = new Map<string, { key: string; width: number; height: number }>();
+for (const speaker of DIALOGUE.speakers) {
+  if (!ROW_BY_ID.has(speaker.portrait)) continue;
+  const key = keyOf(speaker.portrait);
+  if (!hasRealAsset(key)) continue;
+  const png = pngSize(`assets/final/${key}.png`);
+  SHIPPED_ART.set(speaker.id, { key, width: png.width, height: png.height });
+}
+
+describe("§7 the box draws no face", () => {
   it("every speaker in the corpus carries a portrait, and every portrait but one names a manifest row", () => {
     expect(DIALOGUE.speakers.length).toBe(63);
     for (const speaker of DIALOGUE.speakers) {
       expect(typeof speaker.portrait, speaker.id).toBe("string");
       expect(speaker.portrait.trim().length, speaker.id).toBeGreaterThan(0);
     }
-    // G2: the box may not name art the manifest does not carry. The ONE exception is the corpus's
+    // G2: no speaker may name art the manifest does not carry. The ONE exception is the corpus's
     // faceless voice — see the `speakerHasFace` block in the scene — and it is named here so a
-    // SECOND unbacked portrait cannot appear without this reddening.
+    // SECOND unbacked portrait cannot appear without this reddening. Still binding with the box's
+    // slot gone: `game/npcs.ts` resolves the SAME field to draw the fifty overworld NPCs.
     const unbacked = [...new Set(DIALOGUE.speakers.map((s) => s.portrait))].filter(
       (portrait) => !ROW_BY_ID.has(portrait),
     );
@@ -1183,7 +1246,23 @@ describe("§7 the portrait slot", () => {
     }
   });
 
-  it("THE PORTRAIT REACHES A DRAW CALL: shipped npc art is drawn in the slot", () => {
+  it("THE BOX DRAWS NO FACE: the speaker's shipped art is loaded, and still nothing but the frame", () => {
+    /*
+     * JUSTIFIED EDIT — THE INVERSE OF THE ASSERTION THAT WAS HERE. This was "THE PORTRAIT REACHES A
+     * DRAW CALL: shipped npc art is drawn in the slot", asserting `rig.images().find(i => i.key ===
+     * key)` was defined and its bounds fell inside `dialoguePortraitRect`.
+     *
+     * REVERT CHECK: would the old assertion still fail with my change reverted? NO — it passed, and
+     * it is red only because the OWNER removed the feature it guarded: "get rid of the portraits
+     * from the message boxes. Most of them are broken, and so I'd rather just do away with them
+     * entirely." A decision of the owner's is the one ground on which a contract may be replaced,
+     * and the replacement is asserted here rather than deleted.
+     *
+     * NOT WEAKENED: the drive is identical — the same speaker, chosen the same way, with the same
+     * real PNG at its real size handed to the loader — so the box HAS the art and could draw it.
+     * What changed is the direction of the claim, and the claim is now exact (`toEqual([])`) where
+     * the old one was existential.
+     */
     const entry = entryVoicedBy(
       (s) => ROW_BY_ID.get(s.portrait)?.class === "npc-static" && hasRealAsset(keyOf(s.portrait)),
       "voiced by a speaker whose npc-static portrait has shipped",
@@ -1202,106 +1281,83 @@ describe("§7 the portrait slot", () => {
       },
     );
 
-    expect(rig.scene.portraitOnScreen()).toBe(key);
-    const drawn = rig.images().find((i) => i.key === key);
+    const images = rig.images();
+    // NON-VACUITY: this rig draws images, and did — so an empty portrait result is a decision the
+    // scene made, not a display list nothing ever reaches.
     expect(
-      drawn,
-      `the box drew ${rig.images().map((i) => i.key).join(", ") || "no image"} — not the ` +
-        `portrait "${key}", so nothing here is exercising the real-art path`,
-    ).toBeDefined();
-    if (!drawn) return;
-    const bounds = boundsOf(drawn);
-    expect(bounds.left).toBeGreaterThanOrEqual(SLOT.x);
-    expect(bounds.top).toBeGreaterThanOrEqual(SLOT.y);
-    expect(bounds.right).toBeLessThanOrEqual(SLOT.x + SLOT.width);
-    expect(bounds.bottom).toBeLessThanOrEqual(SLOT.y + SLOT.height);
-  });
-
-  it("THE DRAWN SIZE FITS THE SLOT — including the 96² trainer plate that has not landed yet", () => {
-    /*
-     * The assertion that is vacuous if it is made on the wrong row. `npc-static` generates at 32×48,
-     * which is exactly this slot, so it is drawn at scale 1 whether or not anything fits it —
-     * green with the fit and green without. `trainer-battle` generates at 96×96 (read from
-     * `tools/comfy/manifest.json`, never written here), and the eight gym leaders speak through this
-     * box: the day that class runs, a portrait three canvas widths wide covers the words unless
-     * `placeholderImage` fits it. That is the `dex-painted` defect, in the widget the game spends
-     * most of its time in, and this is the test that reddens when the fit is removed.
-     */
-    const entry = entryVoicedBy(
-      (s) => ROW_BY_ID.get(s.portrait)?.class === "trainer-battle",
-      "voiced by a gym-leader-class speaker",
-    );
-    const speaker = speakerOf(entry);
-    const key = portraitAssetId(speaker.portrait);
-    const plate = generatedSize(speaker.portrait);
-    expect(plate.width, "the trainer class no longer generates oversize — pick another row").toBeGreaterThan(SLOT.width);
-
-    const rig = mount(
-      { entryId: entry.id },
-      {
-        loaded: [
-          { key: DIALOGUE_FRAME_ASSET_ID, width: FRAME_PNG.width, height: FRAME_PNG.height },
-          { key, width: plate.width, height: plate.height },
-        ],
-      },
-    );
-
-    const drawn = rig.images().find((i) => i.key === key);
-    expect(drawn, `the box did not draw "${key}" at all`).toBeDefined();
-    if (!drawn) return;
-    expect([drawn.width, drawn.height], "the rig did not hand the box the oversize plate").toEqual([
-      plate.width,
-      plate.height,
-    ]);
+      images.filter((i) => i.key === DIALOGUE_FRAME_ASSET_ID),
+      "the box drew no frame either — the rig is not drawing at all, so absence proves nothing",
+    ).toHaveLength(8);
     expect(
-      drawn.displayWidth,
-      `the portrait is drawn ${String(drawn.displayWidth)}px wide in a ${String(SLOT.width)}px slot`,
-    ).toBeLessThanOrEqual(SLOT.width);
+      images.filter((i) => i.key !== DIALOGUE_FRAME_ASSET_ID).map((i) => i.key),
+      "the box drew an image that is not part of its frame",
+    ).toEqual([]);
+    // Named, so a labelled STAND-IN for this speaker is caught as well as the real plate:
+    // `placeholderKey` contains the id it stands in for.
     expect(
-      drawn.displayHeight,
-      `the portrait is drawn ${String(drawn.displayHeight)}px tall in a ${String(SLOT.height)}px slot`,
-    ).toBeLessThanOrEqual(SLOT.height);
-    expect(drawn.displayWidth, "the portrait is scaled away to nothing").toBeGreaterThan(0);
-    // Aspect preserved — "fits" is also satisfied by squashing, which is the stretch the helper forbids.
-    expect(Math.abs(drawn.displayWidth / drawn.displayHeight - plate.width / plate.height)).toBeLessThan(0.001);
-  });
-
-  it("a portrait with no texture draws the labelled stand-in, and never blanks the box", () => {
-    // Nothing seeded but the frame: every portrait in the corpus is unbuilt as far as this rig is
-    // concerned, which is the state most of them are actually in on disk.
-    const entry = entryVoicedBy((s) => speakerHasFace(s), "voiced by a speaker with a face");
-    const speaker = speakerOf(entry);
-    const key = portraitAssetId(speaker.portrait);
-
-    const rig = mount({ entryId: entry.id });
-    const drawn = rig.images().find((i) => i.key !== DIALOGUE_FRAME_ASSET_ID);
-    expect(drawn, "no stand-in was drawn for an unbuilt portrait").toBeDefined();
-    if (!drawn) return;
-    // `placeholderKey` names the asset it stands in for, so a reviewer can say WHICH is missing.
-    expect(drawn.key).toContain(key);
-    // Generated at the slot size, so it fills it exactly and the fit is a no-op.
-    expect([drawn.displayWidth, drawn.displayHeight]).toEqual([SLOT.width, SLOT.height]);
+      images.some((i) => i.key.includes(key)),
+      `the box drew the portrait "${key}"`,
+    ).toBe(false);
     // …and the words are still on the screen, which is the half a crash would take with it.
     expect(rig.drawn().join(" ")).toContain(
       wrapDialogue(entry.lines[0]!.text, dialogueColumns(STYLE))[0]!,
     );
   });
 
-  it("the words never run under the face — the body starts clear of the slot", () => {
+  it("NO ENTRY IN THE CORPUS PUTS A FACE IN THE BOX — swept, not sampled", () => {
+    /*
+     * The blast radius of the removal. The old section proved the slot on ONE entry per case, which
+     * is how a surviving draw for a class nobody sampled would have gone unseen; every one of the
+     * corpus's entries is driven here, with its speaker's real art loaded wherever the art lane has
+     * produced it.
+     */
+    expect(SHIPPED_ART.size, "no speaker's portrait has shipped — the sweep proves nothing").toBeGreaterThan(0);
+
+    let withRealArt = 0;
+    for (const entry of DIALOGUE.entries) {
+      const speaker = speakerOf(entry);
+      const art = SHIPPED_ART.get(speaker.id);
+      const loaded = [{ key: DIALOGUE_FRAME_ASSET_ID, width: FRAME_PNG.width, height: FRAME_PNG.height }];
+      if (art) {
+        loaded.push(art);
+        withRealArt += 1;
+      }
+      const rig = mount({ entryId: entry.id }, { loaded });
+      const strays = rig.images().filter((i) => i.key !== DIALOGUE_FRAME_ASSET_ID);
+      expect(
+        strays.map((i) => i.key),
+        `"${entry.id}" (${speaker.id}) drew a face in the box`,
+      ).toEqual([]);
+      expect(rig.images(), `"${entry.id}" drew no frame — the rig is not drawing`).toHaveLength(8);
+    }
+    expect(withRealArt, "no entry in the sweep was driven with real art available to draw").toBeGreaterThan(0);
+  });
+
+  it("the body sits inside the box: it starts at the box's own pad and no row runs past the edge", () => {
+    /*
+     * JUSTIFIED EDIT — was "the words never run under the face — the body starts clear of the slot",
+     * whose first assertion was `expect(dialogueTextLeft(STYLE)).toBeGreaterThanOrEqual(SLOT.x +
+     * SLOT.width)`. There is no slot to be clear of. The claim it existed to make — no authored row
+     * is drawn outside the box's field, at either edge — is asserted here in full.
+     *
+     * REVERT CHECK: the old rows pass on revert; they are red only because the owner removed the
+     * portrait. NOT WEAKENED — the left-edge check is now an EXACT `toBe` against the box's own pad
+     * where it used to be a `>=` against the slot's right edge, and the corpus-wide right-edge sweep
+     * below is carried over verbatim.
+     */
     const entry = entryVoicedBy((s) => speakerHasFace(s), "voiced by a speaker with a face");
     const rig = mount({ entryId: entry.id });
     const rect = dialogueBoxRect(STYLE);
 
-    expect(dialogueTextLeft(STYLE)).toBeGreaterThanOrEqual(SLOT.x + SLOT.width);
-    expect(SLOT.x).toBeGreaterThanOrEqual(rect.x);
-    expect(SLOT.y + SLOT.height).toBeLessThanOrEqual(rect.y + rect.height);
+    expect(dialogueTextLeft(STYLE)).toBe(rect.x + STYLE.pad);
 
     const inBox = textsOf(rig.stub).filter((t) => t.y >= rect.y && t.y <= rect.y + rect.height);
     expect(inBox.length, "no text was drawn inside the box").toBeGreaterThan(0);
     for (const row of inBox) {
-      expect(row.x, `"${row.text}" starts at ${String(row.x)}, inside the portrait slot`).toBeGreaterThanOrEqual(
-        SLOT.x + SLOT.width,
-      );
+      expect(
+        row.x,
+        `"${row.text}" starts at ${String(row.x)}, outside the box's field`,
+      ).toBeGreaterThanOrEqual(rect.x + STYLE.pad);
     }
     // And the widest row the corpus can produce still ends inside the box.
     const columns = dialogueColumns(STYLE);
@@ -1317,26 +1373,31 @@ describe("§7 the portrait slot", () => {
     }
   });
 
-  it("the corpus's faceless voice draws no face, and the slot stays reserved anyway", () => {
+  it("the geometry does not move between a line spoken by a person and one spoken by nobody", () => {
+    /*
+     * JUSTIFIED EDIT — was "the corpus's faceless voice draws no face, and the slot stays reserved
+     * anyway", whose subject was a slot that no longer exists. The half that mattered is kept
+     * VERBATIM: the body column must not reflow mid-chain, so a faced speaker's box and the faceless
+     * voice's box are compared against each other rather than against `dialogueTextLeft` alone.
+     * REVERT CHECK: passes on revert; red only because of the owner's removal. NOT WEAKENED — the
+     * `toEqual` on the two column sets is unchanged, and the absence claim it carried is now made of
+     * BOTH boxes rather than only the faceless one.
+     */
     // `: boolean` on purpose — `speakerHasFace` is a type guard, so an unannotated `!` predicate
     // picks `filter`'s narrowing overload and hands back `never[]`, which types clean and asserts
     // nothing about the ids it was supposed to be checking.
     const faceless = DIALOGUE.speakers.filter((s): boolean => !speakerHasFace(s));
     expect(faceless.map((s) => s.id)).toEqual(["narration"]);
 
-    const entry = entryVoicedBy((s) => !speakerHasFace(s), "voiced by the faceless narration voice");
-    const rig = mount({ entryId: entry.id });
-    expect(rig.scene.portraitOnScreen()).toBeNull();
-    expect(
-      rig.images().filter((i) => i.key !== DIALOGUE_FRAME_ASSET_ID),
-      "a hatched stand-in was drawn for a voice no manifest row backs",
-    ).toHaveLength(0);
-
-    // The geometry does not move between a line spoken by a person and one spoken by nobody: the
-    // body column must not reflow mid-chain. Compared against a FACED speaker's box rather than
-    // against `dialogueTextLeft` alone, because the claim is that the two boxes agree — which is
-    // what a reader would notice if it stopped being true.
+    const rig = mount({ entryId: entryVoicedBy((s) => !speakerHasFace(s), "voiced by the faceless narration voice").id });
     const faced = mount({ entryId: entryVoicedBy((s) => speakerHasFace(s), "voiced by a speaker with a face").id });
+    for (const [label, r] of [["the faceless voice", rig], ["a faced speaker", faced]] as const) {
+      expect(
+        r.images().filter((i) => i.key !== DIALOGUE_FRAME_ASSET_ID),
+        `${label}: an image other than the frame reached the box`,
+      ).toHaveLength(0);
+    }
+
     const rect = dialogueBoxRect(STYLE);
     const columnOf = (r: Rig): number[] =>
       textsOf(r.stub)
@@ -1350,34 +1411,33 @@ describe("§7 the portrait slot", () => {
     expect(new Set(facelessColumn)).toEqual(new Set(columnOf(faced)));
   });
 
-  it("the slot takes its size from balance.map, never from a literal (G11)", () => {
+  it("npcSpriteW/H still equals the size the npc-static class is cut at (G11, cross-lane)", () => {
     /*
-     * REPOINTED from `playerSpriteW/H` to `npcSpriteW/H`, and the second assertion below is why.
+     * JUSTIFIED EDIT — THE SUBJECT LOST ONE OF ITS TWO CONSUMERS, AND THE ASSERTION MUST NOT GO WITH
+     * IT. This read `expect(STYLE.portraitW).toBe(balance.map.npcSpriteW)` and then compared the
+     * manifest class against `STYLE.portraitW/H`. `DialogueStyle` has no `portraitW/H` any more —
+     * the box does not reserve a slot — so the style hop is gone and the balance key is read
+     * directly. REVERT CHECK: the old rows pass on revert; they are red only because the owner
+     * removed the portrait.
      *
-     * REVERT CHECK — would the old rows still be wrong with every code change reverted? YES. This
-     * slot draws npc-static art and has never drawn the player; the two keys were equal by
-     * coincidence. The owner then ruled the player one block tall (`playerSpriteH` 48 → 32) while
-     * the twelve shipped npc-static PNGs were still 32×48, and `expect(STYLE.portraitH).toBe(
-     * playerSpriteH)` and the manifest row below could no longer both hold — not because a lane
-     * broke something, but because one key was standing for two different sizes. The test was
-     * asserting a coincidence as a contract.
+     * ⚠ WHY IT STAYS IN THIS FILE AT ALL, WHICH IS THE PART WORTH READING. The cross-lane MUST-EQUAL
+     * is two-sided: `tools/comfy/manifest.json`'s `npc-static._targetSource` names
+     * `balance.map.npcSpriteW/H` and says "MUST EQUAL — tests/unit/dialogue-scene.test.ts §7 binds
+     * them". `tests/unit/manifest.test.ts` binds the HEIGHT half (`npc-static.targetH` ===
+     * `map.npcSpriteH`) but binds the WIDTH to `map.playerSpriteW`, so this row is the ONLY
+     * assertion in the repo that `npc-static.targetW === map.npcSpriteW`. Deleting it because the
+     * box no longer has a stake would silently drop that half — a re-cut of the cast on one side
+     * only would then ship art that does not fit the overworld box it is drawn in.
      *
-     * ⚠ THE CAST HAS SINCE BEEN RE-FITTED TO 32×32 ("let's do NPCs that are squeezed"), SO THE TWO
-     * KEYS ARE NUMERICALLY EQUAL AGAIN — AND THIS ROW MUST STILL NAME `npcSprite*`. A row reading
-     * `playerSpriteH` would pass today and go on passing right up to the next ruling on either
-     * sprite, which is precisely how the first fault reached the screen. The equality is the
-     * hazard; naming the right owner is the fix.
-     *
-     * NOT WEAKENED: still two exact `toBe`s and an exact `toEqual`, and the cross-lane claim is
-     * genuinely two-sided — `tools/comfy/manifest.json`'s `npc-static._targetSource` names this
-     * balance key and says "MUST EQUAL". This row is what makes that true: a re-cut on either side
-     * alone reds here rather than shipping art that does not fit its slot.
+     * NOT WEAKENED: still two exact `toBe`s and an exact `toEqual`, on the same two numbers. The
+     * REMAINING consumer is `game/npcs.ts`, which sizes the overworld NPC box with this pair; the
+     * DialogueScene portrait slot was the other one and is gone. When someone moves this row to the
+     * NPC lane, the manifest note above must be repointed with it.
      */
-    expect(STYLE.portraitW).toBe(balance.map.npcSpriteW);
-    expect(STYLE.portraitH).toBe(balance.map.npcSpriteH);
-    // …which is the size the npc-static class is generated at, so shipped art lands at scale 1.
     const npc = MANIFEST.classes["npc-static"];
-    expect([npc?.targetW, npc?.targetH]).toEqual([STYLE.portraitW, STYLE.portraitH]);
+    expect(npc?.targetW, "npc-static is cut at a width balance does not state").toBe(balance.map.npcSpriteW);
+    expect(npc?.targetH, "npc-static is cut at a height balance does not state").toBe(balance.map.npcSpriteH);
+    expect([npc?.targetW, npc?.targetH]).toEqual([balance.map.npcSpriteW, balance.map.npcSpriteH]);
   });
 });
 
@@ -1488,15 +1548,25 @@ describe("§8 the box's edge is the shipped ui-frame asset", () => {
     ]);
   });
 
-  it("the choice panel wears the same frame, and pays no portrait tax on its width", () => {
+  it("the choice panel wears the same frame, and its width now matches the body's", () => {
     const rig = mount({ entryId: OPENING.id });
     for (let i = 0; i < OPENING.lines.length - 1; i += 1) advanceLine(rig);
     // Two panels on screen ⇒ two rings.
     expect(rig.images().filter((i) => i.key === DIALOGUE_FRAME_ASSET_ID)).toHaveLength(16);
-    // The choice panel has no face in it, so it keeps the full-width budget the box had before the
-    // portrait — otherwise the slot would cut six characters off every authored prompt to pay for a
-    // face that is not there.
-    expect(dialogueChoiceColumns(STYLE)).toBeGreaterThan(dialogueColumns(STYLE));
+    /*
+     * JUSTIFIED EDIT — was `expect(dialogueChoiceColumns(STYLE)).toBeGreaterThan(dialogueColumns(
+     * STYLE))`, on the premise that the body paid a six-character portrait tax the panel did not.
+     * The owner removed the portrait, so there is no tax, and the two budgets are the same number.
+     *
+     * REVERT CHECK: the old row passes on revert (68 body against 74 panel) — it is red only because
+     * of the owner's decision. NOT WEAKENED: `toBe` PINS the relationship where `toBeGreaterThan`
+     * only bounded it, and the two functions still compute their answers independently from the box
+     * rect, so this reddens if either surface starts paying for something the other does not.
+     */
+    expect(
+      dialogueChoiceColumns(STYLE),
+      "the choice panel and the body no longer get the same width out of the same box",
+    ).toBe(dialogueColumns(STYLE));
     const widest = Math.max(
       ...DIALOGUE.entries.flatMap((e) => (e.choices ?? []).map((c) => c.text.length + 2)),
     );

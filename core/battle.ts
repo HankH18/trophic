@@ -758,7 +758,10 @@ export function computeDamage(
   const crit = rng.float() < critChance;
   const critMult = crit ? balance.damage.critMultiplier : ABSENT;
   const evadeMult = evadeReduction(defender, ctx);
-  const raw = ((atk * power) / def) * mult * predationMult * roll * critMult * evadeMult;
+  // `damage.divisor` is the term that ties hit size to HP size: everything to its left is a ratio
+  // times a move power and is denominated in nothing. Without it a single hit is the whole health
+  // bar in both directions, which is what removes the window a catch needs (weaken, then throw).
+  const raw = ((atk * power) / def) * mult * predationMult * roll * critMult * evadeMult / balance.damage.divisor;
   return { amount: Math.max(balance.damage.minDamage, Math.floor(raw)), effectiveness: band, predation, crit, evadeMult };
 }
 

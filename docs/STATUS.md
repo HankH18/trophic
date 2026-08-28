@@ -4,6 +4,95 @@ A 2D monster-catching RPG whose region is a living ecosystem: every catch decrem
 population, the food web is derived from those numbers rather than authored beside them, and the
 calendar ages every creature and map underneath the story.
 
+## ✅ DONE — the speaker portrait is out of the dialogue box, and what that moved
+
+Owner's instruction, verbatim: **"get rid of the portraits from the message boxes. Most of them are
+broken, and so I'd rather just do away with them entirely."** Done in
+`game/scenes/DialogueScene.ts`. The box itself is untouched — frame, name plate, body, typewriter
+crawl, ▼ marker, paging and the choice panel all behave exactly as before.
+
+**The box did not change size, and that was checked rather than hoped.** The height term was
+`max(lineHeight × (bodyLines + 1), portraitH)`; the text side was already the larger (52px of rows
+against a 32px slot), so dropping the `max` leaves the same 68px box in the same place, and the ▼
+marker and the choice panel above it did not move.
+
+**The width did change, and it is the consequence that mattered.** The body column went 68 → 74
+characters, which changes where every line wraps and therefore how many pages an entry takes: 43 of
+the corpus's authored lines lost a page turn (602 pages to read the whole corpus, now 559). The
+recently-fixed page-before-choose defect is still exercised — `sel.quest.wager.offer` still wraps to
+four rows at 74 and §4b's three tests, non-vacuity guards included, all still hold on the shipped
+corpus. What *did* go stale was §2's paging test, which drove `maren.opening`: no line of that entry
+wraps past `bodyLines` at 74 any more. Its guard fired correctly and the test was repointed at the
+first entry in the *corpus* that pages at the current width, so it cannot go stale the next time the
+column moves. 47 lines still page.
+
+`portraitAssetId` and `speakerHasFace` stay exported from `game/scenes/DialogueScene.ts`, unmoved:
+`game/npcs.ts` draws the fifty overworld NPCs through the first, and
+`tests/gates/asset-reachability.test.ts` builds its portrait key census from both.
+`balance.map.npcSpriteW/H` stays too — `game/npcs.ts` sizes the NPC box with it; only the box's
+consumer went, and the `_npcSprite` note now says so.
+
+### The asset gates followed, and they were right to
+
+`tests/gates/asset-reachability.test.ts` went red the moment the portrait came out, and every part
+of it was a true report. **§1b is fixed and green**: `game/scenes/DialogueScene.ts` is out of
+`DRAWING_FILES` because it genuinely no longer draws a texture (it still *spells*
+`DIALOGUE_FRAME_ASSET_ID`, but the ring is painted by the shared slicer in `game/ui/FramePanel.ts`,
+and spelling a key is not drawing one — the same rule that keeps `MenuScene`, `DexScene`,
+`BattleHud` and `SurveyScene` off that list). Nothing was narrowed: the scan still walks every file
+under `game/`, and it was sabotage-checked in both directions — a re-added draw call reddens it with
+`+ game/scenes/DialogueScene.ts draws, and this gate has no key builder for it`.
+
+The `KEY_BUILDERS` portrait row is deleted, and **that deletion is the point**. Its `keys()` called
+two functions that still ship and still return the same 25 ids, so leaving it would have gone on
+certifying `trainer-battle` and `prop` as consumed while nothing drew one of them — a green built
+out of a function nobody calls, which is the `dexArtId` defect that file already records.
+
+### ⛔ WAITING ON THE OWNER — 12 authored portrait values now have no path to the screen (GATE 2b)
+
+**This is a standing red, deliberately not made green.** Removing the box's portrait left twelve
+`data/dialogue.json` `speakers[].portrait` values that nothing reads: the 8 `trainer-battle` rows
+(Maren, Wick, Greaves, Maribel, Odo, Vesper, Sable, Noct) and the 4 `prop` rows (antler stone, shell
+kiln shrine, sunken idol, sign card). GATE 2a names the two classes; GATE 2b names the twelve
+values. GATE 2c is unchanged (`ui-frame/ui-sign-card-frame` only).
+
+**No art was orphaned and no spend was stranded** — measured, not assumed:
+`assets/final/trainer-battle/` and `assets/final/prop/` do not exist and never have, and no constant
+in `game/` or `core/` spells either prefix. What the box was actually doing for those twelve was
+drawing a hatched PLACEHOLDER block labelled with a row the art lane still owed. That is what
+*"most of them are broken"* describes.
+
+It is not green because **there is no honest way to green it from inside the test**. Checked first:
+`game/ui/BattleHud.ts` contains the string "trainer" zero times and has never drawn a person;
+nothing draws `prop` art at all (a prop is an interaction point via `propAt`/`propUnderPlayer`, with
+no sprite — what the player looks at is the generated map). Pointing the field at a new surface
+means building the feature the owner just declined. The field cannot be deleted either — `portrait`
+is required on all 63 speakers in `core/dialogue-schema.ts` — and GATE 2b has no exemption
+mechanism, deliberately.
+
+**The owner's call, one of three:**
+  (a) cut the 12 manifest rows and repoint those speakers at an `npc-static` portrait;
+  (b) build a surface that draws a trainer — a battle-intro plate is the obvious one; or
+  (c) accept it as a standing decision, the way `overworld-mini` is accepted.
+
+The full write-up sits at GATE 2b in `tests/gates/asset-reachability.test.ts`. **Do not add an
+allowlist, narrow the scan, or weaken the assertion to clear it.** Tied to the same decision:
+`speakerHasFace` in `game/scenes/DialogueScene.ts` now has no shipping caller (the gate dropped it;
+`game/npcs.ts` never used it — `npcSpeakers()` selects by the `npc-` portrait prefix). It is kept
+because it is the corpus's own definition of the faceless voice and the alternative is a test typing
+`narration` into an assertion. If the 12 rows are cut, revisit it with them.
+
+### ⚠ ONE FOLLOW-UP LEFT — outside this lane's write scope
+
+**Two stale comments name a consumer that is gone** — `core/types.ts` (the `npcSpriteW/H` docblock,
+"and therefore the size of the DialogueScene portrait slot") and `core/schemas.ts` (~line 653,
+"DialogueScene's portrait slot silently reads undefined at boot"). Both are comment-only
+corrections. `tools/comfy/manifest.json`'s `npc-static._targetSource` still points at
+`tests/unit/dialogue-scene.test.ts` §7 for the MUST-EQUAL, and that citation is still accurate — the
+assertion was deliberately kept there because it is the only one in the repo binding
+`npc-static.targetW` to `npcSpriteW` (`tests/unit/manifest.test.ts` binds the height half alone). If
+anyone moves it to the NPC lane, the manifest note moves with it.
+
 ## ✅ RESOLVED — "the NPCs have no collisions", "props should have collisions too", and travel is a walk
 
 The owner played the build and reported two things, verbatim: **"First up, the NPCs have no
@@ -3144,6 +3233,21 @@ is actually left**, and what is left is smaller and more of it is the owner's.
 
 ## Waiting on the owner
 
+- **TWELVE AUTHORED PORTRAIT REFERENCES NOW POINT AT ART NOTHING DRAWS — cut them, or give them a
+  screen?** A consequence of his own ruling, surfaced by the gates rather than discovered in play.
+  Removing the portrait from the dialogue box deleted the ONLY consumer of two manifest classes:
+  `trainer-battle` (8 rows) and `prop` (4 rows). `GATE 2b` now names all twelve, each with the
+  authored field that references it — `data/dialogue.json#speakers[].portrait` for the four legendary
+  props and the eight trainers.
+  **Nothing generated was orphaned and no spend was stranded**: neither class has ever produced a
+  file, so this is twelve declared rows and twelve filled-in fields, not twelve wasted images.
+  The three options are cut the rows (and make `portrait` optional in the schema for speakers that
+  no longer need one), give trainers and props a screen that draws them, or leave the gate red as a
+  standing record. **`GATE 2a` (`overworld-mini`, 24 rows) and `GATE 2c` (`ui-frame/ui-sign-card-frame`)
+  remain open on the same question and were already his.** Three red arms, all owner decisions, none
+  a defect — recorded here rather than silenced, which is what those gates are for.
+
+
 - **MAY CI HOLD THE REFERENCE CAPTURES? A posture question, not a technical one.**
   `.github/workflows/deploy.yml` checks out at the default `fetch-depth: 1` (lines 34 and 67). The ten
   Gold captures were untracked in `1da8cf0` on the owner's instruction, but they are **still in this
@@ -4012,3 +4116,157 @@ is wrong until someone with the file corrects it.
   roster to the wild band, and `transcription.test.ts` hard-pins the gym ramp so the relation
   cannot be satisfied from the other side either. Recorded at
   `encounter._levelByYearStaysAtLeaderMinusTwo`.
+
+## Opened 2026-08-28 by the time-to-kill pass — one hit was the whole health bar, in both directions
+
+The owner, playing the live build: **"There are huge balancing issues here. I keep getting one-shot
+before I can catch anything."** The previous difficulty pass had already raised win rates
+substantially and it did not touch this, because **win rate and time-to-kill are different
+quantities and that pass optimised the first one.** A fight the player wins 90% of the time in a
+single exchange is still broken, because catching requires surviving long enough to weaken a target
+and throw.
+
+### The cause, and it is one fact with three consequences
+
+`computeDamage` is `(atk × power) / def × …` — **a ratio times a move power, denominated in
+nothing.** Base stats span 30–100 (`data/species.json` `_statRule`) and move powers are 40–70, so
+the product lands at 40–130 against max HP of 47–102. **Nothing in the formula related hit size to
+HP size,** so one hit was one kill in both directions.
+
+And the level term **cancels**: attacker `atk` and defender `def` both carry `(1 + c × level)`, so
+**at equal levels, level contributes exactly nothing to damage.** HP is not in a ratio and keeps its
+full `(1 + c × level)`. Three results that had been read as unrelated are this one fact:
+
+1. Raising `xp.starterLevel` 5 → 14 **saturated** (`xp._starterLevel`) — level was buying HP only.
+2. `stats.levelCoefficient` helps **only through a level GAP**. At a gym, and for a creature the
+   player just caught at the local wild level, it does nothing whatsoever.
+3. The reverted `damage.scale` experiment looked like a regression because a longer fight dilutes
+   the free first strike, and the coefficient was far too small to pay it back.
+
+**`stats.levelCoefficient` is not a difficulty lever. It is an HP-versus-damage lever.**
+
+### What was changed
+
+`damage.divisor` — a NEW key, full INV-3 three-file change (`data/balance.json`, `Balance` in
+`core/types.ts`, `zBalance` in `core/schemas.ts`), read by `core/battle.ts` `computeDamage` and by
+`tools/harness/arena.ts` `expectedDamageOf` (which is compared against a salve's heal in hit points,
+so it must carry the same term or the policy drinks salves it does not need). **`divisor: 4`.**
+`stats.levelCoefficient` is the owner's own 0.1 and was left where he put it.
+
+Both keys carry their full measured derivation in `data/balance.json` (`damage._divisor`,
+`stats._levelCoefficient`). 4 is a **measured optimum, not a preference**: act-1 catch rate peaks at
+4 and falls at 5, because 4 is where the fight stops being the binding constraint and the 3 base
+snares the game grants take over.
+
+### ⚠ OPEN — A PROPOSAL FOR THE OWNER: the ladder is flat, and the xp curve is NOT the fix
+
+All figures below are one instrument — `runOneGym`, 200 seeds, 8 drafts, trained, at the xp curve's
+arrival levels — and it reproduces the previous pass's six figures exactly (`--verify`).
+
+**The joint table. Neither constant works alone; that is the whole finding.**
+
+| c | D | act-1 exchanges kill/die | one-shot | caught | killed the target | player KO'd | gym win rates |
+|---|---|---|---|---|---|---|---|
+| 0.02 | 1 | 1.2–1.4 / 1.0 | 42–64% | 3.3–6.3% | 20.7–41.0% | 53.3–73.0% | 98.5 94.0 81.0 93.0 90.5 61.5 |
+| 0.10 | 1 | 1.6–1.7 / 1.9–2.0 | 0–1% | 21.7–27.3% | **25.3–38.3%** | 32.3–45.3% | 100 100 100 100 97.5 67.5 |
+| 0.02 | 4 | 3.2–4.6 / 3.2–3.9 | 0% | 19.7–46.3% | 0.7–1.0% | **45.0–74.0%** | 98.0 98.0 99.5 99.0 94.0 72.0 |
+| 0.06 | 4 | 4.3–4.6 / 4.6–5.7 | 0% | 46.7–62.7% | 0.3–1.0% | 16.0–43.0% | 100 100 100 100 99.0 73.5 |
+| **0.10** | **4** | **4.9–5.2 / 5.9–7.5** | **0%** | **58.0–65.7%** | **0.7–1.0%** | **3.3–22.3%** | **100 100 100 100 99.5 78.0** |
+| 0.10 | 5 | 6.1–6.4 / 7.5–9.1 | 0% | 56.3–61.0% | 0.0–1.3% | 1.7–16.7% | 100 100 100 100 99.5 76.5 |
+
+The divisor alone leaves the player dying in **45–74%** of act-1 encounters. The coefficient alone
+leaves the player **killing the animal it was trying to catch** in 25–38%. Only the pair fixes both.
+Catch rate peaks at D=4 and falls at D=5.
+
+**⚠ I PREVIOUSLY WROTE THAT THE ARRIVAL LEVELS WERE THE CAUSE OF THE FLATNESS. I MEASURED IT AND
+THAT IS WRONG ABOVE GYM 2.** Sweeping the arrival offsets at the shipped constants:
+
+| arrival offsets over each leader | Maribel | Odo | Vesper | Sable | Noct | Greaves |
+|---|---|---|---|---|---|---|
+| band | 80–95 | 80–95 | 60–80 | 60–80 | 45–65 | 45–65 |
+| shipped xp curve +9/+7/+6/+5/+4/0 | 100.0 | 100.0 | 100.0 | 100.0 | 99.5 | 78.0 |
+| two thirds +6/+5/+4/+3/+3/0 | 100.0 | 100.0 | 100.0 | 99.5 | 99.0 | 78.0 |
+| half +4/+3/+3/+2/+2/0 | 99.5 | 99.5 | 100.0 | 99.0 | 96.5 | 78.0 |
+| a third +3/+2/+2/+1/+1/0 | 99.5 | 98.5 | 100.0 | 98.0 | 93.0 | 78.0 |
+| **full parity** +0/+0/+0/+0/+0/0 | 70.5 | 83.0 | 97.5 | 95.5 | 87.0 | 78.0 |
+
+**Read the bottom row.** Even with the player arriving at *exactly* the leader's level — the most
+the xp curve could ever buy — Vesper is 97.5, Sable 95.5 and Noct 87.0, all far above band. And
+**Greaves is 78.0 in every single row**, because he is already at parity and the offsets cannot
+touch him. So the flatness has **two different causes**:
+
+- **Gyms 1–2 are the arrival levels.** They are offset-sensitive (100 → 70.5/83.0) and the xp curve
+  is a real lever for them — though full parity overshoots Maribel *below* her band.
+- **Gyms 3–6 are not.** They are intrinsic: longer fights make outcomes more deterministic, and the
+  §10.5 "reasonable player" drafts 8 candidate parties and fields the best type coverage. A
+  well-covered party in a long fight wins nearly always. No xp coefficient reaches this.
+
+**Consequently the note I filed earlier — that the previous pass's rejected `xp.toNextCoefficient`
+54 is now viable — is only half right, and the half that survives is not the useful half.** It was
+rejected because it left Greaves at 24.5%; Greaves now sits at 78.0, so that specific objection is
+indeed spent. But 54's *purpose* was to bring gyms 1–5 into band, and the parity row shows arrival
+levels cannot do that any more. **A rejected option becoming viable because another constant moved
+is worth saying out loud — and so is discovering that it would no longer buy what it was rejected
+for.**
+
+**What the owner is actually choosing between**, since the xp curve is not on the menu for gyms 3–6:
+
+1. **Accept it.** A game where you cannot be one-shot is a game where a well-drafted party beats a
+   gym. The §10.5 bands were written for a game whose fights lasted one exchange; they may simply
+   be describing a game that no longer exists.
+2. **Retune the bands** to what the game now is. This is the honest bookkeeping option, and it is
+   exactly the move a balance report must not make on its own authority — hence it is here.
+3. **Content.** Gym rosters, party size, or the draft model. `data/gyms.json` is authored content
+   (G2) and not this lane's to touch.
+
+Greaves specifically went **61.5 → 78.0**, entirely from the divisor, and he is the fight the
+never-cut Legacy beat ends on. If only one thing is done, it should be that one.
+
+Also for his eye: fights are long now. Greaves' mean is **94 turns** against `harness.maxBattleTurns`
+200, and the mean rises across the ladder (17/32/41/65/78/94), so the shape is intact.
+
+### ⚠ OPEN — the pinned arithmetic has not been re-derived
+
+`damage.divisor` and `levelCoefficient` moved together and their pinned numbers overlap heavily, so
+re-deriving them is ONE pass, not two. Still red and attributable to the divisor specifically
+(isolated by diffing the suite at divisor 1 against divisor 4):
+
+The suite stands at **22 failures**. Three are `tests/gates/asset-reachability.test.ts` — 2a and 2c
+are the standing owner decisions, and §1b belongs to the concurrent dialogue-portrait work, not to
+this pass. The other **19 are this lane**:
+
+- `tests/unit/battle.test.ts` ×5 — Burrow/Roost, the predation ×1.25 pin, the crit/predation INV-3
+  pin, and the two `fixtures/battle-scripts` replays. **Each hand-computed pin carries its
+  arithmetic in a comment above it; the comment is part of the assertion and must be re-derived
+  with it.**
+- `tests/unit/battle-view.test.ts` ×7 — all downstream of the two fixture digests below; re-record
+  the fixtures first and most of these follow.
+- `tests/unit/battle-persistence.test.ts` ×2 (level/xp write-back off a longer fight),
+  `tests/unit/overworld-scene.test.ts` (party-wipe outcome flip),
+  `tests/unit/rival.test.ts` (the act-1 rival fight no longer loses),
+  `tests/unit/enemy-ai-tiebreak.test.ts` (the T-27 rounding tie collapsed),
+  `tests/unit/harness.test.ts` clause 8 (salve-vs-attack, now that both sides carry the divisor).
+- `fixtures/battle-scripts/gym-01-maribel.json` and `wild-catch-r1-nibbin.json` — `turns`, `events`,
+  `eventDigest` and `finalHp`. **Re-record by replaying through the reducer, never by hand**, and
+  add a `_reRecordedFor…` note in the style of the three already there. `flee-r2-fenmaw.json` is
+  unaffected (a flee resolves before damage).
+
+Every one of these goes through `justify-test-edit`; the justification is that a shipped constant
+moved by owner decision and the transcribed figure follows it.
+
+### The instrument — `tools/harness/ttk-probe.ts`
+
+**It is committed this time.** Recon found the previous pass's measuring script was never kept and
+had to be reconstructed before anyone could trust a number; two lanes have now paid that cost. It
+loads through `loadContentFromRaw` (build-doc §6 INV-3's injection point — it swaps only the balance
+member and re-runs the real `validateBundle`), so it measures the shipped reducer, not a model of it.
+
+- `--verify` prints the reference six against their expected values. **Run it first.** If it does
+  not print `98.5 94.0 81.0 93.0 90.5 61.5`, the instrument has drifted and nothing else it says may
+  be believed. This is the check that caught a bad comparison during this pass — two rows measured
+  on two different player models, one with arrival offsets and one without.
+- `--sweep` is the joint c × divisor table. `--offsets` is the arrival-offset table.
+
+It **names no content** (`starterLines()` for the starters, `actNodeIds(1)` for the foray route). An
+earlier revision hardcoded species ids and `tests/property/foodweb.test.ts` `no_shadow_tables`
+caught it, correctly — G3 applies to an instrument exactly as it applies to the game.

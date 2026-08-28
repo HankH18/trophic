@@ -34,7 +34,7 @@ import {
   currentSpeaker,
   type DialogueRunState,
 } from "@game/dialogue-runner";
-import { placeholderImage, realAssetIds } from "@game/placeholder";
+import { realAssetIds } from "@game/placeholder";
 import { SCENE_KEYS } from "@game/scene-keys";
 import { TEXT_SPEED_CPS, registry, type TextSpeed } from "@game/registry";
 import { FRAME_CHROME_PX, drawFrameRing, type FrameSceneLike } from "../ui/FramePanel";
@@ -44,16 +44,36 @@ import { swatchColor, swatchHex } from "@game/ui/Palette";
 export const DIALOGUE_SCENE_KEY = SCENE_KEYS.dialogue;
 
 /* ────────────────────────────────────────────────────────────────────────────
- * The speaker's face
+ * Resolving a portrait id to a texture key
  *
  * ─────────────────────────────────────────────────────────────────────────────
- *  `DialogueSpeaker.portrait` WAS AUTHORED ON ALL 63 SPEAKERS AND READ BY NOTHING
+ *  THE BOX DRAWS NO FACE. THE RESOLVER STAYS, BECAUSE THE OVERWORLD STILL DRAWS ONE.
  * ─────────────────────────────────────────────────────────────────────────────
- * `core/dialogue-schema.ts` has carried `portrait` — "Asset manifest row id
- * (tools/comfy/manifest.json) that draws this speaker" — as a REQUIRED field since the corpus was
- * written, and until this slot existed the only thing this scene did with a speaker was print
- * `speaker.name` on the plate. Twelve finished `npc-static` sprites sat in `assets/final/` with no
- * consumer anywhere in `game/`.
+ * Owner's instruction, verbatim: "get rid of the portraits from the message boxes. Most of them are
+ * broken, and so I'd rather just do away with them entirely." So the slot, the fit and the draw are
+ * gone from this file, and the body column runs the full width of the box — see
+ * {@link dialogueTextLeft} and {@link dialogueBoxRect} for what that did and did not move.
+ *
+ * WHAT DID NOT GO WITH IT, AND WHY IT LIVES HERE. {@link portraitAssetId} stays: `game/npcs.ts`
+ * draws the fifty overworld NPCs through `placeholderImage(scene, x, y,
+ * portraitAssetId(placement.portrait), …)`, and `tests/gates/asset-reachability.test.ts` still
+ * resolves that surface's keys with it. It stays at THIS path rather than moving beside `game/npcs.ts`
+ * — where it now belongs — because the move buys nothing but edits to two permanent gates; if this
+ * file is ever split, take it there. {@link speakerHasFace} is a different case; read its own note.
+ *
+ * ⚠ WHAT THE REMOVAL COST, MEASURED AND RECORDED RATHER THAN LEFT TO BE REDISCOVERED. The 25
+ * distinct portrait ids the corpus uses span THREE manifest classes — `npc-static` (12 rows,
+ * shipped), `trainer-battle` (8 rows) and `prop` (4 rows). `npc-static` keeps its consumer, the
+ * overworld cast. **`trainer-battle` and `prop` had ONLY this box**, so nothing in the game asks for
+ * either class now, and three gates say so out loud: GATE 2a names both classes, and GATE 2b names
+ * the twelve `speakers[].portrait` values that no longer have a path to the screen.
+ *
+ * That is the report, not damage. `assets/final/trainer-battle/` and `assets/final/prop/` do not
+ * exist and never have, so no generated art was orphaned and nothing paid for stopped being drawn —
+ * what this box was really doing for those twelve was drawing a hatched PLACEHOLDER block labelled
+ * with a row the art lane still owed, which is what "most of them are broken" describes. The
+ * standing red is written up at GATE 2b in `tests/gates/asset-reachability.test.ts` and the decision
+ * it needs is in `docs/STATUS.md` under "Waiting on the owner". Do not silence it here.
  *
  * A PORTRAIT ID IS A MANIFEST ROW ID, NOT A TEXTURE KEY, and the two are never the same string:
  * `npc-bram` is the row, `assets/final/npc-static/npc-bram.png` is its `finalFile`, and
@@ -64,8 +84,7 @@ export const DIALOGUE_SCENE_KEY = SCENE_KEYS.dialogue;
  * `realAssetIds()`, the build-time census of what is actually under `assets/final/`, which is the
  * pipeline's own output and therefore cannot drift from the manifest that produced it.
  *
- * The 25 distinct portrait ids the corpus uses span THREE manifest classes — `npc-static` (12 rows,
- * shipped), `trainer-battle` (8 rows, unbuilt) and `prop` (4 rows, unbuilt) — which is why a single
+ * Those ids span three manifest classes with three different `finalDir`s, which is why a single
  * `finalDir` constant of the `BATTLE_SPRITE_DIR` kind cannot answer this and a census lookup can.
  * An id the census does not know resolves to ITSELF, so `textureFor` draws the labelled stand-in
  * named for the row the art lane still owes, and the real plate takes over the moment it lands with
@@ -105,18 +124,25 @@ function portraitIndex(): Map<string, string> {
 }
 
 /**
- * Does this speaker have a face to draw?
+ * Does this speaker name art that anything could draw?
  *
  * READ OFF THE CORPUS, NOT OFF A LIST OF IDS. `data/dialogue.json` gives exactly one speaker a blank
  * `name` — `narration`, whose name is a single space so the plate prints nothing — and that blank is
  * the corpus's own way of writing "nobody is on screen for this line". Its `portrait` names no row
- * in `tools/comfy/manifest.json` and never will, so drawing the honest stand-in for it would put a
- * hatched PLACEHOLDER block beside six lines of prose (the blackout narration among them) claiming
- * an asset the art lane does not owe.
+ * in `tools/comfy/manifest.json` and never will.
  *
- * The SLOT is still reserved — see {@link dialoguePortraitRect}. The box's geometry must not move
- * between a line spoken by a person and a line spoken by nobody, because a text column that changed
- * width mid-chain is a worse artefact than an empty corner.
+ * ⚠ NOTHING IN THE SHIPPING GAME CALLS THIS ANY MORE, AND THAT IS SAID PLAINLY RATHER THAN DRESSED
+ * UP. The box draws no face, so nothing in the class below gates on it (the plate still prints
+ * `speaker.name`, the faceless voice's single space included, exactly as before); and
+ * `tests/gates/asset-reachability.test.ts` dropped it with the portrait key builder it used to
+ * filter. `game/npcs.ts` never called it — `npcSpeakers()` selects its cast by the `npc-` portrait
+ * PREFIX. Its only remaining caller is `tests/unit/dialogue-scene.test.ts`.
+ *
+ * It is kept, not deleted, for one reason: it is the CORPUS's own definition of "nobody is on screen
+ * for this line", and the alternative is that test typing the id `narration` into an assertion —
+ * which is the shape this repository has been bitten by (a test supplying its own precondition).
+ * Its future is tied to a decision the owner has not made yet: see `docs/STATUS.md` on the twelve
+ * `trainer-battle`/`prop` portrait rows. If those are cut, revisit this with them.
  */
 export function speakerHasFace(speaker: DialogueSpeaker | undefined): speaker is DialogueSpeaker {
   return speaker !== undefined && speaker.name.trim().length > 0 && speaker.portrait.trim().length > 0;
@@ -245,25 +271,13 @@ export interface DialogueStyle {
    * chain in four frames and the beat is gone before it was readable.
    */
   advanceArmFrames: number;
-  /**
-   * The speaker portrait's slot, in virtual px. `balance.map.npcSpriteW`/`npcSpriteH` — the size the
-   * `npc-static` class is generated at, so a shipped NPC PNG lands here at scale 1. Read from
-   * balance rather than typed here for the reason `width`/`height` are: it is the same number two
-   * lanes have to agree on.
-   *
-   * ⚠ IT USED TO BE `playerSpriteW`/`playerSpriteH`, AND THAT WAS ONE KEY DOING TWO JOBS. This slot
-   * draws npc-static art; it has never drawn the player. The two sizes were equal by coincidence
-   * until the owner ruled the player one block tall (`playerSpriteH` 48 → 32) while the cast was
-   * still 32×48 — at which point the portrait slot silently became a third shorter than the art it
-   * frames and every face in the game rendered ~21×32.
-   *
-   * They are equal again now (the cast was re-fitted to 32×32 under "let's do NPCs that are
-   * squeezed"), and that is exactly why this must not be quietly folded back into `playerSpriteH`:
-   * the coincidence is what hid the fault the first time. The manifest broke the same coupling on
-   * the art lane's side (`npc-static._targetSource`, which names this key); this is the game's side.
+  /*
+   * ⚠ `portraitW`/`portraitH` WERE HERE, READ FROM `balance.map.npcSpriteW`/`npcSpriteH`, and they
+   * are gone with the portrait itself (the owner's instruction is quoted at the head of this file).
+   * The balance keys STAY — `game/npcs.ts` sizes the overworld NPC box with them, and that pair's
+   * whole history, including why it must never fold back into `playerSpriteW/H`, is recorded on that
+   * call site and in `data/balance.json`'s `_npcSprite`. Nothing in this file reads them now.
    */
-  portraitW: number;
-  portraitH: number;
   /**
    * The painted frame's border, in SOURCE pixels — the width of one corner of
    * {@link DIALOGUE_FRAME_ASSET_ID}, and therefore how much of it never stretches.
@@ -308,8 +322,6 @@ export function defaultDialogueStyle(balance: Balance): DialogueStyle {
     charWidth: 6,
     bodyLines: 3,
     advanceArmFrames: 4,
-    portraitW: balance.map.npcSpriteW,
-    portraitH: balance.map.npcSpriteH,
     frameSlice: FRAME_CHROME_PX,
     // Resolved through `game/ui/Palette.ts`, never typed — see {@link DIALOGUE_SWATCH_ID}. Two
     // forms because Phaser takes `0xRRGGBB` for a fill and a CSS string for text, and a style block
@@ -336,46 +348,36 @@ export interface DialogueBoxRect {
 
 /**
  * Where the box sits: full width less the margin, anchored to the BOTTOM of the screen, tall enough
- * for its body lines plus the name plate row — and never shorter than the portrait it now carries.
+ * for its body lines plus the name plate row.
  *
- * The `max` is not defensive padding. At the shipped numbers the text column is the taller of the
- * two (52px of rows against a 48px sprite) and the box does not move one pixel for the portrait;
- * the day `bodyLines` drops to two, the arithmetic that used to size this box would crop the face
- * instead of growing the box, and a slot the frame does not enclose is the defect.
+ * ⚠ THE HEIGHT DID NOT MOVE WHEN THE PORTRAIT WENT, AND THAT WAS CHECKED RATHER THAN HOPED. The
+ * content term was `Math.max(lineHeight * (bodyLines + 1), portraitH)`, and at the shipped numbers
+ * the text term was already the larger of the two — 52px of rows against a 32px slot — so dropping
+ * the `max` leaves the same 68px box in the same place. It matters because this height is what puts
+ * the ▼ advance marker on the box's last row and what {@link DialogueBoxRect}'s consumer stacks the
+ * choice panel above: a box that had shrunk would have moved both, and neither was asked to move.
  */
 export function dialogueBoxRect(style: DialogueStyle): DialogueBoxRect {
   const width = style.width - style.margin * 2;
-  const content = Math.max(style.lineHeight * (style.bodyLines + 1), style.portraitH);
-  const height = style.pad * 2 + content;
+  const height = style.pad * 2 + style.lineHeight * (style.bodyLines + 1);
   return { x: style.margin, y: style.height - style.margin - height, width, height };
 }
 
-/**
- * The speaker's portrait slot: inside the box, at the left, top-aligned with the name plate.
- *
- * Always reserved, whether or not the line's speaker has a face to put in it
- * ({@link speakerHasFace}) — the text column must not change width between one line and the next.
- */
-export function dialoguePortraitRect(style: DialogueStyle): DialogueBoxRect {
-  const rect = dialogueBoxRect(style);
-  return {
-    x: rect.x + style.pad,
-    y: rect.y + style.pad,
-    width: style.portraitW,
-    height: style.portraitH,
-  };
-}
-
-/** Where the name plate and every body row start: clear of the portrait, by one pad. */
+/** Where the name plate and every body row start: the box's own left edge, plus one pad. */
 export function dialogueTextLeft(style: DialogueStyle): number {
-  const slot = dialoguePortraitRect(style);
-  return slot.x + slot.width + style.pad;
+  return dialogueBoxRect(style).x + style.pad;
 }
 
 /**
- * How many characters fit on one BODY line — the width beside the portrait, not the width of the
- * box. Everything the player reads in the box wraps to this, so it is the one number
- * {@link wrapDialogue} is ever handed for a line of prose.
+ * How many characters fit on one BODY line. Everything the player reads in the box wraps to this, so
+ * it is the one number {@link wrapDialogue} is ever handed for a line of prose.
+ *
+ * 74 at the shipped numbers, and 68 while a portrait slot stood at the left of the box. Removing the
+ * face handed six characters back to every line, which is a change to WHERE EVERY LINE WRAPS and so
+ * to how many pages an entry takes: 43 of the corpus's authored lines lost a page turn (602 pages to
+ * read the whole corpus, now 559). No wrap rule changed — the same prose simply fits differently —
+ * which is why `tests/unit/dialogue-scene.test.ts` drives its paging tests off whatever the corpus
+ * wraps past `bodyLines` at the CURRENT width, never off a named entry that happened to page once.
  */
 export function dialogueColumns(style: DialogueStyle): number {
   const rect = dialogueBoxRect(style);
@@ -384,11 +386,14 @@ export function dialogueColumns(style: DialogueStyle): number {
 }
 
 /**
- * How many characters fit on one row of the CHOICE panel, which has no portrait in it.
+ * How many characters fit on one row of the CHOICE panel.
  *
- * A separate number on purpose. `drawChoices` truncates each row to the width it has, and the choice
- * panel is drawn above the box at full width — so charging it for a portrait slot it does not carry
- * would cut six characters off every authored prompt to pay for a face that is not there.
+ * A separate number, computed separately, and — since the portrait went — equal to
+ * {@link dialogueColumns}: both are now the box's width less one pad on each side. It stays its own
+ * function because the panel is its own surface, drawn above the box, and `drawChoices` truncates
+ * every row to the width IT has. The two agreeing is a fact about today's geometry that
+ * `tests/unit/dialogue-scene.test.ts` asserts, not an identity to fold away — the panel used to be
+ * six characters wider than the body, and it can diverge again.
  */
 export function dialogueChoiceColumns(style: DialogueStyle): number {
   const rect = dialogueBoxRect(style);
@@ -682,7 +687,6 @@ export function createDialogueScene(
       // The name plate is the speaker's own `name` from the corpus's speaker table — never a
       // description, never an epithet this file invents (G2).
       const speaker = currentSpeaker(this.file, this.state);
-      this.drawPortrait(speaker);
       const plate = this.add.text(left, y, speaker?.name ?? currentLine(this.file, this.state).speaker, {
         fontFamily: style.fontFamily,
         fontSize: style.nameSize,
@@ -756,7 +760,7 @@ export function createDialogueScene(
       }
     }
 
-    /* ── the frame, the field and the face ──────────────────────────────── */
+    /* ── the frame and the field ────────────────────────────────────────── */
 
     /**
      * One panel: the painted ring from {@link DIALOGUE_FRAME_ASSET_ID}, and the box's own dark field
@@ -796,33 +800,13 @@ export function createDialogueScene(
       this.drawn.push(fill);
     }
 
-    /**
-     * The speaker's face, in the slot the box reserves for it.
-     *
-     * Through `placeholderImage` — the ONE call every art slot in the game goes through — so a
-     * portrait whose plate has not been generated draws the labelled stand-in that names the
-     * manifest row still owed, and so real art is FITTED into the slot rather than drawn at its
-     * natural size. The fit is load-bearing here and not in theory: `trainer-battle` generates at
-     * 96×96 and this slot is 32×48, so the eight gym-leader portraits are three canvas widths of
-     * sprite the day that class runs — the same defect `game/placeholder.ts::fitWithin` was written
-     * for, in the widget the game spends most of its time in.
+    /*
+     * `drawPortrait` WAS HERE — one `placeholderImage` into a 32×32 slot at the box's left edge.
+     * Removed on the owner's instruction (quoted at the head of this file). The only images this
+     * scene adds now are the eight ring pieces `drawFrameRing` cuts out of the frame PNG, per panel,
+     * and `tests/unit/dialogue-scene.test.ts` §7 asserts that by reading the display list rather
+     * than by trusting this comment.
      */
-    private drawPortrait(speaker: DialogueSpeaker | undefined): void {
-      if (!speakerHasFace(speaker)) return;
-      const slot = dialoguePortraitRect(this.style);
-      const factory = (this.add as unknown as { image?: unknown }).image;
-      if (typeof factory !== "function") return;
-      this.drawn.push(
-        placeholderImage(
-          this as unknown as PhaserNS.Scene,
-          slot.x + slot.width / 2,
-          slot.y + slot.height / 2,
-          portraitAssetId(speaker.portrait),
-          slot.width,
-          slot.height,
-        ),
-      );
-    }
 
     /* ── reads, for tests and for the scene that launched this one ──────── */
 
@@ -853,20 +837,6 @@ export function createDialogueScene(
     /** Which choice the cursor is on. */
     cursor(): number {
       return this.choiceIndex;
-    }
-
-    /**
-     * The texture key of the portrait the current line asks for, or null when the line is spoken by
-     * nobody ({@link speakerHasFace}).
-     *
-     * A read of the REQUEST, never evidence that anything was drawn — a test that believes this
-     * instead of looking at what `add.image` received is the vacuous test this slot was built to
-     * avoid. `tests/unit/dialogue-scene.test.ts` asserts against the recorded draw and uses this
-     * only to say which key that draw should have carried.
-     */
-    portraitOnScreen(): string | null {
-      const speaker = currentSpeaker(this.file, this.state);
-      return speakerHasFace(speaker) ? portraitAssetId(speaker.portrait) : null;
     }
   };
 }

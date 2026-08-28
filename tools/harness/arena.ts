@@ -118,7 +118,10 @@ export function expectedDamageOf(
       ? balance.types.predation
       : 1;
   const midRoll = (balance.damage.rollMin + balance.damage.rollMax) / 2;
-  return ((atk * power) / def) * mult * predation * midRoll;
+  // `damage.divisor` belongs here too. This number is compared against a salve's heal in HIT POINTS
+  // (`reasonablePolicy`), so dropping the divisor would overstate every incoming hit by that factor
+  // and the policy would drink salves it does not need.
+  return ((atk * power) / def) * mult * predation * midRoll / balance.damage.divisor;
 }
 
 /**

@@ -84,11 +84,10 @@ import type { AgeClass, NodeFile } from "../../core/types";
 import { ancientAgeClass } from "../../game/finale";
 import { interiorNpcPlacements, npcSpeakersHomedAt } from "../../game/npcs";
 import { assetId, realAssetIds, registerRealAsset } from "../../game/placeholder";
-import {
-  DIALOGUE_FRAME_ASSET_ID,
-  portraitAssetId,
-  speakerHasFace,
-} from "../../game/scenes/DialogueScene";
+// `speakerHasFace` came out with the portrait row below: it had exactly one use here, filtering the
+// corpus's faceless voice out of that row's domain, and an import nothing calls is the first half of
+// a builder that certifies a class nobody draws.
+import { DIALOGUE_FRAME_ASSET_ID, portraitAssetId } from "../../game/scenes/DialogueScene";
 import { buildDexEntries } from "../../game/survey-view";
 import { battleSpriteKey, facingFor } from "../../game/ui/BattleHud";
 import { UI_FRAME_ASSET_ID } from "../../game/ui/FramePanel";
@@ -321,15 +320,23 @@ const KEY_BUILDERS: readonly KeyBuilder[] = [
     where: "game/mapview.ts interiorTextureKey() × core/interiors.ts INTERIORS",
     keys: () => INTERIORS.map((blueprint) => interiorTextureKey(blueprint.id)),
   },
-  {
-    /*
-     * The consumer `DialogueSpeaker.portrait` waited for. `speakerHasFace` is the shipped predicate
-     * the scene gates the slot on — `narration`, whose name is one space and whose `portrait` names
-     * no manifest row, is excluded by the same test the scene uses rather than by a name typed here.
-     */
-    where: "game/scenes/DialogueScene.ts portraitAssetId()/speakerHasFace() × data/dialogue.json speakers[]",
-    keys: () => DIALOGUE.speakers.filter(speakerHasFace).map((s) => portraitAssetId(s.portrait)),
-  },
+  /*
+   * ⛔ THE PORTRAIT ROW IS GONE, AND ITS ABSENCE IS THE POINT. The dialogue box drew a face for
+   * every speaker with one; the owner removed it — "get rid of the portraits from the message
+   * boxes. Most of them are broken, and so I'd rather just do away with them entirely."
+   *
+   * ⚠ THAT ROW WAS THE ONLY CONSUMER OF `trainer-battle` (8 rows) AND `prop` (4 rows), so GATE 2a
+   * and 2c now name both, correctly. Twelve declared rows nothing can draw. Nothing generated was
+   * orphaned and no spend was stranded — neither class has ever produced a file — but the manifest
+   * declares art no screen asks for, which is exactly what those gates are for. Whether the twelve
+   * rows are cut or given a screen is the owner's call, recorded in docs/STATUS.md.
+   *
+   * `portraitAssetId` is NOT dead — `game/npcs.ts` resolves all fifty overworld NPC sprites through
+   * it, and that row is below. `speakerHasFace` IS: it is dropped from this file's imports, because
+   * `npcSpeakers()` selects its cast by the `npc-` portrait PREFIX and never consulted the
+   * predicate. It still ships, with only `tests/unit/dialogue-scene.test.ts` calling it; see
+   * docs/STATUS.md, which puts it in front of the owner alongside the twelve rows.
+   */
   {
     /*
      * ⚠ THE SECOND CONSUMER OF `npc-static`, AND IT IS NOT A DUPLICATE OF THE ROW ABOVE — it is the
@@ -738,9 +745,13 @@ const DRAWING_FILES: readonly string[] = [
   "game/scenes/DexScene.ts",
   // creature-battle again, the retirement well, via `battleSpriteKey` directly.
   "game/scenes/RetirementScene.ts",
-  // npc-static / trainer-battle / prop, via `speakers[].portrait` -> `portraitAssetId`; and the
-  // `ui-frame` ring, via `DIALOGUE_FRAME_ASSET_ID`.
-  "game/scenes/DialogueScene.ts",
+  /*
+   * ⛔ REMOVED with the portrait. This file drew `npc-static` / `trainer-battle` / `prop` through
+   * `placeholderImage`; that call and its import are gone, so the scan correctly reports the file
+   * draws nothing. It still SPELLS a key — `DIALOGUE_FRAME_ASSET_ID`, whose builder row remains
+   * above — but the ring itself is painted by the shared slicer in `game/ui/`, and spelling a key
+   * is not drawing one. Keeping it listed would assert a drawing surface that no longer exists.
+   */
   /*
    * npc-static AGAIN, and this is the surface that puts a person in the world rather than a face in
    * a box — `NpcLayer` -> `placeholderImage` on the speaker's own portrait. Its builder is the
@@ -1312,6 +1323,49 @@ describe("§3 the authored scan is real before it is trusted", () => {
   });
 });
 
+/**
+ * ═════════════════════════════════════════════════════════════════════════════════════════════════
+ * THE STANDING RED THIS GATE NOW CARRIES — RECORDED SO IT IS NOT RE-DERIVED, AND NOT SILENCED.
+ * ═════════════════════════════════════════════════════════════════════════════════════════════════
+ * TWELVE `speakers[].portrait` VALUES, ALL IN `data/dialogue.json`, name art nothing draws: the 8
+ * `trainer-battle` rows (Maren, Wick, Greaves, Maribel, Odo, Vesper, Sable, Noct) and the 4 `prop`
+ * rows (antler stone, shell kiln shrine, sunken idol, sign card).
+ *
+ * WHY IT APPEARED. The owner removed the dialogue box's portrait — "get rid of the portraits from
+ * the message boxes. Most of them are broken, and so I'd rather just do away with them entirely."
+ * That slot was the ONLY reader of those twelve values, so the field went inert the moment it went.
+ * The other 13 portrait ids are `npc-static` and are still read by `game/npcs.ts`, which is why they
+ * are not in the readout.
+ *
+ * ⚠ THE GATE IS NOT WRONG AND THIS IS NOT DAMAGE — IT IS THE REPORT. Read what the box was actually
+ * doing for these twelve: `assets/final/trainer-battle/` and `assets/final/prop/` DO NOT EXIST and
+ * never have (measured, not assumed — `existsSync` on both, and no constant in `game/` or `core/`
+ * spells either prefix). So the "path to the screen" the field had was `placeholderImage` drawing a
+ * hatched PLACEHOLDER block labelled with the row the art lane still owed. The gate counted that as
+ * reachable because it counts key REQUESTS. The owner's word for it was "broken".
+ *
+ * WHAT WAS CHECKED BEFORE CALLING THIS THE OWNER'S CALL:
+ *   · No shipped surface could legitimately adopt them, and both halves were grepped rather than
+ *     assumed. `game/ui/BattleHud.ts` contains the string "trainer" ZERO times — it draws
+ *     `creature-battle` through `battleSpriteKey` and has never drawn a person. And nothing draws
+ *     `prop` art anywhere: a prop is an INTERACTION POINT, reached through `propAt` /
+ *     `propUnderPlayer` in `game/scenes/OverworldScene.ts`, with no sprite of its own — what the
+ *     player looks at is the generated map. Pointing this field at a new drawing surface would mean
+ *     building the feature the owner just declined.
+ *   · The field cannot be deleted: `core/dialogue-schema.ts` requires `portrait` on all 63 speakers,
+ *     and this gate's own message says the fix is "READING the field somewhere that draws — not
+ *     deleting the field, and not deleting this check."
+ *   · GATE 2b has NO exemption mechanism, deliberately, unlike GATE 2a's empty-domain list. There is
+ *     no honest way to green this from inside this file, and an allowlist added here would be the
+ *     first one — which is exactly how a suite comes to certify what it cannot see.
+ *
+ * SO IT STANDS RED, the way `overworld-mini` stands red above, until the owner picks one:
+ *   (a) cut the 12 manifest rows and repoint those speakers at an `npc-static` portrait;
+ *   (b) build a surface that draws a trainer — a battle intro plate is the obvious one; or
+ *   (c) accept it as a standing decision, and this block is the record of what was accepted.
+ * `docs/STATUS.md` carries the same question under "Waiting on the owner". Do not add an allowlist,
+ * do not narrow the scan, and do not weaken the assertion below to clear it.
+ */
 describe("GATE 2b — every authored asset reference has a path to the screen", () => {
   it("names every authored value whose asset nothing can draw", () => {
     const unreachable = AUTHORED_REFS.filter((ref) => !ASKED.has(ref.key));

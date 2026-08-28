@@ -974,6 +974,15 @@ export interface Balance {
     critChanceBase: number;
     critChancePerInstinct: number;
     minDamage: number;
+    /**
+     * The constant that converts §7.4's attack-power RATIO into hit points.
+     *
+     * `(atk × power) / def` is a ratio times a power, and nothing in it is denominated in HP. Base
+     * stats span 30–100 and move powers 40–70, so the product lands at 40–130 against max HP of
+     * 47–102 — one hit for one creature, in both directions. This is the term that sets how many
+     * exchanges a fight lasts; 1 is the identity and reproduces the pre-2026-08-28 formula exactly.
+     */
+    divisor: number;
   };
   status: {
     /**

@@ -177,7 +177,28 @@ const SPEC_PINS: readonly Pin[] = [
    * "Effective stat = base × ageMult × (1 + 0.02 × level) + traitMods"; "Cap level 40";
    * "baseStats: {…}; // 30–100".
    */
-  { path: "stats.levelCoefficient", expected: 0.02, cite: "§7.4 'base × ageMult × (1 + 0.02 × level) + traitMods'" },
+  /*
+   * 0.02 -> 0.1 ON THE OWNER'S INSTRUCTION, and §7.4 moved with it in this commit.
+   *
+   * REVERT CHECK: this would still be wrong with every code change reverted — the pin disagrees
+   * with a value he set, not with anything a lane did. His words: "as a temporary fix, just switch
+   * the level coefficient to be 0.1", against the report "I keep getting one-shot before I can
+   * catch anything". At 0.02 a level-14 creature was only 1.28x a level-1 one while base stats run
+   * 30-100, so LEVEL BARELY MATTERED and raising the starter's level had saturated. At 0.1 it is
+   * 2.4x.
+   *
+   * ⚠ HE CALLED IT TEMPORARY AND THE DOC SAYS SO. A lane is measuring the real cause of one-shot
+   * kills; this row moves again if that lane lands a different value. The row itself is the point
+   * and does not move: §7.4 and data/balance.json must agree, whatever the figure.
+   *
+   * NOT WEAKENED: still an exact `expected` against a cited sentence, and the citation now names
+   * the key rather than restating its value, so the doc and the data cannot drift by a re-tune.
+   */
+  {
+    path: "stats.levelCoefficient",
+    expected: 0.1,
+    cite: "§7.4 'base × ageMult × (1 + balance.stats.levelCoefficient × level) + traitMods', shipping at 0.1",
+  },
   { path: "stats.baseStatMin", expected: 30, cite: "§7.1 'baseStats: {hp,atk,def,spd,ins}; // 30–100'" },
   { path: "stats.baseStatMax", expected: 100, cite: "§7.1 'baseStats: {hp,atk,def,spd,ins}; // 30–100'" },
   { path: "xp.levelCap", expected: 40, cite: "§7.4 'Cap level 40.' / HR8 'levels 1–40'" },

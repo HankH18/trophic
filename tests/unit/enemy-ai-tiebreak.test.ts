@@ -12,6 +12,19 @@
  * the argmax threw the NEUTRAL move where the earlier super-effective one was promised. Which one
  * won was decided by the attacker's Attack stat, i.e. by its age and traits.
  *
+ * THOSE THREE COUNTS WERE MEASURED AT `stats.levelCoefficient` 0.02. It is now 0.1 (Hank's ruling,
+ * "as a temporary fix, just switch the level coefficient to be 0.1"), which re-rounds every Attack
+ * and Defence and therefore re-rolls which pairs land an ulp apart. Re-swept at 0.1: the same 2160
+ * pairs, the same 59 tied on paper, but 13 unequal as doubles and 7 the full-product argmax would
+ * get wrong. The hazard is smaller and is not gone, and — this is the point — it is not something
+ * a retune can be trusted to remove, because which pairs it hits is an accident of rounding.
+ * `damage.divisor` does not enter any of this: the ranking key and the full product alike are
+ * divided by it uniformly, so it cannot reorder two moves.
+ *
+ * The MEASURED CASE below had to be re-pointed at a witness that is still split at 0.1; the reason
+ * is written out at the assertion, and the old pairing is kept and asserted to be exactly tied now,
+ * so nothing goes stale silently.
+ *
  * The fix is not a loosened comparison: the argmax is still a strict `>` over exact doubles. What
  * changed is the KEY — the four factors that are the same positive number for every move in one
  * pool (`atk`, `def`, `predation`, `midRoll`) are dropped, because in exact arithmetic they cannot
@@ -160,19 +173,54 @@ describe("the measured T-27 case — Odo's Mirefin against a Vulkindle", () => {
     expect(B.types.superEffective).toBe(1.5);
     expect(move("dous").power * B.types.superEffective).toBe(move("ambush").power);
 
-    // …and the full §7.4 product, which the policy used to rank on, does NOT tie them. This is the
-    // defect in one line: an ulp of rounding, standing between a super-effective move and a
-    // neutral one. If this ever stops being true the shipped numbers have moved, and the case
-    // above stops being the case that was measured.
+    /*
+     * …and the full §7.4 product, which the policy used to rank on, does NOT tie them. This is the
+     * defect in one line: an ulp of rounding, standing between a super-effective move and a
+     * neutral one.
+     *
+     * THE WITNESS MOVED, AND ONLY THE WITNESS. This block used to read the divergence off THIS
+     * pairing — Odo's Mirefin against the Vulkindle above — and the line below said that if it ever
+     * stopped being true, the shipped numbers had moved. They have: `stats.levelCoefficient` went
+     * 0.02 → 0.1 on Hank's ruling. At 0.02 the Mirefin's Attack rounded to 103 and the Vulkindle's
+     * Defence to 66, and `(103 × 40 / 66) × 1.5` and `(103 × 60 / 66) × 1` landed one ulp apart
+     * (93.63636363636363 vs …64). At 0.1 they round to 193 and 124, and the two chains land on the
+     * SAME double, 93.38709677419355 — for the Juvenile and Elder Vulkindle too. The accident
+     * simply is not at this pairing any more.
+     *
+     * THE HAZARD HAS NOT GONE AWAY, so the assertion is re-pointed rather than dropped: over the
+     * same 2160-pair sweep this file's header describes, 59 pairs still tie on paper and 13 of them
+     * still come out unequal as doubles, 7 of which a full-product argmax would get wrong. The
+     * nearest live witness is the SAME gym leader and the SAME attacker — Odo's Mirefin, Adult,
+     * level 14 — against an Ashvole Elder, which is Fire at every age exactly as the Vulkindle is,
+     * so `dous` is super-effective into it and the paper tie is identical. Defence rounds to 168:
+     *   dous:   (193 × 40 / 168) × 1.5 = 68.92857142857142
+     *   ambush: (193 × 60 / 168) × 1.0 = 68.92857142857143
+     * one ulp apart, ambush the larger — the same direction the Vulkindle case used to show.
+     */
     const attacker = battlerIn(state, "leader");
     const midRoll = (B.damage.rollMin + B.damage.rollMax) / 2;
-    const full = (moveId: string): number => {
+    const fullAgainst = (target: Battler, moveId: string): number => {
       const m = move(moveId);
-      const { mult } = typeMultiplier(m.type, defender.types, content.moves.typeChart, B);
-      return ((attacker.stats.atk * m.power) / defender.stats.def) * mult * midRoll;
+      const { mult } = typeMultiplier(m.type, target.types, content.moves.typeChart, B);
+      return ((attacker.stats.atk * m.power) / target.stats.def) * mult * midRoll;
     };
-    expect(full("dous")).not.toBe(full("ambush"));
-    expect(full("ambush")).toBeGreaterThan(full("dous"));
+
+    const ashvole = CATCHABLE_LINES.find((l) => l.id === "ashvole-line");
+    if (!ashvole) throw new Error("no ashvole-line");
+    const witness = battlerIn(fieldedAgainst(enemy, specForLine(ashvole, "E", 14)), "mine");
+    // The paper tie holds against the witness too — otherwise it would not be the same case.
+    expect(rankOf("dous", witness)).toBe(rankOf("ambush", witness));
+    expect(fullAgainst(witness, "dous")).not.toBe(fullAgainst(witness, "ambush"));
+    expect(fullAgainst(witness, "ambush")).toBeGreaterThan(fullAgainst(witness, "dous"));
+
+    // …and the T-27 pairing itself is now EXACTLY tied in the full product, which is recorded here
+    // rather than left silent: it is why the witness above had to be found, and if a retune ever
+    // splits this pair again, this line says so instead of the case quietly going stale twice.
+    expect(fullAgainst(defender, "dous")).toBe(fullAgainst(defender, "ambush"));
+
+    // Either way the POLICY is unaffected — it ranks on `rankOf`, not on the full product — which
+    // the next two cases assert directly.
+    expect(chosenMoveId(state, NO_WEB)).toBe("dous");
   });
 
   it("throws `dous` — the earlier move in the pool, as core/battle.ts §14 promises", () => {
