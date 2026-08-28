@@ -50,31 +50,32 @@ export class TitleScene extends Phaser.Scene {
     const width = this.scale.width;
     const height = this.scale.height;
 
-    // T-19's defect class, AND THE ONE INSTANCE THAT CANNOT BE FIXED FROM THE SCREEN SIDE.
+    // BUILT. The art is at `assets/final/ui/title-banner.png` and this key resolves to it.
     //
-    // `game/mapview.ts`'s `"sprites/player"` and `game/survey-view.ts`'s `dex/<name>` were both
-    // fixed by moving the SCREEN to the manifest's shape, because a row already existed to move to.
-    // Here no row exists in any class: `tools/comfy/manifest.json` carries zero rows matching
-    // title / banner / logo / splash, its authored `_ui` block declares six FRAMES and nothing else,
-    // and there is no `ui/` directory in the manifest at all (the ui-frame class writes into
-    // `assets/final/ui-frame/`). So this key names nothing, and no spelling of it would.
+    // ⚠ THIS COMMENT PREVIOUSLY CONCLUDED THE OPPOSITE, AT LENGTH AND WITH CONFIDENCE: that no row
+    // exists in any class, that `tools/comfy/manifest.json` has no `ui/` directory, and therefore
+    // "this key names nothing, and no spelling of it would". Every fact in that reasoning was true.
+    // The conclusion did not follow from them, because THE LOADER DOES NOT CONSULT THE MANIFEST.
+    // `game/placeholder.ts` globs `../assets/final/**/*.png` class-agnostically, and `assetId`
+    // strips `FINAL_DIR` and the extension — so `assets/final/ui/title-banner.png` reduces to the id
+    // `ui/title-banner`, which is exactly the literal below. The key was always right; the file was
+    // simply never put where it points. The manifest was never the binding constraint, and no new
+    // class, no new `_ui` subject and no invented bible copy was needed to land it (so G2 was never
+    // in tension here either). Same shape as the interiors: art addressed by a hardcoded path with
+    // no manifest row, working fine.
     //
-    // It is NOT fixed by renaming the key, and it is NOT fixed here. Emitting a row means adding a
-    // `_ui` entry with a new subject string, and `_ui` is authored content transcribed from
-    // docs/content-bible.md with a per-entry `source` — the bible names no title banner, so writing
-    // one would be inventing content to make the generator happy, which is exactly what G2 forbids.
-    // A wordmark is also not a nine-slice frame: `ui-frame`'s skeleton says "empty interior,
-    // nine-slice border, no text" and its post-process is `trim: true, fit: false`, so a correct row
-    // would need a NEW CLASS as well as new copy. Both are Hank's calls, not this file's.
+    // The record is kept because the error is instructive: a chain of verified facts about one
+    // subsystem produced a confident claim about a DIFFERENT subsystem that nobody re-derived.
+    // `textureFor` returns the real texture whenever `scene.textures.exists(id)`, so the call below
+    // needs no change to draw art — it draws the stand-in only while nothing sits at the id.
     //
-    // Until then the behaviour below is the right behaviour: the shared helper draws a labelled,
-    // unmistakably unfinished stand-in that prints the key it is standing in for.
-    // `tests/gates/dex-path-contract.test.ts` names it as the one screen its SCREENS table
-    // deliberately does not bind, because there is no manifest row to bind it to. This comment is
-    // the record; it still needs an entry in docs/STATUS.md and a ticket, which the lane that owns
-    // docs/ must add — the finding was handed off rather than filed here.
+    // `tests/gates/asset-reachability.test.ts` GATE 2d flags this file as claimed by nothing. That
+    // is the GATE's gap, not this screen's: it recognises a PATH literal (how it resolves the
+    // interiors) but not an ASSET-ID literal, which is the form every `textureFor` /
+    // `placeholderImage` call site actually uses. It fails safe — live art read as unclaimed — and
+    // the fix is to reduce candidate literals through `assetId()` and match on the reduced id.
     placeholderImage(this, width / 2, 46, "ui/title-banner", BANNER_W, BANNER_H, {
-      note: "unbuilt — no manifest row exists (see comment)",
+      note: "no texture at this id — the file belongs at assets/final/ui/title-banner.png",
     });
 
     const byline = uiText(this, MARGIN_PX, 0, "TROPHIC · FALLOWMERE", UI.dim);
