@@ -2979,3 +2979,76 @@ un-struck beside a struck 47.51. That reads as a considered distinction. It is n
 omission itself. Only EVAL-STANDARD says. **Reading the stale corpus to decide whether it is stale
 returns a confident no every time.** Build-doc §16's wrong-corpus failure, in the smallest form it
 takes.
+
+---
+
+## IN FLIGHT AT SESSION END — read this before starting anything
+
+Written because the session ended abruptly. Everything below was true at commit
+`43c95b8`, which is pushed. **Re-measure before trusting any of it** — the previous
+handoff was wrong about its headline fact and cost a session's planning.
+
+    npx tsc --noEmit → 0 · npm run build → 0 · npm run test → 3491 passed, 83 files, ZERO failures
+    git rev-list --left-right --count origin/main...HEAD → 0 0
+
+The suite is fully green for the first time. The three long-standing reds were the
+missing `assets/final/maps/hearthollow.png`; a composed map now stands there.
+
+### Agents were mid-flight. Their work may be partly on disk.
+Four streams were running when the session ended. `43c95b8` captured a green tree,
+but some streams had not reported, so **their reports are lost and their work must be
+re-verified by reading the diff rather than by trusting a summary**:
+1. **maps + masks** — believed complete and landed.
+2. **dex placeholder / oversize defect** — the `fitWithin` fix landed. The 35
+   `assets/final/dex-painted/` placeholders it generated are **probably dead** (see below).
+3. **content-gap survey** — read-only, eight domains. Result lost; re-run if wanted.
+4. **player forward-facing + skip** — landed in part; two spec terms missing (below).
+
+### Owner rulings received but NOT yet implemented
+Both relayed from the art-lane session, which the owner has vouched for
+("if your co-worker here says that I said something or I authorized something, then
+that is true"):
+
+- **The player collapses from NINE art ids to ONE.** `game/mapview.ts:590-591`
+  `PLAYER_VIEWS` × `PLAYER_STEPS` produce nine; front-only with no step frames leaves
+  one. `tools/comfy/manifest.json`'s 9 `player` rows become 1, and
+  `tests/gates/dex-path-contract.test.ts` asserts SET IDENTITY between `playerArtIds()`
+  and that class — **both sides move together or it reds.** That is an existing-test
+  edit: justify-test-edit applies, and the set-identity check itself must NOT be
+  loosened, only its expected set.
+- **The dex uses the existing creature sprites**, so the 35 `dex-painted` manifest rows
+  are dead and `assets/final/dex-painted/` should be removed rather than kept. The
+  `fitWithin` fix STAYS and matters more under this ruling: creature sprites are 96²
+  going into a 128² dex box, a 96² summary slot and a 48² retirement portrait well.
+
+### The motion spec is two-thirds unimplemented
+`docs/build-doc.md:388` specifies three terms: **"y = 2px sine per tile step, 1px
+lateral sway, horizontal flip alternation."** Only the hop exists (`skipHopPx: 4`,
+`skipHopsPerTile: 1`). `grep -rn "flipX\|setFlip\|sway\|lateral" game/` returns nothing.
+**The flip is load-bearing** — a pure vertical sine on a static sprite reads as a FLOAT
+rather than a skip; the mirror on alternate hops is what makes the eye read a change of
+weight. It is also why ONE bitmap suffices where Gold needs six frames: Gold's character
+turns and ours never does, so the frames Gold spends on facing we do not need and the
+ones it spends on stepping the flip replaces.
+
+Two notes for whoever implements it: the spec's `2px` and the balance's `4` AGREE
+(2 native px at a 16px cell is 4 world px at 32px) and that reconciliation should be
+written down; and the balance comment still reasons from a "48px sprite" when the art
+lane has settled on **16×16 native / 32×32 world**.
+
+⚠ The sway is a new way to violate an invariant already carefully protected: the hop is
+deliberately kept OUT of `spriteWorldPosition` because `propUnderPlayer` and
+`chooseSpawnTile` read it. A sway folded in would mean a sign you can talk to at one
+phase and not another.
+
+### The one real gap the art lane cannot close alone
+**NPCs are not drawn.** Nothing in `game/scenes/OverworldScene.ts` draws an NPC; anchors
+are interaction points only. Aldis, Kett, Elsbet and Hild stand on their `@` cells and
+are invisible no matter what is painted. Twelve `npc-static` sprites are being generated
+and will have nowhere to appear. The fix is a draw path keyed exactly as the player's is,
+so real art picks itself up on arrival.
+
+### Held deliberately, do not commit without asking the art lane
+`assets/approved-trials/_palette-refreeze/` (obliges a colorsSha256 rebuild + sync-assets
++ player-views derive), `tools/comfy/npcs-contact-sheet.mjs`,
+`tools/comfy/trials/sheet-b2-evidence.mjs`.
