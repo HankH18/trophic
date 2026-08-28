@@ -18,7 +18,9 @@
  *     all 63 speakers, and there is not one property read of it in `core/` or `game/`. The dialogue
  *     box resolves the speaker for the NAME PLATE and stops there.
  *   · `ui-frame` — 6 manifest rows, six PNGs now under `assets/final/ui-frame/`, and `DialogueScene`
- *     draws `this.add.rectangle(...)`.
+ *     draws `this.add.rectangle(...)`. (SINCE CLOSED, five of six: the dialogue box, the menu plate,
+ *     the combatant card, the dex card and the ecology ledger all draw the painted ring through
+ *     `game/ui/FramePanel.ts`. `ui-sign-card-frame` is still drawn by nothing — see GATE 2c.)
  *   · `overworld-mini` — 24 rows and no reference to the class, its `finalDir`, or any of its ids.
  *   · `trainer-battle` — 8 rows whose only referent in the whole repo is that unread `portrait`.
  *
@@ -88,6 +90,7 @@ import {
 } from "../../game/scenes/DialogueScene";
 import { buildDexEntries } from "../../game/survey-view";
 import { battleSpriteKey, facingFor } from "../../game/ui/BattleHud";
+import { UI_FRAME_ASSET_ID } from "../../game/ui/FramePanel";
 import manifestJson from "../../tools/comfy/manifest.json";
 
 // `game/mapview.ts` value-imports Phaser for one constant (`Phaser.Loader.Events.COMPLETE`), and
@@ -186,6 +189,62 @@ const YEARS: readonly number[] = Array.from(
 );
 
 /**
+ * THE PAINTED UI FRAMES — the ids CALL SITES PASS, discovered, never listed here.
+ *
+ * `game/ui/FramePanel.ts` is the one file that puts a frame on the screen (`scene.add.image` per
+ * ring piece); the five screens that want a frame hand it an id and it draws whatever it is given.
+ * So "which `ui-frame` row is consumed" is not a property of `FramePanel`, it is a property of what
+ * its callers pass — and that is the question this builder asks.
+ *
+ * ⚠ IT MUST NOT BE `UI_FRAME_ASSET_IDS`. FramePanel exports the whole declared set of six, and
+ * handing that to this table would report `ui-sign-card-frame` as asked for on the strength of the
+ * frames around it — "the class exists, therefore the row is reachable", which is the exact
+ * reasoning GATE 2c below was written to refuse. FramePanel's own header says so at the export.
+ *
+ * ⚠ AND IT MUST NOT BE A HAND-LIST EITHER. A row typed out here goes stale in the dangerous
+ * direction: it keeps producing a key long after the screen stopped drawing it, which is precisely
+ * how the `dexArtId` row above certified `dex-painted` while nothing drew a plate. So the DOMAIN is
+ * scanned out of the shipped source (which property names appear as `UI_FRAME_ASSET_ID.x`) and the
+ * KEY is read out of the shipped constant (`UI_FRAME_ASSET_ID[x]`). Neither the membership nor the
+ * string is written in this file, and a screen that stops asking moves this census with it.
+ *
+ * The scan reads COMMENT- AND STRING-STRIPPED source through the same {@link stripped} lexer §1b
+ * uses — `DialogueScene` discusses `UI_FRAME_ASSET_ID.dialogueBox` in prose while deliberately
+ * passing its own `DIALOGUE_FRAME_ASSET_ID` constant, and a raw grep would count that paragraph as
+ * a call site. It is a text scan and carries §1b's limits; what keeps it honest is that it can only
+ * ever produce ids the shipped table defines (an unknown property name is reported, not dropped),
+ * and that `§1 every key builder is real` fails it closed the moment it finds nothing.
+ *
+ * ⚠ THE HOLE IT STILL HAS, stated rather than left to be found: writing `UI_FRAME_ASSET_ID.signCard`
+ * anywhere in `game/` outside a comment would put that id in this census WITHOUT drawing it, and
+ * GATE 2c would go green on a row nothing draws. That takes a deliberate edit to shipping code, and
+ * the wholesale version of it — handing the table the declared set — is caught by the strict
+ * `wired < declared` assertion in §1. The last hop, id → pixels, is `tests/unit/ui-frame-panel.test.ts`
+ * and the scene tests; no static census can close it.
+ */
+const FRAME_ID_REF = /\bUI_FRAME_ASSET_ID\s*\.\s*([A-Za-z_$][\w$]*)/g;
+
+const WIRED_FRAMES: { names: string[]; ids: string[]; unknown: string[]; sites: string[] } = (() => {
+  const table = UI_FRAME_ASSET_ID as Record<string, string | undefined>;
+  const names = new Set<string>();
+  const sites = new Set<string>();
+  for (const abs of walkTs(join(ROOT, "game"))) {
+    const code = stripped(readFileSync(abs, "utf8"));
+    for (const m of code.matchAll(FRAME_ID_REF)) {
+      names.add(m[1] as string);
+      sites.add(abs.slice(ROOT.length + 1));
+    }
+  }
+  const sorted = [...names].sort();
+  return {
+    names: sorted,
+    ids: sorted.map((n) => table[n]).filter((id): id is string => id !== undefined),
+    unknown: sorted.filter((n) => table[n] === undefined),
+    sites: [...sites].sort(),
+  };
+})();
+
+/**
  * The real key builders, called over the real shipped domains.
  *
  * ⚠ EACH ROW MUST NAME A FUNCTION THAT SHIPS, AND MUST CALL IT. A row that returns a typed-out key
@@ -280,6 +339,16 @@ const KEY_BUILDERS: readonly KeyBuilder[] = [
     where: "game/scenes/DialogueScene.ts DIALOGUE_FRAME_ASSET_ID (the painted nine-slice ring)",
     keys: () => [DIALOGUE_FRAME_ASSET_ID],
   },
+  {
+    /*
+     * The other four painted frames, through the shared slicer. See {@link WIRED_FRAMES} above for
+     * why this is neither `UI_FRAME_ASSET_IDS` nor a list typed here. The dialogue box is not
+     * double-counted — its call site passes `DIALOGUE_FRAME_ASSET_ID`, so the scan never sees it,
+     * and the row above is the one that carries it.
+     */
+    where: "game/ui/FramePanel.ts UI_FRAME_ASSET_ID × the ids game/ call sites pass to drawFrameRing",
+    keys: () => WIRED_FRAMES.ids,
+  },
 ];
 
 /** key -> every builder that produced it. The census this whole file is judged against. */
@@ -314,6 +383,39 @@ describe("§1 the asked census is driven, and it is not empty", () => {
     // …and the resolver really uses it: a portrait id is NOT its own texture key.
     expect(portraitAssetId("npc-bram")).toBe("npc-static/npc-bram");
     expect(portraitAssetId("npc-bram")).not.toBe("npc-bram");
+  });
+
+  it("the ui-frame domain is scanned from real call sites, and every name it finds is a real row", () => {
+    // FAIL CLOSED, three ways. A scan that finds nothing, finds a name the shipped table cannot
+    // resolve, or collapses to one file is a scan that has stopped describing the game — and the
+    // `ui-frame` rows it carries would be reported unconsumed for a reason that is in this file.
+    expect(
+      WIRED_FRAMES.unknown,
+      `game/ names UI_FRAME_ASSET_ID.${WIRED_FRAMES.unknown.join(", .")}, which game/ui/FramePanel.ts ` +
+        "does not define — the scan is reading a renamed or destructured table and its ids are stale",
+    ).toEqual([]);
+    expect(WIRED_FRAMES.ids.length, "no call site passes a UI_FRAME_ASSET_ID at all").toBeGreaterThan(0);
+    expect(
+      WIRED_FRAMES.sites.length,
+      `only ${String(WIRED_FRAMES.sites.length)} file passes a frame id (${WIRED_FRAMES.sites.join(", ")}) — ` +
+        "the five wired screens each pass their own, so a collapse to one means the scan is missing them",
+    ).toBeGreaterThan(2);
+    // The ids are read out of the shipped constant, so every one must be a key the manifest produces.
+    // (`keysOfClass` is defined below; this is the same containment GATE 2b checks from the other side.)
+    for (const id of WIRED_FRAMES.ids) {
+      expect(
+        Object.values(UI_FRAME_ASSET_ID as Record<string, string>),
+        `"${id}" is not one of the ids game/ui/FramePanel.ts declares`,
+      ).toContain(id);
+    }
+    // …and the DECLARED set is strictly larger than the wired one. This is the assertion that would
+    // have caught handing `UI_FRAME_ASSET_IDS` to the table: if the two ever become equal, either a
+    // sixth screen was wired (delete this line on purpose) or the builder has been given the
+    // declared set and GATE 2c has just gone green on rows nothing draws.
+    expect(
+      WIRED_FRAMES.ids.length,
+      "the builder is producing every declared ui-frame id — a declared set is not a consumed set",
+    ).toBeLessThan(Object.keys(UI_FRAME_ASSET_ID).length);
   });
 
   it("every key builder is real, is called, and produces something", () => {
@@ -502,6 +604,15 @@ const DRAWING_FILES: readonly string[] = [
   // npc-static / trainer-battle / prop, via `speakers[].portrait` -> `portraitAssetId`; and the
   // `ui-frame` ring, via `DIALOGUE_FRAME_ASSET_ID`.
   "game/scenes/DialogueScene.ts",
+  /*
+   * `ui-frame`, for the OTHER four screens. This is the shared nine-slice slicer, and it is the only
+   * file that draws one: `MenuScene`, `BattleHud`, `DexScene` and `SurveyScene` call
+   * `drawFrameRingIn(scene, id, rect)` and this file turns it into eight `scene.add.image` calls, so
+   * §1b's scan sees this file and not theirs. Its builder is the `WIRED_FRAMES` row above, whose
+   * domain is the ids those four call sites pass — which is why adding this file did NOT certify the
+   * two rows nothing draws.
+   */
+  "game/ui/FramePanel.ts",
   /*
    * ⚠ THE ONE DRAW WITH NO CLASS BEHIND IT, and it is deliberately NOT a key builder above.
    * `TitleScene` asks for `"ui/title-banner"`, a key NO manifest row and no class can ever produce:
@@ -738,6 +849,32 @@ describe("GATE 2a — every manifest class has a consumer", () => {
  * Scope: classes that ARE consumed. A class with no consumer at all is GATE 2a's report and is left
  * out of this one so the same rows are not named twice; a class whose domain is empty is exempt for
  * the same machine-checked reason it is exempt there.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════════════════
+ * `ui-sign-card-frame` — WHY THIS ONE IS STILL RED, AND WHY THAT RED IS A DECISION, NOT A TODO
+ * ═════════════════════════════════════════════════════════════════════════════════════════════════
+ * Five of the six `ui-frame` rows now reach a screen. The sixth is NOT the next one to wire, and it
+ * is deliberately NOT exempted here — an exemption reads as "handled", and this needs an owner to
+ * decide whether the sign card is a screen at all. What is recorded is the investigation, so nobody
+ * closes the red by inventing the content G2 forbids:
+ *
+ *   NOT CONSTRUCTIBLE UNDER G2. `tools/ui-frames/SPEC.md` §4.6 authors the frame's PIXELS and one
+ *   text rule, and its nine-slice table explicitly declines a position — "wherever the prop is".
+ *   Building the screen would mean inventing the world position, a depth (`OverworldScene` carries
+ *   no prop depth at all), the trigger, the wrap width, AND THE TEXT ITSELF. The two candidate
+ *   bodies disagree about what the card even says: the corpus's `prop.*-sign-*` entries are ~180
+ *   characters of prose written for the 464×68 dialogue box, while the only authored render shows a
+ *   three-line dex-entry summary that no runtime code produces for a prop.
+ *
+ *   TWO STRUCTURAL BLOCKERS BESIDES. Its 7px asymmetric bevel is not the 4px symmetric idiom
+ *   {@link drawFrameRing} slices (`game/ui/FramePanel.ts` states this at the export, and
+ *   `tests/unit/ui-frame-panel.test.ts` holds it out of the panel assertions for it) — and the sign
+ *   ALREADY HAS a shipped world face baked into the map at roughly one cell, which a 240×160 card
+ *   would cover at about 12× its size.
+ *
+ * So the report below is the truthful one: one row, generated and committed, that nothing asks for.
+ * The three ways it goes green are a screen that asks for it, a manifest whose derivation no longer
+ * produces the row, or an owner ruling. Not a fourth.
  */
 function unaskedRowsOfConsumedClasses(): { className: string; rows: string[] }[] {
   const exempt = new Set(EMPTY_DOMAIN.filter((e) => e.precondition()).map((e) => e.className));
@@ -1053,6 +1190,40 @@ describe("§4 the mirror — the game must not ask for a key nothing can produce
  * ⚠ A CLAIM IS NOT REACHABILITY. It says something addresses the path, not that a screen draws it —
  * that is GATE 2a/2c's question, asked of the classes. What this catches is the case those cannot
  * see at all: bytes shipped into the repository that nothing in the project even names.
+ *
+ * ═════════════════════════════════════════════════════════════════════════════════════════════════
+ * `assets/final/atlas/` — WHY BEING EXCLUDED FROM THE BUNDLE DID NOT MAKE THE SHEETS CLAIMED
+ * ═════════════════════════════════════════════════════════════════════════════════════════════════
+ * The eight files under `assets/final/atlas/` (four packed sheets, ~104KB, plus a descriptor each)
+ * are this gate's standing red. `game/placeholder.ts` now SUBTRACTS the directory from its glob —
+ * `["../assets/final/**\/*.png", "!../assets/final/atlas/**"]` — so the sheets no longer reach
+ * `dist/` and `BootScene` no longer downloads them. That is a real fix for a real cost, and it does
+ * NOT make them claimed. Three reasons, recorded because the opposite reading is the tempting one:
+ *
+ *   1. THE QUESTION IS ABOUT THE SHIPPING ROOT, NOT THE BUNDLE. `assets/final/` is the committed
+ *      home for finished art (build-doc §5), and this gate walks the repository. If "absent from
+ *      dist/" excused a file, the gate could be satisfied by DELETING A LOADER — which is the exact
+ *      inversion of what it asks.
+ *   2. A NEGATIVE PATTERN IS NOT A CLAIM. The exclusion names the directory in order to have
+ *      nothing to do with it. A HARDCODED claim says "shipped code addresses this path"; the glob
+ *      says "shipped code deliberately does not". Counting it would let the gate go green on the
+ *      strength of a statement that the files are unused.
+ *   3. THEY ARE FURTHER FROM CLAIMED THAN BEFORE, NOT NEARER. Before the subtraction the sheets at
+ *      least became textures (drawn by nothing — no `textureFor` call names an `atlas/*` id, because
+ *      the data references ids like `creature-battle/vellsire`). Now no path in `game/` or `core/`
+ *      names one at all, there is no `load.atlas` anywhere, and the descriptors are not in Phaser's
+ *      atlas format — their frame ids are not this project's key space, which is why wiring a loader
+ *      would trade a silent cost for a silently WRONG texture cache.
+ *
+ * WHAT HAS CHANGED IS THE DIAGNOSIS, and the message below already carries the right resolution:
+ * "it is dead weight and the fix is to delete it". `game/placeholder.ts` says the same thing in its
+ * own words — "a sheet is a build artefact, not art" — and a build artefact does not belong in the
+ * shipping root. Emitting them outside `assets/final/` (or deleting them until the packing lane
+ * emits a Phaser-format descriptor whose frames are `assetId()` keys and loads it on purpose) makes
+ * them genuinely UNSHIPPED, and this gate goes green because there is nothing there to claim.
+ *
+ * ⚠ WHAT WOULD BE WRONG IS A `NOT_ART` RULE. A packed sheet is not bookkeeping the engine reads as
+ * data; it is 161 pictures in one file. That is the one resolution this gate refuses by name.
  */
 
 const SHIPPING_ROOT = "assets/final";

@@ -43,6 +43,7 @@ import type { PaletteRgb } from '../../tools/postprocess/palette.ts';
 import { loadPalette, loadPaletteFile, parseHex, paletteIsFrozen, PALETTE_PATH, REPO_ROOT } from '../../tools/postprocess/palette.ts';
 import {
   backgroundForClass,
+  backgroundOf,
   classOf,
   finalPathOf,
   processRaster,
@@ -387,6 +388,70 @@ function paletteImageOf(colour: { r: number; g: number; b: number }, palette: re
   return { r: q.data[0]!, g: q.data[1]!, b: q.data[2]! };
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+ * …AND THE SAME TRAP AGAIN, ONE TOLERANCE OVER
+ *
+ * Everything above reads `backgroundTolerance` AND ONLY THAT. Step 3 no longer runs on one number.
+ * `removeFlatBackground` SEEDS at `tolerance` and GROWS at `shadowTolerance` (`creature-battle`
+ * declares 50), and the second number is what clears the soft cast-shadow puddle the generator draws
+ * under a creature — 4,929 pixels across the 75 battle sprites, every one of them the palette's
+ * image of white or of the shadow swatch.
+ *
+ * A test that never reads a number cannot tell a working value of it from a broken one. The
+ * assertions above are green at shadowTolerance 50, at 24 (the fix switched off, the puddle ships
+ * opaque again) and at 90 (the flood eats every light swatch in the palette) — because the input
+ * they look at is identical in all three. That is the §0.5 failure in `tools/artverify/
+ * EVAL-STANDARD.md`, and a palette re-freeze is exactly the event that walks into it: move the
+ * shadow swatch past 50 and the fix silently stops working; pull the next swatch in under 50 and
+ * the flood silently starts eating light content. Neither turns anything red today.
+ *
+ * So the same two-sided invariant is asserted for the GROW tolerance, per palette:
+ *
+ *   1. EXACTLY TWO swatches are inside it — the palette's image of the declared key, and the one
+ *      swatch the shadow quantizes to. One means the puddle survives; that is the state that
+ *      shipped. Three means the flood has reached a swatch that is content somewhere.
+ *   2. The THIRD-lightest is strictly outside, so a freeze that merely gets close is red too.
+ *
+ * MEASURED, NOT RE-DERIVED. "Inside" is decided by RUNNING `removeFlatBackground` with the options
+ * `processRaster` hands it — `backgroundOf(recipeFor(spec))`, the same call and the same pairing.
+ * `isBackgroundPixel` is private to steps.ts, and a second copy of `Math.abs(…) <= tol` in this file
+ * would be one more thing that can drift from the operator it claims to describe.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Does step 3's flood GROW into this swatch, according to the shipped flood itself?
+ *
+ * The probe is a 3×3 whose RING is the palette's image of the declared key and whose CENTRE is the
+ * candidate swatch. Every ring cell is on the frame edge, so the ring is what `seed()` admits at
+ * `tolerance`; the centre touches no edge, so the only way it can ever clear is `push()` growing
+ * into it at `shadowTolerance`. The separation is the whole point — a 1-pixel-tall probe would put
+ * the candidate on the border and measure `tolerance`, which is the number that is already tested.
+ */
+function floodGrowsInto(
+  swatch: { r: number; g: number; b: number },
+  keyImage: Rgb,
+  bg: BackgroundOptions,
+): boolean {
+  const r = blankRaster(3, 3);
+  for (let y = 0; y < 3; y++) {
+    for (let x = 0; x < 3; x++) {
+      const c = x === 1 && y === 1 ? swatch : keyImage;
+      px(r, x, y, [c.r, c.g, c.b, 255]);
+    }
+  }
+  const out = removeFlatBackground(r, bg);
+  return out.data[idx(out, 1, 1) + 3] === 0;
+}
+
+/** A raster of flat swatches, so a probe can be written as a picture. */
+function swatchRaster(rows: ReadonlyArray<ReadonlyArray<{ r: number; g: number; b: number }>>): Raster {
+  const h = rows.length;
+  const w = rows[0]!.length;
+  const r = blankRaster(w, h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) px(r, x, y, [rows[y]![x]!.r, rows[y]![x]!.g, rows[y]![x]!.b, 255]);
+  return r;
+}
+
 /** Every palette file the repo carries, found on disk — data/ and the trial proposals alike. */
 function discoverPalettes(): Array<{ label: string; path: string }> {
   const found: Array<{ label: string; path: string }> = [];
@@ -429,6 +494,10 @@ describe('§9.3 step 3 survives a palette swap', () => {
   const removalClasses = (): Array<[string, ClassSpec]> =>
     Object.entries(manifest.classes).filter(([, s]) => s.postprocess.removeBackground);
 
+  /** …and the subset that opts into the second, looser GROW tolerance. */
+  const shadowClasses = (): Array<[string, ClassSpec]> =>
+    removalClasses().filter(([, s]) => s.postprocess.shadowTolerance !== undefined);
+
   it('finds the palettes on disk, including the frozen one', () => {
     expect(palettes.map((p) => p.label)).toContain('data/palette.json');
     // The two re-freeze proposals are bound by everything below exactly as the frozen palette is.
@@ -438,6 +507,29 @@ describe('§9.3 step 3 survives a palette swap', () => {
   it('at least one class actually runs background removal — otherwise this suite proves nothing', () => {
     expect(removalClasses().length).toBeGreaterThan(0);
     expect(removalClasses().map(([n]) => n)).toContain('creature-battle');
+  });
+
+  it('at least one class declares shadowTolerance — otherwise every shadow assertion below is vacuous', () => {
+    // FAIL CLOSED. Every shadow assertion is a loop over `shadowClasses()`, and a loop over an empty
+    // list passes. Delete the key from the manifest and the invariant that keeps 4,929 shadow pixels
+    // clearing would evaporate with nothing turning red — the same fail-open shape the layout gate's
+    // closed character set was built to avoid. If the opt-in is ever genuinely withdrawn, this test
+    // is the thing that has to be edited ON PURPOSE, in the same commit, with the reason written down.
+    expect(
+      shadowClasses().map(([n]) => n),
+      'no manifest class declares postprocess.shadowTolerance — the cast-shadow removal is off, and ' +
+        'the two-swatch invariant below is checking nothing at all',
+    ).toContain('creature-battle');
+    // …and the number really is the looser of the two, or `removeFlatBackground` grows at `tolerance`
+    // and the whole section is describing a step that does not happen.
+    for (const [name, spec] of shadowClasses()) {
+      const recipe = recipeFor(spec);
+      expect(
+        recipe.backgroundShadowTolerance,
+        `${name} declares shadowTolerance ${String(spec.postprocess.shadowTolerance)}, which is not ` +
+          `looser than backgroundTolerance ${String(recipe.backgroundTolerance)} — the opt-in buys nothing`,
+      ).toBeGreaterThan(recipe.backgroundTolerance);
+    }
   });
 
   it('every removing class declares the key the generator produces — `plain white background` (§9.2)', () => {
@@ -484,6 +576,104 @@ describe('§9.3 step 3 survives a palette swap', () => {
             .filter((d) => d > tol)
             .sort((a, b) => a - b);
           expect(outside[0]!, `${label}: ${name}'s second-lightest swatch is only ${outside[0]} off the key`).toBeGreaterThan(tol);
+        }
+      });
+
+      it('admits EXACTLY the key’s image and the shadow swatch inside shadowTolerance — and no third', () => {
+        const palette = loadPalette(path);
+        for (const [name, spec] of shadowClasses()) {
+          const recipe = recipeFor(spec);
+          const bg = backgroundOf(recipe);
+          const tol = recipe.backgroundShadowTolerance;
+          const key = parseHex(spec.postprocess.backgroundKey);
+          const image = paletteImageOf(key, palette);
+          const imageHex = palette.find((c) => c.r === image.r && c.g === image.g && c.b === image.b)!.hex;
+
+          const byDistance = [...palette].sort((a, b) => channelDeviation(a, key) - channelDeviation(b, key));
+          const show = (c: PaletteRgb): string => `${c.id} ${c.hex} (${String(channelDeviation(c, key))} off)`;
+          // Decided by the shipped flood with the shipped options, not by a second copy of its threshold.
+          const inside = byDistance.filter((c) => floodGrowsInto(c, image, bg));
+
+          expect(
+            inside.map(show),
+            `${label}: ${name} grows at shadowTolerance ${String(tol)}, which admits ${String(inside.length)} ` +
+              'swatch(es). EXACTLY TWO may be inside: the palette’s image of the background key, and the ' +
+              'one swatch the cast shadow quantizes to. Fewer means the shadow puddle survives and every ' +
+              'sprite ships with an opaque pale smear under it; more means the flood has reached a swatch ' +
+              'that is light CONTENT somewhere and will eat it.',
+          ).toEqual(byDistance.slice(0, 2).map(show));
+          expect(inside[0]!.hex, `${label}: ${name}'s nearest admitted swatch is not the key's image`).toBe(imageHex);
+
+          // The third-lightest, STRICTLY outside — a freeze that merely gets close is the same defect
+          // one freeze later. Cross-checked two ways: the flood refuses it, and the margin is real.
+          const third = byDistance[2]!;
+          expect(floodGrowsInto(third, image, bg), `${label}: ${name} flood reached ${show(third)}`).toBe(false);
+          expect(
+            channelDeviation(third, key),
+            `${label}: ${name}'s third-lightest swatch ${show(third)} is not clear of shadowTolerance ${String(tol)}`,
+          ).toBeGreaterThan(tol);
+
+          // AND THE NUMBER IS WHAT DOES THE WORK. At `backgroundTolerance` — what every class that has
+          // NOT opted in grows at, and what this class grew at before the shadow fix — the flood stops
+          // at the key's image. So the second swatch is inside because of `shadowTolerance` and for no
+          // other reason, which is the claim the assertion above would otherwise only imply.
+          const atBackgroundTolerance = byDistance.filter((c) =>
+            floodGrowsInto(c, image, { key: bg.key, tolerance: recipe.backgroundTolerance }),
+          );
+          expect(
+            atBackgroundTolerance.map(show),
+            `${label}: ${name} admits these at backgroundTolerance ${String(recipe.backgroundTolerance)} — ` +
+              'if the shadow swatch is already among them, `shadowTolerance` is not the thing clearing it ' +
+              'and this palette has moved the two tolerances on top of each other.',
+          ).toEqual([show(byDistance[0]!)]);
+        }
+      });
+
+      it('widens the GROW only — an enclosed shadow region is kept, and one at the frame edge is not seeded', () => {
+        // The safety argument `removeFlatBackground`'s header makes for raising the grow tolerance,
+        // asserted rather than believed. Both probes are written in the palette's own swatches: the
+        // shadow swatch is the second-lightest (the one the test above pins as admitted), and the
+        // subject colour is the swatch FURTHEST from the key, so neither is a colour typed here.
+        const palette = loadPalette(path);
+        for (const [name, spec] of shadowClasses()) {
+          const bg = backgroundOf(recipeFor(spec));
+          const key = parseHex(spec.postprocess.backgroundKey);
+          const image = paletteImageOf(key, palette);
+          const byDistance = [...palette].sort((a, b) => channelDeviation(a, key) - channelDeviation(b, key));
+          const shadow = byDistance[1]!;
+          const subject = byDistance[byDistance.length - 1]!;
+
+          // ENCLOSED: a pale region ringed by subject is unreachable from the border at ANY tolerance.
+          const enclosed = swatchRaster([
+            [image, image, image, image, image],
+            [image, subject, subject, subject, image],
+            [image, subject, shadow, subject, image],
+            [image, subject, subject, subject, image],
+            [image, image, image, image, image],
+          ]);
+          const afterEnclosed = removeFlatBackground(enclosed, bg);
+          expect(
+            afterEnclosed.data[idx(afterEnclosed, 2, 2) + 3],
+            `${label}: ${name} punched out a ${shadow.hex} region the subject encloses — at shadowTolerance ` +
+              'the flood is reaching pale pixels it cannot see a path to',
+          ).toBe(255);
+          expect(afterEnclosed.data[idx(afterEnclosed, 0, 0) + 3], `${label}: ${name} left the corner opaque`).toBe(0);
+
+          // SEEDS STAY STRICT: the shadow swatch ON the frame edge, with no backdrop anywhere, is a
+          // pale wing touching the border. `seed()` reads `tolerance`, so nothing may start here.
+          const edge = swatchRaster([
+            [subject, subject, subject],
+            [shadow, subject, subject],
+            [subject, subject, subject],
+          ]);
+          const afterEdge = removeFlatBackground(edge, bg);
+          for (let i = 3; i < afterEdge.data.length; i += 4) {
+            expect(
+              afterEdge.data[i],
+              `${label}: ${name} seeded a flood on ${shadow.hex} at the frame edge — shadowTolerance has ` +
+                'leaked into seeding, and a pale wing that merely touches the border will be erased',
+            ).toBe(255);
+          }
         }
       });
 
@@ -631,7 +821,11 @@ describe('§9.3 step 3’s tolerance has ONE home — the manifest (G11)', () =>
       for (const [i, line] of code.split('\n').entries()) {
         // `tolerance: 12` — an inline background-options object.
         // `TOL = 12` / `const TOLERANCE = 12` — a module constant feeding one.
-        if (/\btolerance\s*:\s*\d/i.test(line) || /\b(?:TOL|TOLERANCE)\s*=\s*\d/i.test(line)) {
+        // The `\w*` prefix is load-bearing: `BackgroundOptions` grew a SECOND number,
+        // `shadowTolerance`, and `\btolerance` cannot match inside `shadowTolerance` — there is no
+        // word boundary in the middle of an identifier. A rule that reads past the newest tolerance
+        // is a rule that only ever protected the one that already had a test.
+        if (/\b\w*tolerance\s*:\s*\d/i.test(line) || /\b(?:TOL|TOLERANCE)\s*=\s*\d/i.test(line)) {
           offenders.push(`${rel}:${i + 1}  ${line.trim()}`);
         }
       }
@@ -673,6 +867,19 @@ describe('§9.3 step 3’s tolerance has ONE home — the manifest (G11)', () =>
       const bg = await backgroundForClass(name);
       expect(bg.tolerance, name).toBe(spec.postprocess.backgroundTolerance);
       expect(bg.key, name).toEqual(parseHex(spec.postprocess.backgroundKey));
+      // BOTH numbers, or the second one is resolved by nothing. Drop the `??` line out of
+      // `recipeFor` and `shadowTolerance` silently becomes `backgroundTolerance` for every class —
+      // the cast-shadow removal off, 75 sprites back in pale puddles, and every palette invariant
+      // above still green because they all read the recipe rather than the manifest.
+      expect(bg.shadowTolerance, `${name} shadowTolerance`).toBe(
+        spec.postprocess.shadowTolerance ?? spec.postprocess.backgroundTolerance,
+      );
+      // …and the default really is the fallback, not a coincidence: a class that declares nothing
+      // must come back with the two numbers equal, which is what keeps every non-opted-in class
+      // byte-identical to what it produced before the second tolerance existed.
+      if (spec.postprocess.shadowTolerance === undefined) {
+        expect(bg.shadowTolerance, `${name} did not opt in but grows at a different number`).toBe(bg.tolerance);
+      }
     }
     await expect(backgroundForClass('no-such-class')).rejects.toThrow(/no "no-such-class"/);
   });
