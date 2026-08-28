@@ -83,9 +83,12 @@ Two scope questions moved to STATUS's *waiting on the owner* register rather tha
 as work: how many buildings should have an interior, and when the palette expands to 48 relative to
 the top-down re-author. Neither is an agent's to answer.
 
-**Later on 2026-08-27: T-17's ground-texture figures are MARKED, not removed.** Gold's `47.51%`
-whole-map edge density could not be reproduced and its author withdrew it pending republication with
-the operator attached; the marking and what survives it are at the end of T-17. **T-17 also gains the
+**Later on 2026-08-27: T-17's ground-texture figures are MARKED, not removed.** The withdrawal is on
+the **operator** — an unpublished luminance neighbour-difference reading at threshold 25 — and so on
+**every figure it produced**, not on an enumerated list; Gold's `47.51%` whole-map edge density is
+only its headline. The scope rule, the set as it stands, and what survives are in the ⚠ note at the
+end of T-17. **The LoRA-adoption evidence is inside that withdrawal**, which is *not* a reversal of
+the LoRA conclusion — also at the end of T-17. **T-17 also gains the
 cause of the bottom-edge dark band** (the skeleton's cliff-step clause, obeyed literally on a node
 with no elevation) and the **disproof** of the negations hypothesis. **A third question — whether the
 pipeline adopts a LoRA — is REOPENED and sits in STATUS's *waiting on the owner* register, not here**,
@@ -465,8 +468,11 @@ and `yearBegin` overwrote a room's provenance line with the town's map note — 
 line when the player is inside one.
 
 **❌ Clause 4 — items sold in the town shops.** No shop sells anything. `balance.economy` ships
-`innCost` 40, `trainerPayoutPerLevel` 12, and snare / bait / salve / tonic prices, and **every one of
-them has zero readers** outside `core/schemas.ts` and `core/types.ts`. ⚠ **The sentence that stood
+`innCost` 40, `trainerPayoutPerLevel` 12, and snare / bait / salve / tonic prices. ⚠ **UPDATED:
+`trainerPayoutPerLevel` now has ONE reader** — `core/save.ts` `trainerPayout`, landed with the
+`payout` tape action this session — but **nothing calls it in production**, so no money is earned and
+the clause is still ❌. Every other price still has **zero readers** outside `core/schemas.ts` and
+`core/types.ts`. ⚠ **The sentence that stood
 here is CORRECTED, not rephrased:** it said the *only* `money` occurrence in `core/` or `game/` is
 `core/save.ts:420`. There are **five** — `core/schemas.ts:826`, `core/types.ts:770`, `core/save.ts:4`
 (a doc comment), `:384` (`NewSaveOpts`) and `:420` — and **zero in `game/`**. The claim that was
@@ -647,8 +653,13 @@ actually been shipping wrong.** **Gold never uses a flat fill anywhere**: grass 
 checkerboard between two greens, paths a fine dot pattern, tree masses a repeating weave, and the
 texture is in the **ground**, not the objects — a 32×32 tile of plain New Bark grass with seven
 colours and no keylines carries **43.59%** of the whole map's **47.51%** on its own, against **8.83%**
-for our best output. ⚠ **Those three figures are WITHDRAWN AS UNSOURCED** — see the note at the end of
-this ticket, and STATUS's withdrawal register. See `tools/artverify/ground-comparison.png`; it is the
+for our best output. ⚠ **Those three figures are WITHDRAWN** — see the note at the end of
+this ticket, and STATUS's withdrawal register. ⚠ **The `seven colours` is affected separately and
+differently**: it is a colour COUNT, and counts do not fall with the edge operator — but it sits
+inside the **6-9 colours** band once quoted for Gold's open ground, and **that band is withdrawn**,
+having come from an inherited five patch coordinates that proved four-fifths trees, ledges and
+fences. Hand-picked open ground reads **3-4 colours**. Whether this tile is one of the contaminated
+patches is **OPEN**: recorded, not resolved. See `tools/artverify/ground-comparison.png`; it is the
 one artefact here that a number cannot substitute for, **and with the figures struck it is what the
 finding rests on** — it is untouched, being a picture rather than a percentage. **Work the two facts separately, because a combined sentence gets
 half-implemented:**
@@ -658,24 +669,52 @@ half-implemented:**
 
 Measured, each disproving the other's sufficiency: dither at amplitude 45 without the subset →
 **40.02% in 43 colours**; the subset without dither → **16 colours at 12.88%**; both together →
-**44.74% in 16**, against Gold's 47.51% in 17. ⚠ **The `47.51` baseline is withdrawn as unsourced and
-the three readings quoted against it go with it.** **A and B each disproving the other's sufficiency
-does not rest on the baseline and stands**; *how close to Gold this got* does rest on it and does not.
+**44.74% in 16**, against Gold's 47.51% in 17. ⚠ **All four EDGE figures there — `40.02`, `12.88`,
+`44.74` and Gold's `47.51` — are withdrawn.** They are one instrument's output, so this is a single
+withdrawal, not a baseline plus survivors. **The COLOUR counts — 43, 16, 16, 17 — are a different
+property and stand**, and the split falls unevenly across the argument: **A's disproof of B stands on
+counts alone** (dither at amplitude 45 left **43 colours**, so texture work plainly does not fix the
+count), while **B's disproof of A rests entirely on the withdrawn edge readings** — that the subset
+alone stayed flat is a texture claim with no publishable measurement under it right now. *How close
+to Gold this got* rests on the withdrawn baseline and is not quotable at all. **Keep the two facts
+split regardless**; what is gone is the measurement of one half, not the reason for splitting them.
 
 **And the dither is SOURCE-DEPENDENT, so treat it as a fragility, not a settled recipe.** A ±22
 ordered bias crosses a palette boundary only where the ground colour already sits near one, so the
 same amplitude transforms one source and leaves another flat: through the same postprocess, on one
 operator, today's baseline input read **6.89%** ground edge and a c64-LoRA input read **54.84%**
-(Gold **60.10%** the same way). Both are real. An amplitude that works is a property of the **pair**
+(Gold **60.10%** the same way). ⚠ **All three are output of the withdrawn threshold-25 operator, so
+this claim is now a mechanism with no measurement under it.** The mechanism — a ±22 bias only crosses
+a boundary where the source colour already sits near one — is an argument about quantization and
+survives; that source-dependence was *observed*, and the size of the gap, do not. Carry it as an
+untested expectation, not as a measured fact.
+
+⚠ **And that triple is the whole evidential basis of the LoRA argument, so state the consequence
+exactly and overstate it in neither direction:** **the evidence for the LoRA conclusion is
+WITHDRAWN, pending re-derivation with a published operator. This is NOT a reversal of the
+conclusion** — the direction may well survive re-measurement, and the owning lane is explicit that
+they are not claiming the LoRA lost, only that the evidence for it winning is currently withdrawn.
+**Nothing downstream may treat "baseline 6.89%, c64-LoRA 54.84%, Gold 60.10%" as measured evidence
+until it is re-derived.** The LoRA question already sits in STATUS's *waiting on the owner* register;
+it is now waiting on a re-measurement as well as on a ruling.
+
+An amplitude that works is a property of the **pair**
 `(source, amplitude)`, so do not carry one number into the re-author as *what the dither buys*.
 
 **Both readings are reported and NEITHER is capped**, by `tests/gates/asset-palette-contract.test.ts`'s
 advisory, for the reasons recorded at their thresholds. A colour cap at or above `palette.length`
 cannot fail at all, and a cap below it is taste with a number painted on it. A texture cap is worse:
-the response to dither amplitude is near-linear (0 → 12.88, 24 → 24.09, 40 → 40.02, 56 → 63.77), so a
-generator can be tuned to any figure named — and applied globally the dither speckles roofs and walls,
-so **a map that reached 47% by ruining its buildings would pass a hard assertion.** That is the
-ControlNet-0.9 failure exactly, and the gate refuses to invite it twice.
+the response to dither amplitude was measured as near-linear (0 → 12.88, 24 → 24.09, 40 → 40.02,
+56 → 63.77), so a generator can be tuned to any figure named — and applied globally the dither
+speckles roofs and walls, so **a map that reached 47% by ruining its buildings would pass a hard
+assertion.** That is the ControlNet-0.9 failure exactly, and the gate refuses to invite it twice.
+⚠ **The amplitude ladder is withdrawn too — same threshold-25 operator — and it is worth saying
+plainly rather than quietly: the ladder is the argument FOR the withdrawal and is itself withdrawn
+by it.** The demonstration that an edge figure can be tuned to whatever you name was made with an
+instrument nobody can re-run. Near-linearity is now an expectation, not a measurement. **The decision
+not to cap is unchanged and never rested on the ladder** — the colour-cap arithmetic and the
+ControlNet-0.9 episode are untouched — and it gains a reason: a threshold set from an unpublishable
+instrument is this failure over again.
 
 **Multi-level towns are back ON**, at Hank's own suggestion and referenced to Ruby/Sapphire:
 elevation expressed **top-down** through cliff bands, ledges, stairs and ladders rather than through a
@@ -714,23 +753,52 @@ came from negated phrasing in the prompt. All **six** negated phrases were rewri
 **the band survived, and a second band appeared at the top.** A disproof, not a plausible story, and
 not a weakened hypothesis.
 
-⚠ **The withdrawal this ticket's texture figures are marked against.** Gold's **`47.51%`** whole-map
-edge density — cited twice in this ticket, twice in `docs/build-doc.md` §8.4 and twice in
-`docs/STATUS.md` — **cannot be reproduced.** An independent re-measurement of the **same eight
-`assets/reference/gen2/` captures** reads **50.4–78.8% at 1:1 native** and **30.3–51.5%
-density-matched at 2×**; **no threshold reproduces 47.51.** Its author withdrew it **pending
-republication with the operator attached**, and it is marked rather than deleted on this queue's
-standing practice — a withdrawn claim is recorded, because it may be republished and turn out fine.
-**Not disproved; not evidence either.** *As a consequence rather than a separate withdrawal:* the
-figures published beside it in the same session — 43.59, 8.83, 44.74, 40.02, 12.88 and the amplitude
-ladder — cannot be read against it. **What the re-author must NOT drop, because it survived
-re-measurement:** the **colour** half of this ticket — Gold at **12 to 18 distinct opaque colours,
-mean 16.0**, against the shipped ten at 17–32 — **reproduces exactly and is untouched**; so are the
-palette gate's own band constants `GOLD_EDGE_LOW / HIGH / MEAN` = **51.0 / 78.7 / 64.2**, which are
-computed by its own operator over the same PNGs. **The general rule is in build-doc §16: an
-edge-density percentage means nothing without its definition** — threshold, channels, neighbours,
-denominator. `tools/artverify/EVAL-STANDARD.md` still publishes the struck figure and is the art
-lane's to correct.
+⚠ **The withdrawal this ticket's texture figures are marked against — and it is on the OPERATOR, not
+on an enumerated set of numbers.** State the scope rule first, because a list invites *"is my figure
+on the list?"* when the only question that decides it is **"was it made with that instrument?"**:
+**every figure produced by the unpublished luminance neighbour-difference operator at threshold 25 is
+withdrawn, wherever it appears.** The operator was never published, and a second lane could not
+reproduce its headline figure at any threshold. **The set as it stands is an inventory, not a
+boundary:** `47.51` · `43.59` · `8.83` · `44.74` · the amplitude ladder (`12.88` · `24.09` · `40.02`
+· `63.77`) · `6.89` · `54.84` · `60.10`.
+
+Gold's **`47.51%`** whole-map edge density is the headline. Cited in this ticket, in
+`docs/build-doc.md` §8.4 and in `docs/STATUS.md`, it **cannot be reproduced**: an independent
+re-measurement of the **same eight `assets/reference/gen2/` captures** reads **50.4–78.8% at 1:1
+native** and **30.3–51.5% density-matched at 2×**, and **no threshold reproduces 47.51.** Its author
+withdrew it **pending republication with the operator attached**, and it is marked rather than
+deleted on this queue's standing practice — a withdrawn claim is recorded, because it may be
+republished and turn out fine. **Not disproved; not evidence either.**
+
+**Two consequences that are easy to under-read.** ⚠ **The whole-map / ground-region argument
+(`44.74` against `6.89`) keeps its point and loses its numbers**: a whole-map aggregate cannot stand
+in for a ground measurement, because objects are keyline-dense and carry the figure upward. That
+reasoning is still sound; the six-fold gap is no longer quotable as a measurement of it. ⚠ **The
+LoRA argument is inside the withdrawal**, and the consequence is recorded at the source-dependence
+paragraph above: the evidence for the LoRA conclusion is WITHDRAWN pending re-derivation with a
+published operator; that is **not** a reversal of the conclusion.
+
+**What the re-author must NOT drop, because it survived re-measurement:** COLOUR COUNTS are a
+different property and do not fall with the edge operator — the **colour** half of this ticket, Gold
+at **12 to 18 distinct opaque colours, mean 16.0** against the shipped ten at 17–32, **reproduces
+exactly**, as do the 16 / 17 / 43 counts quoted above; **28.2** — Gold's own two grass greens
+differing by 28.2 luminance — is a colour difference between reference pixels rather than an edge
+density, and it reproduces; and the palette gate's own band constants
+`GOLD_EDGE_LOW / HIGH / MEAN` = **51.0 / 78.7 / 64.2** are computed by its own, published, operator
+over the same PNGs. **The general rule is in build-doc §16: an edge-density percentage means nothing
+without its definition** — threshold, channels, neighbours, denominator.
+`tools/artverify/EVAL-STANDARD.md` has since been marked by the lane that owns it; the figures there
+now carry `[WITHDRAWN]` in place.
+
+⚠ **A live tension beside it, RECORDED AND NOT RESOLVED — do not pick a winner.**
+`tools/artverify/EVAL-STANDARD.md` §2's table reads Gold new-bark ground at **8 distinct colours,
+48.7% alternation**; a new hand-picked measurement of the same subject reads **3-4 colours at
+56.5–78.2%**. **The §2 row's patch coordinate was never written down**, so it can be neither
+re-measured nor checked for object contamination — which puts it in exactly the position of a figure
+whose operator was not published. It is therefore marked **unverified pending republication**, not
+struck. Related and separate: Gold's open ground being **6-9 colours** *is* withdrawn — that band
+came from an inherited five coordinates that proved four-fifths trees, ledges and fences — and
+hand-picked open ground reads **3-4**.
 
 ### T-18 · Field-guide plates — trial it
 **Status:** TODO · **Hank:** *"you said this is listed in the spec, so why are you asking me about
@@ -1002,9 +1070,11 @@ cited.
 | T-57 | Painting or layout — which is authored first? | Nothing reconciles them; a mask today blocks the painted road | TODO · **Hank's** |
 | T-58 | A wall under half a cell wide blocks nothing | A property of the majority rule; bites only on a hand-edited mask | TODO · **record only** |
 | T-59 | The layout→mask round trip is demonstrated, not protected | The sabotage that proves it ran in a scratchpad, not in the suite | TODO |
-| T-60 | Three snares are promised and never delivered | **Catching is unreachable; demo beat 1 cannot be played** | TODO · **shape is Hank's** |
+| T-60 | Three snares are promised and never delivered | ⚠ **premise corrected: catching is UNMETERED, not unreachable** — schema + validator landed, no runtime yet | IN PROGRESS |
 | T-61 | A debug HUD covers most of the screen | Unconditional, no toggle; `[C]` is a different overlay | TODO |
 | T-62 | The battle log disagrees with the HP bar | `-62 HP` printed against 56 removed | TODO |
+| T-63 | A grant is one play PER ENTRANCE, not one play total | Shipped content escapes it by `priority`, not by rule | TODO · **latent until `grants` spreads** |
+| T-64 | The purse's "exactly once" has no re-entrancy latch | The only latch is in `BattleScene`, a different file from the levy | TODO · **guarded today, not enforced** |
 
 ### T-28 · Wire the persistence spine — nothing calls `applyBattleResult`
 **Status:** **DONE for the wiring, and three of its own *done when* clauses did NOT land and go back
@@ -1060,9 +1130,12 @@ recorded shortfall is exactly what this section exists to prevent:**
   `applyInnRest` before it spends the tick. `balance.medicine.innRestFullHeal` still has exactly one
   reader, `restoredUids`; it now has two callers, the blackout's wake and the inn's. The detail is in
   T-12 clause 2 and is not repeated here.
-- **Money still has no earner and no sink.** Re-grepped 2026-08-27: `balance.economy`'s `innCost`,
-  `trainerPayoutPerLevel` and the four price groups have **zero readers** outside `core/schemas.ts`
-  and `core/types.ts`, and `save.money` is written once and read nowhere.
+- **Money has a mint and no earner.** ⚠ CORRECTED this session, and both halves matter:
+  `trainerPayoutPerLevel` **now has a reader** (`core/save.ts` `trainerPayout`) and `save.money` has
+  a second writer (`applyPayout`, on the tape, with a `replay` arm). **Nothing calls either in
+  production**, so the player still earns nothing — the primitive is built, the wiring is not.
+  `innCost` and the four price groups still have **zero readers** outside `core/schemas.ts` and
+  `core/types.ts`.
 - **No town shop sells anything.**
 - **A loss penalty exists only as the blackout's 5 ticks.** `core/recovery.ts`'s header argues in
   prose that this *is* the explicit penalty T-12 asks for. **That is a reading and is marked as one**
@@ -2181,9 +2254,12 @@ never-cut demo beat**, and the canon already specifies the fix in the player's o
    (`NewSaveOpts`) and `:420` — and **zero in `game/`**. The substantive claim survives and is what
    should have been written: **`core/save.ts:420` `money: opts.money ?? 0` is the only *executable
    statement* in the repo that touches money**, and nothing reads, awards or spends it.
-   `trainerPayoutPerLevel` has zero readers outside `core/schemas.ts:676`, `core/types.ts:1237` and
-   `data/balance.json:538`; the same holds for `innCost`, `snarePrice`, `baitPrice`, `salvePrice` and
-   `tonicPrice`.
+   `trainerPayoutPerLevel` **had** zero readers outside `core/schemas.ts:676`, `core/types.ts:1237`
+   and `data/balance.json:538`. ⚠ **That is no longer true**: `core/save.ts` `trainerPayout` reads it
+   as of this session. The claim about `core/save.ts:420` being the only executable statement that
+   touches money is **also superseded** — `applyPayout` is a second one. Neither is reachable by a
+   player yet. `innCost`, `snarePrice`, `baitPrice`, `salvePrice` and `tonicPrice` still have zero
+   readers.
 
 **THEREFORE NOTHING CAN BE CAUGHT, AND DEMO BEAT 1 CANNOT BE PLAYED.** Build-doc §15's integration
 gates name it twice: **I1** *"vertical slice playable end-to-end (**catch**, battle, survey moves, year
@@ -2338,3 +2414,90 @@ the bar's own source.
   corrected conclusion leaves the tool in service, and the tool is what produced it. Self-reported by
   the art session after a crude hue-family bucketer produced a second wrong claim: *"Second time from
   the same tool; I should have stopped using it after the first."*
+
+---
+
+## T-63 — a grant is bounded at one play PER ENTRANCE, not one play total
+
+**Decided by:** nothing yet. Opened from an adversarial review of the `grants` self-latch validator,
+which disclosed this rather than letting the three closed evasions imply the hole was sealed.
+
+**What holds now.** `core/dialogue-schema.ts` rejects a granting entry unless every branch out of it
+raises one of its latch flags, nothing in the corpus writes that flag `false`, and every entry that
+reaches it through `goto` — **transitively** — is itself closed. Three measured evasions are closed:
+a choice restating the latch as `false` (the runner merges choice flags over entry flags,
+`game/dialogue-runner.ts:386`), an unconditional `goto` from a repeatable predecessor (`goto` never
+consults `conditionHolds`, `:325`), and any other entry lowering the latch.
+
+**What does NOT hold.** Closing every ancestor bounds the grant at one play *per entrance*, not one
+play *total*. If the granting entry is selected **directly** first — setting its own latch — an
+ancestor closed by an *independent* flag is still eligible, and its later `goto` re-enters the grant
+with the latch already set and the `when` never consulted.
+
+**Why shipped content is safe today, and why that is not a fix.** `maren.starter.*` close on
+`story.opening.done`, not on `tutorial.snare.done`. What actually prevents the re-entry is that
+`maren.opening` carries **priority 100** and wins `autoplayEntryFor` over `maren.tutorial.snare`
+(priority 0) for as long as both are eligible. **That is priority, not validation** — the same shape
+as the pre-fix state, where the corpus was safe by accident of three entries happening to be latched.
+
+**Why it is not closed now.** The sound rule — every ancestor's `when.flagsUnset` must name the
+grant's own latch — **rejects shipped content**. Tightening it would fail `maren.opening`, whose
+`when` forbids `story.opening.done`, a flag it does not itself write; it is closed by its
+*continuation*, since all three of its choices reach a starter that writes it. A rule reading only an
+entry's own `setFlags` would reject the game's first scene, which is why the check is a must-write
+path analysis rather than a field lookup — and why the last increment of strictness is not free.
+
+**Trigger to fix:** the moment `grants` appears on a second entry, or on any entry reachable from
+more than one predecessor. Today `maren.tutorial.snare` is the only granting entry in the corpus.
+
+**Not urgent, and the reason is worth stating precisely:** `grants` has **no consumer**. Nothing in
+`game/` or `core/` reads `DialogueEntry.grants` and puts the items in the bag, so nothing can be
+minted twice because nothing is minted at all. The invariant was enforced *before* the consumer
+landed, which is the right order — but it means this ticket's severity changes the day the runner
+learns to apply a grant, and it should be closed before that lands rather than after.
+
+---
+
+## T-64 — the purse's "exactly once" rests on a latch in another file
+
+**Opened from** an adversarial pass on the trainer-payout wiring, which closed the runtime
+double-pay gap in test and then disclosed the production hole underneath it rather than leaving the
+new green to imply there wasn't one.
+
+**What is now covered.** `tests/unit/overworld-scene.test.ts` §19 drives the real launchers and reads
+`save.money` and the tape after a finished fight. Proven by sabotage: duplicating the rival levy at
+`game/scenes/OverworldScene.ts:2701` turns two tests red with
+*"ONE finished fight moved the purse by 288, and the roster it fielded (levels 6, 6) prices at 144.
+288 means the levy ran twice for one fight; 0 means it did not run at all."* A fifth call site, a
+duplicate inside `applyBattleResult`, a levy on the following beat, a loss, and wild/gym/ancient wins
+are all covered.
+
+**What is NOT covered, and cannot be without a production change.** If a launcher's `onFinished`
+fires **twice for one fight** — a re-entrant callback, a retry, a handler bound to two events — the
+purse is levied twice. `applyBattleResult` is non-idempotent **by design**, and
+`tests/unit/trainer-payout.test.ts:472` says so out loud: *"calling it twice pays twice — so 'once'
+is a property of the WIRING."*
+
+**Where the guard actually lives, and why that is the defect.** `OverworldScene.battleRunning` IS
+read as a guard — at `:1472`, `:1547`, `:2382` and `:2675` — but **every one of those guards ENTRY to
+a battle, not COMPLETION of one**. The finish path has no latch. The only thing preventing a double
+fire today is `game/scenes/BattleScene.ts:368`:
+
+    if (this.finished) return;
+    this.finished = true;
+
+That latch is **in a different file from the levy it protects**, it is owned by a different scene,
+and nothing asserts the two together. It works. It is not enforced, and a future refactor that
+re-emits the finish event, or a second listener, breaks the purse silently — silently because
+`replay()` would faithfully reproduce both payouts and the determinism suite would stay green.
+
+**Why no test was written for it:** a test asserting "two `onFinished` calls pay once" would be RED
+against shipping code. That is a production change, not a test, and inventing the policy was not the
+agent's to make. Recorded rather than half-done.
+
+**The shape of the fix, when it is taken:** a per-fight `settled` flag in the launcher, or key the
+levy on the fight's action `seq` so a repeat is a no-op rather than a second payment. The second is
+closer to how the rest of the tape already reasons about identity, and it would cover the sibling
+hazard too — `applyRunGrants` is likewise non-idempotent and likewise rests on single-call
+discipline, though it now at least has an execution-level test (`economy-wiring` §7,
+`dialogue-grants` §6).

@@ -4,25 +4,58 @@ A 2D monster-catching RPG whose region is a living ecosystem: every catch decrem
 population, the food web is derived from those numbers rather than authored beside them, and the
 calendar ages every creature and map underneath the story.
 
-## ⛔ THE GAME WAS PLAYED, AND DEMO BEAT 1 CANNOT BE PLAYED
+## ⛔ THE GAME WAS PLAYED — AND THE HEADLINE THAT SAID BEAT 1 WAS UNPLAYABLE WAS WRONG, TWICE
 
 **On 2026-08-27 somebody drove the built app in a browser with real keys** — title, opening cutscene,
 Hearthollow, an interior, a wild fight, a rival fight, a gym, the in-run menu, the survey. **It is the
 first evidence on this page that is not a test**, and it is written up as items 45–50. **A great deal
 works, the survey most of all** (item 50 — do not read this section as a verdict on the build).
 
-⚠ **THE SENTENCE THAT OPENED THIS FILE UNTIL NOW IS FALSE AND IS CORRECTED, NOT REPHRASED.** It read
-*"**A run is playable end to end today** — Hearthollow → R1 → Brackwater → R2 on foot, **catching off
-the node's real counts**, quests, gyms and badges…"* **Nothing in the shipped game can be caught.**
-Maren's tutorial promises *"Snares first. Three of them, in the satchel by the door"*; a dialogue entry
-has no field that can give the player anything; no grant machinery exists; `newSave` starts the bag
-empty and no caller passes one; and the supply shop's service tile plays vendor dialogue instead of
-opening a store. **So build-doc §1 beat 1 (the cascade — never-cut) and §15's I1 and I2 are all
-unplayable, and the vertical slice past R1 is unreachable in practice.** The full chain is item 45 and
-the work is **T-60**.
+⚠⚠ **THE CORRECTION ABOVE WAS ITSELF FALSE, AND THIS IS THE SECOND TIME THIS HEADLINE HAS BEEN WRONG
+IN THE SAME PLACE. IT IS CORRECTED AGAIN, WITH A MEASUREMENT THIS TIME.** It read: *"**Nothing in the
+shipped game can be caught.** … `newSave` starts the bag empty and no caller passes one … **So
+build-doc §1 beat 1 (the cascade — never-cut) and §15's I1 and I2 are all unplayable**"*.
 
-⚠ **And a party wipe ends the run** — 3 of 3, from a wild loss, a rival loss and a gym loss (item 46).
-**A lane is repairing that right now and its work has not landed; it is open, not fixed.**
+**CATCHING WAS NEVER BLOCKED. IT IS UNMETERED.** Measured twice by independent agents, the second
+driving the real `game/boot.ts startNewGame`, a zod storage round-trip and the production battle seam:
+
+    [ADV] REAL save.items      = {}
+    [ADV] items AFTER zod parse round-trip = {}
+    [ADV] illegalActionReason(snare base) = null
+    [ADV] snareEntries = [base disabled:false, weighted disabled:false, master disabled:false]
+
+The full loop completes from a brand-new game: the snare throws at the shipped ~14.3% base chance,
+`caught` fires, the node population moves **24 → 23**, and the creature lands in the party. 50 throws,
+0 refusals, 8 catches.
+
+**WHY.** `core/battle.ts:1208` `bagHas` returns TRUE for a key ABSENT from the bag — "untracked", an
+affordance for the balance harness, which carries no bag — and `bagConsume` at :1214 returns early on
+an absent key, so it never decrements. `core/save.ts:421` gives a fresh save `items: {}`. The guard at
+`core/battle.ts:1537` therefore never fires for a new player. **The guard is sound**: with
+`items: {base: 2}` two throws decrement and the third is refused with `actionRejected`. The economy is
+enforced only for a key that is PRESENT, and nothing writes one. That is why Maren's *"three of them,
+in the satchel by the door"* has never corresponded to anything — not because the player has none, but
+because the player effectively has infinite.
+
+**HOW IT SURVIVED 2,954 PASSING TESTS.** Every catching test mints its own bag —
+`items: {master: 99}` at `tests/unit/wild-battle.test.ts:68` and `tests/property/determinism.test.ts:390`,
+`{master: 4}` at `tests/unit/overworld-scene.test.ts:3153`. **No test in `tests/` asserted anything
+about the player's real starting inventory**, so the suite's green about catching was evidence about
+FIXTURES. `game/wild-battle.ts:266` asserted the opposite of the truth in plain English and never went
+red; that comment now records what was measured.
+
+**And `tests/integration/demo-beats.test.ts` runs the cascade beat today** from a zero-item save and
+passes, 6/6. **Beat 1 was reachable the whole time.** The claim that it could not be played was wrong
+when it was written and was inherited as a premise by a later session, which planned work around it.
+⚠ **The lesson is the one this file keeps re-learning: a confident absence is the cheapest thing an
+instrument produces.** Both false versions of this headline were written from reading, not running.
+
+⚠ **A party wipe ended the run** — 3 of 3, from a wild loss, a rival loss and a gym loss (item 46).
+**FIXED and landed** in `9e3e4e7` *"a party wipe no longer ends the run, and the blackout does what it
+says"*, which is an ANCESTOR of the commit that wrote the sentence claiming it had not landed
+(`366051f`). The cause was scene-op FIFO ordering, not the pause/resume imbalance first inferred; the
+blackout now draws a real black curtain and wakes the player inside the inn, both halves of the ruling
+having been missing on screen.
 
 **What is true underneath both:** damage, levels, XP and the bag persist across battles; a rest at an
 inn heals what it charges for, **replays**, and asks where the player is standing before it does; a
@@ -36,11 +69,51 @@ item 43.
 
 ---
 
-## ⚠ THE OPEN DECISION — the year-1 over-catch beat no longer clears its gate
+## ✅ RESOLVED — the over-catch gate was measuring wrong, and the beat was reachable all along
 
-`tests/unit/transcription.test.ts:1264` — *"keeps the year-1 over-catch beat reachable in real play
-(build-doc §1 beat 1, §15 I2)"* — is **RED**, failing at `:1365`, and it is red on the shipped numbers,
-not on anything in flight. It gates the cascade, a never-cut beat.
+**The gate was not reporting a balance gap. It was a THIRD instrument error, of exactly the family
+its own comment block already documented twice.** `preyShare = preyPool / encounterable` **ignored
+`seasonalWindow`**. `reedrick-line` is summer-only and is 18 of brackwater's 24-strong prey pool and
+24 of r2's 32 — 75% at both. `core/foodweb.ts` `encounterWeights()` marks an out-of-season line
+INACTIVE and `rollEncounter()` gates on `active`, so three seasons in four most of that pool cannot be
+encountered at all. **The flat share priced a player who can hunt reedrick year-round, and no such
+player exists.** Origin: build-doc §7.2 specifies *"encounter weight of species s = populations[s].count
+… FILTERED BY `seasonalWindow`"* — the assertion implemented that sentence with the first filter
+missing.
+
+**Measured against the simulator** (100 seeds, one year, real seams — `stepEncounterChance` →
+`encounterWeights` → `rollEncounter` → `encounterCatchChance` → `applyCatch`, charging foray and battle
+ticks as `tools/harness/full-run.ts` does):
+
+| site | gate before | gate after | simulated | needed | |
+|---|---|---|---|---|---|
+| brackwater | 11.42 | **3.63** | 3.14 | 19.20 | not the beat's site |
+| r2 | 9.46 | **1.72** | 1.15 | 24.80 | not the beat's site |
+| bowerdeep | 5.89 | **6.56** | 6.54 | 7.20 | not the beat's site |
+| r3 | 5.53 | **6.19** | — | 10.80 | not the beat's site |
+| **r4** | 9.08 | **9.08** | 8.49 | **6.80** | **PASSES — the recorded beat** |
+| **cindershelf** | 8.28 | **8.28** | — | **3.20** | **PASSES** |
+
+**The correction did not buy the pass.** r4 and cindershelf host no seasonal line, so their numbers
+never moved — **the beat has always been reachable there**, at 85% and 97% of seeds respectively. The
+gate was interrogating brackwater and r2, which `fixtures/overcatch-script.json` records as producing a
+**two-tier collapse** rather than the apex-starve beat. ⚠ **"The gate was asking the wrong node" is the
+failure that reads as a real result until somebody checks which corpus it was pointed at** — the same
+shape as every other instrument error in build-doc §16, and it cost a session's planning.
+
+**Zero constants in `data/balance.json` moved.** The correction makes the gate STRICTER, not looser:
+the shortfall at brackwater widened from 7.78 to 15.57 and at r2 from 15.34 to 23.08.
+
+⚠ **AND A NEAR-MISS WORTH KEEPING, because it was caught by review rather than by the suite.** The
+first version of this fix went green by `continue`-ing past the four failing sites with a **tautology**
+left in their place — `contestedAt(n, id).every((p) => prey.includes(p))`, where `contestedAt` is
+`prey.filter(...)` and therefore a subset of `prey` BY CONSTRUCTION. It could not fail. It also cited
+coverage in `tests/property/ecosim.test.ts` that does not exist: that test FORCES the removal by direct
+field assignment (`pop.count = Math.min(pop.count, target)`) with no `applyCatch`, no `rollEncounter`
+and no tick budget — it proves the web propagates a removal that has already happened, where the
+removed assertion proved a removal is ACHIEVABLE BY PLAYING. **Different properties.** The skip is now
+replaced by a falsifiable pin: the four sites are asserted INFEASIBLE, so a balance change that makes
+one reachable turns the gate red and asks whether the beat should move. Proven to bind by sabotage.
 
     AssertionError: brackwater: 19.2 removals needed to starve fenmaw-line,
     only 11.4/yr available: expected 11.423076923076922 to be greater than or equal to 19.2
@@ -110,6 +183,62 @@ cannot see it.
 
 ---
 
+## ⚠ A CONSTRAINT NOBODY CAN QUOTE IS A CONSTRAINT SOMEBODY INFERRED
+
+**The most expensive thing found in this project is not a code bug.** The owner's rule for
+`assets/reference/gen2/` is *"inspiration only, don't copy."* An agent wrote it down as *"inspiration
+only, never shipped, never quantized, never a palette source, **never fed to the pipeline**."* Only
+the first three clauses are his. **The fourth was inferred**, and it hardened into a constraint
+nobody re-examined — so for this project's entire life the generator never saw a Pokémon screenshot.
+The graph starts from `EmptySD3LatentImage`, pure noise, a text prompt and a hand-drawn line drawing,
+and was asked to invent Gold's rendering idiom from first principles. It could not. **Four rounds of
+postprocess were spent trying to recover contrast the generator was never given a way to produce.**
+The owner, on finding it: *"If we don't feed to the pipeline, then how are we using it for
+inspiration?"*
+
+**THE SAME FAILURE RAN IN THE CODE LANE THE SAME DAY, and it is worth putting the two side by side.**
+This file's headline said *"catching is unreachable; demo beat 1 cannot be played."* Nobody had run
+it. `core/battle.ts:1208` reads an ABSENT bag key as unlimited, so catching was never blocked — it
+was unmetered, and `tests/integration/demo-beats.test.ts` had been playing the beat from a zero-item
+save and passing the whole time. A session inherited that headline as a premise and planned an
+entire workstream around it. **Neither lane was defeated by a hard problem. Both were defeated by a
+sentence nobody went back and checked.**
+
+**The rule, and it costs almost nothing to apply:** when a constraint is BLOCKING — when it is the
+reason a lane cannot proceed, or the reason a beat is declared unreachable — go and find the sentence
+it came from. Quote it. If there is no sentence to quote, **it is a hypothesis wearing a rule's
+clothes**, and it must be tested before anything is planned around it. §3.8 of this file already
+records the miniature version: *"an earlier draft said 'a plus-shaped junction is a grid'. That was
+inferred, not quoted, and it was wrong."* It is the same failure at three different scales.
+
+⚠ **This is distinct from the wrong-corpus family in build-doc §16, and the difference matters.** A
+wrong-corpus reading is an instrument pointed at the wrong thing and answering truthfully. An
+inferred constraint is not measured at all — it is a claim that was never an observation, repeated
+until it acquired the authority of one. No instrument catches it, because none is ever aimed at it.
+**"Verified rather than reported" is the distinction that did all the work in both lanes today.**
+
+---
+
+## ⛔ THE HEARTHOLLOW RED IS CORRECT BEHAVIOUR — DO NOT MAKE IT GREEN
+
+`assets/final/maps/hearthollow.png` is **deleted on purpose, by the owner's instruction.** He saw the
+map repeatedly in the Comfy UI, called it *"by far the worst image that has been generated for this
+project"*, and ordered the town started from scratch; 343 hearthollow rasters were removed across
+every trial directory. Only `assets/raw/_layouts/control-hearthollow.png` and
+`masks/mask-hearthollow.png` survive, because those are DATA rather than pictures.
+
+**Three tests in `tests/gates/asset-palette-contract.test.ts` therefore fail** — *is present,
+non-empty, and decodes*; *is a real image, not an empty or flat one*; *every opaque pixel is an exact
+`data/palette.json` colour*. **That is the gate doing its job**: a node declares a map and the map is
+not there.
+
+⚠ **DO NOT teach the gate to tolerate the absence, and do not restore the file.** A replacement is
+being generated and the red clears when it lands. The third assertion is the one most likely to catch
+a hurried drop-in: a frame that merely decodes still fails unless it is quantized to the frozen 32
+before it reaches `assets/final/`.
+
+---
+
 ## Verified state
 
 **Re-measured on 2026-08-27 at 15:58:43Z**, one complete run, on a tree with two lanes live in it.
@@ -124,16 +253,17 @@ editing `tools/comfy/` and a lane is holding `game/scenes/OverworldScene.ts` and
 moved under this pass and will move again. **The FAILURE SET is the stable part** and is named case by
 case.
 
-- `npx tsc --noEmit` — **exit 1** at 15:58:36Z, **two errors, and NEITHER IS THIS TREE'S**:
-  `tools/comfy/trials/creature-batch6-view.ts(77,18): error TS2503: Cannot find namespace 'sharp'.`
-  and `tools/comfy/trials/creature-batch6.ts(229,19): error TS2551: Property 'poseV3' does not exist
-  on type '{ v2?…; v3?…; species?…; poseV2?… }'. Did you mean 'poseV2'?`
-  **Both files are UNTRACKED** — `git status --porcelain` returns `??` for each and `git ls-files`
-  returns nothing — and **no tracked file produces a type error.** ⚠ **Record it that way and do not
-  let it read as a repo-wide regression**: this is art-lane work in flight inside the typecheck's
-  scope, not a break in `core/`, `game/`, `data/` or `tests/`. Note also that `cmd | tail; echo $?`
+- `npx tsc --noEmit` — **exit 0, silent.** Re-measured this session at HEAD `2f07487`.
+  ⚠ **This entry previously recorded exit 1 with two errors, and they no longer reproduce.** Both
+  files it named — `tools/comfy/trials/creature-batch6-view.ts` and
+  `tools/comfy/trials/creature-batch6.ts` — are **gone from the tree.** They were untracked art-lane
+  work in flight; they were removed, and the errors left with them. **No tracked file produces a type
+  error, and none did then either** — which is what the original entry was careful to say, and the
+  reason this must not be read backwards as a regression that got fixed. Nothing was fixed; two
+  files left.
+  **The instrument lesson from that reading is kept, because it is still true:** `cmd | tail; echo $?`
   reports **tail's** status, not the command's — and in **zsh** a `PIPESTATUS` read written for bash
-  comes back empty, which is how this run first mis-reported its own exit status.
+  comes back empty, which is how that run first mis-reported its own exit status.
 - `npm run test` — **5 failed of 2,950; 2,945 passing; 4 files failed of 70**, 49.87 s.
   **The passing total rose because tests were ADDED, not because anything regressed**: 2,915 → 2,950
   over the same 70 files, the additions belonging to the two rewritten quest gates and the release
@@ -596,9 +726,16 @@ while closing item 6.
     a **postprocess** fact, not a generation one: **Gold never uses a flat fill anywhere** — grass is a
     dense checkerboard between two greens, paths a fine dot pattern, tree masses a repeating weave —
     and the texture lives in the **ground**, not the objects. Their figures: a 32×32 tile of plain New
-    Bark grass, seven colours and no keylines, tiled to 1024², carries **43.59%** of their whole-map
-    **47.51%** by itself, against **8.83%** for our best output. ⚠ **Those three figures are WITHDRAWN
-    AS UNSOURCED** — see the withdrawal register at the foot of this file. `tools/artverify/ground-comparison.png`
+    Bark grass, seven colours and no keylines, tiled to 1024², carries ~~43.59%~~ of their whole-map
+    ~~47.51%~~ by itself, against ~~8.83%~~ for our best output. ⚠ **Those three figures are WITHDRAWN
+    AS UNSOURCED, on the OPERATOR rather than by enumeration** — see the withdrawal register at the
+    foot of this file. ⚠ **And the "seven colours" here is itself now in question**: the owning lane's
+    re-measurement puts Gold's open ground at **3–4** distinct colours, and attributes the 6–9 range
+    this figure sits inside to **contaminated patches** — five inherited coordinates that proved to be
+    four-fifths trees, ledges and fences. **Recorded open, not corrected here**, because this patch is
+    a different one (New Bark, not the route-29 coordinates now published) and its own coordinate was
+    never written down either. Same position as the §2 row: a figure whose patch cannot be located
+    cannot be re-measured, and picking between it and its replacement would be a guess. `tools/artverify/ground-comparison.png`
     is 96 native pixels of Gold ground against ours at 6×, and it is the one artefact in this finding
     a number cannot substitute for — **it is what the finding now rests on**, and it is untouched,
     because it is a picture rather than a percentage.
@@ -606,19 +743,28 @@ while closing item 6.
     **Two facts, kept split, because a combined sentence gets half-implemented.** **A — ordered dither
     buys edge density** and does nothing to the colour count. **B — a per-map colour subset buys colour
     discipline** and does nothing to edge density. Each disproves the other's sufficiency: dither at
-    amplitude 45 without the subset → 40.02% in 43 colours; the subset without dither → 16 colours at
-    12.88%; both together → **44.74% in 16**, against Gold's 47.51% in 17. ⚠ **The `47.51` baseline is
-    withdrawn as unsourced, and the three readings quoted against it go with it** (register at the foot
-    of this file). **A and B each disproving the other's sufficiency does not rest on the baseline and
-    stands**; *how close to Gold this got* does rest on it and does not.
+    amplitude 45 without the subset → ~~40.02%~~ in 43 colours; the subset without dither → 16 colours
+    at ~~12.88%~~; both together → ~~44.74%~~ in 16, against ~~Gold's 47.51%~~ in 17. ⚠ **ALL FOUR edge
+    figures are withdrawn, and the withdrawal is on the OPERATOR rather than on a list of numbers:**
+    every figure produced by the unpublished luminance neighbour-difference operator at threshold 25
+    falls, wherever it appears. The right question about any edge percentage in this file is not *is it
+    on the list* but *was it made with that instrument* — a list invites the first question and the
+    first question is the wrong one. **The COLOUR counts — 43, 16, 17 — are unaffected and reproduce
+    exactly.** **A and B each disproving the other's sufficiency does not rest on any of these numbers
+    and stands**; *how close to Gold this got* rested entirely on them and does not.
 
     **And the dither is source-dependent, which makes it a fragility rather than a settled recipe.** A
     ±22 ordered bias crosses a palette boundary only where the ground colour already sits near one, so
     the same amplitude transforms one source and leaves another flat. Through the same postprocess, on
-    one operator, comparable to each other and to nothing else: today's baseline input read **6.89%**
-    ground edge after the dither; a c64-LoRA input read **54.84%**, against **60.10%** for Gold read
-    the same way. Both are real; neither is "what the dither buys". An amplitude that works is a
-    property of the **pair** `(source, amplitude)`.
+    one operator, comparable to each other and to nothing else: today's baseline input read ~~6.89%~~
+    ground edge after the dither; a c64-LoRA input read ~~54.84%~~, against ~~60.10%~~ for Gold read
+    the same way. ⚠ **All three are withdrawn — the same unpublished operator.** The sentence that
+    stood here said "Both are real"; it is struck, because as written it is now false.
+    **The structural claim survives the loss of its numbers, and it is the part that mattered:** an
+    amplitude that works is a property of the **pair** `(source, amplitude)`, not of the amplitude.
+    That follows from the mechanism — a ±22 bias crosses a palette boundary only where the ground
+    colour already sits near one — and not from the measurement. What can no longer be quoted is **how
+    far apart the two sources were**.
 
     **Both readings are reported and neither is capped.** `tests/gates/asset-palette-contract.test.ts`
     prints each shipped asset's colour count and ground texture against their measured bands: under its
@@ -627,8 +773,10 @@ while closing item 6.
     Nothing about either number is asserted, and the reasons are at the thresholds. A colour cap at or
     above `palette.length` cannot fail at all, because every opaque pixel is already asserted to be an
     exact palette colour, and a cap below it is taste with a number painted on it. A texture cap is
-    worse: the response to dither amplitude is near-linear (0 → 12.88, 24 → 24.09, 40 → 40.02,
-    56 → 63.77), so a generator can be tuned to any figure named — and applied globally the dither
+    worse: the response to dither amplitude is near-linear (~~0 → 12.88, 24 → 24.09, 40 → 40.02,
+    56 → 63.77~~ — the ladder falls with the rest of the operator, and there is a lesson sitting in
+    that: **the ladder is the argument FOR the withdrawal and is itself withdrawn**, which is exactly
+    what a figure without its instrument is worth), so a generator can be tuned to any figure named — and applied globally the dither
     speckles roofs and walls, so **a map that reached 47% by ruining its buildings would pass.** What
     the gate asserts instead is the instrument: that both published bands match the captures they came
     from, that those captures still measure what they are quoted as measuring, and that the texture
@@ -638,7 +786,22 @@ while closing item 6.
     Sobel cancels on a period-2 checkerboard — the `x±1` samples in each row share parity, so `Gx` and
     `Gy` are identically zero. Measured on a 256² synthetic: flat ground with one object **0.78%**, the
     same image with a one-pixel dithered ground **0.78%**, while the neighbour-difference operator the
-    gate uses separates them **0.39%** and **93.94%**. Benign for `overlay-diff` itself, which measures
+    gate uses separates them **0.39%** and **93.94%**. ✅ **Those two are NOT withdrawn**, and the
+    distinction is the scope rule doing its job: they come from the gate's OWN `edgePercent`, defined
+    in `tests/gates/asset-palette-contract.test.ts` and shipped with a control that re-runs the
+    synthetic every suite (flat `< 5%`, dithered `> 80%`, ratio `> 10`, Sobel blindness `< 1`). A
+    published operator travelling with its code — the standing of `GOLD_EDGE_LOW/HIGH/MEAN`, not of
+    the threshold-25 family. **Always quote them with that attribution**: bare, they look exactly like
+    the withdrawn figures, which is why they were flagged. **Construction pinned:** the control's
+    own synthetic at **256²**, object box scaled proportionally to **96–160**, reproducing to two
+    decimals (`0.39` / `93.94`, ratio 241×) — **independently in two lanes**. The control ships at
+    **128²**, where the same operator reads `0.78` / `94.13`. ⚠ **Digit collision, before anyone
+    quotes the 128² row:** `edgePercent` flat reads `0.78%` there, the same two digits as the Sobel
+    pair it is contrasted with. Three `0.78`s across two operators in one sentence about how they
+    differ — **not agreement**: the Sobel is blind, `edgePercent` is reading a genuinely near-flat
+    image. Same shape as `61.444…` in `tests/unit/battle.test.ts`, which is `79 × 70 / 90` damage
+    arithmetic and not an edge figure. **A caveat became a coordinate here, which is the move to
+    copy**: "treat the decimals as illustrative" was replaced by a construction anyone can rebuild. Benign for `overlay-diff` itself, which measures
     layout drift and is right not to see dither — but it means **that gate cannot be used to check a
     re-dithered variant kept its texture**, and it is why this one defines its own operator. Both halves
     are asserted in the gate, so the note cannot rot into a claim nobody re-measures.
@@ -703,9 +866,13 @@ while closing item 6.
       (the reader count) is still true and one of which (that only the blackout gets there) is not.
       The selection is deliberately REUSED rather than re-spelled, so a private copy cannot drift from
       it; a test asserts both paths produce byte-identical parties.
-    - **Money still has no earner and no sink.** Re-grepped this pass: `balance.economy` ships
-      `innCost` 40, `trainerPayoutPerLevel` 12, snare/bait/salve/tonic prices — **zero readers of any
-      of them** outside `core/schemas.ts` and `core/types.ts`. ⚠ **The clause that followed is
+    - **Money has a MINT now, and still no earner the player can reach.** ⚠ Read both halves; the
+      difference is the whole point. `trainerPayoutPerLevel` **now has one reader** —
+      `core/save.ts` `trainerPayout`, added this session with the `payout` tape action, its applier
+      and its `replay` arm. `save.money` therefore has a second writer, `applyPayout`. **But nothing
+      in production calls it**: no battle awards a purse, so a player still cannot earn a coin. The
+      primitive exists; the wiring does not. `innCost` and the snare/bait/salve/tonic prices still
+      have **zero readers** outside `core/schemas.ts` and `core/types.ts`. ⚠ **The clause that followed is
       CORRECTED, not rephrased:** this file said the *only* `money` occurrence in `core/` or `game/` is
       `core/save.ts` `money: opts.money ?? 0`. There are **five** — `core/schemas.ts:826`,
       `core/types.ts:770`, `core/save.ts:4` (a doc comment), `:384` and `:420` — and **zero in
@@ -1494,22 +1661,31 @@ The work queue is `docs/TICKETS.md`, and it is ordered. This is the shape of it.
   settles may mean fitting it twice, and the second pass is the expensive one: everything already
   quantized against the new 48 has to be regenerated again. Recorded as open, not as a decision.
 
-- **Whether the pipeline adopts a LoRA — REOPENED, and the earlier "the LoRA lost" conclusion is
-  REVERSED.** The comparison that produced it measured **raw LoRA output against Gold**. That is
-  correct as far as it goes, and it answers *"does the LoRA alone produce Gold's ground"* — but the
-  question that decides adoption is **"does the LoRA plus our postprocess produce it"**, and that
-  combination had never been run. It has been now. Both inputs through the same dither:
+- **Whether the pipeline adopts a LoRA — REOPENED, and its EVIDENCE IS NOW WITHDRAWN.** ⚠ Read this
+  entry carefully; it is easy to misread in both directions. The comparison that reopened it measured
+  **raw LoRA output against Gold**, which answers *"does the LoRA alone produce Gold's ground"* —
+  where the question that decides adoption is **"does the LoRA plus our postprocess produce it"**.
+  That combination was run, and running it is what reopened the question. **Every number it produced
+  has since been withdrawn**, having used the unpublished luminance neighbour-difference operator at
+  threshold 25:
 
   | input to the same dither | ground edge after |
   |---|---|
-  | today's baseline | **6.89%** |
-  | c64-LoRA cell | **54.84%** (Gold **60.10%** on the same operator) |
+  | today's baseline | ~~6.89%~~ **[WITHDRAWN]** |
+  | c64-LoRA cell | ~~54.84%~~ **[WITHDRAWN]** (Gold ~~60.10%~~ **[WITHDRAWN]** on the same operator) |
 
-  **The LoRA and the dither are multiplicative, not alternatives.** The LoRA does not supply the
-  texture — it supplies the **substrate the dither has nothing to bite on without**. Stated plainly,
-  because this trade gets habitually understated: **dropping the LoRA is not "lose a little polish";
-  it is the ground stays flat.** The same measurement is what established the dither's
-  source-dependence (item 32), so the two are one finding read from two ends.
+  **THIS IS NOT A REVERSAL OF THE REVERSAL, and nothing may read it as one.** The lane that owns the
+  standard is explicit: they are **not** claiming the LoRA lost. They are claiming the evidence for it
+  winning is currently withdrawn, and the direction may well survive re-derivation with a published
+  operator. **Until it is re-derived, nothing downstream may cite "baseline 6.89%, c64-LoRA 54.84%,
+  Gold 60.10%" as measured evidence** — not in a decision, not in a comparison, not as a premise.
+
+  **What survives is the MECHANISM, which was never a measurement in the first place:** the LoRA and
+  the dither are multiplicative rather than alternatives, because the dither has nothing to bite on
+  without a substrate that already varies. Stated plainly, because this trade gets habitually
+  understated: **dropping the LoRA is not "lose a little polish"; it is the ground stays flat.** That
+  claim now rests on the mechanism and on the qualitative half of item 32 alone. **It is no longer
+  quantified, and it must not be restated with a number until a number exists.**
 
   **`docs/build-doc.md:418` states "zero LoRAs"** in the *How was AI used?* answer, which is written
   for an external audience. **It is still true today, and it has NOT been touched.** An approval to
@@ -1573,8 +1749,12 @@ reads **50.4–78.8%**, and density-matched at 2× it reads **30.3–51.5%**. **
 channels, neighbours and denominator — and it is recorded rather than deleted precisely because it may
 come back and turn out fine. **Not disproved; not evidence either.** *As a consequence rather than a
 separate withdrawal* — mark a reading as a reading — the figures published beside it in the same
-session cannot be read against it: **43.59%**, **8.83%**, **44.74%**, **40.02%**, **12.88%** and the
-amplitude ladder `0 → 12.88, 24 → 24.09, 40 → 40.02, 56 → 63.77`. **Three things are explicitly NOT
+session cannot be read against it: **43.59%**, **8.83%**, **44.74%**, **40.02%**, **12.88%**, the
+amplitude ladder `0 → 12.88, 24 → 24.09, 40 → 40.02, 56 → 63.77`, and — added when the owning lane
+widened the scope — **6.89%**, **54.84%** and **60.10%**. ⚠ **The withdrawal is on the OPERATOR, not
+on this list.** Every figure made with the unpublished luminance neighbour-difference operator at
+threshold 25 is withdrawn wherever it appears, including any this register has not caught. **Three
+things are explicitly NOT
 withdrawn and are not to be marked.** The **colour** figures — 12 to 18 distinct opaque colours, mean
 **16.0** over those same eight captures — were re-derived and **reproduce exactly**; item 32's colour
 half is sound. The palette gate's own band constants `GOLD_EDGE_LOW / HIGH / MEAN` = **51.0 / 78.7 /
@@ -1585,7 +1765,50 @@ finding — **Gold's ground is dithered everywhere and ours is a flat fill** —
 edge-density percentage means nothing without its definition.** Every edge figure quoted that night
 without its operator attached produced **two numbers for one property**.
 
-**`tools/artverify/EVAL-STANDARD.md` still publishes the withdrawn figure at `:143`, `:145`, `:147`
-and `:165`, and `tests/gates/asset-palette-contract.test.ts` carries it in a comment at `:703` and
-`:716`.** Neither file is corrected here — the art lane and the gate's owner hold them. The gate's
-**asserted** constants are the unaffected ones; only its prose quotes the struck figure.
+**`tools/artverify/EVAL-STANDARD.md` has since WIDENED the withdrawal, and this entry was stale.**
+Re-measured this session: the standard carries a banner at `:222` withdrawing the **whole**
+edge-density set — `47.51 · 43.59 · 8.83 · 44.74` **and the amplitude ladder** — and marks them
+`[WITHDRAWN]` inline at `:240`, `:242`, `:244`, `:262` and `:277`. The cites recorded here before
+(`:143`, `:145`, `:147`, `:165`) had drifted off the lines they named.
+
+**The figure that mattered is `44.74`, and it is OURS, not Gold's.** The standard withdraws it, and
+`tests/gates/asset-palette-contract.test.ts` was **the last place still quoting it bare** — at
+`:281`, `:856` and `:1449`, where only Gold's `47.51` had been struck and ours had been left standing
+beside it, which reads as a deliberate distinction rather than the omission it was. **Corrected this
+session** (now `:281`, `:865`, `:1460` after the edit). The cites recorded here before (`:703`,
+`:716`) had drifted too. The gate's **asserted** constants (`GOLD_EDGE_LOW/HIGH/MEAN`) are derived
+from that file's own operator over the same PNGs and are re-asserted against them every run, so they
+are unaffected and were **not touched** — only prose changed.
+
+**RULED, by the lane that owns the standard — and the answer was wider than the question.** `6.89`,
+`12.88` and `40.02` are all inside the withdrawal, and so are `24.09`, `63.77`, `54.84` and `60.10`,
+which were not asked about. **The banner was wrong to be a list and has been rewritten as a scope
+rule:** the withdrawal is on the OPERATOR — every figure produced by the unpublished luminance
+neighbour-difference operator at threshold 25, wherever it appears. `6.89` is that operator applied
+to the ground region instead of the whole map; `12.88` and `40.02` were already inside the
+"amplitude ladder" the old banner named, and the file simply failed to mark them.
+
+**`28.2` is NOT withdrawn** — Gold's two grass greens differing by 28.2 luminance is a colour
+difference computed from reference pixels, not an edge density, and it reproduces.
+
+**Two corrections that touch figures held elsewhere in this file.** **Gold's open ground is 3–4
+colours, not 6–9**; the 6–9 came from contaminated patches — five inherited coordinates that proved
+to be four-fifths trees, ledges and fences — and is withdrawn with them. And **the palette has never
+been the constraint**: Gold's ground projects onto our frozen 32 losslessly, while our raw ground
+projects onto **one** swatch. That is the real finding, and it inverts the working assumption — the
+dither is not under-amplifying variation, it is starting from something the palette sees as a single
+flat colour.
+
+⚠ **OPEN, and deliberately not resolved:** EVAL-STANDARD §2's table says Gold new-bark ground is 8
+distinct at 48.7% alternation; the new hand-picked measurement says 3–4 at 56.5–78.2%. The §2 row's
+patch **coordinate was never written down**, so it cannot be re-measured or checked for object
+contamination. It is marked unverified-pending-republication rather than struck, and **no winner is
+picked here**: a figure whose patch cannot be located is in the same position as one whose operator
+was not published. Carry that caveat wherever the §2 figures are quoted.
+
+**How this was nearly missed is the part worth keeping.** The question "is `44.74` withdrawn?" was
+first answered by reading the gate file — the file that *carries* the error — where 44.74 stands
+un-struck beside a struck 47.51. That reads as a considered distinction. It is not; it is the
+omission itself. Only EVAL-STANDARD says. **Reading the stale corpus to decide whether it is stale
+returns a confident no every time.** Build-doc §16's wrong-corpus failure, in the smallest form it
+takes.
