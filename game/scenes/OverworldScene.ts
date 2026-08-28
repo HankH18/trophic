@@ -159,6 +159,9 @@ import {
 } from "../mapview";
 import { seasonTintLabel } from "../season-tint";
 import { SCENE_KEYS, sceneRegistered } from "../scene-keys";
+// `?debug=1`, parsed where `?seed=N` is parsed — one place in this build reads the query string.
+// `game/boot.ts` imports this file for TYPES ONLY, so this is not a cycle.
+import { diagnosticsRequested } from "../boot";
 import {
   actOf,
   awardBadge,
@@ -596,6 +599,23 @@ export class OverworldScene extends Phaser.Scene {
   private overlay!: Phaser.GameObjects.Graphics;
   private overlayVisible = false;
   private hud!: Phaser.GameObjects.Text;
+  /**
+   * The diagnostic half of the readout — the second of the two text objects {@link refreshHud} fills.
+   *
+   * ⚠ EXACTLY ONE OF THESE TWO IS ON SCREEN AT A TIME, and which one is decided by `?debug=1`
+   * ({@link diagnosticsRequested}). With the flag ON this object carries the WHOLE list at
+   * {@link hud}'s own position and `hud` is hidden, so the debug view is the readout this scene has
+   * always drawn, unchanged and in one panel. With the flag OFF `hud` carries the player-facing
+   * lines and this object carries the rest, unpainted.
+   *
+   * It is still FILLED while it is hidden, and that is deliberate: the scene's full readout stays on
+   * the display list for the headless rigs that read this screen, so hiding a line cannot quietly
+   * stop it being computed. Nothing about a hidden object is evidence that a line is on screen —
+   * see the visibility assertions in tests/unit/overworld-scene.test.ts §HUD.
+   */
+  private diagnosticsHud!: Phaser.GameObjects.Text;
+  /** Whether `?debug=1` asked for the diagnostic readout. Read once per `create()`. */
+  private showDiagnostics = false;
   private banner!: Phaser.GameObjects.Text;
   /**
    * L8's meter (game/ui/SeasonMeter.ts) — the one readout of the clock on this screen. It carries one
@@ -876,11 +896,26 @@ export class OverworldScene extends Phaser.Scene {
      * the player. TitleScene and BootScene both already wrap; this one did not.
      */
     const wrapWidth = Math.max(1, this.scale.width - HUD_PAD * 2);
+    const hudTop = METER_STYLE.y + METER_STYLE.cellH + METER_STYLE.cellGap + HUD_LINE_PX;
     this.hud = this.add
-      .text(HUD_PAD, METER_STYLE.y + METER_STYLE.cellH + METER_STYLE.cellGap + HUD_LINE_PX, "", HUD_STYLE)
+      .text(HUD_PAD, hudTop, "", HUD_STYLE)
       .setWordWrapWidth(wrapWidth, true)
       .setScrollFactor(0)
       .setDepth(100);
+    /*
+     * The diagnostic readout, at the SAME anchor and in the SAME style as the player's — because
+     * with `?debug=1` on it IS the readout this screen has always drawn, in one panel at one place,
+     * and `hud` steps out from under it. Wrapped for the reason the comment above gives: the
+     * provenance line ("map assets/final/maps/… · authored mask") is the longest thing either
+     * object prints and it lives in THIS one. See {@link diagnosticsHud} and {@link refreshHud}.
+     */
+    this.showDiagnostics = diagnosticsRequested();
+    this.diagnosticsHud = this.add
+      .text(HUD_PAD, hudTop, "", HUD_STYLE)
+      .setWordWrapWidth(wrapWidth, true)
+      .setScrollFactor(0)
+      .setDepth(100)
+      .setVisible(this.showDiagnostics);
     this.banner = this.add
       .text(HUD_PAD, this.scale.height - HUD_PAD, "", BANNER_STYLE)
       .setWordWrapWidth(wrapWidth, true)
@@ -4051,6 +4086,69 @@ export class OverworldScene extends Phaser.Scene {
   /**
    * G7: numbers only. Nothing here comments on what the player has done to a population; it prints
    * the count and the derived weight and stops.
+   *
+   * ════════════════════════════════════════════════════════════════════════════════════════════
+   * THE SPLIT — WHAT THE PLAYER SEES, AND WHAT `?debug=1` ADDS
+   * ════════════════════════════════════════════════════════════════════════════════════════════
+   *
+   * ⚠ THIS READOUT USED TO BE UNCONDITIONAL, AND ON THE DEPLOYED BUILD IT COVERED THE GAME. Around
+   * twenty-five lines at depth 100 over a 480×320 screen: a player who opened the overworld saw
+   * tile coordinates and population counts, not a town. The default is now the game; the diagnostic
+   * half is opt-in through `?debug=1` ({@link diagnosticsRequested}) and comes back IN FULL.
+   *
+   * Every line this method can emit is tagged at the site that emits it — `"player"` or
+   * `"diagnostic"` — and the whole classification is here so it can be checked in one read. The
+   * rule: a line is PLAYER-FACING if the player needs it to play (a control prompt, where a door
+   * is, what is on the shelf) or if it reports something BROKEN; it is DIAGNOSTIC if it reports the
+   * engine's internals to whoever is building the thing.
+   *
+   *   line                                              audience     why
+   *   ───────────────────────────────────────────────── ──────────── ─────────────────────────────
+   *   `<name> (<id>) · <biome>`                         player       where you are. Small, orienting.
+   *   `foray n/m steps · encounters k`                  diagnostic   encounter-roll internals.
+   *   `door <id> at tile c,r`      (doorLines, outside) player       the ONLY pointer to a door: the
+   *                                                                  town art paints no threshold and
+   *                                                                  a mask cannot mark one, so
+   *                                                                  hiding this hides the shop and
+   *                                                                  the inn. A coordinate that has
+   *                                                                  to stay until the art has doors.
+   *   `inside <name> (<id>) · … out at c,r` (doorLines) player       same line indoors: the way out.
+   *   `shop … · purse n` / rows / `[E] buy`  (shopLines) player      ⚠ THE SHELF. Hiding this makes
+   *                                                                  the shop unusable — there is no
+   *                                                                  other surface that draws it.
+   *   `tile c,r facing d`                               diagnostic   position readout.
+   *   `party n/m · box k`                               diagnostic   counts; the menu shows the party.
+   *   `weight x over a/b lines`                         diagnostic   derived encounter weight.
+   *   `  <lineId>: <count> (<cause>)`   per table entry diagnostic   the population table.
+   *   `last: <lineId> <age> L<level>`                   diagnostic   what the last roll produced.
+   *   {@link spawnProblem}                              player       FAULT — an arrival the mask
+   *                                                                  refuses. A player seeing a fault
+   *                                                                  beats one silently stuck.
+   *   {@link grantProblem}                              player       FAULT — a grant that did not
+   *                                                                  happen.
+   *   {@link spawnInsideProp}                           player       FAULT — put down inside a prop,
+   *                                                                  where [E] answers the wrong thing.
+   *   `tint <label> · PROVISIONAL hues`                 diagnostic   season-tint provenance.
+   *   {@link viewNote} (map/mask/interior provenance)   diagnostic   asset paths and blocked cells.
+   *   `ticks travel … · next foray …`                   diagnostic   the price table; the meter is
+   *                                                                  the clock the player reads (L8).
+   *   `act n · run complete`                            player       the progression the travel lines
+   *                                                                  below quote (`· act 2`), and the
+   *                                                                  only word for a finished run.
+   *   `events <id> (<n>t <season>)`                     player       bible §9's open windows — a
+   *                                                                  time-limited thing to go and do.
+   *   `[n] travel → <id> · act n`                       player       the only way off this node.
+   *   `[G] challenge <name> (<id>) …`                   player       control prompt + its refusal.
+   *   `[E] <offer> · props n here · cards m`            player       control prompt; the counts ride
+   *                                                                  along on the same string.
+   *   `quests n/m closed · turn in … · open …`          player       what to do next, and where.
+   *   `chains … · flags owed n`                         diagnostic   corpus bookkeeping.
+   *   `[X] release <id> here` / refusal                 player       control prompt + its refusal.
+   *   `said: <line>`                                    diagnostic   echo of a box already read.
+   *   `[C] collision overlay · [R] <inn|refusal>`       player       control prompts + the refusal.
+   *
+   * Nothing is REWORDED by the split — the strings below are the strings that were there, and the
+   * two objects between them always hold the whole list.
    */
   private refreshHud(): void {
     // The meter IS the clock readout (L8). No second copy of the same three numbers in the text HUD.
@@ -4060,42 +4158,60 @@ export class OverworldScene extends Phaser.Scene {
     const ctx = this.forayContext();
     const table = encounterTable(ctx);
     const active = table.filter((e) => e.active && e.weight > 0);
-    const lines: string[] = [
-      `${this.node.name} (${this.node.id}) · ${this.node.biome}`,
+    /*
+     * ONE LIST, TWO AUDIENCES. `lines` is built exactly as it always was — nothing here decides not
+     * to compute a line — and `say` records, per line, who it is for. The classification table is in
+     * this method's docblock; the two text objects are filled at the foot of it.
+     */
+    const lines: string[] = [];
+    const forPlayer = new Set<number>();
+    const say = (line: string, who: HudAudience): void => {
+      if (who === "player") forPlayer.add(lines.length);
+      lines.push(line);
+    };
+    say(`${this.node.name} (${this.node.id}) · ${this.node.biome}`, "player");
+    say(
       `foray ${this.stepsSinceTick}/${stepsPerForay(this.balance)} steps · encounters ${this.encountersMet}`,
-      // A door with nothing on screen pointing at it is a door nobody finds. Indoors this is the way
-      // out; outdoors it is every way in. Identifiers and integers only (G7).
-      ...this.doorLines(),
-      // The shelf, when one is open — the rows `game/shop.ts` built, with the cursor on one of them.
-      // Empty at every other moment, so this costs one array spread and no branch on screen.
-      ...this.shopLines(),
-      `tile ${this.movement.tile.col},${this.movement.tile.row} facing ${this.movement.facing}`,
+      "diagnostic",
+    );
+    // A door with nothing on screen pointing at it is a door nobody finds. Indoors this is the way
+    // out; outdoors it is every way in. Identifiers and integers only (G7).
+    for (const line of this.doorLines()) say(line, "player");
+    // The shelf, when one is open — the rows `game/shop.ts` built, with the cursor on one of them.
+    // Empty at every other moment, so this costs one loop and no branch on screen.
+    for (const line of this.shopLines()) say(line, "player");
+    say(`tile ${this.movement.tile.col},${this.movement.tile.row} facing ${this.movement.facing}`, "diagnostic");
+    say(
       `party ${this.save.party.length}/${this.balance.party.maxPartySize} · box ${this.save.box.length}`,
-      `weight ${totalActiveWeight(table).toFixed(1)} over ${active.length}/${table.length} lines`,
-    ];
+      "diagnostic",
+    );
+    say(`weight ${totalActiveWeight(table).toFixed(1)} over ${active.length}/${table.length} lines`, "diagnostic");
     for (const entry of table) {
       const count = this.countOf(entry.lineId, this.node.id, ctx.node);
       // Four causes, not two. A gated Ancient sitting at a real count of 1 used to print the same
       // word as a line the player had wiped out (Hard Req 10 / bible §5) — see game/encounters.ts.
       const why = entry.active ? "" : ` (${absenceCauseOf(entry, count)})`;
-      lines.push(`  ${entry.lineId}: ${count}${why}`);
+      say(`  ${entry.lineId}: ${count}${why}`, "diagnostic");
     }
     if (this.lastEncounter) {
-      lines.push(`last: ${this.lastEncounter.lineId} ${this.lastEncounter.age} L${this.lastEncounter.level}`);
+      say(`last: ${this.lastEncounter.lineId} ${this.lastEncounter.age} L${this.lastEncounter.level}`, "diagnostic");
     }
-    if (this.spawnProblem) lines.push(this.spawnProblem);
+    // ⚠ THE THREE FAULT LINES ARE PLAYER-FACING AND STAY ON SCREEN WITH THE FLAG OFF. Each of them
+    // reports a game that is actually broken where the player is standing; a fault the player can
+    // read is worth more than a silent one, and none of the three is ever printed by a healthy run.
+    if (this.spawnProblem) say(this.spawnProblem, "player");
     // Same channel, same reason: a grant that did not happen is invisible on a banner that the next
     // beat overwrites in the same frame. See {@link grantProblem}.
-    if (this.grantProblem) lines.push(this.grantProblem);
+    if (this.grantProblem) say(this.grantProblem, "player");
     // Same channel, same reason: a mask the loader calls healthy can still put the player down
     // where the talk key is answered by a signpost, and nothing else on screen would say so.
-    if (this.spawnInsideProp) lines.push(this.spawnInsideProp);
+    if (this.spawnInsideProp) say(this.spawnInsideProp, "player");
     // Hard Req 6 — the season reading is a runtime tint. `provisional` is on while its hues are a
     // placeholder rather than data (game/season-tint.ts), and it says so on screen for the same
     // reason the map placeholder does.
     const tint = this.mapView.tint;
-    lines.push(`tint ${seasonTintLabel(tint)}${tint.provisional ? " · PROVISIONAL hues" : ""}`);
-    lines.push(this.lastNote);
+    say(`tint ${seasonTintLabel(tint)}${tint.provisional ? " · PROVISIONAL hues" : ""}`, "diagnostic");
+    say(this.lastNote, "diagnostic");
     /*
      * L8's three prices, and what the next one would DO — both read from core/clock.ts through
      * game/ui/SeasonMeter.ts (`actionCosts` runs `ticksForAction`; `previewAction` runs the REAL
@@ -4113,23 +4229,27 @@ export class OverworldScene extends Phaser.Scene {
           : `${String(next.after.ticksLeftInSeason)} to the next season`;
       // FOUR prices, because L8 now has four. A fight costs `clock.battleTicks` at launch and the
       // HUD said so nowhere, which is how a price becomes invisible to the person paying it.
-      lines.push(
+      say(
         `ticks travel ${String(costs.travel)} · foray ${String(costs.foray)} · inn ${String(costs.inn)}` +
           ` · battle ${String(costs.battle)} · next foray ${crossing}`,
+        "diagnostic",
       );
     }
     // Two clocks on the HUD, side by side and never mixed: the act above, the year in the meter.
-    lines.push(`act ${String(this.act())}${this.runIsOver() ? " · run complete" : ""}`);
+    // PLAYER-FACING: the travel lines below quote an act number as a refusal (`· act 2`), which is
+    // unreadable without this one, and `run complete` is the only word on screen for a finished run.
+    say(`act ${String(this.act())}${this.runIsOver() ? " · run complete" : ""}`, "player");
     const open = this.openEvents();
     if (open.length > 0) {
-      lines.push(
+      say(
         `events ${open.map((w) => `${w.id} (${String(w.closesAt - w.openedAt)}t ${w.season})`).join(" · ")}`,
+        "player",
       );
     }
     this.node.adjacency.forEach((id, i) => {
       const needed = unlockActOf(id, this.balance);
       const shut = needed !== null && this.act() < needed;
-      lines.push(`[${i + 1}] travel → ${id}${shut ? ` · act ${String(needed)}` : ""}`);
+      say(`[${i + 1}] travel → ${id}${shut ? ` · act ${String(needed)}` : ""}`, "player");
     });
     // The badge is the act ladder's only numeric input, so the key that earns one is on screen
     // beside the two that spend ticks — and the leader is NAMED, because a key with nothing behind
@@ -4137,8 +4257,9 @@ export class OverworldScene extends Phaser.Scene {
     const gym = gymAtNode(this.content, this.node.id);
     if (gym) {
       const problem = gymBattleProblem(this.save, gym, this.content);
-      lines.push(
+      say(
         `[G] challenge ${gym.name} (${gym.id}) · act ${String(gym.act)}${problem ? ` · ${problem}` : ""}`,
+        "player",
       );
     }
     /*
@@ -4155,8 +4276,9 @@ export class OverworldScene extends Phaser.Scene {
       if (inside !== null) {
         const tile = this.movement.tile;
         const anchor = inside.anchors.find((a) => a.col === tile.col && a.row === tile.row);
-        lines.push(
+        say(
           `[E] ${anchor ? anchor.id : "nothing here"} · anchors ${String(inside.anchors.length)} in ${inside.id}`,
+          "player",
         );
       } else {
         /*
@@ -4175,9 +4297,10 @@ export class OverworldScene extends Phaser.Scene {
           : this.talkHere()
             ? "talk"
             : NOBODY_TO_TALK_TO;
-        lines.push(
+        say(
           `[E] ${offer} · props ${String(props.length)} here` +
             ` · cards ${String(new Set(linesMetAt(this.save, this.node.id)).size)}`,
+          "player",
         );
       }
       const reports = questReports(this.save, this.content);
@@ -4199,26 +4322,30 @@ export class OverworldScene extends Phaser.Scene {
        */
       const ready = reports.filter((r) => r.stage === "turnedIn");
       const done = reports.filter((r) => r.stage === "done").length;
-      lines.push(
+      say(
         `quests ${String(done)}/${String(reports.length)} closed` +
           (ready.length > 0
             ? ` · turn in ${ready.map((r) => `${r.id} → ${r.giver} at ${r.node}`).join(" · ")}`
             : "") +
           (open.length > 0 ? ` · open ${open.map((r) => `${r.id}${r.met ? "*" : ""}`).join(" ")}` : ""),
+        "player",
       );
       const chains = this.completedSignChains();
-      lines.push(
+      say(
         `chains ${chains.length > 0 ? chains.join(" ") : "none"}` +
           ` · flags owed ${String(stillOwed(this.save).length)}`,
+        "diagnostic",
       );
       const candidate = releaseCandidate(this.save, this.node.id);
       // Same reader as the key, so the advertisement cannot drift from the behaviour.
-      lines.push(
+      say(
         candidate
           ? `[X] release ${candidate.lineId} here`
           : `[X] ${releaseRefusal(this.save, this.node.id) ?? "release unavailable"}`,
+        "player",
       );
-      if (this.lastSpoken.length > 0) lines.push(`said: ${this.lastSpoken}`);
+      // An echo of a box the player has already read and dismissed — diagnostic, not the beat itself.
+      if (this.lastSpoken.length > 0) say(`said: ${this.lastSpoken}`, "diagnostic");
     }
     /*
      * [R] IS ADVERTISED ONLY WHERE IT WORKS, on the terms the two context-dependent verbs above are:
@@ -4229,8 +4356,24 @@ export class OverworldScene extends Phaser.Scene {
      * ({@link restRefusal}), so the readout and the refusal cannot drift apart.
      */
     const restHere = this.restRefusal(this.save.currentNode);
-    lines.push(`[C] collision overlay · [R] ${restHere ?? "inn"}`);
-    this.hud.setText(lines);
+    say(`[C] collision overlay · [R] ${restHere ?? "inn"}`, "player");
+
+    /*
+     * ⚠ WHERE THE TWO OBJECTS ARE FILLED, AND THE ONE PLACE THE FLAG IS SPENT.
+     *
+     * With `?debug=1` ON the whole list goes into {@link diagnosticsHud} and {@link hud} steps out
+     * from under it, so the debug view is one panel at one anchor — byte for byte the readout this
+     * screen drew before the split. With the flag OFF the player's lines are the ones painted and
+     * the diagnostic ones are still WRITTEN, into the hidden object, so nothing stops being computed
+     * and a headless rig reading this scene's display list still sees the whole readout.
+     *
+     * Both objects are always given text and always given a visibility, in both branches: an object
+     * left holding the previous frame's list is how a stale line survives a flag change.
+     */
+    const mine = lines.filter((_, i) => forPlayer.has(i));
+    const theirs = lines.filter((_, i) => !forPlayer.has(i));
+    this.hud.setText(this.showDiagnostics ? [] : mine).setVisible(!this.showDiagnostics);
+    this.diagnosticsHud.setText(this.showDiagnostics ? lines : theirs).setVisible(this.showDiagnostics);
   }
 
   /* ── read-only accessors for the other lanes ──────────────────────────── */
@@ -4287,6 +4430,11 @@ export class OverworldScene extends Phaser.Scene {
 
 const HUD_PAD = 6;
 const HUD_LINE_PX = 12;
+/**
+ * Who a HUD line is for. `"player"` is painted by default; `"diagnostic"` waits for `?debug=1`.
+ * The whole classification, line by line, is in {@link OverworldScene.refreshHud}'s docblock.
+ */
+type HudAudience = "player" | "diagnostic";
 const BANNER_HOLD_MS = 1200;
 const BANNER_FADE_MS = 400;
 /**

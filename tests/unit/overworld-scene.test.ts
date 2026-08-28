@@ -546,10 +546,14 @@ import {
   interiorAssetPath,
   interiorTextureKey,
   maskTextureKey,
+  paintedInteriorKey,
   playerArtId,
   playerArtIds,
 } from "@game/mapview";
-import { assetId, hasRealAsset, placeholderKey, registerRealAsset } from "@game/placeholder";
+// `registerRealAsset` used to be imported here so §16 could manufacture a census entry for a room
+// nothing had painted. Every room is painted now, so manufacturing one would overwrite a real
+// emitted URL with a fake for the rest of the run and prove nothing. See §16's block header.
+import { assetId, hasRealAsset, placeholderKey } from "@game/placeholder";
 // §17.6's curtain colour, resolved through the SAME role the scene paints it with — a hex typed
 // here would agree with itself and with nothing else after a palette re-freeze.
 import { roleColor } from "@game/ui/Palette";
@@ -4567,16 +4571,26 @@ describe("§15 the arrival tile is chosen clear of the props [E] reads", () => {
  * The interior half of what `MapView` already does for a node: `assets/final/interiors/<id>.png` if
  * the art lane has shipped it, `drawInteriorFootprint` if it has not.
  *
- * WHICH HALF MATTERS TODAY. No room is painted, so the FOOTPRINT is the path every shipped room
- * takes and the one that must not regress; the painted branch is what stops being dead the day a
- * picture lands. Both are tested, and the painted one is driven by making its two preconditions
- * true in the rig rather than by asserting the helper against itself.
+ * WHICH HALF MATTERS TODAY — AND IT IS NO LONGER THE ONE THIS BLOCK WAS WRITTEN FOR.
+ * This header used to open "No room is painted", and that was measured and true when it was
+ * written (commit 1932275). It is now false: `assets/final/interiors/` carries a painting for every
+ * blueprint in `data/interiors/`, none of them declared in `assets/final/stand-ins.json`, so
+ * `hasRealAsset` answers TRUE for all four and the PAINTED branch is the path a booted game takes.
  *
- * ⚠ THE PAINTED TEST REGISTERS A SYNTHETIC ASSET and `game/placeholder.ts` has no un-register. The
- * pollution is deliberately harmless: `paintedInteriorKey` needs the census AND a loaded texture,
- * and the texture half lives on the scene stub, which dies with the harness — so every other test
- * in this file goes on taking the footprint path whatever order it runs in. That is asserted below
- * rather than assumed.
+ * The footprint branch has not lost its subject, but the subject changed. `paintedInteriorKey`
+ * needs the census AND a loaded texture; the census half is now always satisfied, so the footprint
+ * is what a room draws when its painting DID NOT LOAD — a real runtime state (`queueRealAssets`
+ * queues every real asset, and a queue is not a guarantee), and the state every harness in this
+ * file is in, because the loader stub loads nothing unless a test puts the key in `parts.scratch`.
+ * That is the state the `it.each` below drives, and it is named for it rather than for "unpainted".
+ *
+ * Both halves of `paintedInteriorKey` are still shown to be load-bearing one at a time. The texture
+ * half is driven through the scene as before. The census half no longer CAN be — no shipped room
+ * has an absent census entry any more, and `game/placeholder.ts` has no un-register — so it is
+ * driven on a room id no manifest row and no art lane can ever emit, which is the same
+ * `__unbuilt-probe__` discipline `tests/unit/game-placeholder.test.ts` uses and for the reason
+ * `game/placeholder.ts` states in its census docstring: "unbuilt" has to be established by
+ * CONSTRUCTION, never by reaching for whatever happens not to have shipped yet.
  */
 describe("§16 an interior draws its painting when one exists, and its footprint when it does not", () => {
   /** The image objects the display list is holding. */
@@ -4604,7 +4618,11 @@ describe("§16 an interior draws its painting when one exists, and its footprint
   });
 
   it.each(ROOMS.map((bp) => [bp.id, bp] as const))(
-    "%s — unpainted: the footprint is on screen and no interior image was ever made",
+    // Named "the painting did not load" rather than "unpainted": every room is painted on disk now
+    // (see the block header), and what this rig withholds is the LOADED TEXTURE, not the census.
+    // The assertions are unchanged — only the name and the messages, which described a world that
+    // stopped being true when the art landed.
+    "%s — the painting did not load: the footprint is on screen and no interior image was ever made",
     (_id, bp) => {
       const h = mountAt(bp);
       goInside(h, bp);
@@ -4612,7 +4630,7 @@ describe("§16 an interior draws its painting when one exists, and its footprint
 
       expect(
         images(h).map((o) => o.texture),
-        `${bp.id} put an image on screen for a room nothing has painted`,
+        `${bp.id} put an image on screen for a painting the loader never delivered`,
       ).not.toContain(interiorTextureKey(bp.id));
       // The provenance line is the readout that tells the two apart, so it is the witness.
       expect(h.hud(), `${bp.id}'s HUD does not say the footprint is what is drawn`).toContain(
@@ -4625,24 +4643,71 @@ describe("§16 an interior draws its painting when one exists, and its footprint
     const bp = ROOMS[0]!;
     const key = interiorTextureKey(bp.id);
 
-    // Precondition, asserted rather than assumed: nothing has painted this room yet.
-    expect(hasRealAsset(interiorAssetPath(bp.id)), `${bp.id} is already painted — this test is stale`).toBe(false);
+    /*
+     * ⚠ THIS PRECONDITION WAS THE OPPOSITE ONE, AND IT WAS RIGHT WHEN IT WAS WRITTEN.
+     *
+     * It read `expect(hasRealAsset(interiorAssetPath(bp.id))).toBe(false)`, message
+     * "<id> is already painted — this test is stale", and it was introduced by commit 1932275
+     * ("fix(spawn): wire the prop-aware arrival, and give a painted room a key") at a time when
+     * `assets/final/interiors/` was empty. Nothing being painted was what let this test MANUFACTURE
+     * both halves of `paintedInteriorKey` — the census half with `registerRealAsset`, the texture
+     * half with `parts.scratch` — and therefore withhold each half in turn.
+     *
+     * Commit 4334ea3, a descendant, landed a painting for every one of the four blueprints in
+     * `data/interiors/`, and `assets/final/stand-ins.json` declares none of them, so the build-time
+     * glob in `game/placeholder.ts` registers all four and `hasRealAsset` answers true for every
+     * room. The message the old assertion carried predicted exactly this and named it correctly:
+     * the world changed, the code did not. Selecting a different room would not help — there is no
+     * unpainted one left — so the census half of the proof moved to the block below, where it is
+     * driven on a constructed id instead of borrowed from whatever had not shipped yet.
+     *
+     * What is asserted here now is the precondition the REST of this test actually needs, at the
+     * same strength and on the same expression: the room really is painted, so everything below is
+     * the shipped path rather than a synthetic one. If the painting is ever withdrawn this goes red
+     * and says so, which is the same tripwire the old direction provided, pointing the other way.
+     */
+    expect(
+      hasRealAsset(interiorAssetPath(bp.id)),
+      `${bp.id} has no painting in the census — the painted branch has no subject`,
+    ).toBe(true);
 
     /*
-     * BOTH halves of `paintedInteriorKey`, made true one at a time so each is shown to be
+     * BOTH halves of `paintedInteriorKey`, withheld one at a time so each is shown to be
      * load-bearing. A texture with no census entry is a key some other lane happened to create; a
      * census entry with no texture is a build-time truth about a runtime failure.
+     *
+     * THE CENSUS HALF cannot be withheld from a shipped room any more (see the block header), so it
+     * is asked of a room id that no manifest row, no blueprint and no art lane can emit. The scene
+     * cannot be walked into a room that has no blueprint, so this drives `paintedInteriorKey`
+     * directly — with the harness's own scene, whose texture cache really does hold the probe key.
      */
+    const UNSHIPPABLE_ROOM = "__unpainted-probe__";
+    expect(
+      hasRealAsset(interiorAssetPath(UNSHIPPABLE_ROOM)),
+      "the probe id is in the census — it is not a constructed unbuilt path any more",
+    ).toBe(false);
     const withTexture = mount({ save: saveAtTown(bp), startNode: bp.parentNode }, (parts) => {
       parts.scratch.add(key);
+      parts.scratch.add(interiorTextureKey(UNSHIPPABLE_ROOM));
     });
     goInside(withTexture, bp);
+    // Non-vacuity for the drive below: the probe's texture really is in the cache, so a null answer
+    // can only come from the census. Without this the next assertion passes for a rig that quietly
+    // never loaded the probe at all.
     expect(
-      images(withTexture).map((o) => o.texture),
+      withTexture.scene.textures.exists(interiorTextureKey(UNSHIPPABLE_ROOM)),
+      "the probe texture is not loaded — the census drive below would pass for the wrong reason",
+    ).toBe(true);
+    expect(
+      paintedInteriorKey(withTexture.scene, UNSHIPPABLE_ROOM),
       "a loaded texture alone painted the room — the census is not being asked",
-    ).not.toContain(key);
-
-    registerRealAsset(interiorAssetPath(bp.id), `/${bp.id}.png`);
+    ).toBeNull();
+    // The control: same scene, same loaded-texture state, census entry the only difference. Without
+    // this the assertion above would also pass against a helper that never returns a key at all.
+    expect(
+      paintedInteriorKey(withTexture.scene, bp.id),
+      "the census-and-texture control did not paint either — the drive above proves nothing",
+    ).toBe(key);
 
     const censusOnly = mountAt(bp);
     goInside(censusOnly, bp);
@@ -4689,18 +4754,55 @@ describe("§16 an interior draws its painting when one exists, and its footprint
 
     /*
      * AND THE STAND-IN PATH IS UNHARMED. Same room, a harness whose loader got nothing — which is
-     * every other test in this file, and every player until the art lands.
+     * every other test in this file, and every player whose loader drops the file.
      */
     const unpainted = mountAt(bp);
     goInside(unpainted, bp);
     expect(
       images(unpainted).map((o) => o.texture),
-      "the registered census entry leaked into a harness that loaded no texture",
+      "the census entry alone put the painting on screen in a harness that loaded no texture",
     ).not.toContain(key);
-    expect(unpainted.hud(), "the footprint stopped being drawn for an unpainted room").toContain(
+    expect(unpainted.hud(), "the footprint stopped being drawn for a room whose painting did not load").toContain(
       `FOOTPRINT interior ${bp.id}`,
     );
   });
+
+  /*
+   * ADDED, not edited: the test above drives ROOMS[0] only, which was the whole coverage the
+   * painted branch had while the branch was hypothetical. Four paintings have landed and each one
+   * is a file a player now sees, so each one is walked into here. Same claims, stated once per
+   * room: one image, at the plan's own rectangle, visible, and the provenance line naming the
+   * picture rather than the footprint.
+   */
+  it.each(ROOMS.map((bp) => [bp.id, bp] as const))(
+    "%s — painted: its shipped painting draws as ONE image at the plan's own size",
+    (_id, bp) => {
+      const key = interiorTextureKey(bp.id);
+      expect(hasRealAsset(interiorAssetPath(bp.id)), `${bp.id} has no painting in the census`).toBe(true);
+
+      const h = mount({ save: saveAtTown(bp), startNode: bp.parentNode }, (parts) => {
+        parts.scratch.add(key);
+      });
+      goInside(h, bp);
+
+      const drawn = images(h).filter((o) => o.texture === key);
+      expect(drawn.length, `${bp.id} did not draw its painting as exactly one image`).toBe(1);
+      expect(drawn[0]!.visible, `${bp.id}'s painting was made and then hidden`).toBe(true);
+
+      const cell = balance.map.collisionCellPx * balance.map.mapRenderScale;
+      const plan = planSize(bp.plan);
+      expect(drawn[0]!.displaySize, `${bp.id}'s painting is not sized to its plan`).toEqual({
+        w: plan.cols * cell,
+        h: plan.rows * cell,
+      });
+      expect(h.hud(), `${bp.id}'s HUD still calls a painted room a footprint`).not.toContain(
+        `FOOTPRINT interior ${bp.id}`,
+      );
+      expect(h.hud(), `${bp.id}'s HUD does not name the painting that is on screen`).toContain(
+        interiorAssetPath(bp.id),
+      );
+    },
+  );
 });
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -6856,5 +6958,199 @@ describe("§22 the encounter roll and the dex derive sign chains from the same r
       h.scene.forayContext(finale).unlockedSignChains,
       "the finale node's weight table honoured the chain alone",
     ).toBeUndefined();
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §23 The diagnostic readout is OPT-IN, and hiding it does not hide the game
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ⚠ WHAT THIS IS ABOUT, OBSERVED ON THE DEPLOYED BUILD. `refreshHud` printed ~25 lines at depth 100
+ * over a 480×320 screen, unconditionally: opening the overworld showed tile coordinates, the
+ * per-line population table, asset paths and tick prices — and, somewhere underneath all of that, a
+ * town. The readout is not deleted; it moved behind `?debug=1` and comes back IN FULL.
+ *
+ * ⚠ AND WHY EVERY ASSERTION BELOW READS `visible`, NOT {@link Harness.hud}. `hud()` joins EVERY text
+ * object whether or not it is painted, and the scene deliberately keeps filling the hidden one — so
+ * a `toContain` there would be green for a line no player can see. That is the exact confusion this
+ * section exists to prevent: {@link visibleHud} is what a player would read, `hud()` is what the
+ * scene computed, and the two are different claims. Both are asserted, and neither alone would do.
+ */
+
+/** Only what is actually painted: the text objects Phaser would draw this frame. */
+function visibleHud(h: Harness): string {
+  return h.parts.objects
+    .filter((o) => o.kind === "text" && o.visible)
+    .map((o) => o.text)
+    .join("\n");
+}
+
+/**
+ * Run `body` with a `location.search` the scene will read through `game/boot.ts`.
+ *
+ * The flag is read ONCE, in `create()`, so it has to be in place before `mount` — which is why this
+ * takes a thunk rather than a mounted harness. `location` is undefined under vitest's node
+ * environment, which is also why the default in every other test in this file is "not asked for".
+ */
+function withSearch<T>(search: string, body: () => T): T {
+  const g = globalThis as { location?: { search?: string } };
+  const had = Object.prototype.hasOwnProperty.call(g, "location");
+  const before = g.location;
+  g.location = { search };
+  try {
+    return body();
+  } finally {
+    if (had) g.location = before;
+    else delete g.location;
+  }
+}
+
+describe("§23 the diagnostics are behind ?debug=1, and the player-facing lines are not", () => {
+  /**
+   * Substrings only the DIAGNOSTIC half of the readout emits, one from each branch of `refreshHud`
+   * that the split touches — so a single surviving push cannot hide behind another line's absence.
+   */
+  const diagnosticMarks = (h: Harness): Array<{ what: string; mark: string }> => {
+    const first = encounterTable(h.scene.forayContext())[0];
+    expect(first, "the node offers no encounter line — the population-table mark would be vacuous").toBeDefined();
+    return [
+      { what: "the foray step counter", mark: "steps · encounters" },
+      { what: "the tile/facing readout", mark: `facing ${h.scene.movement.facing}` },
+      { what: "the party/box counts", mark: " · box " },
+      { what: "the derived encounter weight", mark: "weight " },
+      { what: "the population table", mark: `  ${first!.lineId}: ` },
+      { what: "the season-tint provenance", mark: "tint " },
+      { what: "the map/mask provenance", mark: "assets/final/maps/" },
+      { what: "the tick price table", mark: "ticks travel " },
+      { what: "the corpus bookkeeping", mark: "flags owed " },
+    ];
+  };
+
+  it("⚠ DEFAULT: not one diagnostic line is painted — and the scene still computed every one of them", () => {
+    const h = mount();
+    const painted = visibleHud(h);
+    const computed = h.hud();
+
+    for (const { what, mark } of diagnosticMarks(h)) {
+      expect(painted, `${what} is still painted over the map with no flag asked for`).not.toContain(mark);
+      /*
+       * THE DISCRIMINATOR. Without this half the assertion above would also pass if the line had
+       * simply stopped being BUILT — a different change, and one that would take the `?debug=1`
+       * readout down with it without a single test going red.
+       */
+      expect(computed, `${what} stopped being computed instead of being hidden`).toContain(mark);
+    }
+  });
+
+  it("⚠ DEFAULT: what the player needs is still on screen — where they are, and every control prompt", () => {
+    const h = mount();
+    const painted = visibleHud(h);
+    const node = nodeFile(h.scene.save.currentNode);
+
+    expect(painted, "the player cannot see where they are standing").toContain(`${node.name} (${node.id})`);
+    expect(painted, "[E] is not advertised, so nothing on screen says the talk key exists").toContain("[E] ");
+    expect(painted, "[X] is not advertised").toContain("[X] ");
+    expect(painted, "[C]/[R] are not advertised").toContain("[C] collision overlay · [R] ");
+    expect(painted, "the quest readout is gone, so nothing on screen says what to do next").toContain("quests ");
+    expect(painted, "the act the travel refusals quote is not on screen").toMatch(/(^|\n)act \d/);
+    for (const neighbour of node.adjacency) {
+      expect(painted, `there is no way off ${node.id} toward ${neighbour} on screen`).toContain(
+        `travel → ${neighbour}`,
+      );
+    }
+  });
+
+  it("⚠ DEFAULT: a town's doors are still pointed at — the art paints no threshold", () => {
+    /*
+     * The door lines carry tile coordinates, which is the very shape of the noise this section
+     * hides — and they STAY, because `game/mapview.ts` draws no painted doorway and a collision mask
+     * cannot mark one: a threshold is walkable floor, indistinguishable from the grass beside it.
+     * Hiding them hides the shop and the inn.
+     */
+    const withDoors = content.nodes.filter((n) => INTERIORS.some((bp) => bp.parentNode === n.id));
+    expect(withDoors.map((n) => n.id), "no shipped node has an interior — this assertion is vacuous").not.toEqual([]);
+    for (const town of withDoors) {
+      const painted = visibleHud(mount({ save: freshSave(town.id), startNode: town.id }));
+      for (const bp of INTERIORS.filter((each) => each.parentNode === town.id)) {
+        expect(painted, `${bp.id}'s door is no longer pointed at from anywhere on screen`).toContain(
+          `door ${bp.id} at`,
+        );
+      }
+    }
+  });
+
+  it("⚠ DEFAULT: a fault stays painted — a player who can read one beats a player stuck in silence", () => {
+    /*
+     * DRIVEN, not stubbed, and by §15's own rig: a mask with exactly one walkable cell, which
+     * `readMask` accepts, so the scene really does put the player down inside a shipped prop and
+     * really does raise its own advisory. The claim under test is only WHERE that advisory lands —
+     * on the painted surface, with no flag asked for.
+     */
+    const standingAt = (tile: { col: number; row: number }): WorldPoint =>
+      spriteWorldPosition(createMovement(tile), movementConfig(balance));
+    const blindSpawn = (node: NodeFile): { col: number; row: number } =>
+      chooseSpawnTile(loadCollision(node.id, node.collisionMask, null, balance).grid, balance).tile;
+    const node = content.nodes.find(
+      (each) => propsOf(each).length > 0 && propAt(each, standingAt(blindSpawn(each)), balance) !== null,
+    );
+    expect(node?.id, "no shipped node spawns inside a prop — the fault fixture cannot be built").toBeDefined();
+    const tile = blindSpawn(node as NodeFile);
+    const prop = propAt(node as NodeFile, standingAt(tile), balance) as PropPlacement;
+
+    const side = balance.map.mapNativePx / balance.map.collisionCellPx;
+    const data = new Uint8ClampedArray(side * side * 4);
+    for (let i = 0; i < side * side; i += 1) data[i * 4 + 3] = 255; // black, opaque ⇒ blocked
+    const lit = (tile.row * side + tile.col) * 4;
+    data[lit] = 255;
+    data[lit + 1] = 255;
+    data[lit + 2] = 255;
+
+    const h = mount({ save: freshSave((node as NodeFile).id), startNode: (node as NodeFile).id }, (parts) => {
+      parts.maskPixels.set(maskTextureKey((node as NodeFile).collisionMask), { width: side, height: side, data });
+    });
+    // The premise, from the real loader rather than a claim about it.
+    expect(h.scene.collision.source, "the one-cell mask was refused instead of loaded").toBe("authored");
+    expect(h.scene.movement.tile, "the player did not land on the only walkable tile").toEqual(tile);
+
+    expect(
+      visibleHud(h),
+      "the player was put down inside a prop and nothing PAINTED says so — a silently broken game",
+    ).toContain(`is inside prop ${prop.id}`);
+  });
+
+  it("⚠ ?debug=1 restores the readout IN FULL, in one panel, and it is strictly more than the default", () => {
+    const plainPainted = visibleHud(mount());
+    const debugged = withSearch("?debug=1", () => mount());
+    const painted = visibleHud(debugged);
+
+    for (const { what, mark } of diagnosticMarks(debugged)) {
+      expect(painted, `?debug=1 did not bring back ${what}`).toContain(mark);
+    }
+    // The player-facing half is not lost to the flag either: the debug view is the WHOLE list.
+    const node = nodeFile(debugged.scene.save.currentNode);
+    expect(painted, "?debug=1 dropped the line that says where the player is").toContain(`${node.name} (${node.id})`);
+    expect(painted, "?debug=1 dropped the control prompts").toContain("[C] collision overlay · [R] ");
+    // …and it is ONE panel, not two stacked: exactly one painted object carries the list.
+    const carriers = debugged.parts.objects.filter(
+      (o) => o.kind === "text" && o.visible && o.text.includes("[C] collision overlay"),
+    );
+    expect(carriers.length, "the debug readout is split across more than one painted object").toBe(1);
+
+    // THE COMPARISON THAT MAKES THE PAIR MEAN ANYTHING: the default really is the smaller screen.
+    expect(
+      painted.split("\n").length,
+      "?debug=1 paints no more lines than the default does — the flag changed nothing",
+    ).toBeGreaterThan(plainPainted.split("\n").length);
+  });
+
+  it("the flag is off for anything that is not ?debug — a seeded run included", () => {
+    expect(
+      visibleHud(withSearch("?seed=7", () => mount())),
+      "a run asked only for a seed turned the diagnostics on",
+    ).not.toContain("ticks travel ");
+    expect(
+      visibleHud(withSearch("?debug=0", () => mount())),
+      "?debug=0 turned the diagnostics on",
+    ).not.toContain("ticks travel ");
   });
 });

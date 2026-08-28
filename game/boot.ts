@@ -344,6 +344,28 @@ export function requestedSeed(balance: Balance): number {
   return balance.rng.defaultSeed;
 }
 
+/**
+ * Whether this run was asked for the DIAGNOSTIC readout — `?debug=1`.
+ *
+ * ⚠ DEFAULT OFF, AND THAT IS THE WHOLE POINT. The overworld's text HUD had grown into a ~25-line
+ * readout — tile coordinates, the per-line population table, asset paths, blocked-cell counts, tick
+ * prices — painted unconditionally at depth 100 over a 480×320 screen, i.e. over the game. On the
+ * deployed build it covered most of the play area. The readout is worth keeping and it is restored
+ * IN FULL by this flag; what it may not do is stand between a player and the map by default.
+ *
+ * Same mechanism and same shape as {@link requestedSeed} — one `URLSearchParams` read of
+ * `location.search`, guarded so a headless run (no `location`) is simply "not asked for". Anything
+ * but `0`/`false` counts as asked, so `?debug`, `?debug=1` and `?debug=true` all work; the
+ * documented form is `?debug=1`.
+ */
+export function diagnosticsRequested(): boolean {
+  const loc = (globalThis as { location?: { search?: string } }).location;
+  const search = loc?.search;
+  if (typeof search !== "string" || search.length <= 1) return false;
+  const raw = new URLSearchParams(search).get("debug");
+  return raw !== null && raw !== "0" && raw !== "false";
+}
+
 /** The slot API bound to the live storage + balance. */
 export function saveStorage(): SaveStorage {
   return new SaveStorage(registry.storage(), registry.balance());

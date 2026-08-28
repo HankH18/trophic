@@ -1547,3 +1547,77 @@ describe("§S5 [E] on a greyed row refuses AT THE SCENE, and says so", () => {
     expect(h.scene.isShopping(), "the caught refusal closed the shop").toBe(true);
   });
 });
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §S6 The shelf is PAINTED — the diagnostics moving behind ?debug=1 did not take it
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ⚠ THIS IS THE REGRESSION THE SPLIT WAS MOST LIKELY TO CAUSE, AND THE ONE THAT WOULD HAVE BEEN
+ * INVISIBLE. `shopLines()` is spread into the SAME line list as the tile coordinates and the
+ * population table, so "hide the HUD" and "hide the diagnostics" look like the same edit and are
+ * not: the overworld's text HUD is the ONLY surface that draws the shelf. Hidden, the shop is a
+ * modal screen with nothing on it — the player is holding down keys against an invisible cursor.
+ *
+ * ⚠ AND `Harness.hud` CANNOT SEE THE DIFFERENCE. It joins every text object whether or not Phaser
+ * would paint it, and the scene keeps filling the hidden one on purpose — so §S1's `toContain("[E]
+ * buy")` stays green with the shelf hidden. Every assertion here reads the PAINTED objects.
+ */
+
+/** Only what is actually painted: the text objects Phaser would draw this frame. */
+function paintedText(h: Harness): string {
+  return h.parts.objects
+    .filter((o) => o.kind === "text" && o.visible)
+    .map((o) => o.text)
+    .join("\n");
+}
+
+describe("§S6 an open shelf is on the screen, not only in the scene", () => {
+  it("⚠ every row, the purse, the cursor and the key legend are PAINTED with no ?debug flag", () => {
+    const { h, label } = openShopWith(RICH_PURSE);
+    const painted = paintedText(h);
+    const rows = h.scene.shopOnScreen();
+    expect(rows.length, `${label} opened an empty shelf — this asserts nothing`).toBeGreaterThan(0);
+
+    expect(painted, `${label}: the purse is not on screen`).toContain(`purse ${String(h.scene.save.money)}`);
+    for (const row of rows) {
+      expect(painted, `${label}: row "${row.id}" is not on screen`).toContain(row.label);
+      expect(painted, `${label}: row "${row.id}" is priced nowhere on screen`).toContain(row.detail);
+    }
+    expect(painted, `${label}: the key legend is not on screen`).toContain("[E] buy");
+    // The cursor is the only thing that says WHICH row the next [E] reaches.
+    const under = h.scene.shopOnScreen()[h.scene.shopCursorAt()]!;
+    expect(painted, `${label}: nothing on screen marks the row under the cursor`).toContain(`> ${under.label}`);
+  });
+
+  it("⚠ the cursor moves ON SCREEN, so the shelf the player is steering is the one they can see", () => {
+    const { h, label } = openShopWith(RICH_PURSE);
+    const rows = h.scene.shopOnScreen();
+    expect(rows.length, `${label}: a one-row shelf cannot show a cursor moving`).toBeGreaterThan(1);
+    const first = rows[0]!;
+
+    expect(paintedText(h), `${label}: the cursor does not start on the first row`).toContain(`> ${first.label}`);
+    h.hold("down", true);
+    h.frame();
+    h.hold("down", false);
+    h.frame();
+
+    const moved = h.scene.shopOnScreen()[h.scene.shopCursorAt()]!;
+    expect(moved.id, `${label}: [down] did not move the cursor — the fixture proves nothing`).not.toBe(first.id);
+    expect(paintedText(h), `${label}: the painted cursor did not follow the press`).toContain(`> ${moved.label}`);
+    expect(paintedText(h), `${label}: the painted cursor is still on the row it left`).not.toContain(
+      `> ${first.label}`,
+    );
+  });
+
+  it("a greyed row's reason is PAINTED, so the refusal is legible before the key is pressed", () => {
+    const { h, label } = openShopWith(0);
+    const painted = paintedText(h);
+    const greyed = h.scene.shopOnScreen().filter((r) => r.disabled && r.reason !== null);
+    expect(greyed.length, `${label}: a purse of 0 greyed nothing — this asserts nothing`).toBeGreaterThan(0);
+    for (const row of greyed) {
+      expect(painted, `${label}: "${row.id}" is greyed and its reason is on no painted surface`).toContain(
+        row.reason!,
+      );
+    }
+  });
+});
