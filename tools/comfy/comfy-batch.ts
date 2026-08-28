@@ -184,6 +184,14 @@ export interface ClassSpec {
     removeBackground: boolean;
     atlas: string | null;
     backgroundTolerance: number;
+    /**
+     * Optional. The tolerance the §9.3 background flood GROWS at, once seeded from the border at
+     * `backgroundTolerance`. Absent ⇒ the flood grows at `backgroundTolerance` and the class is
+     * byte-unchanged. Declared by classes whose generator draws a soft cast shadow on the backdrop:
+     * that shadow quantizes onto a palette swatch further from the key than flat white does, so the
+     * flood needs a looser reach than `trimBackground` may safely use on the raw.
+     */
+    shadowTolerance?: number;
     /** The DECLARED flat background colour — `plain white background` from the §9.2 skeleton. */
     backgroundKey: string;
   };
