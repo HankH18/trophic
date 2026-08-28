@@ -65,13 +65,23 @@ from PIL import Image
 import lib
 
 # ── ink, all from the frozen 32 ──────────────────────────────────────────────
-KEYLINE = (0x04, 0x03, 0x08)   # c00 — the darkest swatch; Gold's outline ink
-SHADOW = (0x27, 0x29, 0x40)    # c03 — a cool near-black, for the south shade
-SAND = (0xC8, 0xBC, 0xA5)      # c22 — shoreline rim
+# The ids are looked up in data/palette.json (`colors[].id` -> `colors[].hex`), not remembered.
+# Two of the three were wrong here — SHADOW was tagged c03 and SAND c22 — while both RGB triples
+# were right, so nothing ever rendered wrong and nothing ever failed; a reader checking the swatch
+# by id was simply sent to the wrong colour. c03 is #faf7eb, a near-WHITE, which is the opposite of
+# what the line beside it says; c22 is #89b935, a green.
+KEYLINE = (0x04, 0x03, 0x08)   # c00 #040308 — the darkest swatch; Gold's outline ink
+SHADOW = (0x27, 0x29, 0x40)    # c30 #272940 — a cool near-black, for the south shade
+SAND = (0xC8, 0xBC, 0xA5)      # c12 #c8bca5 — shoreline rim
 
 # ── which tiles serve which legend character ─────────────────────────────────
 # One table per map, because the two are not made of the same materials. A
 # character with no entry is a loud failure, never a silent flat fill.
+# THAT FAILURE IS CURRENTLY UNREACHABLE, which is a finding, not a licence to relax it: legend.ts
+# has 15 characters, every table below covers all 6 walkable ones, every blocks table covers all 5
+# blocking ones, `B` is handled before the lookup and `@ * D` resolve to a neighbour's character —
+# so ground_tile_for's SystemExit cannot fire for any layout that parses. The repair is a per-biome
+# assertion enumerated from data/nodes/ rather than a wider raise here; it is not written yet.
 #
 # THE TABLE FOLLOWS tools/mapgen/legend.ts, WHICH IS CANONICAL, NOT THE MAP
 # HEADER'S PROSE GLOSS, AND THAT MATTERS ONCE. legend.ts calls '.' "open-ground
@@ -146,8 +156,41 @@ BLOCK_TILES = {
 # So ash-scrub is class "ash-hot" at softness 1 and ash-open is "ash" at 0. The SOFTER material
 # creeps onto the harder one, so open ash feathers 1-4px into every scrub boundary: loose ash blown
 # over a crusted vent margin, which is both the right physical direction and the thing that makes
-# the patch read as ground. The value and hue separation still does the work of telling them apart
-# — ash-scrub is ~26 luminance darker than ash-open and warm where ash-open is cool.
+# the patch read as ground. The value and hue separation still does the work of telling them apart,
+# and here is what that separation actually MEASURES — stated with its formula and its corpus,
+# because a luminance gap quoted without both is not checkable, and this one has already been quoted
+# at three different values — the ~26 this comment used to carry, and the two real ones — precisely
+# because nobody named which pixels they were over.
+#   FORMULA: Rec.601 luminance 0.299R+0.587G+0.114B over 8-bit sRGB, no gamma linearisation.
+#   Warmth is the mean of R-B over the same pixels.
+#   CORPUS A, the tile files: all pixels of tools/mapgen/compose/tiles/cinder/ash-scrub-1..2 (512px)
+#   against ash-open-1..4 (1024px).
+#   CORPUS B, the composed image: every pixel of every ',' cell of a composed cindershelf.png (180
+#   cells) against every pixel of its '.' cells (1648). This one includes fringe, keyline and shade,
+#   so it is what the player's eye is actually given; cindershelf authors no 'o' cells.
+# ash-scrub is 19.63 luminance darker than ash-open on corpus A (65.14 vs 84.77) and 17.47 darker on
+# corpus B (66.80 vs 84.27). It is NOT ~26, which is what this comment used to claim.
+# THE HUE HALF OF THAT CLAIM WAS BACKWARDS AND THE CORRECTION MATTERS. ash-open is not cool: it is
+# 84.3% c06 #74564e, which is itself R-B +38, and ash-open as a whole is R-B +29.7 (corpus A) /
+# +29.1 (corpus B). BOTH materials are warm. The separation that exists is one of DEGREE — ash-scrub
+# is R-B +74.6 / +70.6, about 45 warmer than ash-open, not warm against a cool.
+#
+# THE ROOT CAUSE OF THE WALKABLE/BLOCKING LEGIBILITY PROBLEM, WHICH IS THE THING A RECUT NEEDS.
+# ash-scrub (walkable ',') and basalt-rock (blocking 'R') are drawn from almost exactly the same
+# palette entries, with the c05/c07 proportions traded (corpus A, per-pixel census):
+#   ash-scrub    c05 58.6%  c07 26.8%  c00 7.0%  c04 4.3%  c09 2.7%  c06 0.6%   (six entries)
+#   basalt-rock  c07 62.5%  c00 16.6%  c05 9.7%  c04 7.3%  c06 3.9%             (five entries)
+# basalt's five are a SUBSET of ash-scrub's six — the only entry not shared is c09, at 2.7% of one
+# tile. Their mean red channels differ by 2.2 (103.8 vs 106.0), and their mean luminances by 6.56 —
+# with the WRONG SIGN: basalt-rock, the thing you cannot walk on, is the BRIGHTER of the two.
+# Why no recut inside that colour set fixed it: both tiles are dominated by the c05/c07 pair (85.4%
+# of ash-scrub, 72.2% of basalt-rock), and c05 #642c16 (L 58.24) and c07 #8c5230 (L 95.47) are only
+# 37.2 apart. While both tiles stay c05/c07-dominant, reshuffling that pair's proportions is the
+# only lever, and it caps the reachable mean-luminance separation at about 37 — of which the cut in
+# hand spends 6.56, pointing the wrong way. Beating that cap means spending c00 (L 3.87), c04
+# (L 28.51) or c09 (L 125.16) in QUANTITY, i.e. redrawing the material, not reshuffling it. Note
+# this is a bound on the mean, not on legibility as such: a redraw that separates the two on
+# texture or silhouette instead of on value is not subject to it.
 #
 # Both ash classes are SOFTER than "path" (0/1 vs 3), so ash creeps over the haul track and the
 # track never creeps over the ash. That is the same direction MEADOW uses for grass against its lane.
