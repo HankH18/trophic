@@ -48,6 +48,22 @@
  *              as such: a flag whose only writer is a literal must be named in
  *              {@link LITERAL_ONLY_WRITERS} so a reviewer sees it. That list is empty today.
  *
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * WHAT THIS FILE IS STRUCTURALLY BLIND TO, AND WHERE THAT HALF LIVES
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * Everything below enumerates ENTRIES. It cannot see a FIELD — an entry can be perfectly reachable
+ * while a field on it names an asset nothing will ever draw. `DialogueSpeaker.portrait` is the case
+ * that proved it: `core/dialogue-schema.ts` documents it as the "Asset manifest row id
+ * (tools/comfy/manifest.json) that draws this speaker", it is REQUIRED, it was authored on all 63
+ * speakers, and for the whole life of the corpus not one line of `core/` or `game/` read it. Every
+ * entry those speakers carry passed every gate in this file.
+ *
+ * `tests/gates/asset-reachability.test.ts` is that half, in three directions: every authored value
+ * in `data/` that names an asset must resolve to a key some shipped builder actually asks for; every
+ * class and every row in `tools/comfy/manifest.json` must have a consumer; and every file under
+ * `assets/final/` must be CLAIMED by a row or by a named path in shipped code. Do not add asset
+ * checks here — the two files ask different questions of different corpora.
+ *
  * ⚠ THE LEXER IS DUPLICATED FROM `tests/gates/guardrails.test.ts` ON PURPOSE. That file is a test
  * module — importing it would re-run its whole suite here. The right fix is to lift the lexer into
  * a shared `tests/support/` module; that touches an existing file, which this task's scope forbids.
