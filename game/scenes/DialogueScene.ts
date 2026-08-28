@@ -585,17 +585,38 @@ export function createDialogueScene(
         return;
       }
 
-      if (awaitingChoice(this.file, this.state)) {
-        this.state = chooseOption(this.file, this.state, this.choiceIndex);
-        this.onEntered();
-        return;
-      }
-
-      // A long line pages before it advances, or the tail of a 400-character body is never read.
+      /*
+       * PAGING IS TESTED BEFORE THE CHOICE, AND THE ORDER IS THE WHOLE FIX.
+       *
+       * These two blocks were the other way round, and the choice branch returned first — so on an
+       * entry that BOTH wraps past `bodyLines` AND carries choices, the confirm key selected an
+       * option instead of turning the page and the tail was never drawn. The choice panel only
+       * appears on an entry's last line, which is exactly the line most likely to be long, so the
+       * two conditions coincide rather than being independent.
+       *
+       * Measured on the shipped corpus: `sel.quest.wager.offer`, the ferryhand's wager, wraps to
+       * FOUR rows at 68 columns and the player could never see row 4 — "what I'm putting up", the
+       * clause naming the stake the whole wager is about. One entry today, but the defect is in the
+       * control flow, not in that line's length: any future entry with choices and a long last line
+       * inherits it.
+       *
+       * Paging first is safe because `pageRows()` already respects `this.page` while a choice is
+       * pending, so the panel renders correctly on each page and the option is taken on the last
+       * one — the same "read it all, then act" order the crawl-completion branch above uses.
+       *
+       * `tests/unit/dialogue-scene.test.ts` drives an entry that wraps AND offers choices; the old
+       * paging test could not see this because it drove a long line in the opening, which has none.
+       */
       if (this.page < pageCount(this.rows(), this.style.bodyLines) - 1) {
         this.page += 1;
         this.shown = this.cps === 0 ? Number.MAX_SAFE_INTEGER : 0;
         this.redraw();
+        return;
+      }
+
+      if (awaitingChoice(this.file, this.state)) {
+        this.state = chooseOption(this.file, this.state, this.choiceIndex);
+        this.onEntered();
         return;
       }
 

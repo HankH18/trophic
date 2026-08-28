@@ -34,7 +34,12 @@ import { inflateSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
-import { DIALOGUE, type DialogueEntry, type DialogueSpeaker } from "@core/dialogue-schema";
+import {
+  DIALOGUE,
+  type DialogueEntry,
+  type DialogueFile,
+  type DialogueSpeaker,
+} from "@core/dialogue-schema";
 import { validateContent } from "@core/schemas";
 import type { Balance, Content } from "@core/types";
 import type { DialogueRunState } from "@game/dialogue-runner";
@@ -826,6 +831,215 @@ describe("§4 the choice list", () => {
       for (let guard = 0; guard < 200 && rig.done.length === 0; guard += 1) advance(rig);
       expect(rig.done[0]?.visited, choice.text).toContain(choice.goto);
     }
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §4b A LINE THAT BOTH PAGES AND OFFERS CHOICES
+ *
+ * §2's paging test and §4's choice tests each hold on their own and BOTH passed while the box was
+ * broken, because each drove a line the other condition did not apply to: the paging test drives a
+ * long line of the opening, which carries no choices, and the choice tests drive a last line short
+ * enough to fit one page. `onConfirm` tested for a pending choice BEFORE it tested for another
+ * page and returned, so where the two conditions MEET the confirm key took an option instead of
+ * turning the page and the tail of the line was never drawn.
+ *
+ * The two are not independent in the corpus. The choice panel comes up on an entry's LAST line,
+ * which is the line most likely to be long, so "wraps past `bodyLines`" and "offers choices"
+ * coincide by construction. These tests bind the order: PAGE FIRST, THEN CHOOSE.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+/**
+ * `renderedLines()` gives `[plate, ...body, ...options]`; this splits it back apart.
+ *
+ * By counting from the END, off the entry's own option count — the body is what varies (a last page
+ * holds fewer rows than `bodyLines`), the option list does not. Slicing from the front by
+ * `bodyLines` would silently mis-split exactly the page this section is about.
+ */
+function screenOf(rig: Rig, optionCount: number): { body: string[]; options: string[] } {
+  const lines = rig.scene.renderedLines();
+  const cut = lines.length - optionCount;
+  return { body: lines.slice(1, cut), options: lines.slice(cut) };
+}
+
+/** How much of an authored option survives the choice panel's truncation, at this style's width. */
+function optionPrefix(text: string): string {
+  // `- 2` is the cursor glyph and the space after it, which the panel prepends to every row.
+  return text.slice(0, dialogueChoiceColumns(STYLE) - 2);
+}
+
+/**
+ * Assert the choice panel is intact on the page currently drawn: every authored option present, in
+ * order, with the cursor on exactly one of them. The panel is not suspended while a line pages —
+ * a player reading page two is still looking at what they are choosing between.
+ */
+function expectPanelIntact(rig: Rig, options: readonly { text: string }[], where: string): void {
+  const shown = screenOf(rig, options.length).options;
+  expect(shown, `${where}: the choice panel lost rows`).toHaveLength(options.length);
+  for (const [i, choice] of options.entries()) {
+    expect(shown[i], `${where}: option "${choice.text}"`).toContain(optionPrefix(choice.text));
+  }
+  expect(
+    shown.filter((row) => row.startsWith(STYLE.choiceCursor)),
+    `${where}: exactly one option carries the cursor`,
+  ).toHaveLength(1);
+}
+
+/** The wager, from the shipped corpus — the one entry in it where the two conditions meet today. */
+const WAGER = DIALOGUE.entries.find((e) => e.id === "sel.quest.wager.offer") as DialogueEntry;
+
+describe("§4b paging and choices on the same line", () => {
+  it("THE SHIPPED ENTRY: the wager's last line is read to its end before an option can be taken", () => {
+    /*
+     * Driven off `data/dialogue.json` itself, not a fixture, because the thing that shipped broken
+     * was this entry: `sel.quest.wager.offer` wraps its last line past `bodyLines` at the box's
+     * column budget, and the row the player could not reach is the one naming what the ferryhand
+     * is staking. A fixture would prove the control flow; only the corpus proves the beat.
+     */
+    const columns = dialogueColumns(STYLE);
+    const options = WAGER.choices ?? [];
+    const last = WAGER.lines[WAGER.lines.length - 1];
+    expect(last, "sel.quest.wager.offer has no lines").toBeDefined();
+    const rows = wrapDialogue(last!.text, columns);
+    const pages = pageCount(rows, STYLE.bodyLines);
+
+    // Non-vacuity, both halves of it. If the corpus is later reworded so this entry's last line
+    // fits one page, or so it stops offering choices, this test stops exercising the defect — and
+    // it must say so out loud rather than keep passing.
+    expect(
+      options.length,
+      "sel.quest.wager.offer no longer offers choices — this test no longer exercises the page/choice collision",
+    ).toBeGreaterThan(0);
+    expect(
+      pages,
+      "sel.quest.wager.offer's last line no longer wraps past bodyLines — this test no longer exercises paging",
+    ).toBeGreaterThan(1);
+
+    const rig = mount({ entryId: WAGER.id });
+    for (let i = 0; i < WAGER.lines.length - 1; i += 1) advanceLine(rig);
+    expect(rig.scene.runState().lineIndex, "the box never reached the wager's last line").toBe(
+      WAGER.lines.length - 1,
+    );
+
+    const seen: string[] = [];
+    for (let p = 0; p < pages; p += 1) {
+      seen.push(...screenOf(rig, options.length).body);
+      expectPanelIntact(rig, options, `page ${String(p + 1)} of the wager`);
+      if (p < pages - 1) {
+        const hidden = rows.filter((row) => !seen.includes(row));
+        advance(rig);
+        expect(
+          rig.scene.entryOnScreen(),
+          `the confirm key took an option instead of turning the page, so the player never reads: ${hidden
+            .map((row) => `"${row}"`)
+            .join(" / ")}`,
+        ).toBe(WAGER.id);
+        expect(rig.scene.runState().choicesTaken, "a choice was taken mid-line").toHaveLength(0);
+      }
+    }
+
+    const missed = rows.filter((row) => !seen.includes(row));
+    expect(
+      missed,
+      `wrapped rows of the wager that never reached the screen: ${missed.map((row) => `"${row}"`).join(" / ")}`,
+    ).toEqual([]);
+    expect(seen.filter((row) => row.length > 0)).toEqual(rows);
+
+    // And on the LAST page the key does what it always did: it takes the option under the cursor.
+    advance(rig);
+    expect(rig.scene.runState().choicesTaken.map((c) => c.index)).toEqual([0]);
+  });
+
+  it("THE GENERAL RULE: any entry that wraps past bodyLines and offers choices pages first", () => {
+    /*
+     * The control for the test above, so this section outlives the wording of one corpus entry.
+     * The line is BUILT from the box's own column budget and `bodyLines` (G11 — nothing here is a
+     * literal), so it wraps past one page at whatever width the box has, and it is filler tokens
+     * rather than prose because no authored line belongs anywhere but `data/dialogue.json` (G2).
+     */
+    const columns = dialogueColumns(STYLE);
+    const tokens: string[] = [];
+    let text = "";
+    while (wrapDialogue(text, columns).length <= STYLE.bodyLines) {
+      tokens.push(`row${String(tokens.length).padStart(2, "0")}`);
+      text = tokens.join(" ");
+    }
+
+    const choices = [{ text: "the first option" }, { text: "the second option" }];
+    const entry: DialogueEntry = {
+      id: "control.pages-and-chooses",
+      speaker: "control",
+      node: "control",
+      kind: "ambient",
+      lines: [{ text }],
+      choices,
+    };
+    const file: DialogueFile = { speakers: [], entries: [entry] };
+
+    const rows = wrapDialogue(text, columns);
+    const pages = pageCount(rows, STYLE.bodyLines);
+    expect(pages, "the constructed line does not page — this test exercises nothing").toBeGreaterThan(1);
+
+    const rig = mount({ entryId: entry.id, file });
+
+    // (a) every wrapped row is displayed, and (c) the panel is intact on every page.
+    const seen: string[] = [];
+    for (let p = 0; p < pages; p += 1) {
+      seen.push(...screenOf(rig, choices.length).body);
+      expectPanelIntact(rig, choices, `page ${String(p + 1)} of the control entry`);
+      if (p < pages - 1) {
+        const hidden = rows.filter((row) => !seen.includes(row));
+        advance(rig);
+        // (b) the choice is NOT taken while rows are still unread.
+        expect(
+          rig.scene.runState().choicesTaken,
+          `an option was taken on page ${String(p + 1)} of ${String(pages)}, leaving unread: ${hidden.join(" / ")}`,
+        ).toHaveLength(0);
+        expect(rig.done, "the box closed before the line had been read out").toHaveLength(0);
+      }
+    }
+    expect(seen.filter((row) => row.length > 0)).toEqual(rows);
+
+    // (b), the other half: on the last page the option under the cursor IS taken.
+    rig.press("keydown-DOWN");
+    expect(rig.scene.cursor()).toBe(1);
+    advance(rig);
+    expect(rig.done, "the option on the last page was not taken").toHaveLength(1);
+    expect(rig.done[0]!.choicesTaken.map((c) => c.index)).toEqual([1]);
+    expect(rig.done[0]!.choicesTaken[0]!.text).toBe(choices[1]!.text);
+  });
+
+  it("no entry in the corpus can hide a row: every choice entry's last line is fully readable", () => {
+    /*
+     * The blast radius of the same control flow, swept over the whole corpus rather than the one
+     * entry that hits it today. Every entry that offers choices is driven at its last line and the
+     * rows it renders are compared against the rows it wraps to.
+     */
+    const columns = dialogueColumns(STYLE);
+    const withChoices = DIALOGUE.entries.filter((e) => (e.choices ?? []).length > 0);
+    expect(withChoices.length, "the corpus has no entries with choices").toBeGreaterThan(0);
+
+    let paging = 0;
+    for (const entry of withChoices) {
+      const options = entry.choices ?? [];
+      const last = entry.lines[entry.lines.length - 1]!;
+      const rows = wrapDialogue(last.text, columns);
+      const pages = pageCount(rows, STYLE.bodyLines);
+      if (pages > 1) paging += 1;
+
+      const rig = mount({ entryId: entry.id });
+      for (let i = 0; i < entry.lines.length - 1; i += 1) advanceLine(rig);
+      const seen: string[] = [];
+      for (let p = 0; p < pages; p += 1) {
+        seen.push(...screenOf(rig, options.length).body);
+        if (p < pages - 1) advance(rig);
+      }
+      const missed = rows.filter((row) => !seen.includes(row));
+      expect(missed, `"${entry.id}" hides: ${missed.map((row) => `"${row}"`).join(" / ")}`).toEqual([]);
+    }
+
+    // Non-vacuity: at least one of them actually pages, or the sweep above proved nothing.
+    expect(paging, "no entry with choices wraps past bodyLines — the sweep exercises no paging").toBeGreaterThan(0);
   });
 });
 
