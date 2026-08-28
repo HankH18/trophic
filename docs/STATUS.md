@@ -3015,6 +3015,24 @@ is actually left**, and what is left is smaller and more of it is the owner's.
 
 ## Waiting on the owner
 
+- **MAY CI HOLD THE REFERENCE CAPTURES? A posture question, not a technical one.**
+  `.github/workflows/deploy.yml` checks out at the default `fetch-depth: 1` (lines 34 and 67). The ten
+  Gold captures were untracked in `1da8cf0` on the owner's instruction, but they are **still in this
+  repository's history** — `git show 1da8cf0^:<path>` reproduces all ten and hashes to the published
+  sha256 byte for byte (verified).
+  Setting `fetch-depth: 0` **on the test job only** would give CI two things it cannot have today: the
+  byte-level provenance arm of `tests/gates/asset-palette-contract.test.ts`, which currently skips by
+  name in a shallow clone — so a stale published capture path is detectable only on a machine that has
+  the directory — and the option of re-measuring real Gold pixels instead of asserting the record.
+  **The cost is why no agent may decide it.** Those blobs are Nintendo's tile and UI bitmaps. Nothing
+  would be redistributed (the gate reads, hashes and discards), but `fetch-depth: 0` makes every CI
+  runner fetch and hold them for the life of the job. *"CI has the bytes"* is a different posture from
+  *"no clone has the bytes"*, and that posture is the owner's to set.
+  **Declining costs one skipped test**, which is loud and states its own reason in its title. Accepting
+  is a one-line edit: `fetch-depth: 0` under the `with:` of the test job's checkout, after which the two
+  skipped arms start running. Raised by the adversarial pass in `e8dd101` (finding F4).
+
+
 ✅ **ONE ENTRY LEFT THIS REGISTER BY BEING ANSWERED, AND IT IS RECORDED AS A DEPARTURE RATHER THAN
 DELETED**, because "it is no longer here" is indistinguishable from "somebody removed it".
 - **WHETHER THE MAPS MAY BE COMPOSED FROM TILES — RULED. He raised it himself and answered it
