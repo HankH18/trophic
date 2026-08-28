@@ -1,9 +1,9 @@
-# SEEDED STARTING LAYOUT for "duskhollow" — NOT A FINISHED MAP. Edit it by hand.
+# HAND-AUTHORED MAP for "duskhollow". This grid IS the map: the tile composer stamps a tile per
+# character, so every building, track, rock band and patch of heather below is where it will be
+# on screen, and the collision mask and the painting are the same file by construction.
 #
-# Written by tools/mapgen/seed.ts. It knows four things about this node: which edges its
-# adjacency declares, where its props stand, what biome it is, and whether it is a settlement.
-# It does not know what this place looks like. Re-running the seeder OVERWRITES hand edits
-# unless --force is withheld; the renderers read this file, not the seeder.
+# Redrawn from the seeded starting layout, which was a collision spec and not a place. Re-running
+# tools/mapgen/seed.ts would OVERWRITE this; the renderers read this file, not the seeder.
 #
 # ── coordinate space ─────────────────────────────────────────────────────────
 # space        map-native pixels, origin TOP-LEFT (data/nodes/*.json props[].x/y are in this space)
@@ -17,14 +17,38 @@
 # ── seeded from ──────────────────────────────────────────────────────────────
 # biome        Vale
 # adjacency    r4, r5
-# bottom edge  r4
-# top edge     r5
+# bottom edge  r4  — ^ at (32,63), on r4's top mouth
+# top edge     r5  — ^ at (26,0), on r5's bottom mouth
 # settlement   yes — building footprints are placed
-# props        duskhollow-sign-observatory @ (500,430) → cell (31,26)
+# props        duskhollow-sign-observatory @ (500,430) → cell (31,26), at the foot of the steps
 #
-# ── decisions this file made ─────────────────────────────────────────────────
-# · prop "duskhollow-sign-observatory" sits on a centre-clearing cell at (31,26); the anchor character takes the cell and the cell stays walkable
-# · arrangement: along-lane — a first composition drawn from this node's own stream, not a plan
+# ── decisions this file made ─────────────────────────────────────
+# · THIS MAP WAS REDRAWN, and had to be on contract grounds alone. It shipped with EIGHT walkable
+#   edge corridors against a declared adjacency of two — the left and right edges open and four
+#   separate runs on the bottom — because its heather and turf ran off three frames. The file's
+#   own header claimed "left 0, right 0"; it had counted "^" characters, where the contract counts
+#   walkable runs. Four of its five footprints were outside the 85-140px band, and two header
+#   lines were blank, which broke the byte-identical round trip tests/unit/mapgen.test.ts asserts.
+# · IT IS ALSO THE HALF OF THE cindershelf/duskhollow PAIR THAT MOVED, for the same reason
+#   bowerdeep moved rather than brackwater: cindershelf's composition is pinned harder by its own
+#   subject line, while duskhollow's line gives this map devices cindershelf cannot have.
+# · WHAT SEPARATES IT: TWO rock bands with the track running between them, not one band the track
+#   crosses; a gym hall whose footprint is INSIDE the lower band, so its door is a dark doorway
+#   cut in rock and not a front wall on turf; a fork with two different KINDS of destination — a
+#   stair that dead-ends at one building on a shelf, and a track that carries on round the band's
+#   end and off the map; a shepherd's fold of dry-stone walling; a dry-stone head-dyke running in
+#   off the moor's edge; iron lamp posts standing beside the track; heather at a tenth of the
+#   walkable ground where cindershelf has none. And the moor is OPEN — a shallow rim and two clean
+#   slabs, against cindershelf's enclosed basin full of clinker.
+# · FIVE FOOTPRINTS, five sizes, all in band:
+#     supply shop  (22,39)-(27,44)  6x6 door (24,45)  the smallest
+#     lampwright   (41,31)-(46,37)  6x7 door (43,38)
+#     gym hall     (38,44)-(45,49)  8x6 door (41,50)  set into the lower band
+#     inn          (14,30)-(20,37)  7x8 door (17,38)
+#     observatory  (16,8)-(23,15)   8x8 door (19,16)  the largest, alone on the shelf
+# · THE PROP IS ON ITS AUTHORED CELL (31,26), at the foot of the pale stone steps just above the
+#   middle, which is where its own feature string puts it. data/nodes/duskhollow.json is unchanged.
+# · THE MOUTHS SIT ON THEIR NEIGHBOURS: bottom col 32 = r4's top mouth, top col 26 = r5's bottom.
 #
 # ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
 #   .  floor  open-ground         plain walkable ground; the default fill
@@ -47,67 +71,67 @@
 # before game/collision.ts gridFromAscii sees it; ANCH characters parse as floor and are read again
 # on a second pass. Region kinds are open strings — add a row to the legend, not a case to a switch.
 ---
-RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:^:RRRRRRRRRRRRRRRRRRRR
-RRRR,,,,,RRRRRRRRRRRRRRRRRRRRRRRRRRRRR,,R:::RRRRRRRRRRRRRRRRRRRR
-RR,,,,,,,,,,RRRRRRRR,,RRRRRRRRR,,,,,,,,,,:::,RRRRRRRRRRRRRRRRRRR
-RR,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,::::,,,,,,,,,,,,,,,,RRR
-RR,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,RRR
-RRR,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,RRR
-RRR,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,::::,,,,,,,,,,,,,,,,RRR
-RRR,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,:::,BBBBBB,,,,,,,,,,RRR
-RR,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,:::,BBBBBB,,,,,,,,,,RRR
-RR,,,,,,R,,R,,,,,,,,,,,,,,,,,,,RRR,,,,,,,:::,BBBBBB,,,,,,,,,,RRR
-R,,,,,,,RRRRR,,,,,,,,,,,,,,,,,,RRR,,,,,,::::,BBBBBB,,,,,,,,,,RRR
-R,,,,,,RRRRRR,,BBBBBBB,,,,,,,RR,RR,RR,,::::,,BBBBBB,,,,,,,,,,,RR
-R,,,,,RRRRRRR,,BBBBBBB,,,,,,,RRRRRRRR,::::,,,BBBBBB,,,,,,,,,,,RR
-R,,,,,RRRRRRRR,BBBBBBB,,,,,,,RRRRRRRR::::,,,,BBBBBB,,,,,,,,,,,RR
-R,,,,,RRRRR,RRRBBBBBBB,,,,,,RRRRRRRRR::::,,,,BBBBBB,,,,,,,,,,,RR
-R,,,,,,RRRR,R,,BBBBBBB,,,,,RRRRRRRRRRR::::,,,,,,D,,,,,,,,,,,,,RR
-R,,,,,,RRRRRR,,BBBBBBB,,,,,RRRRRRRRRR,,::::,,,RR,R,,,,,,,,,,,,RR
-RR,,,,,,RRRRRR,BBBBBBB,,RRRRRRRRRRRRR,,::::,RRRRRRRR,,,,,,,,,,,R
-RR,,,,,,RRRRRRRBBBBBBB,,,RRRR,RRRRRRRRR:::R,RRRRRRRR,,,,,,,,,,,R
-R,,,,,,,,,RRRRR,R,D,,,,,,,RRRRRRRRRRRR::::RRRRRRRRRR,,,,,,,,,,,R
-R,,,,,,,,,RRRRRRRRRRRRR,,,R,RRRRRRRRR::::RRRRRRRRRR,,,,,,,,,,,,R
-R,,,,,,,,RRRRRR,RRRRR,,,,,R,,RRRRRRRR:::RRRRRRRRRRRRRR,,,,,,,,,R
-R,,,,,RRRRRRRRRR,RRRRRR,,,,,,RRRRRRR::::RRRRRRRRRRRRRR,,,,,,,,,R
-R,,,,,,RRRRRRRRRRRRRRRR,,,,,,RRRRRR::::RRRRRRRRRRRRR,R,R,,,,,,,R
-RR,,,,,,,RRRRRRRRR,RRRR,,,,,,,o,,,::::RRRRRRRRRRRRRRRR,RR,,,,,,R
-R,,,,,,,RRR,,,,,RRRRRRR,,,,,ooooo,:::,RRRRRRRRRRRRRRRRRRR,,,,,,R
-R,,,,,,,,,,,,,,,RR,RRRRR,,,oooo*o::::,,RRRRRRRRRRRRRRRRRR,,,,,,R
-R,,,,,,,,,,,,,,,,,,R,,,,,,,ooooo::::,,BBBBBBBBRRRRRRRRRRR,,,,,,R
-R,,,,,,,,,,,,,,,,,RR,,,,,,ooooo::::o,,BBBBBBBBRRRRRRRRRRRR,,,,,R
-R,,,,,,,,,,,,,,,,,,,,,,,,,oooo::::ooo,BBBBBBBB,,RRRR,RRRR,,,,,RR
-R,,,,,,,,,,,,,,,,,,,,,,,,,,ooo:::oooo,BBBBBBBB,,,,RRRRR,,,,,,,,R
-R,,,,,,,,,,,,,,,,,,,,,,,,,,ooo::::oooDBBBBBBBB,,,,,,,,,,,,,,,,RR
-R,,,,,,,,,,,,,,,,,,,,,,,,,,,oo::@:ooooBBBBBBBB,,,,,,,,,,,,,,,RRR
-R,,,,,,,,,,,,,,,,,,,,,,,,,,,o::::oooooBBBBBBBB,,,,,,,,,,,,,,,RRR
-R,,,,,,,,,,,,,,,,,,,,,,,,,,,,:::ooooo,BBBBBBBB,,,,,,,,,,,,,,,RRR
-R,,,,,,,,,,,,,,,,,,,,,,R,,,,,:::oooo,,,,,,,,,,,,,,,,,,,,,,,,,RRR
-R,,,,,,,,,,,,,,,,,,,,RRR,,,,,::::o,,,,,,,,,,,,,,,,,,,,,,,,,,,RRR
-RR,,,,,,,,,,,,,,,,,,RRRRR,,,,::::,,,,,,,R,,,R,,,,,,,,,,,,,,,,RRR
-RR,,,,,,,,,,,,,,,,,,,R,RR,,,,::::,,,,,,RRRR,RR,,,,,,,,,,,,,,,RRR
-RR,,,,,,,,,,,,,R,,,,,,,RRD,,,,::::,,,,,,RRRRRR,,,,,,,,,,,,,,,RRR
-RR,,,,,,,,,,,,,RR,,,,,BBBBBBB,,:::,,,,,RRRRRRRR,,,,,,,,,,,,,,RRR
-RR,,,,,,,,,R,,RRRR,,,,BBBBBBB,,::::,,,RRRRRRRRR,RRR,,,,,,,,,,RRR
-RRR,,,,,,,,RRRRRR,,,,,BBBBBBB,,,::::,,RRRRRRRRRRRR,,,,,,,,,,,RRR
-RRR,,,,,,,,,RRRRR,,,,,BBBBBBB,,,,:::,,,RRRRRRRRRRR,,,,,,,,,,,RRR
-RR,,,,,R,,,RRRRR,,,,,,BBBBBBB,,,,::::,,,RRRRRRRRRR,RR,,,,,,,,RRR
-RRR,,,RR,,,RRRRRR,,,,,BBBBBBB,,,,,:::,,RRRRRR,,RRRRRR,,,,,,,,RRR
-RR,,R,RRRRRR,RRR,,,,,,,,,,,,,,,,,,::::,RR,RR,,,RR,RRRR,,,,,,,RRR
-RR,RRRRRRRRR,R,,,,,,,,,,,,,,,,,,,,,:::,,,,RR,,,R,RRRR,,,,,,,,RRR
-RR,RRRRRRRRRRRR,,,,,,,,,,,,,,,,,,,::::,,,,R,,,,,,,RR,,,,,,,,,RRR
-RR,,RRRRRRRRRR,,,,,,,,,,,,,,,,,,,,:::,,,D,,,,,,,,,RR,,,,,,,,,RRR
-RR,,R,RRRRRRRRRR,,,,,,,,,,,,,,,,,::::BBBBBBB,,,,,,RR,,,,,,,,,RRR
-R,,,,,RRRRRRRRRRRR,RRRR,,,,,,,,,::::,BBBBBBB,,,,,,,,,,,,,,,,,RRR
-R,,,,RRRR,RRRRR,,RRRRR,,R,,,,,,::::,,BBBBBBB,,,,,,,,,,,,,,,,,RRR
-R,,,,,,,RRR,,R,,,RRRRRRRR,,,,,::::,,,BBBBBBB,,,,,,,,,,,,,,,,,RRR
-R,,,,,,,,R,,,,,,,RRRRRRRR,,,,::::,,,,BBBBBBB,,,,,,,,,,,,,,,,,RRR
-R,,,,,,,,,,,,,,,,RRR,,,,,,,,::::,,,,,BBBBBBB,,,,,,,,,,,,,,,,,RRR
-R,,,,,,,,,,,,,,,,,,,,,,,,,,::::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRR
-R,,,,,,,,,,,,,,,,,,,,,,,,,,::::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-R,,,,,,,,,,,,,,,,,,,,,,,,,,,::::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-R,,,,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-R,,,,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RR,RR,R,,,,,,,,,,,,,,,RRRRRRR::::,,,,,,,,,,RR,,,,,,,,,,,,,,,,,RR
-RRRRRRRRRR,,,,,,,,,,,RRRRRRRR::::,R,,,,RRRRRRRRRRR,,RR,,,,,,,RRR
-RRRRRRRRRRRRRRRRRRRRRRRRRRRRR:^:RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+RRRRRRRRRRRRRRRRRRRRRRRRR:^:RRFFFFFFFFFFFRRRRRRRRRRRFFFFFFFRRRRR
+RRRR.....................:::.....RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+RRRR.....................::::.......RRRRRRRRR...RRRRRRRRRRRRRRRR
+RRRR...................F.:::::..............................RRRR
+RRRR.....................::::::.......F.RR..RR.......,......RRRR
+RRRR......................::::::::::................,,....,.RRRR
+RRRR..R....................::::::::::................,,,,,,,,..R
+RRRR..R.....................:::::::::::::::..........,,,,,,,,,.R
+RRRRRRRR........BBBBBBBB.........:::::::::::..........,,,,,,RR.R
+RRRRRRRR........BBBBBBBB..........:::::::::::.........,,,,,,RRRR
+RRRRR...........BBBBBBBB................::::::......,,,,,,,RRRRR
+RRRRRR..........BBBBBBBB.................::::::.....,,,,,,,RRRRR
+RRRRRR..........BBBBBBBB..................:::::.F.....,,,,RRRRRR
+RRRRRR..........BBBBBBBB...................::::.........,,RRRRRR
+RRRRRR..........BBBBBBBB....................:::..........RRRRRRR
+FFFFFF..F.,,....BBBBBBBB....................:::..........RRRRRRR
+RRRRRR..,,,,,,....:D::::..:::::.............:::..........R..RRRR
+RRR#RR..,,,,,,....:::::::::::::.............:::..........R...RRR
+RRRRRR.,,,,,,,....:::::::::::::.............:::............RRRRR
+RRR#R..,,,,,RRRR....R::::::::::.....RRRRRRRR:::............RRRRR
+RRRR....,,,,RRRRRRRRRRRR..:::::RRRRRRRRRRRRR:::.............RRRR
+RRRR....,,,RRRRRRRRRRRRRRR:::::RRRRRRRRRRRRR:::F............RRRR
+RRR....R.,RRRRRRRRRRRRRRRR:::::RRRRRRRRRRRRR:::.............RRRR
+RRR...RR.FRRRRRRRRRRRRRRRR:::::RRRRRRRRRRRRR:::.............RRRR
+R....R#RRFRRRRRRRRRRRRRRRR:::::RRRRRRRRRRRRR:::................R
+R...RRRRRFFRRRRRRRRRRRRRRR:::::RRRRRRRRRRRR::::................R
+R....R.RRRFFR.............:::::*.::::::::::::::................R
+R....R.RRRRFR.............:::::::::::::::::::::................R
+R.......RR................::::::::::::::::::::......,,.........R
+R.......RR................::::::::::F.............,,,,.........R
+R.........R...BBBBBBB.......:::...................,,F.........RR
+R.............BBBBBBB.......:::..........BBBBBB..,,,,F,.......RR
+R.............BBBBBBB.......:::.@........BBBBBB,,,,,,,,,......RR
+R.............BBBBBBB.......:::..........BBBBBB,,,,,,,,,......RR
+R.............BBBBBBB.......:::..........BBBBBB,,,,,,,,,......RR
+R.............BBBBBBB.......:::..........BBBBBB,,,,,,,,,......RR
+RRRR..........BBBBBBB......::::..........BBBBBB.,,,,,,,,,...RRRR
+RRRR..........BBBBBBB.....:::::..F.......BBBBBBR,,,,,,,,,...RRRR
+RRRRR............D........:::::............DRRRRR,,,,,,,,...RRRR
+RRRRRR...........:::::BBBBBB::.............::RRRR,,,,,,.....RRRR
+RRRR.............:::::BBBBBB:..............::RRR.,..,,FF...RRRRR
+RRRR..................BBBBBB:.........:::::::RRR....,,.FFFFFFFFF
+RRRRRR................BBBBBB:.........:::::::...............RRRR
+RRRRRR................BBBBBB:RRRRRRRRRRRRRRRRRRRRRRRRRR.....RRRR
+RRRRRR........,,......BBBBBB:RRRRRRRRRBBBBBBBBRRRRRRRRR,..RR#RRR
+RRRRRR.......,,,,,,,,...D.:::RRRRRRRRRBBBBBBBBRRRRRRRRR,,.RR#RRR
+RRRRR........,,,,,,,,,..:::::RRRRRRRRRBBBBBBBBRRRRRRRRR,..RRRRRR
+RRRRR.......,,,,,,,,,,..::::::RRRRRRRRBBBBBBBBRRRRRRRRR,..RRRRRR
+RRRRRR......,,,,,,,,......::::RRRRRRRRBBBBBBBBRRRRRRRRR,,RRRRRRR
+RRRRRR......,,,,,,,,.....F::::RR....RRBBBBBBBBRRRRRRRRR,,RRRRRRR
+RRRR........,,.,,,,,.......:::RR.........D..........RRR.....RRRR
+RRRR.........,..,,.........:::......:::::::...........R.....RRRR
+RRRR..FFFFFFFFFFF..........::::::::::::::::...........RR..RRRRRR
+RRRR..F.,,......F..........:::::::::::.............R..RRR..R#RRR
+RRRRR.F,,,,,....F..........:::::..................RRRRRRRRRRRRRR
+RRRR..F,,,,,...............::::::.................RRRRRRRRRRRRRR
+RRRR..F,,,,,,,..............:::::.................RRRRRRRR..RRRR
+RRRR..F,,,,.,,..F.........F..::::.................RRRRR.RR..RRRR
+RRRR..F.,,,.....F.............::::.................RRR......RRRR
+RRRR..F.........F.............::::..............RR..........RRRR
+RRRR..FFFFFFFFFFF.RRRRRR......::::.......R..RR.RRRR...........RR
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:::RRRRRRRRRRRRRRRRRRRRRRR.....RR
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:::RRRRRRRRRRRRRRRRRRRRR...R...RR
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRF:^:RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR

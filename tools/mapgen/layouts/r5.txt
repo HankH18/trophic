@@ -1,9 +1,9 @@
-# SEEDED STARTING LAYOUT for "r5" — NOT A FINISHED MAP. Edit it by hand.
+# HAND-AUTHORED LAYOUT for "r5" — Duskhollow Vale. THE LAYOUT IS THE MAP DESIGN.
 #
-# Written by tools/mapgen/seed.ts. It knows four things about this node: which edges its
-# adjacency declares, where its props stand, what biome it is, and whether it is a settlement.
-# It does not know what this place looks like. Re-running the seeder OVERWRITES hand edits
-# unless --force is withheld; the renderers read this file, not the seeder.
+# Seeded by tools/mapgen/seed.ts, then redesigned cell by cell. The maps are composed from
+# tiles now, stamped from this grid, so painting and collision correspond BY CONSTRUCTION and
+# this file is the map: every boulder, every scree fan, every stand of heather is exactly where
+# it is written here. Re-running the seeder OVERWRITES this; the renderers read this file.
 #
 # ── coordinate space ─────────────────────────────────────────────────────────
 # space        map-native pixels, origin TOP-LEFT (data/nodes/*.json props[].x/y are in this space)
@@ -13,18 +13,40 @@
 # tiles        64 × 64 movement tiles of 32 world px
 # col ← x      col = floor(nativeX / 16);  a cell's centre is native (16·col + 8, 16·row + 8)
 # centre       native (512, 512) = cell (32, 32) = the tile firstWalkableTile starts on
+# screen       the player sees 240×160 native = 15 × 10 CELLS at a time
 #
 # ── seeded from ──────────────────────────────────────────────────────────────
 # biome        Vale
 # adjacency    duskhollow, sanctum-approach
-# bottom edge  duskhollow
-# top edge     sanctum-approach
-# settlement   no — zero building footprints
-# props        r5-antler-vale @ (344,618) → cell (21,38)
+# bottom edge  duskhollow — ^ at (26,63), on duskhollow's top mouth; out of the vale mouth
+# top edge     sanctum-approach — ^ at (40,0), on the approach's bottom mouth; the head gorge
+# settlement   no — zero building footprints, zero doors
+# props        r5-antler-vale @ (344,618) → cell (21,38), unmoved
+# subject      tools/comfy/manifest.json _nodes.r5 — "narrow vale floor of dark blue-green
+#              cropped grass, dead bracken and low heather … low pale lichen-blotched boulders,
+#              scree fans off the valley sides … one still black pool lying against the foot of
+#              the left-hand valley side well away from the middle. One thin pale sheep track
+#              climbs the whole way up the picture, kinking round each boulder in short straight
+#              runs rather than smooth curves, passing over the exact middle of the picture on
+#              bare pale earth with nothing on it … Below and left of the middle one granite
+#              antler stone stands quite alone, nothing but grass around it for a long way"
 #
 # ── decisions this file made ─────────────────────────────────────────────────
-# · a spur was cut from the lane to prop "r5-antler-vale" at cell (21,38)
-# · prop "r5-antler-vale" sits on a path-corridor cell at (21,38); the anchor character takes the cell and the cell stays walkable
+# · THE PLACE. A narrow vale under cold twilight. The track is the design: axis-aligned runs
+#   joined by right-angle kinks, a boulder standing in the cell the track would have carried on
+#   into at almost every turn, which is the subject line's "kinking round each boulder in short
+#   straight runs rather than smooth curves" spelled as geometry. The neck at rows 18-23 closes
+#   the floor to a few cells and is the only way between the lower vale and the upper bowl.
+# · TWO BLOCKING MATERIALS, and the subject line asks for the distinction: "#" is the VALLEY
+#   SIDES — "a change of material with a hard edge on each hand" — and "R" is kept for the LOW
+#   PALE LICHEN-BLOTCHED BOULDERS on the floor and the scree fans off the sides. The map used to
+#   spell all three with one character and read as the fourth grey-framed picture in a row.
+# · NO PALE DISC AT THE ARRIVAL TILE. The middle is bare pale earth with nothing on it, authored.
+# · THE BOULDER FIELD IS THINNED AND SIZED. Seventy-seven boulders, most of them single cells,
+#   were the densest speck texture in the set. The boulders that stand in a kink are kept and
+#   grown, because they are why the track turns; the rest are halved.
+# · ENCOUNTER TERRAIN. 26% of walkable in seven stands in the bays either side of the track; the
+#   track touches none of it, so the vale can be crossed without a forced roll.
 #
 # ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
 #   .  floor  open-ground         plain walkable ground; the default fill
@@ -47,67 +69,67 @@
 # before game/collision.ts gridFromAscii sees it; ANCH characters parse as floor and are read again
 # on a second pass. Region kinds are open strings — add a row to the legend, not a case to a switch.
 ---
-RRRRRRRRRRRRRRRRRRRRRRRRR:^:RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRRRRRRRR::::RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRRRRRRRR:::RRRRRRRRRRRRRRRRR,,,,,,,,,,,,RRRRRRRR
-RRRRRRRR,,,,,,,RRRRRRRRR:::RRRRRRRR,,,,RRRR,,,,,,,,,,,,,,,RRRRRR
-RRRR,,,,,,,,,,,,RRRRRRR,:::,RRRR,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRRR
-RRRR,,,,,,,,,,,,,,,,,,,::::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRRR
-RRRRR,,,,,,,,,,,,,,,,,,::::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRRRR
-RRRRR,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRRRR
-RRRRR,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRRRR
-RRRRR,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRRRR
-RRRRR,,,,,,,,,,,,,,,,,,,::::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRRRR
-RRRRR,,,,,,,,,,,,,,,,,,,,::::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRRRR
-RRRRR,,,,,,,,,,,,,,,,,,,,,::::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRRR
-RRRRR,,,,,,,,,,,,,,,,,,,,,,:::RR,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRRR
-RRRRR,,,,,,,,,,,,,,,,,,RRR,:::RR,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRRR
-RRRRR,,,,,,,,,,,,,,,,,RRRRR::::RRRR,,,,,,,,,,,,,,,,,,,,,,,,,RRRR
-RRRRR,,,,,,,,,,,,,,,,RRRRRRR:::R,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRRR
-RRRRR,,,,,,,,,,,,,,,,,RRRRRR:::R,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRRR
-RRRR,,,,,,,,,,,,,,,,RRRRRRR::::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRR
-RRRRR,,,,,,,,,,,,,RR,RRRRRR:::RRR,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRR
-RRRRR,,,,,,,,,,,,RRRRRRRRRR::::RRRR,,,,,,,,,,,,,,,,,,,,,,,,,,RRR
-RRRRR,,,,,,,,,,R,RRRRRRRRRRR::::RR,,,,,,,,,,,,,,,,,,,,,,,,,,,RRR
-RRRRR,,,,,,,,,RRRRRRRRRRRRRRR:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRRRR,,,,,,,RR,RRRRRRRRRRRRRR:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRRRR,,,RRRRRR,RRRRRRRRRRRR,,::::ooo,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRRRR,,,RRRRRRRRRRRRRRRR,,,,,,::::ooo,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRRRR,,RRRRRRRRRRRRRRRRR,,,,,oo::::ooo,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRRRR,,,,RRRRRRRRR,R,RRR,,,,oooo:::ooo,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRRR,,,RRR,RRRRRRR,R,,R,,,,ooooo:::ooo,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRRR,,,,,,,RRRRRRRR,,,,,,,,ooooo:::ooo,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRRR,,,,,,,R,RRR,R,,,,,,,,ooooo::::oo,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRRR,,,,,,,,,RRR,,,,,,,,,,ooooo:::ooo,,,,,R,R,,,,,,,,,,,,,,,,,RR
-RRRR,,,,,,,,RR,,,,,,,,,,,,,oooo:@:oo,,,,,RRRR,,,,,,,,,,,,,,,,,RR
-RRRR,,,,,,,,,,,,,,,,,,,,,,,ooo::::o,,,,,,,RRR,,,,,,,,,,,,,,,,,RR
-RRRR,,,,,,,,,,,,,,,,,,,,,,,,o::::o,,,,,,,,,RR,,,,,,,,,,,,,,,,,RR
-RRRR,,,,,,,,,,,,,,,,,R,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRR,,,,,,,,,,,,,,,,,RRRRR,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRR,,,,,,,,,,,R,R,,R,,,RR,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRR
-RR,,,,,,,,,,,,RRRR,R,*:::::::::::,,,,,,,,,,,,,,,,,,,,,,,,,,,,RRR
-RR,,,,,,,,,,,,RRRRRR,,,RR,,,,,::::,,,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RR,,,,,,,,,,,,,RRRRRRRRRR,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRR,,,,,,,,,,,,RRRRRRRRRR,,R,R,::::,,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RR,,,,,,,,,,,,,RRRRRRR,R,RRRRRRR:::,,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRR,,,,,,,,,,,RRRRRRR,,,,RRRRRRR::::,,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRR,,,,,,,,,,,R,RRRRRR,,,,R,,,RRR::::,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRRR,,,,,,,,,,R,,,,,R,,,,,RR,,RR,,:::,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRRR,,,,,,,,,,,,,,,,R,,,,,R,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRR,,,,,,,,,,,,,,,,,,,RR,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRR,,,,,,,,,,,,,,,,,RRRR,,,,,,,,,,::::,,,,,,,,,,,,,,,,,,,,,,,,RR
-RRR,,,,,,,,,,R,,,,,,,RRRR,,,,RR,,,,:::,,,,,RR,,,,,,,,,,,,,,,,,RR
-RRR,,,,,,,,,,RRRRR,,RRRRR,,,,RR,,,,::::R,,,RRR,,,,,,,,,,,,,,,,RR
-RRRR,,,,,,,,,RRRRRR,RRRRR,,,RRR,,,,,::::RRRRR,R,,,,,,,,,,,,,,,RR
-RRRR,,,,,,,,RRRRRRRR,RRR,,,,RRRRRR,,,:::RRRRR,RRR,,,,,,,,,,,,,RR
-RRRR,,,,,,,,,,RRRRRR,RRR,,,,,RRRRRR,,:::RRRRRRRRRR,,,,,,,,,,,RRR
-RRR,,,,,,,,,,,RRRRRRRR,R,,,,RRRR,,,,::::RRRRRRRRR,,,,,,,,,,,,RRR
-RRR,,,,,,,,,,,,,,RRRR,,,,,,,RRRR,,,::::RRRRRRRR,,,,,,,,,,,,,,RRR
-RRR,,,,,,,,,,,,,,,R,,,,,,,,,,,R,,,,:::RR,RRRRRR,,,,,,,,,,,,,,RRR
-RRR,,,,,,,,,,,,,,,,,,,,,,,,,,,R,,,,:::RR,,,,RRRR,,,,,,,,,,,,,RRR
-RRR,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,::::,,,,,,,,,,,,,,,,,,,,,,RRR
-RRR,,,,,,,,,,,,,,,RRR,,,,,,,,,,,,,,,::::,,,,,,,,,,,,,,,,,,,RRRRR
-RRR,,,,,,,,RRR,RRRRRRRRR,,,,,RRRR,,,,:::,,,RRRRRRR,,RRRRRRRRRRRR
-RRRR,RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR,,:::RRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:::RRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:^:RRRRRRRRRRRRRRRRRRRRRRRR
+#########################R####RRRRRRRRR:^:######################
+########################RR#R##RRRRRRRRR:::############RR##RR####
+###########R#R##########RRRRRRRRRRRRRRR:::###########RRRRR######
+###########RRRRRR#######RRRRRRRRRRRRR#R.:...########RRRRRRR#####
+###########R#RRRR#########RR#RRRRRRR#...:......#######RRRRR#RR##
+##RR#######R##RR##############RRR...#...:.,,,,,#######RRRRR#RR##
+RRRRRRRR###RRRRR###########..........RR.:.,,,,R,####RRRRRRRRRR##
+RRRRRRRR###################..........::::R,,,,,,,,,#RRRRRR##R###
+RRRRRR####################...........:...,,,R,,,,,,,,##R########
+RRRRRR##################......RRR....:...R,,,,,,,,,,############
+RRRRRRR############,,,,,.,,,..RRR..R.:.....,,,,,,,,,.###########
+RRRRRRR#########.,,,,,,,,,,,,.RR...R.:......,,,,,###############
+RRRRRRRRR####..,,,,,.,,,,,R,,.RR.RRR.:......####################
+#RRRR#R######,,,R,,,,,,,,,,,R.RR.:::::##########################
+RRRR##RR##..,,,,,,,,,,.,,,,......:.....#####################RRRR
+RRRR##R....,,,,,,,,,,,,,RR.......:......####################RRRR
+#######....,R,,,,,,,,,,,R........:...R...##################RRRRR
+########....,,,,,,,.,,,,..R.....R:::::.###################RRRRRR
+##############,,##,,,,,...R.....RR...:.##################RRRRRRR
+#####################........R..RR...:.##################RRRRRRR
+#############################....RR..:##################RRRRRRRR
+####RR##########################.:::::##################RR#RRRRR
+#R##R#########################...:R........###############RRRRRR
+RRRRRR###################,,,#..R.:..............##########RRRRRR
+#RRRRR################,,,,,,::::::RRR.................###RRRRRRR
+#RRRRR#############.,,,,,,,,:..R..RRR.R....,,R,,,,,,,....RRR##R#
+#RRRRR##############,,..,,,.:......RRRR...,,,,,,,,,,,,,.##RRRR##
+##RRRR##############,,,,,,.R:...RR.RRR...,,,,,......,,,###RR####
+RRRRRRRR########,,,,,,,,...R:::::....R..,,,.,,,....,,,,,,#######
+RR##RRRR####..##................:.......,,,,,,,,.....,,,,,..####
+######R#.....##.................:.......,.,,,,,,,,,,,,,#.#######
+#######...#.....................:........,,,,R,,,,,,,,##########
+##RR##RR###.....................@.........,,,R,,,,,,,###########
+##RRRRRR####....................:..........,....#,,#############
+RRRR#######.....................:..............#################
+RRRRRR#....R....................:..............#################
+##R.....RRRR....................:....R.......###################
+##RRR...RRR...................RR:........#######################
+RRRRRR..RRR.RR.......*........:::RR....#########################
+RRRRR.......RRR...............:..RR......#######################
+RRRRRR.R...RR................R::::R..........###################
+RRRRRRRR.....................RRR.:..............################
+##RRRRR#.....................RRR.:...,,,,,,,,,...###############
+###RRRR......R...................:...,,,,,,,,,,,....############
+######R#.....R.............:::::::RRR,,,,,,,,,,,RR############R#
+#########..................:......RRR,,,,,,,,,,,...###########R#
+######....................R:R.......,,,,,,,,,,,...####RRRRRRRR##
+###~~~~~~~~~......,,,,,,,,.:...RR...,,,R,,,,,..#######RRRRRRRRR#
+###WWWWWWWW~~~.....,,,,,,,R:::::....,,,,,,,....######R#RRRRRRRRR
+####WWWWWWWWW~~~....R,,,,,,....:....,,,,,...#########R#RRRRRRRRR
+#####WWWWWWWWWW~~...R,,,.,,,...:........##############RRRRRRRRRR
+######WWWWWWWWWW~.....,,,,R,R..:.....#################RRRRRRRRRR
+#######WWWWWWWWW~......,,,::::::R....#################RRRRRRRRR#
+#########WWWWWWW~RRR....,,:,,...R.RRR.################RRRRRRRRR#
+###########WWWWW~~.......,:,,,..R.RR..###############R###RRRR#R#
+#############WWWW~........:,,,RR........##################RR####
+#####R#RRRR#R#####.#.....R:::::........###############RRRRRRRR##
+####RRRRRRRRRR########...R...R:......##################RRRRRRR##
+####RRRRRRRRRR###########R...R:..#########################RR####
+####RRRRRRRRR###RR########R..R:#############RR####RR############
+######RRRRRR######RRRRR#RR:::::############R##RRRRRR############
+######RR##RR###RRRRRRRRR.:::###############R#RRRRRRR############
+#############R##RRRRRRRRR:::##################RRRRRRR###########
+#############R##RRRRRRRRR:^:######################R#############

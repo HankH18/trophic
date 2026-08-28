@@ -1,9 +1,9 @@
-# SEEDED STARTING LAYOUT for "bowerdeep" — NOT A FINISHED MAP. Edit it by hand.
+# HAND-AUTHORED LAYOUT for "bowerdeep" — this file IS the map.
 #
-# Written by tools/mapgen/seed.ts. It knows four things about this node: which edges its
-# adjacency declares, where its props stand, what biome it is, and whether it is a settlement.
-# It does not know what this place looks like. Re-running the seeder OVERWRITES hand edits
-# unless --force is withheld; the renderers read this file, not the seeder.
+# It began as the seed tools/mapgen/seed.ts wrote and keeps that file's coordinate space,
+# legend block and "---" separator. Everything below the separator was redrawn by hand:
+# the composer stamps a tile per character, so painting and collision now come from THIS
+# grid and cannot disagree. Re-running the seeder over it would throw the map away.
 #
 # ── coordinate space ─────────────────────────────────────────────────────────
 # space        map-native pixels, origin TOP-LEFT (data/nodes/*.json props[].x/y are in this space)
@@ -14,17 +14,46 @@
 # col ← x      col = floor(nativeX / 16);  a cell's centre is native (16·col + 8, 16·row + 8)
 # centre       native (512, 512) = cell (32, 32) = the tile firstWalkableTile starts on
 #
-# ── seeded from ──────────────────────────────────────────────────────────────
+# ── the node this is drawn from ──────────────────────────────────────────────
 # biome        Forest
 # adjacency    r2, r3
-# bottom edge  r2
-# top edge     r3
-# settlement   yes — building footprints are placed
-# props        bowerdeep-sign-market @ (520,560) → cell (32,35)
+# bottom edge  r2   — ^ at (33,63); the litter track from the foot of the broad timber stair,
+#                     barge landing on the Brackmarsh
+# top edge     r3   — ^ at (20,0); the walk itself, carrying on into the Bowerdeep Wilds
+# settlement   yes — FIVE buildings, every one of them named by the shipped subject line
+#                    (tools/comfy/manifest.json _nodes.bowerdeep.feature)
+# props        bowerdeep-sign-market @ (520,560) → cell (32,35), ON its authored cell
 #
 # ── decisions this file made ─────────────────────────────────────────────────
-# · prop "bowerdeep-sign-market" sits on a centre-clearing cell at (32,35); the anchor character takes the cell and the cell stays walkable
-# · arrangement: around-green — a first composition drawn from this node's own stream, not a plan
+# · THIS MAP WAS REDESIGNED. It and brackwater were the same picture — one ribbon crossing the
+#   frame between near-identical mouth columns, five buildings pinned to it alternating side to
+#   side, everything else solid, differing only in whether the mass was water or canopy. That is
+#   the owner's quoted rejection reproduced. bowerdeep is the half that moved, because
+#   brackwater's topology is forced by its own subject line ("plank decking ... the only thing
+#   anywhere that can be walked on"), because brackwater is one of the two highest-traffic maps,
+#   and because bowerdeep's subject line hands it a device brackwater cannot have: a SECOND
+#   LEVEL, with a forest floor that is walkable ground.
+# · FIGURE AND GROUND ARE FLIPPED. The leaf-litter floor is a broad walkable plane and is the
+#   larger half of the walkable map; the plank walk is a raised structure ON it, reached only by
+#   the two stairs the subject line names. brackwater reads "the ribbon is the only way across";
+#   bowerdeep reads "the ribbon is a place above the way across".
+# · THE HANDRAIL IS COLLISION. Every board that faces the litter is fenced ("F"). The rail opens
+#   in exactly three places: the top mouth, the foot of the broad timber stair, and the foot of
+#   the east stair. That is what makes the walk read as a walk rather than as a wide dirt path.
+# · THE BUILDINGS ARE NOT BEADS ON A STRING. Three cluster round the market square at the head
+#   of the walk; the gym and the inn stand far south on their own widenings.
+#     night-market stalls (22,1)-(28,7)    7x7 door (25,8)
+#     oil shed            (41,2)-(46,7)    6x6 door (43,8)   the smallest, behind the house
+#     winding house       (33,5)-(38,12)   6x8 door (36,13)  tall and narrow
+#     gym hall            (34,37)-(41,44)  8x8 door (37,45)  the largest
+#     inn                 (47,44)-(54,50)  8x7 door (50,51)
+# · THE MOUTHS ARE ON THE OTHER DIAGONAL FROM BRACKWATER'S: bottom col 33 (= r2's top mouth) to
+#   top col 20 (= r3's bottom mouth). Right to left going up, where brackwater runs left to right.
+# · THE PROP IS ON ITS AUTHORED CELL (32,35) and data/nodes/bowerdeep.json needs no edit. It is
+#   exactly three cells from the arrival tile — the edge of the clearance ring, not inside it —
+#   and it is a walkable anchor, not a built thing. Recorded rather than resolved by moving it.
+# · THE LITTER TRACK wanders the forest floor for two screens before it reaches the broad stair,
+#   so the first thing a player walking up from the Brackmarsh sees is forest, not boards.
 #
 # ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
 #   .  floor  open-ground         plain walkable ground; the default fill
@@ -47,67 +76,67 @@
 # before game/collision.ts gridFromAscii sees it; ANCH characters parse as floor and are read again
 # on a second pass. Region kinds are open strings — add a row to the legend, not a case to a switch.
 ---
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT^:TTTTTTTTTTTTTTTTT
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT::TTTTTTTTTTTTTTTTT
-TTTTTTTTTTTTT,,,,TT,,TTTTTTTTTTTTTTTT,,,,,,,,:::,,,,,,,TTTTTTTTT
-TTTTTTTTTTTT,,,,,,,,,,,,TTTTTTTTTTT,,,,,,,,,,,:::,,,,,,,,,,TTTTT
-TTTTTTTTTT,,,,,,,,,,,,,,,TTTTTTT,,,,,TT,,,,,,,,:::,,,,,,,,,,TTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTT,,,,,,,,,,:::,,,,,,,,TTTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTTT,,,,,,,,,:::,,,,,,,,TTTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTTTTT,,,,,T:::,,,,,,,,,TTTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTTTTTT,,,,T:::,,TTTT,,,,TTTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTT,T,,,,,:::T,,TTTT,,,,TTTTT
-TTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTT,,,,,,,::TTTTTTT,,,,,TTTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTT,,,,,,:::TTTTTTTTTT,,TTTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,T,TTT,,,,,,,:::TTTTTTTTT,,,,TTTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,T,,,,,,,,::,,TTTTTTT,,,,,,TTTT
-TTTTT,,,,,,,,,,,TT,,,,,,,,,,,,,,,,,,,,,,,,:::,,,TTTT,,,,,,,,TTTT
-TTTTT,,,,,,,,,,TTT,,,,,,,,,,,,,,,,,,,,,,,,::,,,,,,TTTT,,,,,,TTTT
-TTTTT,,,,,,,,,TTTTTT,,,,,,,,,,,,,,,,,,,,,:::,,,,,TTTT,,,,,,,,TTT
-TTTTT,,,,,,,,,TTTTTT,,,,,,,,,BBBBBBB,,,,:::,,TTT,TTTT,,,,,,,,,TT
-TTTTT,,,,,,,,,,TTTTT,,,,,,,,,BBBBBBB,,,:::,,TTTTTTT,,,,,,,,,,,TT
-TTTTT,,,,,,,,,,TTTTT,,,,,,,,,BBBBBBB,,,::TTTTTTTTT,,,,,,,,,,,TTT
-TTTTT,,,,,,,,,,TTTTT,,,,,,,,,BBBBBBB,T:::TTTTTT,,,,,,,,,,,,,,,TT
-TTTT,,,,,,,,,,TTT,T,,,,,,,,,,BBBBBBBTT::TTTTTTT,,,,T,,,,,,,,,TTT
-TTTT,,,,,,,,,,,T,,T,,BBBBBBB,BBBBBBBT:::TTT,TT,,,,,T,,,,,,,,,,TT
-TTTT,,,,,,,,,,,,,,,,,BBBBBBB,BBBBBBBT::TT,,,TTT,,,TTT,,T,,,,,,TT
-TTTT,,,,,,,,,,,,,,,,,BBBBBBB,BBBBBBBT::TT,T,TTTT,,,TTTTTTT,,,,TT
-TTTT,,,,,,,,,,,,,,,,,BBBBBBBD,,,D,,,:::TT,TTTTTTTTTTTTTTTTTT,,TT
-TTT,,,,,,,T,,,,,,,,,,BBBBBBB,,,,,,,,::,,TTTTTTTT,TTTTTTTTTTT,,TT
-TTTT,,,,TTTT,,,,,,,,,BBBBBBB,,,,,,,:::,,,,,TTTTTTTTTTTTTTTTTT,TT
-TTTT,,,,TTTT,,,,,,,,,BBBBBBB,,,,,,:::,BBBBBBBBTTTTTTTTTT,TTTT,TT
-TTTTTTTTTTTTT,,,,,,,,,,,,,,oooo,,:::,,BBBBBBBBTTTTTTTTT,,T,,,,TT
-TTTT,,TTTTTTTT,,,,,,,,,,,oooooooo::,,,BBBBBBBBTTTT,,TTTT,T,,,,TT
-TTT,TTTTTTT,T,,,,,,,,,,,,ooooooo:::,,,BBBBBBBB,T,,,,T,,T,,,,,,TT
-TTTTTTTTTTTTT,,,BBBBBBBB,ooooooo@::o,DBBBBBBBBTT,,,,,,TT,,,,,,TT
-TTTTTTTTTTTTT,,,BBBBBBBB,oooooooo:::,,BBBBBBBBTTTT,,,,,,,,,,,,TT
-TTTTTTTT,T,,,,,,BBBBBBBB,ooooooooo:::,BBBBBBBBTTT,,,,,,,,,,,,,TT
-TTTTTTTT,,,,,,,,BBBBBBBB,ooooooo*oo:::BBBBBBBBTTTT,,,,,,,,,,,TTT
-TTT,T,,,,,,,,,,TBBBBBBBBDoooooooooo,:::,TTTTTTTTTTT,,,,,,,,,,TTT
-TTT,,,,,,,,,,,,TBBBBBBBBT,ooooooooo,,::,TTTTTTTTTTT,,,,,,,,,TTTT
-TTT,,,,,,,,,,,TTBBBBBBBBTT,ooooooo,,,:::,TTTTTTT,,,,,,,,,,,,TTTT
-TTT,,,,,,,,,,,TTBBBBBBBBTTT,oooo,,,,,,::,,TTTTTT,,,,,,,,,,,TTTTT
-TTTT,,,,,,,,,,,TTTTTTTTTTTTTT,,,,,,,,,::,,T,TTTT,,,,,,,,,,,TTTTT
-TTTT,,,,,,,,,,,TT,,,TTTTTTTTTT,TTD,,,,:::,,TTTTTT,,,,,,,,,,TTTTT
-TTTT,,,,,,,,,,,TT,,,,,TTTTTTTTBBBBBBB,,::,TTTTTTT,,,,,,,,,,TTTTT
-TTTT,,,,,,,,,,,TT,,,,,T,,TTTTTBBBBBBB,,:::TTTTTTT,,,,,,,,,,,TTTT
-TTT,,,,,,,,,,,,,,,,,,,T,,TTTTTBBBBBBB,,,::TTTTTTT,,,,,,,,,,,TTTT
-TTT,,,,,,,,,,,,,,,,,,,T,TTTTTTBBBBBBB,TT::TTTTTTTT,,,,,,,,,,TTTT
-TTT,,,,,,,,,,,,,,,,,,,,,TTTTTTBBBBBBB,,T::TTTTTTTTT,,,,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,TTTTBBBBBBB,,T::TTTTTTTTTT,,,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,TTTTT,,,,,,,,T:::TTTTTTT,,,,,T,,,,,TTT
-TTT,,,,,,,,,,,,,,,T,,T,,,,,,TTTTTT,,,,,,T:::,TTTTTTTT,,T,,,,,,TT
-TT,,,,,,,,,,,,,,TTTTTT,,,,,,T,,,,,,,,,,,,,::,TT,TTTTTTTTT,,,,,TT
-TTT,,,,,,,,,,,,,,TTTTT,,,,,,,,,,,,,,,,,,,,:::,,,TTTTTTT,,,,,,,TT
-TTT,,,,,,,,,,,,TTTTTT,,,TT,,,,,,,,,,,,,,,,,:::,,,TTTTT,,,,,,,,TT
-TT,,,,,,,,,,,,,,,TTTTTTTTTTTT,,,,,,,,,,,,,,,::,,,,TTTT,,,,,,,TTT
-TT,,,,,,,,,,,,,,,TTTTTTTTTTTTT,,,,,,,,,,,,,,:::,,,,,TT,,,,,,TTTT
-TT,,,,,,,,,,,,,,,TTTTTTTTTTTT,,,,,,,,,,,,,,,,::,,,,,,,,,,,,,TTTT
-TT,,,,,,,,,,,,,,,,TTTTTTTT,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,TTTT
-TT,,,,,,,,,,,,,,,TTTTTTTTT,,,,,,,,,,,,,,,,,,,,::,,,,,,,,,,,,TTTT
-TT,,,,,,,,,,,,,,,,,TT,TTTT,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,TTTT
-TT,,,,,,,,,,,,TTT,TT,,TTTTTTT,,,,,,,,,,,,,,,,T,:::,,,,,,,,,,TTTT
-TT,,,,,,,TTTTTTTTTTT,,,,,TTTTT,,,TTTTTTTTTTTTTT,:::,,,,,,,,,TTTT
-TTTTTTTTTTTTTTTTTTTTT,,,TTTTTTTTTTTTTTTTTTTTTTTTT:::,,,,,,,,TTTT
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT:::TTTTTTTTTTT
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT^:TTTTTTTTTTT
+TTTTTTTTTTTTTTTTTTT:^:TTRRRRRRRRRRTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+TTTTTTTTTT.....TTTT:::BBBBBBBRRRRRTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+TTTTT..........TTTT:::BBBBBBBTTTTTTTTTTTTBBBBBBTTTTTTTTTTTTTTTTT
+TTTTT..........TTTT:::BBBBBBBTTTTTTTTTTTTBBBBBBTTTTTTTTTTTTTTTTT
+TTTTT..........TTTT:::BBBBBBBTTTTTTTTTTTTBBBBBBTTTTTTT.TTTTTTTTT
+TTTTT..............:::BBBBBBBTTTTBBBBBBTTBBBBBB...TTTT....TTTTTT
+TTT...T............:::BBBBBBB#TTTBBBBBBTTBBBBBB...........TTTTTT
+TTT...T...........F:::BBBBBBBFFFFBBBBBBT#BBBBBB...........TTTTTT
+TTTT..TT..........F:FF:::D:::::::BBBBBB#FFFDFFFF..........TTTTTT
+RRRTTTTT..........F:FF:::::::::::BBBBBBF::::::::F.........TTTTTT
+RRRTTTTT..RR..TTTTF:::FF:FF:FF:::BBBBBBF:F:F:F::F.........TTTTTT
+RRRTTTTT.RRR..TTTTTT:::::::::::::BBBBBBF::::::::F.........TTTTTT
+RRRTTTTRRRRR....TTTT::FF:FF:F::::BBBBBB#F:::FFFF..........TTTTTT
+RRRTTTTTRRRR...TTTTT:::::::::::FRFFFDFFFF:::F.............TTTTTT
+RRRTTTTTRRRR...TTTTT:::::::::::FF:::::::::::F...........TTTTTTTT
+RRRTTTTTTT.....TTTTTFFFFFFFFFFF.F:::::::::::F...........TTTTTTTT
+RRRTTTTTT....T.TT.T...,,,,,,,,..F:F:F:F:F:::F.....TTTT..TTTTTTTT
+RRRTTTTTT.TT..........,,,,,,,,..F:::::::::TTTT....TTTTTTTTTTTTTT
+RRRTTTTT..TT...........,,,TT,,...FFFFF:::FTTTT....TTTTTTTTTTTTTT
+TTTTTTTT..TT............TTTT,,.......F:::FTTTTT...TTTTTTTTTTTTTT
+TTTTTTTTTTTTT........TTTTTT.........TF:::T.TTTTT.T..TTTTTTTTTTTT
+TTTTTTTTTTTTTT.......TTTTTTT........TT:::T.TTTTT.T..TTTTTTTTTTTT
+TTTTTTTTTTTTTTTT.....TTTTTTT........TT:::F..TT...T..TTTTTTTTTTTT
+TTTTTTTTTTTTTTTT.....TTTTTTT.......TTT:::F.......T..TTTTTTTTTTTT
+TTTTTTTTTTTTTT.......TTTTTT......TTTT::::F..........TTTTTTTTTRRR
+TTTTTTTTTTTTTT........TT.........TTT:::::F............TTTTTTTRRR
+TTTTTT...TTTTT............T......TF::::::F..........,,TTTTTTTRRR
+TTTTTT....TTT.....TT.........FFFFFF:::::F...........,,,,TTTTTRRR
+TTTTTT..TT......TTTTTT......F::::::::::F.............,,,TTTTTRRR
+TTTTTT...T......TTTTTT.....FF::::::::::F..............,,TTTTTRRR
+TTTT......TT....TTTTTT....F::::::::::::F..........TTT.TTTTTRTRRR
+TTTT............TTTTTT....F::::::::::::...........TTTTTTTTRRTRRR
+TTTRRR.........TTTTTTT....F:::::@:::::::::::.....T..TTTTTRRRRRRR
+TTTRRRRRR...........T.....F:::::::::::::::::........TTTTTRRRRRRR
+TTTTTRRRRRTTTTTTTT........F:::::::::::::::::........TTTTTTRRRRRR
+TTTTTRRRRRTTTTTTTT........F:::::*::::::............TTTTT..RRRRRR
+RRTTTTTTTTTTTTTT..........F::::::::::::F.....,,,....TTT......TRT
+RRTTTTTTTTTTTTTT..........F:::::::BBBBBBBB.,,,,,.............TTT
+RRTTTTTTTTTTTTTTTT........F:::::::BBBBBBBB...,,,,,,,....TTT..TTT
+RRTTTTTTTTTTTTTTTT.........FF:::FFBBBBBBBB...,,,,,,,....TTTTTTTT
+RRTTTTTTTTTTTTTT............T:::F#BBBBBBBB.,,,,,,,,,,,...TTTTTTT
+RRTTTTTTTTTTTTTT............T:::F#BBBBBBBB.,,,,,,,,,,,.TTTTTTTTT
+RRTTTTTTTTTTTTTTTT...T......T:::F#BBBBBBBB..,,,,,,,...TTTTTTTTTT
+RRTTTTTTT,,T,T,,T...TTTT....T:::TTBBBBBBBB...,,,,,....TTTTTTTTTT
+RRTTTTTTT,,,,,,,...TTTTTTTTTT:::TFBBBBBBBBFFFF.BBBBBBBBTTTTTTTTT
+RRTTTTTTT,,,,,,,..TTTTTTTTTTT::::::::D::::::::FBBBBBBBBTTTTTTTTT
+RRTTTTTTTTTT,,,...TTTTTTTTTTT:::F:F:F:::::::::FBBBBBBBBTTTTTTTTT
+TTTTTTTTTTTT,,....TTTTTTTTTTT:::::::::::::::::FBBBBBBBBTTTTTTTTT
+TTTTTTTTT.T......TTTTTTTTT..F:::::::::::::::::FBBBBBBBBTTTTTTTTT
+TTTTTTTTT.....RR..TTTTTTTT...FFFFFFFFFFFFFF:::FBBBBBBBBTTTTTTTTT
+TTTTTTTTTT...RRRR,....TTTT................F:::FBBBBBBBBTTTTTTTTT
+TTTTTTTTTT...RRRR,......TT................F:::RRRRDRRFTTTTTTTTRR
+TTTTTTTTTT..RRRRR,,,TTTT..................F:::::::::::::TTTTTTRR
+TTTTTTTTTTTT,R,,,,,,,T....................F:::::::::::::TTTTTTRR
+TTTTTTTTTT..,,,,,,,,,,,T..TT..:::::::::...F:::F:F:::F:::FTTTTTRR
+TTTTTTTTTTT.,,,,,,,T,TTTTTTT..::::::::::..F:::::::::::::FTTTTTRR
+TTTTTTTTTTTT,,,,,,,TTTTTTTTTT::::::::::::::::F::::::FFFFTRRRTTRR
+TTTTTTTTTTTT,,,TTTTTTTTTTTTT:::::TT.::::::::::::::::....RRRRRTRR
+TTTTTTTTTTTTT,.TTTTTTTTTTTT::::::TT.R:::::::::::::::...RRRRRRRRR
+TTTTTTTTTTTTTTTTTTTTTTTTTTT:::::TTT.RRRRR.::::::::::....RRRRRRRR
+TTTTTTTTTTTTTTTTTTTTTTTTTTT:::::TTTRRRRRTT.:::::::....TRRRRRRRTT
+TTTTTTTTTTTTTTTTTTTTTTTTTTT::::::::R#RRRTT............TTRRRRTTTT
+TTTTTTRRRRRRRRRRRRTTTTTTTTTT:::::::TRRTTRTT............TTTTTTTTT
+TTTTTTRRRRRRRRRRRRTTTTTTTTTTTTTT:^:TTTTTTTTTTTTTTTTTTTTTTTTTTTTT

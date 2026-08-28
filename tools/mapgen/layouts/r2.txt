@@ -1,9 +1,8 @@
-# SEEDED STARTING LAYOUT for "r2" — NOT A FINISHED MAP. Edit it by hand.
+# AUTHORED LAYOUT for "r2" — Brackmarsh. Hand-designed, not seeded output.
 #
-# Written by tools/mapgen/seed.ts. It knows four things about this node: which edges its
-# adjacency declares, where its props stand, what biome it is, and whether it is a settlement.
-# It does not know what this place looks like. Re-running the seeder OVERWRITES hand edits
-# unless --force is withheld; the renderers read this file, not the seeder.
+# The tile composer stamps one tile per character and collision is normalised from the same
+# characters, so painting and collision correspond by construction and THIS FILE IS THE MAP.
+# Re-running tools/mapgen/seed.ts over it would overwrite a design, not a draft.
 #
 # ── coordinate space ─────────────────────────────────────────────────────────
 # space        map-native pixels, origin TOP-LEFT (data/nodes/*.json props[].x/y are in this space)
@@ -14,19 +13,94 @@
 # col ← x      col = floor(nativeX / 16);  a cell's centre is native (16·col + 8, 16·row + 8)
 # centre       native (512, 512) = cell (32, 32) = the tile firstWalkableTile starts on
 #
-# ── seeded from ──────────────────────────────────────────────────────────────
-# biome        Marsh
-# adjacency    brackwater, bowerdeep
-# bottom edge  brackwater
-# top edge     bowerdeep
-# settlement   no — zero building footprints
+# ── authored from ────────────────────────────────────────────────────────────
+# biome        Marsh (data/nodes/r2.json)
+# adjacency    brackwater = BOTTOM edge, bowerdeep = TOP edge. Two mouths, no side mouths.
+# subject      tools/comfy/manifest.json _nodes.r2 — "mostly dark open water: wide brackish marsh
+#              of black shallow water, brown peat banks, reed clumps and half-sunken dead trees…
+#              One narrow weathered plank boardwalk winds the length of the picture in wide
+#              shallow S-bends, deep channel water on its left and open shallows on its right,
+#              crossing the exact middle of the picture on bare planking with nothing on it,
+#              dropping at the bottom onto a mud landing of rotting mooring posts and a leaning
+#              jetty toward the stilt town, and reaching firm peat at the top toward the forest."
+# shipped line amb.r2-ferryhand.base — "Channel's on your left going out. Shallows on your right."
+#              The asymmetry is unconditional, so every row of this grid obeys it: deep water WEST
+#              of the planks, wadeable shallows EAST of them, the whole length of the map.
+# settlement   no — zero building footprints, and therefore no doors (checkSettlementOnly)
 # props        r2-antler-causeway @ (268,402) → cell (16,25); r2-idol-shallows @ (664,612) → cell (41,38)
+#              Both sit where data/nodes/r2.json puts them. Neither had to move.
+#
+# ── the design, and why the walk bends where it does ─────────────────────────
+# · ONE boardwalk (:) three cells wide runs mouth to mouth in two wide shallow bends. It is the
+#   only built thing on the route and the only way across without wading.
+# · The water DEEPENS from north to south, because Brackwater is a stilt town on the water and
+#   Bowerdeep is forest: a creek head two cells wide under the treeline at the top, a ferry
+#   channel fifteen wide at the bottom. That gradient is why no two screens of this map repeat.
+# · FIRST BEND, west (rows 16–33): a peat shelf — the causeway — is the one piece of firm ground
+#   on the channel side, and the walk climbs onto it rather than staying out on piles. The
+#   leaning antler stone stands at the shelf's western lip, cell (16,25), where the peat drops
+#   into the channel: "leans downhill toward the water", with the shelf banked against its
+#   uphill side. Eight cells of peat separate it from the planks — a short walk off the route,
+#   which is the only reason to leave the boardwalk on the deep side.
+# · SECOND BEND, east (rows 36–52): the channel opens out below the middle, so the walk is
+#   pushed east onto the shallow flats. The sunken idol stands out in the shallows at (41,38),
+#   five cells east of the planks, in a clearing the reed beds leave around it — "where the
+#   reeds thin, turned back to face the town".
+# · CENTRE (32,32) is bare planking with nothing on it, as the subject line requires. The
+#   channel runs along its west side and open shallows along its east: the middle of the map is
+#   the moment the asymmetry is most legible.
+# · BOTTOM: the planks drop onto a mud landing (rows 55–62), rotting mooring posts (F) standing
+#   off both lips of it, and the jetty carries the walk out to the bottom edge between its two
+#   rails — so the mouth toward Brackwater is a place, not a line leaving a blank frame.
+# · TOP: firm brown peat under the forest edge of Bowerdeep, the treeline closing the frame with
+#   the mouth cut through it.
+# · NO BORDER RING. The frame is landscape: a drowned wood of dead-tree stands cut by black
+#   water on the west, open water and standing snags on the east, forest at the top, the ferry
+#   channel at the bottom. Blocked-margin depth runs 3–38 cells and is never uniform.
+#
+# ── encounter terrain (the "," cells) ────────────────────────────────────────
+# · 408 of 1657 walkable cells = 24.6%, against data/balance.json encounterTileFraction 0.25.
+# · 14 patches, largest 110 cells, smallest 7: reed beds ON the peat banks (a player reads "reeds grow where
+#   the ground is firm"), plus reed clumps standing in the open shallows.
+# · None within four cells of (32,32): the arrival apron is bare on every entry.
+# · The boardwalk itself carries no encounter cell and is kept two cells clear of them, so a
+#   player who stays on the planks crosses the whole route without a forced encounter — verified
+#   bottom mouth to top mouth. Everything worth catching is off the planks, in the reeds.
+# · NOTE: the engine does not gate encounters on these cells yet (encounterTileFraction is a
+#   scalar and rolls uniformly). Deriving the mask from this grid is a code-lane ticket; the art
+#   leads here deliberately.
+#
+# ── anchors: what the composer must stamp UNDER them ─────────────────────────
+# Anchors are documentary and flatten to terrain. Where they sit is not arbitrary:
+#   @ (32,32)  boardwalk plank — ":" . The centre must stay bare planking.
+#   ^ (33, 0)  boardwalk plank — ":" , the mouth onward to bowerdeep.
+#   ^ (31,63)  jetty plank     — ":" , the mouth back to brackwater.
+#   * (16,25)  peat bank       — "." , the antler stone's shelf.
+#   * (41,38)  shallow water   — "~" , the idol stands in the water, not on a bank.
+#
+# ── verified (tools/mapgen/verify.ts semantics, re-run over this body) ───────
+# edge runs      top [(32,34)] · bottom [(30,32)] · left [] · right [] — sides sealed, one mouth each
+# arrival        (32,32) walkable, nothing built and no encounter cell within three cells of it
+# reachability   1657 walkable cells, 1657 reachable from the arrival tile, zero marooned
+# anchors        every mouth and both props reachable; no doors exist to be unreachable
+# paths          one ":" component of 205 cells, containing BOTH mouths; no path ends in open ground
+# frame          border ring uses ":" "F" "T" "W" "^" — not a uniform one-cell wall
 #
 # ── decisions this file made ─────────────────────────────────────────────────
-# · a spur was cut from the lane to prop "r2-antler-causeway" at cell (16,25)
-# · a spur was cut from the lane to prop "r2-idol-shallows" at cell (41,38)
-# · prop "r2-antler-causeway" sits on a path-corridor cell at (16,25); the anchor character takes the cell and the cell stays walkable
-# · prop "r2-idol-shallows" sits on a path-corridor cell at (41,38); the anchor character takes the cell and the cell stays walkable
+# · THE PLACE. A brackish marsh crossed on one plank boardwalk, with the deep channel on the
+#   walk's left going out and the wadeable shallows on its right for the whole length of the
+#   map — that split is shipped dialogue (amb.r2-ferryhand.base), not a stylistic choice, and
+#   nothing else in the region can borrow it without contradicting a line the game speaks.
+# · THE ARRIVAL APRON IS CLEAR. Seven cells of deep channel used to sit inside the 7x7 box
+#   around (32,32) — open water two rows from the tile the player lands on at every entry.
+#   The channel is pulled back and its mass carried further west instead.
+# · THE JETTY AND THE BOTTOM MOUTH MOVED TO COL 38, to sit exactly on brackwater's top mouth;
+#   the seam used to snap thirteen columns sideways. The jetty now runs out over the shallows
+#   from the east side of the mud landing, between its rails, which is what a jetty does.
+# · ONE BOARDWALK, three planks wide, one connected run containing both mouths, no spur.
+#   The antler stone and the idol are reached by walking off the planks, never by a spur.
+# · ENCOUNTER TERRAIN. 24.7% of walkable, on the peat banks and in the reed clumps, none of it
+#   on the boardwalk, so the route can be crossed without a forced roll.
 #
 # ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
 #   .  floor  open-ground         plain walkable ground; the default fill
@@ -45,71 +119,76 @@
 #   ^  ANCH   edge-mouth          the cell where a corridor meets the map edge; one per declared adjacency
 #   D  ANCH   door-anchor         the walkable cell a building is entered from
 #
+# In this map: "." is brown peat bank, "," is reed bed, ":" is weathered plank, "~" is black
+# shallow water, "W" is the deep channel, "T" is half-sunken dead trees and the forest edge,
+# "F" is mooring posts and jetty rail. "o", "B", "R" and "D" are unused — no clearing, no
+# building, no rock, no door on this route.
+#
 # Only "#"-class characters block. tools/mapgen/layout.ts normalises every WALL character to "#"
 # before game/collision.ts gridFromAscii sees it; ANCH characters parse as floor and are read again
 # on a second pass. Region kinds are open strings — add a row to the legend, not a case to a switch.
 ---
-WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW:^:WWWWWWWWWWWWWWWWWWWWWWWWWWWWW
-WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW::::WWWWWWWWWWWWWWWWWWWWWWWWWWWWW
-WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW::::WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW
-WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW:::WWWWWWWWWW....W....WWWWWWWWWWWW
-WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW::::.WWW.W..................WWWWWW
-WWWWWWWWWWWWWWWWWWWWWWWWWWWWWW::::........................WWWWWW
-WWWW........W........WWWWWW..::::..........................WWWWW
-WWW.........................::::..........................WWWWWW
-WWW.........................:::...........................WWWWWW
-WWW........................::::............................WWWWW
-WWW........................:::.............................WWWWW
-WWW........................:::............................WWWWWW
-WWW....................WWW::::............................WWWWWW
-WWW..................WWWW::::.............................WWWWWW
-WWWW................WWWWW::::.W............................WWWWW
-WWW.................WWWWWW:::WW.............................WWWW
-WWW..................WWWWW:::.W.............................WWWW
-WWW.................WWWWWW:::..............................WWWWW
-WWWW................WWWWWW::::..............................WWWW
-WWW................WWWWWWW.::::.............................WWWW
-WWW.................WWWW....::::............................WWWW
-WWW..................W.......::::............................WWW
-WWW...........................:::............................WWW
-WWW..............W...........::::...........................WWWW
-WWW...............W.........::::.............................WWW
-WWW.............*::::::::::::::..............................WWW
-WWW...............WW........:::.............................WWWW
-WWW...............WW........::::.............................WWW
-WWW..............WW..........::::.........W..................WWW
-WWWW......................oooo::::........WWW................WWW
-WWWWW....................oooooo::::......WWW.................WWW
-WWWWW....................oooooo::::......WWW.................WWW
-WWWWWW...................oooooo:@::o.....WWW..W..............WWW
-WWWWWW...................ooooooo::::.....WWWWWW..............WWW
-WWWWWW....................oooooo:::::....WWWWW...............WWW
-WWWWWW....................ooooo::::::....WWWW................WWW
-WWWWWW....................ooooo:::o:::..WWWWW................WWW
-WWWWW.....................ooooo:::o.:::::..W.................WWW
-WWWWWW.....................ooo::::.....::*:W.................WWW
-WWWWW...........W..........ooo:::............................WWW
-WWWW...........WW.............:::...........................WWWW
-WWWW..........WWWWW........W.::::............................WWW
-WWWW...........WWWW........W.:::...................WW........WWW
-WWWWW..........WWWW...W...WWW::::..................WWW.......WWW
-WWWWW.........WWWWW...WWWWWWW::::................W.WW.WW.....WWW
-WWWWW.........W.WWW....WWWWWW:::W...............WWWWWWWW.....WWW
-WWWWW...........WW.....WWWWW::::W...............WWWWWW.W..W.WWWW
-WWWWW..................WWWW::::WWWW.............WWWWWWWWWWW..WWW
-WWWWW....................WW:::WWWWWW.............WWWWWW......WWW
-WWWWW.....................W::::W.WWW............WWWWWWWW.....WWW
-WWWWW......................W:::W.W..............WWWWWW.......WWW
-WWWWWW......................::::W...............WWWWW........WWW
-WWWWWWW......................:::W...............WWWW.........WWW
-WWWWWWW.....................::::.................WWW.........WWW
-WWWWWWW.....................:::...................W..........WWW
-WWWWWWW.....................:::..............................WWW
-WWWWWWW.....................::::.............................WWW
-WWWWWWW......................:::....................W.WWWW...WWW
-WWWWWW.......................::::...........WWWW.WWWWWWWWWWW.WWW
-WWWWWW..W............WWW.....W:::..........WWWWWWWWWWWWWWWWWWWWW
-WWWWWWWWWWW..WWW..WWWWWWWWWWWW::::....WWWWWWWWWWWWWWWWWWWWWWWWWW
-WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW::::WWWWWWWWWWWWWWWWWWWWWWWWWWWWW
-WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW::::WWWWWWWWWWWWWWWWWWWWWWWWWWWW
-WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW:^:WWWWWWWWWWWWWWWWWWWWWWWWWWWW
+TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT:^:TTTTTTTTTTTTWWWWWWWWWWTTWWWWW
+TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT:::TTTTTTTTTTTTTWWWWWWWWWWTTTWWWW
+TTTTTTTTTTTTTTTTTTTTTTTTT......:::..........TTTTTWWWWWWWWTTWWTTT
+TTTTTTTTTTTTTTTTTTTTTTTTT.....:::.........,..TTTWWWWWWWWWWTWTTTT
+TTTTTTTTTTTTTTTTTTTTTTTTT....:::.........,,T,,TTTWWWWWWWWWWWTTTT
+TTTTTWWTTTTTTTTTTTTTTTTTT...:::........,,,,,,,..~~~WWWWWWWWWTTTT
+WTTTWWWTTTWWWTTTTTTWWTTWW..:::..........,,,,W......~~WWWWWWWTTTT
+WWWWTWWTTTWWTTTTTTWWWWW...:::.............TWWWW.,,.~.WWWWWWWTTTT
+WTTTTTTTTTWWTTTWWWWWWWWWW:::,,,,.........TTWWWWW,,,,.WWWWWWTWTTT
+TTTTTTTTTTTWTTTTWWWWWWWW:::,,,,,,.......,,WWWWW,,,,,,..WWWTTTTTT
+TTTTTTTTTTWTTTTTTWWWWWW:::.,,,,,,......,,,,WW,,,,,,,..~WWWTTTTTT
+TTTTTTTTTTTTTTTTTWWWWW:::~...,,......TT.,,,,,,,,,,,,,,,~..TTTTTT
+TTTTWTTTWWWTTTTTWWWWWW:::T~~~,,,~~~~~TT.,,,,,,,,,,,,.,...WWTWWWW
+TWWWWWWWWWWWWWWWWWWWW:::T~~~~,,,~~~~...,,,,,,,,,,,TT,,,,,,,~WWWW
+WWWWWTTTWWWWWWWWWWWW:::~~~~~~,,,~~~~~.,,,,,,,,,,,,TT....,,WWWWWW
+WWWWWTTTWWWWWWWWWWWW:::~~~~~~~~~~~~..,,,,,,.,.......~.~.,..WWWWW
+TTWWTTTTTWWWWWWWWWW.:::~~~~~~~TT~~~.,,,,,,....~...~.......WWWWWW
+TTTWWTTTTWWWWWWWWWT.:::~~~~~~~TT~~~..,,,,,.~~~~~~~..~,.,..~~~WWW
+TTTWWTTTWWWWWW....T.:::~~~~~~~~~~~~~~,,,,,W~~~~~~~...,,,,,.~.WWW
+WTTTWWWWWWWWWW.......:::~~~~~~~~~~~~~.,WWWWW~~~~~~.~,,,,,,,WWWWW
+WTTTTTWWWWWWWW.......:::~~~~~~~~,,,,~.WWWWWWT~~~~~~.,,,,,,,WWWWW
+WWTTTTTWWWWWW.........:::~~~~~~,,,,,,.~WWWWWTT~~~~..,,,,,,WWWWWW
+WTTTTTTWWWWW..........:::~~~~~~~,TT,~~WWWWWW~~~.~...,,,,,WWWWWWW
+TTTTTTTTWWWWW..........:::~~~~~~~TT~~~~WWWWW~~..~..~~....WWWWWWW
+WTTTTTTTTTWWW..........:::~~~~~~~~~~~~~~WW~~~.~.,,,......WWWWWWW
+WTTWTTTTTTWWWW..*..,....:::~~~~~~~~~~,,,,,~.~~,,,,,,,....WWWWWWW
+TTTTTTTTTTTWWWW....,,....:::~~~~~~~~~,,,,,~...,,,,,,,,,WWWWWWWTT
+TTTTTTTTTTTWWWW....,,,....:::~~~~~~~~~,,,....,,,,,,,,,,WWWWWWTTT
+TTTTTTTTTTWTTWTT,,,,,,.....:::~~~~~~~~~~.....,,,,,,WW,,...WWWTTW
+TTTTTTWTTWWTTTTTT,,,,,,.....:::~~~~~~~~~......,,,,WWWWW.~WWWWWWW
+WTTTTWWWWWWTTTTTTT,,,,,......:::~~~~~T~......,,,,WWWWWWW~WWWWWWW
+WTTTTTWWWWWTTTTTTTT,,,........:::~~~TT,,.......,,,WWWWW...WWWWWW
+TTTTTTTWWWWTTTWTTTT,,..........:@:~~~,,,...,,,~.,,..W...~~WWWWWW
+TTTTTTTTTWWWWTTTWWWW...........:::~~~,,,,,,,,,~.T.....,~~.WTTTWW
+TTTWTTTTTTTWTTTTTTWWWWWWWWTWW~~~:::~~,,,,.~,,~~TT....,,~..TTTTTW
+TTTTWTTTTWWWTTTTTTWWWWWWWTTWW~~~~:::~,,,,~~~~~~~~~,,,,,....TTTWW
+TTTTTTTTWWWWTTTTTWWWWWWWWWWWWWWWW:::~~~~~~~~~~~~~~,,TT~......WWW
+TTTTTTTTWWWWWTTTWWWWWWWWTWWWWWWWWW:::~~~~~~~~~~~~~,,TT......TTTW
+TTTTTTTTWWWWWTTWWWWWWWWTTWWWWWWWWW:::~~~~*~~~.~~...,~~~.....TTTT
+TTTTTTTTWWTTTTTWWWWWWWWWWWWWWWWWWWW:::~~~~~~~....~..~~~....WTTTW
+WTTWTTTTTWTTTWWWWWWWWWWWWWTTWWWWWWW:::W~~~.......,....~....,~TTT
+WWWWWTTTTTTTTWWWWWWWWWTTWWTTWWWWWWWW:::W~~~..,,,,,.....~..,,TTTT
+WWWWTTTTTTTWWWWWWWWWWWTWWWWWWWWWWWWW:::~~~...,,,,,,,,..~,,,,TTTT
+WWWWWTTTTTWWWTWWWWWWWWWWWWWWWWWWWWWWW:::~~~.,,,,,W,,,,..,,,WWTTT
+WWWWWTTTTTTTTTTWWTTWWWWWWWWWTWWWWWWWW:::~...,,,WWWW,,,...,,WWTTT
+WWWWTTTWTTTTTTTTWWTWWWWWWWWWTWWWWWWWW:::~..,.,,WWWWWW,..TTWWTTTT
+WWWWTTTWTTTTTTTTWWWWWWWWWWWWWWWWWWWWWW::~~.,,,WWWWWWW,~.TTWWWTTT
+WWWWTTTWTTTTTTTTTWWWWTTWWWWWWWWWWWWWW:::.~....WWWWWW...~TTWWWWTW
+WWWWWTWWWTTTTTTTTWWWWTWWWWWWWWWWWWWWW:::,.,~....WWWW~.~~~TTWWWTT
+WWWWWTTTWTTTTTTTWWWWWWWWWWWWWWWWWWWWW:::,,,.~.~~W.W~~.~~TTTWTTTT
+WWWWWTTTWWTTTTTTWWWWWWWWWWTTWWWWWWWW:::,,,,...~~.~....TTTTTWTTTT
+WWWWWTTWWWWWTTTTWWTTWWWWWWWTWTWWWWWW:::,,,,,,.~~~....WTWTWTTTTTT
+WWWWWWWWWWWWWTTTWWWWWWWWWWWWWTTWWWW:::WWW,,,..~~~...WTTTWWWTTTTT
+WWWWWWTTTWWWWTTTWWWWWWWWWWWWWW:::::::WWWWW,,,~~~~...WTTTTWWTTTTT
+TTWWWTTTTTTWWWTWWWWWWWWWWWWWWW:::::::WWWW,,,.~~~~.WWTTTTTWWTTTTT
+TTWWWWTTTTWWWWWWWWWTWWWWF.......:::..W.WWW~~~~~~~WWWTTTTWWWWTTTW
+TTTWWTTTTTWWWWWWWWWTTWWW........:::..F~.WW~~~~~~~WWWTTTTTWWWTTTT
+TTWWWTTTTTTTTWWWTWWWWWF..........:::.F.~~~~~~~~WWWWWTTTTTTWWWTWT
+TTWWWTTTTTWTTTWTTWWWWWW.F...,,..F.:::~~.~~~~~~~~WWWTTTTTTTWWWWTT
+WWWWWTTTTTWTTWTWWWWWWWW.T..,,,.....:::~~~~~~~~WWWWWTTTTTTTWWWWTT
+WWTWWWWWWTTTWTTTWWWWWWWFWW..,,....F.:::~F~~~~WWWWWWTTTTTTWWWWWTT
+WTTTWWWTTTTTWTTTWWWWWWWWWWW..F...FWF:::~FF~TTWWWTTWTTTWWWTTTTTWT
+WWTWWTTTTTTTWTTTWWWWTTWWWFWW.F...FWFF:::FFWTTTWWTTTTTTWWWTTTTTWW
+WWWWWWWTTTTTWTTTWWWWTWWWWWFWWFWWWFWFF:^:FFWTTWWWTTTWWWWWWTTTTTWW

@@ -1,9 +1,8 @@
-# SEEDED STARTING LAYOUT for "r3" — NOT A FINISHED MAP. Edit it by hand.
+# LAYOUT for "r3" — Bowerdeep Wilds. Hand-authored. THIS FILE IS THE MAP DESIGN.
 #
-# Written by tools/mapgen/seed.ts. It knows four things about this node: which edges its
-# adjacency declares, where its props stand, what biome it is, and whether it is a settlement.
-# It does not know what this place looks like. Re-running the seeder OVERWRITES hand edits
-# unless --force is withheld; the renderers read this file, not the seeder.
+# The composer stamps one tile per character, so the painting and the collision both come
+# out of this grid and cannot disagree about a wall. Every trunk, every patch of fern, the
+# trail, the cut ground and the stone are placed below, cell by cell, on purpose.
 #
 # ── coordinate space ─────────────────────────────────────────────────────────
 # space        map-native pixels, origin TOP-LEFT (data/nodes/*.json props[].x/y are in this space)
@@ -13,18 +12,38 @@
 # tiles        64 × 64 movement tiles of 32 world px
 # col ← x      col = floor(nativeX / 16);  a cell's centre is native (16·col + 8, 16·row + 8)
 # centre       native (512, 512) = cell (32, 32) = the tile firstWalkableTile starts on
+# screen       the player sees 15 × 10 cells at once
 #
-# ── seeded from ──────────────────────────────────────────────────────────────
+# ── authored from ────────────────────────────────────────────────────────────
 # biome        Forest
 # adjacency    bowerdeep, cindershelf
-# bottom edge  bowerdeep
-# top edge     cindershelf
-# settlement   no — zero building footprints
-# props        r3-antler-canopy @ (430,336) → cell (26,21)
+# bottom edge  bowerdeep — down toward the canopy town.  ONE mouth, ^ at (20,63), on bowerdeep's top mouth
+# top edge     cindershelf — up onto bare stone toward the ash country.  ONE mouth, ^ at (22,0), on cindershelf's bottom mouth
+# settlement   no — zero building footprints, zero doors; this is a route
+# props        r3-antler-canopy @ native (430,336) → cell (26,21), placed where the JSON puts it
+# subject      tools/comfy/manifest.json _nodes.r3: dark forest floor under closely spaced
+#              slender trunks; one narrow trodden trail from the foot of the picture to the
+#              top, doubling back on itself twice where the ground steepens; a small felled
+#              clearing well above and right of the middle with fresh stumps and one stack of
+#              cut logs set back off the trail; the trail bare dirt with nothing on it at the
+#              exact middle; a granite stone wedged between two trunks above and left of it.
 #
 # ── decisions this file made ─────────────────────────────────────────────────
-# · a spur was cut from the lane to prop "r3-antler-canopy" at cell (26,21)
-# · prop "r3-antler-canopy" sits on a path-corridor cell at (26,21); the anchor character takes the cell and the cell stays walkable
+# · THE PLACE. A forest slope climbed by one narrow trodden trail that doubles back twice, each
+#   hairpin wrapping a rock nose so the reversal has a reason on the ground. The felled clearing
+#   sits well above and right of the middle, set back off the trail; the antler stone is wedged
+#   between two trunks above and left of it. Both are reached across the forest floor — there is
+#   deliberately no spur to either, because a spur on a route can only end in open ground.
+# · THE TOP THIRD WAS REBUILT. It was a one-cell dither of alternating rock and trunk — the
+#   "confetti" texture four routes shared, and the single most template-looking thing in the set.
+#   It is now trunk CLUMPS of five different shapes on a jittered lattice with real floor between
+#   them, under one stony apron with a lobed lower edge where the ground goes bare toward the
+#   ash country.
+# · 92 MAROONED CELLS ARE GONE. Ninety-two single walkable cells were sealed inside the canopy,
+#   unreachable from the arrival tile; each would have stamped one bare-ground tile inside a solid
+#   wood. Every walkable cell on this map is now reachable from (32,32).
+# · THE TOP MOUTH MOVED TO COL 22, to sit on cindershelf's bottom mouth; the seam used to snap
+#   seventeen columns sideways.
 #
 # ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
 #   .  floor  open-ground         plain walkable ground; the default fill
@@ -43,71 +62,79 @@
 #   ^  ANCH   edge-mouth          the cell where a corridor meets the map edge; one per declared adjacency
 #   D  ANCH   door-anchor         the walkable cell a building is entered from
 #
+# This file uses 'o' for the felled clearing's cut ground rather than for the map centre: the
+# subject line says the middle is trodden trail with nothing on it, and a clearing is what 'o'
+# means. The legend has no stump character and no log-stack character, so the stumps are drawn
+# with the tree-mass char 'T' as single isolated cells and the log stack with 'F', the timber
+# barrier; 'R' carries the crags and the short flat bars of bare rock lying across the slope
+# where the ground steepens. The blaze marks on the standing trunks have no character at all —
+# that is a tile-level mark, recorded as open in _notes-r3.md rather than invented here.
+#
 # Only "#"-class characters block. tools/mapgen/layout.ts normalises every WALL character to "#"
 # before game/collision.ts gridFromAscii sees it; ANCH characters parse as floor and are read again
 # on a second pass. Region kinds are open strings — add a row to the legend, not a case to a switch.
 ---
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT^:TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTT::TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTT:::TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
-TTTTTTT,TTTTTTT,TTTTTTTTTTTT:::TTTTTTTTTTTTTTTTTTTTTTTTTTT,TTTTT
-TTTTTT,,,,,,,,,,,,,,,,,,,,,:::,,TTTTTTTTTTTTTTTTTTTT,TTTT,,TTTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,::,,,,,,TTTTTTTTTTTT,,,,,,,,,,,,TTTTT
-TTTTT,,,,,,,,,,,,TT,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTT
-TTTT,,,,,,,,,,,,,TT,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTT
-TTTT,,,,,,,,,,,,TTTTTTT,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTT
-TTTT,,,,,,,,,,,,,,TTTTT,T,,,,,::,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTT
-TTTT,,,,,,,,,,,,,TTTTTTTTTT,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTT
-TTTT,,,,,,,,,,,,,TTTTTTTTTT,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTT
-TTTT,,,,,,,,,,,,,TTTTTTTTTT,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTT
-TTTT,,,,,,T,,,,,,TTTTTTTTTTTT:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTT
-TTTT,,,,,TTTTTTT,,,,TTTTTTTTTT:::,,,,,,,,,,,,,,,,,TT,,,,,,,,,TTT
-TTTTT,,,,T,TTT,,,,,,,TTTTTTTTTT:::,,,,,,,,,,,,,T,,T,,T,,,,,,,TTT
-TTTTT,,,TT,TTT,,,,,,,,TTTTTTTT:::::,,,,,,,,,,,,TTTTTTTT,,,,,,,TT
-TTTTTT,,TTTTTTT,,,,,,,,,TTTTTT::T:::,,,,,,,,,,,TTTTTTTT,,,,,,,TT
-TTTTT,,,TTTTTTT,,,,,,,,,TTTT::::TT:::,,,,,,,,,,TTT,TTTTT,,,,,TTT
-TTTTT,,TTTTTTTT,,,,,,,,,,,TT::TTT,,:::,,,,,,,,TTTTTTTTTT,,,,,TTT
-TTTTTT,,TTTT,T,,,,,,,,,,,,,,::TTTT,,:::,,,,,,,,,TTTTTTTT,,,,,TTT
-TTTTTT,,,,T,,,,,,,,,,,,,,,*:::TTTT,,,:::,,,,,,,,,,,TTTT,,,,,,TTT
-TTTTTT,,,,T,,,,,,,,,,,,,,,,,TTTTTTT,,:::,,,,,,,,,,,,T,,,,,,,TTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,TooooT,,:::,,,,,,,,,,,,,,,,,,,,,TTTT
-TTTT,,,,,,,,,,,,,,,,,,,,,,,,ooooooo:::,,,,,,,,,,,,,,,,,,,,,,TTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,oooooo:::,,,,,T,,,,T,,,,,,,,,,,,,TTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,oooooo:::oo,,,TT,,,TT,,,,,,,,,,,,,TTT
-TTTTTT,,,,,,,,,,,,,,,,,,,,,ooooo:::ooo,,TTTTT,TTTT,,,,,,,,,,,TTT
-TTTTTT,,,,,,,,,,,,,,,,,,,,,oooo:::ooooo,TTTTTTTT,,,,,,,,,,,,TTTT
-TTTTTT,,,,,,,,,,,,,,,,,,,,,,ooo:::ooooo,,TTTTTT,,,,,,,,,,,,TTTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,ooo:::oooo,,,TTTTTT,,,,,,,,,,,,TTTTT
-TTTTTT,,,,,,,,,,,,,,,,,,,,,,ooo:::ooo,,,,TTTTTT,TT,,,,,,,,,TTTTT
-TTTTTT,,,,,,,,,,,,,,,,,,,,,,,ooo@:oo,,,,,TTTTTTTTT,,,,,,,,,TTTTT
-TTTTTT,,,,,,,,,,,,TT,,,,,,,,,,oo:::,,,,,,TTTTTTTTT,,,,,,,,,TTTTT
-TTTTTT,,,,,,,,,,,,T,,,,,,,,,,,,,:::,,,,,,TTTTTT,,,,,,,,,,,,TTTTT
-TTTTT,,,,,,,,,,TTTTT,,,,,,,,,,,:::,,,,,,,TTTTTTT,,,,,,,,,,,TTTTT
-TTTT,,,,,,,,,,,,TTTT,,,,,,,,,,:::,,,,,,,TTTTTTTT,T,,,,,,,,,TTTTT
-TTTT,,,T,,,,T,TTT,,TT,,,,,,,,,::,,,,,,,,TTTTTTTTTTTTT,,,,,,TTTTT
-TTTT,,,TTTTTTTTT,,,,,,,,,,,,,:::,,,,,,,,TTTTTTTTTTTTTT,,,,,,TTTT
-TTTTT,,TTTTTTTTT,,,,,,,,,,,,,::,,,,,,,,,,,TTTTTTTTTT,,,,,,,,TTTT
-TTTTT,,,TTTTTTTTT,,,,,,,,,,,:::,,,,,T,,,,,TT,,TTT,TTT,,,,,,TTTTT
-TTTTT,,TTTTTTTTT,,,,,,,,,,T:::TTTTTTTT,,,,T,,,,TT,,,,,,,,,,TTTTT
-TTTTTT,,,T,TTTTTT,,,,,,,,,:::TTTTTTTT,,,,,,,,,,,T,,,,,,,,,TTTTTT
-TTTTTT,,,,,TTTTT,,,,,,,,,:::TTTTTTTTT,,,,TTTTTT,,,,,,,,,,,,TTTTT
-TTTTT,,,,,,,T,,,,,,,,,,,,::,,T,TTTTTT,,,,TTTTT,,,,,,,,,,,,,,TTTT
-TTTTT,,,,,,,,,,,,,,TT,,,:::,TTTTTTTTTT,TTTTTTTT,TTTTTTT,,,,TTTTT
-TTTTT,,,,,,,,,,,,TTTT,,:::,,,TTTTT,T,,,TTTTTTTTTTTTTTT,,TT,,TTTT
-TTTTTT,,,,,,,,,,TTTTT,:::,,TTTTTTT,TTT,,,,TTTTTTTTTT,T,,TTT,,TTT
-TTTTTT,,,,,,,,,TTTTTT:::T,,,TTTTTTTTTT,,,,,,T,,TTTTTTTTTTT,,,TTT
-TTTTTT,,,,,,,,,,TTTT:::T,,,,,,T,TTTTT,,,,,,,,,,,,,TTTTT,T,,,,TTT
-TTTTT,,,,,,,,,,,TTT:::T,,,,,,,T,,T,,T,,,,,,,,,,,TTTTTTTTT,,,,TTT
-TTTTTT,,,,,,,,,,TT:::TT,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTTTT,,,TTTT
-TTTTTT,,,,,,,,,,,T::TT,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTTTT,,TTTT
-TTTTTT,,,,,,,,,,,:::,TT,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTTTT,,TTTT
-TTTTTT,,,,,,,,,,,::,,TT,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTTT,,,,,TTT
-TTTTTT,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTT
-TTTTT,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTT
-TTTTT,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTT
-TTTTTT,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,TTTTTTTT,,TTTTT,,,,,,TTTT
-TTTTTT,,,,,,,,,,,,:::,,,,,,,,,,,,TT,,,TTTTTTTTTTTTTTTTTTT,,,TTTT
-TTTTTT,,TTT,,,,,,,::,,,TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
-TTTTTTTTTTTTTTT,,:::,,TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
-TTTTTTTTTTTTTTTTT:::TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
-TTTTTTTTTTTTTTTTTT^:TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+RRRRRRRRRRRRRRRRRRRRR:^:RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+RRRRRRRRRRRRRRRRRRRRR:::RRRTTTRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRTTTR
+RRRRRRRRRRTTTTTRRRRRR:::RTTTTTTRRRRRRRRRRRRRRRTRRRRRRRRRRRRRTTTR
+TRRRRRRRRTTTTTTTRRRRR:::RTRTRRRRRRRRRRRRRRRRTTTTRRRRRRRRRRRRTTTT
+RRRRRRRRRRRTTTTRRRRRR::::T.RT.TRRRRRRRRRRRRRTTTTTTRRRRRRRRRTTTTT
+RRRRRRRRRRRRRR..RRRR.:::::.R..RRRTTRRRRRRRTTTTRRRRRRRRTTRRRRRRRT
+TRRRRRRRRTTRR...R....:::::....RRRTTRRTTRRRTTTTTTTTTRRRTTRRTTRTTR
+TRRRRRRRRTTRR...R.....::::....RRRTTRRTTRRRTTTTTTTTTRRRTTRRTTRTTR
+TRRRRRRRRTTRRR.........:::..TTTT..TTTTTT.........RRRRRRRRRRRRRRT
+TTRRRRTTRTTTRRTT.TTTT..:::..TTTT..TTT.TT.........RTTRRRRRRTTTTTT
+TRRRTTTTTTRRTTTT.TTTT..:::..TTTT......TT.TTTT...TTTRTTRRRRTTTTTT
+TTTTTTTTTTRRTTTT.......:::...............TTTT...TTTRTTRRRRTTTTRR
+TTTTTTTTTTTTTTTT....TTT:::..............TTTTT.......TTRRTTRR...T
+TTTTTTTTTTTTTTTT....TT::::TT.TT.........TTT...TTT....TTTTTRR...T
+TTTTTTTTTTTTTTTTTTT..:::::TT.TT.........................TT.....T
+TTTTTTTTTTTTTTTTTTT.::::::...TT........T.oooo...........TT.....T
+RRRTRRTTRRTRTTTTTTT.:::::................ooooooT.oooT..........T
+RRRTRRRRRRTTTTTTTT.:::::.......TTT.......oTooooooooooo...TTTTTTT
+TTTRTRRRRTTRTTT..::::::..........TRR.....oooooooooTooo...TTRRTTT
+TTRRTRRRRTTTT::::::::::.................ooooooooFFFoo.....TTTTTT
+TRRRRRRRRTTR.:::::::::.......,......TTT..oooToooFFFooT.T..TTRTTR
+TRRTRRTRTTT..:::::RRTRR.TT*.,,......TTT....ooooooooTo.,T,.TTTTTT
+TTTRTRTRRTT.::::RTTRRRRTT,,,,,T...TTTTT.T..ooTooT,,,,,,,,..TTTTT
+TTRRRTTTTTT.:::.TRRRRRRTTT,,,,T..TTTTTR....ooooo,,,,,,,,,,.TTTTT
+RRTRTTTTTTT.:::::R.RRRR...,,,.TTTTTTTTT....T,,,,,,,,,,,,,,TTTTTR
+RRRTTTTTTTT..::::::RR....TTTTTTTTTTTTTT....T,,,T,,,,,,.,TTTTTTTT
+RRRTTTTTTTTT...::::::....TTTTTTTTTTTTTTTTTTTTTTTTT.,,,,.TTTTTTTT
+RRRRTTTTTTTTTT...:::::::...TT.....TTTTTTTTTTTTTTTT.,,,,RTTTTTTTT
+RRTRTTTRTTTTTTTT....::::::.........TTTTTRTTTTTTTTT...RRRTRTTTTTT
+RRRTTTTTTTRTTTTTRTT...:::::::........TTTTTTTTTTTRRRRRRRRRTTTTTTT
+RRTRTTTTTTTTTTTTTTTTT...:::::::.......TTTTTTTRTTRTRRRRRRTRRRRTTT
+RRRTRRTTTTTTTTTTTTTTTTT...:::::::......TTTTTTTTTRRTRRRRRRRRRRRTT
+RRRTRRTTTTTTTRRTTTTTTTTTT....:::@::....TTTTTTTTTRRRRTRTRRRTRRRTT
+RRRTRTTTTRTTRRRRTTTTTTTTTT.....::::::...TTTTTTTTTRRTRRRTRRTRRRTT
+RRRRRTRRTTTTTRTRRTTTTTTTTTRT......:::::..TTTTTTTTRRRRRRRRTRRTRTR
+RRRRRTTTTTTTRRRRRTTTTTTTTTTT........::::...TTTTTTRRRRRTRRRRTRRRR
+RRRTTTTTTTTTRRRTRTTTRTTTTRTT.........:::::....TTTRTTRRTRTRRTRRRR
+RRRTTTTTRTTTRRRRRTRTTTTTTTTTT.........:::::::...TTTRRRRRTRRRRRRR
+RRTTTTTTTRTRRTRRRRRTTTTTTTTTTTT...,.....:::::::...RRRTRRRRRRRRRR
+RRTTTTTTTTRRRRRRTRTTTTTTTTTTT....,,RRTR.RRR:::::...RRRRRRRRTRTRR
+RRTT....TTTRRTRTRRTTTTTTTTTT..,,,,,,,,.RRRRTR::::..RRRRRRRRRRRRR
+RRTT.......TRTTTTTTTTTTTTTT...,,,,,,,,,RRRRRRR:::.RRRRRRRRRTRRRR
+RTTT............TTTTTTTT..,,,.,,,,TTT,,RRRRRR::::.RRRRRRRRTTTTRR
+TTTT,,,.,.,,,....TT.TTT....,,,,,,,,,...RRRR:::::...TTRRRRRTTTTTT
+TTTT,,,,,,,,,....,,.T......,,,RRR,.......::::::......TRRTTTTRTTT
+TTTT,,,,,,,,,....,,,,......,,,,,.......::::::.....RRT..TTTTTTTTT
+TTTTT,,,,,,,,...,,,,,,,,.....,......:::::::.........TT...TTTTTTT
+RTTTTT,,,,,,,.T.,,,,,,,...........:::::::..RRR.,,....TT...TTTTTT
+TTTTR.,,,,,..TT..,,,,,,.........::::::....T...,,,,,,..T...TTTTTT
+TTTTT.,,,RRR,,...,,,,.........::::::...TTTTT..,,,..,,.....TTTTTT
+TTTTTT,,,TT,,,,..,,,........:::::....TTTTTTT..,,,,,,,,,,,,TTTTTT
+TTTTTTT,,,,,,,,,..........:::::...TTTTTTTTTT.,,,,,,,,,,,,,TTTTTR
+TTTTT,,,,,,,,,,,,,,,.....::::...TTTTTTTTTTTT.,,,,,,,,,,,,.TTTTTT
+TTTTT,,,,,.,,,,,,,,,....:::...TTTTTTRTTTTTTTT.T,,,,,,,,,,TTTTTTT
+TTTT..,,,,.,,,,,,,,....:::..TTTRTRTTTTTTTTTTTRT,,,,,,,,,.TTTTTTT
+TTT...,,,,,,.,,,RRRR..:::..TTRTTTRRTTTTTTTTTTTT,,,,,.,,,,,,..TTT
+TT...,TT,,,,,,,,,,...:::..TTTTTTRRRRRRRRRTTTTTT,,,,,.,,,,,,..RTT
+TT...,TT,,,,,,,,,,...::....RTTTTTRTRRRRRRTTTRTT,.,,,,,,,,,,..RRR
+TT..,,,,,,,,,RRRTTT.:::.....TTTTRRRRRRRRRTTTTTTT....,,,,,,,.TRRR
+TT..,,,,,,,,.T......::......RTTTTRRRRRRRRTTTTTTTT...,,,T...RRRTR
+TTT...,,,,,RTT.....:::......TTTTTTRRRRTTTTTTTTTTTTTT,,TTTTTTRRRR
+TTTTRTTTTTTTTTTTTTT:::TTTRTTTTTTTTRTTRTTTTTTTTTTTTRTTTTTTTTRRRRR
+TTTTTTTTTTTTTTTTTTT:::TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTRR
+TTTTTTTTTTTTTTTTTTT:^:TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTRRRRR

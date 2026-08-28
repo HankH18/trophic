@@ -1,9 +1,10 @@
-# SEEDED STARTING LAYOUT for "sanctum-approach" — NOT A FINISHED MAP. Edit it by hand.
+# HAND-AUTHORED LAYOUT for "sanctum-approach" — the Sanctum Approach. THIS FILE IS THE MAP.
 #
-# Written by tools/mapgen/seed.ts. It knows four things about this node: which edges its
-# adjacency declares, where its props stand, what biome it is, and whether it is a settlement.
-# It does not know what this place looks like. Re-running the seeder OVERWRITES hand edits
-# unless --force is withheld; the renderers read this file, not the seeder.
+# Redesigned from the layout tools/mapgen/seed.ts wrote. The maps are composed from TILES now,
+# stamped cell by cell from this grid, so the painting and the collision mask correspond by
+# construction: every flight of the stair, every retaining wall and every drift of ash is exactly
+# where it is written here. A boring grid here is a boring map; no tile can save it. Re-running the
+# seeder with --force OVERWRITES this file; the renderers read this file, never the seeder.
 #
 # ── coordinate space ─────────────────────────────────────────────────────────
 # space        map-native pixels, origin TOP-LEFT (data/nodes/*.json props[].x/y are in this space)
@@ -17,13 +18,63 @@
 # ── seeded from ──────────────────────────────────────────────────────────────
 # biome        Sanctum
 # adjacency    r5, sanctum
-# bottom edge  r5
-# top edge     sanctum
+# bottom edge  r5            — ^ at (40,63), on r5's top mouth; the stair drops to the vale
+# top edge     sanctum       — ^ at (20,0), on the sanctum's gate; the dark cleft
 # settlement   no — zero building footprints
-# props        sanctum-approach-antler-gate @ (512,760) → cell (32,47); sanctum-approach-antler-inner @ (512,372) → cell (32,23)
+# props        sanctum-approach-antler-gate @ (512,760) → cell (32,47)
+#              sanctum-approach-antler-inner @ (512,372) → cell (32,23)
+#
+# ── what this place is (tools/comfy/manifest.json _nodes["sanctum-approach"], followed) ───────
+# Mostly grey ash and bare rock: ONE LONG ASCENT UP THE FLANK OF A CRATER, drifted grey ash over
+# cracked stone, low cut-rock retaining walls, scree fans and fallen blocks none of them bigger
+# than a crate, NO PLANTS ANYWHERE. So this layout spells the whole map with five characters —
+# '.' bare ash, ',' deep drift, ':' the stair, 'o' the landing, 'R' rock — and carries no 'T',
+# no 'W', no '~', no 'F' and no 'B'. It is the only node in the region with no green on it.
+#
+# THE STAIR. A single WIDE stone stair climbs the whole height of the picture in long switchbacks:
+# five flights and four hairpins, bottom to top, and it is the only path on the map.
+#   · rows 59–63, cols 28–32   the stair drops away at the bottom toward the vale (the r5 mouth)
+#   · rows 55–59, cols 28–50   leg A, east — FIVE cells deep, the broadest flight, lowest down
+#   · rows 48–51, cols 20–50   leg B, west — the long one; the gate stone stands beside it
+#   · rows 41–44, cols 20–40   leg C, east
+#   · rows 34–37, cols 28–40   the traverse across the landing, west
+#   · rows 24–37, cols 28–31   the run north, straight across the middle of the landing
+#   · rows 21–24, cols 13–31   leg D, west
+#   · rows  9–24, cols 13–16   the long flight against the west wall — sixteen rows, no turn
+#   · rows  9–12, cols 13–34   leg E, east
+#   · rows  5– 7, cols 19–34   leg F, west — THREE cells deep; the stair has narrowed
+#   · rows  0– 7, cols 19–21   the dark cleft in the crater wall (the sanctum mouth)
+# The flights are not evenly spaced and not the same length or the same width: the stair is broad
+# and heavy where it leaves the vale and narrow where it enters the rock, and the two vertical
+# flights (rows 24–37 and rows 9–24) are what stop the switchback reading as a ladder.
+#
+# THE LANDING. An open level landing of bare ash at the exact middle, rows 25–39, cols 23–44, an
+# irregular oval of 'o' that the stair crosses without turning. Cell (32,32) is on it, one step
+# east of the stair, and the whole landing is free of rock, prop and drift.
+#
+# THE TWO STONES, at their authored pixels, both beside the stair and neither beside the other.
+#   · sanctum-approach-antler-gate, cell (32,47) — on the centre line well below the middle, in the
+#     ash shoulder between leg B and the cut-rock face at row 46 the stone is SET INTO.
+#   · sanctum-approach-antler-inner, cell (32,23) — above the middle on the same line, east of the
+#     turn at the head of leg D, against the cut rock at cols 33–35 rows 19–27.
 #
 # ── decisions this file made ─────────────────────────────────────────────────
-# · prop "sanctum-approach-antler-inner" sits on a centre-clearing cell at (32,23); the anchor character takes the cell and the cell stays walkable
+# · THIS NODE IS A ROUTE, NOT A TOWN, and carries zero buildings. tools/comfy/manifest.json gives
+#   it kind "route", docs/content-bible.md §6 counts it among the six routes, tools/mapgen/nodes.ts
+#   derives settlement=false, and checkSettlementOnly fails any footprint here. A round brief that
+#   asked for four to seven buildings on this node was wrong about the node, and drawing them would
+#   have been inventing content (G2) and turning the shipped suite red.
+# · THE LANDING IS RE-CUT AS A TERRACE, NOT A DISC. "An open level landing of bare ash at the exact
+#   middle" is authored, but it was drawn as a near-circular pale lozenge centred on (32,32) — the
+#   same module six of the twelve nodes were painting on the one cell the player sees on every
+#   entry to every node. It is now a level shelf much wider than it is deep, with a ragged uphill
+#   edge, which is what a shelf on a switchback actually is.
+# · THE LOW CUT-ROCK RETAINING WALLS the subject line names are drawn, in "F", hard against the
+#   downhill edge of each flight. They are the frame material nothing else in the region has, and
+#   they are what stopped every edge being a uniform band of one character.
+# · THE BOTTOM MOUTH MOVED TO COL 40 to sit on r5's top mouth; the seam used to snap ten columns.
+# · ENCOUNTER TERRAIN at 23.5% — the route figure, not the "little or none" a town gets. This node
+#   carries a real population (carricrow-line) and balance.json's encounterTileFraction is 0.25.
 #
 # ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
 #   .  floor  open-ground         plain walkable ground; the default fill
@@ -46,67 +97,67 @@
 # before game/collision.ts gridFromAscii sees it; ANCH characters parse as floor and are read again
 # on a second pass. Region kinds are open strings — add a row to the legend, not a case to a switch.
 ---
-RRRRRRRRRRRRRRRRR:^:RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRR::::RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRR::::RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-RRR................:::RRRRRRRRR.RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-RRR................:::..RRRR......RRRRRRRRRRR..RRRRRRRRRRRRRRRRR
-RRR................::::..RR........................RRRRRRRRRRRRR
-RRR......RRR........:::..................................RRRRRRR
-RRRR.....RRRR.......::::.................................RRRRRRR
-RRR....RRRRRR........:::.................................RRRRRRR
-RRR......RRRRR.......::::.........................RRRRRR.RRRRRRR
-RRR......RRRRRR.......::::.......................RRRRRRRRRRRRRRR
-RRRR......RRRR.........::::....................RRRRRRRRRRRRRRRRR
-RRRR......RRR...........:::..................R...RRRRRRRRRRRRRRR
-RRRR...................::::..................R.R.RRRRRR.RRRRRRRR
-RRRR...................:::...................RRRRRRRRRR.RRRRRRRR
-RRRRR..................:::...................RRRRRRRRRR...RRRRRR
-RRRRR.................::::..................RRRRRRRRRRR..RRRRRRR
-RRRRR................::::...................RRRRRRRRRR...RRRRRRR
-RRRRR................::::...........R...RRRRRRRRRRRR.....RRRRRRR
-RRRRR.................:::..........RRR.RRRRRRRRRRRR......RRRRRRR
-RRRR..................::::........RRRRRRRRRRRRRRRR.......RRRRRRR
-RRR....................::::......RRRRRRRRRRRRRRRRRR......RRRRRRR
-RRR.....................:::.......RRRRRRRRRRRRRRRRR......RRRRRRR
-RRR.....................:::.....*ooRRRRRRRRRRRRRRRR......RRRRRRR
-RRR.....................::::..ooooooRRRRRRRRRRRR.........RRRRRRR
-RRR......................::::oooooooo.R.RRRRRRRR.........RRRRRRR
-RRR.......................::::ooooooo...RRRRRRRR.........RRRRRRR
-RRR........................::::ooooooo....RRRRR.......R..RRRRRRR
-RRR.........................::::oooooo...RRRRRR......RR..RRRRRRR
-RRR.........................o:::ooooooo...RRRRR....RRRR..RRRRRRR
-RRRR........................o:::ooooooo....RRRR.....RRRRRRRRRRRR
-RRRRR........................::::oooooo....RRRR.....RRRRRRRRRRRR
-RRRRRR........................::@:ooooo...RRRRR.....RRRRRR.RRRRR
-RRRRRR.........................:::oooo...RRRRRRR.....RR....RRRRR
-RRRRRR.........................:::ooo....RR.RR.......R......RRRR
-RRRRRR.........................::::.........................RRRR
-RRRRRR..........................::::........................RRRR
-RRRRRR...........................:::........................RRRR
-RRRRR............................:::.......................RRRRR
-RRRRR............................:::......................RRRRRR
-RRRR.............................::::.....................RRRRRR
-RRRR..............................::::....................RRRRRR
-RRRR...............................::::...................RRRRRR
-RRRR................................:::...................RRRRRR
-RRRR................................::::..................RRRRRR
-RRRR.................................::::.................RRRRRR
-RRR...................................:::.................RRRRRR
-RRRR............................*.....:::..................RRRRR
-RRR...................................:::..................RRRRR
-RRR...................................::::..................RRRR
-RRR....................................::::.................RRRR
-RRR....................................::::..................RRR
-RRR...................................::::..................RRRR
-RRR...................................:::....................RRR
-RRR..................................::::....................RRR
-RRR.................................::::.....................RRR
-RRR.................................:::......................RRR
-RRR.................................::::.....RRRRRRRRRRRRR..RRRR
-RRR..................................:::....RRRRRRRRRRRRRRRRRRRR
-RRR.....R...........................::::RRRRRRRRRRRRRRRRRRRRRRRR
-RRR...RRRRRR....R..............RRRRR:::RRRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:::RRRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR::::RRRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:^:RRRRRRRRRRRRRRRRRRRRRRRRRR
+RRRFFFFFFFRRRRRRRRR:^:RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+RRRFFFFFFFRRRRRRRRR:::RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+RRRRRRRRRRRRRRRRRRR:::R.RR.RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+RRRRRR.R..RRRRRRRRR:::R..R.RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+RRRRRR.RR..RR.RRRRR:::R....R....R..RRRRRRRRRRRR.....RRRRRRRRRRRR
+RRRRRR..RR..R.RRR.R::::::::::::::::R.RRRRR.RR........RRRRRRRRRRR
+FRRRRR........RR...::::::::::::::::....RRR.R.........RRRRRRRRRRR
+FRRRRRRRRR.....RR..::::::::::::::::......R...........RRRRRRRRRRR
+FRRR.....R......RRR....FFFFFFFFF:::....,,,,,,,,,,.......RRRRRRRR
+FRRR.........::::::::::::::::::::::..,,,,,,,,,,,,,,.....RRRRRRRR
+FRRR.RR......::::::::::::::::::::::..,,,,,,,,,,,,,.....RRRRRRRRR
+FRRRRR.......::::::::::::::::::::::.,,,,,,,..,,,.......RRRRRRRRR
+RRRRRR.......::::::::::::::::::::::..,,,,,,,,,..........RRRRRRRR
+RRRR.........::::.FFFFFFFF..FFFFFF.,,,,,,,,,......,,,....RRRRRRR
+RRRRR........::::.R......,..RR......,,,,,,......,,,,,...RRRRRRRR
+RRRRR........::::..,,.,,,,...R.....,,,,,......,,,,,,,...RRRRRRRR
+RRRR.........::::,.,,,,,.....R,....,,,......,,,,,,,,,,RRRRRRRRRR
+RRRRRR.......::::,,,,,.....,,,,,....,.....,,,,,,,R,,,RRRRRRRRRRR
+RRRRRRR......::::.,,,.....,,,,,.........,,.,,,,,,R,,RRRRRRRRRRRR
+RRRRRR.......::::.......,,,.,....RRR...,,,,,,,,,,RR.RRRRRRRRRRRR
+RRRRRRRRRRRRR::::........,.......RRR..,,,,,,,.,,RRR..RRRRRRRRRRR
+RRRRRRRRRRR..:::::::::::::::::::.RRR..,,,,,,,.,,,,,RRRRRRRRRRRRR
+RRRRRRRRR....:::::::::::::::::::.RRR...,,,,,,.,RRRRR.RRR..RRRRRR
+RRRRRRRRRR...:::::::::::::::::::*RRR...........RRRRR.....RRRRRRR
+RRRRRRR......:::::::::::::::::::.RRR..........RRRR.RR......RRRRR
+RRRRRRRRR,,...RRRRRRRRFFFFFF::::.............RRRR...R,..RRRRRRRR
+RRRRRRRR,,,,,....,,,,,......::::............RRRRRRR,,,,,,.RRRRRR
+RRRRRRR,,,,,,....,,ooooo....::::....oooo........o,,,,,,,,,RRRRRR
+RRRRRRR,,,,,,,..,,,ooooo....::::oooooooo........o,,,,,,,,RRRRRRR
+RRRRRRRR,,,,,...,,,ooooooooo::::ooooooooooooooooo,,,,,,,RRRRRRRR
+RRRRRRRRRR,.,..,,,,oo.oooooo::::ooooooooooooooooo,,,,,RRRRRRRRRR
+RRRRRRRRRR,,.....,,o.ooooooo::::ooooooooooooooooo,,,,RRRRRRRRRRR
+RRRRRRRRR,,......,,ooooooooo::::@oooooooooooooooo,,,,,,RRRRRRRRR
+RRRRRRRR,,RRR,,....ooooooooo::::oooooooooooooo.oo,,,,,RRRRRRRRRR
+RRRRRRRRRR..,,,....ooooooooo:::::::::::::oooooooo,,,,,,,RRRRRRRR
+RRRRRRRR...,,,.....ooooooooo:::::::::::::oooooooo,,,,RRRRRRRRRRR
+RRRRRRR....,,,.......ooooooo:::::::::::::oooo,,,o,,,,,RRRRRRRRRR
+RRRRRRRRR.,,,,.............o:::::::::::::.ooo,,,,,,,..RRRRRRRRRR
+RRRRRRRR.,,,,,.......................::::,,,,,,,,,......RRRRRRRR
+RRRRRR...RR,.........................::::,,.,,,........RRRRRRRRR
+RRRRRRRRRRRR.RRR.....................::::,,,,..........RRRRRRFFF
+RRRRRR.RRRRRRRRRR...:::::::::::::::::::::,.......,,,R....RRRRFFF
+RRRRRR..RRR,,,,.....:::::::::::::::::::::RRRRRR,,,,,R...RRRRRFFF
+RRRRRRR,,R,..,..,...:::::::::::::::::::::...,,,,,,,....RRRRRRFFF
+RRRRRR,,.,,,,,,.,...:::::::::::::::::::::.,,,,,,,,..RRRRRRRRRFFF
+RRRRR,,R,,,,.,,,,...::::FFFFFFFFFFF..FFFFRRRR.,,,,,,,,,,RRRRRFFF
+RRRRRR,,,,,,,,,,,...::::.RRRRRRRRRRRRRRR.....,,,,,,,,,,,RRRRRFFF
+RRRR.,,,,,,,,,,,,,..::::........*..........,,,.,,,,,,RRRRRRRRFFF
+RRRR..,,,,,,,,,,,...:::::::::::::::::::::::::::::::,,,,,RRRRRFFF
+RRRR...,,,,,,,,,,,,.:::::::::::::::::::::::::::::::,,RRRRRRRRFFF
+RRR....,,,,,,,,,,,,,:::::::::::::::::::::::::::::::,,,,,RRRRRRRR
+RRRRR........,,,,,,,:::::::::::::::::::::::::::::::,,,,RRRRRRRRR
+RRRRRRR......,RRRRRR,,,...........,,.....RRRFFF::::,....RRRRRRRR
+RRRRR........,,,,,,,,,...,,,,,,,,,,,,,,,,,,....::::.....RRRRRRRR
+RRRRRR.......,,,,RRR,,RRRRRR......,.,,.........::::.......RRRRRR
+RRRRRRR.RRR..,,.....,.......:::::::::::::::::::::::..R...RRRRRRR
+RRRRRRRRR..........,,.......:::::::::::::::::::::::.RR....RRRRRR
+RRRRRRRR..........R.........:::::::::::::::::::::::RR.....RRRRRR
+RRRRRRRRR.......RRR.........:::::::::::::::::::::::RR..RRRRRRRRR
+RRRRRRRR....R...RRRR..R...RR:::::::::::::::::::::::RRR.RRRRRRRRR
+RRRRRRRRR...R.RRRRRRR.RRRRRRFFFFF.RRRRR:::RRFFFFFFFRRRRRRRRRRRRR
+RRRRRR....RRRRRRRRRRRRRRRRRRRRRRRRRRRRR:::RRRRRRRRRRRRRRRRRRRRRR
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:::RRRRRRRRFFFFFFFFFRRRRR
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:^:RRRRRRRRFFFFFFFFFRRRRR

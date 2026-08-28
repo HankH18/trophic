@@ -1,9 +1,10 @@
-# SEEDED STARTING LAYOUT for "hearthollow" — NOT A FINISHED MAP. Edit it by hand.
+# AUTHORED LAYOUT for "hearthollow" — this file IS the map. Composed cell by cell, by hand.
 #
-# Written by tools/mapgen/seed.ts. It knows four things about this node: which edges its
-# adjacency declares, where its props stand, what biome it is, and whether it is a settlement.
-# It does not know what this place looks like. Re-running the seeder OVERWRITES hand edits
-# unless --force is withheld; the renderers read this file, not the seeder.
+# The maps are stamped from these characters, one tile per cell, so the painting and the
+# collision mask are the same document by construction. Nothing downstream invents geometry:
+# where a building stands here is where it stands on screen, and a lane that stops in a field
+# here stops in a field on screen. Re-running tools/mapgen/seed.ts WOULD OVERWRITE this; the
+# seeder knows the adjacency and the prop coordinates and nothing else about the place.
 #
 # ── coordinate space ─────────────────────────────────────────────────────────
 # space        map-native pixels, origin TOP-LEFT (data/nodes/*.json props[].x/y are in this space)
@@ -13,19 +14,54 @@
 # tiles        64 × 64 movement tiles of 32 world px
 # col ← x      col = floor(nativeX / 16);  a cell's centre is native (16·col + 8, 16·row + 8)
 # centre       native (512, 512) = cell (32, 32) = the tile firstWalkableTile starts on
+# screen       the player sees 240×160 native at once = 15 × 10 CELLS
 #
-# ── seeded from ──────────────────────────────────────────────────────────────
+# ── authored from ────────────────────────────────────────────────────────────
 # biome        Meadow
 # adjacency    r1
 # bottom edge  — sealed; this is the head of the chain
-# top edge     r1
-# settlement   yes — building footprints are placed
-# props        hearthollow-signpost @ (512,648) → cell (32,40)
+# top edge     r1, ONE mouth, cells (40,0)-(42,0), ^ at (41,0) — the timber field gate,
+#               which now stands on r1's bottom mouth (also col 41)
+# settlement   yes — five buildings, each a place tools/comfy/manifest.json _nodes.hearthollow names
+# props        hearthollow-signpost @ (512,648) → cell (32,40), unmoved
+#
+# ── what this place is ───────────────────────────────────────────────────────
+# A farming hamlet in a wooded hollow. One open grazing green fills the middle; the five
+# buildings stand well apart around and below it; a worn dirt lane comes down out of the north
+# wood through the field gate, dog-legs past the supply shop, and forks on the green. The
+# south-west quarter is farm: a fallow west field, a deep-thatched cottage, a thick hedgerow
+# behind it, and the standing barley — the only ground in town where a wild thing turns up.
+#
+#   (34, 6)-(40,12)  SUPPLY SHOP        Kett's — snares, salve, tonic, the open bait crate
+#   ( 9,17)-(16,23)  INN                with its byre yard railed off at the east end
+#   (44,22)-(51,28)  FIELD STATION      Warden Maren's, the specimen pen below, drying racks east
+#   (10,38)-(16,44)  COTTAGE            Tolm's, between the fallow west field and the barley
+#   (32,43)-(39,50)  GYM HALL           Maribel's, at the foot of the green, shed yard to the east
+#
+# Every door is on the building's SOUTH face and every one of them is the end of a lane.
 #
 # ── decisions this file made ─────────────────────────────────────────────────
-# · a spur was cut from the lane to prop "hearthollow-signpost" at cell (32,40)
-# · prop "hearthollow-signpost" sits on a path-corridor cell at (32,40); the anchor character takes the cell and the cell stays walkable
-# · arrangement: clustered — a first composition drawn from this node's own stream, not a plan
+# · THE PLACE. A farming hamlet in a wooded hollow: one lopsided grazing green as the
+#   organising void, the farm quarter filling the south-west, and the lane forking rather
+#   than crossing — this is the head of the chain and has one mouth, so no lane crosses the
+#   map. Cell (32,32) is open cropped turf one step from the fork.
+# · THE FIVE BUILDINGS, all solid rectangles inside the shipped 85-140px footprint band, all
+#   five a different size and shape, every door on the south face and reachable:
+#     supply shop      (35,7)-(40,12)   6x6 = 96x96    door (37,13)
+#     inn              (9,18)-(16,23)   8x6 = 128x96   door (13,24)   long and low
+#     field station    (45,21)-(50,28)  6x8 = 96x128   door (47,29)   deep
+#     cottage          (10,39)-(16,44)  7x6 = 112x96   door (13,45)
+#     gym hall         (32,43)-(39,50)  8x8 = 128x128  door (36,51)   the largest
+# · THREE RAILED YARDS OF THREE DIFFERENT SHAPES carry the silhouette variety the footprint
+#   band cannot: a long shallow byre yard east of the inn, the big specimen pen below the
+#   field station, a tall narrow shed yard beside the gym. Drying racks are two short rails.
+# · THE TIMBER FIELD GATE the subject line names now stands at the mouth, in "F" posts. It
+#   was missing, while r1 drew its own boundary wall on the other side of the same crossing.
+# · THE TOP MOUTH IS AT COL 41, sitting exactly on r1's bottom mouth, so the track does not
+#   snap sideways at the seam.
+# · ENCOUNTER TERRAIN. 5.5% of walkable, one patch: the standing barley behind the hedgerow
+#   in the farm quarter. A town is safe ground; this is the one place the content puts a wild
+#   thing (Maribel's line has one of hers "through the hedge into the barley").
 #
 # ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
 #   .  floor  open-ground         plain walkable ground; the default fill
@@ -44,71 +80,75 @@
 #   ^  ANCH   edge-mouth          the cell where a corridor meets the map edge; one per declared adjacency
 #   D  ANCH   door-anchor         the walkable cell a building is entered from
 #
+# In this map: 'o' is the close-cropped turf of the green, '.' is the packed brown earth of the
+# yards, aprons and the fallow field, ',' is the standing barley and nothing else, 'T' is the
+# oak wood and the hedgerow, 'F' is pen rail and field rail, 'R' is the hollow's bare stone.
+#
 # Only "#"-class characters block. tools/mapgen/layout.ts normalises every WALL character to "#"
 # before game/collision.ts gridFromAscii sees it; ANCH characters parse as floor and are read again
 # on a second pass. Region kinds are open strings — add a row to the legend, not a case to a switch.
 ---
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT^:TTTTTTTTTTTTTTTTTTTTTTTTTTT
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT::TTTTTTTTTTTTTTTTTTTTTTTTTTT
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT::TTTTTTTTTTTTTTTTTTTTTTTTTTT
-TTTTTT,,,,,,,,,,TTTTTT,TTTTTTTTTTT:::TTTTTTTTTTTTTTTTTTTTTTTTTTT
-TTTTT,,,,,,,T,,,,,,TT,,,TTTTTTTTTT:::,,,,,,,TTTTTTTTTTTTT,TTTTTT
-TTTTT,,,,,TTT,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,,TTT,,,,,,,,,,,TTTTT
-TTTTT,,,,,TTT,,,,,,,,,,,,,,T,,,T,,,,::,,,,,,,,T,,,,,,,,,,,,TTTTT
-TTTTT,,,,,TTTT,,,,,,,,,,,,,T,,TTT,,:::,,,,,,TTTT,,,,,,,,,,,TTTTT
-TTTTT,,,,TT,TTTT,,,,,,,,T,TTTTTTT,,::,,,,,T,TTTT,,,,,,,,,,,,TTTT
-TTTTT,,,TTT,TTTTT,,,,,,TTTTTTTTTT,:::,,,,,TTTTTTTT,,,,,,,,,,TTTT
-TTTTT,,,TTTTTTTTTT,,,,TTTTTTTTTTTT::,,,,,,,TTTTTTT,,,,,,,,,,TTTT
-TTTTT,BBBBBBBBT,,TTT,TTTTTTTTTTTTT::TT,,T,,,,,TTT,,,,,,,,,,,,TTT
-TTTT,,BBBBBBBBTT,,,TTTT,TTTTTTTTTT::TTT,T,,,,,T,T,,,,,,,,,,,,TTT
-TTTT,,BBBBBBBBT,,,,TTTTTTTTTT,TT,,:::TTTTTT,TT,,,,,,,,,,,,,,,TTT
-TTTTT,BBBBBBBBD,,TTTTTTTTTTTTT,,,,T::TTTTTTTT,,,,,,,,,,,,,,,TTTT
-TTTTT,BBBBBBBB,,,,,,TTTTTTTTTTT,,TT::TT,TTTTTTT,T,,,,,,,,,,,TTTT
-TTTTT,BBBBBBBB,,,,,,TTTTTTTTTT,,,TT::TTTTTTTTTT,T,,,,,,,,,,,TTTT
-TTTTT,TTTTTTT,,,,,,,TTTTTTTTTTT,,,T::TTTTTTTTTTTTTT,,,,,,,,,TTTT
-TTTTT,TTTTTTT,,,,,,,,TTTTTTTTTTT,,:::TTTTTTTTTTTTTT,,,,,,,,,TTTT
-TTTTT,,,,TTTT,,,,,,TTTTTTTTTTTT,,,::TTTTTTTTTTTTT,,,,,,,,,,,,TTT
-TTTTT,,,,TTTT,,,,,,,,,TTTTTTT,,,TT::TTTTTTTTTTTTTTT,,,,,,,,,,TTT
-TTTTT,,,,TTTT,,,,,,,,,,,T,TTT,,,,,::TTTTTTTT,,TTTTTT,,,T,,,,TTTT
-TTTT,,,,,,TT,,,,,,,,,,,,,,,,T,,,,,::,TTTTTTTTT,TTTTTTT,T,,,TTTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,::,,TTTTT,,,,TTTTTTTTTTT,TTTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,:::,,TTTTTT,,,,T,TTTTTTTT,,TTTT
-TTTT,,,,,,,,,,,,,,,,,,,,,,,,,oooo::,,,TTTTT,T,,TTTTTTTTTT,,,TTTT
-TTTT,,,,,,,,,,,,,,,,,,,,,,,ooooo:::o,,,TT,,,TTTTTTTTTTTTTT,,TTTT
-TTTTT,,,,,,,,,,,,TT,,,,,,,oooooo::oo,,,,T,,,TTTTTTTTTTTTT,,,TTTT
-TTTTT,,,,,,,,,,,,TTTT,,,,ooooooo::ooo,,,,T,TTTTTTTTTTTTT,,,,TTTT
-TTTT,,,,,,,,,,,,,TTT,,,,,ooooooo::ooo,,,,TTTTTTTTTTTTTTT,,,,TTTT
-TTTT,,,,,,,,,,,,,TTTTTTT,ooooooo::oo,,,,,TTTTTTTTTTTTT,,,,,,,TTT
-TTTT,,,,,,,TTTTTTTTTT,TT,ooooooo::oo,,,,,,TTTTTTTTTTTTTT,,,,,TTT
-TTTT,,,,,,,,TTTTTTTTTTTT,,oooooo@:oo,,,,,TTTTTTTTTTTTTTT,,,,TTTT
-TTTT,,,,,,,,,,,TTTTTTTTT,,,,oooo::oo,,,,,,TTTTTTTTTTTTTT,,,,TTTT
-TTTT,,,,,,,,,,,T,TTT,TTT,,,,,,oo::o,,,,,,,,,TT,TTTTTTT,,,,,,,TTT
-TTTT,,,,,,,,,,TTTTTTT,TT,,,,,,,,::,,,,,,,,,,,TTTTTTTTT,,,,,,TTTT
-TTTT,,,,,,,,,,,TTT,,,,,TT,,,,,,,::,,,,BBBBBB,TBBBBBBT,,,,,,TTTTT
-TTTTT,,,,,,,,,,TTT,,,,TTT,,,,,,,::,,,,BBBBBB,TBBBBBB,,,,,,,TTTTT
-TTTTT,,,,,,,,,,TT,TT,TTTTT,,,,,,::,,,,BBBBBB,TBBBBBB,,,,,,,TTTTT
-TTTTT,,,,,,,,,,,,TTTTTTTTT,,,,,,::,,,DBBBBBBTTBBBBBB,,,,,,,,TTTT
-TTTTT,,,,,,,,,,,,TTTTTTTTTT,,,,,*:,,,,BBBBBB,DBBBBBB,,,,,,,,TTTT
-TTTTT,,,,,,,,,,,,,TTTTTTTTT,,,,,,,,,,,BBBBBB,,BBBBBB,,,,,,,,TTTT
-TTTTT,,,,,,,,,,,,TTTTT,TTTT,,,,,,,,,,,,D,,,,,,BBBBBB,,,,,,,,TTTT
-TTTTT,,,,,,,,,,,,,,TTTTT,TT,,,,,,,,BBBBBBBB,,,BBBBBB,,,,,,,TTTTT
-TTTTT,,,,,,,,,,,,,TT,,TT,,T,,,,,,,,BBBBBBBB,,,,,,,,,,,,,,,,TTTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,BBBBBBBB,,,,,,,,,,,,,,,,,TTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,BBBBBBBB,,,BBBBBBBB,,,,,,TTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,,T,,,,,,,BBBBBBBB,,,BBBBBBBBT,,,,,TTTT
-TTTTT,,,,,,,,,,,,,,,,,,,,,TTTT,T,,,BBBBBBBB,,,BBBBBBBBTT,,,,,TTT
-TTTT,,,,,,,,,,,,,,,,,,,,,,TTTTTT,,,BBBBBBBB,,DBBBBBBBB,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTTTBBBBBBBB,,,BBBBBBBBT,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTT,T,,,,,,,,,,BBBBBBBB,,,,,,,TTT
-TTTT,,,,,,,,,,,,,,,,,,,,,,,TTTTTTTT,,,,,,,,,,,BBBBBBBB,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTTT,,,,,,,,,,,,,,,T,TT,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,TTTTT,,,,,,,,,,,,,,,,,,,,T,,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,,TTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,TTTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,,TTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTT
-TTT,,,,,,,,TTTTTT,,TTTT,,,,,,,,,,,,,,,TT,,,,,,,,,,,,,,,T,TT,TTTT
-TTTTTTTTTTTTTTTTTTTTTTTT,,,TT,,,TTTTTTTTTT,,,T,,,,,,,,TTTTTTTTTT
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+TTRRRRRRTTTTTTRRRRRRRRRRRRRRRTRTTTTTTTTF:^:FTTTTTTTTTTTTTTRRTTRR
+RRRRRRRTTTTTTTRRRRRRRRRRRRRRRTRTTTTTTTTF:::FTTTTTTTRRRTTTTRRTTRR
+RRRRTTTTTTTTTRRRTRRRRRRRRTTTTTTTTTTTTTTF:::FTTTTTTTTRRRRTTTTRRTT
+RRRRRTTRTTTTTTRRTTRRRRRRTTTTTTTTTTTTTTTT:::TTTTTTTTTRRRRTTTTRRRT
+RRRRRRRRTTTTTTRRTTRRRRTTRRTTRTTTTTTTTTTT:::TTTTRRRTRRRRRRRRRRRTT
+RRRRRRRRTTTTTTTRTTTTRRTTRRTTTTTTTTTTTTTT:::TTTTRRRTRRRRRRRRRRRTT
+RRRRRRRRRRTTTTTTTRRRRRRRTTTTTTTTTToooooo:::TTTTRRRRRRRRRRRRRRRRR
+RRRRRRRRRRTTTTTTTTTTTTTTTTTTTTTTTToBBBBBB::TTTTRRRRRRRRRRRRRRRRR
+RRRRRRRRTTRTTTTTTTTTTTTTTTTTTTTTTToBBBBBB::TTTTTTTRRRRRRRRRRRRRR
+RRRRRRRRTTTTTTTTTTTTTTTTTTTTTTTTTToBBBBBB::oTTTTTTRRRRRRRRRRRRRR
+RRRRRRRRRRTTTTTTTTTTTTTTTTTTTToooooBBBBBB::oTTTTTTTTRRRRRRRRRRRR
+RRRRRRRRRRTTTTTTTTTTTTooooTTTToooooBBBBBB::oTTTTTTTTRRRRRRRRRRRT
+RRRRRRRRRTTTTToooooooooooTTTTToooooBBBBBB::oTTTTTTRRRRRRRRRRRRTT
+TRRRRRRRRTTTToooTTTTTTTooTTTToooo....D...::oTTTTTTTRRRRRRRRRRRTT
+TRRRTTRRTTTTToooTTTTTToTTTTTToooo..::::::::oTTTTTTTTRRRRRRRRRRRT
+TRRRTTRRTTTTToooTTTToooTToTTooooo..::::::::oTTTTTTTTRRRRRRRRRRTT
+TTRRTTRoooooooooToooooooooooooooo..::.....ooTTTTTTTTRRTTTTRRRRTT
+TTTTTTTooooooooooooooooooo...oooooo::oooooooooooTTTTRRTTTTRRRRTT
+TTTTTToooBBBBBBBBoFFFFFFFFFF.oooooo::ooooooooooTTTTTTTTTRRTTTTTT
+TTTTTTo..BBBBBBBBoo.....oooFooooooo::oTTTToooTTTTTToTTTTTTTTTTTT
+TTTTTTo..BBBBBBBBoo.....oooFoo..ooo::oTTTToooTTT.oooTTTTTTTTTTTT
+TTTTTToooBBBBBBBBoFFF...FFFFoo..ooo::oTT...ooBBBBBBoooTTTTTTTTTT
+TTTTToTTTBBBBBBBBoo.....oooooo..ooo::oTTT..ooBBBBBBoooooTTTTTTTT
+TTTTToTTTBBBBBBBBooo..ooooooooooooo::ooTTTTooBBBBBBooFFFTTTTRRRR
+TTTTToTToo...D.......o...oooooooo::::ooooTTToBBBBBBoooTTTTRRRRRR
+TTTTToTooo...:::::...o...oooooooo::::ooooTTToBBBBBBoooTTTTRRRRRR
+TTTTTooooo....::::.oooooooooooooo::ooooooTTToBBBBBBooFTFRRRRRRRR
+TTTToooooo......::.oooooooooooooo::ooooooToooBBBBBBoooTTRRRRRRRR
+TTTToooooooooooo::oooooooo.o...oo::ooooooooooBBBBBBo...ooRTRRRRR
+TTTToooooooooooo::::::::o..o...oo::ooooooo.....D.......ooTTRRRRR
+TTTTTooo..ooooooo:::::::ooooooooo:::::::::::::::.....ooooTRRRRRR
+TTTTTooo..ooooooo::..o::::::ooooo::::::::::::::FFFFFFFooTTTRRRRR
+TTTTTooooooo...oo::..o::::::oooo@::oo...oooFo..ooooooFooTTRRRRRR
+TTTTTooooooo...oo::..ooooo:::::::::o....oooFo.......oF.FFFRRRRRR
+TTToooooooooooooo::ooooooo:::::::::o..oooooFo.......oF..TTTTTRRR
+TTTTTTTTTTTTTTTTT::TTTTTTTTT..::...ooooooooFo.......oFooTTTTTTRR
+TTTTTTTTTTTTTTTTT::TTTTTTTT..o::oooooooooooFo.......oFoFFFRRRRTT
+TTToooooTToo.....::.TTTo.TT..o::oooooooooooFo.......oFoTTTRRRRTT
+TTToooooooooooooo::::,,,,,TTTo::oooooooooooFFFFFFFFFFFoTTTTTTTRR
+TTT......oBBBBBBBTT::,,,,,,TTT::oooooooooo..oooooooooooTTTTTRRRR
+TTT......oBBBBBBBTT::,,,,,,oTT::*ooooooooo..oooooooooooTTTTTRRRR
+TTT......oBBBBBBBTo::,,,,,,ooT::o...ooooooooooooooTTTooTTTTTRRRR
+TTo......oBBBBBBB..::,,,,,,:::::o...ooooooFFFFFFooTTTToTTTTRRRRR
+TTo......oBBBBBBB..::,,,,,,:::::BBBBBBBBoooooooFooTTTToooTRRRRRR
+TTo......oBBBBBBBoo::,,,,,,::oooBBBBBBBBooo....F.ooooooooRRRRRRR
+TTo......ooooD:::::::,,,,,,::o..BBBBBBBBoFo....F.oo...TTTRRRRRRR
+TTo......o....::::::.,,,,,,::o..BBBBBBBBoF.....F.oo...TTTRRRRRRR
+TTo......F...........,,,,,,::oooBBBBBBBBoF.....F.oooooTTTRRRRRRR
+TTT......F...........,,,,,,::oooBBBBBBBBoFo....F.oooooToTTRRRRRR
+TRT......Foooo...oooo,,,,,,::oooBBBBBBBBoFo....F.ooooooooTRRRRRR
+RRT......FoooooooTToo,,,,,,::oooBBBBBBBBoFo....F.ooooooTTTTTTTRR
+RTT......FooooooTTToo,,,,,,:::::::::D....FoooooFooooTToTTTTTTTRR
+TTR......FoRTTTTTTTTT,,,,,,o.:::::::.....FFFFFFFooooTToTTTRRRRTT
+RRRRRRRRoooRTTTTTTTTTTooooooTT...........oooTTTTTTTTTTTTTTTTRRTT
+RRRRRRRRRToooTTTTTToooooooooTToooooooo...oooTTTTTTTTTTTTTTTTTTTT
+RRRRRRRRRTTTTTTTTTTTTTTTTTTTTTTTTTooTTT..oo.TTTTTTTTRRTTTTTTTTTT
+TRRRRRRRRRTTTTTTTTTTTTTTTTTTTTTTTTTTRRTTTTTTTTRRTTTTTTRRTTTTTTTT
+TRRRRRRRRRTTTTTTTTTTTTTTTTTTTTTTTTRRRRTTTTRRTTRRTTTTTTRRRTTTTTTT
+TRRRRRRRRRRRTTTTTTTTTTTTTRTTTTRRRRRRRRTTTTRRRRRRRRRRRRRRRRRRRRTT
+TRRRRRRRRRRRTTTTTTTTTTTTTTRRRRRRRRRRRRRTTTRRRRRRRRRRRRRRRRRRRRTT
+TTRRRRRRTTRRTTTTTTTTTTTTRTTRTTRRRRRRRRRTRRTTRRRRRRRRRRRRRRRRTTRT
+RTTTRRRRTTRRTTTTTTTTTTTTRRRRTTRRRRRRRRRTRRTTRRRRRRRRRRRRRRRRTTRT
+TRRRRRRRTTTTTTTTTTTTTTTTTTRRTRRRRRRRRRRRRRTTRRTTRRRRRRRRRRRRTTTT
+TTTTTTTTTTTTTTTTTTTTTTTTTTRRTTRRRRRRRRRRRRTTTRTTRRRRTTRRRRRRTTTT

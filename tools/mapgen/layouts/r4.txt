@@ -1,9 +1,10 @@
-# SEEDED STARTING LAYOUT for "r4" — NOT A FINISHED MAP. Edit it by hand.
+# HAND-AUTHORED LAYOUT for "r4" — Cinder Steppe. THIS FILE IS THE MAP.
 #
-# Written by tools/mapgen/seed.ts. It knows four things about this node: which edges its
-# adjacency declares, where its props stand, what biome it is, and whether it is a settlement.
-# It does not know what this place looks like. Re-running the seeder OVERWRITES hand edits
-# unless --force is withheld; the renderers read this file, not the seeder.
+# Redesigned from the layout tools/mapgen/seed.ts wrote. The maps are composed from TILES now,
+# stamped cell by cell from this grid, so the painting and the collision mask correspond by
+# construction and every mound, track and patch of encounter ground is exactly where it is written
+# here. A boring grid here is a boring map; no tile can save it. Re-running the seeder with --force
+# OVERWRITES this file; the renderers read this file, never the seeder.
 #
 # ── coordinate space ─────────────────────────────────────────────────────────
 # space        map-native pixels, origin TOP-LEFT (data/nodes/*.json props[].x/y are in this space)
@@ -17,10 +18,53 @@
 # ── seeded from ──────────────────────────────────────────────────────────────
 # biome        Steppe
 # adjacency    cindershelf, duskhollow
-# bottom edge  cindershelf
-# top edge     duskhollow
+# bottom edge  cindershelf — ^ at (31,63), on cindershelf's top mouth
+# top edge     duskhollow  — ^ at (32,0), on duskhollow's bottom mouth
 # settlement   no — zero building footprints
 # props        r4-antler-vent @ (596,288) → cell (37,18)
+#
+# ── what this place is (tools/comfy/manifest.json _nodes.r4, followed, not paraphrased) ──────
+# Open volcanic steppe. Black ash flats and cracked basalt, steaming vents, loose cinder blocks and
+# dry ash-grey scrub tufts. Everything on this ground is low and small, and there is no green grass
+# anywhere: no tree mass, no water, no building on this map, and the layout carries none.
+#
+# THE TRACK. One thin ash path, almost straight up the picture, jinking ONCE — at rows 15–21, where
+# it steps round the vent mound at cols 28–33. It crosses the exact middle on packed ash with
+# nothing on it (row 32, cols 31–32; the '@' is at 32,32), drops toward the forge town at the
+# bottom as a widened haul road, and climbs to the scarp.
+#
+# THE SCARP, rows 9–14. One band of dark rock lying flat across the ash, above the middle. Its
+# BOTTOM LINE IS STRAIGHT AND HARD (row 14, every column) and its TOP LINE IS A ROW OF ROUNDED
+# LOBES on a one-tile rhythm, of ten different widths, the two widest crowned a row higher. The ash
+# is the same above the band and below it — it is a step seen from overhead, never a cutaway. ONE
+# gap is cut straight through it at cols 32–34 and the track passes through, and that gap is the
+# only way between the lower steppe and the ground above; the band runs off both side edges.
+#
+# THE RAIL. A disused narrow line ('F' is the legend's ore-cart rail): col 35, rows 45–59, with the
+# lengths already lifted and carted off showing as the gaps at rows 52, 53 and 58, plus a siding
+# stub along row 47. The heavy rail four of them could not shift lies near the top, row 6, cols
+# 23–30, one end pointing at the track. All three are amb.r4-worker.base, which is unconditional.
+#
+# THE STONE. r4-antler-vent at cell (37,18) — one step east of the track, standing against the
+# steaming vent at cols 38–39. Above and right of the middle, as authored, at its authored pixel.
+#
+# ── decisions this file made ─────────────────────────────────────────────────
+# · THE PLACE. Open volcanic steppe: one thin ash track running almost straight up the picture
+#   and jinking once where it steps round a vent mound, a low basalt scarp lying flat across the
+#   ash with a gap cut straight through it, and the disused ore-cart rail in lengths beside the
+#   track with the gaps where the crew lifted it and carted it off.
+# · TWO BLOCKING MATERIALS, which is what the subject line already says: "R" is the basalt scarp
+#   and the basalt shoulders, "#" is the LOOSE CINDER — the blocks and clinker banks lying on the
+#   ash. The map used to be one grey material end to end, the fourth grey-rimmed picture in a row.
+# · THE SCARP READS AS A BAND LYING ON THE ASH, with ash the same colour above it and below it —
+#   the subject line's own words. It used to merge into the top rim on the east.
+# · THE DEBRIS IS CLUSTERED, NOT SCATTERED. Sixty-one one- and two-cell blocking specks were
+#   spread evenly over the whole steppe; the open flats are now open, and the debris fields sit
+#   at the scarp's foot, along the rail and at the frame.
+# · NO PALE DISC AT THE ARRIVAL TILE — see the note in r1's header; the same module was on six
+#   of the twelve nodes. The middle is packed ash with nothing on it, which is authored.
+# · THE MOUTHS ARE UNCHANGED (bottom 31, top 32) because this track is authored as running almost
+#   straight. cindershelf's top mouth moved to meet it instead.
 #
 # ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
 #   .  floor  open-ground         plain walkable ground; the default fill
@@ -43,67 +87,67 @@
 # before game/collision.ts gridFromAscii sees it; ANCH characters parse as floor and are read again
 # on a second pass. Region kinds are open strings — add a row to the legend, not a case to a switch.
 ---
-RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR^:RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR::RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR::RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRR..R....RRRR.::RR......RRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRR.............::R.......RRRRRRRRRRRRRRRRRRRRRRRR
-RRRR.R..RRRRRRRR..............:::.......RRRRRRRRRRRRRRRRRR.RRRRR
-RRRRR...................R......::R.......RRRRRRRRR.........RRRRR
-RRRRR...............RR.RRRR...R::RRRR....RR.RRRRRRRR......RRRRRR
-RRRRR..............RRRRRRRRRRRR::RRR...R.RRRRRRRRRRRR.....RRRRRR
-RRRRR...............RRRRRRRRRRR:::RRR..RRRRRRRRRRRRR......RRRRRR
-RRRRR................RRRRRRRRRRR:::R...RRRRRRRRRRR........RRRRRR
-RRRR.................RRRRRRRRRRRR::.....RRRR...RRRR.......RRRRRR
-RRRR............R...RRRRRRRRRRRRR::..RR.RRRRR..RRRR.......RRRRRR
-RRR...........RRRR..RRRRRRRRRRRR:::..RRRRRRRR.RRR.........RRRRRR
-RRR..........RRRRRRR.RRRRRRRRRR:::.....RRRR...R...........RRRRRR
-RRR..........RRRRRR....RRR.RRRR::......RRRR...............RRRRRR
-RRRR.........RRRRRR....RR......:::......RR................RRRRRR
-RRR...........RRR.......R.RRR...::.......RR...............RRRRRR
-RRR...........RRRR.....RRRRRRR..::...*..RRRR..............RRRRRR
-RRR...........RRRR......RRRRRR..::......RRRRRRRRR.........RRRRRR
-RRR...........RRR.......RRRRR...:::RR....RRRRRRRR.........RRRRRR
-RRR............R......RRRRRRR...:::RR....RRR..............RRRRRR
-RRRR...............R..RRRRRRR..:::RR......................RRRRRR
-RRRR..............RR..R.RRRRRRo::oRR......................RRRRRR
-RRRR.............RRRRR..RRRRooo:::oo......................RRRRRR
-RRRR............RRRRRR..RRRoooo:::ooo.....................RRRRRR
-RRRR............RRRRRRRR.Rooooo::ooooo.....................RRRRR
-RRR..............RRRRRR...ooooo::ooooo......................RRRR
-RRR............R.RRRRRR...oooo:::oooooo....................RRRRR
-RRR............RRRRR......oooo::ooooooo....................RRRRR
-RRR............RRRRRRR.....ooo:::ooooo.....................RRRRR
-RRRR.............RRRRRRR....ooo:::oooo......................RRRR
-RRRR.............RRRRR..........@:oo.........RR.............RRRR
-RRRR...............RRR..........::............RR............RRRR
-RRRR................RRR.........::.......RRRRRRRRRR..........RRR
-RRRR................R.R.........::.......RRRRRRRRRR..........RRR
-RRRR...........................:::......RRRRRR.RRRR..........RRR
-RRRR............R..............::.......RRRRRRRRRRRRR........RRR
-RRRRR...........RR..R.........:::......RRRRRRRRRRRRRR.......RRRR
-RRRRR...........RRR.RRR......:::......RRRRRRR.RRRRRRRR......RRRR
-RRRR.........RRRRRRRR.......:::......RRRRRRRRRRRRRRRR.......RRRR
-RRRR.........RRRRRRRRR......::........RRRRRRRRRRR.RR........RRRR
-RRRR.........RRR..RRRR......::R......RRRRRRRRRRR...R........RRRR
-RRRR.........RRRRRRRRRR.....:::........RRRRRRR..............RRRR
-RRRR...........R.R.RR......RR:::......RRRRR.RRRR............RRRR
-RRRR...............RR......RRR::R......RRR...................RRR
-RRRR......................RRRR:::R...RRRRR...................RRR
-RRR......................RRRRRR::RRR..RRRRRR.................RRR
-RRR.....................RRRRRRR:::RR..RRRRR..................RRR
-RRR.......................RRRRRR:::..........................RRR
-RRR........................RRR.R.::.........................RRRR
-RRR........................RRR.R.::.........................RRRR
-RRR.........................RR...::..........................RRR
-RRR.........................RR...::.............RR...........RRR
-RRR.............................:::...........RRR............RRR
-RRR............................:::............RRR...........RRRR
-RRRR..........................:::............RR..............RRR
-RRRR.........................:::.............................RRR
-RRRR.........................:::R.....RRRRRRR.........RRRRRRRRRR
-RRRRRRR.....................RR:::RRRRRRRRRRRRRRRRR...RRRRRRRRRRR
-RRRRRRRR........R.........RRRR:::RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR::RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR::RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
-RRRRRRRRRRRRRRRRRRRRRRRRRRRRRR^:RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR
+RRRRRRRRRRRRRRRR####RRRRRRRR##R:^:RRRRRRRRRRRRRR##########RRRRRR
+RRRRRRRRRRRRRRRR#####R#RRRRR###::::R#RRRRRRRRRRR##########RRRRRR
+RRRRRRRRRRRRRRRR####RR#RRR..###::::#RR...RRRRRRR########RRRRRRRR
+RRRRRRRRRRRRRRRRRRRRRRRRRR.....::::......RRR......R#####RRRR...R
+RRRRRRRRRRRRRRRRRRRRRRRR........::..................RRRRR......R
+RRRRRR..........RRRRRRRR........::..................RRRR.......R
+RRRR................RRRFFFFFFFF.::....................RR.......R
+RRRR.................RRRRR......::.....................R.......R
+RRRRRRRR..................RR....::..R..........................R
+RRRRRRRR........R...............::..R.........................#R
+RRRRR###RR......RR...RRR...RRR..:::..RRRR...RR...RRRRR##########
+RRRRRR#RRRR.RRRRRRR.RRRRR.RRRRR.:::.RRRRRR.RRRR.RRRRRRR#########
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:::RRRRRRRRRRRRRRRRRRRRR#####R##
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:::RRRRRRRRRRRRRRRRRRRRR#####R##
+RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR:::RRRRRRRRRRRRRRRRRRRR#######RR
+RRRR..........................RRR::...................RR######RR
+RR##......,,,,,,,,,,,,,.....#RRRRR::.............##...RR##RR##RR
+RR##....,,,,,,,,,,,,,,,,....RRRRRR::.#......###..##...RR##RR##RR
+RRRR...,,,,,,,,,,,,,,,,,,...RRRRRR::.*##....###.....##RRR#RR#RRR
+RRRR...,,,,,,,,,,,,,,,,,###.#RRRRR::.###............##RRRRRRRRRR
+R####...,,,,,,,,,,,,,,,,###.##RRR::.####........##....RRRRRRRRRR
+######...,,,,,,,,,,,,,...#...#..::..F#..........#####.RRRRRRRRRR
+########...,,,,,,,,............::...F..........,,,####RRRRRRRRRR
+#########....,,,,,,............::...F........,,,,,,,##RRRRRRRRRR
+R#R#####RR.....,,,,............::...F........,,,,,,,,,RRRRRRRRRR
+RRRR####RR.........####........::...F........,,,,,,,,,,RRRRRRRRR
+RRRR####RRR......#####.........::..........,,,,,,,,,,,,RRRRRRRRR
+RRRR####RRR......#####.........::..........,,,,,,,,,,,,RRRRRRRRR
+RRRR##RRR...,,.,,,,,##.........::...........,,,,,,,,,,.RRRRRRRRR
+RRRRRRR....,,,,,,,,,,,.........::.........####.,,,,,,..RRRRRRRRR
+RRRRRRRR...,,,,,,,,,.,,........::.........#####,,,....RRRRRRRRRR
+RRRRRRRR....,,,,,,,,,,,,.......::.........#####,,,....RRRRRRRRRR
+RRRRRRRR...,,,,,,,,,,,,,.......:@.........####........RRRRRRRRRR
+RRRRRRRR...,,,,,,,,,FFFFFFFFF..::.........####........RRRRRRRRRR
+RRRRRRRR.,,,,,,,,,,,,,.........::.....................RRRRRRRRRR
+RRR......,,,,,,,,,,,,,##.......::.......................RRRRRRRR
+RRRR.......,###,,,,,,,##.......::.......................RRRR..RR
+RRRR.....,..#,,,,,,,,,.........::...F...................RRRR..RR
+RRRR...,,,,,,,,,,,,,,,,,.......::.......................RR.....R
+RRRR...,,,,,,,,,,,,,,,,,,......::...F...................RR.....R
+RRRRR...,,,,,,,,...,,,,,,......::...F...........,,...........R.R
+RR##RR..,,,,,,,,...,,,,,.......::...F.......##..,,.....R.......R
+RRRR##RR.,,,,,,,,,,,,,,........::...F.....,,##,,,,....RR.......R
+RRRR##RRR,,,,,,,,,,,,,,........::...F,,,,,,,,,,,,,,,..RR.......R
+######RRRR,,,,,,,..,,,,........::...F,,,,,,,,,,,,,,,,,,,.......R
+######RRRR.,,,,,,..........,,..::...F,,,,,,,,,,,,,,,,,,,.......R
+#######RRR..,,,,,,,......,,,,..::...F,,,,,,,,,,,,,,,,.,........R
+#######RRR....,,,,,.....#.,,,..::...FFFFFFFFF,,,,,,,##,........R
+######RRRR...........#..#.#.,..::...F,,,,,,,,,,,,,,,##.........R
+######RRRR...........#.#####...::...F,,..,,,,,,,,,,,..........RR
+#######................###.....:::..F,,..,,,,,,,,,.....RRR....RR
+R####RR.......##........###....:::..F.........##.......RRR..RRRR
+RR##RRR.......##.........####..:::............##.......RRRRR##RR
+RR##RRR....###.............####:::..........##.........RRRRRRRRR
+RRRRRRR....###...............##:::..F........#####.....RRRRRRRRR
+RRRRRRRR....RRRRRR,,,,,,.......:::..F....###.#####......RRRRRRRR
+RRRRRRRRR...RRRRRR,,,,,,,,.....:::..F....#########....RRRRRRRRRR
+RRRRRRRRR...RRRRRR,,,,,,,......:::..F......######.....RRRRRRRRRR
+RRRRRRRR##..##RR##,,,R,,......R:::RR####..RR##############RRRRRR
+RRRRRRR###########RRRRRRR.....R:::R#F###..RR##############RRRRRR
+RRRRRR############RRRRRRRRRRRR::::RRRRR...##R##############RRRRR
+RRRRRR############RRRRRRRRRRRR::::RRRRRRRR##R##############RRRRR
+RRRRRR############RRRRRRRRRRRR::::RRRRRRRR########RR##RRRRRRRRRR
+RRRRRRR###########RRRRRRRRRRRR:^:RRRRRRRRR######RRRR##RRRRRRRRRR

@@ -1,9 +1,9 @@
-# SEEDED STARTING LAYOUT for "r1" — NOT A FINISHED MAP. Edit it by hand.
+# HAND-AUTHORED LAYOUT for "r1" — Meadow Reach. THE LAYOUT IS THE MAP DESIGN.
 #
-# Written by tools/mapgen/seed.ts. It knows four things about this node: which edges its
-# adjacency declares, where its props stand, what biome it is, and whether it is a settlement.
-# It does not know what this place looks like. Re-running the seeder OVERWRITES hand edits
-# unless --force is withheld; the renderers read this file, not the seeder.
+# Seeded by tools/mapgen/seed.ts, then redesigned cell by cell. The maps are composed from
+# tiles now, stamped from this grid, so painting and collision correspond BY CONSTRUCTION and
+# this file is the map: every thicket, every stone, every patch of tussock is exactly where it
+# is written here. Re-running the seeder OVERWRITES this; the renderers read this file.
 #
 # ── coordinate space ─────────────────────────────────────────────────────────
 # space        map-native pixels, origin TOP-LEFT (data/nodes/*.json props[].x/y are in this space)
@@ -13,19 +13,37 @@
 # tiles        64 × 64 movement tiles of 32 world px
 # col ← x      col = floor(nativeX / 16);  a cell's centre is native (16·col + 8, 16·row + 8)
 # centre       native (512, 512) = cell (32, 32) = the tile firstWalkableTile starts on
+# screen       the player sees 240×160 native = 15 × 10 CELLS at a time
 #
 # ── seeded from ──────────────────────────────────────────────────────────────
 # biome        Meadow
 # adjacency    hearthollow, brackwater
-# bottom edge  hearthollow
-# top edge     brackwater
-# settlement   no — zero building footprints
-# props        r1-antler-north @ (316,244) → cell (19,15); r1-antler-south @ (742,690) → cell (46,43); r1-sign-forage @ (480,470) → cell (30,29)
+# bottom edge  hearthollow — ^ at (41,63), on hearthollow's field gate; the gate gap in the wall
+# top edge     brackwater — ^ at (26,0), on brackwater's bottom mouth; the marsh begins here
+# settlement   no — zero building footprints, zero doors
+# props        r1-antler-north @ (316,244) → cell (19,15); r1-antler-south @ (742,690) → cell (46,43); r1-sign-forage @ (480,470) → cell (30,29), on its authored cell
+# subject      tools/comfy/manifest.json _nodes.r1 — "mostly deep grass … one thin worn dirt
+#              track wanders up the picture, swinging wide round each thicket and crossing a
+#              shallow stream on planks … bare earth at the exact middle … a gate gap in a
+#              broken drystone wall toward the village … No fences, no square fields"
 #
 # ── decisions this file made ─────────────────────────────────────────────────
-# · a spur was cut from the lane to prop "r1-antler-north" at cell (19,15)
-# · prop "r1-antler-north" sits on a path-corridor cell at (19,15); the anchor character takes the cell and the cell stays walkable
-# · prop "r1-sign-forage" sits on a centre-clearing cell at (30,29); the anchor character takes the cell and the cell stays walkable
+# · THE PLACE. A meadow that steps up as it climbs: a broken drystone wall along the foot
+#   with the gate gap the track leaves by, a blocking stream crossed on planks with one other
+#   ford, a bar of bare rock across the middle, and — new in this pass — a MARSH ONSET across
+#   the top: standing water with wadeable margins and reed, so the walk on into brackwater's
+#   open-water field has an approach on this side instead of cutting straight from dry meadow
+#   to 80% water. The subject line's own words are "goes on at the top toward the marsh".
+# · THE MOUTHS SIT ON THEIR NEIGHBOURS. Top mouth col 26 = brackwater's bottom mouth col 26;
+#   bottom mouth col 41 = hearthollow's top mouth col 41. The top mouth moved from col 22.
+# · NO PALE DISC AT THE ARRIVAL TILE. The centre-clearing lozenge this map used to paint on
+#   (32,32) is gone — it was on six of the twelve nodes and was the closest thing in the set
+#   to a repeated module, on the one cell the player sees on every entry to every node. The
+#   middle is worn bare earth, which is what the subject line asks for.
+# · THE PROP SITS ON ITS AUTHORED CELL. r1-sign-forage is at (30,29) = floor(480/16),
+#   floor(470/16). data/nodes/r1.json is unchanged.
+# · ENCOUNTER TERRAIN. 24.1% of walkable in large connected fields either side of the track,
+#   none of it on the track, so the map can be crossed mouth to mouth without a forced roll.
 #
 # ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
 #   .  floor  open-ground         plain walkable ground; the default fill
@@ -48,67 +66,67 @@
 # before game/collision.ts gridFromAscii sees it; ANCH characters parse as floor and are read again
 # on a second pass. Region kinds are open strings — add a row to the legend, not a case to a switch.
 ---
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTT^:TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
-T,,,,,,,,TTTTTTTTTTTTTTTT,,,:::,,,,TTTTTTTTTTTTTTTTTTTT,,,T,,TTT
-T,,,,,,,,,T,,,,,,,,,,,,,,,,:::,,,,,,TTTTT,,,TTTT,,TTTT,,,,,,,TTT
-T,,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TT
-T,,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TT
-TT,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,T,,,,,,,,,,,,,,,,,,,,,,,,TT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,T,T,,,,,,,,,,,,,,,,,,,,,,,,TT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,,,:::TTTTT,,,,,,,,,,,,,,,,,,,,,,,,TT
-TTT,,,,,,,,,,,,,,TT,,,,,TT,T,,:::TTTTT,,,,,,,,,,,,,,,,,,,,,,,,TT
-TTT,,,,,,,,,,,,,,,,,,,,TTTTT,:::,TTTTTT,T,,,,,,,,,,,,,,,,,,,,,TT
-TTT,,,,,,,,,,,,,,T,*:::::::::::,,,,TTTTTTT,,,,,,,,,,,,,,,,,,,TTT
-TTT,,,,,,,,,,TT,,T,,,TTT,TT:::::,,TTTTTTTT,,,,,,,,,,,,,,,,,,,,TT
-TTT,,,,,,,,,,,TTTTTTTTTTTTT:::::,,TTTTTTTT,,,,,,,,,,,,,,,,,,,,TT
-TTT,,,,,,,,,TTTTTTTTTTT,TTTT:::T,,,,,T,TT,,,,,,,,,,,,,,,,,,,,,TT
-TT,,,,,,T,,,TTTTTTTTTT,,T,T,:::TT,,,,,,T,,,,,,,,,,,,,,,,,,,,,,TT
-T,,,,,,TTTTT,TTTTTTTTT,,,,,,,:::T,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TT
-TT,,,,,TTTTTTTTTTTTTTT,,,,,,,,:::T,,,,,,,,,,,,,,,,,,,,,,,,,,,,TT
-TTT,,,,,,TTTTTTTTTT,,T,TTTTT,TT:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,,T
-TT,,,,,,,TTTTTTTTTTTTTTTTTTT,TT,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,T
-T,,,,,,,,TTTTTTT,T,,,,TTTTT,,oooo::,,,,,,,,,,,,,,,,,,,,,,,,,,,,T
-TT,,,,,TTTTTTTTT,T,,TTTTTT,,ooooo::,,,,,,,,,,,,,,,,,,,,,,,,,,,TT
-TT,,,,,,TTTTTTT,,,,,,TT,TT,oooooo:::,,,,,,,,,,,,,,,,,,,,,,,,,,TT
-TT,,,,,,,TTTTTTT,,,,,,,TT,,oooooo:::,,,,,,,,,,,,,,,,,,,,,,,,,,TT
-TT,,,,,,,TTTTTTT,,,,,,,TT,,oooooo:::o,,,,,,,,,,,,,,,,,,,,,,,,,,T
-TT,,,,,,,,,TTT,,,,,,,,,T,,,ooo*oo:::o,,,,,,,,,,,,,,,,,,,,,,,,,,T
-TT,,,,,,,,,,,,,,,,,,,,,T,,,ooooo:::oo,,,,,,,,,,,,T,TT,,,,,,,,,,T
-TT,,,,,,,,,,,,,,,,,TTTTT,,,ooooo::ooo,,,,,,,,,,,,TTTT,,,,,,,,,,T
-TT,,,,,,,,,,,,,,,,,,TTTT,,,,oooo@:ooo,,,,,,,,,,,,,TTTT,,,,,,,,,T
-TT,,,,,,,,,,,,,,,,,TTTTT,,,,ooo:::ooo,,,,,,,,,,,,,,,T,,,,,,,,,TT
-TT,,,,,,,,,,,,,,,,,,,TTT,,,,,,o:::oo,,,,,,,,,,,,,,,,T,,,,,,,,,,T
-TTT,,,,,,,,,,,,,,,,,,TT,,,,,,,,o::o,,,,,,,,,,,,,,,,,,,,,,,,,,,,T
-TTT,,,,,,,,,,,,,,TT,,TT,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,,,,,,,,T
-TTT,,,,,,,,,,,,,,TTTTTT,,,,,,,,,,::,,,,,,,,,,,,,,,,,,,,,,,,,,,TT
-TTT,,,,,,,,,,,TTTTTTTT,T,,,,,,,,,:::,,,,,,,,T,,,,,,,,,,,,,,,,,TT
-TT,,,,,,,,,,,,,TTTTTTTTT,,,,,,,,,,:::,,,,,,,T,,,,,,,,,,,,,,,,,TT
-TT,,,,,,,,,,,,,TTTTTTTTT,,,,,,,,,,,:::,,,,,TTT,,,,,,,,,,,,,,,,TT
-TT,,,,,,,,,,,,,,TTTTTTTTT,,TTTTTTTTT:::,,,,TT,,,,,,,,,,,,,,,,,TT
-TT,,,,,,,,,,,,,,TTTTTTTT,,,TTTTTTTTTT::T,,TTT,,,,,,,,,,,,,,,,,TT
-TT,,,,,,,,,,,,,,,TTTTTTT,,TTTTTTTTTTT:::,,,,T,*,,,,,,,,,,,,,,TTT
-T,,,,,,,,,,,,,,,,,,TTTTTT,,T,TTTTTTTTT:::,,,,,,,,,,,,,,,,,,,,TTT
-T,,,,,,,,,,,,,,,,,,TTTT,,,,,TTTTTTTTTTT::,,,,,TTTTT,,,,,,,,,,TTT
-T,,,,,,,,,,,,,,,,,,T,,,,,,,,,,TTTTTTTTT:::,,TTTTTTT,,,,,,,,,,TTT
-T,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTT,,,T,T,:::,,TTTTTTT,,,,,,,,,,TTT
-T,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTTT,T:::,,,TTTTTT,,,,,,,,,,,TTT
-TT,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTTT,,:::,,,,TTTTTTTT,,,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTT,:::,,,,,TTTTTTTTT,,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTT,:::,,,,,TTTTTTTT,,,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTT,,,:::,,,,,TTTT,,,,,,,,,,,,TTT
-TTT,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTT,:::,,,,TTTT,,,,,,,,,,,,,TTT
-TT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTT,::,,,,,,T,,,,,,,,,,,,,,,TTT
-TT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,TTTTT:::,,,,,TT,,,,,,,,,,,,,,TTT
-TT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,T,,,,:::,,,,,,T,,,,,,,,,,,,,,TTT
-TT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,,TTT
-TT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,,TTT
-TT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,::,,,,,,,,,,,,,,,,,,,,TTT
-TT,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,:::,,,,,,,,,,,,,,,,,,,TTT
-TTTTTTTTTTTTTTTTTTT,,,,,,,TTTTTT,,,,,,,,:::,,,TT,,,,,,,,,,,,,TTT
-TTTTTTTTTTTTTTTTTTTTTT,,TTTTTTTTTTTTTTTTT:::TTTTTTTTT,,,,,,,,TTT
-TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT^:TTTTTTTTTTTTTTTTTTTT
+TTTTTTTTTTTTTTTTTTTTTTTTT:^:TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT
+TTTTTTTTTTTTTTTWWWWW~T~..:::TTTTTTTTTTTTTTTTTTTTTTWWTTTTTTTTTTTT
+TTTTTTTTTTTTTTWWWWW~~T...:::TTTTT...TT...TT~TTTTTTTTWWWWTTTTTTTT
+TTTTTTTTWWWWTTTW~W~~.....:::..TT....TTT,,,~~TTTTWWWWWWWWWTTTTTTT
+TTTTTTTTWWTTW~..~~~.~~..::::..........,,,,,~..WWWWWWWWWWWTTTTTTT
+TTTTWWTWWWWWWW~.~~..~~..:::......R..,,,,,,,~..WWWWWWWWWWWTTTTTTT
+TT~~~WWWWWWWWWW~........::..........,,,,,,,~~~WWWWWWWW~~WTTTTTTT
+TT~~~WWWWWWWWWWW~.......:::...........,,,,,.TTTTTTWWW~~TTTTTTTTT
+TT~~WWTWWWWWWWTTTT......::::.TTT.T....,,,,.,TTTTWW~~~~WTTTTTTTTT
+TT~~~WTTTTWWWWTTTTT......::::TTTTTT...,,,.,,,TTT~W~~,,~~TTTTTTTT
+TTT.TTTTWWWW~,,,TTT.......:::TTT.........,,,,,,~~~~~,,...TTTTTTT
+TT..TTTT~~~~,,,,,,..TTT...:::.TT.........,,,,,,,,~TT,,......TTTT
+TT....TT~~..~,,,,....TT...:::.........RR.,,,,,,,,,TTT.......TTTT
+TT.....TT......TT.........::.............TT,,,,,,..TT.......TTTT
+TTT........RR..TT.........::....TTT.....TTT.....R..........TTTTT
+TTT.TT.............*......::RR..TTTT................TT..RRRRRRRT
+TTT.TTT....TT.........TT.R::.....TT...........TTRRRRRRRRRRRRRRRT
+TTTT.TT.R.TTRR.......TTT...::R..........RRRRRRRRRRRRRRRR..TTTTTT
+TTTT.....TT......RR.........::...RRRRRRRRRRRRRRR......RR..TTTTTT
+TTTT.....TTT....RRRRRRRRRRR..::..RRRRRRR.RRR..............TTTTTT
+TRRRRRR..RTRRRRRRRRRRRRRRRR...::......TT..RRR..............TTTTT
+TRRRRR.R..RRRRRR......RR.......::....TTT....RR..............TTTT
+TTTRRR.........TTT.....RRRTTT...::.....RR...................TTTT
+TTR.R.........TTTTT.....RTTTTT...::........T.........TT.....TTTT
+T.......TTT.TTTTTTTTT....TTTT.TT.::........TT,,.....TTT......TTT
+T.......TTTTTT.TTTTTT......TT..T::..TTT.....,,,,,............TTT
+TT.....TTTT,,......TTT.........::...TTTT..,,,,,,,,..,,,,......TT
+TT....TTTT,,,R,,T...TT..T.....::.....TT...,,,,,,,,,,,T,,......TT
+TT....TT,,,,,,,,TT......TT....::...........,,,,,,,,,,TT,......TT
+TTT,,,,,,,,,,,,,,,,,.TTT......*:.............,,,,,,,,,,,.......T
+TTT,,,,,,TT,,,,,,,,,TTTT.......::............,,,,TT,,,,,.......T
+TTT.,,,,,TT,,,,,,,,,TTTT........::.......TT..,,,,TTT,,........TT
+TTTT.,,,,,,,,,,TT,,,..TTT.......@::.....TTT.....,,,...........TT
+TTTT.,,,,,,,,,TTT,,,...TT........::.....TT......,,,.........WWWW
+TTTT.TTT,,,,,,TT....RR..TT.......::....................WWWWWWWWW
+TTTTT.TT,,,,,,....TTT...TTT......::..T.......TTT....WWWWWWWWWWWW
+TTTTT....,,,,......TT......TTT...::.........TTTT.WWWWWWW~~~~WTTT
+TTTT........................TT...::.........TTWWWWWWW~~~....TTTT
+TTTT...........................WWW::WW....WWWWWWWW~~~........TTT
+TTT........................WWWWWWWW::WWWWWWWWWW~~~...........TTT
+TT.......WWW~~~~........WWWWWWWW~~~~::WWWWW~~~~..............TTT
+TT..WWWWWWWW~~~~~WWWWWWWWWWW~~~~.....::~~~~.....TT,,,,,,,,....TT
+WWWWWWWWWW~~~~~~~WWWWWWWW~~~..........::.......TTT,,,,,,,,....TT
+WWWWW~~~~~,,,,,~~~~~~~~~~..............::.....*..,,,,,,,,,....TT
+WW~~~...,,,,,,,,,,,,,......T.....TT....::....TT..,,,,,,,,,...TTT
+TT...,,,,,,,,,,,,,,,,,,...TTT....TTT..::......T..,TT,,,,,...TTTT
+TTT..,,,,,,,,,,TT...,,,...TTT,,,,,...::...TT...,,,TTT,,,,..TTTTT
+TTTT.,,,,,,TT.TTT,,,.....,,,,,,,,,..::...TTTT..,,,,TT,,,..TTTTTT
+TTTT,,,,,,,,T..,,,,,,,,,,,.,,,,,,,..::....TTT..,,,,,T,,,,.TTTTTT
+TTTT,,,,,,,,.,,,,,,,,,,TT....,,,,,,.::..........,,,,,,,TT...TTTT
+TTTTT,,,,,,.,,,,,,,,,,TTTT...,,,,,,..::...TTTT...,,,,,TTT...TTTT
+TTTTT,,,,...,,,,,,,T,,,TTT,,.,,,,.....::.TTTTTT....,,,TT.....TTT
+TTTTT,,,..TTT,,,,,,TT,,,,,,,.TTT.......::.TTTTT....,,,........TT
+TTTTTT,,.TTTT,,,,,,,,,,,,,...TTTT.......::..TT....T...........TT
+TTTTTTTT.TT,,,,,,TTT,,,,,.....TT.........::......TTT...........T
+TTTTT.TT..,,,,,,,,TT,,.............RRRRR:::RRRRRRRRT...TTT.....T
+TTTTT.....,,,,,,,,.................RT...:::..TT...R.....TT....TT
+TRRRRRRRRRR...RRRRRRRRRRRRRRRRRRRRRRTT...::.TTT...R...........TT
+TTT..,,,,,,,,,...........................::.......RRRRRRR..RRRRT
+TTT..,,,,,,,,,,,......TT..TTT............::.......TT.........TTT
+TT...TTT,,TTT,,,,...TTTTT..TT.TT.TTT.....::TT..TTTTTT...TT...TTT
+TTTTTTTTT..TTT,,,TTTTTTTTTT...TTTTTTTT...::.TTTTTTTTTTTTTT..TTTT
+TTTTTTTTTTTTTTTTTTTTTTTTTTTT.TTTTTTTTTTT.::TTTTTTTTTTTTTTTTTTTTT
+TTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTTT:^:TTTTTTTTTTTTTTTTTTTTT
