@@ -151,6 +151,46 @@ export interface NodePopulation {
   carryCap: number;
 }
 
+/**
+ * Where an edge of this map leads — `tools/mapgen/legend.ts` legend kind `edge-mouth`, verbatim:
+ * *"the cell where a corridor meets the map edge; one per declared adjacency"*.
+ *
+ * ══ WHY THIS FIELD EXISTS, AND WHY IT IS A COORDINATE AND NOT A DERIVATION ══
+ * `OverworldScene.travelTo` carried a declared deviation in its own header — *"the node schema
+ * carries no exit or portal positions … so there is nothing in the data that says where an edge of
+ * the map leads. Travel is therefore an explicit action keyed on `adjacency`, not a
+ * walk-off-the-edge"*. That was true of the SCHEMA and false of the MAP: `tools/mapgen/layouts/*.txt`
+ * — the one document the painting and the collision mask are both stamped from — has drawn a `^`
+ * edge-mouth cell per declared adjacency all along, and each layout's header names which neighbour
+ * each one serves (`# top edge  r1`, `# bottom edge  hearthollow`). The `^` is flattened to walkable
+ * floor when the mask is rasterised, so nothing survives into the shipped PNG that a runtime could
+ * read. This field is that cell, carried into the data the game actually loads.
+ *
+ * PINNED, NOT INVENTED: every shipped value is the CENTRE of a `^` its own layout draws, and `to` is
+ * the node that layout's own header assigns to that edge. `tests/unit/edge-mouth-travel.test.ts`
+ * holds all 22 to both, against the shipped layout and the shipped mask — the same contract
+ * `tests/unit/doorway-threshold.test.ts` holds every `data/interiors/*.json` door to.
+ *
+ * OPTIONAL, deliberately: a `walkable: false` vignette node has no map to walk off, and INV-2's
+ * `ext_add_node` gate adds exactly such a node with data alone. A walkable node that omits it simply
+ * has no walk-out exit — which the gate above reports rather than the schema guessing a cell.
+ */
+export interface EdgeMouth {
+  /**
+   * Plain words about this placement: which layout cell it is the centre of, and the header line
+   * that assigns the edge. REQUIRED for the same reason `InteriorDoor._note` is — every door in the
+   * game shipped for months on a placeholder coordinate whose own note said it *"must be re-pinned
+   * against the painted map"*, and the note is what made the rot findable when someone finally read
+   * it. Documentation, never player-facing.
+   */
+  _note: string;
+  /** Position in map-native pixels (1024² painted map space), as `PropPlacement` and the door use. */
+  x: number;
+  y: number;
+  /** The adjacent node this mouth leads to. Always a member of the node's own `adjacency`. */
+  to: string;
+}
+
 /** build-doc §7.2. `spawnTables: never` is deliberate — encounter weights are DERIVED (G3). */
 export interface NodeFile {
   id: string;
@@ -164,6 +204,7 @@ export interface NodeFile {
   floraStock: number; // abstract producer stock, 0–100
   populations: Record<string, NodePopulation>; // key = species line id
   props: PropPlacement[]; // antler stones, shrines, idols — sign-chain trailheads
+  edgeMouths?: EdgeMouth[]; // where each map edge leads — the layout's own `^` cells (see EdgeMouth)
   spawnTables?: never; // deliberately untyped: encounter weights are DERIVED (G3)
 }
 

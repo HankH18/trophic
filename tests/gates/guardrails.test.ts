@@ -944,9 +944,18 @@ describe("no_shadow_tables — build-doc §8.3 / §10.3 / G3", () => {
     // node file added outside core/schemas.ts's static import list still cannot smuggle one in.
     const nodeFiles = walk(join(ROOT, "data", "nodes"), [".json"]);
     expect(nodeFiles.length).toBe(12);
+    /*
+     * `edgeMouths` joined `core/schemas.ts` `zNodeFileShape` when travel became a walk off the map's
+     * own edge (`core/types.ts` `EdgeMouth`; the coordinates are pinned to the `^` cells the layouts
+     * draw and held there by `tests/unit/edge-mouth-travel.test.ts`). THE TWO ASSERTIONS BELOW ARE
+     * UNTOUCHED and neither is weakened: the `SECOND_TABLE_KEY` sweep still runs on every key —
+     * `edgeMouths` passes it because it carries no species, no weight and no count — and this set is
+     * still an exact hand-copy of the schema, deliberately not derived from it, so a key added to
+     * the schema alone cannot slip past this file.
+     */
     const allowed = new Set([
       "id", "name", "biome", "adjacency", "walkable", "mapAsset", "yearVariants",
-      "collisionMask", "floraStock", "populations", "props",
+      "collisionMask", "floraStock", "populations", "props", "edgeMouths",
     ]);
     for (const abs of nodeFiles) {
       const raw = JSON.parse(readFileSync(abs, "utf8")) as Record<string, unknown>;

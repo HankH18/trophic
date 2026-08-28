@@ -28,8 +28,8 @@ import type { Balance, CollisionGrid, PropPlacement } from "../core/types";
 // verbatim so the spawn rule below and the interact key cannot disagree about one tile. Neither
 // module imports an engine and neither imports this one, so nothing here gains a cycle or a Phaser
 // dependency. build-doc §7.6 still holds: props are NOT collision, and nothing here makes them so.
-import { createMovement, movementConfig, spriteWorldPosition } from "./movement";
-import { propInReach } from "./props";
+import { createMovement, delta, DIRECTIONS, movementConfig, spriteWorldPosition } from "./movement";
+import { propInReach, propOccupiedTiles } from "./props";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Format facts — not gameplay constants (G11 / INV-4)
@@ -490,6 +490,76 @@ export function tileGridSize(balance: Balance): { cols: number; rows: number } {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
+ * What a WALK can reach — standable is not the same as reachable
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * One tile as a set key. `"col,row"`, and it is here so every caller spells it the same way.
+ *
+ * A second spelling of this string is a set that silently never matches — the failure has no
+ * symptom at all, because a miss and an absence are the same value.
+ */
+export function tileKey(tile: { col: number; row: number }): string {
+  return `${String(tile.col)},${String(tile.row)}`;
+}
+
+/**
+ * Every tile a WALK from `start` can land on — four-connected, over `tileWalkable`.
+ *
+ * ⚠ STANDABLE IS NOT REACHABLE, and the difference is the whole reason this exists. A patch of open
+ * ground on the far side of a wall satisfies `tileWalkable` and is not somewhere the player can ever
+ * be; `tests/unit/doorway-threshold.test.ts` found a door on exactly such a patch. Four-connected
+ * because `game/movement.ts` `delta` has four directions and no diagonal — a diagonal fill would
+ * report a one-cell corner gap as passable when the player cannot cut it.
+ *
+ * `blocked` is an OVERLAY on the mask, not a change to it: cells that are walkable geometry but
+ * occupied by something the player cannot walk through. It is what makes this answer the question
+ * "if these fifty people stand here, can the player still get everywhere?" — see `game/npcs.ts`
+ * {@link npcOccupiedTiles}. The mask itself is never modified (build-doc §7.6: a body is not
+ * geometry), so a placement pass can ask this without feeding on its own output.
+ */
+export function reachableTiles(
+  grid: CollisionGrid,
+  balance: Balance,
+  start: { col: number; row: number },
+  blocked: ReadonlySet<string> = new Set<string>(),
+): Set<string> {
+  const size = tileGridSize(balance);
+  const seen = new Set<string>();
+  if (!tileWalkable(grid, start.col, start.row, balance) || blocked.has(tileKey(start))) return seen;
+  seen.add(tileKey(start));
+  const queue: { col: number; row: number }[] = [start];
+  // Index rather than `shift()`: `shift` is O(n) on a 4096-cell queue and this runs once per
+  // candidate cell in the placement search.
+  for (let head = 0; head < queue.length; head += 1) {
+    const at = queue[head] as { col: number; row: number };
+    for (const [dCol, dRow] of FOUR_NEIGHBOURS) {
+      const next = { col: at.col + dCol, row: at.row + dRow };
+      const key = tileKey(next);
+      if (seen.has(key) || blocked.has(key)) continue;
+      if (next.col < 0 || next.row < 0 || next.col >= size.cols || next.row >= size.rows) continue;
+      if (!tileWalkable(grid, next.col, next.row, balance)) continue;
+      seen.add(key);
+      queue.push(next);
+    }
+  }
+  return seen;
+}
+
+/**
+ * The steps a walk can take — `game/movement.ts`'s OWN table, not a copy of it.
+ *
+ * Derived rather than written down for the reason every other joined-up number in this file is: a
+ * second list of offsets is a second answer to "what counts as adjacent", and a fill that walked a
+ * lattice the player cannot would certify a corner gap as a corridor. If `DIRECTIONS` ever gains a
+ * diagonal, this follows it in the same commit.
+ */
+const FOUR_NEIGHBOURS: ReadonlyArray<readonly [number, number]> = DIRECTIONS.map((dir) => {
+  const step = delta(dir);
+  return [step.dCol, step.dRow] as const;
+});
+
+/* ────────────────────────────────────────────────────────────────────────────
  * Sampling — §7.6's "sampled on a 16px grid into a packed bitfield"
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -764,9 +834,18 @@ function spiralFor(
  * inside a radius that then eats their interact key, is the thing being avoided.
  *
  * ⚠ AND IT IS A PREFERENCE, NOT A REQUIREMENT — the function is total. When every walkable tile is
- * inside some radius (a small room, a densely propped map) the second pass is the ORIGINAL spiral,
- * so this can never return null where it previously returned a tile, and never returns nothing
- * because a map is crowded. {@link SpawnChoice.insideProp} is where that outcome is reported.
+ * inside some radius (a small room, a densely propped map) the later passes fall back to the
+ * ORIGINAL spiral, so this can never return null where it previously returned a tile, and never
+ * returns nothing because a map is crowded. {@link SpawnChoice.insideProp} reports that outcome.
+ *
+ * ⚠ THE MIDDLE PASS IS NEW AND IT IS NOT A PREFERENCE — IT IS "DO NOT STAND INSIDE THE STONE".
+ * The owner ruled props solid ("props should have collisions too"), so `game/props.ts`
+ * `propTile` is now a cell the player cannot enter. The RADIUS pass above is still only a
+ * preference and still gives way on a crowded map — but giving way as far as the prop's own cell
+ * would put the player inside geometry on arrival, which is the precise thing `SpawnChoice.problem`
+ * exists to shout about. So the fallback refuses the BODY while still accepting the reach. It
+ * changes nothing on the shipped maps (measured: every node's spawn is clear of every radius), and
+ * it is the difference between a crowded map and a broken one.
  */
 export function firstWalkableTile(
   grid: CollisionGrid,
@@ -777,6 +856,9 @@ export function firstWalkableTile(
   if (props.length > 0) {
     const clear = spiralFor(grid, balance, (tile) => propCovering(tile, balance, props) === null);
     if (clear) return clear;
+    const bodies = propOccupiedTiles(props, balance);
+    const outsideBodies = spiralFor(grid, balance, (tile) => !bodies.has(tileKey(tile)));
+    if (outsideBodies) return outsideBodies;
   }
   return spiralFor(grid, balance, () => true);
 }

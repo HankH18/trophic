@@ -54,5 +54,13 @@
       "interactionRadius": 48,
       "label": "Warden Maren's field station"
     }
+  ],
+  "edgeMouths": [
+    {
+      "_note": "PINNED TO THE MAP'S OWN EDGE MOUTH. tools/mapgen/layouts/hearthollow.txt is the one document the painting and the collision mask are both stamped from, and it draws a '^' edge-mouth cell for every declared adjacency — legend kind edge-mouth, 'the cell where a corridor meets the map edge; one per declared adjacency'. This is cell (41,0) on the TOP edge, and the layout's own header assigns that edge: \"# top edge     r1, ONE mouth, cells (40,0)-(42,0), ^ at (41,0) — the timber field gate,\" (hearthollow.txt:23). Cell (41,0) spans native (656..672, 0..16); x/y below are its CENTRE, so OverworldScene.mouthTileOf — floor(x * balance.map.mapRenderScale / balance.map.tileStepPx) — lands on tile 41,0: the cell the layout marks, walkable in the shipped mask and four-connected to the spawn tile. THE COORDINATE IS READ OFF THE GRID, NEVER OFF HEADER PROSE: r2.txt's header still names a bottom mouth at (31,63) that its own decisions block records as moved to col 38. tests/unit/edge-mouth-travel.test.ts holds every mouth to the shipped layout and the shipped mask. Units are map-native pixels in the 1024-square painted map, the same space this file's props[] use.",
+      "x": 664,
+      "y": 8,
+      "to": "r1"
+    }
   ]
 }

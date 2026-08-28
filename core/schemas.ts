@@ -208,6 +208,23 @@ export const zNodePopulation = z.strictObject({
   carryCap: zNonNegInt,
 });
 
+/**
+ * `core/types.ts` {@link EdgeMouth} — where an edge of this map leads.
+ *
+ * `_note` is REQUIRED, on `zInteriorDoor`'s precedent and for its reason: this is a coordinate
+ * pinned to a picture, and a pinned coordinate with nothing written beside it is the exact shape
+ * that rotted every interior door. Nothing here checks that the pin is still right — that is
+ * `tests/unit/edge-mouth-travel.test.ts`'s job, against the shipped layout and the shipped mask,
+ * because a schema cannot read a PNG. The cross-file check this file DOES make is the cheap one:
+ * `to` must name a node, and it must be one this node is adjacent to (see `validateContent`).
+ */
+export const zEdgeMouth = z.strictObject({
+  _note: z.string().min(1),
+  x: z.number(),
+  y: z.number(),
+  to: z.string().min(1),
+});
+
 const zNodeFileShape = {
   id: z.string().min(1),
   name: z.string().min(1),
@@ -220,6 +237,7 @@ const zNodeFileShape = {
   floraStock: z.number().min(0),
   populations: z.record(z.string().min(1), zNodePopulation),
   props: z.array(zPropPlacement),
+  edgeMouths: z.array(zEdgeMouth).optional(),
   // G3: `spawnTables` must never appear as data — encounter weights are DERIVED.
   spawnTables: z.undefined().optional(),
 };
@@ -1266,6 +1284,22 @@ export function validateBundle(raw: RawContentBundle): Content {
         const other = nodes.find((m) => m.id === a);
         if (other && !other.adjacency.includes(n.id)) issues.push(`node ${n.id}: adjacency to "${a}" is not symmetric`);
       }
+    }
+    /*
+     * AN EDGE MOUTH LEADS SOMEWHERE THIS NODE IS ACTUALLY JOINED TO. Walking off the map is a
+     * `travelTo`, and `travelTo` refuses a destination outside `adjacency` — so a mouth naming a
+     * node this one is not adjacent to is a way out that silently does nothing when the player
+     * walks into it. Refused here rather than discovered on the map. Two mouths on one destination
+     * is refused for the reverse reason: the layout draws ONE `^` per declared adjacency, and a
+     * second one is a coordinate that has drifted off its own edge.
+     */
+    const mouthDestinations = new Set<string>();
+    for (const mouth of n.edgeMouths ?? []) {
+      if (!n.adjacency.includes(mouth.to)) {
+        issues.push(`node ${n.id}: edge mouth at ${mouth.x},${mouth.y} leads to "${mouth.to}", which is not in its adjacency`);
+      }
+      if (mouthDestinations.has(mouth.to)) issues.push(`node ${n.id}: two edge mouths both lead to "${mouth.to}"`);
+      mouthDestinations.add(mouth.to);
     }
     if (n.floraStock < balance.ecosim.floraMin || n.floraStock > balance.ecosim.floraMax) {
       issues.push(`node ${n.id}: floraStock ${n.floraStock} outside balance.ecosim flora band`);

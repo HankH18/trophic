@@ -33,7 +33,11 @@
  */
 
 import { readFileSync } from "node:fs";
+import { resolve as resolvePath } from "node:path";
 import { fileURLToPath } from "node:url";
+
+// §26 walks the SHIPPED masks rather than the stub's open rectangle; see that section's header.
+import { readRaster as readRasterFile } from "../../tools/postprocess/raster";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 /* ════════════════════════════════════════════════════════════════════════════
@@ -481,7 +485,7 @@ vi.mock("phaser", () => {
 
 /* ── imports that must come AFTER vi.mock ─────────────────────────────────── */
 
-import { RUN_COMPLETE_SHOWN_FLAG, actOf, nodeUnlockedAt, runIsComplete } from "@core/acts";
+import { RUN_COMPLETE_SHOWN_FLAG, actOf, nodeUnlockedAt, runIsComplete, unlockActOf } from "@core/acts";
 import {
   BLACKOUT_CUE_FLAG,
   BLACKOUT_ENTRY_ID,
@@ -519,13 +523,14 @@ import { encounterMaskFor, encounterTable, stepsPerForay } from "@game/encounter
 import {
   INTERIORS,
   PLAN_DOOR,
+  PLAN_SPEAKER,
   planCellIsSolid,
   planCellsWith,
   planCharAt,
   planSize,
   type InteriorBlueprint,
 } from "@core/interiors";
-import { chooseSpawnTile, loadCollision } from "@game/collision";
+import { chooseSpawnTile, loadCollision, tileGridSize, tileWalkable as tileWalkableFn } from "@game/collision";
 import {
   DIRECTIONS,
   createMovement,
@@ -544,6 +549,7 @@ import {
 } from "@game/movement";
 // §15's reach question is asked through the SAME helpers `interact()` asks it through, so the
 // fixture and the scene cannot disagree about where a player standing on a tile actually is.
+import { solidBodyTiles } from "@game/npcs";
 import { propAt, propLabel, propsOf, type WorldPoint } from "@game/props";
 import {
   captureStreams,
@@ -561,7 +567,7 @@ import {
  * stream a battle must run off is the RUN's, which the scene hands over as `BattleSceneData.rng` —
  * see `fightWithSnares`. A fresh stream per fight is the exact thing `beginWildBattle` warns about.
  */
-import type { Balance, Content, NodeFile, NodeState, OwnedCreature, PropPlacement, SpeciesLine } from "@core/types";
+import type { Balance, CollisionGrid, Content, NodeFile, NodeState, OwnedCreature, PropPlacement, SpeciesLine } from "@core/types";
 import { OverworldScene, panelColumnHeight, type OverworldSceneData } from "@game/scenes/OverworldScene";
 import type { BattleSceneData } from "@game/scenes/BattleScene";
 import { SCENE_KEYS } from "@game/scene-keys";
@@ -4059,9 +4065,45 @@ describe("§14 interiors: entering, leaving, and the foray that does not come in
     for (let row = 0; row < size.rows; row += 1) {
       for (let col = 0; col < size.cols; col += 1) {
         const blocked = planCellIsSolid(bp.plan, col, row);
+        const char = planCharAt(bp.plan, col, row);
+        /*
+         * ⚠ THE `@` CELL IS THE ONE PLACE THE PLAN AND `canEnter` NO LONGER AGREE, AND THAT IS THE
+         * CONTRACT NOW — asserted below rather than excused.
+         *
+         * This loop used to demand `canEnter === !planCellIsSolid` for every character, which is
+         * how it read while nothing but the mask could block a tile. The owner played the build and
+         * reported *"the NPCs have no collisions"*; a person's cell is impassable as of that fix
+         * (`game/npcs.ts` `npcOccupiedTiles`, `OverworldScene.canEnter`), and `@` is a person's cell.
+         *
+         * The plans have said so about themselves since they were authored. Every one of the four
+         * `_legend` blocks in `data/interiors/*.json` reads: *"A named person stands here … The
+         * collision parser treats this cell as walkable floor; it is occupied in fact, and the scene
+         * layer stands her on it."* So `@` never claimed the player could stand there — it claimed
+         * the PARSER treats it as floor, which is still true and is asserted on the next line. The
+         * old assertion conflated the parser's reading with the scene's answer, and the two were the
+         * same thing only while the second half of that sentence was unenforced.
+         *
+         * NOT WEAKENED: `@` is pinned to `false` exactly, which is STRICTER than the `!blocked` it
+         * replaced, and the plan's own grid is asserted to be unchanged beside it. Every other
+         * character — `#`, `.`, `D`, `S` — is held to the original rule, untouched.
+         */
+        if (char === PLAN_SPEAKER) {
+          expect(
+            planCellIsSolid(bp.plan, col, row),
+            `${where}: ${bp.id} cell ${col},${row} — the PLAN must still call "@" floor; only the ` +
+              `scene layer standing a body on it may block it`,
+          ).toBe(false);
+          expect(
+            h.scene.canEnter({ col, row }),
+            `${where}: ${bp.id} cell ${col},${row} is "@" — a named person stands here and the ` +
+              `player walked straight through them`,
+          ).toBe(false);
+          open += 1;
+          continue;
+        }
         expect(
           h.scene.canEnter({ col, row }),
-          `${where}: ${bp.id} cell ${col},${row} is "${String(planCharAt(bp.plan, col, row))}" — the scene disagrees`,
+          `${where}: ${bp.id} cell ${col},${row} is "${String(char)}" — the scene disagrees`,
         ).toBe(!blocked);
         if (blocked) solid += 1;
         else open += 1;
@@ -7438,3 +7480,360 @@ describe("§24 the player-facing readout is in a side panel, and the map is clea
     ).toBeGreaterThan(visibleHud(plain).split("\n").length);
   });
 });
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §26 WALKING OFF THE MAP — the region changes because the player walked there
+ *
+ * The owner played the build: *"I should be able to go to the next region by walking up the path.
+ * Instead, that appears to be blocking behind a button right now."* `data/nodes/*.json`
+ * `edgeMouths[]` names the cell each edge leads out of — pinned to the `^` the layout draws, and
+ * held there by `tests/unit/edge-mouth-travel.test.ts`. This section is the other half: that a STEP
+ * onto that cell, taken through the real movement code, is a travel.
+ *
+ * ⚠ EVERY TEST HERE RUNS ON THE SHIPPED MASK, NOT ON THE STUB'S OPEN RECTANGLE, and §26.0 is the
+ * control that proves it. The rest of this file mounts against a stub that loads no textures, so
+ * `buildNodeView` reads a null mask and the town is `synthesiseBorderCollision`'s open rectangle —
+ * the grid fifteen door tests passed on while one door sat in open water. An edge mouth lives on the
+ * BORDER ROW, which that placeholder blocks outright, so a section written against it would be
+ * testing a wall. The real PNG is decoded by `tools/postprocess/raster.ts` and installed into the
+ * stub's `maskPixels` before `create`, which is the one seam the stub already provides.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("§26 walking off the map edge changes the region", () => {
+  /** The shipped PNG as the engine's pixels — the shape `readMaskPixels` hands `loadCollision`. */
+  async function shippedMask(path: string): Promise<{ width: number; height: number; data: Uint8ClampedArray }> {
+    const raster = await readRasterFile(resolvePath(ROOT, path));
+    return { width: raster.width, height: raster.height, data: new Uint8ClampedArray(raster.data) };
+  }
+
+  /** Mount at `nodeId` with the REAL masks of it and of every node it can walk to. */
+  async function mountOnRealGround(nodeId: string, save?: SaveEnvelope): Promise<Harness> {
+    const here = nodeFile(nodeId);
+    const needed = [here, ...here.adjacency.map((id) => nodeFile(id))];
+    const masks = await Promise.all(needed.map(async (n) => [n.collisionMask, await shippedMask(n.collisionMask)] as const));
+    return mount({ save: save ?? freshSave(nodeId) }, (parts) => {
+      for (const [path, pixels] of masks) parts.maskPixels.set(maskTextureKey(path), pixels);
+    });
+  }
+
+  /** The tile an `EdgeMouth` stands on — `OverworldScene.mouthTileOf`'s arithmetic, restated. */
+  function mouthTile(mouth: { x: number; y: number }): { col: number; row: number } {
+    return {
+      col: Math.floor((mouth.x * balance.map.mapRenderScale) / balance.map.tileStepPx),
+      row: Math.floor((mouth.y * balance.map.mapRenderScale) / balance.map.tileStepPx),
+    };
+  }
+
+  /** How many of the 64×64 tiles the scene refuses. The instrument, not an assertion of its own. */
+  function refusedTiles(h: Harness): number {
+    const size = tileGridSize(balance);
+    let refused = 0;
+    for (let row = 0; row < size.rows; row += 1) {
+      for (let col = 0; col < size.cols; col += 1) if (!h.scene.canEnter({ col, row })) refused += 1;
+    }
+    return refused;
+  }
+
+  const mouthOf = (nodeId: string, to: string): { x: number; y: number; to: string } => {
+    const found = (nodeFile(nodeId).edgeMouths ?? []).find((m) => m.to === to);
+    expect(found, `${nodeId} declares no edge mouth to ${to}`).toBeDefined();
+    return found as { x: number; y: number; to: string };
+  };
+
+  /* ── 26.0 the control: this section is NOT walking the open rectangle ──── */
+
+  it("⚠ the ground under this section is the SHIPPED mask, not the stub's open rectangle", async () => {
+    const real = await mountOnRealGround(SLICE_NODE);
+    const placeholder = mount();
+    const size = tileGridSize(balance);
+    const border = 2 * size.cols + 2 * size.rows - 4;
+    /*
+     * The synthesised placeholder refuses exactly its one-cell border and nothing else. Hearthollow's
+     * own HUD reports 2467 of 4096 cells blocked. If these two numbers were ever close, every
+     * assertion below would be about a field with no walls in it.
+     */
+    expect(refusedTiles(placeholder), "the placeholder grid is not the open rectangle it is meant to be")
+      .toBeLessThan(border + 40);
+    expect(
+      refusedTiles(real),
+      "the real mask did not reach the scene — this section is walking the open rectangle and proves nothing",
+    ).toBeGreaterThan(1000);
+  });
+
+  /* ── 26.1 the walk itself ─────────────────────────────────────────────── */
+
+  it("a STEP onto the edge mouth travels to the node the map says it leads to", async () => {
+    const mouth = mouthOf(SLICE_NODE, nodeFile(SLICE_NODE).adjacency[0] as string);
+    const h = await mountOnRealGround(SLICE_NODE);
+    expect(h.scene.act(), "the fixture opens at an act that cannot use this exit").toBeGreaterThanOrEqual(1);
+
+    const at = mouthTile(mouth);
+    expect(h.scene.canEnter(at), `the mouth tile ${at.col},${at.row} is not standable`).toBe(true);
+    // A STEP, not a teleport: `onStepCompleted` is the whole mechanism under test. The mouth is on
+    // row 0, so the step onto it is northward, from the cell the arrival rule uses.
+    stepOnto(h, at, "up");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(
+      h.scene.save.currentNode,
+      `walking onto ${SLICE_NODE}'s edge mouth at ${at.col},${at.row} did not leave the region`,
+    ).toBe(mouth.to);
+  });
+
+  it("…and it lands the player just inside the mouth that leads back, not in the middle of the map", async () => {
+    const mouth = mouthOf(SLICE_NODE, nodeFile(SLICE_NODE).adjacency[0] as string);
+    const h = await mountOnRealGround(SLICE_NODE);
+    stepOnto(h, mouthTile(mouth), "up");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(h.scene.save.currentNode).toBe(mouth.to);
+
+    const back = mouthTile(mouthOf(mouth.to, SLICE_NODE));
+    expect(
+      h.scene.movement.tile.col,
+      `arriving in ${mouth.to} put the player on column ${String(h.scene.movement.tile.col)}, not on the ` +
+        `seam's own column ${String(back.col)} — the walk is not continuous`,
+    ).toBe(back.col);
+    expect(Math.abs(h.scene.movement.tile.row - back.row), "the arrival is not just inside the mouth")
+      .toBeLessThanOrEqual(3);
+    expect(h.scene.canEnter(h.scene.movement.tile), "the arrival put the player in geometry").toBe(true);
+  });
+
+  it("the walk costs a travel tick and writes the SAME action a keypress writes (L10)", async () => {
+    const mouth = mouthOf(SLICE_NODE, nodeFile(SLICE_NODE).adjacency[0] as string);
+
+    const walked = await mountOnRealGround(SLICE_NODE);
+    const beforeWalk = walked.scene.save.actionLog.length;
+    stepOnto(walked, mouthTile(mouth), "up");
+    await Promise.resolve();
+    await Promise.resolve();
+    const walkedTravel = walked.scene.save.actionLog.slice(beforeWalk).map((e) => e.action).filter((a) => a.t === "travel");
+
+    const keyed = await mountOnRealGround(SLICE_NODE);
+    const beforeKey = keyed.scene.save.actionLog.length;
+    await keyed.scene.travelTo(mouth.to);
+    const keyedTravel = keyed.scene.save.actionLog.slice(beforeKey).map((e) => e.action).filter((a) => a.t === "travel");
+
+    expect(walkedTravel.length, "the walk charged no travel — a free way out of every region").toBe(1);
+    expect(
+      walkedTravel,
+      "the walk's tape entry differs from the keyed route's, so a replay of a walked run diverges (L10)",
+    ).toEqual(keyedTravel);
+    expect(walkedTravel[0]).toMatchObject({ t: "travel", to: mouth.to });
+  });
+
+  it("THE ROUND TRIP: walk out, arrive, and walk straight back the way you came", async () => {
+    /*
+     * The owner's sentence end to end. Nothing here teleports: two steps, each through
+     * `game/movement.ts` and `onStepCompleted`, on the two shipped masks. It is the test that would
+     * catch an arrival dropped somewhere the return mouth cannot be reached from — the failure a
+     * one-way check cannot see, because going OUT would still look perfect.
+     */
+    const out = mouthOf(SLICE_NODE, nodeFile(SLICE_NODE).adjacency[0] as string);
+    const h = await mountOnRealGround(SLICE_NODE);
+    stepOnto(h, mouthTile(out), "up");
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(h.scene.save.currentNode, "the walk out did not leave the region").toBe(out.to);
+    /*
+     * ⚠ AND THE RIVAL IS STANDING ON IT. bible §8's Wick is triggered by ARRIVAL on the first route,
+     * so the walk hands the screen to a fight and a paused scene neither steps nor sees a key. That
+     * is correct behaviour and not this test's subject — but it is why the walk home has to be taken
+     * after the fight is settled, and why a version of this test without this line measured "the
+     * seam is one-way" when the seam was fine and the screen was simply somebody else's.
+     */
+    settleBattle(h, "win");
+
+    const back = mouthTile(mouthOf(out.to, SLICE_NODE));
+    const landed = h.scene.movement.tile;
+    // The way home is one step further along the same column, from where the arrival put the player.
+    expect(landed.col, "the arrival is not on the return mouth's column").toBe(back.col);
+    const home = dirFromTo(landed, back);
+    h.hold(home, true);
+    h.frame();
+    h.hold(home, false);
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(
+      h.scene.save.currentNode,
+      `arriving in ${out.to} at ${landed.col},${landed.row} and stepping ${home} onto its mouth back ` +
+        `to ${SLICE_NODE} did not go home — the seam is one-way in practice`,
+    ).toBe(SLICE_NODE);
+  });
+
+  /* ── 26.2 the act gate is not weakened by the new route ───────────────── */
+
+  it("walking into a LOCKED exit refuses out loud, spends nothing, and does not teleport", async () => {
+    /*
+     * From Route 1 at act 1, Brackwater is shut (`balance.acts.gates`). The keyed route has always
+     * refused it with a readable banner; the walk must refuse it the same way, before any tick is
+     * spent. A silent no-op here would be indistinguishable from a mouth pinned to the wrong cell.
+     */
+    const route = nodeFile(SLICE_NODE).adjacency[0] as string;
+    const shut = nodeFile(route).adjacency.find((id) => {
+      const needed = unlockActOf(id, balance);
+      return needed !== null && needed > 1;
+    });
+    expect(shut, `no neighbour of ${route} is act-gated above act 1, so there is no refusal to test`).toBeDefined();
+
+    const h = await mountOnRealGround(route, freshSave(route));
+    expect(h.scene.act(), "the fixture is past the act this refusal needs").toBe(1);
+    const at = mouthTile(mouthOf(route, shut as string));
+    const logBefore = h.scene.save.actionLog.length;
+    /*
+     * THE CLOCK, not the tape length. A single walk step appends nothing to the action log unless it
+     * happens to be the one that rolls the foray over, so `actionLog.length` alone is near-vacuous
+     * here — it would sit still whether or not the refused travel had charged. The clock moves on
+     * every priced action, so it is what shows a refusal was free.
+     */
+    const clockBefore = JSON.stringify(h.scene.clock());
+
+    stepOnto(h, at, at.row === 0 ? "up" : "down");
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(h.scene.save.currentNode, `walking into the locked exit to ${String(shut)} teleported the player`).toBe(
+      route,
+    );
+    expect(JSON.stringify(h.scene.clock()), "a refused walk-out still spent ticks").toBe(clockBefore);
+    expect(h.scene.save.actionLog.length, "a refused walk-out wrote a travel to the tape").toBe(logBefore);
+    expect(
+      h.hud() + visibleHud(h),
+      "the refusal said nothing the player can read — a silent no-op reads exactly like a broken exit",
+    ).toContain(`opens in act`);
+  });
+
+  /* ── 26.3 the HUD does not advertise a control that contradicts the map ── */
+
+  it("the travel line names BOTH routes: the accelerator key and the tile the path walks out of", async () => {
+    const h = await mountOnRealGround(SLICE_NODE);
+    const node = nodeFile(SLICE_NODE);
+    const painted = visibleHud(h);
+    node.adjacency.forEach((id, i) => {
+      expect(painted, `the key for ${id} is gone from the HUD`).toContain(`[${String(i + 1)}] travel → ${id}`);
+      const at = mouthTile(mouthOf(SLICE_NODE, id));
+      // The WHOLE clause, not a bare "41,0" that would match any tile readout anywhere on the HUD.
+      const compass = at.row === 0 ? "north" : "south";
+      expect(
+        painted,
+        `the HUD names the [${String(i + 1)}] key for ${id} and never says the path out is at ` +
+          `${compass} ${at.col},${at.row} — a control line that contradicts the map`,
+      ).toContain(`walk ${compass} ${String(at.col)},${String(at.row)}`);
+    });
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §27 THE BODY OVERLAY IS KEYED ON THE GRID, NOT ON THE VIEW ID
+ *
+ * `OverworldScene.canEnter` refuses a tile a person or a prop is standing on, and the overlay it
+ * consults is cached. It was cached against {@link viewId} — a string — on the argument that one
+ * mask serves a node for all six years (Hard Req 5 / G4), so a view id names a fixed grid.
+ *
+ * ⚠ THAT ARGUMENT IS TRUE OF YEAR VARIANTS AND FALSE IN GENERAL, and `recoverFromBlackout` is the
+ * path that breaks it: it enters the wake node ONCE with the art possibly not loaded — a null mask,
+ * so `loadCollision` synthesises the open rectangle — and then, inside `ensureNodeArt(...).then(…)`,
+ * enters the SAME node again with the real decoded mask. Two grids, one view id. On the placeholder
+ * every cell inside the border is standable, so the town's cast scatters over ~3800 cells instead of
+ * the mask's real ~1500; a cache that survived the second build would block arbitrary tiles of a map
+ * that never offered them, draw people inside walls, and leave the connectivity guarantee measured
+ * against a town the player is not in. Brackwater has 3287 of 4096 cells blocked and 801 reachable —
+ * a stray cell there has a real chance of being the only way through.
+ *
+ * The fix is to key the cache on the GRID OBJECT, which changes exactly when the answer can. This
+ * section drives the two-grid sequence and holds the scene to the mask it is actually standing on.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe("§27 a second build of the same node with a different mask re-derives the bodies", () => {
+  /**
+   * ⚠ THE WAKE TOWN MUST SHIP NO INTERIOR, AND PICKING ONE THAT DOES HIDES THE BUG.
+   *
+   * The first version of this test wiped on Route 1, which wakes at Hearthollow — and Hearthollow
+   * keeps an inn, so `recoverFromBlackout` walks the player INTO it. That flips `viewId()` to the
+   * room and back, which clears a view-id-keyed cache on the way out and makes the defect invisible.
+   * It passed against the broken build. `wakeNodeFor` puts a wipe at Bowerdeep, Cindershelf,
+   * Duskhollow or the Sanctum chain in a town with NO shipped room, so the two `enterNode` calls run
+   * back to back under one unchanged view id — which is the shape of the defect.
+   */
+  const WAKE = "bowerdeep";
+
+  it("waking where art arrives LATE leaves canEnter on the real mask, not the placeholder", async () => {
+    expect(
+      INTERIORS.some((bp) => bp.parentNode === WAKE),
+      `${WAKE} ships an interior, so the blackout would flip the view id and this test would pass ` +
+        `against a broken build — pick a wake town with no room`,
+    ).toBe(false);
+
+    const maskPath = nodeFile(WAKE).collisionMask;
+    const raster = await readRasterFile(resolvePath(ROOT, maskPath));
+    const realPixels = { width: raster.width, height: raster.height, data: new Uint8ClampedArray(raster.data) };
+
+    // Mounted with NO masks — the stub's default, and the state `recoverFromBlackout` finds when the
+    // art has not been fetched: every grid is `synthesiseBorderCollision`'s open rectangle.
+    const h = mount({ save: freshSave(WAKE) });
+    const size = tileGridSize(balance);
+    const refused = (): string[] => {
+      const out: string[] = [];
+      for (let row = 0; row < size.rows; row += 1) {
+        for (let col = 0; col < size.cols; col += 1) {
+          if (!h.scene.canEnter({ col, row })) out.push(`${String(col)},${String(row)}`);
+        }
+      }
+      return out;
+    };
+    const border = 2 * size.cols + 2 * size.rows - 4;
+    expect(refused().length, "the fixture did not start on the placeholder grid").toBeLessThan(border + 40);
+
+    // Walk until something meets the player, then lose it: a wiped party is what reaches the blackout.
+    forage(h, 6000, () => h.parts.launches.some((l) => l.key === SCENE_KEYS.battle));
+    expect(
+      h.parts.launches.some((l) => l.key === SCENE_KEYS.battle),
+      `six thousand steps at ${WAKE} met nothing, so no wipe and no blackout`,
+    ).toBe(true);
+    settleBattle(h, "loss");
+    expect(h.scene.save.currentNode, "the wipe did not wake the player at the wake town").toBe(WAKE);
+    expect(h.scene.currentInterior(), `${WAKE} put the player in a room after all`).toBeNull();
+
+    /*
+     * THE ART ARRIVES NOW — after the blackout's FIRST `enterNode` (already run, on the placeholder)
+     * and before the `ensureNodeArt(...).then(...)` continuation runs the second one. This is exactly
+     * the window the defect lived in; the microtask flush is what lets the continuation run with the
+     * real mask decoded.
+     */
+    h.parts.maskPixels.set(maskTextureKey(maskPath), realPixels);
+    for (let i = 0; i < 8; i += 1) await Promise.resolve();
+
+    const now = refused();
+    expect(
+      now.length,
+      "the second build never reached the real mask, so this test is not driving the sequence it " +
+        "claims to — the scene is still on the synthesised open rectangle",
+    ).toBeGreaterThan(1000);
+
+    /*
+     * THE ASSERTION. `canEnter` refuses a tile when the MASK blocks it or a BODY stands on it. The
+     * bodies are recomputed here from the same pure function the scene uses, against the grid the
+     * scene is now on — so a stale cache shows up as cells refused that are walkable and have nobody
+     * on them: the placeholder's cast, still standing in a town that never offered them those tiles.
+     */
+    const realGrid = loadCollision(WAKE, maskPath, realPixels, balance).grid;
+    const bodies = solidBodyTiles(nodeFile(WAKE), null, realGrid, balance);
+    const strays = now.filter((key) => {
+      const [col = -1, row = -1] = key.split(",").map(Number);
+      return tileWalkableIn(realGrid, col, row) && !bodies.has(key);
+    });
+    expect(
+      strays,
+      `canEnter refuses ${String(strays.length)} tiles that are walkable in ${maskPath} and have no ` +
+        `body on them — e.g. ${strays.slice(0, 12).join(" · ")}. The body overlay is still the one ` +
+        `derived from the synthesised placeholder grid the blackout's FIRST enterNode built.`,
+    ).toEqual([]);
+  });
+});
+
+/** `tileWalkable` against an explicit grid — the scene's own query, asked of a grid we built. */
+function tileWalkableIn(grid: CollisionGrid, col: number, row: number): boolean {
+  return tileWalkableFn(grid, col, row, balance);
+}

@@ -974,7 +974,20 @@ describe("nodes — bible §6", () => {
   });
 
   it("never ships a spawn table — encounter weights are DERIVED (G3)", () => {
-    const NODE_KEYS = ["id", "name", "biome", "adjacency", "walkable", "mapAsset", "yearVariants", "collisionMask", "floraStock", "populations", "props"];
+    /*
+     * A HAND-COPY OF `core/schemas.ts` `zNodeFileShape`'S OWN KEYS, kept independent of it on
+     * purpose so a key smuggled into the schema still has to be smuggled past a human here too.
+     *
+     * `edgeMouths` was added when travel became a walk: `data/nodes/*.json` now carries the cell each
+     * map edge leads out of, pinned to the `^` edge-mouth its own layout draws (`core/types.ts`
+     * `EdgeMouth`, held to the shipped layout and mask by `tests/unit/edge-mouth-travel.test.ts`).
+     * THE ASSERTION BELOW IS UNCHANGED — the list is the input, not the claim, and the claim is
+     * still "nothing outside the §7.2 schema". `edgeMouths` is not a second table under another
+     * name: it carries no species, no weight and no count, and the file-level `SECOND_TABLE_KEY`
+     * sweep in `tests/gates/guardrails.test.ts` — the project's own definition of a second table by
+     * name — does not match it.
+     */
+    const NODE_KEYS = ["id", "name", "biome", "adjacency", "walkable", "mapAsset", "yearVariants", "collisionMask", "floraStock", "populations", "props", "edgeMouths"];
     for (const n of nodes) {
       expect(Object.keys(n as object), n.id).not.toContain("spawnTables");
       // Any key beyond the schema's own (and `_`-prefixed documentation) is a second table under

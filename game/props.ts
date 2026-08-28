@@ -118,3 +118,58 @@ export function propAt(node: NodeFile, at: WorldPoint, balance: Balance): PropPl
 export function propLabel(prop: PropPlacement): string {
   return prop.label ?? prop.id;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * A prop is SOLID — where it stands, not how far it can be heard
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * The one tile a prop stands on.
+ *
+ * ══ THE OWNER'S RULING, AND WHY THE ART ALREADY AGREED WITH IT ══
+ * Hank, verbatim: **"props should have collisions too."** The header of this file quotes build-doc
+ * §7.6 — *"not baked into collision (they overlay the painted map)"* — and that sentence described
+ * the MASK, never the PAINTING. `tools/mapgen/compose/props.py` stamps all four prop families onto
+ * the twelve painted maps, while `MAP-PROMPT-RULES.md` states the rule the mask was built under:
+ * props *"have no sprite… they are invisible interaction hotspots over the painted map."* So a
+ * standing stone has been visibly painted on the ground and walkable through it since the first
+ * map. The art and the mask have disagreed from the start; this makes them agree, and the disagreed
+ * half was the mask.
+ *
+ * ⚠ ONE CELL, AND NOT THE INTERACTION RADIUS. Reach and occupancy are different quantities and
+ * conflating them is the obvious wrong turn: `interactionRadius` defaults to 48 map-native px = 96
+ * world px = three tiles, so a footprint derived from it would make a SIGN CARD a 3×3 wall. The
+ * authored data states a prop's position and its reach and says nothing whatever about its
+ * footprint, so ONE CELL — the cell the authored point falls in — is the honest default, and it is
+ * recorded here as a default rather than as a fact about the objects. If `PropPlacement` ever gains
+ * a real footprint, this is the function that reads it.
+ *
+ * ⚠ AND THE PROP MUST STILL BE READABLE. `OverworldScene.interact()` measures reach from the
+ * player's standing point, so blocking the prop's own cell is only safe while a walkable cell
+ * remains inside the radius. At the shipped numbers that is never close: a neighbouring tile's
+ * centre is one `tileStepPx` (32 world px) from the prop against a 96 px reach — but it is measured
+ * per prop per node in `tests/unit/npc-prop-collision.test.ts` rather than argued from here, because
+ * the standing point has already moved once (`playerSpriteH` 48 → 32) and reach is sensitive to it.
+ */
+export function propTile(prop: MapReachable, balance: Balance): { col: number; row: number } {
+  const scale = balance.map.mapRenderScale;
+  const step = balance.map.tileStepPx;
+  return { col: Math.floor((prop.x * scale) / step), row: Math.floor((prop.y * scale) / step) };
+}
+
+/**
+ * Every tile this node's props make impassable, as `"col,row"` keys.
+ *
+ * An OVERLAY, exactly as `game/npcs.ts` {@link npcOccupiedTiles} is, and for the same two reasons:
+ * the collision mask is sampled from the painting and a body is not geometry, and `chooseSpawnTile`
+ * reads the mask to decide where props may NOT put the player — a mask that already carried them
+ * would be answering a question with its own output.
+ */
+export function propOccupiedTiles(props: readonly MapReachable[], balance: Balance): Set<string> {
+  const out = new Set<string>();
+  for (const prop of props) {
+    const tile = propTile(prop, balance);
+    out.add(`${String(tile.col)},${String(tile.row)}`);
+  }
+  return out;
+}

@@ -68,6 +68,7 @@ import type {
   Balance,
   CollisionGrid,
   Content,
+  EdgeMouth,
   GameAction,
   GymLeader,
   NodeFile,
@@ -109,6 +110,7 @@ import {
   gridFromAscii,
   loadCollision,
   tileGridSize,
+  tileKey,
   tileWalkable,
   worldCellPx,
   type LoadedCollision,
@@ -221,8 +223,8 @@ import {
   syncQuestFlags,
   writeLabels,
 } from "../quests";
-import { NpcLayer, npcTalkEntryFor } from "../npcs";
-import { propAt, propLabel, propsOf } from "../props";
+import { NpcLayer, npcPlacementsFor, npcTalkEntryFor, solidBodyTiles } from "../npcs";
+import { propAt, propInReach, propLabel, propWorldRadius, propsOf } from "../props";
 import { createDialogueScene, type DialogueSceneData } from "./DialogueScene";
 import {
   DEFAULT_SEASON_METER_STYLE,
@@ -594,6 +596,44 @@ export class OverworldScene extends Phaser.Scene {
    */
   private npcs!: NpcLayer;
   /**
+   * The GRID {@link solidBodiesCells} was built for, by object identity, or null before the first
+   * build.
+   *
+   * ⚠ THE GRID, NOT THE VIEW ID, AND THAT IS A BUG FIX RATHER THAN A STYLE CHOICE. This was keyed on
+   * {@link viewId} — a string — on the argument that the grid for a given view id is fixed, because
+   * one mask serves a node for all six years (Hard Req 5 / G4). That is true of YEAR VARIANTS and
+   * false in general, and {@link recoverFromBlackout} is where it breaks: it calls `enterNode` once
+   * with the art possibly unloaded — `readMaskPixelsSafe` returns null and `loadCollision`
+   * SYNTHESISES the open rectangle — and then, inside `ensureNodeArt(...).then(...)`, calls
+   * `enterNode` again on the same node with the real decoded mask. Two grids, one view id. The
+   * second build would have gone on serving the placeholder's overlay: people scattered over ~3800
+   * open-rectangle cells instead of the mask's real ~1500, blocking arbitrary tiles of a town that
+   * never offered them, and the connectivity guarantee computed against the wrong map entirely.
+   *
+   * Object identity is exactly the right key because it changes exactly when the answer can:
+   * `buildNodeView` mints a fresh grid through `loadCollision` on every call, `adoptInterior` and
+   * `enterInterior` mint one through `gridFromAscii`, and `leaveInterior` restores the town's own
+   * object — so entering and leaving a room recomputes each way, and a restart that swaps `content`
+   * under an unchanged node id recomputes too. No string can say all of that.
+   */
+  private solidBodiesFor: CollisionGrid | null = null;
+  private solidBodiesCells: ReadonlySet<string> = new Set<string>();
+  /**
+   * The node a travel is arriving FROM, for the one {@link buildNodeView} that follows — or null,
+   * which means "no seam; use the spawn search", the answer every other caller wants.
+   *
+   * ⚠ THE ORIGIN, NOT A TILE, and the difference is load-bearing. The arrival cell depends on the
+   * DESTINATION's mask and on the people standing on it, and `travelTo` chooses it while
+   * `this.collision` still holds the map being left — so a tile computed there would be the new
+   * town's seam measured against the old town's geometry. Passing the origin defers the whole
+   * decision to {@link seamArrival}, which `buildNodeView` calls once the new grid is loaded.
+   *
+   * A one-shot rather than a parameter because `buildNodeView` has two callers and only one of them
+   * knows about seams; a value that outlived its transition would teleport a later respawn, so it is
+   * nulled on read and re-nulled in `init` with the other in-flight state.
+   */
+  private pendingArrivalFrom: string | null = null;
+  /**
    * Which way the sprite is currently mirrored, so {@link syncPlayerSprite} touches the display
    * object only when the flip actually changes rather than sixty times a second.
    *
@@ -851,6 +891,15 @@ export class OverworldScene extends Phaser.Scene {
     // drop one — a restart taken inside the single frame between a beat closing and the next
     // opening, which needs the in-run menu to be keyed in that frame.
     this.pendingEntry = null;
+    // …and the seam a travel was in the middle of landing on, for the same reason: the restart has
+    // already put the player wherever the save says, and an arrival left over from the transition it
+    // interrupted would move them off it at the next node change.
+    this.pendingArrivalFrom = null;
+    // …and the body overlay. Keying on grid identity already forces a rebuild (see
+    // {@link solidBodiesFor}); this drops the reference to a grid the restart has discarded rather
+    // than holding it alive for nothing.
+    this.solidBodiesFor = null;
+    this.solidBodiesCells = new Set<string>();
     // …and the shop, for the same reason and one more: the rows are a snapshot of a save this
     // restart may have replaced outright (`init` takes a new one), so a list that survived would be
     // priced against a purse that no longer exists.
@@ -1186,7 +1235,22 @@ export class OverworldScene extends Phaser.Scene {
      * mark solid (out of bounds reads as BLOCKED, so it finds nothing at all inside the plan) and
      * lands the player in a far corner of a room that has none. It also cannot find a doorway.
      */
-    const landing = this.interior === null ? spawn.tile : cellTile(this.interior.arrival);
+    /*
+     * THE LANDING, IN PRIORITY ORDER — the room's arrival cell, then a SEAM, then the spawn tile.
+     *
+     * {@link pendingArrivalFrom} names the node a travel came FROM; it is read and cleared here, in
+     * the one method that decides where the player stands, so no other path can inherit it.
+     * {@link seamArrival} turns it into the cell just inside the mouth that leads back — against the
+     * grid loaded four lines above, which is why the origin travels and the tile does not. It tests
+     * every candidate through {@link canEnter} rather than trusting the seam: a mask that failed to
+     * load falls back to the synthesised open rectangle, and a seam pointing into a cell that grid
+     * blocks must degrade to the spawn search instead of standing the player in geometry — the same
+     * discipline `leaveInterior` applies to a door tile.
+     */
+    const arrivingFrom = this.pendingArrivalFrom;
+    this.pendingArrivalFrom = null;
+    const seam = arrivingFrom === null || this.interior !== null ? null : this.seamArrival(arrivingFrom);
+    const landing = this.interior !== null ? cellTile(this.interior.arrival) : (seam ?? spawn.tile);
 
     const standing: MovementState | undefined = this.movement;
     const sameNode = this.viewNodeId === this.viewId();
@@ -1565,6 +1629,152 @@ export class OverworldScene extends Phaser.Scene {
       if (at.col === tile.col && at.row === tile.row) return bp;
     }
     return null;
+  }
+
+  /* ── the edges of the map (core/types.ts EdgeMouth) ────────────────────── */
+
+  /**
+   * The tile an edge mouth stands on — {@link doorTileOf}'s arithmetic, on the same coordinates.
+   *
+   * `EdgeMouth.x/y` are map-native pixels, the space `PropPlacement` and `InteriorDoor` are both
+   * authored in, so the conversion is the door's and not a second one. A mouth is on row 0 or on
+   * `tileGridSize().rows - 1`; nothing here assumes that, because it is a fact about the twelve
+   * shipped layouts rather than a rule of the type.
+   */
+  mouthTileOf(mouth: EdgeMouth): { col: number; row: number } {
+    const world = { x: mouth.x * this.balance.map.mapRenderScale, y: mouth.y * this.balance.map.mapRenderScale };
+    const step = this.balance.map.tileStepPx;
+    return { col: Math.floor(world.x / step), row: Math.floor(world.y / step) };
+  }
+
+  /**
+   * The way out of the region this tile stands in, or null.
+   *
+   * ══ WHY THE TRIGGER IS THE MOUTH'S WHOLE OPENING AND NOT ONLY ITS CENTRE CELL ══
+   * The layout draws ONE `^` per adjacency and that cell is the authored anchor — but it sits in the
+   * middle of a THREE-CELL walkable gap in the border, every time, on all twenty-two of them
+   * (measured on the shipped masks, not read off the layouts: every run is exactly 3 wide). A
+   * trigger pinned to the centre cell alone would leave the two cells beside it as places the player
+   * walks into the visible gap in the wall and nothing happens — a dead end with no way to tell it
+   * from a bug, which is the exact failure mode this whole change exists to remove.
+   *
+   * So the trigger is the mouth cell plus the contiguous walkable run of its own border row, and
+   * that widening is DERIVED FROM THE SHIPPED MASK rather than invented: it stops at the first
+   * blocked cell either side, so it can never be wider than the gap the painting actually shows. The
+   * destination is still the authored mouth's, so no cell leads anywhere the data did not say.
+   *
+   * ⚠ REFUSED INDOORS. A room's plan is drawn at world origin, so a town's mouth coordinate compared
+   * against an interior tile is an answer from the wrong map — the same reason `interactIndoors`
+   * refuses the town's props. `travelTo` would refuse it a second time; this refuses it first so the
+   * player never sees a banner about a room they are standing in.
+   */
+  private edgeExitAt(tile: { col: number; row: number }): EdgeMouth | null {
+    if (this.interior !== null) return null;
+    const grid = this.activeGrid();
+    for (const mouth of this.node.edgeMouths ?? []) {
+      const at = this.mouthTileOf(mouth);
+      if (tile.row !== at.row) continue;
+      if (tile.col === at.col) return mouth;
+      // Walk the border row from the mouth toward the tile; any blocked cell on the way means this
+      // tile is a different gap in the same wall, and not this mouth's.
+      const stride = tile.col > at.col ? 1 : -1;
+      let joined = true;
+      for (let col = at.col + stride; col !== tile.col + stride; col += stride) {
+        if (!tileWalkable(grid, col, at.row, this.balance)) {
+          joined = false;
+          break;
+        }
+      }
+      if (joined) return mouth;
+    }
+    return null;
+  }
+
+  /**
+   * Where a player ARRIVING from `fromNodeId` is put down in `target` — the mouth that leads back,
+   * one step inward — or null when the two nodes name no such seam.
+   *
+   * ══ WHY THE ARRIVAL MOVED, AND WHY IT IS ONE STEP IN ══
+   * Before this the answer was `chooseSpawnTile`, i.e. the middle of the map, for every travel. That
+   * was coherent while travel was a keypress and incoherent the moment it became a walk: the player
+   * walks north out of Hearthollow and appears in the centre of Route 1, having crossed half a region
+   * in one step. The seams were authored to line up for exactly this — every one of the eleven puts
+   * both nodes' mouths on the SAME column — so the reciprocal mouth is where the walk comes out.
+   *
+   * ONE STEP INWARD rather than on the mouth cell itself, and this is not a nicety: landing ON the
+   * mouth would put the player on the border row, which the synthesised placeholder grid
+   * (`synthesiseBorderCollision`, used whenever a mask fails to load) blocks — so a node whose art
+   * has not landed would strand the player in geometry on arrival. Inward is walkable in both the
+   * authored mask (measured: all 22, and free of bodies and reachable) and the placeholder. It also
+   * plays better: the player arrives just inside the new region rather than standing in its doorway,
+   * and one step back the way they came takes them home, which is what the seam is for.
+   *
+   * ══ …AND IT KEEPS WALKING INWARD WHILE SOMETHING IS IN ARM'S REACH ══
+   * MEASURED, NOT ANTICIPATED. With the arrival pinned to the first cell in, driving the scene put
+   * the player down at Hearthollow's seam ONE TILE from `tolm` — and `interact()` gives a person
+   * priority over the room, so [E] answered with Tolm's line and the town's own chain entry could
+   * not be reached at all from where the travel had put the player. That is precisely the defect
+   * `game/collision.ts` `firstWalkableTile` already documents for props: *"putting them somewhere
+   * they did not walk to, inside a radius that then eats their interact key, is the thing being
+   * avoided"* — measured there at Bowerdeep's market sign, against a spawn. It is the same rule;
+   * people are simply new to being inside it, because they only started answering [E] ahead of the
+   * room when they were first placed on the map.
+   *
+   * So the scan steps further in along the mouth's own column while the cell is covered by any
+   * prop's or any person's reach, and takes the first clear one. Bounded by the REACH itself
+   * (`propWorldRadius` converted to tiles, +1) rather than by a number written down here (G11),
+   * because nothing that covers the first cell can still cover one past that distance. If no clear
+   * cell is found the first enterable one is taken anyway — arriving beside somebody beats not
+   * arriving — and if none is enterable this returns null and {@link buildNodeView} falls back to
+   * the spawn search, exactly as it did before any of this existed.
+   *
+   * NULL, NOT A FALLBACK, when there is no reciprocal mouth: {@link buildNodeView} then does exactly
+   * what it always did. A node that ships no `edgeMouths` is unchanged by any of this.
+   */
+  private seamArrival(fromNodeId: string): { col: number; row: number } | null {
+    const back = (this.node.edgeMouths ?? []).find((m) => m.to === fromNodeId);
+    if (back === undefined) return null;
+    const at = this.mouthTileOf(back);
+    const rows = tileGridSize(this.balance).rows;
+    // Inward is "away from the edge this mouth is on". A mouth on the top row steps down, one on the
+    // bottom row steps up; a mouth on neither (no shipped layout draws one) has no inward direction,
+    // so it is offered as itself and `canEnter` below decides whether it is standable at all.
+    const inward = at.row === 0 ? 1 : at.row === rows - 1 ? -1 : 0;
+    const reachPx = propWorldRadius(
+      { x: 0, y: 0, interactionRadius: this.balance.map.propInteractionRadiusDefault },
+      this.balance,
+    );
+    const furthest = inward === 0 ? 0 : Math.ceil(reachPx / this.balance.map.tileStepPx) + 1;
+    const people = npcPlacementsFor(this.node, null, this.activeGrid(), this.balance);
+
+    let firstEnterable: { col: number; row: number } | null = null;
+    for (let i = inward === 0 ? 0 : 1; i <= Math.max(furthest, inward === 0 ? 0 : 1); i += 1) {
+      const tile = { col: at.col, row: at.row + inward * i };
+      if (tile.row < 0 || tile.row >= rows) break;
+      if (!this.canEnter(tile)) continue;
+      firstEnterable ??= tile;
+      const standing = spriteWorldPosition(createMovement(tile), this.movementCfg);
+      const covered =
+        propsOf(this.node).some((p) => propInReach(p, standing, this.balance)) ||
+        people.some((p) => propInReach(p, standing, this.balance));
+      if (!covered) return tile;
+    }
+    return firstEnterable;
+  }
+
+  /**
+   * Which edge of the map a mouth is on, as one word for the HUD.
+   *
+   * Derived from the tile rather than authored, because the edge is a fact about the coordinate and
+   * a second field naming it could disagree with the cell it describes. `edge` is the honest answer
+   * for a mouth on neither border row — no shipped layout draws one, and inventing "north" for it
+   * would be a readout that lies.
+   */
+  private edgeNameOf(mouth: EdgeMouth): string {
+    const at = this.mouthTileOf(mouth);
+    if (at.row === 0) return "north";
+    if (at.row === tileGridSize(this.balance).rows - 1) return "south";
+    return "edge";
   }
 
   /**
@@ -1956,10 +2166,47 @@ export class OverworldScene extends Phaser.Scene {
 
   /**
    * The one walkability question, asked of the packed bitfield (build-doc §7.6) — the node's mask
-   * outdoors, the room's parsed plan indoors ({@link activeGrid}).
+   * outdoors, the room's parsed plan indoors ({@link activeGrid}) — AND of the bodies standing on it.
+   *
+   * ══ WHY THE SECOND TERM IS HERE AND NOT IN THE MASK ══
+   * The owner played the build and reported *"the NPCs have no collisions"*, and ruled afterwards
+   * that *"props should have collisions too"*. Both are answered here, in the ONE place the whole
+   * scene asks whether a tile may be entered, because a second walkability question is how a person
+   * ends up solid to the player and transparent to the camera, or to the spawn search.
+   *
+   * NOTHING IS WRITTEN INTO THE GRID. `game/npcs.ts` {@link solidBodyTiles} explains the two reasons
+   * at length; the short one is that the placement pass reads the grid to decide where a body may
+   * stand, so a grid carrying bodies would be feeding on its own output.
    */
   canEnter(tile: { col: number; row: number }): boolean {
-    return tileWalkable(this.activeGrid(), tile.col, tile.row, this.balance);
+    if (!tileWalkable(this.activeGrid(), tile.col, tile.row, this.balance)) return false;
+    return !this.solidBodies().has(tileKey(tile));
+  }
+
+  /**
+   * The bodies standing in the geometry on screen, cached against the grid they were derived from.
+   *
+   * KEYED ON GRID IDENTITY, WHICH IS WHY IT NEEDS NO INVALIDATION CALL: the overlay is a pure
+   * function of (node, interior, grid, balance), and every path that can change any of those mints a
+   * fresh grid object. So "the geometry changed" and "the answer changed" are the same event, and
+   * there is no third place that has to remember to clear this. {@link solidBodiesFor} records why
+   * the earlier {@link viewId} key was wrong and which path broke it.
+   *
+   * ⚠ DELIBERATELY NOT READ OFF {@link npcs}. The layer's cast is rebuilt from `syncPlayerSprite`,
+   * which runs at the END of `update()` — so on the first frame after a node change the layer still
+   * holds the PREVIOUS node's people, and movement would be asking this frame's walkability of last
+   * frame's town. `NpcLayer` is constructed after the first `buildNodeView` as well, so the field is
+   * `undefined` at the exact moment `buildNodeView` asks whether the standing tile is still legal.
+   * Both are avoided by computing from the same pure function the layer draws from, rather than from
+   * the layer.
+   */
+  private solidBodies(): ReadonlySet<string> {
+    const grid = this.activeGrid();
+    if (grid !== this.solidBodiesFor) {
+      this.solidBodiesCells = solidBodyTiles(this.node, this.interior, grid, this.balance);
+      this.solidBodiesFor = grid;
+    }
+    return this.solidBodiesCells;
   }
 
   /**
@@ -2202,12 +2449,54 @@ export class OverworldScene extends Phaser.Scene {
      * one's to answer.
      */
     if (!this.isHandedOver()) this.enterThroughDoorway();
+    /*
+     * …AND THE EDGE OF THE MAP, LAST OF ALL, ON THE DOORWAY'S OWN TERMS.
+     *
+     * The owner played the build: *"I should be able to go to the next region by walking up the
+     * path. Instead, that appears to be blocking behind a button right now."* {@link edgeExitAt} is
+     * where the path comes out, and it is the layout's own `^` cell, not a coordinate invented here.
+     *
+     * ⚠ AFTER THE ROLL AND AFTER THE TICK, for exactly the reason the doorway is — read that
+     * comment, it is the same argument at a larger scale. A step onto the edge that skipped the
+     * foray roll and the odometer would make the last step of every excursion free, and the mouth is
+     * the tile a player crosses on the way into AND out of every region in the game. Travel then
+     * charges its own tick on top (build-doc §3 L8), so walking out costs the walk plus the travel,
+     * which is what the keyed route has always cost.
+     *
+     * ⚠ AND AFTER THE DOORWAY, so a door and a mouth on one tile would open the door. No shipped map
+     * has one — every door is mid-map on a building's south face, every mouth is on row 0 or row 63
+     * — and the order is fixed here anyway rather than left to whichever check happened to run first.
+     * `enterThroughDoorway` may have just taken the player indoors, and {@link edgeExitAt} refuses
+     * indoors, so the two cannot both fire.
+     */
+    if (!this.isHandedOver()) this.walkOffTheEdge();
   }
 
   /** Outdoors: the step landed on a building's door tile, so go in. */
   private enterThroughDoorway(): void {
     const doorway = this.doorwayAt(this.movement.tile);
     if (doorway !== null) this.enterInterior(doorway);
+  }
+
+  /**
+   * Outdoors: the step landed where a corridor meets the map edge, so leave the region.
+   *
+   * A THIN DELEGATION TO {@link travelTo}, and that is the whole design. Travel already owns the
+   * adjacency check, the act gate, the indoor refusal, the tick, the `{t:"travel"}` action-tape
+   * entry, the arrival cutscene and the rival — so walking out must not be a second route with a
+   * second set of rules, or the two would drift and one of them would stop refusing something. In
+   * particular the act gate is UNTOUCHED: walking into a locked exit reaches the same
+   * `flashBanner("<node> opens in act n · act m")` refusal the key reaches, before any tick is spent,
+   * and L10 holds because the tape entry a walk writes is byte-identical to the one a key writes.
+   *
+   * `void` because `update()` cannot await: `travelTo` is async only to hold the player on the old
+   * map until `ensureNodeArt` has decoded the new one, and its own re-entry guard (`this.travelling`)
+   * is what stops a second frame's step starting a second transition. The same `void this.travelTo`
+   * the number keys have always used.
+   */
+  private walkOffTheEdge(): void {
+    const exit = this.edgeExitAt(this.movement.tile);
+    if (exit !== null) void this.travelTo(exit.to);
   }
 
   /** Indoors: the step landed on the plan's `D` cell, so come back out. */
@@ -4272,7 +4561,10 @@ export class OverworldScene extends Phaser.Scene {
    * would name different nodes, which is exactly the half-swapped state `liveNode` and
    * {@link activeGrid} exist to prevent, and any travel keyed in that window would race it.
    */
-  private enterNode(target: NodeFile): void {
+  private enterNode(target: NodeFile, arrivingFrom: string | null = null): void {
+    // Consumed by `buildNodeView` on the next line and cleared there, so it can never outlive the
+    // one transition that set it — a stale origin would teleport a later respawn onto a seam.
+    this.pendingArrivalFrom = arrivingFrom;
     this.node = target;
     // A new room has its own conversation: what was said in the last one must not suppress a
     // line here (see `talkEntryFor`).
@@ -4287,11 +4579,23 @@ export class OverworldScene extends Phaser.Scene {
   /**
    * Move along the node adjacency graph, spending the one tick build-doc §3 L8 prices travel at.
    *
-   * DEVIATION (reported, not silently taken): the node schema carries no exit or portal positions —
-   * `props[]` is antler stones, shrines, idols and sign cards — so there is nothing in the data that
-   * says where an edge of the map leads. Travel is therefore an explicit action keyed on
-   * `adjacency`, not a walk-off-the-edge, and the HUD lists the destinations. A door prop kind would
-   * change this, and that is a content decision, not one to invent here (G2).
+   * ⚠ THE DEVIATION THAT STOOD HERE IS CLOSED, and how it closed is worth more than the note it
+   * replaces. It read: *"the node schema carries no exit or portal positions … so there is nothing
+   * in the data that says where an edge of the map leads. Travel is therefore an explicit action
+   * keyed on `adjacency`, not a walk-off-the-edge."* The SCHEMA carried nothing; the MAP had known
+   * the whole time. `tools/mapgen/layouts/*.txt` — the one document the painting and the collision
+   * mask are both stamped from — draws a `^` edge-mouth cell per declared adjacency, legend kind
+   * `edge-mouth`, *"the cell where a corridor meets the map edge; one per declared adjacency"*, and
+   * each layout's header names which neighbour each edge serves. Twenty-two mouths, twenty-two
+   * adjacency entries, eleven seams that all line up on the same column. It was never invented and
+   * never needed to be: the `^` is simply flattened to walkable floor when the mask is rasterised,
+   * so nothing survived into the shipped PNG for a runtime to read. `data/nodes/*.json`
+   * `edgeMouths[]` carries it now (`core/types.ts` {@link EdgeMouth}), and
+   * {@link walkOffTheEdge} is the walk.
+   *
+   * The owner's words: *"I should be able to go to the next region by walking up the path. Instead,
+   * that appears to be blocking behind a button right now."* The button is still bound — see
+   * {@link refreshHud}'s travel line for why — and it goes through here, exactly as the walk does.
    */
   async travelTo(nodeId: string): Promise<void> {
     if (this.travelling) return;
@@ -4333,7 +4637,10 @@ export class OverworldScene extends Phaser.Scene {
     try {
       const target = this.nodeFile(nodeId);
       await ensureNodeArt(this, nodeArtKeys(target, this.save.year, this.balance));
-      this.enterNode(target);
+      // THE ARRIVAL IS THE SEAM, for the keyed route as much as for the walk — one travel path, one
+      // landing rule. The ORIGIN is handed over rather than a tile; see {@link seamArrival} for why,
+      // and for the fallback to the spawn search when the two nodes name no reciprocal mouth.
+      this.enterNode(target, from);
       this.spendTicks("travel", { t: "travel", to: target.id });
       this.hooks.onTravel?.(from, target.id, this);
       this.flashBanner(`travelled ${from} → ${target.id}`);
@@ -4433,7 +4740,9 @@ export class OverworldScene extends Phaser.Scene {
    *                                                                  only word for a finished run.
    *   `events <id> (<n>t <season>)`                     player       bible §9's open windows — a
    *                                                                  time-limited thing to go and do.
-   *   `[n] travel → <id> · act n`                       player       the only way off this node.
+   *   `[n] travel → <id> · act n · walk <edge> c,r`     player       BOTH routes off this node: the
+   *                                                                  accelerator key and the tile
+   *                                                                  the path walks out through.
    *   `[G] challenge <name> (<id>) …`                   player       control prompt + its refusal.
    *   `[E] <offer> · props n here · cards m`            player       control prompt; the counts ride
    *                                                                  along on the same string.
@@ -4546,10 +4855,34 @@ export class OverworldScene extends Phaser.Scene {
         "player",
       );
     }
+    /*
+     * ⚠ THE WALK IS NAMED ON EVERY ONE OF THESE LINES, AND THAT IS THE POINT OF THE CHANGE.
+     *
+     * This line used to be classified in the table above as *"the only way off this node"*, and it
+     * was. It is not any more: {@link walkOffTheEdge} takes the player out through the map's own
+     * edge mouth, which is the route the owner asked for. A control line that named only the key
+     * would now be advertising a control that contradicts the map — the player would read "[1]
+     * travel" and never learn that the gap in the wall at the end of the path is a way out.
+     *
+     * SO THE KEY STAYS AND THE LINE NAMES BOTH. The key is kept deliberately, not by omission: it
+     * goes through the same {@link travelTo} the walk does, so it costs the same tick, obeys the
+     * same act gate and writes the same `{t:"travel"}` tape entry (L10) — it can therefore never
+     * drift from the walk, because there is nothing for it to drift from. It is also the only way
+     * off a node whose mouth the player cannot reach, which is a state the connectivity rule in
+     * `game/npcs.ts` forbids for bodies but cannot forbid for a repaint.
+     *
+     * G7 throughout: an identifier, two integers and a compass word. `no edge mouth` is said rather
+     * than hidden — a node whose data names no way out is a fact the player is better off reading.
+     */
     this.node.adjacency.forEach((id, i) => {
       const needed = unlockActOf(id, this.balance);
       const shut = needed !== null && this.act() < needed;
-      say(`[${i + 1}] travel → ${id}${shut ? ` · act ${String(needed)}` : ""}`, "player");
+      const mouth = (this.node.edgeMouths ?? []).find((m) => m.to === id);
+      const where =
+        mouth === undefined
+          ? " · no edge mouth"
+          : ` · walk ${this.edgeNameOf(mouth)} ${String(this.mouthTileOf(mouth).col)},${String(this.mouthTileOf(mouth).row)}`;
+      say(`[${i + 1}] travel → ${id}${shut ? ` · act ${String(needed)}` : ""}${where}`, "player");
     });
     // The badge is the act ladder's only numeric input, so the key that earns one is on screen
     // beside the two that spend ticks — and the leader is NAMED, because a key with nothing behind

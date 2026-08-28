@@ -41,5 +41,19 @@
       "signChain": "vellsire-chain",
       "label": "antler stone in open ground"
     }
+  ],
+  "edgeMouths": [
+    {
+      "_note": "PINNED TO THE MAP'S OWN EDGE MOUTH. tools/mapgen/layouts/r5.txt is the one document the painting and the collision mask are both stamped from, and it draws a '^' edge-mouth cell for every declared adjacency — legend kind edge-mouth, 'the cell where a corridor meets the map edge; one per declared adjacency'. This is cell (40,0) on the TOP edge, and the layout's own header assigns that edge: \"# top edge     sanctum-approach — ^ at (40,0), on the approach's bottom mouth; the head gorge\" (r5.txt:22). Cell (40,0) spans native (640..656, 0..16); x/y below are its CENTRE, so OverworldScene.mouthTileOf — floor(x * balance.map.mapRenderScale / balance.map.tileStepPx) — lands on tile 40,0: the cell the layout marks, walkable in the shipped mask and four-connected to the spawn tile. THE COORDINATE IS READ OFF THE GRID, NEVER OFF HEADER PROSE: r2.txt's header still names a bottom mouth at (31,63) that its own decisions block records as moved to col 38. tests/unit/edge-mouth-travel.test.ts holds every mouth to the shipped layout and the shipped mask. Units are map-native pixels in the 1024-square painted map, the same space this file's props[] use.",
+      "x": 648,
+      "y": 8,
+      "to": "sanctum-approach"
+    },
+    {
+      "_note": "PINNED TO THE MAP'S OWN EDGE MOUTH. tools/mapgen/layouts/r5.txt is the one document the painting and the collision mask are both stamped from, and it draws a '^' edge-mouth cell for every declared adjacency — legend kind edge-mouth, 'the cell where a corridor meets the map edge; one per declared adjacency'. This is cell (26,63) on the BOTTOM edge, and the layout's own header assigns that edge: \"# bottom edge  duskhollow — ^ at (26,63), on duskhollow's top mouth; out of the vale mouth\" (r5.txt:21). Cell (26,63) spans native (416..432, 1008..1024); x/y below are its CENTRE, so OverworldScene.mouthTileOf — floor(x * balance.map.mapRenderScale / balance.map.tileStepPx) — lands on tile 26,63: the cell the layout marks, walkable in the shipped mask and four-connected to the spawn tile. THE COORDINATE IS READ OFF THE GRID, NEVER OFF HEADER PROSE: r2.txt's header still names a bottom mouth at (31,63) that its own decisions block records as moved to col 38. tests/unit/edge-mouth-travel.test.ts holds every mouth to the shipped layout and the shipped mask. Units are map-native pixels in the 1024-square painted map, the same space this file's props[] use.",
+      "x": 424,
+      "y": 1016,
+      "to": "duskhollow"
+    }
   ]
 }

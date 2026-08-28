@@ -54,9 +54,29 @@
  * it that the interact key measures. So the reach arithmetic is `game/props.ts`'s — `propInReach` /
  * `distanceToProp` / `propWorldRadius`, widened there to the `MapReachable` shape for exactly this —
  * and NOT a second copy. `interactionRadius` is `balance.map.propInteractionRadiusDefault`, the
- * number props already fall back to (G11: no gameplay constant is written down here). Like a prop, an
- * NPC is **not baked into collision** (build-doc §7.6): the player may walk over the cell, and the
- * mask is untouched. That is also what makes an NPC incapable of blocking anything.
+ * number props already fall back to (G11: no gameplay constant is written down here).
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  A PERSON IS SOLID — AND THE MASK IS STILL NOT TOUCHED
+ * ─────────────────────────────────────────────────────────────────────────────
+ * The owner played the build and reported, verbatim: *"the NPCs have no collisions."* They did not.
+ * This header used to end *"the player may walk over the cell, and the mask is untouched. That is
+ * also what makes an NPC incapable of blocking anything"* — the second half of that sentence is what
+ * was wrong, and only the second half. The interior plans have said the opposite about themselves
+ * the whole time: *"the parser treats this cell as walkable floor; it is occupied IN FACT, and the
+ * scene layer stands her on it."* Occupied in fact, and nothing enforced it.
+ *
+ * The mask is STILL untouched, and that is not a technicality:
+ *
+ *   • build-doc §7.6 makes collision a property of the painted geometry. A body standing on grass is
+ *     not geometry, and baking one in would make the mask disagree with the picture it was sampled
+ *     from — the same class of defect as a per-year mask (Hard Req 5 / G4).
+ *   • It would also be circular. {@link scatterCandidates} reads the grid to decide where people may
+ *     stand; a grid that already carried them would feed the placement pass its own output, and the
+ *     cast would drift every time the scene rebuilt.
+ *
+ * So occupancy is an OVERLAY, {@link npcOccupiedTiles}, and `OverworldScene.canEnter` — the one
+ * walkability question the whole scene asks — consults it beside the mask.
  *
  * ENGINE-FREE ABOVE {@link NpcLayer}. Everything that decides WHO stands WHERE is plain TypeScript
  * over shipped data, so a node test can ask it without a running scene; only the layer at the bottom
@@ -75,11 +95,24 @@ import type { InteriorBlueprint } from "@core/interiors";
 import { hashSeed } from "@core/rng";
 import type { Balance, CollisionGrid, NodeFile } from "@core/types";
 import type PhaserNS from "phaser";
-import { chooseSpawnTile, tileGridSize, tileWalkable, worldSizePx } from "./collision";
+import {
+  chooseSpawnTile,
+  reachableTiles,
+  tileGridSize,
+  tileKey,
+  tileWalkable,
+  worldSizePx,
+} from "./collision";
 import { TALK_KINDS } from "./dialogue-runner";
 import { createMovement, movementConfig, spriteWorldPosition } from "./movement";
 import { placeholderImage } from "./placeholder";
-import { distanceToProp, propInReach, type MapReachable, type WorldPoint } from "./props";
+import {
+  distanceToProp,
+  propInReach,
+  propOccupiedTiles,
+  type MapReachable,
+  type WorldPoint,
+} from "./props";
 import { portraitAssetId } from "./scenes/DialogueScene";
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -258,9 +291,22 @@ export function interiorNpcPlacements(
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
+ * A map-native point as the movement tile that contains it.
+ *
+ * `OverworldScene.doorTileOf`'s arithmetic and `mouthTileOf`'s, in one place: `data/interiors/*.json`
+ * `door.x/y`, `data/nodes/*.json` `edgeMouths[].x/y` and `props[].x/y` are all map-native pixels, and
+ * both conversions read `balance.map` rather than assuming each other (G11).
+ */
+function nativeTile(at: { x: number; y: number }, balance: Balance): { col: number; row: number } {
+  const scale = balance.map.mapRenderScale;
+  const step = balance.map.tileStepPx;
+  return { col: Math.floor((at.x * scale) / step), row: Math.floor((at.y * scale) / step) };
+}
+
+/**
  * Every tile of this node a person may be scattered onto, in row-major order.
  *
- * FOUR EXCLUSIONS, and each one is a thing that currently works and must go on working:
+ * SIX EXCLUSIONS, and each one is a thing that currently works and must go on working:
  *
  *   1. **Not walkable.** Asked of the REAL grid through `tileWalkable`, the same query the player's
  *      own movement is answered by — never a guess about what the mask means. (The mask's polarity
@@ -276,9 +322,21 @@ export function interiorNpcPlacements(
  *      person, so an NPC inside a prop's radius is an NPC the interact key can never answer for —
  *      and the same overlap is already documented on `firstWalkableTile` as the reason the spawn
  *      avoids props. Measured through the shared `propInReach`, from the tile's own standing point.
- *
- * There is nothing to exclude for travel: this project's node changes are keyed (`1`–`6` over
- * `node.adjacency`), not walked over an exit tile, so no tile is a way out of the map.
+ *   5. **NOT AN EDGE MOUTH.** This exclusion's slot used to hold the sentence *"there is nothing to
+ *      exclude for travel: this project's node changes are keyed … so no tile is a way out of the
+ *      map."* That stopped being true when the owner asked to *"go to the next region by walking up
+ *      the path"*: `data/nodes/*.json` `edgeMouths[]` now names the cell each edge leads out of, and
+ *      `OverworldScene.edgeExitAt` fires travel on a step that lands there. A person standing on one
+ *      is exactly exclusion 3's defect at the scale of a region — the way out of the map with
+ *      somebody in it.
+ *   6. **REACHABLE FROM THE SPAWN TILE BY A WALK.** Standable is not reachable: a patch of open
+ *      ground behind a wall satisfies `tileWalkable` and is somewhere the player can never be, and
+ *      a person scattered onto one is a person with lines nobody can ever hear. It also matters for
+ *      what {@link scatteredNpcPlacements} does next — the connectivity rule there is stated over
+ *      the reachable component, and a candidate outside it would be measured against the wrong
+ *      graph. (Measured on the twelve shipped masks at the time this was added: every walkable tile
+ *      of every node was already reachable, so this excludes nothing today. It is here so that a
+ *      repaint which strands a corner does not silently strand a person on it.)
  */
 export function scatterCandidates(
   node: NodeFile,
@@ -287,12 +345,12 @@ export function scatterCandidates(
 ): { col: number; row: number }[] {
   const tiles = tileGridSize(balance);
   const spawn = chooseSpawnTile(grid, balance, { props: node.props }).tile;
-  const scale = balance.map.mapRenderScale;
-  const step = balance.map.tileStepPx;
-  const doors = interiorsOf(node.id).map((bp) => ({
-    col: Math.floor((bp.door.x * scale) / step),
-    row: Math.floor((bp.door.y * scale) / step),
-  }));
+  const doors = interiorsOf(node.id).map((bp) => nativeTile(bp.door, balance));
+  const mouths = (node.edgeMouths ?? []).map((m) => nativeTile(m, balance));
+  // The props are SOLID (owner ruling; `game/props.ts` `propTile`), so the world a person is
+  // scattered into is the world with the standing stones already in it. Asking reachability of the
+  // bare mask would offer a cell the props have already cut off.
+  const reachable = reachableTiles(grid, balance, spawn, propOccupiedTiles(node.props, balance));
 
   const out: { col: number; row: number }[] = [];
   for (let row = 0; row < tiles.rows; row += 1) {
@@ -300,8 +358,10 @@ export function scatterCandidates(
       if (!tileWalkable(grid, col, row, balance)) continue;
       if (col === spawn.col && row === spawn.row) continue;
       if (doors.some((d) => d.col === col && d.row === row)) continue;
+      if (mouths.some((m) => m.col === col && m.row === row)) continue;
       const at = standingPoint({ col, row }, balance);
       if (node.props.some((p) => propInReach(p, at, balance))) continue;
+      if (!reachable.has(tileKey({ col, row }))) continue;
       out.push({ col, row });
     }
   }
@@ -336,15 +396,55 @@ function tileGap(a: { col: number; row: number }, b: { col: number; row: number 
  *   3. **Crowding is repaired by walking forward inside the band**, wrapping at its end, until a cell
  *      at least {@link MIN_TILE_GAP} from every already-placed person is found. Deterministic: the
  *      scan order is fixed and the set of already-placed people is fixed by step 1's ordering.
- *   4. **The rule is total.** If a band is exhausted the hashed cell is taken anyway (crowding is
+ *   4. **A CELL IS ONLY TAKEN IF STANDING THERE SEALS NOTHING OFF.** See below — this is the clause
+ *      that makes a solid person safe, and it is checked in the same forward walk step 3 uses.
+ *   5. **The rule is total.** If a band is exhausted the hashed cell is taken anyway (crowding is
  *      cosmetic; an absent NPC is the bug being fixed). If `|C| < |P|` there are no bands at all and
  *      cells are handed out round-robin, `C[k % |C|]` — which can co-locate people on a
- *      pathologically small map and is still deterministic. If `|C|` is empty the node places nobody
- *      and returns empty rather than inventing ground.
+ *      pathologically small map and is still deterministic. **Step 4 does not apply on that branch**,
+ *      and it is left that way rather than quietly half-applied: a map with fewer standing cells than
+ *      it has residents is already degenerate, there may be no admissible cell at all, and dropping a
+ *      person would hide the degeneracy instead of showing it. No shipped node is anywhere near it
+ *      (the thinnest has 790 candidates for 7 people), and `tests/unit/npc-prop-collision.test.ts`
+ *      §2 is stated over the OUTCOME, so it fails on that branch too if it ever seals something.
+ *      If `|C|` is empty the node places nobody and returns empty rather than inventing ground.
+ *
+ * ══ THE MOVE RULE — WHY A PLACEMENT IS EVER MOVED, AND WHERE TO ══
+ *
+ * A person is now SOLID (see this file's header), and blocking fifty cells can strand the player or
+ * seal something off. EXCLUSION IS NOT CONNECTIVITY: {@link scatterCandidates} already refuses the
+ * spawn tile, every doorway, every edge mouth and every prop's reach, and none of that stops two
+ * people standing either side of a one-cell gap and closing it between them. Neither of them is on
+ * anything excluded; the gap is shut all the same, and nothing would say so until somebody walked
+ * there.
+ *
+ * So the admissibility test is stated over the WHOLE reachable world rather than over the cell:
+ *
+ *   > Blocking this cell may remove THIS CELL from what a walk from the spawn tile can reach, and
+ *   > nothing else.
+ *
+ * Measured as a count, which is what makes it cheap and total: flood from `chooseSpawnTile` over
+ * `game/collision.ts` {@link reachableTiles} with the already-placed people (and the props, which
+ * were solid before anyone stood up) blocked, and require that adding this cell costs exactly one
+ * tile. Every door, every edge mouth, every prop's reach and every earlier person keeps whatever
+ * access it had, because the rule does not enumerate them — it forbids losing ANY tile but the one
+ * being occupied. A cut vertex therefore fails it and the search walks on to the next cell in the
+ * band; a cell in open ground passes on the first try, which is what happens on all twelve shipped
+ * maps today.
+ *
+ * WHERE IT MOVES TO: forward inside the SAME band, wrapping at the band's end — the identical scan
+ * step 3 uses, so a moved placement is still in the horizontal strip the spread rule gave that
+ * speaker and `tests/unit/npcs.test.ts`'s band assertion still holds. Two passes, because the two
+ * requirements are not equal: the first demands the gap AND the connectivity, the second drops the
+ * gap and keeps the connectivity. Crowding is cosmetic; a sealed door is not. If neither pass finds
+ * a cell the hashed one is taken anyway and the world is left provably wrong rather than left with
+ * a person deleted — `tests/unit/npc-prop-collision.test.ts` is what fails, loudly, in that case.
  *
  * ⚠ WHAT THIS DOES **NOT** DO, and must not: it never places a speaker outside `speakers[].home`,
  * never invents a speaker, and never touches a line. The node is the corpus's statement; only the
- * cell is derived (G2).
+ * cell is derived (G2). It also never moves a prop or an authored interior `@` cell — those are
+ * content, and a prop that sealed a corridor would be a finding to report, not a placement to
+ * change.
  */
 export function scatteredNpcPlacements(
   node: NodeFile,
@@ -363,6 +463,26 @@ export function scatteredNpcPlacements(
   const taken: { col: number; row: number }[] = [];
   const out: NpcPlacement[] = [];
 
+  /*
+   * THE WORLD AS IT STANDS, carried across the whole loop so the test is incremental.
+   *
+   * `occupied` starts at the props — solid before anybody stood up — and gains each person as they
+   * are placed, so person k is measured against a map that already contains persons 0…k-1. That is
+   * what catches the two-people-either-side-of-a-gap case: neither cell is a cut on its own, and the
+   * pair is. `reach` is the size of the walk from the spawn tile through that occupancy, kept rather
+   * than recomputed, so admitting a cell costs ONE flood and not two.
+   */
+  const spawn = chooseSpawnTile(grid, balance, { props: node.props }).tile;
+  const occupied = propOccupiedTiles(node.props, balance);
+  let reach = reachableTiles(grid, balance, spawn, occupied).size;
+
+  /** Would standing here cost the walk anything but this one cell? See the move rule above. */
+  const sealsNothing = (at: { col: number; row: number }): boolean => {
+    const trial = new Set(occupied);
+    trial.add(tileKey(at));
+    return reachableTiles(grid, balance, spawn, trial).size === reach - 1;
+  };
+
   people.forEach((speaker, k) => {
     let cell: { col: number; row: number };
     if (band < 1) {
@@ -371,17 +491,30 @@ export function scatteredNpcPlacements(
     } else {
       const start = k * band;
       const offset = hashSeed(SCATTER_SEED, speaker.id) % band;
-      let chosen = candidates[start + offset] as { col: number; row: number };
-      for (let i = 0; i < band; i += 1) {
-        const at = candidates[start + ((offset + i) % band)] as { col: number; row: number };
-        if (taken.every((t) => tileGap(t, at) > MIN_TILE_GAP)) {
+      const inBand = (i: number): { col: number; row: number } =>
+        candidates[start + ((offset + i) % band)] as { col: number; row: number };
+      // The hashed cell is the answer unless something below finds a better one — and it stays the
+      // answer when nothing does, which is what keeps the rule total (step 5).
+      let chosen = inBand(0);
+      let settled = false;
+      // Pass 1: the gap AND the connectivity. Pass 2: connectivity alone — crowding is cosmetic,
+      // a sealed door is not, so the requirement that gives way is the cosmetic one.
+      for (const needGap of [true, false]) {
+        for (let i = 0; i < band; i += 1) {
+          const at = inBand(i);
+          if (needGap && !taken.every((t) => tileGap(t, at) > MIN_TILE_GAP)) continue;
+          if (!sealsNothing(at)) continue;
           chosen = at;
+          settled = true;
           break;
         }
+        if (settled) break;
       }
       cell = chosen;
     }
     taken.push(cell);
+    occupied.add(tileKey(cell));
+    reach = reachableTiles(grid, balance, spawn, occupied).size;
     const native = nativeAnchorOf(cell, balance);
     out.push({
       speakerId: speaker.id,
@@ -419,6 +552,60 @@ export function npcPlacementsFor(
   return interior === null
     ? scatteredNpcPlacements(node, grid, balance, file)
     : interiorNpcPlacements(interior, balance, file);
+}
+
+/**
+ * The cells a person makes impassable in the geometry that is currently on screen.
+ *
+ * ══ THE ANSWER TO *"the NPCs have no collisions"* ══
+ * `OverworldScene.canEnter` — the ONE walkability question the whole scene asks, outdoors and in —
+ * consults this beside the mask. Nothing writes to the grid; see this file's header for why the
+ * overlay is not a bake, and `game/props.ts` `propOccupiedTiles` for the standing stones, which are
+ * solid on the same ruling and by the same mechanism.
+ *
+ * ⚠ INDOORS THIS BLOCKS THE PLAN'S OWN `@` CELL, and that is the plan's own statement being
+ * enforced rather than a new rule: every one of the four rooms says in its `_legend` that *"the
+ * collision parser treats this cell as walkable floor; it is occupied IN FACT, and the scene layer
+ * stands her on it."* It costs no authored content. `interactIndoors` matches an anchor on the
+ * player's EXACT tile, so the question is whether any dialogue was only reachable by standing ON a
+ * person — and it was not: `interiorEntryId` resolves a speaker anchor THROUGH the service anchor
+ * that faces it, so `@` and its `S` cell resolve to the same entry, and the `S` cell is untouched.
+ * (In `brackwater-supply` the shop faces a trestle rather than Hild, so her `@` cell resolved to
+ * `null` — "nothing to say" — before this change and after it.) `tests/unit/npc-prop-collision.test.ts`
+ * §4 asserts that per room over the shipped blueprints rather than trusting this paragraph.
+ */
+export function npcOccupiedTiles(
+  node: NodeFile,
+  interior: InteriorBlueprint | null,
+  grid: CollisionGrid,
+  balance: Balance,
+  file: DialogueFile = DIALOGUE,
+): Set<string> {
+  const out = new Set<string>();
+  for (const placement of npcPlacementsFor(node, interior, grid, balance, file)) {
+    out.add(tileKey(placement));
+  }
+  return out;
+}
+
+/**
+ * Every cell of the geometry on screen that a BODY makes impassable — people and props together.
+ *
+ * The one overlay `OverworldScene.canEnter` reads, so a caller cannot consult half of it. Indoors
+ * the town's props are deliberately absent for {@link npcPlacementsFor}'s reason: a room is drawn at
+ * world origin, so a town coordinate compared against it is an answer from the wrong map — and a
+ * standing stone out on the green would otherwise block a cell of an inn's floor.
+ */
+export function solidBodyTiles(
+  node: NodeFile,
+  interior: InteriorBlueprint | null,
+  grid: CollisionGrid,
+  balance: Balance,
+  file: DialogueFile = DIALOGUE,
+): Set<string> {
+  const out = npcOccupiedTiles(node, interior, grid, balance, file);
+  if (interior === null) for (const key of propOccupiedTiles(node.props, balance)) out.add(key);
+  return out;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -526,6 +713,19 @@ export class NpcLayer {
   private placed: NpcPlacement[] = [];
   /** The geometry the current sprites were built for — a room id indoors, a node id outdoors. */
   private viewKey: string | null = null;
+  /**
+   * The GRID those sprites were placed against, by object identity.
+   *
+   * ⚠ THE VIEW KEY ALONE IS NOT ENOUGH, and the sharp case is `OverworldScene.recoverFromBlackout`:
+   * it enters the wake node once with the art possibly unloaded — a SYNTHESISED open rectangle — and
+   * again, on the same node, once `ensureNodeArt` has decoded the real mask. Two grids, one id. On
+   * the placeholder the whole 64×64 lattice is standable, so the cast is scattered over cells the
+   * real town does not offer; without this the sprites would stay on those cells for the rest of the
+   * run while `OverworldScene.canEnter` blocks the recomputed ones — people drawn in walls, and
+   * invisible walls where nobody is. The scene's own overlay is keyed the same way for the same
+   * reason, so the drawing and the blocking can never disagree about which map they are on.
+   */
+  private placedAgainst: CollisionGrid | null = null;
 
   constructor(scene: PhaserNS.Scene, balance: Balance, file: DialogueFile = DIALOGUE) {
     this.scene = scene;
@@ -539,7 +739,7 @@ export class NpcLayer {
    */
   sync(view: NpcViewInput): void {
     const key = view.interior?.id ?? view.node.id;
-    if (key !== this.viewKey) {
+    if (key !== this.viewKey || view.grid !== this.placedAgainst) {
       this.rebuild(view, key);
     }
 
@@ -559,6 +759,7 @@ export class NpcLayer {
     this.sprites.clear();
     this.placed = npcPlacementsFor(view.node, view.interior, view.grid, this.balance, this.file);
     this.viewKey = key;
+    this.placedAgainst = view.grid;
 
     /*
      * THE NPC BOX IS THE NPC'S OWN, NOT THE PLAYER'S — and this line was the last consumer still
@@ -633,5 +834,6 @@ export class NpcLayer {
     this.sprites.clear();
     this.placed = [];
     this.viewKey = null;
+    this.placedAgainst = null;
   }
 }

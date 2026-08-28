@@ -4,6 +4,78 @@ A 2D monster-catching RPG whose region is a living ecosystem: every catch decrem
 population, the food web is derived from those numbers rather than authored beside them, and the
 calendar ages every creature and map underneath the story.
 
+## ✅ RESOLVED — "the NPCs have no collisions", "props should have collisions too", and travel is a walk
+
+The owner played the build and reported two things, verbatim: **"First up, the NPCs have no
+collisions. Second, I should be able to go to the next region by walking up the path. Instead, that
+appears to be blocking behind a button right now."** Mid-task he added: **"props should have
+collisions too."** All three are done.
+
+**Bodies are solid, and the mask is untouched.** Occupancy is an overlay `OverworldScene.canEnter`
+consults beside the collision bitfield — `game/npcs.ts` `npcOccupiedTiles` + `game/props.ts`
+`propOccupiedTiles`, joined as `solidBodyTiles`. Not baked into the mask, for two reasons written at
+the code: the mask is sampled from the painting and a body is not geometry, and `scatterCandidates`
+reads the mask to decide where bodies may stand, so a mask carrying them would feed on its own
+output. A prop occupies ONE cell — the cell its authored coordinate falls in — never its
+`interactionRadius`, which is reach (48 native = 3 tiles) and would turn a sign card into a 3×3 wall.
+`docs/build-doc.md` §7.6 is corrected to record the ruling.
+
+**The hazard was connectivity, not blocking.** `scatterCandidates` already excluded the spawn tile,
+every doorway, every prop's reach and (new) every edge mouth — but exclusion is not connectivity: two
+people either side of a one-cell gap close it without either standing on anything excluded. The rule
+now applied at placement, stated at the code that applies it: *a body may remove its own cell from
+what a walk from the spawn tile can reach, and nothing else.* A candidate failing it is moved forward
+inside its own band (so the spread rule and its band test still hold). **Measured on all twelve
+shipped masks: the rule never has to fire today** — every hashed cell already seals nothing — so it
+is a guarantee against a future repaint rather than a repair of a current defect. Props are never
+moved (G2): a prop that sealed a corridor would be a finding, and none does.
+
+**Travel is a walk, and the coordinate was in the map all along.** `travelTo` carried a declared
+deviation — *"the node schema carries no exit or portal positions"* — that was true of the schema and
+false of the map: `tools/mapgen/layouts/*.txt` has drawn a `^` `edge-mouth` cell per declared
+adjacency since the layouts were written, and each header names which neighbour each edge serves. The
+`^` is flattened to walkable floor when the mask is rasterised, so nothing reached the runtime.
+`data/nodes/*.json` `edgeMouths[]` carries it now (22 mouths, one per adjacency, each `_note`
+recording the pin) and `tests/unit/edge-mouth-travel.test.ts` holds every one to the shipped layout
+AND the shipped mask — the same contract `doorway-threshold.test.ts` holds the doors to.
+
+**One real defect the adversarial pass found, now fixed and regression-tested.** The body overlay was
+cached against `viewId()` — a string — on the argument that one mask serves a node for all six years
+(Hard Req 5 / G4). True of year variants, false in general: `recoverFromBlackout` calls `enterNode`
+ONCE with the art possibly unloaded (null mask ⇒ `loadCollision` synthesises the open rectangle) and
+again, on the same node, inside `ensureNodeArt(...).then(…)` with the real decoded mask. Two grids,
+one view id. On the placeholder the whole lattice is standable, so the cast scatters over ~3800 cells
+instead of the mask's real ~1500 and the stale set then blocks tiles the real town never offered.
+Driven end to end at Bowerdeep: two invisible walls at (22,31) and (11,55). It only self-heals where
+the wake town ships an inn (the view id flips to the room and back) — and three of the five inn towns
+ship none, which is why the first version of the regression test, written against Hearthollow, passed
+on the broken build. Both the scene's overlay and `NpcLayer`'s sprite cast are now keyed on GRID
+OBJECT IDENTITY, which changes exactly when the answer can. `tests/unit/overworld-scene.test.ts` §27.
+
+**Still open / worth knowing**
+
+- **A person in reach permanently shadows the room's dialogue.** `OverworldScene.interact()` asks
+  `npcTalkEntryFor` for a line and returns if it gets one — but that selector *repeats its winner*
+  once everything has been heard, so it never returns `undefined` for a speaker with any eligible
+  entry. A player standing within a person's reach can therefore never hear the node's own room-wide
+  lines, and the "room-wide answer stays as the FALLBACK" comment beside it is false whenever anybody
+  is nearby. Pre-existing; found because the new seam arrival landed the player one tile from `tolm`
+  and the town's chain entry became unreachable from there. Worked around at the arrival (which now
+  prefers a cell clear of every prop's and person's reach, on `firstWalkableTile`'s documented
+  precedent), NOT fixed at `interact()`. The fix is probably "ask the person for a FRESH line only,
+  and fall through to the room when they have none" — but that changes dialogue selection and wants
+  the owner's call.
+- **`tools/mapgen/layouts/r2.txt` header prose is stale.** Its anchors block still says
+  `^ (31,63) jetty plank` and `bottom [(30,32)]`; its own decisions block further down records **"THE
+  JETTY AND THE BOTTOM MOUTH MOVED TO COL 38"**, and the grid agrees with the decision. Anything
+  binding to these cells must parse the GRID, not the header prose — the gate does, and says so.
+  Harmless today; a trap for the next reader.
+- **The `[N] travel` keys are kept**, deliberately. They go through the same `travelTo` as the walk,
+  so they cost the same tick, obey the same act gate and write the same `{t:"travel"}` tape entry —
+  there is nothing for them to drift from — and they are the only way off a node whose mouth a
+  repaint has made unreachable. The HUD line now names both routes (`[1] travel → r1 · walk north
+  41,0`) so it cannot advertise a control that contradicts the map.
+
 ## ⛔ THE GAME WAS PLAYED — AND THE HEADLINE THAT SAID BEAT 1 WAS UNPLAYABLE WAS WRONG, TWICE
 
 **On 2026-08-27 somebody drove the built app in a browser with real keys** — title, opening cutscene,
