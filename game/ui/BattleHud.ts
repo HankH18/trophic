@@ -15,6 +15,7 @@ import { isNever } from "../../core/lifecycle";
 import { validateContent } from "../../core/schemas";
 import type { Balance } from "../../core/types";
 import { roleColor, roleHex, type UiSwatchRole } from "./Palette";
+import { UI_FRAME_ASSET_ID, drawFrameRingIn } from "./FramePanel";
 import { placeholderImage } from "../placeholder";
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -374,7 +375,32 @@ export class CombatantPanel {
 
     const plate = scene.add.rectangle(0, 0, style.cardW, style.cardH, roleColor("panel"));
     plate.setOrigin(0, 0);
-    plate.setStrokeStyle(1, roleColor("border"));
+    /*
+     * The card's EDGE is `tools/comfy/manifest.json` row `ui-battle-hud-frame` — "a battle status
+     * frame with a health bar recess", `_ui#battle-hud-frame`, generated at 240×64 and drawn here at
+     * `cardW`×`cardH` (150×46), which is the size `tools/ui-frames/SPEC.md` §4.3 pins it to.
+     *
+     * THE PLATE UNDER IT STAYS `panel`, and the ring is drawn ON it rather than instead of it. Two
+     * measured reasons, and the second is the one that matters:
+     *   · `roleColor("panel")` is `#74564e`, which is EXACTLY the frame's inner-ring colour, so the
+     *     art and the plate already agree and the card gains a hard `#040308` keyline and nothing
+     *     else — which is what a Gold status box is.
+     *   · The frame's own interior is `#faf7eb`, and `roleHex("text")` — this card's title, its
+     *     level, its footer — is `#faf7eb` too. Painting the art's interior as the card body would
+     *     draw every one of those lines at 1 : 1 against its own background while
+     *     `tests/gates/ui-contrast-contract.test.ts` stayed green, because that gate measures the
+     *     ROLE against the `panel` swatch and cannot see a PNG painted over it.
+     *
+     * `CARD_PADDING` is 4 and the ring is 4 deep, so no glyph on the card is under the chrome.
+     * Without the texture the card keeps the hairline it has always drawn.
+     */
+    const ring = drawFrameRingIn(scene, UI_FRAME_ASSET_ID.battleHud, {
+      x: 0,
+      y: 0,
+      width: style.cardW,
+      height: style.cardH,
+    });
+    if (ring === null) plate.setStrokeStyle(1, roleColor("border"));
 
     const text = (x: number, y: number, value: string, role: UiSwatchRole): PhaserNS.GameObjects.Text => {
       const t = scene.add.text(x, y, value, {
@@ -409,8 +435,12 @@ export class CombatantPanel {
       "textMuted",
     );
 
+    // The ring goes into the container with everything else, so `root.destroy()` still takes the
+    // whole card: a piece left on the scene's display list would outlive the panel it framed and
+    // stack up on every switch, which is the leak the header's OWNERSHIP note records for the sprite.
     this.root = scene.add.container(opts.cardX, opts.cardY, [
       plate,
+      ...(ring ?? []),
       this.title,
       track,
       this.hpFill,

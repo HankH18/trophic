@@ -49,7 +49,6 @@ import {
   buildSurveyPage,
   buildSummaryCard,
   columnBudget,
-  dexArtId,
   effectiveRates,
   surveyPageForSave,
   recordSample,
@@ -578,16 +577,33 @@ describe("dex — Hard Req 10 seasonal legibility", () => {
     expect(regionalCount(save.nodeStates, "pollywisp-line")).toBe(0);
   });
 
-  it("covers every named dex identity, and asks for an asset id per identity", () => {
+  /*
+   * ⚠ THE TWO ART ASSERTIONS THAT USED TO LIVE HERE ARE NOT DELETED — BOTH HALVES MOVED, AND MOVED
+   * BECAUSE THIS FILE COULD NOT MAKE EITHER OF THEM MEAN ANYTHING.
+   *
+   * They were `expect(entry.artId).toBe(dexArtId(entry.dexId))` and an injectivity count over
+   * `e.artId`. The first RESTATED the function that produced the value, which
+   * `tests/gates/dex-path-contract.test.ts`'s header names as one of the three silences that let
+   * T-19 ship: `dexArtId` returned `dex/<name>`, the pipeline could only ever produce
+   * `dex-painted/dex-<name>`, the measured intersection was ZERO, and this assertion was green
+   * throughout — it compared the model to the helper behind it and never to the manifest.
+   *
+   * Both are now in `tests/gates/dex-path-contract.test.ts`, "the REAL dex screen — not just the
+   * helper — asks only for keys the manifest can produce": the key is asserted against the
+   * COMMITTED MANIFEST ROWS (`manifestKeys("creature-battle")`), which is the independent side this
+   * file never had, and injectivity is asserted as `new Set(keys).size === entries.length` over the
+   * real shipped builder `creatureArtId`. The model itself no longer carries an art id at all —
+   * Hank's ruling, `docs/STATUS.md`: "the dex uses the existing creature sprites" — so a slot's key
+   * is derived from `lineId`/`ageClass`/`ancient` at the draw, and there is no field here to check.
+   *
+   * What survives here is the half that IS about the model: every named identity gets an entry.
+   */
+  it("covers every named dex identity", () => {
     const entries = buildDexEntries(content.species, "spring", balance);
     expect(entries.length).toBe(content.species.reduce((n, s) => n + s.dexIds.length, 0));
-    for (const entry of entries) {
-      expect(entry.artId).toBe(dexArtId(entry.dexId));
-      // Distinct identities never share an art slot, or two entries would render the same picture.
-      expect(entries.filter((e) => e.artId === entry.artId).length).toBe(
-        entries.filter((e) => e.dexId === entry.dexId).length,
-      );
-    }
+    // Non-vacuity, and the property the count alone does not make: the identities are the authored
+    // ones, each exactly once — so a builder emitting 35 copies of one name is red here.
+    expect(entries.map((e) => e.dexId).sort()).toEqual(content.species.flatMap((s) => s.dexIds).sort());
   });
 });
 

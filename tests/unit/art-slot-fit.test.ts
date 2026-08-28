@@ -22,18 +22,43 @@
  * the stub here RECORDS: an image knows the texture it was given, that texture's natural size, and
  * what its display size ended up being.
  *
- * WHY THE SLOTS ARE SEEDED WITH REAL ART RATHER THAN WAITING FOR IT. `assets/final/` carries no
- * painted plate today, so every one of these slots draws a stand-in that is generated at exactly
- * the box size and could never be oversize. The bug is only reachable once the art exists — which
- * is why it survived: the failing case is unreachable from the shipped tree. The fake texture
- * manager below therefore says the plate EXISTS, at the size the manifest says it is generated at
- * (read from `tools/comfy/manifest.json`, never written down here). That is the whole rig: the
- * scenes, the helper and the boxes are all real.
+ * WHY THE SLOTS ARE SEEDED WITH REAL ART RATHER THAN WAITING FOR IT. The fake texture manager
+ * below says the texture EXISTS, at the size the manifest says its class is generated at (read from
+ * `tools/comfy/manifest.json`, never written down here). Without that, every slot draws a stand-in
+ * generated at exactly the box size, which could never be oversize — the failing case would be
+ * unreachable from the test. That is the whole rig: the scenes, the helper and the boxes are real.
  *
- * The assertion is deliberately one-sided. It does not demand a particular scale, an integer
- * reciprocal, or that the art fill the box — only that what is drawn FITS INSIDE the box the scene
- * asked for, at the aspect ratio the texture actually has. A slot that overflows its box is the
- * defect; anything inside it is a rendering choice.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  WHAT THE SLOTS ASK FOR NOW, AND THE SECOND PROPERTY THIS FILE HOLDS
+ * ─────────────────────────────────────────────────────────────────────────────
+ * The painted dex class is CUT — build-doc §15's cut line C-4, taken by the owner and recorded in
+ * `docs/STATUS.md`: *"The dex uses the existing creature sprites, so the 35 dex-painted manifest
+ * rows are dead."* All 35 of those plates are declared stand-ins, so under the old key none of the
+ * three slots had real art for any line. They now ask for the 96² `creature-battle` sprite, via
+ * `game/scenes/DexScene.ts::creatureArtId` and `game/ui/BattleHud.ts::battleSpriteKey`.
+ *
+ * That buys a second property worth binding, and it is NOT the same as fitting. Measured off the
+ * real objects, `displayWidth / natural texture width`:
+ *
+ *     slot                with the cut 1024² plate      with the 96² battle sprite
+ *     dex          128²   ×0.125    = 1:8    integer     ×1        (16px gutter)  integer
+ *     summary       96²   ×0.09375  = 1:10.67  NOT       ×1                        integer
+ *     portrait well 48²   ×0.046875 = 1:21.33  NOT       ×0.5      = 1:2           integer
+ *
+ * A non-integer nearest-neighbour factor smears the pixel grid — the same class of defect
+ * `fitWithin` was written for, one level up. ⚠ `fitWithin` IS CORRECT and must not be "fixed" for
+ * it: 1024 really does draw at 48, and what was wrong was the RATIO. So {@link expectIntegerFactor}
+ * asserts the factor is an integer or the reciprocal of one, and the test below DEMONSTRATES the
+ * assertion can fail by driving the same slot with the cut plate's size.
+ *
+ * The fit assertion stays deliberately one-sided: it does not demand that the art fill the box, only
+ * that what is drawn FITS INSIDE it at the aspect ratio the texture actually has.
+ *
+ * ⚠ A WEAKNESS OF THIS FILE, FOUND AND CLOSED: every fixture it drove was a SQUARE texture in a
+ * SQUARE slot, where `setDisplaySize(naturalW*scale, naturalH*scale)` (a fit) and
+ * `setDisplaySize(width, height)` (a stretch) produce identical numbers — so the stretch bug
+ * `fitWithin`'s own comment warns about could not be caught here. {@link theNonSquareFixture} is a
+ * 2:1 texture in a 1:1 slot, where the two expressions disagree.
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -280,7 +305,7 @@ import { installStorage, resetContentCache, startNewGame } from "@game/boot";
 import { registry } from "@game/registry";
 import { SCENE_KEYS } from "@game/scene-keys";
 import { DEX_ART_BOX, SUMMARY_ART_BOX } from "@game/survey-view";
-import { DexScene, type DexSceneData } from "@game/scenes/DexScene";
+import { DexScene, creatureArtId, type DexSceneData } from "@game/scenes/DexScene";
 import { MenuScene } from "@game/scenes/MenuScene";
 import { SummaryScene, type SummarySceneData } from "@game/scenes/SummaryScene";
 import {
@@ -289,7 +314,7 @@ import {
   type RetirementOffer,
 } from "@game/scenes/RetirementScene";
 import { driveYearTurn } from "@game/scenes/YearTurnScene";
-import { dexArtId } from "@game/survey-view";
+import { battleSpriteKey } from "@game/ui/BattleHud";
 
 const content: Content = validateContent();
 const balance: Balance = content.balance;
@@ -297,20 +322,27 @@ const balance: Balance = content.balance;
 const REPO_ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 
 /**
- * The size the painted dex class is GENERATED at, read from the manifest that generates it. Written
- * down here it would be a second answer to a question `tools/comfy/manifest.json` already answers,
- * and the day the class is re-targeted this rig would go on testing the old number.
+ * The size an asset class is GENERATED at, read from the manifest that generates it. Written down
+ * here it would be a second answer to a question `tools/comfy/manifest.json` already answers, and
+ * the day a class is re-targeted this rig would go on testing the old number.
  */
-function dexPlateSize(): { width: number; height: number } {
+function classTargetSize(className: string): { width: number; height: number } {
   const manifest = JSON.parse(
     readFileSync(resolve(REPO_ROOT, "tools/comfy/manifest.json"), "utf8"),
   ) as { classes: Record<string, { targetW: number; targetH: number }> };
-  const cls = manifest.classes["dex-painted"];
-  if (!cls) throw new Error("tools/comfy/manifest.json has no dex-painted class");
+  const cls = manifest.classes[className];
+  if (!cls) throw new Error(`tools/comfy/manifest.json has no ${className} class`);
   return { width: cls.targetW, height: cls.targetH };
 }
 
-const PLATE = dexPlateSize();
+/** What the three slots ask for now: the shipped creature battle sprite. */
+const SPRITE = classTargetSize("creature-battle");
+
+/**
+ * What they asked for before the ruling. Used ONLY to prove the integer-factor assertion is capable
+ * of failing — it is the size that made the summary slot 1:10.67 and the portrait well 1:21.33.
+ */
+const CUT_PLATE = classTargetSize("dex-painted");
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Recorders off a stub scene
@@ -348,8 +380,45 @@ function register(scene: object): void {
 }
 
 /** Say that finished art for `assetId` has loaded, at the size the pipeline generates it. */
-function seedRealArt(scene: object, assetId: string): void {
-  rec(scene).stubTextureSizes.set(assetId, { width: PLATE.width, height: PLATE.height });
+function seedRealArt(
+  scene: object,
+  assetId: string,
+  size: { width: number; height: number } = SPRITE,
+): void {
+  rec(scene).stubTextureSizes.set(assetId, { width: size.width, height: size.height });
+}
+
+/**
+ * The second property, and the one the ruling bought: the art lands on an INTEGER scale factor.
+ *
+ * Nearest-neighbour pixel art at a fractional factor drops and doubles rows unevenly — the grid
+ * stops being a grid. Both directions count: ×2 is integer, ×0.5 is the reciprocal of one, ×0.09375
+ * is neither. Both axes are checked separately, so a stretch cannot satisfy this by accident.
+ *
+ * ⚠ NOT a re-statement of "fits": the 1024² plate fitted the 128² dex box at exactly 1:8 and still
+ * softened the 96² and 48² slots. And NOT a statement about `fitWithin`, which is correct — this is
+ * about the RATIO between the class's generated size and the slot's.
+ */
+function expectIntegerFactor(image: RecordedImage | undefined, where: string): void {
+  expect(image, `${where}: nothing was drawn into the art slot`).toBeDefined();
+  if (!image) return;
+  const isIntegerRatio = (drawn: number, natural: number): boolean => {
+    if (!(natural > 0) || !(drawn > 0)) return false;
+    const factor = drawn / natural;
+    const whole = factor >= 1 ? factor : 1 / factor;
+    return Math.abs(whole - Math.round(whole)) < 1e-9;
+  };
+  expect(
+    isIntegerRatio(image.displayWidth, image.width),
+    `${where}: drawn ${image.displayWidth}px wide from a ${image.width}px texture — ` +
+      `×${String(image.displayWidth / image.width)}, which is neither an integer nor 1/n, so ` +
+      "nearest-neighbour will soften the pixel grid",
+  ).toBe(true);
+  expect(
+    isIntegerRatio(image.displayHeight, image.height),
+    `${where}: drawn ${image.displayHeight}px tall from a ${image.height}px texture — ` +
+      `×${String(image.displayHeight / image.height)}, which is neither an integer nor 1/n`,
+  ).toBe(true);
 }
 
 /**
@@ -448,86 +517,266 @@ afterEach(() => {
  * The dex — DEX_ART_BOX
  * ──────────────────────────────────────────────────────────────────────────── */
 
-describe("the painted plate is drawn inside the slot that asked for it", () => {
-  it("the dex card fits the plate into DEX_ART_BOX", () => {
-    const menu = openMenu();
-    const data = handOff<DexSceneData>(menu, "DEX", SCENE_KEYS.dex);
+/* ────────────────────────────────────────────────────────────────────────────
+ * Driving the three real scenes, each to the key it really asks for
+ * ──────────────────────────────────────────────────────────────────────────── */
 
-    const scene = new DexScene();
-    register(scene);
-    scene.init(data);
-    const entry = scene.current();
-    expect(entry, "the dex opened on no entry at all").not.toBeNull();
-    if (!entry) return;
-    // The premise, asserted rather than assumed: the id the scene asks for is the id the pipeline
-    // produces. `tests/gates/dex-path-contract.test.ts` owns that equality; this only leans on it.
-    seedRealArt(scene, entry.artId);
-    scene.create();
+/** The dex, opened through the real in-run menu, with `key`'s texture seeded at `size`. */
+function driveDex(size: { width: number; height: number } = SPRITE) {
+  const menu = openMenu();
+  const data = handOff<DexSceneData>(menu, "DEX", SCENE_KEYS.dex);
+  const scene = new DexScene();
+  register(scene);
+  scene.init(data);
+  const entry = scene.current();
+  expect(entry, "the dex opened on no entry at all").not.toBeNull();
+  if (!entry) throw new Error("the dex opened on no entry at all");
+  const key = creatureArtId(entry.lineId, entry.ageClass, entry.ancient);
+  seedRealArt(scene, key, size);
+  scene.create();
+  return { scene, entry, key };
+}
 
-    const drawn = rec(scene).stubImages.find((i) => i.key === entry.artId);
-    expect(
-      drawn,
-      `the dex drew ${rec(scene).stubImages.map((i) => i.key).join(", ") || "no image"} — not the ` +
-        `real plate "${entry.artId}", so this test is not exercising the real-art path`,
-    ).toBeDefined();
+function driveSummary(size: { width: number; height: number } = SPRITE) {
+  const menu = openMenu();
+  const data = handOff<SummarySceneData>(menu, "TEAM", SCENE_KEYS.summary);
+  const scene = new SummaryScene();
+  register(scene);
+  scene.init(data);
+  const card = scene.card();
+  expect(card, "the team card opened on nobody").not.toBeNull();
+  if (!card) throw new Error("the team card opened on nobody");
+  const key = creatureArtId(card.lineId, card.age, card.ancient);
+  seedRealArt(scene, key, size);
+  scene.create();
+  return { scene, card, key };
+}
+
+function driveRetirement(size: { width: number; height: number } = SPRITE) {
+  const drive = legacyDrive();
+  const offer: RetirementOffer | null = drive.flow.offer();
+  expect(offer, "the Legacy drive produced no retirement prompt").not.toBeNull();
+  if (!offer) throw new Error("the Legacy drive produced no retirement prompt");
+
+  type SceneCtor = new () => {
+    scene: { manager: { keys: Record<string, unknown> } };
+    init: (data: never) => void;
+    create: () => void;
+  };
+  const Scene = createRetirementScene(Phaser as never) as unknown as SceneCtor;
+  const scene = new Scene();
+  register(scene);
+  const key = battleSpriteKey(offer.parent.lineId, offer.parent.age, "front");
+  seedRealArt(scene, key, size);
+  scene.init({ flow: drive.flow, onDone: (): void => undefined } as never);
+  scene.create();
+  return { scene, offer, key };
+}
+
+/** The image a driven scene actually put in its art slot, or a message naming what it drew instead. */
+function slotImage(scene: object, key: string, where: string): RecordedImage {
+  const drawn = rec(scene).stubImages.find((i) => i.key === key);
+  expect(
+    drawn,
+    `${where} drew ${rec(scene).stubImages.map((i) => i.key).join(", ") || "no image"} — not the ` +
+      `real sprite "${key}", so this test is not exercising the real-art path`,
+  ).toBeDefined();
+  if (!drawn) throw new Error(`${where}: no image for ${key}`);
+  return drawn;
+}
+
+describe("the creature sprite is drawn inside the slot that asked for it", () => {
+  it("the dex card fits the sprite into DEX_ART_BOX, on an integer factor", () => {
+    const { scene, key } = driveDex();
+    const drawn = slotImage(scene, key, "the dex");
     expectFits(drawn, DEX_ART_BOX, "dex");
+    expectIntegerFactor(drawn, "dex");
   });
 
-  it("the team card fits the plate into SUMMARY_ART_BOX", () => {
-    const menu = openMenu();
-    const data = handOff<SummarySceneData>(menu, "TEAM", SCENE_KEYS.summary);
-
-    const scene = new SummaryScene();
-    register(scene);
-    scene.init(data);
-    const card = scene.card();
-    expect(card, "the team card opened on nobody").not.toBeNull();
-    if (!card) return;
-    seedRealArt(scene, card.artId);
-    scene.create();
-
-    const drawn = rec(scene).stubImages.find((i) => i.key === card.artId);
-    expect(
-      drawn,
-      `the team card drew ${rec(scene).stubImages.map((i) => i.key).join(", ") || "no image"} — ` +
-        `not the real plate "${card.artId}"`,
-    ).toBeDefined();
+  it("the team card fits the sprite into SUMMARY_ART_BOX, on an integer factor", () => {
+    const { scene, key } = driveSummary();
+    const drawn = slotImage(scene, key, "the team card");
     expectFits(drawn, SUMMARY_ART_BOX, "summary");
+    expectIntegerFactor(drawn, "summary");
   });
 
   /* ──────────────────────────────────────────────────────────────────────────
    * The retirement well — the Legacy beat, which is never-cut (build-doc §1)
    * ────────────────────────────────────────────────────────────────────────── */
 
-  it("the retirement card fits the plate into the portrait well", () => {
+  it("the retirement card fits the sprite into the portrait well, on an integer factor", () => {
     const style = defaultRetirementStyle(balance);
     const box = { width: style.portrait, height: style.portrait };
-
-    const drive = legacyDrive();
-    const offer: RetirementOffer | null = drive.flow.offer();
-    expect(offer, "the Legacy drive produced no retirement prompt").not.toBeNull();
-    if (!offer) return;
-
-    type SceneCtor = new () => {
-      scene: { manager: { keys: Record<string, unknown> } };
-      init: (data: never) => void;
-      create: () => void;
-    };
-    const Scene = createRetirementScene(Phaser as never) as unknown as SceneCtor;
-    const scene = new Scene();
-    register(scene);
-    const artId = dexArtId(offer.parent.formName);
-    seedRealArt(scene, artId);
-    scene.init({ flow: drive.flow, onDone: (): void => undefined } as never);
-    scene.create();
-
-    const drawn = rec(scene).stubImages.find((i) => i.key === artId);
-    expect(
-      drawn,
-      `the retirement card drew ${rec(scene).stubImages.map((i) => i.key).join(", ") || "no image"} ` +
-        `— not the real portrait "${artId}"`,
-    ).toBeDefined();
+    const { scene, key } = driveRetirement();
+    const drawn = slotImage(scene, key, "the retirement card");
     expectFits(drawn, box, "retirement");
+    expectIntegerFactor(drawn, "retirement");
+  });
+
+  it("THE MEASUREMENT — the exact size each slot draws the sprite at", () => {
+    /*
+     * The three factors, on the record, measured off the objects the real scenes produced. Every
+     * expected value is DERIVED from the slot's own box and the manifest's own target size, so a
+     * retune of either moves this test with it instead of leaving a stale pair of numbers.
+     *
+     *   dex          128² box, 96² sprite -> 96×96 at ×1, centred in a 32px gutter (16 a side)
+     *   summary       96² box, 96² sprite -> 96×96 at ×1, exactly filling the slot
+     *   portrait well 48² box, 96² sprite -> 48×48 at ×0.5
+     *
+     * `fitWithin` never UPSCALES (`if (scale >= 1) return image`), which is why the 128² dex slot
+     * shows the sprite at its native size with a gutter rather than blown up to 128 — that would be
+     * a ×1.33 non-integer factor, i.e. the softening this whole change is about.
+     */
+    const style = defaultRetirementStyle(balance);
+    const expected: Array<[string, { width: number; height: number }, RecordedImage]> = [
+      ["dex", DEX_ART_BOX, (() => { const d = driveDex(); return slotImage(d.scene, d.key, "the dex"); })()],
+      ["summary", SUMMARY_ART_BOX, (() => { const d = driveSummary(); return slotImage(d.scene, d.key, "the team card"); })()],
+      [
+        "retirement",
+        { width: style.portrait, height: style.portrait },
+        (() => { const d = driveRetirement(); return slotImage(d.scene, d.key, "the retirement card"); })(),
+      ],
+    ];
+    for (const [where, box, drawn] of expected) {
+      const scale = Math.min(1, box.width / SPRITE.width, box.height / SPRITE.height);
+      expect([drawn.displayWidth, drawn.displayHeight], `${where} drawn size`).toEqual([
+        SPRITE.width * scale,
+        SPRITE.height * scale,
+      ]);
+      expect(drawn.displayWidth / drawn.width, `${where} factor`).toBe(scale);
+    }
+    // The gutter the dex slot leaves, said out loud: the sprite is smaller than its box, on purpose.
+    const dexDrawn = expected[0]?.[2];
+    expect(dexDrawn).toBeDefined();
+    if (dexDrawn) expect(DEX_ART_BOX.width - dexDrawn.displayWidth).toBe(DEX_ART_BOX.width - SPRITE.width);
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * The keys themselves — every slot asks the sprite class, and asks it FRONT
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  it("all three slots ask the creature-battle class, and none of them can ask a back key", () => {
+    /*
+     * The defect this closes. All three asked `dex-painted/dex-<name>` — a class whose 35 files are
+     * every one of them a declared stand-in — so none of them had real art for any line, Cindril
+     * included, on the never-cut Legacy beat. Asserted on the key the DRIVEN scene really passed to
+     * `placeholderImage`, recorded off the image object, not on the helper's return value.
+     *
+     * ⚠ `key.includes("back")` WOULD BE WRONG: a species line is `kilnback-line`, whose shipped
+     * FRONT sprite is `battle-kilnback-e-front`. The facing is the last dash-segment.
+     */
+    const dex = driveDex();
+    const summary = driveSummary();
+    const retirement = driveRetirement();
+    const slots = [
+      { where: "the dex", drawn: slotImage(dex.scene, dex.key, "the dex") },
+      { where: "the team card", drawn: slotImage(summary.scene, summary.key, "the team card") },
+      { where: "the retirement card", drawn: slotImage(retirement.scene, retirement.key, "the retirement card") },
+    ];
+    for (const { where, drawn } of slots) {
+      // OBSERVED, not recomputed. `slotImage` already refused to return unless the scene passed this
+      // exact string to `placeholderImage`; asserting on the helper's return value instead would be
+      // green no matter what the scene drew, which is the vacuity this whole file was written after.
+      const key = drawn.key;
+      expect(key.startsWith("creature-battle/"), `${where} asks for "${key}"`).toBe(true);
+      expect(key.startsWith("dex-painted/"), `${where} still asks the CUT painted class`).toBe(false);
+      expect(key.slice(key.lastIndexOf("-") + 1), `${where} asks for a non-front key`).toBe("front");
+    }
+    // The trap, asserted so the check above is not "simplified" into a substring match.
+    expect("creature-battle/battle-kilnback-e-front".includes("back")).toBe(true);
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * Non-vacuity — the recorder really sees what these assertions claim
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  it("BINDS — the integer-factor assertion fails on the size the slots used to ask for", () => {
+    /*
+     * The whole point of the ruling, measured through the real scenes rather than argued. Driving
+     * the SAME slots with the cut plate's 1024² texture must make {@link expectIntegerFactor} throw
+     * — otherwise the assertion above is decoration and would stay green if a slot were repointed.
+     *
+     * The dex is deliberately NOT one of these: 1024→128 is exactly 1:8, so the dex slot's ratio was
+     * already integer and this property alone never protected it. That is recorded, not hidden — the
+     * key assertion above is what holds the dex.
+     */
+    expect(CUT_PLATE.width).toBeGreaterThan(SPRITE.width);
+
+    const summary = slotImage(driveSummary(CUT_PLATE).scene, driveSummary(CUT_PLATE).key, "the team card");
+    expect(summary.displayWidth / summary.width).toBeCloseTo(SUMMARY_ART_BOX.width / CUT_PLATE.width, 12);
+    expect(() => expectIntegerFactor(summary, "summary")).toThrow();
+
+    const style = defaultRetirementStyle(balance);
+    const well = driveRetirement(CUT_PLATE);
+    const portrait = slotImage(well.scene, well.key, "the retirement card");
+    expect(portrait.displayWidth / portrait.width).toBeCloseTo(style.portrait / CUT_PLATE.width, 12);
+    expect(() => expectIntegerFactor(portrait, "retirement")).toThrow();
+
+    // …and the dex, for the record: it fitted at 1:8 and is the reason a ratio test alone is not
+    // enough. Asserted so the claim in the comment above cannot silently stop being true.
+    const dex = driveDex(CUT_PLATE);
+    const plate = slotImage(dex.scene, dex.key, "the dex");
+    expect(plate.displayWidth / plate.width).toBe(DEX_ART_BOX.width / CUT_PLATE.width);
+    expect(() => expectIntegerFactor(plate, "dex")).not.toThrow();
+  });
+
+  it("BINDS — the recorder observes natural size, display size and the key, and they can differ", () => {
+    /*
+     * The stub this file replaced answered every call with itself and RECORDED NOTHING, which is how
+     * a `setFlipX` assertion elsewhere in this suite was silently vacuous for weeks. Every number
+     * the assertions above read is checked here to be a real observation: the natural size is the
+     * seeded texture's, the display size is what `fitWithin` set, and on a downscaling slot the two
+     * are DIFFERENT — so an assertion comparing them cannot be trivially true.
+     */
+    const style = defaultRetirementStyle(balance);
+    const { scene, key } = driveRetirement();
+    const drawn = slotImage(scene, key, "the retirement card");
+    expect([drawn.width, drawn.height], "natural size is not the seeded texture's").toEqual([
+      SPRITE.width,
+      SPRITE.height,
+    ]);
+    expect([drawn.displayWidth, drawn.displayHeight]).toEqual([style.portrait, style.portrait]);
+    expect(drawn.displayWidth, "display size equals natural size — nothing was recorded").not.toBe(
+      drawn.width,
+    );
+    // The scene also drew other things; the recorder kept them, so `find` is selecting, not luck.
+    expect(rec(scene).stubImages.length).toBeGreaterThan(0);
+    expect(rec(scene).stubObjects.length).toBeGreaterThan(0);
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────
+   * theNonSquareFixture — the case every earlier fixture in this file could not
+   * distinguish: a fit and a stretch agree on a square texture in a square slot.
+   * ────────────────────────────────────────────────────────────────────────── */
+
+  it("theNonSquareFixture — a 2:1 texture in a 1:1 slot is FITTED, not stretched", () => {
+    /*
+     * `fitWithin` scales by ONE factor on both axes — the smaller of the two ratios — so a wide
+     * texture is left short of the box vertically ON PURPOSE. The tempting shortening,
+     * `setDisplaySize(width, height)`, fills the box on both axes and is a squash; `fitWithin`'s own
+     * comment records that it has been written that way once already and reverted.
+     *
+     * Every other fixture in this file is square-in-square, where the correct and the incorrect
+     * expression produce the SAME two numbers. This one is the only fixture where they disagree:
+     * fitted is 128×64, stretched is 128×128.
+     */
+    const wide = { width: SPRITE.width * 2, height: SPRITE.height };
+    const { scene, key } = driveDex(wide);
+    const drawn = slotImage(scene, key, "the dex");
+
+    expect([drawn.width, drawn.height], "the non-square texture was not seeded").toEqual([
+      wide.width,
+      wide.height,
+    ]);
+    // Derived from the box and the texture, never typed as a pair of numbers.
+    const scale = Math.min(1, DEX_ART_BOX.width / wide.width, DEX_ART_BOX.height / wide.height);
+    expect([drawn.displayWidth, drawn.displayHeight]).toEqual([wide.width * scale, wide.height * scale]);
+    // The stretch this fixture exists to catch, named so the assertion above cannot be misread.
+    expect([drawn.displayWidth, drawn.displayHeight]).not.toEqual([
+      DEX_ART_BOX.width,
+      DEX_ART_BOX.height,
+    ]);
+    expectFits(drawn, DEX_ART_BOX, "dex (non-square)");
   });
 
   /* ──────────────────────────────────────────────────────────────────────────
@@ -535,26 +784,63 @@ describe("the painted plate is drawn inside the slot that asked for it", () => {
    * is drawn at scale 1 and nothing has to fit it.
    * ────────────────────────────────────────────────────────────────────────── */
 
-  it("a stand-in still fills its slot exactly, untouched", () => {
-    const menu = openMenu();
-    const data = handOff<DexSceneData>(menu, "DEX", SCENE_KEYS.dex);
-    const scene = new DexScene();
-    register(scene);
-    scene.init(data);
-    const entry = scene.current();
-    if (!entry) throw new Error("the dex opened on no entry at all");
-    // No `seedRealArt` — this is the shipped state of the tree, where the plate is unbuilt.
-    scene.create();
+  it("a creature with no shipped sprite still falls back to a stand-in, in every slot", () => {
+    /*
+     * The other half of the contract, and it must not throw: a key with no texture behind it draws a
+     * labelled box carrying that key, at exactly the slot's size. Driven with NO `seedRealArt`,
+     * which is the state of a tree whose art has not loaded yet.
+     */
+    const cases: Array<{ where: string; box: { width: number; height: number }; run: () => { scene: object; key: string } }> = [
+      { where: "dex", box: DEX_ART_BOX, run: () => {
+        const menu = openMenu();
+        const data = handOff<DexSceneData>(menu, "DEX", SCENE_KEYS.dex);
+        const scene = new DexScene();
+        register(scene);
+        scene.init(data);
+        const entry = scene.current();
+        if (!entry) throw new Error("the dex opened on no entry at all");
+        scene.create();
+        return { scene, key: creatureArtId(entry.lineId, entry.ageClass, entry.ancient) };
+      } },
+      { where: "summary", box: SUMMARY_ART_BOX, run: () => {
+        const menu = openMenu();
+        const data = handOff<SummarySceneData>(menu, "TEAM", SCENE_KEYS.summary);
+        const scene = new SummaryScene();
+        register(scene);
+        scene.init(data);
+        const card = scene.card();
+        if (!card) throw new Error("the team card opened on nobody");
+        scene.create();
+        return { scene, key: creatureArtId(card.lineId, card.age, card.ancient) };
+      } },
+      { where: "retirement", box: { width: defaultRetirementStyle(balance).portrait, height: defaultRetirementStyle(balance).portrait }, run: () => {
+        const drive = legacyDrive();
+        const offer = drive.flow.offer();
+        if (!offer) throw new Error("the Legacy drive produced no retirement prompt");
+        type SceneCtor = new () => { scene: { manager: { keys: Record<string, unknown> } }; init: (d: never) => void; create: () => void };
+        const Scene = createRetirementScene(Phaser as never) as unknown as SceneCtor;
+        const scene = new Scene();
+        register(scene);
+        scene.init({ flow: drive.flow, onDone: (): void => undefined } as never);
+        scene.create();
+        return { scene, key: battleSpriteKey(offer.parent.lineId, offer.parent.age, "front") };
+      } },
+    ];
 
-    const drawn = rec(scene).stubImages[0];
-    expect(drawn, "the dex drew no stand-in at all").toBeDefined();
-    if (!drawn) return;
-    expect(drawn.key).toContain(entry.artId);
-    expect([drawn.width, drawn.height]).toEqual([DEX_ART_BOX.width, DEX_ART_BOX.height]);
-    expect([drawn.displayWidth, drawn.displayHeight]).toEqual([
-      DEX_ART_BOX.width,
-      DEX_ART_BOX.height,
-    ]);
+    for (const { where, box, run } of cases) {
+      const { scene, key } = run();
+      const drawn = rec(scene).stubImages[0];
+      expect(drawn, `${where} drew no stand-in at all`).toBeDefined();
+      if (!drawn) continue;
+      // The stand-in NAMES the asset it stands in for — that is what makes it a work item.
+      expect(drawn.key, `${where}'s stand-in does not name the asset`).toContain(key);
+      expect([drawn.width, drawn.height], `${where} stand-in natural size`).toEqual([box.width, box.height]);
+      expect([drawn.displayWidth, drawn.displayHeight], `${where} stand-in display size`).toEqual([
+        box.width,
+        box.height,
+      ]);
+      expectIntegerFactor(drawn, `${where} stand-in`);
+    }
   });
 });
 

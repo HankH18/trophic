@@ -11,9 +11,10 @@
  * composes `core/lifecycle.ts` (projection, aging) and `core/battle.ts` (effective stats, the moves
  * a level knows). Nothing here does stat or lifespan arithmetic.
  *
- * Art: battle sprites are unbuilt (lane B3), so the portrait goes through the same shared art slot
- * the dex uses (`game/placeholder.ts` via `DexScene.drawArtSlot`) — the real texture when it has
- * loaded, a labelled stand-in naming the missing asset when it has not.
+ * Art: the portrait goes through the same shared art slot the dex uses (`game/placeholder.ts` via
+ * `DexScene.drawArtSlot`) and asks for the same thing the dex asks for — the creature's own battle
+ * sprite, resolved by `DexScene.creatureArtId`, which carries the reasoning for that ruling. Real
+ * texture when it has loaded, labelled stand-in naming the missing asset when it has not.
  * G7 — no copy in this file judges the player.
  */
 
@@ -28,7 +29,7 @@ import {
   type SummaryCard,
 } from "../survey-view";
 import { SCENE_KEYS } from "../scene-keys";
-import { closeScreen, drawArtSlot } from "./DexScene";
+import { closeScreen, creatureArtId, drawArtSlot } from "./DexScene";
 import type { Content, OwnedCreature } from "../../core/types";
 
 /**
@@ -164,7 +165,16 @@ export class SummaryScene extends Phaser.Scene {
       this.layer.add(
         this.text(PAD, PAD, `${this.cursor + 1}/${this.roster.length}${card.boxed ? " · box" : ""}`, INK_DIM),
       );
-      this.layer.add(drawArtSlot(this, ART_BOX, card.artId));
+      /*
+       * The card shows the individual AS IT IS RIGHT NOW, so the sprite is `card.age` — the same
+       * age the types, the role and the form name on the lines beside it are read at
+       * (`buildSummaryCard`). `card.ancient` is passed for one implementation of the slot rule and
+       * is redundant here rather than load-bearing: `core/lifecycle.ts` `newOwnedCreature` already
+       * forces an owned Ancient to the terminal class, so `card.age` is that class anyway.
+       */
+      this.layer.add(
+        drawArtSlot(this, ART_BOX, creatureArtId(card.lineId, card.age, card.ancient)),
+      );
 
       const x = ART_BOX.x + ART_BOX.width + PAD;
       const lines = this.cardLines();

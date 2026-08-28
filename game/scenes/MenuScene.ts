@@ -41,6 +41,8 @@ import {
 import { surveyHistory } from "../survey-history";
 import { registry, TEXT_SPEEDS, type TextSpeed } from "../registry";
 import { SaveStorage, slotLabel, type SlotStatus } from "../storage";
+import { UI_FRAME_ASSET_ID, drawFrameRingIn, type FrameRect } from "../ui/FramePanel";
+import { unlockedSignChainsOf } from "../ui/SignChains";
 import type { DexSceneData } from "./DexScene";
 import type { SurveySceneData } from "./SurveyScene";
 import type { SummarySceneData } from "./SummaryScene";
@@ -255,6 +257,32 @@ const SESSION_REQUEST: MenuRequest = { mode: "session" };
 const MARGIN_PX = 12;
 const HEADER_Y = 10;
 const BODY_Y = 30;
+/** Where the footer sits, measured up from the bottom edge. Named so the plate can stop above it. */
+const FOOTER_UP_PX = 22;
+
+/**
+ * Clear space between a glyph and the plate's outer edge: the frame's 4px of chrome, plus 2.
+ *
+ * `game/ui/FramePanel.ts` draws the ring 4px deep from the rect it is given, so 4 alone would put
+ * the first glyph of every row directly against the inner keyline. `tools/ui-frames/SPEC.md` §4.1
+ * makes the same allowance for the dialogue box ("pad 8 leaves 4px of clear plate before the first
+ * glyph — the border never touches the type").
+ */
+const PLATE_CLEAR_PX = 6;
+
+/**
+ * The plate behind the rows: everything between the heading and the footer, both of which are drawn
+ * ON the field rather than on the plate (Gold puts its headings outside the box).
+ *
+ * Exported and pure so `tests/unit/ui-frame-panel.test.ts` can assert it encloses the list without
+ * mounting the scene — this file value-imports Phaser and cannot be loaded under vitest unmocked.
+ */
+export function menuPlateRect(width: number, height: number): FrameRect {
+  const x = MARGIN_PX - PLATE_CLEAR_PX;
+  const bottom = height - FOOTER_UP_PX - PLATE_CLEAR_PX;
+  const y = BODY_Y - PLATE_CLEAR_PX;
+  return { x, y, width: width - x * 2, height: bottom - y };
+}
 
 export class MenuScene extends Phaser.Scene {
   #request: MenuRequest = DEFAULT_MENU_REQUEST;
@@ -272,6 +300,7 @@ export class MenuScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor(UI.bg);
+    this.#plate();
 
     switch (this.#request.mode) {
       case "slots":
@@ -289,6 +318,23 @@ export class MenuScene extends Phaser.Scene {
   /* ── shared chrome ─────────────────────────────────────────────────────── */
 
   /**
+   * The painted plate behind the rows — `tools/comfy/manifest.json` row `ui-menu-panel`.
+   *
+   * Drawn ONCE, first, so it is under every row `#show` adds afterwards; the rows are destroyed and
+   * re-added on each redraw, which puts them back on top of it. Nothing is painted INSIDE the ring:
+   * the field stays the camera's `UI.bg`, because the frame's own plate is `#faf7eb` and so is
+   * `UI.text` — see the block comment in `game/ui/FramePanel.ts`. A missing texture is a supported
+   * answer and leaves the screen exactly as it was before the art existed.
+   */
+  #plate(): void {
+    drawFrameRingIn(
+      this,
+      UI_FRAME_ASSET_ID.menuPanel,
+      menuPlateRect(this.scale.width, this.scale.height),
+    );
+  }
+
+  /**
    * The one heading. It REPLACES rather than adds: a second `uiText` at the same coordinates draws
    * on top of the first and both stay legible only by accident, which is exactly how the title
    * screen's byline and its warning note came to overprint each other.
@@ -301,7 +347,7 @@ export class MenuScene extends Phaser.Scene {
 
   #footer(text: string, color: string = UI.dim): void {
     if (this.#status) this.#status.destroy();
-    this.#status = uiText(this, MARGIN_PX, this.scale.height - 22, text, color);
+    this.#status = uiText(this, MARGIN_PX, this.scale.height - FOOTER_UP_PX, text, color);
     this.#status.setWordWrapWidth(this.scale.width - MARGIN_PX * 2);
   }
 
@@ -584,6 +630,16 @@ export class MenuScene extends Phaser.Scene {
             content,
             season,
             states: registry.save().nodeStates,
+            /*
+             * ⚠ THIS FIELD WAS MISSING, AND ITS ABSENCE WAS ON SCREEN. `DexScene` reads it, threads
+             * it through `game/survey-view.ts` into `core/foodweb.ts`, and prints "not in the wild
+             * encounter pool" for any gated line it does not name. This is the dex's ONLY supplier,
+             * so leaving it out printed that line for all three Ancients on every save forever —
+             * including for a player who had closed the sign chain and could catch the animal that
+             * afternoon. Read from the LIVE save (`registry.save()`), not from `save` captured when
+             * the menu was built, for the same reason the survey's `states` is a function.
+             */
+            unlockedSignChains: unlockedSignChainsOf(registry.save(), content),
             onClose: close,
           }),
         ),

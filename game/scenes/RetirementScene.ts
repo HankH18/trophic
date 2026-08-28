@@ -820,7 +820,7 @@ export function clampLines(lines: readonly string[], maxLines: number): string[]
  * ──────────────────────────────────────────────────────────────────────────── */
 
 import type PhaserNS from "phaser";
-import { dexArtId } from "@game/survey-view";
+import { battleSpriteKey } from "@game/ui/BattleHud";
 import { placeholderImage } from "@game/placeholder";
 import { SCENE_KEYS } from "@game/scene-keys";
 
@@ -1325,13 +1325,27 @@ export function createRetirementScene(
       this.drawn.push(title);
 
       /*
-       * The retiree, portrait first — a labelled placeholder rectangle, never a stand-in image.
+       * The retiree, portrait first.
        *
-       * The label is an ASSET ID (`game/survey-view.ts` `dexArtId`, the same key the dex and the
-       * summary card ask for), not the creature's save-local uid. game/placeholder.ts resolves the
-       * id against `assets/final/` and writes it on the stand-in so "a reviewer can say WHICH asset
-       * is missing" — and a uid like "starter" names no file, so it could never resolve to real art
-       * when Lane B lands the portraits, and told the reviewer nothing in the meantime.
+       * The label is an ASSET ID, not the creature's save-local uid. game/placeholder.ts resolves
+       * the id against `assets/final/` and writes it on the stand-in so "a reviewer can say WHICH
+       * asset is missing" — and a uid like "starter" names no file, so it could never resolve to
+       * real art, and told the reviewer nothing in the meantime.
+       *
+       * ⚠ IT ASKS FOR THE CREATURE'S BATTLE SPRITE, and it is the only picture on the never-cut
+       * Legacy beat. It asked for `dex-painted/dex-<name>` until the owner took cut line C-4 — "the
+       * dex uses the existing creature sprites" — and every one of those 35 plates is a declared
+       * stand-in, so this well had NO real art for any line at all. `game/scenes/DexScene.ts`
+       * `creatureArtId` is the shared resolver and carries the full reasoning; this file calls
+       * `battleSpriteKey` (the same ONE key builder underneath it) directly rather than importing
+       * it, because `DexScene` takes the engine at module scope and this module must stay loadable
+       * from a node test and from `tools/checkpoints` — the split
+       * `tests/gates/guardrails.test.ts::no_phaser_in_node_reachable` enforces.
+       *
+       * NO ANCIENT CLAMP HERE, and that is derived rather than assumed: `core/lifecycle.ts`
+       * `projectedRetirementYear` returns NEVER for an Ancient (G10), so an Ancient never produces
+       * a retirement prompt — and `newOwnedCreature` pins an owned Ancient to the terminal age
+       * class anyway, so `parent.age` would already be the class its one sprite is shipped at.
        */
       const top = style.pad + style.lineHeight * 2;
       this.placeholder(
@@ -1340,7 +1354,7 @@ export function createRetirementScene(
         top,
         style.portrait,
         style.portrait,
-        dexArtId(offer.parent.formName),
+        battleSpriteKey(offer.parent.lineId, offer.parent.age, "front"),
       );
       const parentX = style.pad + style.portrait + style.pad;
       const parentWidth = style.width - parentX - style.pad;

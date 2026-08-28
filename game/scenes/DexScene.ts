@@ -1,5 +1,5 @@
 /**
- * game/scenes/DexScene.ts — the dex (bible §12 "dex (painted art)"; build-doc §15 C4).
+ * game/scenes/DexScene.ts — the dex (bible §12; build-doc §15 C4, and C-4 has been TAKEN).
  *
  * Two things this scene exists to get right:
  *
@@ -13,12 +13,12 @@
  *    of the player is on screen at once: `dormant` with a real count beside it, `not in the wild
  *    encounter pool` with a real count beside it, or the integer `0`.
  *
- * 2. **Honest placeholders.** The painted dex class has not been generated (build-doc §9.4 is a
- *    SUPERVISED trial in lane B2), so almost every entry here has no art. Every slot goes through
- *    `game/placeholder.ts` — the ONE shared helper — which draws the real texture when it has
- *    loaded and a labelled stand-in carrying the missing asset's id when it has not. Nothing here
- *    stretches an unrelated image into the slot, and nothing leaves it blank: a blank looks
- *    finished, a labelled box is a work item.
+ * 2. **Honest placeholders.** The painted dex class (build-doc §9.4) is CUT — cut line C-4, taken by
+ *    the owner: the dex draws the existing creature sprites, which is what {@link creatureArtId}
+ *    resolves. Every slot still goes through `game/placeholder.ts` — the ONE shared helper — which
+ *    draws the real texture when it has loaded and a labelled stand-in carrying the missing asset's
+ *    id when it has not. Nothing here stretches an unrelated image into the slot, and nothing
+ *    leaves it blank: a blank looks finished, a labelled box is a work item.
  *
  * G7 — no copy in this file judges the player.
  */
@@ -36,9 +36,12 @@ import {
   type DexEntry,
 } from "../survey-view";
 import { placeholderImage } from "../placeholder";
+import { battleSpriteKey } from "../ui/BattleHud";
+import { UI_FRAME_ASSET_ID, drawFrameRingIn } from "../ui/FramePanel";
+import { ancientAgeClass } from "../finale";
 import { SCENE_KEYS, sceneRegistered } from "../scene-keys";
 import type { MenuRequest } from "../menu-model";
-import type { Content, NodeState, Season } from "../../core/types";
+import type { AgeClass, Content, NodeState, Season } from "../../core/types";
 
 /**
  * The scene key, READ from the registry rather than spelled again here (as `SurveyScene` does).
@@ -71,6 +74,7 @@ export interface DexSceneData {
    */
   onClose: () => void;
 }
+
 
 /**
  * The in-run menu, respelled here ONLY because there is nowhere shared to read it from: the
@@ -141,16 +145,61 @@ export interface ArtBox {
 }
 
 /**
+ * The creature picture a card slot draws — the dex plate, the team card portrait and (via the same
+ * grammar) the Legacy card's portrait well.
+ *
+ * ⚠ THIS IS A BATTLE SPRITE, AND THAT IS THE RULING, NOT A SHORTCUT. build-doc §9.4's painted dex
+ * class is cut line C-4, and C-4 has been taken: *"the dex uses the existing creature sprites"*
+ * (docs/STATUS.md, "Owner rulings received but NOT yet implemented", relayed from the art-lane
+ * session and vouched for). Under the old `dex-painted/dex-<name>` key all 35 plates on disk are
+ * declared stand-ins (`assets/final/dex-painted/stand-ins.json`), so none of these three slots had
+ * real art for ANY line — including the one picture on the never-cut Legacy beat. All 75
+ * `creature-battle` sprites are real files and none of them is declared a stand-in.
+ *
+ * THE KEY IS NOT BUILT HERE. `game/ui/BattleHud.ts::battleSpriteKey` is the ONE producer of the
+ * `creature-battle/battle-<stem>-<age>-<facing>` grammar and is bound to the committed manifest
+ * rows by `tests/unit/battle-view.test.ts`. Spelling a second one here is precisely the T-19 defect
+ * (`dex/<name>` against a manifest that said `dex-painted/dex-<name>`) and the BattleHud defect
+ * before it (`battle/<line>/<AGE>/<facing>`), both measured at intersection ZERO with the manifest.
+ *
+ * FACING is `"front"` and cannot be anything else: `Facing` is a one-member union since the owner
+ * cut the back view ("we're not going to have the backs of any of the creatures"), so a back key is
+ * a compile error rather than a silently unbuilt asset. `tools/comfy/manifest.json` carries zero
+ * back rows and `assets/final/creature-battle/` zero back files.
+ *
+ * THE AGE IS THE CARD'S OWN, EXCEPT FOR AN ANCIENT. `ageClassOfDexId` resolves a dex identity to
+ * the FIRST age class whose form name matches, and an Ancient's three form names are identical, so
+ * its entry reports the juvenile class — while `tools/comfy/comfy-batch.ts::artFormsOf` ships an
+ * Ancient ONE form and `core/lifecycle.ts` `newOwnedCreature` forces every owned Ancient to the
+ * terminal class (G10, "Caught Ancients never age"). Without the clamp the three Ancients would ask
+ * for `battle-{vellsire,kilnback,undermere}-{j,a}-front` — six keys with no manifest row and no
+ * file, i.e. a stand-in on a creature whose sprite exists. `ancientAgeClass()` is the shipped
+ * statement of which class that is, and `tests/gates/asset-reachability.test.ts` already uses the
+ * same call to bound the battle census for the same reason.
+ */
+export function creatureArtId(lineId: string, age: AgeClass, ancient: boolean): string {
+  return battleSpriteKey(lineId, ancient ? ancientAgeClass() : age, "front");
+}
+
+/**
  * Draw one art slot through the shared helper: the real texture when it has loaded, a labelled
  * stand-in of exactly this size when it has not.
  *
  * This comment used to say "real art is never scaled to fit — `placeholder.ts` draws it at its
- * natural size", and that was the bug, not the contract. The `dex-painted` class is generated at
+ * natural size", and that was the bug, not the contract. The `dex-painted` class was generated at
  * 1024² (manifest, `fit:false`), `box` here is 128², and unscaled meant every plate would have
  * covered the whole 480×320 screen the day the art landed. `placeholderImage` now scales real art
  * DOWN into the box with one factor on both axes — a fit, never a stretch — and the stand-in, being
  * generated at the box size already, is untouched. See `fitWithin` in `game/placeholder.ts`;
  * `tests/unit/art-slot-fit.test.ts` holds it.
+ *
+ * ⚠ `fitWithin` IS NOT WHAT MADE THE PIXELS SOFT, and it must not be "fixed" for that. What the
+ * slots ask for now is the 96² battle sprite ({@link creatureArtId}), and the RATIO is what
+ * changed: 1024→128 was 1:8 but 1024→96 was 1:10.67 and 1024→48 was 1:21.33, and a non-integer
+ * nearest-neighbour factor smears the pixel grid. At 96² every slot is an integer factor — 128²
+ * draws at ×1 inside a 16px gutter (the helper never upscales), 96² at ×1, and the 48² portrait
+ * well at exactly ×0.5. `tests/unit/art-slot-fit.test.ts` asserts that ratio, so shrinking a slot
+ * below the sprite by a non-divisor goes red instead of quietly softening.
  *
  * Top-left anchored, so a caller thinks in boxes rather than in centres.
  */
@@ -231,6 +280,7 @@ export class DexScene extends Phaser.Scene {
     const bg = this.add.graphics();
     bg.fillStyle(BACKDROP, 1).fillRect(0, 0, map.virtualWidth, map.virtualHeight);
     this.layer.add(bg);
+    this.drawCardFrame(map.virtualWidth, map.virtualHeight);
 
     const entry = this.current();
     if (!entry) {
@@ -238,7 +288,9 @@ export class DexScene extends Phaser.Scene {
       return;
     }
 
-    this.layer.add(drawArtSlot(this, ART_BOX, entry.artId));
+    this.layer.add(
+      drawArtSlot(this, ART_BOX, creatureArtId(entry.lineId, entry.ageClass, entry.ancient)),
+    );
 
     const x = ART_BOX.x + ART_BOX.width + PAD;
     const lines = this.entryLines(entry);
@@ -255,6 +307,36 @@ export class DexScene extends Phaser.Scene {
     this.layer.add(
       this.text(PAD, map.virtualHeight - LINE_H - PAD, "←/→ entry  ESC", INK_DIM),
     );
+  }
+
+  /**
+   * The card's edge — `tools/comfy/manifest.json` row `ui-dex-card-frame`, whose `origin` reads
+   * "manifest._ui#dex-card-frame — bible §12 screens — dex". This screen is what it was drawn for.
+   *
+   * TWO THINGS ARE DELIBERATELY NOT DONE WITH IT, AND BOTH ARE MEASURED.
+   *
+   * 1. **Its interior is not painted.** The PNG's plate is `#faf7eb`, and `SCREEN_HEX.ink` — the
+   *    colour every line on this card is drawn in — is `#faf7eb` as well. Adopting the art's plate
+   *    as the card body draws the whole dex at 1 : 1 against its own background, and
+   *    `tests/gates/ui-contrast-contract.test.ts` cannot see it happen, because that gate measures
+   *    the `ink` role against the `backdrop` SWATCH and knows nothing about a PNG drawn over it. So
+   *    the ring is art and the field stays `BACKDROP`. See `game/ui/FramePanel.ts`.
+   *
+   * 2. **It is drawn at the SCREEN's size, not the texture's 320×320.** `tools/ui-frames/SPEC.md`
+   *    §4.5 wants the card at its native width with a list pane beside it — and that layout needs
+   *    `DEX_ART_BOX` moved to (16, 40) and `renderDexEntry`'s 36-character "individuals in region N
+   *    · all forms" line rewrapped for a 28-character column. Both live in `game/survey-view.ts`,
+   *    which this change may not touch, and cutting the card to 320 without them would run that line
+   *    off the card's right edge onto the field — which is what §4.5 records the first cut doing.
+   *    The ring itself is size-independent (the strips beyond the 8px corner bracket are
+   *    translation-invariant, verified in `tests/unit/ui-frame-panel.test.ts`), so this is the same
+   *    edge, drawn around the whole screen, until the two-pane layout can be built.
+   */
+  private drawCardFrame(width: number, height: number): void {
+    const ring = drawFrameRingIn(this, UI_FRAME_ASSET_ID.dexCard, { x: 0, y: 0, width, height });
+    // Into `layer`, so `removeAll(true)` takes the ring with everything else on the next entry —
+    // otherwise a piece per redraw stacks up for as long as the player holds ←/→.
+    for (const piece of ring ?? []) this.layer.add(piece);
   }
 
   private text(x: number, y: number, value: string, color: string): Phaser.GameObjects.Text {

@@ -86,17 +86,21 @@ import {
   portraitAssetId,
   speakerHasFace,
 } from "../../game/scenes/DialogueScene";
-import { buildDexEntries, dexArtId } from "../../game/survey-view";
+import { buildDexEntries } from "../../game/survey-view";
 import { battleSpriteKey, facingFor } from "../../game/ui/BattleHud";
 import manifestJson from "../../tools/comfy/manifest.json";
 
 // `game/mapview.ts` value-imports Phaser for one constant (`Phaser.Loader.Events.COMPLETE`), and
-// `import "phaser"` throws `window is not defined` under vitest's node environment. Same stub and
-// same reason as tests/gates/dex-path-contract.test.ts: it carries that one constant and nothing
-// else, so it is deliberately too small to stand in for the engine.
-vi.mock("phaser", () => ({ default: { Loader: { Events: { COMPLETE: "complete" } } } }));
-// eslint-disable-next-line import/first -- must follow the mock above.
+// `game/scenes/DexScene.ts` reaches it for one more — the base class `DexScene extends`. `import
+// "phaser"` throws `window is not defined` under vitest's node environment. Same stub and same
+// reason as tests/gates/dex-path-contract.test.ts: it carries those two and nothing else, and
+// `Scene` is an EMPTY class, so it is deliberately too small to stand in for the engine. Only the
+// pure string function `creatureArtId` is taken from that module.
+vi.mock("phaser", () => ({ default: { Loader: { Events: { COMPLETE: "complete" } }, Scene: class {} } }));
+/* eslint-disable import/first -- must follow the mock above. */
 import { interiorAssetPath, interiorTextureKey, nodeArtKeys, playerArtIds } from "../../game/mapview";
+import { creatureArtId } from "../../game/scenes/DexScene";
+/* eslint-enable import/first */
 
 const ROOT = resolve(fileURLToPath(new URL(".", import.meta.url)), "../..");
 const content = validateContent();
@@ -202,14 +206,33 @@ const KEY_BUILDERS: readonly KeyBuilder[] = [
       ),
   },
   {
-    where: "game/survey-view.ts buildDexEntries() × data/species.json — the model DexScene renders",
-    keys: () => SEASONS.flatMap((season) => buildDexEntries(content.species, season, balance).map((e) => e.artId)),
-  },
-  {
-    where:
-      "game/survey-view.ts dexArtId(line.formNames[age]) × data/species.json — the summary card " +
-      "(buildSummaryCard) and the retirement well (RetirementScene)",
-    keys: () => content.species.flatMap((line) => AGE_CLASSES.map((age) => dexArtId(line.formNames[age]))),
+    /*
+     * ⚠ THIS ROW USED TO CALL `dexArtId` — AND THAT IS EXACTLY THE WEAKNESS THIS FILE'S HEADER WARNS
+     * ABOUT, ONE LEVEL DOWN. `KEY_BUILDERS` is hand-assembled, and a hand-written row naming a
+     * function no screen calls certifies its class anyway: the dex, summary and retirement slots had
+     * ALREADY been repointed at the creature sprites, and this table went on producing
+     * `dex-painted/dex-<name>` keys, so GATE 2a reported `dex-painted` as CONSUMED while nothing
+     * drew a single plate of it. A builder row is only evidence when it calls what the screen calls.
+     *
+     * So it calls the real one. `creatureArtId` (game/scenes/DexScene.ts) is the shipped resolver
+     * for all three slots, and `buildDexEntries` is the model `DexScene` renders from — the model,
+     * not the id helper behind it, so a screen that quietly stops asking for an identity moves this
+     * census with it.
+     *
+     * The SUMMARY CARD and the RETIREMENT WELL are not restated as a row of their own: both draw an
+     * OWNED individual through `creatureArtId`/`battleSpriteKey`, whose whole key space is already
+     * spanned by the `battleSpriteKey` row below (species × the ages a line can be met at × both
+     * sides). A second row over the same domain would add keys this census already carries and would
+     * read as coverage it is not. `tests/gates/dex-path-contract.test.ts` binds those two slots by
+     * name, and `tests/unit/art-slot-fit.test.ts` drives the scenes themselves.
+     */
+    where: "game/scenes/DexScene.ts creatureArtId() × buildDexEntries() — the model DexScene renders",
+    keys: () =>
+      SEASONS.flatMap((season) =>
+        buildDexEntries(content.species, season, balance).map((e) =>
+          creatureArtId(e.lineId, e.ageClass, e.ancient),
+        ),
+      ),
   },
   {
     /*
@@ -342,7 +365,7 @@ describe("§1 the asked census is driven, and it is not empty", () => {
    * the failure mode `tests/gates/dex-path-contract.test.ts` was written after.
    */
   it("BINDS — a real row of each consumed class is in the census, derived from the row itself", () => {
-    for (const rowId of ["map-hearthollow", "dex-cindril", "battle-cindril-j-front", "player-front"]) {
+    for (const rowId of ["map-hearthollow", "battle-cindril-j-front", "player-front"]) {
       const row = ROW_BY_ID.get(rowId);
       expect(row, `the manifest no longer carries "${rowId}"`).toBeDefined();
       const key = keyOf(row as ManifestRow);
@@ -471,9 +494,10 @@ const DRAWING_FILES: readonly string[] = [
   "game/scenes/OverworldScene.ts",
   // creature-battle, via `combatantCardModel().spriteKey` -> `placeholderImage`.
   "game/ui/BattleHud.ts",
-  // dex-painted, via `DexEntry.artId` -> `drawArtSlot` -> `placeholderImage`.
+  // creature-battle, via `creatureArtId` -> `drawArtSlot` -> `placeholderImage` (the dex plate, and
+  // the summary card through `SummaryScene`'s import of the same two).
   "game/scenes/DexScene.ts",
-  // dex-painted again, the retirement well.
+  // creature-battle again, the retirement well, via `battleSpriteKey` directly.
   "game/scenes/RetirementScene.ts",
   // npc-static / trainer-battle / prop, via `speakers[].portrait` -> `portraitAssetId`; and the
   // `ui-frame` ring, via `DIALOGUE_FRAME_ASSET_ID`.
@@ -656,17 +680,31 @@ describe("GATE 2a — every manifest class has a consumer", () => {
   });
 
   it("BINDS — a class whose only consumer is removed from the census is reported", () => {
-    // THE SABOTAGE, in-file and against a REAL class. `dex-painted` is consumed today by two
-    // builders; with both taken out of the census the class must be named. This is what makes the
-    // green above evidence of a consumer rather than evidence of an empty comparison.
+    /*
+     * THE SABOTAGE, in-file and against a REAL class.
+     *
+     * ⚠ IT USED TO SABOTAGE `dex-painted`, AND IT CANNOT ANY MORE — that class is CUT (Hank:
+     * "the dex uses the existing creature sprites", docs/STATUS.md), so it no longer has a
+     * consumer, no longer has rows, and a sabotage that removes an already-empty key set from the
+     * census proves nothing. Repointed at `creature-battle`, which is what the dex, the summary
+     * card, the retirement well and the battle ring all draw from now — the largest genuinely
+     * consumed class in the manifest. The check is UNCHANGED in shape and strength: cripple the
+     * census for one real class and the formatter must name it.
+     *
+     * Both the class name and the row count are read off the manifest rather than typed, so this
+     * cannot drift from the pipeline the way the `35` it used to carry did.
+     */
+    const SABOTAGED = "creature-battle";
+    const keys = keysOfClass(SABOTAGED);
+    expect(keys.size, `"${SABOTAGED}" has no rows — the sabotage would prove nothing`).toBeGreaterThan(0);
     const crippled = new Map(ASKED);
-    for (const key of keysOfClass("dex-painted")) crippled.delete(key);
-    const stillAsked = [...keysOfClass("dex-painted")].filter((k) => crippled.has(k));
+    for (const key of keys) crippled.delete(key);
+    const stillAsked = [...keys].filter((k) => crippled.has(k));
     expect(stillAsked).toEqual([]);
-    expect(formatUnconsumed([{ className: "dex-painted", finalDir: "assets/final/dex-painted", rows: 35, asked: 0 }]))
-      .toContain("dex-painted");
+    const finalDir = CLASS_RECIPES[SABOTAGED]?.finalDir ?? "(no finalDir)";
+    expect(formatUnconsumed([{ className: SABOTAGED, finalDir, rows: keys.size, asked: 0 }])).toContain(SABOTAGED);
     // …and with the census intact it is NOT reported, so the red above is the sabotage and nothing else.
-    expect(classCoverage().find((c) => c.className === "dex-painted")?.asked).toBeGreaterThan(0);
+    expect(classCoverage().find((c) => c.className === SABOTAGED)?.asked).toBeGreaterThan(0);
   });
 
   it("BINDS — a class the pipeline adds with no consumer is reported on the day it is added", () => {

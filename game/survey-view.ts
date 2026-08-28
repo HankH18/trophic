@@ -826,48 +826,34 @@ export function renderSurveyPage(page: SurveyPage): string[] {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
- * 2. The dex (bible §12 "dex (painted art)"; Hard Req 10 legibility)
+ * 2. The dex (bible §12; Hard Req 10 legibility)
  * ════════════════════════════════════════════════════════════════════════════ */
 
-/**
- * `tools/comfy/manifest.json` → `classes["dex-painted"].finalDir`, minus the `assets/final/` prefix
- * that `assetId()` strips. NOT `"dex"` — see the defect note on `dexArtId`.
- */
-const DEX_PLATE_DIR = "dex-painted";
-
-/**
- * `tools/comfy/comfy-batch.ts::deriveRows` builds every painted-dex row id as `dex-` + the
- * lowercased dex identity, and the file as `${finalDir}/${id}.png`. Both halves are needed.
- */
-const DEX_ROW_ID_PREFIX = "dex-";
-
-/**
- * The asset id a dex identity wants. Art for the painted dex class does not exist yet (build-doc
- * §9.4 / §15 B2), so this is a KEY, not a promise: `DexScene` asks the texture cache for it and
- * draws a labelled placeholder carrying this exact string when the answer is no. A placeholder that
- * says which asset is missing is a work item; one that looks like art is a lie.
+/*
+ * ⚠ THE PAINTED PLATE KEY USED TO LIVE HERE, AND THE CLASS IT NAMED IS CUT.
  *
- * T-19 — THE DEFECT THIS REPLACES. This returned `dex/<name>`. The pipeline can only ever produce
- * `assets/final/dex-painted/dex-<name>.png`, which `game/placeholder.ts::assetId` reduces to
- * `dex-painted/dex-<name>`. Measured intersection of the keys this function produced with the 35
- * committed `dex-painted` manifest rows: ZERO. Every plate would have gone on drawing a placeholder
- * forever once the art landed, and nothing would have said so — `textureFor` falls back silently,
- * and `assetId` is a pure string strip that accepts a wrong key without complaint.
+ * `dexArtId(dexId)` returned `dex-painted/dex-<name>` — the key of build-doc §9.4's painted class.
+ * The owner's ruling, relayed from the art-lane session and recorded in docs/STATUS.md ("Owner
+ * rulings received but NOT yet implemented"), is cut line C-4 taken: **"the dex uses the existing
+ * creature sprites"**. All 35 `dex-painted` plates on disk are declared stand-ins
+ * (`assets/final/dex-painted/stand-ins.json`), so the dex, the team card and the retirement
+ * portrait well had NO real art for any line under the old key — Cindril included, on the
+ * never-cut Legacy beat.
  *
- * This is the SECOND instance of exactly this bug. `game/ui/BattleHud.ts` invented
- * `battle/<lineId>/<age>/<facing>` against a manifest that already said
- * `creature-battle/battle-<stem>-<age>-<facing>`, also at intersection zero. The resolution there
- * was to move the SCREEN to the manifest's shape, because the manifest's path is derived from
- * `data/species.json` and gate-locked, while a hand-written literal here answers to nothing. Same
- * call here, for the same reason.
+ * The three slots now ask for `creature-battle/battle-<stem>-<age>-front`, built by the ONE key
+ * builder that owns that grammar — `game/ui/BattleHud.ts::battleSpriteKey` — through
+ * `game/scenes/DexScene.ts::creatureArtId`. Writing a second producer of that string here is
+ * exactly the T-19 / BattleHud defect this file's history is made of, so this module deliberately
+ * does NOT produce an art key at all.
  *
- * `tests/gates/dex-path-contract.test.ts` now binds this: it derives the expected key set from the
- * committed manifest rows and asserts SET IDENTITY against what this function produces, so the two
- * sides cannot drift apart again in silence.
+ * ⚠ AND IT CANNOT. `battleSpriteKey` lives beside the drawing code and reaches
+ * `game/placeholder.ts`, which takes the engine and uses `import.meta.glob`. This module is
+ * imported by `tools/ui-frames/contact-sheet.ts`, a NODE-hosted tool (no index.html, no
+ * vite.config.ts), and `tests/gates/guardrails.test.ts::no_phaser_in_node_reachable` fails any
+ * chain from a node tool to an engine-taking module. So the split is structural, not stylistic:
+ * this layer decides WHICH LIFE STAGE a card depicts (`DexEntry.ageClass` + `ancient`), and the
+ * scene layer turns that into a texture key.
  */
-export function dexArtId(dexId: string): string {
-  return `${DEX_PLATE_DIR}/${DEX_ROW_ID_PREFIX}${dexId.toLowerCase()}`;
-}
 
 export interface DexEntry {
   /** The named identity (bible §4: 35 of them, including the age names). */
@@ -904,7 +890,6 @@ export interface DexEntry {
    * shipped content, bible §4's "gated behind rare sign-card chains" (the three Ancients).
    */
   encounterGated: boolean;
-  artId: string;
 }
 
 /** Which age class a named dex identity belongs to. */
@@ -997,7 +982,6 @@ export function buildDexEntry(
     active: status.active,
     // …and the same call again for the filter `migrantStatus` knows nothing about.
     encounterGated: encounterGatedFor(line, season, balance, opts?.unlockedSignChains),
-    artId: dexArtId(dexId),
   };
   if (line.seasonalWindow) entry.seasonalWindow = line.seasonalWindow;
   if (status.dormantReason) entry.dormantReason = status.dormantReason;
@@ -1139,7 +1123,6 @@ export interface SummaryCard {
   boons: Boon[];
   moves: SummaryMove[];
   stats: Stats;
-  artId: string;
 }
 
 export interface SummaryArgs {
@@ -1194,7 +1177,6 @@ export function buildSummaryCard(args: SummaryArgs): SummaryCard {
       boons: creature.boons,
       ...(creature.metamorphosed !== undefined ? { metamorphosed: creature.metamorphosed } : {}),
     }),
-    artId: dexArtId(line.formNames[creature.age]),
   };
   if (creature.nickname !== undefined) card.nickname = creature.nickname;
   return card;

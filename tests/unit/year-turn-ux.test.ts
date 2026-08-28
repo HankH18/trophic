@@ -111,7 +111,7 @@ import {
   type RetirementSelection,
 } from "@game/scenes/RetirementScene";
 import { SCENE_KEYS, sceneRegistered } from "@game/scene-keys";
-import { dexArtId } from "@game/survey-view";
+import { battleSpriteKey } from "@game/ui/BattleHud";
 import { assetId } from "@game/placeholder";
 import {
   actEntryBeats,
@@ -2497,7 +2497,7 @@ describe("the scenes, driven for real", () => {
      */
     const offer0 = drive.flow.offer();
     if (!offer0) throw new Error("no offer");
-    expect(painted).toEqual([dexArtId(offer0.parent.formName)]);
+    expect(painted).toEqual([battleSpriteKey(offer0.parent.lineId, offer0.parent.age, "front")]);
     expect(painted[0]).not.toBe(offer0.parent.uid);
     expect(assetId(`assets/final/${String(painted[0])}.png`)).toBe(painted[0]);
 
