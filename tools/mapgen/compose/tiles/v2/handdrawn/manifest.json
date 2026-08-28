@@ -1,0 +1,127 @@
+{
+  "arm": "handdrawn",
+  "generations": 0,
+  "method": "Every pixel is placed by rule in draw.py. Nothing was generated, cut, traced or retouched. The grammar \u2014 row structure, outline weight, the overhang, the plaster cycle, the window and door construction \u2014 was measured pixel by pixel off assets/reference/gen2/new-bark-town-gsc.png at 1:1; the colours, the roof hues and the cross-gable are ours.",
+  "namedPieces": [
+    "roof-top-left",
+    "roof-top",
+    "roof-top-right",
+    "roof-body",
+    "ridge",
+    "gable",
+    "eave-left",
+    "eave",
+    "eave-right",
+    "wall-plain",
+    "wall-window",
+    "door-leaf"
+  ],
+  "extraPieces": {
+    "roof-left / roof-right": "roof body carrying the silhouette's side keyline",
+    "ridge-left / ridge-right": "the crest row at the roof's own edge",
+    "wall-left / wall-right": "the bottom wall course's corner post and stud",
+    "wall-mid": "an UPPER wall course, no foundation \u2014 see wallCourses below",
+    "wall-mid-window": "a window on the upper course, where the reference puts it",
+    "wall-mid-left / wall-mid-right": "the upper course's corner post and stud"
+  },
+  "hues": {
+    "green": {
+      "hi": "#d2e0e2",
+      "field": "#68cb6c",
+      "rib": "#49ae53",
+      "shade": "#2d6f38"
+    },
+    "red": {
+      "hi": "#f7c398",
+      "field": "#c72a1b",
+      "rib": "#642c16",
+      "shade": "#321410"
+    },
+    "blue": {
+      "hi": "#73e3e7",
+      "field": "#3da2d7",
+      "rib": "#2178bb",
+      "shade": "#303271"
+    },
+    "ochre": {
+      "hi": "#efc57a",
+      "field": "#aa7241",
+      "rib": "#8c5230",
+      "shade": "#642c16"
+    }
+  },
+  "hueRamp": "hi (crest) > field > rib > shade (eave only). Four swatches each.",
+  "ribStep": "The field-to-rib step is deliberately small. A large step is what turns a ribbed roof into corrugated sheeting, which is the exact read this family exists to replace. Structure comes from the crest row, the eave, the ridge and the outline \u2014 not from the ribs.",
+  "outline": "c00 #040308 on every face of the silhouette EXCEPT the bottom: the reference has no bottom keyline, it has a foundation lip standing on the ground, and copying the lip is what stops the house looking pasted on.",
+  "wallCourses": "compose.py spends every row above the eave on roof. The layouts in tools/mapgen/layouts/ author footprints 6 and 7 cells tall, so that rule produces 64px of unbroken roof \u2014 a barn. street.py gives anything 5 or more cells tall a SECOND wall course, which is what the reference's own big house does: windows on the upper course, door on the lower.",
+  "compatOverlay": "built-compat/ carries the thirteen names compose.py loads today. It is SINGLE-HUE on purpose: compose.py's one shared eave list cannot follow a per-house roof hue, and a red roof over a green eave is worse than one good green house. It is an overlay on the existing built/ family, not a replacement \u2014 fence-1..3 are not this arm's to draw.",
+  "integrationNeeded": "To use the four hues and the corner pieces, compose.py's plan_buildings needs to report a cell's COLUMN role (left / interior / right) alongside its row role, and choose the hue once per footprint from the anchor. street.py::Scene.house is a working reference implementation of both.",
+  "text": "none, on any tile, at any size",
+  "determinism": "FNV-1a over the footprint anchor decides hue, door column, window columns, ridge row and gable cell. No Math.random, no random module, no clock. verify.py redraws everything and byte-compares (G11).",
+  "mockStreet": [
+    {
+      "hue": "green",
+      "cells": "8x6",
+      "at": [
+        0,
+        0
+      ],
+      "wallCourses": 2
+    },
+    {
+      "hue": "ochre",
+      "cells": "5x4",
+      "at": [
+        10,
+        0
+      ],
+      "wallCourses": 1
+    },
+    {
+      "hue": "red",
+      "cells": "6x3",
+      "at": [
+        0,
+        7
+      ],
+      "wallCourses": 1
+    },
+    {
+      "hue": "blue",
+      "cells": "4x3",
+      "at": [
+        9,
+        7
+      ],
+      "wallCourses": 1
+    }
+  ],
+  "tallWindow": [
+    {
+      "hue": "red",
+      "cells": "8x7",
+      "at": [
+        0,
+        0
+      ],
+      "wallCourses": 2,
+      "ridgeRow": 2
+    },
+    {
+      "hue": "blue",
+      "cells": "6x7",
+      "at": [
+        9,
+        0
+      ],
+      "wallCourses": 2,
+      "ridgeRow": 2
+    }
+  ],
+  "delivered": [
+    "T2-10-buildings-handdrawn.png",
+    "T2-10a-buildings-handdrawn-vs-gold.png",
+    "T2-10b-buildings-handdrawn-hues.png",
+    "T2-10c-buildings-handdrawn-pieces.png"
+  ]
+}

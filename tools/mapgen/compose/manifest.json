@@ -1,0 +1,78 @@
+{
+ "what": "The first-round tile composer (assets/raw/_trials/tiles/compose/) re-pointed at the two drawn families that replaced its art \u2014 v2/handdrawn/<hue>/ for buildings and v2/ground/ for terrain \u2014 with the slot, row-plan and window changes those families need. Composes hearthollow and brackwater. Zero image generations.",
+ "notAnEngineChange": "game/mapview.ts still loads ONE PNG per node and setDisplaySize()s it to the 2048 world. This changes how that PNG is PAINTED, offline. Nothing is assembled at runtime, so locked decision L7 ('no tilesets') is untouched.",
+ "layoutsUsed": {
+  "dir": "assets/raw/_trials/tiles/layouts/",
+  "identicalToShipped": true,
+  "proof": "md5 of assets/raw/_trials/tiles/layouts/{hearthollow,brackwater}.txt equals md5 of tools/mapgen/layouts/{hearthollow,brackwater}.txt, byte for byte (2c4f57ae1557ca6419a921dcc6e0bff0 and e45feae457bd7be61bd07625b6a82b9f). The revised set IS the shipped set; the parallel wave wrote both.",
+  "briefsClaimIsStale": "The brief says the shipped hearthollow layout is '91.9% scrub with a lane that dead-ends 23 rows short of the houses'. Neither is true of the file on disk: it is 2.2% ',' (5.5% of WALKABLE), and the lane reaches all five doors \u2014 every one of the five D anchors resolved faithful, and the corridor spans rows 0..52."
+ },
+ "families": {
+  "buildings": "assets/raw/_trials/tiles/v2/handdrawn/{green,red,blue,ochre}/ \u2014 20 of its 22 named pieces stamped. Unused: 'gable' (a cross-gable street.py placed at a hashed column; on a 2-4 row top-down roof it reads as an unexplained blob) and 'wall-window' (only reachable on a footprint 3 cells or shorter, which neither layout authors).",
+  "ground": "assets/raw/_trials/tiles/v2/ground/ \u2014 short-grass x8, tall-grass x8, turf x8. plaza x8 is loaded but unused: neither map's materials call for paving.",
+  "unchanged": "nature/ (T-mass, R, water, T-crown-1 and its o-1/o-2 backing), path/ (path-1..4, mouth-1..2), built/ (fence-1..3). handdrawn drew no fence and the ground lane drew no rock, water, track or canopy."
+ },
+ "changesFromTheFirstRoundComposer": [
+  "plan_buildings() returns a COLUMN role (left|mid|right) from each ROW's own min/max column alongside the row role, so corner and edge pieces are reachable and an L-shaped footprint gets its own ends. Without it the whole silhouette was composer keyline over flat fill.",
+  "The row plan is Gold's: 2 roof rows at <=4 cells, 3 at 5-6, 4 at 7-8; the LAST is always the eave; everything below is wall. See ROOF_CAP \u2014 4 rather than the judge's 3, decided by looking (_ab-roof-1x.png / _ab-roof-2x.png), because at 3 the 8-cell hall is 48px of roof over 80px of wall and reads as a tenement.",
+  "Windows on EVERY upper wall course, every other interior column (WINDOW_EVERY). A five-course wall with four windows on it is a blank card; this is what makes a tall footprint read.",
+  "Roof hue is de-collided. fnv(anchor)%4 alone dealt ALL FIVE brackwater footprints the same red. The hash still names each footprint's preference; a footprint whose preference is taken walks the ramp to the first free hue. Both maps now carry 4 distinct hues over 5 buildings.",
+  "Ground materials are a per-map table with an explicit fringe class, so '.' can be painted as a different material from ':' and still fringe correctly.",
+  "SOFTNESS gains an 'earth' rung between clearing and path, so a third walkable material can sit between the green and the track without either boundary going hard."
+ ],
+ "groundMaterialRuling": {
+  "decision": "'.' is painted as plain short grass, per tools/mapgen/legend.ts ('open-ground \u2014 plain walkable ground, the default fill'), NOT as the 'packed brown earth' hearthollow.txt's own header glosses it as.",
+  "why": "Painted as earth it is the same material as the ':' lane: 404 yard cells and 268 lane cells merge into one amorphous brown mass and the lane network stops existing. Six assignments were composed whole and looked at \u2014 _ab-ground-wide.png (A earth/earth, B grass/earth, C earth/pave, D plaza/earth) and _ab-ground2-wide.png (B, E sand/earth, F turf/earth). B and F are indistinguishable at 2x; B keeps the layout's own '.'-vs-'o' distinction alive in the file.",
+  "openQuestion": "The header's gloss and this table disagree. One of them should move. It is not the composer's to settle."
+ },
+ "verification": {
+  "hearthollow": {
+   "distinctColours": 30,
+   "blockedCells": 2467,
+   "buildings": 5,
+   "crowns": 8,
+   "hues": [
+    "blue",
+    "green",
+    "ochre",
+    "red"
+   ],
+   "fail": [
+    "in every uniform field, the cell join is no busier than the material's own interior, so there is no grid line to find (worst ratio x1.22)"
+   ],
+   "warn": []
+  },
+  "brackwater": {
+   "distinctColours": 30,
+   "blockedCells": 3287,
+   "buildings": 5,
+   "crowns": 0,
+   "hues": [
+    "blue",
+    "green",
+    "ochre",
+    "red"
+   ],
+   "fail": [
+    "in every uniform field, the cell join is no busier than the material's own interior, so there is no grid line to find (worst ratio x1.27)"
+   ],
+   "warn": []
+  },
+  "fullTranscripts": [
+   "_verify-hearthollow.txt",
+   "_verify-brackwater.txt"
+  ],
+  "sha256": {
+   "_out-hearthollow.png": "79f2cd757ae86a7f99059e6bdaac16aae72c140ecc48302cbba2bc9ec37c5129",
+   "_out-brackwater.png": "786fece393b3e490377c94ff52ef9756d93debaf785073a99baba8952182d2d7"
+  }
+ },
+ "files": {
+  "lib.py": "coordinate space, layout parse, legend table, palette, FNV hash, tile load. Copied from the first round; the only edits are ROOT depth and a family->directory map.",
+  "compose.py": "the composer",
+  "verify.py": "legend drift, determinism, palette + colour census, correspondence, contracts, seams, collision overlay, building slots",
+  "deliver.py": "the four review images",
+  "look.py": "the ground and piece contact sheets the material choice was made from"
+ },
+ "scope": "assets/raw/_trials/tiles/v2/compose/ only, plus ~/Downloads/trophic-review/. Nothing under docs/, tests/, tools/, core/, game/ or data/ was touched, no other agent's tile directory was written to, nothing was committed or pushed, and no whole-tree git command was run."
+}
