@@ -172,6 +172,20 @@ vi.mock("phaser", () => {
         return o.self as FakeObj;
       },
       /*
+       * RECORDED, for `setTexture`'s reason exactly — and this one is now the sharper of the pair,
+       * because the mirror is what the player's six retired walk frames were REPLACED BY. build-doc
+       * §9.6 step 4's bob is "y = 2px sine per tile step, 1px lateral sway, horizontal flip
+       * alternation", and the third term is the one that makes the motion read as a skip rather than
+       * a float. Left to the chainable-no-op proxy, `setFlipX` records nothing, so §21.4's whole
+       * claim would be asserted against a call that never happened — and deleting the flip from
+       * `syncPlayerSprite` would keep it green. Verified by sabotage: it does.
+       */
+      flipX: false,
+      setFlipX(v: boolean): FakeObj {
+        o.flipX = v;
+        return o.self as FakeObj;
+      },
+      /*
        * RECORDED RATHER THAN LEFT TO THE PROXY, for `displaySize`'s reason one layer up: WHERE in
        * the display list an object sits is a correctness property when the object's whole job is
        * to cover what is under it. A blackout curtain drawn below the HUD is a black screen with
@@ -484,8 +498,10 @@ import {
   movementConfig,
   placeAt,
   skipConfig,
+  skipFlipped,
   skipHopIndex,
   skipOffsetPx,
+  skipSwayOffsetPx,
   spriteWorldPosition,
   type Direction,
   type SkipConfig,
@@ -525,14 +541,12 @@ import {
 } from "@game/wild-battle";
 import {
   PLAYER_FORWARD_VIEW,
-  PLAYER_STEPS,
   PLAYER_VIEWS,
   interiorAssetPath,
   interiorTextureKey,
   maskTextureKey,
   playerArtId,
   playerArtIds,
-  playerSkipStep,
 } from "@game/mapview";
 import { assetId, hasRealAsset, placeholderKey, registerRealAsset } from "@game/placeholder";
 // §17.6's curtain colour, resolved through the SAME role the scene paints it with — a hex typed
@@ -6446,5 +6460,295 @@ describe("§20 a foray step rolls where the layout draws grass, and nowhere else
       `${String(FRAMES)} two-step frames whose FIRST step landed on ${String(onGrass.col)},${String(onGrass.row)} ` +
         `(scrub) met nothing — the roll used the frame's last tile, not the step's`,
     ).toBeGreaterThan(0);
+  });
+});
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * §21 THE PLAYER FACES FORWARD AND SKIPS — driven through the real scene
+ * ════════════════════════════════════════════════════════════════════════════
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * THE DECISION THIS SECTION BINDS. Hank, verbatim:
+ *
+ *     "we're switching to the player character always being facing forward and doing the skipping
+ *      movement as it moves around."
+ *
+ * and build-doc §9.6 step 4, the motion it switched to, also verbatim:
+ *
+ *     "y = 2px sine per tile step, 1px lateral sway, horizontal flip alternation."
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ *
+ * WHY THIS EXISTS ALONGSIDE `tests/unit/skip-walk.test.ts`. That file pins the arithmetic of
+ * `skipOffsetPx` / `skipSwayOffsetPx` / `skipFlipped` exactly. A pure function nothing calls is not
+ * a skip, so this section drives the REAL `OverworldScene` — its own `update`, its own display
+ * object — and asks what actually reached the picture. The stub records `setTexture`, `setPosition`
+ * and `setFlipX` for precisely this reason; see the recorder's comment in the stub above.
+ *
+ * THE PROPERTY EVERY TEST BELOW SHARES: the bob is PRESENTATION. It may not move the logical tile,
+ * may not change a collision answer, and may not move the point `propUnderPlayer` measures a prop's
+ * interaction radius from. The SWAY is the more dangerous of the two offsets to leak, because it is
+ * horizontal — a leaked hop makes a sign talkable at the bottom of a bounce and not the top, but a
+ * leaked sway slides the player sideways into a NEIGHBOURING prop's radius.
+ */
+describe("§21 the player never turns, and the skip stays in the picture", () => {
+  /** The player's display object — found by the key it draws, never by a position in the list. */
+  function playerObj(h: Harness): FakeObj {
+    const forward = playerArtId(PLAYER_FORWARD_VIEW);
+    const found = h.parts.objects.find((o) => o.kind === "image" && String(o.texture).includes(forward));
+    if (!found) throw new Error(`no player sprite on the display list drawing "${forward}"`);
+    return found;
+  }
+
+  /** A direction the player can actually walk from where they are standing. */
+  function openDir(h: Harness): Direction {
+    const from = h.scene.movement.tile;
+    for (const dir of DIRECTIONS) {
+      const d = delta(dir);
+      if (h.scene.canEnter({ col: from.col + d.dCol, row: from.row + d.dRow })) return dir;
+    }
+    throw new Error("the player is walled in on all four sides — §21 has nothing to drive");
+  }
+
+  /** Half a tile step, so every sample below is genuinely mid-hop rather than on a landing. */
+  const HALF = MS_PER_TILE / 2;
+
+  /* ── 21.1 the drawn texture never turns ───────────────────────────────── */
+
+  it("the drawn texture is the forward key whichever way the player walks", () => {
+    /*
+     * ⚠ ASSERTED AGAINST WHAT THE OBJECT IS SHOWING, not against what it was constructed with.
+     * `add.image(x, y, key)` captures the birth key; the current one is whatever the last
+     * `setTexture` said. The stub records both, so a directional swap reinstated in
+     * `syncPlayerSprite` shows up here — which it does not, when the recorder is removed.
+     */
+    const h = mount();
+    const player = playerObj(h);
+    const drawn = new Set<string>();
+    let stepped = 0;
+
+    for (const dir of DIRECTIONS) {
+      h.hold(dir, true);
+      for (let i = 0; i < 8; i += 1) {
+        h.frame(HALF);
+        drawn.add(String(player.texture));
+        // `facing` is a live MOVEMENT fact and must keep moving — otherwise "the texture ignores
+        // the facing" is true because the facing never changed.
+        expect(playerArtIds(), "the sprite drew a key outside the manifest's grammar").toContain(
+          playerArtId(PLAYER_FORWARD_VIEW),
+        );
+      }
+      h.hold(dir, false);
+      stepped = h.scene.movement.stepsTaken;
+    }
+
+    expect(stepped, "the player never moved, so nothing was measured").toBeGreaterThan(0);
+    expect(new Set(DIRECTIONS.map(String)).size, "the fixture walked one direction").toBeGreaterThan(1);
+    expect(drawn.size, `the drawn texture changed while walking: ${[...drawn].join(" ")}`).toBe(1);
+    expect([...drawn][0], "the sprite is not drawing the forward key").toContain(
+      playerArtId(PLAYER_FORWARD_VIEW),
+    );
+    // …and no retired view or step frame reached the screen under any heading.
+    for (const retired of ["back", "side", "step-left", "step-right"]) {
+      expect(String(player.texture).includes(retired), `the sprite drew a "${retired}" key`).toBe(false);
+    }
+  });
+
+  /* ── 21.2 the hop reaches the draw position and nothing else ───────────── */
+
+  it("the hop is subtracted at the sprite — the reach point never leaves the ground", () => {
+    const h = mount();
+    const player = playerObj(h);
+    h.hold(openDir(h), true);
+    h.frame(HALF);
+
+    const reach = spriteWorldPosition(h.scene.movement, h.scene.movementCfg);
+    const hop = skipOffsetPx(h.scene.movement, h.scene.skipCfg);
+    expect(hop, "the sample is not mid-hop, so the separation below measures nothing").toBeGreaterThan(0);
+    expect(player.y, "the hop did not reach the drawn position").toBeCloseTo(reach.y - hop);
+    expect(reach.y - player.y).toBeCloseTo(balance.map.skipHopPx);
+  });
+
+  /* ── 21.3 the sway reaches the draw position and nothing else ──────────── */
+
+  it("the sway is added at the sprite — the reach point never leans", () => {
+    /*
+     * THE SEPARATION, FOR THE HORIZONTAL TERM. `propUnderPlayer()` asks
+     * `propAt(node, spriteWorldPosition(movement, cfg), balance)`. A sway folded into that function
+     * would move the measured point SIDEWAYS on alternate hops — a sign one tile over becoming
+     * talkable on the half of every hop the character leans toward it.
+     */
+    const h = mount();
+    const player = playerObj(h);
+    h.hold(openDir(h), true);
+    h.frame(HALF);
+
+    const reach = spriteWorldPosition(h.scene.movement, h.scene.movementCfg);
+    const lean = skipSwayOffsetPx(h.scene.movement, h.scene.skipCfg);
+    expect(Math.abs(lean), "the sample is not mid-hop, so the separation below measures nothing").toBeGreaterThan(0);
+    expect(player.x, "the sway did not reach the drawn position").toBeCloseTo(reach.x + lean);
+    expect(player.x, "the sprite is drawn exactly where the reach is measured — the sway is not real").not.toBe(
+      reach.x,
+    );
+    expect(Math.abs(player.x - reach.x)).toBeCloseTo(Math.abs(lean));
+
+    /*
+     * ⚠ AND THE REACH POINT IS WHAT THE TILE GRID SAYS, computed from `tileStepPx` and the two tiles.
+     * Every assertion above survives a sway BAKED INTO `spriteWorldPosition` — the drawn x would
+     * merely lean twice and still differ from the reach x, and §21.5's two-config run would still
+     * agree with itself because that function does not read a `SkipConfig` at all. This is the line
+     * that dies. Measured by sabotage: folding the sway into `spriteWorldPosition` leaves every
+     * other assertion in §21 green.
+     */
+    const step = h.scene.movement.step;
+    expect(step, "the sample is not mid-step").not.toBeNull();
+    if (!step) return;
+    const t = balance.map.tileStepPx;
+    expect(reach.x, "the reach point leans — something lateral is baked into spriteWorldPosition").toBeCloseTo(
+      ((step.from.col + step.to.col) / 2) * t + t / 2,
+    );
+    expect(reach.y, "the reach point hops — something vertical is baked into spriteWorldPosition").toBeCloseTo(
+      ((step.from.row + step.to.row) / 2) * t + t - balance.map.playerSpriteH / 2,
+    );
+  });
+
+  /* ── 21.4 the mirror alternates, on the real display object ────────────── */
+
+  it("the sprite MIRRORS on alternate hops — the term that makes it read as a skip", () => {
+    /*
+     * ⚠ THIS IS THE TERM THAT REPLACED THE SIX WALK FRAMES, and it is the one an optimiser deletes
+     * first. A pure vertical sine on a static sprite reads as a FLOAT: the character hangs and sinks
+     * with nothing about it changing. Mirroring on alternate hops changes which side the silhouette
+     * leads with, so the eye reads a change of weight from one foot to the other.
+     */
+    const h = mount();
+    const player = playerObj(h);
+    const dir = openDir(h);
+    h.hold(dir, true);
+
+    const seen = new Set<boolean>();
+    let sampled = 0;
+    for (let i = 0; i < 16; i += 1) {
+      h.frame(HALF);
+      if (!h.scene.movement.step) continue;
+      sampled += 1;
+      // The object agrees with the pure function at every single sample — not merely "it flips
+      // sometimes", which a stuck `true` after one hop would also satisfy.
+      expect(player.flipX, `the drawn mirror disagrees with skipFlipped at sample ${String(i)}`).toBe(
+        skipFlipped(h.scene.movement, h.scene.skipCfg),
+      );
+      seen.add(Boolean(player.flipX));
+    }
+    h.hold(dir, false);
+
+    expect(sampled, "no sample was taken mid-step — the walk never started").toBeGreaterThan(4);
+    expect(h.scene.movement.stepsTaken, "the walk covered no tiles, so no hop ever ended").toBeGreaterThan(1);
+    expect(seen, "the sprite drew one mirror for the whole walk — it does not alternate").toEqual(
+      new Set([false, true]),
+    );
+  });
+
+  /* ── 21.5 neither term can perturb the simulation ──────────────────────── */
+
+  it("an absurd bob moves the picture and leaves the tile, the reach and the prop answer untouched", () => {
+    /*
+     * The strongest form of "presentation only" this rig can express: run the SAME scripted walk
+     * through the SAME scene twice — once at the shipped bob and once at one three tiles wide in
+     * both axes — and compare everything the simulation can see. `skipCfg` is a public field
+     * precisely so a test can do this; `movementCfg` is a separate object, so nothing about the pace
+     * changes between the two runs.
+     *
+     * `propUnderPlayer()` is in the comparison rather than assumed to follow from the reach point,
+     * because it is the CALLER the defect would be felt through, and a caller that quietly measured
+     * from somewhere else would satisfy an assertion about `spriteWorldPosition` alone.
+     */
+    const huge: SkipConfig = {
+      hopPx: balance.map.tileStepPx * 3,
+      swayPx: balance.map.tileStepPx * 3,
+      hopsPerTile: balance.map.skipHopsPerTile,
+    };
+
+    const run = (cfg: SkipConfig): { tiles: string[]; reach: string[]; props: string[]; drawn: string[] } => {
+      const h = mount();
+      h.scene.skipCfg = cfg;
+      const player = playerObj(h);
+      const tiles: string[] = [];
+      const reach: string[] = [];
+      const props: string[] = [];
+      const drawn: string[] = [];
+      for (const dir of DIRECTIONS) {
+        h.hold(dir, true);
+        for (let i = 0; i < 8; i += 1) {
+          h.frame(HALF);
+          const p = spriteWorldPosition(h.scene.movement, h.scene.movementCfg);
+          tiles.push(`${String(h.scene.movement.tile.col)},${String(h.scene.movement.tile.row)}`);
+          reach.push(`${p.x.toFixed(4)},${p.y.toFixed(4)}`);
+          props.push(JSON.stringify(h.scene.propUnderPlayer()));
+          drawn.push(`${player.x.toFixed(4)},${player.y.toFixed(4)}`);
+        }
+        h.hold(dir, false);
+      }
+      return { tiles, reach, props, drawn };
+    };
+
+    const shipped = run(skipConfig(balance));
+    const absurd = run(huge);
+
+    // The rig has to have produced a walk, or every equality below is over one standing sample.
+    expect(shipped.tiles.length, "the scripted walk took no samples").toBeGreaterThan(16);
+    expect(new Set(shipped.tiles).size, "the player never moved, so identical tiles prove nothing").toBeGreaterThan(1);
+
+    expect(absurd.tiles, "a bigger bob walked a different path").toEqual(shipped.tiles);
+    expect(absurd.reach, "a bigger bob moved the point props and spawns are measured from").toEqual(shipped.reach);
+    expect(absurd.props, "a bigger bob changed which prop the player is standing at").toEqual(shipped.props);
+    // …and it really did draw differently, so the three equalities above are not comparing nothing.
+    expect(absurd.drawn, "the bob is not reaching the picture at all — the comparisons above are vacuous").not.toEqual(
+      shipped.drawn,
+    );
+  });
+
+  /* ── 21.6 the hop counter is what drives it, and it survives a long frame ─ */
+
+  it("a frame that lands several steps draws the hop the short frames would have drawn", () => {
+    /*
+     * `game/movement.ts::update` resolves up to MAX_STEPS_PER_UPDATE tiles out of one long frame —
+     * any frame longer than `walkMsPerTile`, which a dropped frame produces. A mirror kept as a
+     * counter ticked once per `stepCompleted` would fall out of phase there; `skipHopIndex` is
+     * COUNTED from `stepsTaken`, so there is nothing to fall out of phase with. This is the scene's
+     * half of that claim: two rigs, same walk, one long frame against many short ones.
+     */
+    const dir = "right" as const;
+    const long = mount();
+    const short = mount();
+    if (!long.scene.canEnter({ col: long.scene.movement.tile.col + 1, row: long.scene.movement.tile.row })) {
+      throw new Error("§21.6 needs an open tile to the east of the start");
+    }
+
+    long.hold(dir, true);
+    short.hold(dir, true);
+    long.frame(MS_PER_TILE * 2 + HALF);
+    for (const ms of [MS_PER_TILE, MS_PER_TILE, HALF]) short.frame(ms);
+    long.hold(dir, false);
+    short.hold(dir, false);
+
+    expect(long.scene.movement.step, "the long frame landed clean — nothing here is about phase").not.toBeNull();
+    expect(long.scene.movement.stepsTaken, "the long frame was clipped").toBe(short.scene.movement.stepsTaken);
+    expect(long.scene.movement.stepsTaken, "no multi-step frame was constructed").toBeGreaterThan(1);
+    expect(skipHopIndex(long.scene.movement, long.scene.skipCfg)).toBe(
+      skipHopIndex(short.scene.movement, short.scene.skipCfg),
+    );
+    expect(playerObj(long).x).toBeCloseTo(playerObj(short).x);
+    expect(playerObj(long).y).toBeCloseTo(playerObj(short).y);
+    expect(playerObj(long).flipX).toBe(playerObj(short).flipX);
+  });
+
+  /* ── 21.7 the grammar the scene can reach is the one the manifest ships ── */
+
+  it("the scene has exactly one player key to draw, and PLAYER_VIEWS has exactly one member", () => {
+    // The screen-side half of `tests/gates/dex-path-contract.test.ts`'s set identity, asked of the
+    // running scene rather than of the helper: whatever the walk does, this is the only key.
+    expect(PLAYER_VIEWS).toEqual([PLAYER_FORWARD_VIEW]);
+    expect(playerArtIds()).toEqual([playerArtId(PLAYER_FORWARD_VIEW)]);
+    const h = mount();
+    expect(String(playerObj(h).texture)).toContain(playerArtId(PLAYER_FORWARD_VIEW));
   });
 });

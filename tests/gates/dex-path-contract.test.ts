@@ -29,9 +29,19 @@
  * below is a table so the remaining unbound classes can be added as they are fixed.
  *
  * `game/mapview.ts`'s `"sprites/player"` WAS the second open instance named here and is now FIXED
- * and bound: the manifest has 9 rows under `player/` and no `sprites/` directory in any class, so
- * the intersection was zero. `playerArtId` replaces the literal and the `player` row below holds it
- * to the same set identity as the dex plates.
+ * and bound: the manifest has a row under `player/` and no `sprites/` directory in any class, so the
+ * intersection was zero. `playerArtId` replaces the literal and the `player` row below holds it to
+ * the same set identity as the dex plates.
+ *
+ * ⚠ THE `player` EXPECTATION MOVED FROM 9 TO 1, AND BOTH SIDES MOVED TOGETHER. Hank's ruling —
+ * *"we're switching to the player character always being facing forward and doing the skipping
+ * movement as it moves around"* — retires the `back` and `side` views (the screen can never ask for
+ * a view the player never turns to) and the six §9.6 walk frames (the cycle landed as the procedural
+ * bob, L5's committed fallback, whose third term is a horizontal flip rather than a frame). So
+ * `game/mapview.ts` `playerArtIds()` returns one key and `tools/comfy/manifest.json` carries one
+ * `player` row. THE CHECK ITSELF IS UNTOUCHED: still an exact set comparison in both directions,
+ * still non-vacuous, still 1-to-1. Only the expected set moved, and it had to — a set-identity gate
+ * whose two sides are ruled apart is a gate that reports a decision as a defect.
  *
  * STILL NOT COVERED, and deliberately named rather than silently omitted: `game/scenes/TitleScene.ts`'s
  * `"ui/title-banner"`. It is the same defect class but it is NOT the same fix, and it is the one
@@ -94,12 +104,11 @@ const SCREENS = [
   {
     name: "player overworld sprites",
     manifestClass: "player",
-    // build-doc §9.6 / manifest `_player`: three views (front, back, side) x three step phases
-    // (standing, step-left, step-right). `game/scenes/OverworldScene.ts` requests only the standing
-    // front today — the other eight are reachable through `playerPlaceholderKey`'s view/step
-    // arguments, and set identity is what stops the grammar and the manifest drifting apart before
-    // the walk cycle lands.
-    expectedCount: 9,
+    // ONE. The player always faces forward (so there is no `back` or `side` to ask for) and the
+    // §9.6 cycle is the procedural bob (so there is no step frame to ask for) — see this file's
+    // header. `manifest._player.statics` is `["front"]` and `walkFrames` is empty, which is the
+    // same decision written on the pipeline's side of the seam.
+    expectedCount: 1,
     asked: (): Set<string> => new Set(playerArtIds()),
   },
 ] as const;
@@ -131,7 +140,7 @@ describe("T-19 — every asset key a screen asks for is a key the pipeline can p
     // replaces was `"sprites/player"`; `assetId` leaves it untouched, so it would have been asked
     // for verbatim and matched nothing.
     const produced = manifestKeys("player");
-    expect(produced.size, "the manifest must carry the player rows").toBe(9);
+    expect(produced.size, "the manifest must carry the player row").toBe(1);
     expect(assetId("sprites/player"), "assetId does not rescue the old literal").toBe("sprites/player");
     expect(produced.has("sprites/player"), "the pre-fix shape must NOT be a manifest key").toBe(false);
     // No manifest row of ANY class lives under `sprites/`, which is why the old key could never
@@ -142,6 +151,34 @@ describe("T-19 — every asset key a screen asks for is a key the pipeline can p
     expect(produced.has("player/player-front")).toBe(true);
     expect(playerArtIds()).toContain("player/player-front");
     expect(playerArtIds()).not.toContain("sprites/player");
+  });
+
+  it("NO RETIRED PLAYER VIEW OR STEP FRAME CAN BE SPELLED, on either side of the seam", () => {
+    /*
+     * The other half of the 9-to-1 collapse, and the half a count alone does not make. `expectedCount:
+     * 1` above would also be satisfied by a manifest that kept ONE of the retired rows and dropped
+     * `front`, or by a screen that asked for `player/player-side` and a manifest that answered it.
+     * This says which one survived, by name, on both sides.
+     *
+     * It is also STRICTLY STRONGER than checking that the files are absent: `assets/final/` is empty
+     * today, so every key falls back to a stand-in and a missing file proves nothing at all. What is
+     * asserted here is that the key cannot be NAMED — not that its art has not been made yet.
+     */
+    const produced = manifestKeys("player");
+    const asked = new Set(playerArtIds());
+    for (const retired of ["back", "side", "step-left", "step-right", "stand"]) {
+      expect(
+        [...produced].filter((key) => key.includes(retired)),
+        `the manifest still carries a "${retired}" player row — the ruling moved only one side of the seam`,
+      ).toEqual([]);
+      expect(
+        [...asked].filter((key) => key.includes(retired)),
+        `game/mapview.ts can still spell a "${retired}" player key`,
+      ).toEqual([]);
+    }
+    // Non-vacuity: the survivor is named, so this cannot pass over two empty sets.
+    expect([...asked]).toEqual(["player/player-front"]);
+    expect([...produced]).toEqual(["player/player-front"]);
   });
 
   it("no screen key in the SCREENS table collides with another class's key space", () => {
@@ -155,7 +192,7 @@ describe("T-19 — every asset key a screen asks for is a key the pipeline can p
         seen.set(key, screen.name);
       }
     }
-    expect(seen.size).toBe(35 + 9);
+    expect(seen.size).toBe(35 + 1);
   });
 
   it("the key the screen asks for IS the texture key the loader registers", () => {

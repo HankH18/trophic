@@ -41,12 +41,40 @@
  *    the loud failure the ticket asks for: a future re-freeze moves the derived colours automatically
  *    (the roles are slot ids now), and if the PNGs are not rebuilt afterwards, this gate goes red
  *    instead of the sprites silently disagreeing with every asset around them.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * WHAT THIS GATE COVERS AFTER THE 9-TO-1 COLLAPSE — read before deleting half of it
+ * ═══════════════════════════════════════════════════════════════════════════════════════════════
+ * Hank's ruling — *"we're switching to the player character always being facing forward and doing
+ * the skipping movement as it moves around"* — retired the `back` and `side` VIEWS and the six §9.6
+ * walk frames from the game and from `tools/comfy/manifest.json`. `game/mapview.ts` `playerArtIds()`
+ * is one key, and §6 below asserts that nothing in the game can spell the other two.
+ *
+ * ⚠ THAT DOES NOT RETIRE THE PIXELS, AND THIS FILE'S ASSERTIONS ABOUT THEM ALL STAND.
+ * `assets/approved-trials/_player-views/derived/player-{back,side}-32x48.png` are COMMITTED FILES
+ * that `tools/comfy/player-views.ts derive` still produces and that `tools/palette/cross-view.mjs`
+ * still reads. Everything §0-§4 says about them — palette conformance, the star's absence from the
+ * rear of the cap, adding no colour the front lacks, agreeing byte-for-byte with a fresh
+ * derivation — is a property of bytes that are still in the repository, and the T-15 re-freeze is
+ * the standing proof that those bytes rot silently when nothing decodes them. Dropping those
+ * assertions because the GAME no longer draws them would delete real coverage of real files and
+ * leave the next re-freeze to rot them again unobserved.
+ *
+ * Two lanes, one file: §0-§4 guard the raw lane's committed bytes; §6 guards the seam between the
+ * lanes. Retiring the derived PNGs themselves is the art lane's call, made in the art lane — and
+ * when it is made, §0-§4 go with them and §6 stays.
  */
 
-import { describe, expect, it, beforeAll } from 'vitest';
+import { describe, expect, it, beforeAll, vi } from 'vitest';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import sharp from 'sharp';
+
+// `game/mapview.ts` value-imports Phaser for one constant (`Phaser.Loader.Events.COMPLETE`), and
+// `import "phaser"` throws `window is not defined` under vitest's node environment. Same stub and
+// same reason as tests/gates/dex-path-contract.test.ts: it carries that one constant and nothing
+// else, so nothing here can accidentally test Phaser.
+vi.mock('phaser', () => ({ default: { Loader: { Events: { COMPLETE: 'complete' } } } }));
 
 import { loadPalette, loadPaletteFile, REPO_ROOT } from '../../tools/postprocess/palette.ts';
 import {
@@ -63,6 +91,8 @@ import {
   type SwatchRole,
 } from '../../tools/comfy/player-views.ts';
 import balance from '../../data/balance.json';
+// eslint-disable-next-line import/first -- must follow the phaser mock above.
+import { PLAYER_VIEWS, playerArtId, playerArtIds } from '../../game/mapview.ts';
 
 /** G11: the sprite size is `balance.map.playerSpriteW/H`, which is also what the file names encode. */
 const W = balance.map.playerSpriteW;
@@ -318,5 +348,46 @@ describe('player art contract — the committed PNGs, decoded', () => {
           '`npx tsx tools/comfy/player-views.ts derive`.',
       ).toBe(0);
     }
+  });
+
+  /* ────────────────────────────────────────────────────────────────────────────────────────────
+   * 6. The seam: these bytes exist, and the GAME cannot ask for two of them.
+   * ──────────────────────────────────────────────────────────────────────────────────────────── */
+
+  it('the game cannot spell a back or side player key at all — stronger than the files being absent', () => {
+    /*
+     * ⚠ WHY THIS IS NOT "assert the files are gone". The files are NOT gone — this whole gate
+     * decodes them, three tests up. And absence would prove nothing even if they were: `assets/final/`
+     * is empty today, so `game/placeholder.ts::textureFor` falls back to a labelled stand-in for
+     * EVERY key, and a missing file and a mis-spelled key are indistinguishable at runtime. That
+     * indistinguishability is the T-19 defect this repo has now shipped three instances of.
+     *
+     * So the claim is about the GRAMMAR, not the filesystem: after the ruling there is one view and
+     * one art id, and `back`/`side` cannot be named by any caller. A directional swap reinstated in
+     * `OverworldScene.syncPlayerSprite` is a compile error (`PlayerView` is `"front"`), and this is
+     * the runtime half that survives a cast.
+     */
+    expect(PLAYER_VIEWS, 'the player has more than one view again').toEqual(['front']);
+    expect(playerArtIds(), 'the player has more than one art id again').toEqual(['player/player-front']);
+    expect(playerArtId(), 'the default view is not the one the pipeline ships').toBe('player/player-front');
+
+    for (const retired of ['back', 'side', 'step-left', 'step-right']) {
+      expect(
+        (PLAYER_VIEWS as readonly string[]).includes(retired),
+        `"${retired}" is a player view again — the sprite turns, and this gate's derived PNGs are back in play`,
+      ).toBe(false);
+      expect(
+        playerArtIds().filter((id) => id.includes(retired)),
+        `the game can ask for a "${retired}" player key again`,
+      ).toEqual([]);
+    }
+
+    // NON-VACUITY, and the load-bearing half: the derived PNGs this gate protects are named for the
+    // views the game just lost, so if the two lanes ever agreed again this would be an empty claim.
+    // They do not agree, deliberately — the raw lane still builds and commits back and side.
+    expect(existsSync(fileFor('back')), 'the derived back PNG is gone; §0-§4 above now guard nothing').toBe(true);
+    expect(existsSync(fileFor('side')), 'the derived side PNG is gone; §0-§4 above now guard nothing').toBe(true);
+    expect(decoded.back.opaque, 'the back sprite this gate guards decoded empty').toBeGreaterThan(0);
+    expect(decoded.side.opaque, 'the side sprite this gate guards decoded empty').toBeGreaterThan(0);
   });
 });

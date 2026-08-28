@@ -153,10 +153,8 @@ import {
   nodeArtKeys,
   paintedInteriorKey,
   playerPlaceholderKey,
-  playerSkipStep,
   queueNodeArt,
   readMaskPixels,
-  type PlayerStep,
 } from "../mapview";
 import { seasonTintLabel } from "../season-tint";
 import { SCENE_KEYS, sceneRegistered } from "../scene-keys";
@@ -255,8 +253,9 @@ import {
   placeAt,
   queueInput,
   skipConfig,
-  skipHopIndex,
+  skipFlipped,
   skipOffsetPx,
+  skipSwayOffsetPx,
   spriteWorldPosition,
   update as updateMovement,
   type Direction,
@@ -470,12 +469,15 @@ export class OverworldScene extends Phaser.Scene {
   movement!: MovementState;
   movementCfg!: MovementConfig;
   /**
-   * The skip's amplitude and cadence (`balance.map.skipHopPx` / `skipHopsPerTile`).
+   * The skip's three numbers (`balance.map.skipHopPx` / `skipSwayPx` / `skipHopsPerTile`) — build-doc
+   * §9.6 step 4's bob, verbatim: *"y = 2px sine per tile step, 1px lateral sway, horizontal flip
+   * alternation."*
    *
    * PRESENTATION ONLY, and separate from {@link movementCfg} on purpose: nothing in this scene
-   * outside {@link syncPlayerSprite} may read it. The moment a rule consults it, the hop stops being
+   * outside {@link syncPlayerSprite} may read it. The moment a rule consults it, the bob stops being
    * a picture and starts being a gameplay effect — see {@link propUnderPlayer}, which asks
-   * `spriteWorldPosition` (never the hopped position) which prop the player is standing at.
+   * `spriteWorldPosition` (never the hopped, never the swayed position) which prop the player is
+   * standing at.
    */
   skipCfg!: SkipConfig;
 
@@ -548,16 +550,21 @@ export class OverworldScene extends Phaser.Scene {
 
   private player!: Phaser.GameObjects.Image;
   /**
-   * The skip frame the player sprite is currently showing, so {@link syncPlayerSprite} resolves a
-   * texture key only when the frame actually changes rather than sixty times a second.
+   * Which way the sprite is currently mirrored, so {@link syncPlayerSprite} touches the display
+   * object only when the flip actually changes rather than sixty times a second.
+   *
+   * THERE IS NO CACHED TEXTURE KEY BESIDE THIS, and that is the shape of the ruling: the player has
+   * exactly one art id (`game/mapview.ts` {@link playerArtIds}), so the texture is set once in
+   * `create()` and never again. What used to live here was `playerStep`, the cached walk frame, and
+   * the six frames it chose between are gone — the mirror is what replaced them.
    *
    * ⚠ RE-SEEDED IN `create()`, and that is not tidiness. This is an INSTANCE FIELD and the image is
    * a DISPLAY-LIST object: a restart tears the image down and rebuilds it while every field here
    * survives — the same asymmetry that left `overlayVisible` and its Graphics disagreeing (see the
-   * comment on the overlay in `create`). A stale phase here would match the fresh image's frame by
-   * luck and skip the first `setTexture` after a restart.
+   * comment on the overlay in `create`). A stale value here would match the fresh image's unmirrored
+   * default by luck and skip the first `setFlipX` after a restart.
    */
-  private playerStep: PlayerStep | null = null;
+  private playerFlipped: boolean | null = null;
   private overlay!: Phaser.GameObjects.Graphics;
   private overlayVisible = false;
   private hud!: Phaser.GameObjects.Text;
@@ -789,14 +796,16 @@ export class OverworldScene extends Phaser.Scene {
      * `PLAYER_FORWARD_VIEW` here and in {@link syncPlayerSprite}, and it is the only view either
      * one names — there is no direction-to-view table in this file to fall out of date.
      *
-     * Built on whatever frame the player is standing on — the resting one, because `buildNodeView`
-     * has just run and `placeAt` drops any step in flight. `playerStep` is re-seeded to match rather
-     * than assumed: the field survives a restart and this object does not.
+     * ONE TEXTURE, SET HERE AND NEVER AGAIN. There is no walk sheet and no frame to swap to —
+     * §9.6's cycle landed as the procedural bob — so the only thing {@link syncPlayerSprite} moves
+     * on the image is its position and its mirror. `playerFlipped` is re-seeded to match the fresh
+     * object rather than assumed: the field survives a restart and this object does not.
      */
-    this.playerStep = this.skipStepNow();
+    this.playerFlipped = false;
     this.player = this.add
-      .image(0, 0, playerPlaceholderKey(this, this.balance, PLAYER_FORWARD_VIEW, this.playerStep))
+      .image(0, 0, playerPlaceholderKey(this, this.balance, PLAYER_FORWARD_VIEW))
       .setDisplaySize(this.balance.map.playerSpriteW, this.balance.map.playerSpriteH)
+      .setFlipX(false)
       .setDepth(20);
 
     /*
@@ -1612,13 +1621,8 @@ export class OverworldScene extends Phaser.Scene {
     return tileWalkable(this.activeGrid(), tile.col, tile.row, this.balance);
   }
 
-  /** The skip frame the player is on right now — the resting one while standing still. */
-  private skipStepNow(): PlayerStep {
-    return playerSkipStep(skipHopIndex(this.movement, this.skipCfg));
-  }
-
   /**
-   * Put the player sprite where the picture says, on the frame the skip says.
+   * Put the player sprite where the picture says, mirrored the way the skip says.
    *
    * ═════════════════════════════════════════════════════════════════════════════════════════════
    * THE PLAYER FACES THE VIEWER AND SKIPS. Hank's ruling: *"we're switching to the player character
@@ -1632,29 +1636,44 @@ export class OverworldScene extends Phaser.Scene {
    *      no texture. There is no direction-to-view table anywhere in this file, so reinstating a
    *      directional sprite is an edit here rather than a value that drifts.
    *
-   *   2. **The hop is added to the DRAW POSITION and to nothing else.** `spriteWorldPosition` is
-   *      left exactly as it is, deliberately: it is not only where the sprite goes, it is also the
-   *      point {@link propUnderPlayer} measures a prop's interaction radius from, and
-   *      `game/collision.ts` `chooseSpawnTile` asks the same function whether a spawn is clear.
-   *      Folding `skipOffsetPx` into it would make a sign talkable at the top of a bounce and not at
-   *      the bottom — a hop that changes where the player IS. Subtracting it here, at the last
-   *      moment before the pixels, cannot: the logical tile, the collision question and the prop
-   *      question never see it. `tests/unit/skip-walk.test.ts` and §18 of
-   *      `tests/unit/overworld-scene.test.ts` both assert that separation rather than trusting it.
+   *   2. **THE WHOLE BOB IS ADDED TO THE DRAW POSITION AND TO NOTHING ELSE — both terms of it.**
+   *      `spriteWorldPosition` is left exactly as it is, deliberately: it is not only where the
+   *      sprite goes, it is also the point {@link propUnderPlayer} measures a prop's interaction
+   *      radius from, and `game/collision.ts` `chooseSpawnTile` asks the same function whether a
+   *      spawn is clear. Folding `skipOffsetPx` into it would make a sign talkable at the top of a
+   *      bounce and not at the bottom — a hop that changes where the player IS.
    *
-   * `setTexture` is called only when the frame CHANGES — at most twice a tile — because resolving
-   * the key runs `game/placeholder.ts`'s stand-in builder, and a per-frame rebuild is the one
-   * avoidable allocation on the walkability path build-doc §12 budgets 60fps for.
+   *      ⚠ `skipSwayOffsetPx` IS A SECOND WAY TO COMMIT THAT EXACT DEFECT, and it is a worse one:
+   *      the sway is HORIZONTAL, so leaking it into the reach point would shift the player sideways
+   *      into or out of a neighbouring prop's radius rather than merely up and down. It is applied
+   *      here, one statement before the pixels, for the same reason and under the same rule.
+   *      `tests/unit/skip-walk.test.ts` §5 and §21 of `tests/unit/overworld-scene.test.ts` assert
+   *      the separation for BOTH terms rather than trusting it.
+   *
+   *   3. **The mirror is the third term of §9.6's bob, and it is the one doing the work.** A pure
+   *      vertical sine on a static sprite reads as a FLOAT: the character hangs and sinks with
+   *      nothing about it changing. Mirroring on alternate hops changes which side the silhouette
+   *      leads with, so the eye reads a change of WEIGHT from one foot to the other — which is what
+   *      step frames would have been for, and why there are none. See `game/movement.ts`
+   *      {@link skipFlipped}. Anyone tempted to add a walk sheet back should read that first.
+   *
+   * `setFlipX` is called only when the mirror CHANGES — once per hop — rather than sixty times a
+   * second, because build-doc §12 budgets 60fps at 480×320 and the walkability path is where the
+   * avoidable per-frame work is. The TEXTURE is not touched at all: there is one player art id.
    */
   private syncPlayerSprite(): void {
     const pos = spriteWorldPosition(this.movement, this.movementCfg);
-    // MINUS: the offset is a height above the resting position, and world y grows downward.
-    this.player.setPosition(pos.x, pos.y - skipOffsetPx(this.movement, this.skipCfg));
+    // MINUS on y: the hop is a height above the resting position, and world y grows downward.
+    // PLUS on x: the sway is signed screen-x already, and leans the way the sprite is mirrored.
+    this.player.setPosition(
+      pos.x + skipSwayOffsetPx(this.movement, this.skipCfg),
+      pos.y - skipOffsetPx(this.movement, this.skipCfg),
+    );
 
-    const step = this.skipStepNow();
-    if (step === this.playerStep) return;
-    this.playerStep = step;
-    this.player.setTexture(playerPlaceholderKey(this, this.balance, PLAYER_FORWARD_VIEW, step));
+    const flipped = skipFlipped(this.movement, this.skipCfg);
+    if (flipped === this.playerFlipped) return;
+    this.playerFlipped = flipped;
+    this.player.setFlipX(flipped);
   }
 
   private toggleOverlay(): void {

@@ -578,20 +578,40 @@ export function drawInteriorFootprint(
  * ──────────────────────────────────────────────────────────────────────────── */
 
 /**
- * The three views the pipeline paints the player in, and the three step phases of each.
+ * The ONE view the pipeline paints the player in.
  *
- * These are the SHAPE of the manifest's `player` class, not a second list of content: the nine rows
- * (`player-front`, `player-back`, `player-side`, and each of those `-step-left` / `-step-right`) are
- * derived in `tools/comfy/comfy-batch.ts` from `manifest._player` and are gate-locked, so this file
- * spells out the key grammar and `tests/gates/dex-path-contract.test.ts` asserts SET IDENTITY
- * between what {@link playerArtIds} produces and what the manifest carries. Either side moving turns
- * that gate red, which is the whole point — the literal this replaces answered to nothing.
+ * ─────────────────────────────────────────────────────────────────────────────
+ *  THIS LIST WAS NINE IDS AND IS NOW ONE. Both halves of that are decisions, not tidying.
+ * ─────────────────────────────────────────────────────────────────────────────
+ * It was `["front","back","side"] × ["stand","step-left","step-right"]`, and the nine rows are
+ * derived from `manifest._player` in `tools/comfy/comfy-batch.ts` — so the manifest moved with it,
+ * in the same change, and `tests/gates/dex-path-contract.test.ts` still asserts SET IDENTITY between
+ * what {@link playerArtIds} produces and what the manifest carries. That gate is not loosened by
+ * this; only the expected set moved, and it is still 1-to-1.
+ *
+ *   • **back and side go because the player never turns.** Hank's ruling: *"we're switching to the
+ *     player character always being facing forward and doing the skipping movement as it moves
+ *     around."* A view the screen can never ask for is art nothing can reach.
+ *   • **The six step frames go because §9.6's bob is procedural.** build-doc §9.6 step 4 is the
+ *     committed fallback (locked decision L5: *"procedural bob is the committed fallback"*), and it
+ *     is three terms of arithmetic — *"y = 2px sine per tile step, 1px lateral sway, horizontal flip
+ *     alternation"* — with no frame in it. `game/movement.ts` `skipFlipped` carries the reason the
+ *     flip does the job step frames would have: it is what makes the eye read a change of weight.
+ *
+ * ⚠ GOLD'S SHEET HAVING SIX FRAMES IS NOT A COUNTER-ARGUMENT, and it keeps being raised. Gold's
+ * character TURNS: its sheet spends frames on down/up/side and then on stepping within each. Ours
+ * never turns, so the facing frames are not needed at all — and the stepping frames are what the
+ * flip replaces.
  */
-export const PLAYER_VIEWS = ["front", "back", "side"] as const;
-export const PLAYER_STEPS = ["stand", "step-left", "step-right"] as const;
+export const PLAYER_VIEWS = ["front"] as const;
 
 export type PlayerView = (typeof PLAYER_VIEWS)[number];
-export type PlayerStep = (typeof PLAYER_STEPS)[number];
+
+/**
+ * The view the player is ever drawn in — the only member of {@link PLAYER_VIEWS}, named rather than
+ * spelled out at the call sites so that reversing the ruling is an edit to one line.
+ */
+export const PLAYER_FORWARD_VIEW: PlayerView = PLAYER_VIEWS[0];
 
 /** The manifest's `player` class writes into `assets/final/player/`, so every key sits under this. */
 const PLAYER_ART_DIR = "player";
@@ -599,99 +619,65 @@ const PLAYER_ART_DIR = "player";
 const PLAYER_ROW_ID_PREFIX = "player-";
 
 /**
- * The texture key for one player view and step.
+ * The texture key for a player view.
  *
  * T-19, THIRD INSTANCE. This module asked for `"sprites/player"`. The pipeline can only ever produce
- * `assets/final/player/player-<view>[-<step>].png`, which `game/placeholder.ts::assetId` reduces to
- * `player/player-<view>[-<step>]`, and NO `sprites/` directory exists in the manifest in any class.
- * Measured intersection of the key this file asked for with the 9 committed `player` rows: ZERO. The
- * player would have gone on drawing a stand-in forever once the art landed, and nothing would have
- * said so — `textureFor` falls back silently and `assetId` is a pure string strip that accepts a
- * wrong key without complaint.
+ * `assets/final/player/player-<view>.png`, which `game/placeholder.ts::assetId` reduces to
+ * `player/player-<view>`, and NO `sprites/` directory exists in the manifest in any class. Measured
+ * intersection of the key this file asked for with the committed `player` rows: ZERO. The player
+ * would have gone on drawing a stand-in forever once the art landed, and nothing would have said
+ * so — `textureFor` falls back silently and `assetId` is a pure string strip that accepts a wrong
+ * key without complaint.
  *
  * Same defect and same resolution as `game/survey-view.ts::dexArtId` (dex plates) and
  * `game/ui/BattleHud.ts` (battle sprites): move the SCREEN to the manifest's shape, because the
  * manifest's path is derived from data and gate-locked while a hand-written literal here is not.
  */
-export function playerArtId(view: PlayerView, step: PlayerStep = "stand"): string {
-  const suffix = step === "stand" ? "" : `-${step}`;
-  return `${PLAYER_ART_DIR}/${PLAYER_ROW_ID_PREFIX}${view}${suffix}`;
+export function playerArtId(view: PlayerView = PLAYER_FORWARD_VIEW): string {
+  return `${PLAYER_ART_DIR}/${PLAYER_ROW_ID_PREFIX}${view}`;
 }
 
 /**
- * Every key this module can ask the loader for — the nine the manifest can produce, and no more.
+ * Every key this module can ask the loader for — the one the manifest can produce, and no more.
  *
- * ⚠ NINE IS STILL THE KEY GRAMMAR, AND IT IS NO LONGER WHAT THE GAME DRAWS. Since the ruling below
- * ({@link PLAYER_FORWARD_VIEW}) the overworld asks for the three FRONT keys only. The six `back` and
- * `side` keys are, today, art the screen has no route to. They are deliberately still listed here,
- * and their manifest rows are deliberately still committed, because this function's contract is
- * "what the pipeline may be asked for", which is what `tests/gates/dex-path-contract.test.ts` holds
- * to set identity with the manifest — and narrowing it would silently delete six rows of art-lane
- * work off the back of a presentation decision. Retiring them is an ART-LANE call, made once, in
- * `tools/comfy/manifest.json` and here together; it is not a side effect of this file.
+ * ONE, and it was nine. See {@link PLAYER_VIEWS} for both halves of that decision. The contract is
+ * unchanged: this is "every key the screen may ever request for the `player` class", and
+ * `tests/gates/dex-path-contract.test.ts` holds it to SET IDENTITY with the committed manifest rows.
+ * The gate is not relaxed — it is still an exact set comparison, and it is still 1-to-1.
+ *
+ * ⚠ `assets/raw/player/derived/player-{back,side}-32x48.png` and the `derive` half of
+ * `tools/comfy/player-views.ts` that builds them are now UPSTREAM OF NOTHING. They are left standing
+ * deliberately: they are raw-lane artefacts under their own gate
+ * (`tests/gates/player-art-contract.test.ts`, which decodes their pixels), and retiring them is that
+ * lane's call to make, not this file's. What is settled here is that no key the GAME asks for can
+ * reach them.
  */
 export function playerArtIds(): string[] {
-  return PLAYER_VIEWS.flatMap((view) => PLAYER_STEPS.map((step) => playerArtId(view, step)));
+  return PLAYER_VIEWS.map((view) => playerArtId(view));
 }
 
 /**
- * The one view the player is ever drawn in.
+ * A 32×48 stand-in for the player (build-doc §7.6's logical sprite size, and §9.3's downscale target
+ * for overworld chars), through the same shared helper. `textureFor` decides which it is: the moment
+ * post-processing writes `assets/final/player/player-front.png`, this returns that real texture
+ * instead, with no change here; until then it draws the honest labelled rectangle. Whether that key
+ * is real at any given moment is `game/placeholder.ts`'s census to answer and is deliberately not
+ * restated in this comment. Note that raw output — `assets/raw/player/` — is UPSTREAM of that census
+ * and never satisfies it on its own; only a file under `assets/final/` counts as real.
  *
- * Hank's ruling, verbatim: *"we're switching to the player character always being facing forward and
- * doing the skipping movement as it moves around."* The sprite faces the viewer whichever way the
- * player walks; `MovementState.facing` survives as a movement fact (Gold's bump, an interior
- * arrival's orientation) and is read by nothing that picks a texture.
- *
- * It is a NAMED CONSTANT rather than the string "front" spelled out at the call site because the
- * decision has exactly one home: whoever reverses it edits this line, and
- * `tests/unit/overworld-scene.test.ts` §18 fails the moment a direction reaches the drawn key.
- */
-export const PLAYER_FORWARD_VIEW: PlayerView = PLAYER_VIEWS[0];
-
-/**
- * Which step frame a hop is drawn on — `stand` at rest, otherwise the moving frames in turn.
- *
- * DERIVED FROM {@link PLAYER_STEPS}, never from a written-out pair: `PLAYER_STEPS[0]` is the resting
- * frame by construction and everything after it is a moving one, so a fourth phase added to the
- * grammar joins the cycle instead of being silently ignored by a hand-written `left`/`right` swap.
- *
- * `hopIndex` is `game/movement.ts` {@link skipHopIndex}'s monotone counter — negative while standing
- * still — so the lead foot alternates once per hop and keeps alternating across a frame long enough
- * to land several steps.
- */
-export function playerSkipStep(hopIndex: number): PlayerStep {
-  const resting = PLAYER_STEPS[0];
-  const moving = PLAYER_STEPS.slice(1);
-  if (hopIndex < 0 || moving.length === 0) return resting;
-  return moving[Math.abs(Math.trunc(hopIndex)) % moving.length] ?? resting;
-}
-
-/**
- * A 32×48 stand-in for the player (build-doc §7.6's logical sprite size), through the same shared
- * helper. `textureFor` decides which it is: the moment post-processing writes
- * `assets/final/player/player-<view>[-<step>].png`, this returns that real texture instead, with no
- * change here; until then it draws the honest labelled rectangle. Which of the nine keys are real at
- * any given moment is `game/placeholder.ts`'s census to answer and is deliberately not restated in
- * this comment. Note that raw output — `assets/raw/player/`, including the views `player-views.ts
- * derive` builds — is UPSTREAM of that census and never satisfies it on its own; only a file under
- * `assets/final/` counts as real.
- *
- * `view`/`step` default to the standing front, which is also what the overworld draws at rest.
- * §9.6's cycle has since landed as a SKIP rather than a walk: `OverworldScene.syncPlayerSprite`
- * passes {@link PLAYER_FORWARD_VIEW} always and {@link playerSkipStep}'s phase while moving, so the
- * three keys the game can reach are the front three. The other six stay reachable through this
- * function's arguments rather than being deleted — see {@link playerArtIds} for why that is an
- * art-lane decision and not this file's to take.
+ * There is no `step` argument and no walk sheet: §9.6's cycle landed as the procedural bob (L5's
+ * committed fallback), so `OverworldScene.syncPlayerSprite` moves and MIRRORS this one image rather
+ * than swapping between frames. `view` defaults to {@link PLAYER_FORWARD_VIEW} because that is the
+ * only view there is.
  */
 export function playerPlaceholderKey(
   scene: Phaser.Scene,
   balance: Balance,
-  view: PlayerView = "front",
-  step: PlayerStep = "stand",
+  view: PlayerView = PLAYER_FORWARD_VIEW,
 ): string {
   return textureFor(
     scene,
-    playerArtId(view, step),
+    playerArtId(view),
     balance.map.playerSpriteW,
     balance.map.playerSpriteH,
     { note: "not post-processed into assets/final/" },

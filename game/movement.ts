@@ -410,6 +410,10 @@ export function stepProgress(state: MovementState): number {
  *  always being facing forward and doing the skipping movement as it moves around."*
  * ─────────────────────────────────────────────────────────────────────────────
  *
+ * The motion itself is build-doc §9.6 step 4's bob, quoted verbatim: *"y = 2px sine per tile step,
+ * 1px lateral sway, horizontal flip alternation."* THREE terms, all three implemented below and all
+ * three from `balance.map` (G11). The third is the load-bearing one — see {@link skipFlipped}.
+ *
  * So {@link MovementState.facing} survives as a MOVEMENT fact and stops being a DRAWING one. It is
  * still what Gold's bump sets, still what {@link placeAt} carries through a door, and still what the
  * `turned` event reports — every one of those is about where the player is pointed in the model, and
@@ -472,7 +476,7 @@ function wholeHops(hopsPerTile: number): number {
  * counter ticked once per `stepCompleted` would have to be replayed event by event to stay in phase.
  * This cannot fall out of phase, because there is nothing to fall out of phase WITH.
  *
- * Its parity is which foot leads (`game/mapview.ts` `playerSkipStep`).
+ * Its PARITY is the horizontal flip — see {@link skipFlipped}.
  */
 export function skipHopIndex(state: MovementState, skip: SkipConfig): number {
   if (!state.step) return -1;
@@ -483,23 +487,69 @@ export function skipHopIndex(state: MovementState, skip: SkipConfig): number {
 }
 
 /**
+ * 0..1 through the CURRENT hop — the shared envelope all three terms of the bob are drawn on.
+ *
+ * Because `hopsPerTile` is a whole number this returns to 0 exactly on the tile boundary, so
+ * consecutive steps chain into one continuous skip instead of jerking at each tile.
+ */
+function hopPhase(state: MovementState, skip: SkipConfig): number {
+  const t = stepProgress(state) * wholeHops(skip.hopsPerTile);
+  return t - Math.floor(t);
+}
+
+/**
  * How far ABOVE its resting position the sprite is drawn, in world px. Never negative.
  *
- * Zero while standing still and zero at every landing, which is what makes the motion a skip rather
- * than a drift: `4p(1−p)` is the ballistic arc a thrown thing follows — 0 at both ends, `hopPx` at
- * the top — evaluated on `p`, the fraction through the CURRENT hop. Because `hopsPerTile` is a whole
- * number, `p` returns to 0 exactly on the tile boundary, so consecutive steps chain into one
- * continuous skip instead of jerking at each tile.
+ * build-doc §9.6 step 4, verbatim: *"y = 2px sine per tile step"*. `sin(πp)` is that sine — 0 at
+ * both ends of the hop, `hopPx` at the top — which is a reading of the doc worth marking AS a
+ * reading: a full `sin(2πp)` would put the sprite a hop BELOW the ground for half of every tile, so
+ * the half-cycle is the only shape the sentence can mean.
  *
- * A parabola rather than a sine on purpose: a hop is a ballistic arc, and this needs no trig, so the
- * offset is exact float arithmetic that replays bit-for-bit from the same movement state.
+ * Zero while standing still and zero at every landing, which is what makes the motion a skip rather
+ * than a drift.
  */
 export function skipOffsetPx(state: MovementState, skip: SkipConfig): number {
   if (!state.step) return 0;
-  const hops = wholeHops(skip.hopsPerTile);
-  const t = stepProgress(state) * hops;
-  const p = t - Math.floor(t);
-  return skip.hopPx * 4 * p * (1 - p);
+  return skip.hopPx * Math.sin(Math.PI * hopPhase(state, skip));
+}
+
+/**
+ * Which way the sprite is mirrored on this hop — §9.6 step 4's *"horizontal flip alternation"*.
+ *
+ * ⚠ THIS IS THE TERM THAT MAKES IT READ AS A SKIP, and it is the reason the spec has three terms
+ * rather than one. A pure vertical sine applied to a static sprite reads as a FLOAT — the character
+ * hangs and sinks with nothing about it changing. Mirroring on alternate hops changes which side the
+ * silhouette leads with, so the eye reads a CHANGE OF WEIGHT from one foot to the other. That is
+ * also why the player needs no step frames at all (`game/mapview.ts` {@link playerArtIds} is one
+ * id): the flip is what step frames would have been for. Anyone tempted to add frames back should
+ * read this paragraph first.
+ *
+ * A pure function of {@link skipHopIndex}'s parity, so it is decided by `stepsTaken` and the step's
+ * own progress — never by a clock, never by a counter that has to be replayed, and never by a random
+ * source (`Math.random` is banned repo-wide, G11). Standing still is unmirrored: that is the
+ * resting pose, and a player who stops does not keep half a gesture.
+ */
+export function skipFlipped(state: MovementState, skip: SkipConfig): boolean {
+  const hop = skipHopIndex(state, skip);
+  return hop >= 0 && hop % 2 === 1;
+}
+
+/**
+ * Lateral lean in world px — §9.6 step 4's *"1px lateral sway"*. SIGNED: negative leans left.
+ *
+ * SCREEN-X, not perpendicular-to-travel, and that follows from the ruling: the sprite never turns,
+ * so there is no on-screen "sideways relative to the character" that differs from left and right.
+ * It leans the way {@link skipFlipped} mirrors, so the sway and the flip are one gesture — a lean
+ * into the foot the silhouette has just put down — rather than two effects that happen to coincide.
+ *
+ * On the SAME `sin(πp)` envelope as the hop, so it starts and ends every tile step at zero and is
+ * bounded by `swayPx`. It is added to the DRAW position only; see this section's header for why
+ * `spriteWorldPosition` is deliberately left alone.
+ */
+export function skipSwayOffsetPx(state: MovementState, skip: SkipConfig): number {
+  if (!state.step) return 0;
+  const lean = skip.swayPx * Math.sin(Math.PI * hopPhase(state, skip));
+  return skipFlipped(state, skip) ? -lean : lean;
 }
 
 /** Teleport (a node transition): drop any step in flight and land clean on a tile. */

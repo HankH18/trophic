@@ -857,6 +857,15 @@ function fitWithin<T extends { width: number; height: number }>(
 
   const sized = image as T & { setDisplaySize?: (w: number, h: number) => unknown };
   if (typeof sized.setDisplaySize !== "function") return image;
+  /*
+   * ONE SCALE ON BOTH AXES — property 1 above, and the line is written this way on purpose.
+   * `setDisplaySize(width, height)` is the tempting shortening and it is a STRETCH: `scale` is the
+   * SMALLER of the two ratios, so the other axis is left short of the box by design. Filling the box
+   * on both axes is exactly the squash the header forbids, and `tests/unit/art-slot-fit.test.ts`
+   * cannot catch it today — every fixture it drives is a square texture in a square slot, where the
+   * two expressions agree. Reverted here once already; the comment is so it is not written a third
+   * time.
+   */
   sized.setDisplaySize(naturalW * scale, naturalH * scale);
   return image;
 }
