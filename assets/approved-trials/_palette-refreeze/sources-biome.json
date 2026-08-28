@@ -1,0 +1,20 @@
+[
+ {"id":"hearthollow","biome":"Meadow","class":"map-town","file":"assets/raw/map-town/map-hearthollow.png"},
+ {"id":"r1","biome":"Meadow","class":"map-route","file":"assets/raw/map-route/map-r1.png"},
+ {"id":"brackwater","biome":"Marsh","class":"map-town","file":"assets/raw/map-town/map-brackwater.png"},
+ {"id":"r2","biome":"Marsh","class":"map-route","file":"assets/raw/map-route/map-r2.png"},
+ {"id":"bowerdeep","biome":"Forest","class":"map-town","file":"assets/raw/map-town/map-bowerdeep.png"},
+ {"id":"r3","biome":"Forest","class":"map-route","file":"assets/raw/map-route/map-r3.png"},
+ {"id":"cindershelf","biome":"Steppe","class":"map-town","file":"assets/raw/map-town/map-cindershelf.png"},
+ {"id":"r4","biome":"Steppe","class":"map-route","file":"assets/raw/map-route/map-r4.png"},
+ {"id":"duskhollow","biome":"Vale","class":"map-town","file":"assets/raw/map-town/map-duskhollow.png"},
+ {"id":"r5","biome":"Vale","class":"map-route","file":"assets/raw/map-route/map-r5.png"},
+ {"id":"sanctum","biome":"Sanctum","class":"map-site","file":"assets/raw/map-site/map-sanctum.png"},
+ {"id":"sanctum-approach","biome":"Sanctum","class":"map-route","file":"assets/raw/map-route/map-sanctum-approach.png"},
+ {"id":"td-hearthollow-s7","biome":"Meadow","class":"map-topdown","file":"assets/raw/_trials/topdown-examples/hearthollow-s7.png"},
+ {"id":"td-hearthollow-s42","biome":"Meadow","class":"map-topdown","file":"assets/raw/_trials/topdown-examples/hearthollow-s42.png"},
+ {"id":"td-bowerdeep-s7","biome":"Forest","class":"map-topdown","file":"assets/raw/_trials/topdown-examples/bowerdeep-s7.png"},
+ {"id":"td-bowerdeep-s42","biome":"Forest","class":"map-topdown","file":"assets/raw/_trials/topdown-examples/bowerdeep-s42.png"},
+ {"id":"td-r1-s7","biome":"Meadow","class":"map-topdown","file":"assets/raw/_trials/topdown-examples/r1-s7.png"},
+ {"id":"td-r1-s42","biome":"Meadow","class":"map-topdown","file":"assets/raw/_trials/topdown-examples/r1-s42.png"}
+]

@@ -1,0 +1,305 @@
+{
+  "_comment": "PROPOSAL — NOT FROZEN. An APPEND-ONLY expansion of data/palette.json: c00-c31 are byte-identical to the frozen palette and only c32+ are new, so no existing slot changes meaning and no UI_SWATCH role needs re-pointing (the T-15 failure mode cannot occur). data/palette.json is untouched. Regenerate with `npx tsx assets/approved-trials/_palette-refreeze/expand.mjs` (deterministic, k-means++ seeded at 42 via core/rng.ts). Evidence in assets/approved-trials/_palette-refreeze/_fit-report.json.",
+  "_method": {
+    "algorithm": "augmenting weighted k-means: the frozen 32 are fixed centres, new centres are fitted only to the colour mass they serve worst; assignment is nearest-in-sRGB, exactly tools/postprocess/steps.ts::quantize",
+    "determinism": "k-means++ seeded at 42 via core/rng.ts (no Math.random, G11); re-running reproduces colors[] byte-identically",
+    "errorMetric": "CIEDE2000",
+    "countDerivation": "candidates added one at a time by largest MEASURED marginal reduction in weighted mean ΔE2000; stopped when the best remaining candidate was worth less than 0.05. The count was not chosen.",
+    "separationNote": "MIN_SEPARATION 5 is an anti-duplicate floor, NOT the redundancy test. A ΔE2000 separation threshold misfires in the dark end: #29272e is 7.8 ΔE from c30 #272940 yet is among the most valuable swatches available, because c30 is a navy and #29272e is neutral. Marginal value is measured directly instead.",
+    "sourcesExcluded": {
+      "assets/final/maps/**": "already quantized to the frozen palette (17-32 distinct colours measured) — fitting to these would fit the palette to itself",
+      "assets/reference/**": "FORBIDDEN. Pokemon reference images, inspiration-only per assets/reference/README.md; deriving our palette from them would bake another game's palette into this one.",
+      "assets/raw/_trials/topdown-examples/control-*.png": "ControlNet control images — black line art on white, 256 greyscale values, not colour art"
+    }
+  },
+  "_validation": {
+    "hearthollow": {
+      "meanDeltaE2000Before": 5.861,
+      "meanDeltaE2000After": 4.353,
+      "reductionPct": 25.7
+    },
+    "r1": {
+      "meanDeltaE2000Before": 5.408,
+      "meanDeltaE2000After": 4.235,
+      "reductionPct": 21.7
+    },
+    "brackwater": {
+      "meanDeltaE2000Before": 5.03,
+      "meanDeltaE2000After": 4.701,
+      "reductionPct": 6.5
+    },
+    "r2": {
+      "meanDeltaE2000Before": 7.5,
+      "meanDeltaE2000After": 5.313,
+      "reductionPct": 29.2
+    },
+    "bowerdeep": {
+      "meanDeltaE2000Before": 6.424,
+      "meanDeltaE2000After": 5.954,
+      "reductionPct": 7.3
+    },
+    "r3": {
+      "meanDeltaE2000Before": 6.759,
+      "meanDeltaE2000After": 5.765,
+      "reductionPct": 14.7
+    },
+    "cindershelf": {
+      "meanDeltaE2000Before": 8.9,
+      "meanDeltaE2000After": 3.293,
+      "reductionPct": 63
+    },
+    "r4": {
+      "meanDeltaE2000Before": 8.702,
+      "meanDeltaE2000After": 2.492,
+      "reductionPct": 71.4
+    },
+    "duskhollow": {
+      "meanDeltaE2000Before": 15.945,
+      "meanDeltaE2000After": 2.774,
+      "reductionPct": 82.6
+    },
+    "r5": {
+      "meanDeltaE2000Before": 11.495,
+      "meanDeltaE2000After": 5.888,
+      "reductionPct": 48.8
+    },
+    "sanctum": {
+      "meanDeltaE2000Before": 7.873,
+      "meanDeltaE2000After": 3.993,
+      "reductionPct": 49.3
+    },
+    "sanctum-approach": {
+      "meanDeltaE2000Before": 12.517,
+      "meanDeltaE2000After": 2.446,
+      "reductionPct": 80.5
+    },
+    "td-hearthollow-s7": {
+      "meanDeltaE2000Before": 4.709,
+      "meanDeltaE2000After": 3.876,
+      "reductionPct": 17.7
+    },
+    "td-hearthollow-s42": {
+      "meanDeltaE2000Before": 5.131,
+      "meanDeltaE2000After": 3.975,
+      "reductionPct": 22.5
+    },
+    "td-bowerdeep-s7": {
+      "meanDeltaE2000Before": 6.928,
+      "meanDeltaE2000After": 6.401,
+      "reductionPct": 7.6
+    },
+    "td-bowerdeep-s42": {
+      "meanDeltaE2000Before": 9.256,
+      "meanDeltaE2000After": 7.347,
+      "reductionPct": 20.6
+    },
+    "td-r1-s7": {
+      "meanDeltaE2000Before": 4.227,
+      "meanDeltaE2000After": 3.462,
+      "reductionPct": 18.1
+    },
+    "td-r1-s42": {
+      "meanDeltaE2000Before": 3.908,
+      "meanDeltaE2000After": 3.485,
+      "reductionPct": 10.8
+    }
+  },
+  "frozen": false,
+  "frozenAt": null,
+  "source": "PROPOSAL — append-only expansion over 18 raw biome-representative map sources, augmenting k-means seeded 42; nothing is swapped",
+  "colorCount": 48,
+  "colors": [
+    {
+      "id": "c00",
+      "hex": "#040308"
+    },
+    {
+      "id": "c01",
+      "hex": "#8898a5"
+    },
+    {
+      "id": "c02",
+      "hex": "#d2e0e2"
+    },
+    {
+      "id": "c03",
+      "hex": "#faf7eb"
+    },
+    {
+      "id": "c04",
+      "hex": "#321410"
+    },
+    {
+      "id": "c05",
+      "hex": "#642c16"
+    },
+    {
+      "id": "c06",
+      "hex": "#74564e"
+    },
+    {
+      "id": "c07",
+      "hex": "#8c5230"
+    },
+    {
+      "id": "c08",
+      "hex": "#c72a1b"
+    },
+    {
+      "id": "c09",
+      "hex": "#aa7241"
+    },
+    {
+      "id": "c10",
+      "hex": "#ca9164"
+    },
+    {
+      "id": "c11",
+      "hex": "#f3a262"
+    },
+    {
+      "id": "c12",
+      "hex": "#c8bca5"
+    },
+    {
+      "id": "c13",
+      "hex": "#efc57a"
+    },
+    {
+      "id": "c14",
+      "hex": "#f7c398"
+    },
+    {
+      "id": "c15",
+      "hex": "#f9dab4"
+    },
+    {
+      "id": "c16",
+      "hex": "#f8d80f"
+    },
+    {
+      "id": "c17",
+      "hex": "#054114"
+    },
+    {
+      "id": "c18",
+      "hex": "#37630f"
+    },
+    {
+      "id": "c19",
+      "hex": "#2d6f38"
+    },
+    {
+      "id": "c20",
+      "hex": "#6a9827"
+    },
+    {
+      "id": "c21",
+      "hex": "#49ae53"
+    },
+    {
+      "id": "c22",
+      "hex": "#89b935"
+    },
+    {
+      "id": "c23",
+      "hex": "#68cb6c"
+    },
+    {
+      "id": "c24",
+      "hex": "#9ecd42"
+    },
+    {
+      "id": "c25",
+      "hex": "#399985"
+    },
+    {
+      "id": "c26",
+      "hex": "#4cdab1"
+    },
+    {
+      "id": "c27",
+      "hex": "#73e3e7"
+    },
+    {
+      "id": "c28",
+      "hex": "#2178bb"
+    },
+    {
+      "id": "c29",
+      "hex": "#3da2d7"
+    },
+    {
+      "id": "c30",
+      "hex": "#272940"
+    },
+    {
+      "id": "c31",
+      "hex": "#303271"
+    },
+    {
+      "id": "c32",
+      "hex": "#111521"
+    },
+    {
+      "id": "c33",
+      "hex": "#28282d"
+    },
+    {
+      "id": "c34",
+      "hex": "#403d42"
+    },
+    {
+      "id": "c35",
+      "hex": "#5a595a"
+    },
+    {
+      "id": "c36",
+      "hex": "#7e7c7f"
+    },
+    {
+      "id": "c37",
+      "hex": "#abaaa9"
+    },
+    {
+      "id": "c38",
+      "hex": "#c58b42"
+    },
+    {
+      "id": "c39",
+      "hex": "#e1ab4e"
+    },
+    {
+      "id": "c40",
+      "hex": "#e9e2bf"
+    },
+    {
+      "id": "c41",
+      "hex": "#275126"
+    },
+    {
+      "id": "c42",
+      "hex": "#508323"
+    },
+    {
+      "id": "c43",
+      "hex": "#21415c"
+    },
+    {
+      "id": "c44",
+      "hex": "#385577"
+    },
+    {
+      "id": "c45",
+      "hex": "#13194d"
+    },
+    {
+      "id": "c46",
+      "hex": "#3a54b2"
+    },
+    {
+      "id": "c47",
+      "hex": "#4c72e9"
+    }
+  ]
+}

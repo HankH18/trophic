@@ -1,0 +1,843 @@
+{
+  "method": "augmenting weighted k-means: the frozen 32 are fixed centres, new centres are fitted only to the colour mass they serve worst; assignment is nearest-in-sRGB, exactly tools/postprocess/steps.ts::quantize",
+  "determinism": "k-means++ seeded at 42 via core/rng.ts (no Math.random, G11); re-running reproduces colors[] byte-identically",
+  "errorMetric": "CIEDE2000",
+  "countDerivation": "candidates added one at a time by largest MEASURED marginal reduction in weighted mean ΔE2000; stopped when the best remaining candidate was worth less than 0.05. The count was not chosen.",
+  "separationNote": "MIN_SEPARATION 5 is an anti-duplicate floor, NOT the redundancy test. A ΔE2000 separation threshold misfires in the dark end: #29272e is 7.8 ΔE from c30 #272940 yet is among the most valuable swatches available, because c30 is a navy and #29272e is neutral. Marginal value is measured directly instead.",
+  "sourcesExcluded": {
+    "assets/final/maps/**": "already quantized to the frozen palette (17-32 distinct colours measured) — fitting to these would fit the palette to itself",
+    "assets/reference/**": "FORBIDDEN. Pokemon reference images, inspiration-only per assets/reference/README.md; deriving our palette from them would bake another game's palette into this one.",
+    "assets/raw/_trials/topdown-examples/control-*.png": "ControlNet control images — black line art on white, 256 greyscale values, not colour art"
+  },
+  "sources": [
+    {
+      "id": "hearthollow",
+      "biome": "Meadow",
+      "class": "map-town",
+      "file": "assets/raw/map-town/map-hearthollow.png"
+    },
+    {
+      "id": "r1",
+      "biome": "Meadow",
+      "class": "map-route",
+      "file": "assets/raw/map-route/map-r1.png"
+    },
+    {
+      "id": "brackwater",
+      "biome": "Marsh",
+      "class": "map-town",
+      "file": "assets/raw/map-town/map-brackwater.png"
+    },
+    {
+      "id": "r2",
+      "biome": "Marsh",
+      "class": "map-route",
+      "file": "assets/raw/map-route/map-r2.png"
+    },
+    {
+      "id": "bowerdeep",
+      "biome": "Forest",
+      "class": "map-town",
+      "file": "assets/raw/map-town/map-bowerdeep.png"
+    },
+    {
+      "id": "r3",
+      "biome": "Forest",
+      "class": "map-route",
+      "file": "assets/raw/map-route/map-r3.png"
+    },
+    {
+      "id": "cindershelf",
+      "biome": "Steppe",
+      "class": "map-town",
+      "file": "assets/raw/map-town/map-cindershelf.png"
+    },
+    {
+      "id": "r4",
+      "biome": "Steppe",
+      "class": "map-route",
+      "file": "assets/raw/map-route/map-r4.png"
+    },
+    {
+      "id": "duskhollow",
+      "biome": "Vale",
+      "class": "map-town",
+      "file": "assets/raw/map-town/map-duskhollow.png"
+    },
+    {
+      "id": "r5",
+      "biome": "Vale",
+      "class": "map-route",
+      "file": "assets/raw/map-route/map-r5.png"
+    },
+    {
+      "id": "sanctum",
+      "biome": "Sanctum",
+      "class": "map-site",
+      "file": "assets/raw/map-site/map-sanctum.png"
+    },
+    {
+      "id": "sanctum-approach",
+      "biome": "Sanctum",
+      "class": "map-route",
+      "file": "assets/raw/map-route/map-sanctum-approach.png"
+    },
+    {
+      "id": "td-hearthollow-s7",
+      "biome": "Meadow",
+      "class": "map-topdown",
+      "file": "assets/raw/_trials/topdown-examples/hearthollow-s7.png"
+    },
+    {
+      "id": "td-hearthollow-s42",
+      "biome": "Meadow",
+      "class": "map-topdown",
+      "file": "assets/raw/_trials/topdown-examples/hearthollow-s42.png"
+    },
+    {
+      "id": "td-bowerdeep-s7",
+      "biome": "Forest",
+      "class": "map-topdown",
+      "file": "assets/raw/_trials/topdown-examples/bowerdeep-s7.png"
+    },
+    {
+      "id": "td-bowerdeep-s42",
+      "biome": "Forest",
+      "class": "map-topdown",
+      "file": "assets/raw/_trials/topdown-examples/bowerdeep-s42.png"
+    },
+    {
+      "id": "td-r1-s7",
+      "biome": "Meadow",
+      "class": "map-topdown",
+      "file": "assets/raw/_trials/topdown-examples/r1-s7.png"
+    },
+    {
+      "id": "td-r1-s42",
+      "biome": "Meadow",
+      "class": "map-topdown",
+      "file": "assets/raw/_trials/topdown-examples/r1-s42.png"
+    }
+  ],
+  "selection": [
+    {
+      "step": 1,
+      "hex": "#4c72e9",
+      "gain": 0.5755,
+      "meanAfter": 7.012,
+      "nearestFrozen": "c28",
+      "dEToFrozen": 10.08
+    },
+    {
+      "step": 2,
+      "hex": "#5a595a",
+      "gain": 0.4012,
+      "meanAfter": 6.6108,
+      "nearestFrozen": "c06",
+      "dEToFrozen": 13.03
+    },
+    {
+      "step": 3,
+      "hex": "#28282d",
+      "gain": 0.3359,
+      "meanAfter": 6.2749,
+      "nearestFrozen": "c30",
+      "dEToFrozen": 9.15
+    },
+    {
+      "step": 4,
+      "hex": "#403d42",
+      "gain": 0.2508,
+      "meanAfter": 6.0241,
+      "nearestFrozen": "c30",
+      "dEToFrozen": 11.09
+    },
+    {
+      "step": 5,
+      "hex": "#abaaa9",
+      "gain": 0.2481,
+      "meanAfter": 5.776,
+      "nearestFrozen": "c01",
+      "dEToFrozen": 10.69
+    },
+    {
+      "step": 6,
+      "hex": "#e1ab4e",
+      "gain": 0.2069,
+      "meanAfter": 5.5691,
+      "nearestFrozen": "c13",
+      "dEToFrozen": 7.21
+    },
+    {
+      "step": 7,
+      "hex": "#508323",
+      "gain": 0.1904,
+      "meanAfter": 5.3787,
+      "nearestFrozen": "c20",
+      "dEToFrozen": 8.33
+    },
+    {
+      "step": 8,
+      "hex": "#275126",
+      "gain": 0.1873,
+      "meanAfter": 5.1914,
+      "nearestFrozen": "c17",
+      "dEToFrozen": 5.8
+    },
+    {
+      "step": 9,
+      "hex": "#13194d",
+      "gain": 0.1296,
+      "meanAfter": 5.0618,
+      "nearestFrozen": "c31",
+      "dEToFrozen": 8.46
+    },
+    {
+      "step": 10,
+      "hex": "#3a54b2",
+      "gain": 0.1272,
+      "meanAfter": 4.9346,
+      "nearestFrozen": "c31",
+      "dEToFrozen": 13.6
+    },
+    {
+      "step": 11,
+      "hex": "#e9e2bf",
+      "gain": 0.1233,
+      "meanAfter": 4.8113,
+      "nearestFrozen": "c03",
+      "dEToFrozen": 9.12
+    },
+    {
+      "step": 12,
+      "hex": "#21415c",
+      "gain": 0.1122,
+      "meanAfter": 4.6991,
+      "nearestFrozen": "c31",
+      "dEToFrozen": 9.97
+    },
+    {
+      "step": 13,
+      "hex": "#7e7c7f",
+      "gain": 0.0839,
+      "meanAfter": 4.6152,
+      "nearestFrozen": "c01",
+      "dEToFrozen": 12.28
+    },
+    {
+      "step": 14,
+      "hex": "#c58b42",
+      "gain": 0.0736,
+      "meanAfter": 4.5416,
+      "nearestFrozen": "c10",
+      "dEToFrozen": 6.91
+    },
+    {
+      "step": 15,
+      "hex": "#111521",
+      "gain": 0.0565,
+      "meanAfter": 4.4851,
+      "nearestFrozen": "c00",
+      "dEToFrozen": 6.81
+    },
+    {
+      "step": 16,
+      "hex": "#385577",
+      "gain": 0.0543,
+      "meanAfter": 4.4308,
+      "nearestFrozen": "c31",
+      "dEToFrozen": 12.43
+    }
+  ],
+  "baselineMeanDeltaE2000": 7.5875,
+  "expandedMeanDeltaE2000": 4.4308,
+  "reductionPct": 41.6,
+  "sourceMassReassignedToNewSwatchPct": 47.8,
+  "perImage": [
+    {
+      "id": "hearthollow",
+      "biome": "Meadow",
+      "file": "assets/raw/map-town/map-hearthollow.png",
+      "distinct": 354513,
+      "before": 5.861,
+      "after": 4.353,
+      "reductionPct": 25.7
+    },
+    {
+      "id": "r1",
+      "biome": "Meadow",
+      "file": "assets/raw/map-route/map-r1.png",
+      "distinct": 267552,
+      "before": 5.408,
+      "after": 4.235,
+      "reductionPct": 21.7
+    },
+    {
+      "id": "brackwater",
+      "biome": "Marsh",
+      "file": "assets/raw/map-town/map-brackwater.png",
+      "distinct": 263438,
+      "before": 5.03,
+      "after": 4.701,
+      "reductionPct": 6.5
+    },
+    {
+      "id": "r2",
+      "biome": "Marsh",
+      "file": "assets/raw/map-route/map-r2.png",
+      "distinct": 316163,
+      "before": 7.5,
+      "after": 5.313,
+      "reductionPct": 29.2
+    },
+    {
+      "id": "bowerdeep",
+      "biome": "Forest",
+      "file": "assets/raw/map-town/map-bowerdeep.png",
+      "distinct": 256299,
+      "before": 6.424,
+      "after": 5.954,
+      "reductionPct": 7.3
+    },
+    {
+      "id": "r3",
+      "biome": "Forest",
+      "file": "assets/raw/map-route/map-r3.png",
+      "distinct": 250769,
+      "before": 6.759,
+      "after": 5.765,
+      "reductionPct": 14.7
+    },
+    {
+      "id": "cindershelf",
+      "biome": "Steppe",
+      "file": "assets/raw/map-town/map-cindershelf.png",
+      "distinct": 112196,
+      "before": 8.9,
+      "after": 3.293,
+      "reductionPct": 63
+    },
+    {
+      "id": "r4",
+      "biome": "Steppe",
+      "file": "assets/raw/map-route/map-r4.png",
+      "distinct": 57602,
+      "before": 8.702,
+      "after": 2.492,
+      "reductionPct": 71.4
+    },
+    {
+      "id": "duskhollow",
+      "biome": "Vale",
+      "file": "assets/raw/map-town/map-duskhollow.png",
+      "distinct": 144230,
+      "before": 15.945,
+      "after": 2.774,
+      "reductionPct": 82.6
+    },
+    {
+      "id": "r5",
+      "biome": "Vale",
+      "file": "assets/raw/map-route/map-r5.png",
+      "distinct": 191809,
+      "before": 11.495,
+      "after": 5.888,
+      "reductionPct": 48.8
+    },
+    {
+      "id": "sanctum",
+      "biome": "Sanctum",
+      "file": "assets/raw/map-site/map-sanctum.png",
+      "distinct": 163528,
+      "before": 7.873,
+      "after": 3.993,
+      "reductionPct": 49.3
+    },
+    {
+      "id": "sanctum-approach",
+      "biome": "Sanctum",
+      "file": "assets/raw/map-route/map-sanctum-approach.png",
+      "distinct": 14883,
+      "before": 12.517,
+      "after": 2.446,
+      "reductionPct": 80.5
+    },
+    {
+      "id": "td-hearthollow-s7",
+      "biome": "Meadow",
+      "file": "assets/raw/_trials/topdown-examples/hearthollow-s7.png",
+      "distinct": 198363,
+      "before": 4.709,
+      "after": 3.876,
+      "reductionPct": 17.7
+    },
+    {
+      "id": "td-hearthollow-s42",
+      "biome": "Meadow",
+      "file": "assets/raw/_trials/topdown-examples/hearthollow-s42.png",
+      "distinct": 182450,
+      "before": 5.131,
+      "after": 3.975,
+      "reductionPct": 22.5
+    },
+    {
+      "id": "td-bowerdeep-s7",
+      "biome": "Forest",
+      "file": "assets/raw/_trials/topdown-examples/bowerdeep-s7.png",
+      "distinct": 219417,
+      "before": 6.928,
+      "after": 6.401,
+      "reductionPct": 7.6
+    },
+    {
+      "id": "td-bowerdeep-s42",
+      "biome": "Forest",
+      "file": "assets/raw/_trials/topdown-examples/bowerdeep-s42.png",
+      "distinct": 269048,
+      "before": 9.256,
+      "after": 7.347,
+      "reductionPct": 20.6
+    },
+    {
+      "id": "td-r1-s7",
+      "biome": "Meadow",
+      "file": "assets/raw/_trials/topdown-examples/r1-s7.png",
+      "distinct": 146648,
+      "before": 4.227,
+      "after": 3.462,
+      "reductionPct": 18.1
+    },
+    {
+      "id": "td-r1-s42",
+      "biome": "Meadow",
+      "file": "assets/raw/_trials/topdown-examples/r1-s42.png",
+      "distinct": 170753,
+      "before": 3.908,
+      "after": 3.485,
+      "reductionPct": 10.8
+    }
+  ],
+  "perBiome": [
+    {
+      "biome": "Meadow",
+      "before": 4.874,
+      "after": 3.898,
+      "reductionPct": 20
+    },
+    {
+      "biome": "Marsh",
+      "before": 6.265,
+      "after": 5.007,
+      "reductionPct": 20.1
+    },
+    {
+      "biome": "Forest",
+      "before": 7.342,
+      "after": 6.367,
+      "reductionPct": 13.3
+    },
+    {
+      "biome": "Steppe",
+      "before": 8.801,
+      "after": 2.893,
+      "reductionPct": 67.1
+    },
+    {
+      "biome": "Vale",
+      "before": 13.72,
+      "after": 4.331,
+      "reductionPct": 68.4
+    },
+    {
+      "biome": "Sanctum",
+      "before": 10.195,
+      "after": 3.219,
+      "reductionPct": 68.4
+    }
+  ],
+  "neutralGreyAxis": [
+    {
+      "L": 5,
+      "before": 3.2,
+      "after": 3.2,
+      "winner": "#040308",
+      "winnerIsNew": false
+    },
+    {
+      "L": 10,
+      "before": 5.8,
+      "after": 5.3,
+      "winner": "#28282d",
+      "winnerIsNew": true
+    },
+    {
+      "L": 15,
+      "before": 8.9,
+      "after": 3.6,
+      "winner": "#28282d",
+      "winnerIsNew": true
+    },
+    {
+      "L": 20,
+      "before": 12.2,
+      "after": 4.3,
+      "winner": "#28282d",
+      "winnerIsNew": true
+    },
+    {
+      "L": 25,
+      "before": 13.5,
+      "after": 4.1,
+      "winner": "#403d42",
+      "winnerIsNew": true
+    },
+    {
+      "L": 30,
+      "before": 15.4,
+      "after": 5,
+      "winner": "#403d42",
+      "winnerIsNew": true
+    },
+    {
+      "L": 35,
+      "before": 13.9,
+      "after": 2.7,
+      "winner": "#5a595a",
+      "winnerIsNew": true
+    },
+    {
+      "L": 40,
+      "before": 13.4,
+      "after": 2,
+      "winner": "#5a595a",
+      "winnerIsNew": true
+    },
+    {
+      "L": 45,
+      "before": 14.3,
+      "after": 6.4,
+      "winner": "#5a595a",
+      "winnerIsNew": true
+    },
+    {
+      "L": 50,
+      "before": 13.7,
+      "after": 3.2,
+      "winner": "#7e7c7f",
+      "winnerIsNew": true
+    },
+    {
+      "L": 55,
+      "before": 10.2,
+      "after": 3.5,
+      "winner": "#7e7c7f",
+      "winnerIsNew": true
+    },
+    {
+      "L": 60,
+      "before": 8.2,
+      "after": 7.6,
+      "winner": "#7e7c7f",
+      "winnerIsNew": true
+    },
+    {
+      "L": 65,
+      "before": 8.4,
+      "after": 3.8,
+      "winner": "#abaaa9",
+      "winnerIsNew": true
+    },
+    {
+      "L": 70,
+      "before": 10.3,
+      "after": 0.7,
+      "winner": "#abaaa9",
+      "winnerIsNew": true
+    },
+    {
+      "L": 75,
+      "before": 10.2,
+      "after": 4.1,
+      "winner": "#abaaa9",
+      "winnerIsNew": true
+    },
+    {
+      "L": 80,
+      "before": 8.1,
+      "after": 7.6,
+      "winner": "#abaaa9",
+      "winnerIsNew": true
+    },
+    {
+      "L": 85,
+      "before": 6.3,
+      "after": 6.3,
+      "winner": "#d2e0e2",
+      "winnerIsNew": false
+    },
+    {
+      "L": 90,
+      "before": 6.1,
+      "after": 6.1,
+      "winner": "#d2e0e2",
+      "winnerIsNew": false
+    },
+    {
+      "L": 95,
+      "before": 5.7,
+      "after": 5.7,
+      "winner": "#faf7eb",
+      "winnerIsNew": false
+    }
+  ],
+  "midTanOchreAxis": [
+    {
+      "L": 30,
+      "before": 9.2,
+      "after": 9.2,
+      "winner": "#642c16",
+      "winnerIsNew": false
+    },
+    {
+      "L": 35,
+      "before": 8.3,
+      "after": 8.3,
+      "winner": "#8c5230",
+      "winnerIsNew": false
+    },
+    {
+      "L": 40,
+      "before": 6.6,
+      "after": 6.6,
+      "winner": "#8c5230",
+      "winnerIsNew": false
+    },
+    {
+      "L": 45,
+      "before": 7.5,
+      "after": 7.5,
+      "winner": "#8c5230",
+      "winnerIsNew": false
+    },
+    {
+      "L": 50,
+      "before": 6.6,
+      "after": 6.6,
+      "winner": "#aa7241",
+      "winnerIsNew": false
+    },
+    {
+      "L": 55,
+      "before": 6.3,
+      "after": 6.3,
+      "winner": "#aa7241",
+      "winnerIsNew": false
+    },
+    {
+      "L": 60,
+      "before": 6.3,
+      "after": 6.3,
+      "winner": "#ca9164",
+      "winnerIsNew": false
+    },
+    {
+      "L": 65,
+      "before": 4.8,
+      "after": 4.8,
+      "winner": "#ca9164",
+      "winnerIsNew": false
+    },
+    {
+      "L": 70,
+      "before": 6.4,
+      "after": 6.4,
+      "winner": "#ca9164",
+      "winnerIsNew": false
+    },
+    {
+      "L": 75,
+      "before": 6,
+      "after": 6,
+      "winner": "#f7c398",
+      "winnerIsNew": false
+    },
+    {
+      "L": 80,
+      "before": 3.3,
+      "after": 3.3,
+      "winner": "#f7c398",
+      "winnerIsNew": false
+    },
+    {
+      "L": 85,
+      "before": 3.4,
+      "after": 3.4,
+      "winner": "#f7c398",
+      "winnerIsNew": false
+    }
+  ],
+  "appended": [
+    {
+      "id": "c32",
+      "hex": "#111521",
+      "role": "deepest shadow under stone and canopy — sits between c00 and the slate ramp",
+      "L": 6.9,
+      "chroma": 9.1,
+      "nearestFrozen": "c00",
+      "dEToNearestFrozen": 6.81,
+      "maxChannelDeviationFromWhite": 238
+    },
+    {
+      "id": "c33",
+      "hex": "#28282d",
+      "role": "basalt shadow (Cindershelf, Sanctum) — the mass that used to land on the c30 navy",
+      "L": 16.3,
+      "chroma": 3.5,
+      "nearestFrozen": "c30",
+      "dEToNearestFrozen": 9.15,
+      "maxChannelDeviationFromWhite": 215
+    },
+    {
+      "id": "c34",
+      "hex": "#403d42",
+      "role": "dark slate — wall shadow, wet rock",
+      "L": 26.2,
+      "chroma": 3.5,
+      "nearestFrozen": "c30",
+      "dEToNearestFrozen": 11.09,
+      "maxChannelDeviationFromWhite": 194
+    },
+    {
+      "id": "c35",
+      "hex": "#5a595a",
+      "role": "mid-dark stone — the single largest hole in the frozen palette",
+      "L": 37.9,
+      "chroma": 0.7,
+      "nearestFrozen": "c06",
+      "dEToNearestFrozen": 13.03,
+      "maxChannelDeviationFromWhite": 166
+    },
+    {
+      "id": "c36",
+      "hex": "#7e7c7f",
+      "role": "mid stone / ash — dry path, cut block",
+      "L": 52.3,
+      "chroma": 1.9,
+      "nearestFrozen": "c01",
+      "dEToNearestFrozen": 12.28,
+      "maxChannelDeviationFromWhite": 131
+    },
+    {
+      "id": "c37",
+      "hex": "#abaaa9",
+      "role": "light stone / dry dirt path in sun",
+      "L": 69.7,
+      "chroma": 0.7,
+      "nearestFrozen": "c01",
+      "dEToNearestFrozen": 10.69,
+      "maxChannelDeviationFromWhite": 86
+    },
+    {
+      "id": "c38",
+      "hex": "#c58b42",
+      "role": "mid ochre — timber, thatch in shade",
+      "L": 62.3,
+      "chroma": 49.1,
+      "nearestFrozen": "c10",
+      "dEToNearestFrozen": 6.91,
+      "maxChannelDeviationFromWhite": 189
+    },
+    {
+      "id": "c39",
+      "hex": "#e1ab4e",
+      "role": "lit ochre — thatch and dry grass in sun",
+      "L": 73.3,
+      "chroma": 55.2,
+      "nearestFrozen": "c13",
+      "dEToNearestFrozen": 7.21,
+      "maxChannelDeviationFromWhite": 177
+    },
+    {
+      "id": "c40",
+      "hex": "#e9e2bf",
+      "role": "pale sand / bleached stone — warm high-key ground",
+      "L": 89.6,
+      "chroma": 18.3,
+      "nearestFrozen": "c03",
+      "dEToNearestFrozen": 9.12,
+      "maxChannelDeviationFromWhite": 64
+    },
+    {
+      "id": "c41",
+      "hex": "#275126",
+      "role": "deep canopy shadow",
+      "L": 30.5,
+      "chroma": 32.4,
+      "nearestFrozen": "c17",
+      "dEToNearestFrozen": 5.8,
+      "maxChannelDeviationFromWhite": 217
+    },
+    {
+      "id": "c42",
+      "hex": "#508323",
+      "role": "mid canopy green",
+      "L": 49.6,
+      "chroma": 55.5,
+      "nearestFrozen": "c20",
+      "dEToNearestFrozen": 8.33,
+      "maxChannelDeviationFromWhite": 220
+    },
+    {
+      "id": "c43",
+      "hex": "#21415c",
+      "role": "deep still water",
+      "L": 26.4,
+      "chroma": 19.8,
+      "nearestFrozen": "c31",
+      "dEToNearestFrozen": 9.97,
+      "maxChannelDeviationFromWhite": 222
+    },
+    {
+      "id": "c44",
+      "hex": "#385577",
+      "role": "dusk water / distant ridge haze",
+      "L": 35.3,
+      "chroma": 22.6,
+      "nearestFrozen": "c31",
+      "dEToNearestFrozen": 12.43,
+      "maxChannelDeviationFromWhite": 199
+    },
+    {
+      "id": "c45",
+      "hex": "#13194d",
+      "role": "night depth — Vale sky at its darkest",
+      "L": 11.8,
+      "chroma": 37.3,
+      "nearestFrozen": "c31",
+      "dEToNearestFrozen": 8.46,
+      "maxChannelDeviationFromWhite": 236
+    },
+    {
+      "id": "c46",
+      "hex": "#3a54b2",
+      "role": "deep dusk blue",
+      "L": 38.6,
+      "chroma": 57.3,
+      "nearestFrozen": "c31",
+      "dEToNearestFrozen": 13.6,
+      "maxChannelDeviationFromWhite": 197
+    },
+    {
+      "id": "c47",
+      "hex": "#4c72e9",
+      "role": "dusk water and Vale sky — the single largest error source in the frozen palette",
+      "L": 51.2,
+      "chroma": 69,
+      "nearestFrozen": "c28",
+      "dEToNearestFrozen": 10.08,
+      "maxChannelDeviationFromWhite": 179
+    }
+  ],
+  "colorsSha256": "08307a8d42a44b378fbf47d676339cd18e49b11447693416bcb7277b108d3b62",
+  "frozenPrefixUnchanged": true
+}
