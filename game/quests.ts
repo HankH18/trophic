@@ -41,12 +41,14 @@ import {
   DIALOGUE,
   externallyGrantedFlags,
   flagsWritten,
+  speakerById,
   type DialogueFile,
   type FlagValue,
 } from "@core/dialogue-schema";
 import { seasonOf } from "@core/clock";
 import { applyRelease, toNodeState } from "@core/ecosim";
 import {
+  flagBelongsToQuest,
   flagIsSet,
   hasRetired,
   objectiveHolds,
@@ -420,6 +422,24 @@ export interface QuestReport {
   objective: QuestObjective | null;
   met: boolean;
   owedFlag: string | null;
+  /**
+   * Who closes this quest, and where they stand — `QuestDefinition.giver` / `.node`, with the
+   * giver put through the corpus's own speaker table so a readout can print the name the player
+   * hears rather than the id the flags are keyed by.
+   *
+   * ⚠ THE REPORT CARRIED NEITHER, AND THAT IS WHY A TURNED-IN QUEST COULD NOT BE ANNOUNCED.
+   * `questStage` returns `"turnedIn"` for exactly the window in which the player has done the work
+   * and has not yet walked back — the one moment the tracker has something to TELL them — and the
+   * only thing that window needs to say is a name and a place. Both are already resolved by
+   * `core/quests.ts` out of the corpus's first entry for the quest; they simply stopped here.
+   */
+  giver: string;
+  node: string;
+}
+
+/** The name the corpus gives a speaker, or the id when it names nobody by that id. */
+function speakerLabel(file: DialogueFile, id: string): string {
+  return speakerById(file, id)?.name ?? id;
 }
 
 /** Every quest, with where it stands and whether its objective is met right now. */
@@ -437,8 +457,72 @@ export function questReports(
       objective: objective ?? null,
       met: objective === undefined ? false : objectiveHolds(objective, questWorld(save, content, def, file)),
       owedFlag: def.owedFlag,
+      giver: speakerLabel(file, def.giver),
+      node: def.node,
     };
   });
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * What a write is CALLED — the corpus's name for it, not the flag's
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * What the corpus calls the thing this flag records, or `null` when it calls it nothing.
+ *
+ * ⚠ THE SCREEN USED TO PRINT THE FLAG KEY, and a flag key is the codebase's name for a fact, never
+ * the player's. Measured: reading the antler stone on Meadow Reach closed a hand-written paragraph
+ * about a cut stone and then flashed `chain.vellsire.step2 trail.stone.r1` — two dotted identifiers
+ * naming a namespace, a chain and a step number, none of which appears anywhere the player can have
+ * read them. The write itself is worth announcing; the KEY is not what was written about.
+ *
+ * Everything this returns is transcribed, never composed: the corpus's own `signChain` (declared by
+ * the prop placements in `data/nodes/*` and echoed on the entry), its own `chainStep`, its own
+ * `quest` id. Nothing is invented (G2) and nothing is a verdict (G7) — it is the name of the thing
+ * that moved.
+ *
+ * `null` IS A REAL ANSWER AND MUST STAY ONE. `story.opening.done` is written by a cutscene that
+ * declares neither a chain nor a quest, so the corpus offers no other word for it; inventing one
+ * would be inventing content. The caller prints the key in that case, because a write that is not
+ * announced at all is worse than one announced in the wrong vocabulary.
+ */
+export function writeLabel(key: string, file: DialogueFile = DIALOGUE): string | null {
+  // FILE ORDER DECIDES, exactly as `core/quests.ts` `questDefinition` makes it decide for `owedFlag`:
+  // the walk is over `file.entries` as authored, so a key two entries write is named by the earlier
+  // one — the step that introduces it — rather than by whichever the alphabet happens to put first.
+  for (const entry of file.entries) {
+    const writes =
+      Object.prototype.hasOwnProperty.call(entry.setFlags ?? {}, key) ||
+      (entry.choices ?? []).some((c) => Object.prototype.hasOwnProperty.call(c.setFlags ?? {}, key));
+    if (!writes) continue;
+    if (entry.signChain !== undefined) {
+      return entry.chainStep === undefined ? entry.signChain : `${entry.signChain} step ${String(entry.chainStep)}`;
+    }
+    if (entry.quest !== undefined) return entry.quest;
+  }
+  // Written by the tracker rather than by a line — `quest.<id>.turnin` and its siblings. The quest
+  // is still the thing that moved, and `core/quests.ts` owns the containment test.
+  for (const def of questDefinitions(file)) {
+    if (flagBelongsToQuest(key, def.id)) return def.id;
+  }
+  return null;
+}
+
+/**
+ * The one sentence a finished dialogue run's writes are reported as — the corpus's names for them,
+ * in write order, without repeats.
+ *
+ * Deduplicated because one entry commonly writes two keys for one event: the antler stone stamps
+ * both its chain step and its trail stone, and printing the same name twice would say a thing
+ * happened twice.
+ */
+export function writeLabels(keys: readonly string[], file: DialogueFile = DIALOGUE): string[] {
+  const out: string[] = [];
+  for (const key of keys) {
+    const label = writeLabel(key, file) ?? key;
+    if (!out.includes(label)) out.push(label);
+  }
+  return out;
 }
 
 /** Drop keys from a save's quest flags. The only place this module UNSETS anything. */

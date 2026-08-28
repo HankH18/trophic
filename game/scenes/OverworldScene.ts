@@ -71,6 +71,7 @@ import type {
   GameAction,
   GymLeader,
   NodeFile,
+  PropPlacement,
   RivalEncounter,
   SaveFile,
   Season,
@@ -186,6 +187,7 @@ import {
   transcript,
   type DialogueRunState,
 } from "../dialogue-runner";
+import type { DialogueEntry } from "../../core/dialogue-schema";
 import {
   buildRivalBattle,
   rivalAtNode,
@@ -214,6 +216,7 @@ import {
   releaseIntoNode,
   stillOwed,
   syncQuestFlags,
+  writeLabels,
 } from "../quests";
 import { propAt, propLabel, propsOf } from "../props";
 import { createDialogueScene, type DialogueSceneData } from "./DialogueScene";
@@ -301,6 +304,18 @@ const BATTLE_STREAM = "battle";
 const VENDOR_ROLE = "vendor";
 
 /**
+ * The two sentences [E] answers with when it has nothing to give, spelled ONCE.
+ *
+ * They are not decoration: {@link OverworldScene.refreshHud} prints the very same string the press
+ * would, so that the advertisement and the behaviour cannot drift — the discipline `[X]` and `[R]`
+ * already keep by sharing `releaseRefusal` / `restRefusal` with their keys. Two spellings of the
+ * same refusal is how a HUD comes to promise a read that the key then declines (G7: it names the
+ * thing and stops; there is no verdict in either).
+ */
+const NOTHING_MORE_TO_READ = "nothing more to read";
+const NOBODY_TO_TALK_TO = "nobody has anything to say";
+
+/**
  * The snare tier Hank's ruling grants at the fifth gym. `game/shop.ts` names the same tier as the
  * one it does NOT sell (`UNSOLD_TIER`), out of the same vocabulary: `SnareTier` is core's own, so a
  * retune that renames a tier is a compile error here rather than a grant of an item that does not
@@ -331,6 +346,17 @@ const MASTER_GRANT_GYM = "noct";
  * number here: three is a gameplay constant and G11 gives it exactly one home.
  */
 const MASTER_GRANT_KEY = "masterSnareGrant";
+
+/**
+ * The name the corpus gives a speaker, or the string unchanged when it names nobody by it.
+ *
+ * `finishDialogue` is handed `who` as a speaker id for a person and as a prop's authored label for
+ * a thing, and only one of those two is already something the player has read. The speaker table is
+ * the corpus's own (`data/dialogue.json` `speakers[]`), so this transcribes and never invents (G2).
+ */
+function speakerName(who: string): string {
+  return DIALOGUE.speakers.find((s) => s.id === who)?.name ?? who;
+}
 
 /**
  * The shopkeeper an interior anchor's entry belongs to, or null when nobody who sells anything is on
@@ -2105,6 +2131,32 @@ export class OverworldScene extends Phaser.Scene {
   }
 
   /**
+   * What [E] would read from where the player is standing: the prop in reach, and the entry the
+   * corpus has ready for it — `undefined` when it has none left.
+   *
+   * ⚠ ONE READER FOR THE KEY AND FOR THE LINE THAT ADVERTISES IT, on the terms `[X]` and `[R]`
+   * already work: {@link releaseRefusal} and {@link restRefusal} are each asked by both the key and
+   * the HUD, so the advertisement cannot drift from the behaviour. The prop branch was the one that
+   * still asked the question twice, differently — the HUD asked only "is a prop in reach", offered
+   * `[E] read <label>` on the strength of it, and {@link interact} then answered the press with
+   * "— nothing more to read" because the corpus's entry for that prop had latched itself shut. The
+   * latch is correct and stays (it is what stops a chain flag being written twice); what was wrong
+   * is that the screen promised a read the key would refuse.
+   *
+   * Indoors this returns null by construction, for {@link interactIndoors}'s reason: the town's
+   * props are not in reach from inside a room, so neither the key nor the HUD may offer one.
+   */
+  private propReadHere(): { prop: PropPlacement; entry: DialogueEntry | undefined } | null {
+    if (this.interior !== null) return null;
+    const prop = this.propUnderPlayer();
+    if (!prop) return null;
+    return {
+      prop,
+      entry: this.tryDialogue(() => propDialogueFor(DIALOGUE, prop.id, this.node.id, this.dialogueCtx())),
+    };
+  }
+
+  /**
    * [E] — READ WHAT IS HERE.
    *
    * A prop wins over a person: the player walked to the antler stone on purpose, and a room-wide
@@ -2127,20 +2179,17 @@ export class OverworldScene extends Phaser.Scene {
       return;
     }
 
-    const prop = this.propUnderPlayer();
-    if (prop) {
-      const entry = this.tryDialogue(() => propDialogueFor(DIALOGUE, prop.id, this.node.id, this.dialogueCtx()));
-      if (entry) {
-        this.playEntry(entry.id, propLabel(prop));
+    const here = this.propReadHere();
+    if (here) {
+      if (here.entry) {
+        this.playEntry(here.entry.id, propLabel(here.prop));
         return;
       }
-      this.flashBanner(`${propLabel(prop)} — nothing more to read`);
+      this.flashBanner(`${propLabel(here.prop)} — ${NOTHING_MORE_TO_READ}`);
       return;
     }
 
-    const talk = this.tryDialogue(() =>
-      talkEntryFor(DIALOGUE, this.node.id, this.dialogueCtx(), this.spokenHere),
-    );
+    const talk = this.talkHere();
     if (talk) {
       // Remembered so the NEXT press gets the next thing the room has to say. See `talkEntryFor`:
       // without this, one permanently-eligible high-priority line starves every chain step under it.
@@ -2148,7 +2197,19 @@ export class OverworldScene extends Phaser.Scene {
       this.playEntry(talk.id, talk.speaker);
       return;
     }
-    this.flashBanner(`${this.node.id} — nobody has anything to say`);
+    this.flashBanner(`${this.node.id} — ${NOBODY_TO_TALK_TO}`);
+  }
+
+  /**
+   * What [E] would say when no prop is in reach — the room's next line, or `undefined`.
+   *
+   * Split out for {@link propReadHere}'s reason exactly: the HUD offered `[E] talk` from the bare
+   * fact that no prop was under the player, which is the same promise made without asking whether
+   * anybody is answering. A late-act node at act 1 has nothing eligible and the press says so; the
+   * line above it said "talk".
+   */
+  private talkHere(): DialogueEntry | undefined {
+    return this.tryDialogue(() => talkEntryFor(DIALOGUE, this.node.id, this.dialogueCtx(), this.spokenHere));
   }
 
   /**
@@ -2337,8 +2398,29 @@ export class OverworldScene extends Phaser.Scene {
     this.hudDirty = true;
     this.refreshHud();
     this.hooks.onSaveChanged?.(this.save, this);
-    const wrote = Object.keys(state.flags);
-    if (wrote.length > 0) this.flashBanner(`${who} · ${wrote.join(" ")}`);
+    /*
+     * WHAT THE BEAT WROTE, IN THE CORPUS'S WORDS RATHER THAN THE FLAG TABLE'S.
+     *
+     * ⚠ THIS LINE USED TO PRINT THE KEYS. Measured on Meadow Reach: the antler stone closed a
+     * hand-written paragraph about a cut stone and the screen then said
+     * `antler stone on the north rise · chain.vellsire.step2 trail.stone.r1` — two dotted
+     * identifiers naming a namespace and a step number that appear nowhere a player can have read
+     * them, and TWO of them for one event, because that entry stamps its chain step and its trail
+     * stone together.
+     *
+     * `game/quests.ts` `writeLabels` resolves each key to what the corpus itself calls the thing
+     * that moved — its `signChain` and `chainStep`, or its `quest` — and drops the repeat, so the
+     * same press now reads `antler stone on the north rise · vellsire-chain step 2`. Nothing is
+     * composed: a key the corpus names in no other way keeps its key, because a write nobody is
+     * told about is worse than one told about in the wrong vocabulary, and inventing a word for it
+     * would be inventing content (G2).
+     *
+     * `who` goes through the speaker table for the same reason — `tolm` is the id the flags are
+     * keyed by, `Tolm` is the name the player heard. A prop label is already prose and passes
+     * straight through.
+     */
+    const wrote = writeLabels(Object.keys(state.flags));
+    if (wrote.length > 0) this.flashBanner(`${speakerName(who)} · ${wrote.join(" · ")}`);
     // A chain of cutscenes (the opening beat runs straight into the two tutorials) plays through
     // rather than making the player press a key nothing tells them about.
     this.playPendingCutscene();
@@ -4050,7 +4132,6 @@ export class OverworldScene extends Phaser.Scene {
       // Indoors the town's props are out of reach by construction — `interact` does not ask for
       // them — so the HUD must not offer one either, or [E] promises something it will not do.
       const inside = this.interior;
-      const prop = inside === null ? this.propUnderPlayer() : null;
       const props = propsOf(this.node);
       if (inside !== null) {
         const tile = this.movement.tile;
@@ -4059,16 +4140,51 @@ export class OverworldScene extends Phaser.Scene {
           `[E] ${anchor ? anchor.id : "nothing here"} · anchors ${String(inside.anchors.length)} in ${inside.id}`,
         );
       } else {
+        /*
+         * THE SAME TWO READERS THE KEY USES, for the reason the line above states and one branch
+         * over. `[E] read <label>` was offered from "a prop is in reach" alone, and `[E] talk` from
+         * "no prop is in reach" alone — neither of which is the question {@link interact} asks. Both
+         * now print the sentence the press would print, out of the press's own reader, so the two
+         * cannot drift: `[E] antler stone on the north rise — nothing more to read` is exactly what
+         * the key answers with, and a stone the player has already read stops advertising a read.
+         */
+        const here = this.propReadHere();
+        const offer = here
+          ? here.entry
+            ? `read ${propLabel(here.prop)}`
+            : `${propLabel(here.prop)} — ${NOTHING_MORE_TO_READ}`
+          : this.talkHere()
+            ? "talk"
+            : NOBODY_TO_TALK_TO;
         lines.push(
-          `[E] ${prop ? `read ${propLabel(prop)}` : "talk"} · props ${String(props.length)} here` +
+          `[E] ${offer} · props ${String(props.length)} here` +
             ` · cards ${String(new Set(linesMetAt(this.save, this.node.id)).size)}`,
         );
       }
       const reports = questReports(this.save, this.content);
       const open = reports.filter((r) => r.stage === "accepted" || r.stage === "open");
+      /*
+       * ⚠ `turnedIn` WAS THE ONE STAGE THIS LINE DID NOT DRAW, AND IT IS THE ONLY STAGE THAT HAS
+       * SOMETHING TO SAY. The filters above take `open`/`accepted` and the count below takes `done`,
+       * so a quest whose objective the player had just satisfied — the exact window between finishing
+       * the work and walking back to the giver — fell between them and rendered as NOTHING. Measured
+       * end to end, driving the annual arrangement through a real year turn:
+       * `quests 0/10 closed · open first-signs fallow-field` before the turn and
+       * `quests 0/10 closed · open first-signs` after it. The quest DISAPPEARED on the press that
+       * earned it: the readout said less once the player had done the work.
+       *
+       * `syncQuestFlags` writes the owed flag from anywhere in the region, so the player is normally
+       * nowhere near the giver when this becomes true — which is why the giver is NAMED, with the
+       * town they stand in. Both come off `QuestDefinition`, i.e. off the corpus's first entry for
+       * the quest (G2); nothing here knows a name of its own.
+       */
+      const ready = reports.filter((r) => r.stage === "turnedIn");
       const done = reports.filter((r) => r.stage === "done").length;
       lines.push(
         `quests ${String(done)}/${String(reports.length)} closed` +
+          (ready.length > 0
+            ? ` · turn in ${ready.map((r) => `${r.id} → ${r.giver} at ${r.node}`).join(" · ")}`
+            : "") +
           (open.length > 0 ? ` · open ${open.map((r) => `${r.id}${r.met ? "*" : ""}`).join(" ")}` : ""),
       );
       const chains = this.completedSignChains();
