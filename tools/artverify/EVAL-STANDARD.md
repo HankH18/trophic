@@ -109,12 +109,86 @@ as four identical cottages. **This is free to fix and it surfaced as a footnote 
 lane.** When a refutation contains an actionable art finding, that finding is the result — not the
 verdict attached to it.
 
-**Two standing rules that follow.**
+**Three standing rules that follow.**
 
 1. **A round must change a pixel.** At most one research round per problem; this lane has spent four.
 2. **A verifier owes a next step, not just a kill.** A verdict of "refuted" with no statement of what
    would make it work, or what it rules out, hands the next round nothing and it will invent something
    from scratch. Ask for `whatThisRulesOut` alongside `refuted`.
+3. **Name the corpus and the operator in the same breath as the number.** A figure that travels without
+   the thing that produced it is not a weaker figure — it is a different figure, and this project has
+   now been wrong five times in exactly that way. Below is the list, because the pattern is only
+   visible as a list.
+
+### The five wrong instruments — the same failure five times
+
+Every one of these produced a *confident* answer. None was a close call, none was noticed by the agent
+that made it, and four of the five were acted on before anyone caught them.
+
+| # | the number | the operator that produced it | why it was the wrong instrument |
+|---|---|---|---|
+| 1 | cindershelf's grass-cell count | counted `,` over the **whole layout file** | the file's own legend block contains `,`. The corpus was the file; the claim was about the map body. It would have reported grass on a map whose authored subject says *"no grass anywhere over the whole picture."* |
+| 2 | per-node encounter share | a **hardcoded** walkable set | it omitted `~` shallow water, which is walkable. Inflated shares by up to **9 points**. The set was typed from memory instead of derived from the same table the composer uses. |
+| 3 | "which tiles does the engine load" | scanned `load()` calls for **literal names** | tile names are built at runtime (`T-crown-1`). A name-scan cannot see a name that does not exist as text. |
+| 4 | "is the player drawn" | counted `add.image` **call sites** | battle creatures and dex plates draw through `placeholderImage`, which renders real art whenever it exists. The count was of one draw path in a file with two. |
+| 5 | creature front/back row split | matched the **substring** `"back"` on the row id | `battle-kilnback-*-front` is a FRONT row for a creature named kilnback. Reported a 74/76 asymmetry and two orphan rows in a set that is exactly 75/75 with no orphans. |
+
+**#5 is the only one caught before it did damage, and it was caught by luck** — the count happened to
+get re-run a different way for an unrelated reason. That is not a habit and it will not repeat. The
+habit is the rule: **match on the field, not on a substring; derive the set, do not type it; follow the
+call path, do not scan for names.** State the operator and the corpus wherever the number appears, and
+a reader can see the mismatch without re-deriving anything.
+
+This is the same idea as the withdrawal banner at the top of this file, pointed at a different target.
+The banner withdraws every figure produced by one unpublished operator — a rule about *readings*. This
+is the rule about *selections*: what did you run it over, and is that the thing the claim is about?
+
+### Three more, and they are a different species — the instrument agreed with itself
+
+The five above are all *wrong corpus*. These three are worse, because in each one the rule from the
+first five had **already been applied** and the answer was still wrong.
+
+| # | the claim | what made it look right | what was actually true |
+|---|---|---|---|
+| 6 | the four season tints, measured as `out = src × tint/255` off `data/balance.json` | the operator WAS named, and it was a real operator | it was the **last step of a three-step chain**. `hueOf` normalises each preset to peak 255, then `seasonBrightness` scales it, then `yearDarkening` scales it again. The raw preset never reaches `setTint`. Three conclusions inverted: summer is the darker of the spring/summer pair, not the lighter; winter is the darkest season, not autumn; and the pair sits ~3.4 apart at year 1 rather than 5.1, **degrading to ~2.1 by year 6**. |
+| 7 | `fitWithin` preserves aspect ratio — asserted by `art-slot-fit.test.ts`, green | a real test, asserting the real property, on real fixtures | **every fixture was a square texture in a square slot**, where the correct expression and a plain `setDisplaySize` stretch give identical output. The test could not fail. The implementation had been changed to stretch, contradicting its own doc comment, and the suite stayed green. |
+| 8 | the player's `setFlipX` is called on alternate hops | an assertion naming the exact method | the scene stub's `Proxy` turns any unknown method into a **chainable no-op that records nothing**, so the assertion was vacuous. Proven by removing the recorder and watching the sabotage stay green. |
+
+**The sharpened rule, which is what #6 buys and the reason it is the most useful of the eight:**
+
+> **Name the whole PIPELINE, not just the final transform** — and where a pipeline exists in code,
+> **call the shipped function; never reimplement it from a description.** A description of a transform
+> is a summary, and a summary of a three-step chain that mentions one step is not wrong in a way that
+> announces itself. #6 happened *after* "name the operator and the corpus" was already in force, to two
+> people who were both applying it.
+
+**And the rule #7 and #8 buy, which is about tests rather than measurements:**
+
+> **Ask what would have to break for this to go red, and then break it.** A fixture chosen so that the
+> right and the wrong answers coincide, and a stub that swallows the call being asserted, are both
+> tests that cannot fail. Neither is detectable by reading the assertion — only by sabotage. If a test
+> guards something that matters, delete the behaviour and watch it red before believing it.
+
+### The shape that appeared three times in one night — THE INPUT MUST BE ABLE TO TELL THE ANSWERS APART
+
+| # | the check | subject | instrument | why it could not fail |
+|---|---|---|---|---|
+| 7 | `art-slot-fit.test.ts` — does `fitWithin` preserve aspect? | real | real | **every fixture was a square texture in a square slot.** On a square, preserving the aspect and plainly stretching produce identical output. The implementation had been changed to stretch and the suite stayed green. |
+| 9 | every human review of the 75 creature sprites | real | the eye | **they were looked at on WHITE.** The defect was a pale cast-shadow puddle that quantizes to `c02 #d2e0e2`. On white it is invisible; on mid-grey it is obvious. ~5,092 stray opaque pixels shipped, worst sprite 554. |
+| 10 | `season-tint-onscreen.test.ts` — does the tint reach the screen? | real | real | **it measures SEPARATION, not PROVENANCE.** Pointed back at the wrong source, the four seasons still separated, so the wrong input produced a right-looking answer and the test stayed green. |
+
+**None of these is a bad test, a bad instrument, or a careless look.** In all three the subject was real
+and the method was sound. What failed was the *case they ran on*: a square, a white ground, a metric
+blind to where its input came from. So:
+
+> **THE INPUT MUST BE ABLE TO TELL THE ANSWERS APART.** Before trusting a check, ask what its case
+> would look like if the thing were broken — and if that is the same picture, the case is the bug, not
+> the code. Judge sprites on mid-grey, never on the ground they were generated against. Fixture a
+> transform with a case where the wrong transform gives a *different* answer. And a metric that reads
+> the output cannot tell you anything about the input that produced it.
+
+This is the eye's version of the corpus rule. "Name the corpus" asks *what did you run it over*; this
+one asks *could that corpus have shown you the failure*.
 
 ### But looking is a CHECK, not the answer — the eye failed here too
 

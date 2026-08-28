@@ -1,0 +1,344 @@
+{
+  "_why_this_file_exists": [
+    "Two figures this suite publishes are measured over corpora that a CLEAN CLONE DOES NOT HAVE, so",
+    "the tests that measured them could only ever be green on the machine that holds the pixels. On a",
+    "clean tree they went red for the absence rather than for a defect, and a red that can never be",
+    "green is not evidence about the codebase anyone else builds.",
+    "",
+    "A measurement of an image is not the image. The numbers are published HERE — tracked, in a clean",
+    "clone, readable by CI — with their OPERATOR and their CORPUS named beside them, which is the",
+    "standard tools/artverify/EVAL-STANDARD.md applies before a figure may be quoted at all. That",
+    "file's withdrawal banner withdrew seven figures and a four-rung amplitude ladder for exactly the omission",
+    "this file exists to avoid: 'every figure produced by the unpublished operator is withdrawn'. A",
+    "number with no re-runnable operator and no stated corpus is refused there, so one is not",
+    "published here.",
+    "",
+    "Each record is asserted from BOTH sides:",
+    "  · ALWAYS, in CI — the published rows are internally consistent, the parameters recorded here",
+    "    still equal the live ones in code and data, and the bands the tests and docs quote are",
+    "    derived from these rows rather than typed beside them.",
+    "  · WHERE THE CORPUS EXISTS — the rasters are re-measured and must reproduce these rows exactly.",
+    "    A corpus present and disagreeing is a hard failure, never a skip.",
+    "",
+    "The skip condition is 'the corpus is absent', never 'the assertion is inconvenient', and the",
+    "absence is itself asserted to be the deliberate untracked one (git ls-files says nothing tracks",
+    "it, git check-ignore says .gitignore ignores it). A missing file that is neither is a broken",
+    "checkout and reds."
+  ],
+
+  "referenceCaptures": {
+    "claim": "The four Gold bands that tests/gates/asset-palette-contract.test.ts prints, build-doc §8.4 publishes and docs/STATUS.md quotes are derived from these ten measurements and from nothing else.",
+    "publishedBy": "tests/gates/asset-palette-contract.test.ts",
+    "measuredOn": "2026-08-27",
+
+    "corpus": {
+      "root": "assets/reference",
+      "trackedInGit": false,
+      "presentInACleanClone": false,
+      "whyAbsent": [
+        "These are Nintendo's own tile and UI bitmaps. They are PIPELINE INPUT — img2img init images",
+        "and things to measure against — and are never shipped, never quantized into assets/final/ and",
+        "never redistributed. .gitignore carries `assets/reference/**` on the owner's instruction, and",
+        "the ten that had already been committed were untracked with `git rm --cached` (commit",
+        "1da8cf0), which kept them on the owner's disk and removed them from every clone.",
+        "So this corpus is not missing, not broken, and not restorable by anyone reading this: it is",
+        "deliberately absent, permanently, and no test may be written that requires it to be present."
+      ],
+      "gitignoreRule": "assets/reference/**",
+      "howToObtain": "assets/reference/README.md — tracked, holds no third-party art, records what the set is and how to re-fetch it."
+    },
+
+    "operators": {
+      "_region_is_part_of_the_definition": "A whole-image figure and a ground-patch figure are different measurements even when the arithmetic is identical. Nothing in the WHOLE-IMAGE group may be compared with anything in the GROUND-PATCH group; the six-fold gap this project measured on one synthetic (44.34% whole-image against 0.00% ground) is what leaving the region unstated costs.",
+      "colours": {
+        "region": "whole-image",
+        "definition": "count of distinct exact 8-bit RGB triples over every opaque pixel",
+        "implementation": "tests/gates/asset-palette-contract.test.ts :: census() -> Census.swatches.size"
+      },
+      "edge": {
+        "region": "whole-image",
+        "definition": "percent of pixels whose exact RGB differs from the pixel to their right or the pixel below (edges of the frame count only the neighbours that exist)",
+        "implementation": "tests/gates/asset-palette-contract.test.ts :: edgePercent()"
+      },
+      "conc": {
+        "region": "ground-patch",
+        "definition": "MEDIAN over non-overlapping 64x64 patches of 1/sum(p_i^2) — effective colours per patch, over opaque pixels only. 1.00 is a flat fill and is the algebraic floor; hundreds is continuous noise.",
+        "implementation": "tests/gates/asset-palette-contract.test.ts :: groundReading() -> effective"
+      },
+      "alt": {
+        "region": "ground-patch",
+        "definition": "MEDIAN over the same patches of the percent of horizontally- and vertically-adjacent opaque pairs INSIDE the patch whose exact RGB differs",
+        "implementation": "tests/gates/asset-palette-contract.test.ts :: groundReading() -> alternationPct"
+      }
+    },
+
+    "parameters": {
+      "_asserted_equal_to_the_live_constants": "asset-palette-contract.test.ts checks each of these against the constant it names, so a retune of the operator cannot leave these figures standing as if it had not happened.",
+      "groundPatchPx": 64,
+      "opaqueAlphaMin": 128,
+      "colourMatch": "exact 8-bit RGB, alpha excluded from the value",
+      "rounding": "figures below are the operator's output rounded to 2 decimal places; `colours` is exact"
+    },
+
+    "captures": [
+      {
+        "group": "gen2",
+        "file": "assets/reference/gen2/johto-route-29-gsc.png",
+        "sha256": "385735db6b473d934df9b22a2bba9effc24ae30a6f1d995fb2f149ec29d7fb08",
+        "bytes": 25813,
+        "width": 960,
+        "height": 288,
+        "colours": 12,
+        "edge": 78.65,
+        "conc": 3.67,
+        "alt": 64.24
+      },
+      {
+        "group": "gen2",
+        "file": "assets/reference/gen2/johto-route-42-gsc.png",
+        "sha256": "2d5c08b8843f0450175f407f6d3c8be9b848e98038c20ec43de2753a0cf9dfce",
+        "bytes": 31941,
+        "width": 960,
+        "height": 288,
+        "colours": 13,
+        "edge": 64.51,
+        "conc": 2.97,
+        "alt": 53.19
+      },
+      {
+        "group": "gen2",
+        "file": "assets/reference/gen2/azalea-town-gsc.png",
+        "sha256": "d848dc0e37b1426fabed143c7e98e7edba050b2ca5a841ce9605a361697c0fe9",
+        "bytes": 6290,
+        "width": 640,
+        "height": 288,
+        "colours": 15,
+        "edge": 71.32,
+        "conc": 3.8,
+        "alt": 61.04
+      },
+      {
+        "group": "gen2",
+        "file": "assets/reference/gen2/new-bark-town-gsc.png",
+        "sha256": "98f8380fed7093e862c4c10e2c9e3c1d5281c0d4859322d01fe7a5c4f86232dd",
+        "bytes": 6707,
+        "width": 320,
+        "height": 288,
+        "colours": 17,
+        "edge": 58.88,
+        "conc": 3.59,
+        "alt": 36.57
+      },
+      {
+        "group": "gen2",
+        "file": "assets/reference/gen2/violet-city-gs.png",
+        "sha256": "1b1ca0b754a4036ec2466e9a541791a15c337ac4aa05bfce384012be85881842",
+        "bytes": 10361,
+        "width": 640,
+        "height": 576,
+        "colours": 17,
+        "edge": 67.73,
+        "conc": 3.72,
+        "alt": 52.54
+      },
+      {
+        "group": "gen2",
+        "file": "assets/reference/gen2/cherrygrove-city-gsc.png",
+        "sha256": "8af10a6ed843b70d0e484c5df5f27fdea942e6374cf66519551052462ab14d05",
+        "bytes": 10744,
+        "width": 640,
+        "height": 288,
+        "colours": 18,
+        "edge": 57.68,
+        "conc": 3.64,
+        "alt": 41.0
+      },
+      {
+        "group": "gen2",
+        "file": "assets/reference/gen2/johto-route-32-gsc.png",
+        "sha256": "8e8814a7becd6ec0d79d84955f924569d6d236d1c8bc7cb529f3f5ef61be9acc",
+        "bytes": 35578,
+        "width": 320,
+        "height": 1440,
+        "colours": 18,
+        "edge": 63.81,
+        "conc": 3.37,
+        "alt": 52.54
+      },
+      {
+        "group": "gen2",
+        "file": "assets/reference/gen2/olivine-city-gs.png",
+        "sha256": "9ad10894620d96b0698e4c154ab23fd2e3d2f0b62ae94ee5682bd2c1ad802afb",
+        "bytes": 40780,
+        "width": 640,
+        "height": 576,
+        "colours": 18,
+        "edge": 51.03,
+        "conc": 2.62,
+        "alt": 28.72
+      },
+      {
+        "group": "gen3",
+        "file": "assets/reference/gen3/fortree-city-rs.png",
+        "sha256": "eea3d333cd9184add801d4e84c065aa1b042afaca11d849dfce173cda15b9ab5",
+        "bytes": 41699,
+        "width": 640,
+        "height": 320,
+        "colours": 49,
+        "edge": 73.25,
+        "conc": 5.98,
+        "alt": 53.22
+      },
+      {
+        "group": "gen3",
+        "file": "assets/reference/gen3/lavaridge-town-rs.png",
+        "sha256": "277026dfcdab65b4ef22f911ed0d41281878fc48ed60cf93bc9cfab8b1016b5a",
+        "bytes": 17869,
+        "width": 320,
+        "height": 320,
+        "colours": 49,
+        "edge": 50.5,
+        "conc": 6.27,
+        "alt": 34.29
+      }
+    ],
+
+    "bands": {
+      "_derivation": "Over the `gen2` rows ONLY — the two gen3 rows are the discrimination control and are deliberately outside every band. floor = min rounded DOWN to the stated precision, ceiling = max rounded UP, mean = the arithmetic mean rounded to the stated precision. The gen2 count is 8 and the whole corpus is 10; both are pinned in the gate so the table cannot be emptied from either side.",
+      "colours": { "low": 12, "high": 18, "mean": 16.0, "precision": 0 },
+      "edge": { "low": 51.0, "high": 78.7, "mean": 64.2, "precision": 1 },
+      "conc": { "low": 2.6, "high": 3.8, "mean": 3.42, "precision": 1 },
+      "alt": { "low": 28.7, "high": 64.3, "mean": 48.73, "precision": 1 }
+    },
+
+    "crossOperatorAgreement": {
+      "reportedGoldAlt": 48.7,
+      "note": "What the art session reports for Gold GROUND with an operator of its own, against this operator's 48.73 over eight WHOLE captures. The two agree numerically and the agreement is NOT corroboration — they measure different regions. Kept because a drift in either would move a figure two sessions currently quote; not kept as evidence about ground."
+    },
+
+    "quotedInDocs": {
+      "_why": "The bands are quoted in docs/build-doc.md §8.4 and docs/STATUS.md. Three copies of a number whose source is a table is how a figure fossilises, so the gate greps the doc for the figures it derives and reds when the doc drifts from its own evidence. Matching is on the NUMBERS, not on the sentence, so a reword survives and a changed number does not.",
+      "file": "docs/build-doc.md"
+    }
+  },
+
+  "overlayDiff32pxResidual": {
+    "claim": "The overlay_diff gate's own false-ACCEPT limit: a 32px feature (2x2 collision cells, smaller than the 32x48 player) displaced by one collision cell is ACCEPTED at 8 of the 25 (map, position) pairs. Characterisation, not approval — the number is held still so a retune cannot move it in silence.",
+    "publishedBy": "tests/unit/overlay-diff.test.ts",
+    "measuredOn": "2026-08-28",
+
+    "corpus": {
+      "_note": "FIVE real 1024x1024 painted maps. ONE of them is tracked; the other four are generator output under assets/raw/**, which .gitignore excludes, so a clean clone measures 5 of the 25 pairs and not 25. That is why the aggregate is published as a per-pair table: the 5 pairs a clean clone CAN measure are re-measured there for real, and the other 20 are asserted against this record rather than skipped.",
+      "gitignoreRule": "assets/raw/**",
+      "maps": [
+        {
+          "file": "assets/approved-trials/town-map.png",
+          "trackedInGit": true,
+          "sha256": "69402d18fac70073f4af4b8acfdb4912b3c43aef426a0adf9c8cd0003627935e",
+          "width": 1024,
+          "height": 1024
+        },
+        {
+          "file": "assets/raw/palette-trials/pt-map-brackwater.png",
+          "trackedInGit": false,
+          "sha256": "3bdbf30d6444292e5119df72a1d6b1567acdc9f80c99519d35a90c6275604299",
+          "width": 1024,
+          "height": 1024
+        },
+        {
+          "file": "assets/raw/palette-trials/pt-map-cindershelf.png",
+          "trackedInGit": false,
+          "sha256": "cea103684f6ebef28bb3d70af174e78670ca05b94d1da70799ff8f3716dba36b",
+          "width": 1024,
+          "height": 1024
+        },
+        {
+          "file": "assets/raw/palette-trials/pt-map-duskhollow.png",
+          "trackedInGit": false,
+          "sha256": "80571f2010ab3187fe8e156d26ef839da8d7432588c7d95328ea76e5a5f3e96b",
+          "width": 1024,
+          "height": 1024
+        },
+        {
+          "file": "assets/raw/palette-trials/pt-map-r2.png",
+          "trackedInGit": false,
+          "sha256": "7e41d143364d8f8f53fd5948ad212551f28efc9aa3a945ce11a4ad05d9f6e847",
+          "width": 1024,
+          "height": 1024
+        }
+      ]
+    },
+
+    "operator": {
+      "definition": "overlayDiff({ base, candidate, mask, grid, config }).accepted, where `candidate` is the base with an SxS block copied over from open ground at (900, 20) and the original block re-stamped d px down-and-right, and `mask` is the map's own luminance thresholded at 0.45.",
+      "implementation": "tools/overlay-diff/index.ts :: overlayDiff — called, never reimplemented",
+      "fixture": "tests/unit/overlay-diff.test.ts :: moveBlock() and maskFromLuminance()",
+      "blockPx": 32,
+      "displacementPx": 16,
+      "groundPatchSource": [900, 20],
+      "note": "blockPx is 2 x collisionCellPx and displacementPx is 1 x collisionCellPx, both DERIVED from data/balance.json at test time (G11) and asserted equal to the values recorded here."
+    },
+
+    "measuredWith": {
+      "_why": "In a clean clone only 5 of these 25 pairs can be re-measured, so what makes the other 20 still worth anything is that the CONDITIONS are unchanged. These are asserted equal to what data/balance.json produces through tools/overlay-diff/config.ts; a retune reds here and names itself instead of surfacing as a moved count with no cause attached.",
+      "collisionCellPx": 16,
+      "mapNativePx": 1024,
+      "gridCols": 64,
+      "gridRows": 64,
+      "iouThreshold": 0.85,
+      "sobelThreshold": 0.25,
+      "dilatePx": 2,
+      "driftFootprintCols": 2,
+      "driftFootprintRows": 3
+    },
+
+    "positions": [
+      [300, 300],
+      [500, 200],
+      [200, 500],
+      [400, 400],
+      [600, 600]
+    ],
+
+    "pairs": [
+      { "map": "assets/approved-trials/town-map.png", "x": 300, "y": 300, "accepted": false },
+      { "map": "assets/approved-trials/town-map.png", "x": 500, "y": 200, "accepted": false },
+      { "map": "assets/approved-trials/town-map.png", "x": 200, "y": 500, "accepted": false },
+      { "map": "assets/approved-trials/town-map.png", "x": 400, "y": 400, "accepted": false },
+      { "map": "assets/approved-trials/town-map.png", "x": 600, "y": 600, "accepted": false },
+      { "map": "assets/raw/palette-trials/pt-map-brackwater.png", "x": 300, "y": 300, "accepted": true },
+      { "map": "assets/raw/palette-trials/pt-map-brackwater.png", "x": 500, "y": 200, "accepted": true },
+      { "map": "assets/raw/palette-trials/pt-map-brackwater.png", "x": 200, "y": 500, "accepted": true },
+      { "map": "assets/raw/palette-trials/pt-map-brackwater.png", "x": 400, "y": 400, "accepted": false },
+      { "map": "assets/raw/palette-trials/pt-map-brackwater.png", "x": 600, "y": 600, "accepted": false },
+      { "map": "assets/raw/palette-trials/pt-map-cindershelf.png", "x": 300, "y": 300, "accepted": true },
+      { "map": "assets/raw/palette-trials/pt-map-cindershelf.png", "x": 500, "y": 200, "accepted": true },
+      { "map": "assets/raw/palette-trials/pt-map-cindershelf.png", "x": 200, "y": 500, "accepted": true },
+      { "map": "assets/raw/palette-trials/pt-map-cindershelf.png", "x": 400, "y": 400, "accepted": true },
+      { "map": "assets/raw/palette-trials/pt-map-cindershelf.png", "x": 600, "y": 600, "accepted": false },
+      { "map": "assets/raw/palette-trials/pt-map-duskhollow.png", "x": 300, "y": 300, "accepted": false },
+      { "map": "assets/raw/palette-trials/pt-map-duskhollow.png", "x": 500, "y": 200, "accepted": false },
+      { "map": "assets/raw/palette-trials/pt-map-duskhollow.png", "x": 200, "y": 500, "accepted": false },
+      { "map": "assets/raw/palette-trials/pt-map-duskhollow.png", "x": 400, "y": 400, "accepted": false },
+      { "map": "assets/raw/palette-trials/pt-map-duskhollow.png", "x": 600, "y": 600, "accepted": false },
+      { "map": "assets/raw/palette-trials/pt-map-r2.png", "x": 300, "y": 300, "accepted": false },
+      { "map": "assets/raw/palette-trials/pt-map-r2.png", "x": 500, "y": 200, "accepted": false },
+      { "map": "assets/raw/palette-trials/pt-map-r2.png", "x": 200, "y": 500, "accepted": true },
+      { "map": "assets/raw/palette-trials/pt-map-r2.png", "x": 400, "y": 400, "accepted": false },
+      { "map": "assets/raw/palette-trials/pt-map-r2.png", "x": 600, "y": 600, "accepted": false }
+    ],
+
+    "aggregate": {
+      "accepted": 8,
+      "of": 25,
+      "note": "Pinned. Change it only together with the header of tools/overlay-diff/diff.ts. A green run is NOT a claim that 32px false-accepts are acceptable — it is the limit being held still where a reader of tools/overlay-diff/ can see it."
+    },
+
+    "companionClaim": {
+      "blockPx": 64,
+      "accepted": 0,
+      "of": 25,
+      "note": "The 64px case, tested separately in the same file and by tools/overlay-diff/diff.ts's header. It must stay at 0: a retune that tightens 32px by loosening 64px is the failure the pair of claims is arranged to catch."
+    }
+  }
+}

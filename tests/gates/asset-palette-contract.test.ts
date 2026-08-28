@@ -156,6 +156,7 @@
 
 import { beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import sharp from 'sharp';
@@ -170,6 +171,7 @@ import {
   thresholdEdges,
 } from '../../tools/overlay-diff/edges.ts';
 import balance from '../../data/balance.json';
+import published from '../../tools/artverify/published-measurements.json';
 
 /* ────────────────────────────────────────────────────────────────────────────────────────────────
  * The repo's CIEDE2000, not a second one.
@@ -973,9 +975,49 @@ const MIN_DISTINCT_NATIVE = 8;
  * reading fails nothing, and the control below binds the INSTRUMENT instead.
  * ──────────────────────────────────────────────────────────────────────────────────────────────── */
 
+/* ────────────────────────────────────────────────────────────────────────────────────────────────
+ * ⚠ THE CAPTURE TABLES ARE READ FROM A PUBLISHED FILE, BECAUSE THE PIXELS ARE NOT IN THE REPOSITORY.
+ *
+ * ⚠ AND THIS BLOCK'S PREVIOUS COMMENT SAID THE OPPOSITE, IN THE ONE PLACE IT MATTERED. It read
+ * "they are committed (`git ls-files -- assets/reference`)" and made an absent capture a hard
+ * failure on that basis. That was true when it was written and is false now: `.gitignore` carries
+ * `assets/reference/**` on the owner's instruction — they are Nintendo's own sprite, tile and UI
+ * bitmaps, held as pipeline input and never redistributed — and the ten that had already been
+ * committed were untracked with `git rm --cached` (commit 1da8cf0), which kept them on this disk
+ * and removed them from every clone. **So this arm went red in CI on every commit, for the absence
+ * and not for a defect**, and a verification that can only be green where extra files happen to
+ * exist is not evidence about the codebase anyone else builds.
+ *
+ * The repair is not to restore the pixels (they are third-party art and stay out) and not to skip
+ * over their absence (that is the vacuous pass the whole file exists to refuse). **A measurement of
+ * an image is not the image**: the ten measurements are PUBLISHED in
+ * `tools/artverify/published-measurements.json` — tracked, present in every clone — with their
+ * operator, their parameters and their corpus (by sha256) recorded beside them, which is the
+ * standard `tools/artverify/EVAL-STANDARD.md` applies before a figure may be quoted at all. That
+ * file withdrew seven figures and a four-rung amplitude ladder for exactly the omission this avoids.
+ *
+ * The assertion is then in two halves, and BOTH are real:
+ *   · ALWAYS, in CI — the published rows are internally consistent, their parameters still equal
+ *     this file's live operator constants, the four bands are derived from the rows rather than
+ *     typed beside them, and build-doc §8.4 still quotes the figures it says it derived.
+ *   · WHERE THE CORPUS EXISTS — every PNG is re-measured and must reproduce its published row
+ *     EXACTLY, sha256 included. That half is stronger than what it replaces: the old loop asserted
+ *     only band MEMBERSHIP, so a wrong per-file figure that left the min, max and mean alone was
+ *     never checked against a pixel.
+ *
+ * The skip condition is "the corpus is absent", and it is itself ASSERTED rather than assumed —
+ * see `the reference corpus is present in full, or absent in full for the recorded reason`. A
+ * partly-present corpus, a tracked file gone missing, or a path that has gone stale all red there.
+ * ──────────────────────────────────────────────────────────────────────────────────────────────── */
+
 /** One reference capture: a real console map PNG at native size, and what it measures. */
 interface ReferenceCapture {
   file: string;
+  /** The bytes the figures below were measured over. A refetch or a re-crop is a different image. */
+  sha256: string;
+  bytes: number;
+  width: number;
+  height: number;
   colours: number;
   /** Percent of pixels differing from the pixel right or below — `edgePercent`, not §8.2's Sobel. */
   edge: number;
@@ -985,17 +1027,23 @@ interface ReferenceCapture {
   alt: number;
 }
 
+const PUBLISHED_REF = published.referenceCaptures;
+const asCapture = (r: (typeof PUBLISHED_REF.captures)[number]): ReferenceCapture => ({
+  file: r.file,
+  sha256: r.sha256,
+  bytes: r.bytes,
+  width: r.width,
+  height: r.height,
+  colours: r.colours,
+  edge: r.edge,
+  conc: r.conc,
+  alt: r.alt,
+});
+
 /** Gen 2 (Gold/Silver/Crystal), native size, measured 2026-08-27. All four bands come from these. */
-const GOLD_CAPTURES: readonly ReferenceCapture[] = [
-  { file: 'assets/reference/gen2/johto-route-29-gsc.png', colours: 12, edge: 78.65, conc: 3.67, alt: 64.24 },
-  { file: 'assets/reference/gen2/johto-route-42-gsc.png', colours: 13, edge: 64.51, conc: 2.97, alt: 53.19 },
-  { file: 'assets/reference/gen2/azalea-town-gsc.png', colours: 15, edge: 71.32, conc: 3.8, alt: 61.04 },
-  { file: 'assets/reference/gen2/new-bark-town-gsc.png', colours: 17, edge: 58.88, conc: 3.59, alt: 36.57 },
-  { file: 'assets/reference/gen2/violet-city-gs.png', colours: 17, edge: 67.73, conc: 3.72, alt: 52.54 },
-  { file: 'assets/reference/gen2/cherrygrove-city-gsc.png', colours: 18, edge: 57.68, conc: 3.64, alt: 41.0 },
-  { file: 'assets/reference/gen2/johto-route-32-gsc.png', colours: 18, edge: 63.81, conc: 3.37, alt: 52.54 },
-  { file: 'assets/reference/gen2/olivine-city-gs.png', colours: 18, edge: 51.03, conc: 2.62, alt: 28.72 },
-];
+const GOLD_CAPTURES: readonly ReferenceCapture[] = PUBLISHED_REF.captures
+  .filter((r) => r.group === 'gen2')
+  .map(asCapture);
 
 /**
  * Gen 3 (Ruby/Sapphire), same method, same day. Not a style source for colour — T-17 cites RSE for
@@ -1003,10 +1051,56 @@ const GOLD_CAPTURES: readonly ReferenceCapture[] = [
  * this axis. They are here because they are the control: a counter that read every image as "about
  * fifteen" would satisfy the Gold rows and fail these.
  */
-const RSE_CAPTURES: readonly ReferenceCapture[] = [
-  { file: 'assets/reference/gen3/fortree-city-rs.png', colours: 49, edge: 73.25, conc: 5.98, alt: 53.22 },
-  { file: 'assets/reference/gen3/lavaridge-town-rs.png', colours: 49, edge: 50.50, conc: 6.27, alt: 34.29 },
-];
+const RSE_CAPTURES: readonly ReferenceCapture[] = PUBLISHED_REF.captures
+  .filter((r) => r.group === 'gen3')
+  .map(asCapture);
+
+const ALL_CAPTURES: readonly ReferenceCapture[] = [...GOLD_CAPTURES, ...RSE_CAPTURES];
+const CAPTURES_PRESENT = ALL_CAPTURES.filter((r) => existsSync(resolve(REPO_ROOT, r.file)));
+const CAPTURES_ABSENT = ALL_CAPTURES.filter((r) => !existsSync(resolve(REPO_ROOT, r.file)));
+/** The re-measurement half runs only over a corpus that is ENTIRELY here. Partial is a failure. */
+const CORPUS_COMPLETE = CAPTURES_ABSENT.length === 0 && ALL_CAPTURES.length > 0;
+
+const sha256Of = (repoRelative: string): string =>
+  createHash('sha256').update(readFileSync(resolve(REPO_ROOT, repoRelative))).digest('hex');
+
+/** True when git has the path in the index. `--error-unmatch` exits non-zero for anything else. */
+function gitTracks(repoRelative: string): boolean {
+  try {
+    execFileSync('git', ['ls-files', '--error-unmatch', '--', repoRelative], { cwd: REPO_ROOT, stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** True when a .gitignore rule excludes the path. Exit 1 means "not ignored", which is not an error. */
+function gitIgnores(repoRelative: string): boolean {
+  try {
+    execFileSync('git', ['check-ignore', '-q', '--', repoRelative], { cwd: REPO_ROOT, stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+if (!CORPUS_COMPLETE) {
+  // ⛔ LOUD, NAMED, AND IN THE LOG OF EVERY RUN THAT CANNOT MEASURE THE PIXELS. A skip that reads
+  // like a pass is the exact failure `tests/gates/reachability.test.ts` exists because of, so the
+  // reason is printed where nobody can miss it and the assertion that the reason is TRUE runs below.
+  console.warn(
+    `\n⚠ REFERENCE CORPUS ABSENT — ${CAPTURES_PRESENT.length} of ${ALL_CAPTURES.length} captures on disk.\n` +
+      '  The band re-measurement is SKIPPED, and it is skipped for a reason this file asserts rather\n' +
+      '  than assumes: assets/reference/** is DELIBERATELY UNTRACKED third-party input (Nintendo\'s\n' +
+      '  own tile and UI bitmaps, .gitignore rule `assets/reference/**`, untracked in commit\n' +
+      '  1da8cf0). It is not a broken path and there is nothing to restore.\n' +
+      '  The published figures in tools/artverify/published-measurements.json are still asserted, in\n' +
+      '  full, by the two tests that always run. What is NOT proved here is that they still match\n' +
+      '  the pixels — only a tree holding assets/reference/ can prove that.\n' +
+      CAPTURES_ABSENT.map((r) => `    ABSENT  ${r.file}`).join('\n') +
+      '\n',
+  );
+}
 
 /**
  * How many reference captures the two tables above are required to hold, pinned as a literal.
@@ -1022,6 +1116,14 @@ const RSE_CAPTURES: readonly ReferenceCapture[] = [
  * A count rather than a mere non-zero floor, because the arm can be emptied from EITHER side: the
  * PNGs can leave the tree, or rows can leave the tables. `COVERED` above has the same shape of
  * guard and it is the reason a deleted shipped asset reds instead of shrinking the loop.
+ *
+ * ⚠ **THE TWO SIDES ARE NOW GUARDED IN DIFFERENT PLACES, AND THAT IS DELIBERATE.** The PNGs have
+ * left the tree — permanently, for every clone (see the capture-table header) — so "the corpus is
+ * gone" can no longer be a failure. It is a SKIP, and the skip is legitimate only because the
+ * always-running `the reference corpus is present in full, or absent in full for the recorded
+ * reason` proves the absence is the recorded, untracked, ignored one. THIS count still guards the
+ * other side, everywhere, including in a clean clone: rows leaving the published record is a
+ * failure and always will be, because the record is tracked and its absence has no excuse.
  *
  * Not a gameplay constant, so G11 does not reach it — it counts rows in a table of somebody else's
  * shipped art, exactly as `GOLD_BAND_LOW` and the vacuity floors do.
@@ -1310,6 +1412,218 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
       GOLD_ALT_LOW,
       'the alternation floor is at or below 0%, which is what a flat fill and a pooled field read',
     ).toBeGreaterThan(0);
+  });
+
+  /* ──────────────────────────────────────────────────────────────────────────────────────────────
+   * THE HALF THAT ALWAYS RUNS — the published record, checked against itself and against the code.
+   *
+   * Every assertion in this block holds in a clean clone that has never had a single reference PNG.
+   * It is the half that catches the record drifting from its own operator, the bands drifting from
+   * the rows, and the documents drifting from the evidence they cite. The re-measurement below is
+   * the other half — the record against the pixels — and it can only run where the pixels are.
+   * ────────────────────────────────────────────────────────────────────────────────────────────── */
+
+  it('the published reference record is internally consistent, and its parameters are the live ones', () => {
+    // 1. THE ROWS. The record can be emptied or duplicated from either side, so the shape is pinned.
+    expect(
+      ALL_CAPTURES.length,
+      `tools/artverify/published-measurements.json holds ${ALL_CAPTURES.length} capture rows, not ` +
+        `the pinned ${REFERENCE_CAPTURE_COUNT}. Every band this file publishes is corroborated by ` +
+        'exactly these rows; a shorter table publishes a band over measurements that are not there.',
+    ).toBe(REFERENCE_CAPTURE_COUNT);
+    expect(GOLD_CAPTURES.length, 'the Gold group is not eight captures').toBe(8);
+    expect(RSE_CAPTURES.length, 'the Gen-3 control is not two captures').toBe(2);
+    expect(new Set(ALL_CAPTURES.map((r) => r.file)).size, 'a capture file is published twice').toBe(
+      ALL_CAPTURES.length,
+    );
+    expect(
+      new Set(ALL_CAPTURES.map((r) => r.sha256)).size,
+      'two capture rows share a sha256 — the same image is published twice under two names, and the ' +
+        'band it contributes to is then derived from seven images and a copy',
+    ).toBe(ALL_CAPTURES.length);
+
+    const malformed = ALL_CAPTURES.filter(
+      (r) =>
+        !/^[0-9a-f]{64}$/.test(r.sha256) ||
+        !r.file.startsWith('assets/reference/') ||
+        !Number.isInteger(r.colours) ||
+        r.colours <= 0 ||
+        !(r.bytes > 0) ||
+        !(r.width > 0) ||
+        !(r.height > 0) ||
+        !Number.isFinite(r.edge) ||
+        !Number.isFinite(r.conc) ||
+        !Number.isFinite(r.alt),
+    );
+    expect(malformed.map((r) => r.file), 'a published capture row is not a well-formed measurement').toEqual([]);
+
+    // 2. THE FIGURES MUST BE PHYSICALLY POSSIBLE. `1/Σpᵢ²` is ≥ 1 for any non-empty patch and a
+    // percentage is in [0,100]; a row outside those is a broken instrument's output published as a
+    // measurement, which is the one thing this record must never be able to launder.
+    for (const r of ALL_CAPTURES) {
+      expect(r.conc, `${r.file}: published concentration below 1.0 is a broken instrument, not a flatter picture`)
+        .toBeGreaterThanOrEqual(1);
+      expect(r.edge, `${r.file}: published edge density outside 0–100%`).toBeGreaterThanOrEqual(0);
+      expect(r.edge, `${r.file}: published edge density outside 0–100%`).toBeLessThanOrEqual(100);
+      expect(r.alt, `${r.file}: published alternation outside 0–100%`).toBeGreaterThanOrEqual(0);
+      expect(r.alt, `${r.file}: published alternation outside 0–100%`).toBeLessThanOrEqual(100);
+      expect(
+        r.colours,
+        `${r.file}: published at ${r.colours} distinct colours over ${r.width}×${r.height} = ` +
+          `${r.width * r.height} pixels, which is more colours than the image has pixels`,
+      ).toBeLessThanOrEqual(r.width * r.height);
+    }
+
+    // 3. THE PARAMETERS. A figure is not quotable without the operator that made it, and an operator
+    // is not the same operator at a different patch size. These are published beside the numbers and
+    // asserted against the constants this file actually runs, so a retune cannot leave the figures
+    // standing as though nothing had happened.
+    expect(
+      PUBLISHED_REF.parameters.groundPatchPx,
+      `the record publishes a ${PUBLISHED_REF.parameters.groundPatchPx}px ground patch; this file ` +
+        `measures ${GROUND_PATCH_PX}px. The conc and alt columns are MEDIANS OVER PATCHES — change ` +
+        'the patch and every one of them is a different measurement. Re-measure and republish.',
+    ).toBe(GROUND_PATCH_PX);
+    expect(
+      PUBLISHED_REF.parameters.opaqueAlphaMin,
+      'the record publishes a different opacity threshold than patchProfile/census use, so the ' +
+        'published figures were taken over a different set of pixels than this file counts',
+    ).toBe(128);
+
+    // 4. THE BANDS THE RECORD ITSELF PUBLISHES must be the ones this file derives, or a reader of
+    // the JSON and a reader of the gate get different answers to the same question.
+    expect(
+      {
+        colours: PUBLISHED_REF.bands.colours,
+        edge: PUBLISHED_REF.bands.edge,
+        conc: PUBLISHED_REF.bands.conc,
+        alt: PUBLISHED_REF.bands.alt,
+      },
+      'the bands published in tools/artverify/published-measurements.json are not the bands this ' +
+        'gate derives from the same rows. One of the two was edited and the other was not.',
+    ).toEqual({
+      colours: { low: GOLD_BAND_LOW, high: GOLD_BAND_HIGH, mean: GOLD_BAND_MEAN, precision: 0 },
+      edge: { low: GOLD_EDGE_LOW, high: GOLD_EDGE_HIGH, mean: GOLD_EDGE_MEAN, precision: 1 },
+      conc: { low: GOLD_CONC_LOW, high: GOLD_CONC_HIGH, mean: GOLD_CONC_MEAN, precision: 1 },
+      alt: { low: GOLD_ALT_LOW, high: GOLD_ALT_HIGH, mean: GOLD_ALT_MEAN, precision: 1 },
+    });
+    expect(
+      PUBLISHED_REF.crossOperatorAgreement.reportedGoldAlt,
+      "the record's independently-reported Gold alternation is not this file's REPORTED_GOLD_ALT",
+    ).toBe(REPORTED_GOLD_ALT);
+
+    // 5. THE CONTROL MUST STILL BE A CONTROL, from the record alone. Gen 3 is here to prove the
+    // instruments discriminate; if the published Gen-3 rows sat inside the Gold bands, the
+    // re-measurement below would be asserting a tautology on every tree that can run it.
+    for (const r of RSE_CAPTURES) {
+      expect(
+        r.colours,
+        `${r.file} is published at ${r.colours} colours, inside the Gold band ${bandLabel}. The Gen-3 ` +
+          'rows are the discrimination control; a control that does not discriminate is not a weaker ' +
+          'control, it is a false one.',
+      ).toBeGreaterThan(GOLD_BAND_HIGH);
+      expect(
+        r.conc,
+        `${r.file} is published at ${r.conc} effective colours, inside the Gold band ${concBandLabel}`,
+      ).toBeGreaterThan(GOLD_CONC_HIGH);
+    }
+  });
+
+  it('the reference corpus is present in full, or absent in full for the recorded reason', () => {
+    // ⛔ THE SKIP CONDITION, ASSERTED RATHER THAN ASSUMED. The re-measurement below is conditional
+    // on this corpus, and the ONLY absence that licenses skipping it is the recorded one: the files
+    // are deliberately untracked third-party input. Everything else — a partly-present corpus, a
+    // tracked file gone missing, a path that has gone stale, a `.gitignore` rule that has moved —
+    // reds HERE, so a bare `existsSync` can never be mistaken for a clean bill of health.
+    // ⛔ AND THEY MAY NEVER BE COMMITTED, present or absent. This is the owner's instruction and it
+    // is not a preference: they are Nintendo's own sprite, tile and UI bitmaps, held as pipeline
+    // input and never redistributed. It is asserted HERE because the obvious way to make the
+    // re-measurement run in CI is to commit them, and that repair is forbidden — the figures are
+    // published instead, which is what the rest of this block is for.
+    const committed = ALL_CAPTURES.map((r) => r.file).filter(gitTracks);
+    expect(
+      committed,
+      `${committed.length} reference capture(s) are TRACKED IN GIT: ${committed.join(' ')}. These are ` +
+        'third-party bitmaps kept out of the repository on the owner\'s instruction (.gitignore rule ' +
+        '`assets/reference/**`, untracked in commit 1da8cf0). If this was done to make the ' +
+        're-measurement below run in CI, that is the one repair this whole arrangement exists to ' +
+        'refuse — untrack them again (`git rm --cached`) and leave the published record to carry the ' +
+        'figures.',
+    ).toEqual([]);
+
+    // …and the corpus README stays, present or absent, because it is what tells the next reader what
+    // the set is and how to re-fetch it. Losing it turns a deliberate absence into an unexplained
+    // one — and it is the ONE file in that directory .gitignore deliberately un-ignores, so its
+    // disappearance is always a deletion somebody made.
+    expect(
+      existsSync(resolve(REPO_ROOT, 'assets/reference/README.md')),
+      'assets/reference/README.md is gone. It is the tracked record of what the reference corpus is ' +
+        'and how to re-fetch it — the only thing standing between "deliberately absent" and "nobody ' +
+        'knows what used to be here".',
+    ).toBe(true);
+
+    if (CORPUS_COMPLETE) {
+      expect(CAPTURES_ABSENT, 'the corpus is complete').toEqual([]);
+      return;
+    }
+
+    expect(
+      CAPTURES_PRESENT.map((r) => r.file),
+      `the reference corpus is PARTLY present: ${CAPTURES_PRESENT.length} of ${ALL_CAPTURES.length} ` +
+        'captures are on disk. That is neither of the two legal states. A partial corpus means some ' +
+        'bands would be re-measured and others silently taken on trust, which is the mixed evidence ' +
+        'this file refuses. Restore the rest or move them all aside.',
+    ).toEqual([]);
+
+    // The tracked-and-missing case is already red above (a tracked capture is a failure whether the
+    // file is there or not), so what is left to check is that the absence is the IGNORED one — i.e.
+    // that a `.gitignore` rule actually explains it, rather than the path having gone stale.
+    const wrong = ALL_CAPTURES.filter((r) => !gitIgnores(r.file)).map(
+      (r) =>
+        `${r.file}: absent, untracked, and NOT matched by any .gitignore rule. The recorded reason ` +
+        'is the `assets/reference/**` rule; an absence that is not that one is a stale path in the ' +
+        'published record, and every figure published for it is unsourced.',
+    );
+    expect(
+      wrong,
+      'the reference corpus is absent, but not for the reason the published record gives:\n  ' +
+        wrong.join('\n  ') +
+        '\nThe recorded reason is that assets/reference/** holds Nintendo\'s own sprite, tile and UI ' +
+        'bitmaps — pipeline input, never redistributed — which .gitignore excludes and which commit ' +
+        '1da8cf0 untracked. That absence is permanent and intended. Any OTHER absence is a defect.',
+    ).toEqual([]);
+  });
+
+  it('build-doc §8.4 still quotes the bands this gate derives', () => {
+    // The half that catches a DOCUMENT drifting from its own evidence. §8.4 states these figures as
+    // measurements of the eight Gold captures; the captures are gone from every clone, so without
+    // this the doc's numbers would be the only surviving copy and nothing would ever compare them
+    // with the record they came from. Matching is on the NUMBERS, built from the constants — a
+    // reword survives, a changed figure does not.
+    const doc = readFileSync(resolve(REPO_ROOT, 'docs/build-doc.md'), 'utf8');
+    const quoted: { what: string; token: string }[] = [
+      { what: 'the colour band extremes', token: `${GOLD_BAND_LOW} to ${GOLD_BAND_HIGH}` },
+      { what: 'the colour band mean', token: `mean ${GOLD_BAND_MEAN.toFixed(1)}` },
+      {
+        what: "the gate's own edge band, quoted in the withdrawal note as GOLD_EDGE_LOW / HIGH / MEAN",
+        token: `${GOLD_EDGE_LOW.toFixed(1)} / ${GOLD_EDGE_HIGH.toFixed(1)} / ${GOLD_EDGE_MEAN.toFixed(1)}`,
+      },
+      {
+        what: 'the edge band as the advisory prints it',
+        token: `${GOLD_EDGE_LOW.toFixed(0)}–${GOLD_EDGE_HIGH.toFixed(0)}%, mean ${GOLD_EDGE_MEAN.toFixed(1)}`,
+      },
+      { what: 'the independently reported Gold alternation', token: `${REPORTED_GOLD_ALT}%` },
+    ];
+    const stale = quoted.filter((q) => !doc.includes(q.token));
+    expect(
+      stale.map((q) => `${q.what}: docs/build-doc.md no longer contains "${q.token}"`),
+      'docs/build-doc.md has drifted from the measurements it says it derived:\n  ' +
+        stale.map((q) => `${q.what} — expected the text "${q.token}"`).join('\n  ') +
+        '\nEither the band moved and the document was not updated, or the document was reworded ' +
+        'through a figure. The captures these numbers come from are not in any clone (see the ' +
+        'published record), so the document and the gate are the only two copies left and they must ' +
+        'agree. Fix the document — do not delete this assertion.',
+    ).toEqual([]);
   });
 
   it('the alternation operator reproduces the figure it was validated against', () => {
@@ -1677,44 +1991,67 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
         '\n',
     );
   });
-  it('the reference captures still measure what the band quotes them as measuring', async () => {
+  // ⛔ THE ONLY SKIP IN THIS FILE, AND IT IS NOT A SILENT ONE. It runs where `assets/reference/`
+  // exists and is reported as SKIPPED — never as passed — where it does not, above a console banner
+  // naming the reason. The reason itself is asserted by `the reference corpus is present in full, or
+  // absent in full for the recorded reason`, which always runs: a partial corpus, a tracked file
+  // gone missing, or a path no .gitignore rule matches all red there rather than skipping here.
+  // The published figures are asserted in full, always, by the two tests above. What is skipped is
+  // ONLY the claim that they still match pixels no clone has.
+  // ⚠ The reason is carried in the TITLE and not only in the banner above, because vitest's default
+  // reporter drops console output from a file with no failures — so on a green CI run the banner is
+  // not printed and the title is the only place the skip can announce itself.
+  it.skipIf(!CORPUS_COMPLETE)(
+    'the reference captures still measure what the band quotes them as measuring' +
+      (CORPUS_COMPLETE
+        ? ''
+        : ' — SKIPPED, CORPUS ABSENT: assets/reference/** is deliberately untracked third-party ' +
+          'input and is in no clone. The published figures are still asserted in full by "the ' +
+          'published reference record is internally consistent"; only the claim that they match the ' +
+          'pixels is skipped, and the absence is asserted to be the recorded one.'),
+    async () => {
     // THE ONE FAILURE THAT ACTUALLY HAPPENED. The first captures of these maps were browser
     // screenshots, resampled to 642×574 from a 320×288 source — not even a clean 2× — and they held
     // 673 to 2,080 distinct colours, every one of them invented by interpolation. A band derived from
     // those would have been wrong by two orders of magnitude, and the advisory would have gone on
     // printing an authoritative-looking comparison against it.
     //
-    // The assertion is membership of the band rather than equality with the recorded figure, so a
-    // legitimately re-cropped capture does not red while a resampled one — three orders of magnitude
-    // out — cannot pass.
+    // ⚠ **AND AN ABSENT CAPTURE USED TO BE A HARD FAILURE HERE, ON A PREMISE THAT IS NO LONGER
+    // TRUE.** This comment read: "Wrong on the facts — `git ls-files -- assets/reference` lists all
+    // ten of these PNGs, so they are committed repo content." It did, and they were. Then
+    // `.gitignore` gained `assets/reference/**` on the owner's instruction — Nintendo's own tile and
+    // UI bitmaps, pipeline input, never redistributed — and commit 1da8cf0 untracked all ten with
+    // `git rm --cached`. They stayed on this disk and left every clone. The assertion built on the
+    // old premise then failed on every CI run, naming ten files nobody could restore, and a red that
+    // cannot go green is not evidence about anything.
     //
-    // ⚠ **AND AN ABSENT CAPTURE IS A FAILURE, NOT A REPORT.** This comment used to read "absent
-    // captures are REPORTED and do not fail: assets/reference/ is a reference corpus owned by the
-    // art lane, not shipped pixels". Both halves of that were wrong. Wrong on the facts — `git
-    // ls-files -- assets/reference` lists all ten of these PNGs, so they are committed repo
-    // content and not an art-lane scratch directory. And wrong on the consequence — with the
-    // directory moved aside the entire file still read **42 passed (42)**, because a `continue`
-    // over a missing file skips every assertion under it and nothing counted what had been
-    // checked. The bands the advisory prints, build-doc §8.4 publishes and STATUS quotes were then
-    // literals verified against literals in this same file. That is the failure this gate was
-    // written to prevent, surviving in the one arm that exists to source the numbers.
+    // What the old comment got exactly right, and what is preserved: with the directory moved aside
+    // the whole file once read **42 passed (42)**, because a `continue` over a missing file skips
+    // every assertion under it and nothing counted what had been checked. **A skip is not a pass.**
+    // So the corpus is still asserted COMPLETE before anything is measured — this arm never runs on
+    // a partial one — the count is still pinned, and `checked` is still asserted against it. What
+    // changed is only WHERE the absence is handled: `it.skipIf` above, over a condition that the
+    // always-running `the reference corpus is present in full, or absent in full for the recorded
+    // reason` proves is the deliberate one.
     //
-    // So: the corpus is asserted COMPLETE before anything is measured, the count is pinned, and the
-    // absent files are named. Deliberately NOT extended to "every PNG under assets/reference/ must
-    // appear in a table" — `gen2-ui/` is the ui-frames lane's (tools/ui-frames/raster.ts), and
-    // reaching into it would red on somebody else's directory for no defect here.
+    // ⚠ **AND THE PER-FILE FIGURES ARE NOW ASSERTED, WHICH THEY NEVER WERE.** The recorded columns
+    // were printed in the message and used to derive the bands — never compared with the pixels. A
+    // row whose conc was typed as 3.37 when the file measures 3.31 would have passed here forever
+    // and moved the band mean the day someone re-derived it. Equality with the published row is
+    // asserted first, then membership of the band: the first catches the record drifting from the
+    // art, the second catches the band drifting from the record.
+    //
+    // Deliberately NOT extended to "every PNG under assets/reference/ must appear in a table" —
+    // `gen2-ui/` is the ui-frames lane's (tools/ui-frames/raster.ts), and reaching into it would red
+    // on somebody else's directory for no defect here.
     const checked: string[] = [];
-    const ALL_CAPTURES = [...GOLD_CAPTURES, ...RSE_CAPTURES];
     const missing = ALL_CAPTURES.map((r) => r.file).filter((f) => !existsSync(resolve(REPO_ROOT, f)));
     expect(
       missing,
-      `${missing.length} of the ${ALL_CAPTURES.length} reference captures the published bands are ` +
-        `derived from are absent from the working tree: ${missing.join(' ')}. Every band in this ` +
-        `file — ${bandLabel} colours, ${edgeBandLabel} whole-image edge, ${concBandLabel} ` +
-        `concentration, ${altBandLabel} alternation — is a literal here whose ONLY corroboration is ` +
-        'a measurement of these PNGs. Without them this arm asserts nothing and the literals verify ' +
-        'each other. They are committed (`git ls-files -- assets/reference`); restore them rather ' +
-        'than letting this pass.',
+      `${missing.length} of the ${ALL_CAPTURES.length} reference captures are absent, and this arm ` +
+        'ran anyway. `it.skipIf(!CORPUS_COMPLETE)` above exists precisely so that cannot happen — ' +
+        'if this fires, the completeness gate and the skip condition have parted company and every ' +
+        'band below is being verified over a subset without saying so.',
     ).toEqual([]);
     expect(
       ALL_CAPTURES.length,
@@ -1722,6 +2059,25 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
         `${REFERENCE_CAPTURE_COUNT}. The arm can be emptied from either side — the PNGs can leave ` +
         'the tree or the rows can leave the tables — and a floor of one would not notice the second.',
     ).toBe(REFERENCE_CAPTURE_COUNT);
+
+    // ⛔ THE CORPUS IS THE ONE THE FIGURES WERE MEASURED OVER, byte for byte. Without this a
+    // refetched or re-cropped capture would be measured, land inside the band, and quietly certify
+    // a published row that was never taken from it — which is the "resampled screenshot" failure
+    // this test was written for, wearing a legitimate-looking file name.
+    const wrongPixels = ALL_CAPTURES.filter((r) => sha256Of(r.file) !== r.sha256).map(
+      (r) => `${r.file}: on disk ${sha256Of(r.file)}, published ${r.sha256}`,
+    );
+    expect(
+      wrongPixels,
+      'a reference capture on disk is not the image the published figures were measured over:\n  ' +
+        wrongPixels.join('\n  ') +
+        '\nThe published row is a measurement OF SPECIFIC BYTES. Re-measure the whole corpus and ' +
+        'republish tools/artverify/published-measurements.json — including the sha256 — rather than ' +
+        'assuming the new file measures like the old one.',
+    ).toEqual([]);
+
+    /** Every figure is published to two decimals; compare at that precision, not at float exactness. */
+    const at2 = (v: number): number => Number(v.toFixed(2));
 
     for (const ref of GOLD_CAPTURES) {
       const m = await referenceColours(ref.file);
@@ -1731,6 +2087,24 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
           `conc ${m.conc.toFixed(2)} (rec ${ref.conc.toFixed(2)}) ` +
           `alt ${m.alt.toFixed(2)}% (rec ${ref.alt.toFixed(2)}%)`,
       );
+      // EQUALITY FIRST. The band assertions below say "this capture is still Gold-like"; this one
+      // says "the published row is still true of this file". Only the second can catch a figure
+      // that was mistyped, or re-measured under a changed operator and never republished — and the
+      // bands are derived from these rows, so a wrong row silently moves the band.
+      expect(
+        { colours: m.colours, edge: at2(m.edge), conc: at2(m.conc), alt: at2(m.alt), width: m.width, height: m.height },
+        `${ref.file} no longer measures what tools/artverify/published-measurements.json publishes ` +
+          'for it. The bands in this file are DERIVED from that row, so this figure moving moves the ' +
+          'band. Re-measure the whole corpus, republish the record (the console line below is the ' +
+          'measurement), and re-derive the bands — do not edit one row to make this green.',
+      ).toEqual({
+        colours: ref.colours,
+        edge: at2(ref.edge),
+        conc: at2(ref.conc),
+        alt: at2(ref.alt),
+        width: ref.width,
+        height: ref.height,
+      });
       expect(
         m.conc,
         `${ref.file} reads ${m.conc.toFixed(2)} effective colours per median patch, outside the band ` +
@@ -1786,6 +2160,22 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
           `conc ${m.conc.toFixed(2)} (rec ${ref.conc.toFixed(2)}) ` +
           `alt ${m.alt.toFixed(2)}% (rec ${ref.alt.toFixed(2)}%)`,
       );
+      // Same equality as the Gold rows. The control is only a control while its published figures
+      // are true of the file — a Gen-3 row that drifted toward the Gold band and was never
+      // re-published would turn the discrimination test below into a tautology.
+      expect(
+        { colours: m.colours, edge: at2(m.edge), conc: at2(m.conc), alt: at2(m.alt), width: m.width, height: m.height },
+        `${ref.file} no longer measures what tools/artverify/published-measurements.json publishes ` +
+          'for it. These two rows are the discrimination control; re-measure and republish the whole ' +
+          'record rather than editing one row.',
+      ).toEqual({
+        colours: ref.colours,
+        edge: at2(ref.edge),
+        conc: at2(ref.conc),
+        alt: at2(ref.alt),
+        width: ref.width,
+        height: ref.height,
+      });
       expect(
         m.colours,
         `${ref.file} measures ${m.colours}; Gen 3 RSE was measured at ${ref.colours}, which is three ` +
@@ -1830,8 +2220,11 @@ describe('asset palette contract — every shipped PNG, decoded', () => {
         `alternation ${altBandLabel} (mean ${GOLD_ALT_MEAN.toFixed(2)}%), ` +
         `${checked.length} of ${REFERENCE_CAPTURE_COUNT} capture(s) verified\n` +
         checked.map((l) => `  ${l}`).join('\n') +
-        '\n  The corpus is asserted COMPLETE, not surveyed: an absent capture reds this test and is\n' +
-        '  named. These PNGs are the only source the four bands above have.\n' +
+        '\n  The corpus is asserted COMPLETE before anything is measured, and each capture is\n' +
+        '  asserted to be the exact bytes its published row was taken from (sha256). These PNGs are\n' +
+        '  the only source the four bands have, and they are in NO clone: the figures live in\n' +
+        '  tools/artverify/published-measurements.json, which this run has just re-derived from the\n' +
+        '  pixels. A tree without the corpus asserts that record in full and skips only this.\n' +
         OPERATOR_LEGEND +
         '\n',
     );

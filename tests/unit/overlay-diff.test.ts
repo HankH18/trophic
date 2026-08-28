@@ -59,7 +59,9 @@
  * No Math.random anywhere (G11): every pattern is a closed-form function of (x, y).
  */
 import { describe, expect, it } from 'vitest';
-import { existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { Raster } from '../../tools/postprocess/raster.ts';
 import { blankRaster, idx, readRaster } from '../../tools/postprocess/raster.ts';
@@ -82,6 +84,7 @@ import {
 } from '../../tools/overlay-diff/index.ts';
 import { collisionGrid, denoiseLadder, driftFootprint, overlayDiffConfig } from '../../tools/overlay-diff/config.ts';
 import { validateContent } from '../../core/schemas';
+import published from '../../tools/artverify/published-measurements.json';
 
 const content = validateContent();
 const CFG = overlayDiffConfig(content.balance);
@@ -501,13 +504,80 @@ describe('overlay_diff — build-doc §8.2 / §10.4', () => {
  * gate will be pointed at — and every headline case is re-measured on each of them.
  * ════════════════════════════════════════════════════════════════════════════ */
 
-const REAL_MAPS = [
-  'assets/approved-trials/town-map.png',
-  'assets/raw/palette-trials/pt-map-brackwater.png',
-  'assets/raw/palette-trials/pt-map-cindershelf.png',
-  'assets/raw/palette-trials/pt-map-duskhollow.png',
-  'assets/raw/palette-trials/pt-map-r2.png',
-].filter((p) => existsSync(resolve(REPO_ROOT, p)));
+/* ────────────────────────────────────────────────────────────────────────────
+ * THE CORPUS IS PUBLISHED, BECAUSE FOUR FIFTHS OF IT IS NOT IN THE REPOSITORY.
+ *
+ * ⚠ THIS BLOCK EXISTS BECAUSE THE RESIDUAL TEST BELOW PASSED HERE AND FAILED IN CI, AND THE
+ * DIFFERENCE WAS FOUR FILES NOBODY CLONING THIS REPO HAS EVER HAD.
+ *
+ * Five real 1024² painted maps are named. Exactly ONE — `assets/approved-trials/town-map.png` — is
+ * tracked. The other four live under `assets/raw/palette-trials/`, and `.gitignore` carries
+ * `assets/raw/**`: they are generator output, kept out of the repository on purpose. So the old
+ * `.filter(existsSync)` silently produced a FIVE-map corpus on the machine that generated them and
+ * a ONE-map corpus everywhere else, and every test in the block below quietly measured a fifth as
+ * much in CI as it did here. The residual test then failed in CI for the only honest reason
+ * available to it — on town-map alone a 32px displacement is accepted at 0 of 5 pairs, so
+ * `acceptedAt.length > 0` could not hold — and that red said "the corpus is missing" while reading
+ * like "the gate regressed".
+ *
+ * A measurement of an image is not the image. The 25 verdicts are PUBLISHED, in
+ * `tools/artverify/published-measurements.json`, with the operator, the fixture, the corpus (by
+ * sha256) and the balance they were taken at recorded beside them — the standard
+ * `tools/artverify/EVAL-STANDARD.md` applies before any figure may be quoted. What that buys:
+ *
+ *   · a clean clone re-measures the 5 pairs it CAN reach, for real, against the published verdicts,
+ *     and verifies town-map's sha256 first so those verdicts are known to be about these pixels;
+ *   · the other 20 are asserted against the published table rather than silently not measured;
+ *   · every absent map is asserted to be absent for the RECORDED reason — untracked and ignored —
+ *     so a deleted tracked map, or a path that has gone stale, reds instead of shrinking the loop.
+ *
+ * The corpus is read from the published record rather than typed here, so there is exactly one list
+ * and it cannot drift from the verdicts measured over it.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+const RESIDUAL = published.overlayDiff32pxResidual;
+
+/** Every map the published verdicts were measured over — the corpus, not the subset this tree holds. */
+const PUBLISHED_MAPS: readonly string[] = RESIDUAL.corpus.maps.map((m) => m.file);
+
+const REAL_MAPS = PUBLISHED_MAPS.filter((p) => existsSync(resolve(REPO_ROOT, p)));
+const ABSENT_MAPS = PUBLISHED_MAPS.filter((p) => !existsSync(resolve(REPO_ROOT, p)));
+
+const sha256Of = (rel: string): string =>
+  createHash('sha256').update(readFileSync(resolve(REPO_ROOT, rel))).digest('hex');
+
+/** True when git has the path in the index. `--error-unmatch` exits non-zero for anything else. */
+function gitTracks(rel: string): boolean {
+  try {
+    execFileSync('git', ['ls-files', '--error-unmatch', '--', rel], { cwd: REPO_ROOT, stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** True when a .gitignore rule excludes the path. Exit 1 means "not ignored", which is not an error. */
+function gitIgnores(rel: string): boolean {
+  try {
+    execFileSync('git', ['check-ignore', '-q', '--', rel], { cwd: REPO_ROOT, stdio: 'pipe' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+if (ABSENT_MAPS.length > 0) {
+  // Loud, named, and in the log of every run that measures less than the published record. A skip
+  // that reads like a pass is the failure this whole block exists to remove.
+  console.warn(
+    `\n⚠ overlay_diff REAL-MAP CORPUS INCOMPLETE — ${REAL_MAPS.length} of ${PUBLISHED_MAPS.length} maps present.\n` +
+      ABSENT_MAPS.map((p) => `    ABSENT  ${p}`).join('\n') +
+      '\n  These are generator output under assets/raw/**, which .gitignore excludes; they are not in ' +
+      'any clone.\n  The 32px residual below re-measures only the pairs this tree can reach and asserts the ' +
+      'rest\n  against tools/artverify/published-measurements.json. The absence is asserted to be the ' +
+      'recorded\n  one — see "every map absent from this tree is absent for the recorded reason".\n',
+  );
+}
 
 /** A mask derived from the painting's own luminance: bright ground/paths walkable, dark mass not. */
 function maskFromLuminance(src: Raster): Raster {
@@ -603,6 +673,155 @@ function glow(src: Raster, cx: number, cy: number, radius: number, strength: num
   }
   return o;
 }
+
+/* ════════════════════════════════════════════════════════════════════════════
+ * THE HALF THAT ALWAYS RUNS — the published record, and what this tree can reach.
+ *
+ * Every assertion in this block holds in a clean clone with no `assets/raw/` at all. It is the
+ * half that catches the published table drifting from itself, the fixture drifting from the table,
+ * and the balance drifting out from under both. The re-measurement below is the other half: it
+ * catches the table drifting from the pixels, and it can only run where the pixels are.
+ * ════════════════════════════════════════════════════════════════════════════ */
+
+describe('overlay_diff — the published 32px residual, and the corpus it was measured over', () => {
+  it('the published corpus is five maps at five positions, named and hashed', () => {
+    expect(PUBLISHED_MAPS.length, 'the published corpus is not five maps').toBe(5);
+    expect(new Set(PUBLISHED_MAPS).size, 'the published corpus repeats a map').toBe(PUBLISHED_MAPS.length);
+    for (const m of RESIDUAL.corpus.maps) {
+      expect(m.sha256, `${m.file}: sha256 is not 64 hex characters — a corpus row with no identity`).toMatch(
+        /^[0-9a-f]{64}$/,
+      );
+      expect(m.width, `${m.file}: published width`).toBe(MAP.mapNativePx);
+      expect(m.height, `${m.file}: published height`).toBe(MAP.mapNativePx);
+    }
+    expect(
+      new Set(RESIDUAL.corpus.maps.map((m) => m.sha256)).size,
+      'two corpus rows share a sha256 — the same image is published twice under two names',
+    ).toBe(PUBLISHED_MAPS.length);
+
+    // The fixture parameters are DERIVED from balance here and RECORDED there; they may not part.
+    expect(RESIDUAL.operator.blockPx, 'published blockPx is not 2 collision cells').toBe(2 * CELL);
+    expect(RESIDUAL.operator.displacementPx, 'published displacementPx is not one collision cell').toBe(CELL);
+    expect(
+      RESIDUAL.positions.map((p) => [p[0], p[1]]),
+      'the published positions are not the positions this file sweeps',
+    ).toEqual(MOVE_POSITIONS.map((p) => [p[0], p[1]]));
+  });
+
+  it('the published verdict table is complete and its aggregate is its own count', () => {
+    // The table can be emptied from either side — rows can leave it, or maps can leave the corpus —
+    // so both the shape and the count are pinned rather than trusted.
+    const pairs = RESIDUAL.pairs;
+    expect(
+      pairs.length,
+      `the published table holds ${pairs.length} verdicts, not the ${PUBLISHED_MAPS.length} maps × ` +
+        `${MOVE_POSITIONS.length} positions the corpus above declares. A table shorter than its own ` +
+        'corpus publishes an aggregate over rows that are not there.',
+    ).toBe(PUBLISHED_MAPS.length * MOVE_POSITIONS.length);
+
+    const keys = pairs.map((p) => `${p.map}@(${p.x},${p.y})`);
+    expect(new Set(keys).size, 'the published table repeats a (map, position) pair').toBe(keys.length);
+    const expected = PUBLISHED_MAPS.flatMap((m) => MOVE_POSITIONS.map(([x, y]) => `${m}@(${x},${y})`));
+    expect([...keys].sort(), 'the published table is not exactly the corpus × the positions').toEqual(
+      [...expected].sort(),
+    );
+
+    const accepted = pairs.filter((p) => p.accepted);
+    expect(
+      { accepted: accepted.length, of: pairs.length },
+      `the published aggregate ${RESIDUAL.aggregate.accepted} of ${RESIDUAL.aggregate.of} disagrees ` +
+        `with the table it summarises (${accepted.length} of ${pairs.length} rows say accepted). One ` +
+        'of the two was edited and the other was not, which is the fossil this record exists to make ' +
+        'impossible.',
+    ).toEqual({ accepted: RESIDUAL.aggregate.accepted, of: RESIDUAL.aggregate.of });
+
+    // The claim itself, asserted from the published table rather than from whatever this tree could
+    // reach: the residual is REAL (some pairs accept) and it is not total (some reject). In a clean
+    // clone only one map is present and it accepts none of its five, so measuring these two
+    // properties from the reachable subset would report the opposite of what is true.
+    expect(accepted.length, 'the published residual accepts nothing — the limit it states is not a limit').toBeGreaterThan(0);
+    expect(
+      pairs.length - accepted.length,
+      'the published residual rejects nothing — a gate that accepts every 32px displacement is not ' +
+        'a residual, it is a broken gate',
+    ).toBeGreaterThan(0);
+  });
+
+  it('the residual was measured at the balance this tree still carries', () => {
+    // In a clean clone twenty of the twenty-five verdicts cannot be re-measured, so what keeps them
+    // worth anything is that the CONDITIONS have not moved. `balance.overlayDiff` is INV-3's to
+    // retune; when it is retuned this reds and names the knob, instead of the count moving with no
+    // cause attached.
+    const m = RESIDUAL.measuredWith;
+    expect(
+      {
+        collisionCellPx: m.collisionCellPx,
+        mapNativePx: m.mapNativePx,
+        gridCols: m.gridCols,
+        gridRows: m.gridRows,
+        iouThreshold: m.iouThreshold,
+        sobelThreshold: m.sobelThreshold,
+        dilatePx: m.dilatePx,
+        driftFootprintCols: m.driftFootprintCols,
+        driftFootprintRows: m.driftFootprintRows,
+      },
+      'the published 32px residual was measured at a balance this tree no longer carries. The figure ' +
+        'is a CHARACTERISATION of the gate at particular settings — re-measure it with the whole ' +
+        'corpus present and republish, or put the settings back. Do not edit the count alone.',
+    ).toEqual({
+      collisionCellPx: MAP.collisionCellPx,
+      mapNativePx: MAP.mapNativePx,
+      gridCols: GRID.cols,
+      gridRows: GRID.rows,
+      iouThreshold: content.balance.overlayDiff.iouThreshold,
+      sobelThreshold: CFG.sobelThreshold,
+      dilatePx: CFG.dilatePx,
+      driftFootprintCols: CFG.driftFootprint.cols,
+      driftFootprintRows: CFG.driftFootprint.rows,
+    });
+  });
+
+  it('every map absent from this tree is absent for the recorded reason, and every tracked one is here', () => {
+    // ⛔ THE SKIP CONDITION, ASSERTED. The re-measurement below covers only the maps this tree
+    // holds, and the ONLY absence that licenses is "the file is deliberately untracked generator
+    // output". A tracked map that has gone missing, or a path that has gone stale, is a broken
+    // checkout and must red here rather than quietly shrink the sweep.
+    const wrong: string[] = [];
+    for (const m of RESIDUAL.corpus.maps) {
+      const present = existsSync(resolve(REPO_ROOT, m.file));
+      const tracked = gitTracks(m.file);
+      if (tracked !== m.trackedInGit) {
+        wrong.push(`${m.file}: the record says trackedInGit=${m.trackedInGit}, git says ${tracked}`);
+        continue;
+      }
+      if (present) continue;
+      if (tracked) {
+        wrong.push(`${m.file}: TRACKED and missing from the working tree — restore it, this is not the recorded absence`);
+      } else if (!gitIgnores(m.file)) {
+        wrong.push(
+          `${m.file}: absent, untracked, and NOT ignored by any .gitignore rule. The recorded reason ` +
+            'is `assets/raw/**` generator output; an absence that is not that one is a stale path or ' +
+            'a file nobody ever committed, and either way the published verdicts for it are unsourced',
+        );
+      }
+    }
+    expect(
+      wrong,
+      `the real-map corpus is not in one of its two legal states:\n  ${wrong.join('\n  ')}\n` +
+        'Legal states are (a) the file is present, or (b) the file is untracked AND ignored, which is ' +
+        'the deliberate absence of assets/raw/** generator output.',
+    ).toEqual([]);
+
+    // …and at least the tracked part of the corpus must be reachable, or the re-measurement below
+    // measures nothing at all and `describe.runIf` would skip the block in silence.
+    const trackedMaps = RESIDUAL.corpus.maps.filter((m) => m.trackedInGit).map((m) => m.file);
+    expect(trackedMaps.length, 'no map in the published corpus is tracked — nothing can be re-measured anywhere').toBeGreaterThan(0);
+    expect(
+      trackedMaps.filter((p) => !REAL_MAPS.includes(p)),
+      'a tracked corpus map is not in REAL_MAPS, so the sweep below cannot reach a single real pixel',
+    ).toEqual([]);
+  });
+});
 
 describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', () => {
   it('there are real 1024² maps in the repo to measure against', () => {
@@ -838,42 +1057,125 @@ describe.runIf(REAL_MAPS.length > 0)('overlay_diff on the real painted maps', ()
    * residual, decide deliberately, and update diff.ts's header with the new figure.
    * A green run here is NOT a claim that 32px false-accepts are acceptable. It is the opposite:
    * it is the limit being held still where a reader of tools/overlay-diff/ can see it.
+   *
+   * ⚠ AND IT USED TO BE PINNED AS A BARE AGGREGATE OVER A CORPUS FOUR FIFTHS OF THE WORLD DOES NOT
+   * HAVE. `expect({ accepted, of: total }).toEqual({ accepted: 8, of: 25 })` was green here and red
+   * in every clean clone, where `total` is 5 — and the assertion above it, "the residual is real",
+   * failed first, because on `town-map.png` alone a 32px displacement is accepted at NONE of its
+   * five positions. Two true statements about a one-map corpus, presented as a regression in the
+   * gate.
+   *
+   * So the 25 verdicts are published PER PAIR in tools/artverify/published-measurements.json, and
+   * this test re-measures every pair it can reach and asserts it against the published verdict.
+   * A clean clone measures 5 real pairs instead of 0 and checks the other 20 for internal
+   * consistency in the block above; this machine measures all 25. Neither is a skip: the aggregate
+   * claim is asserted from the published table (always), and the published table is asserted
+   * against the pixels (wherever the pixels are).
    * ────────────────────────────────────────────────────────────────────────── */
   it(
     'STATES THE LIMIT: a 32px feature displaced one cell is still ACCEPTED at some pairs',
     async () => {
+      const verdictOf = new Map(RESIDUAL.pairs.map((p) => [`${p.map}@(${p.x},${p.y})`, p.accepted]));
+      const measured: { map: string; x: number; y: number; accepted: boolean }[] = [];
       const acceptedAt: string[] = [];
       const rejectedAt: string[] = [];
+      const disagreed: string[] = [];
+      const wrongPixels: string[] = [];
+
       for (const rel of REAL_MAPS) {
+        // The published verdicts are about particular bytes. Verify the bytes before quoting the
+        // verdicts, or a refetched or re-cropped map would be silently certified by a table that
+        // was never measured over it.
+        const row = RESIDUAL.corpus.maps.find((m) => m.file === rel)!;
+        const sha = sha256Of(rel);
+        if (sha !== row.sha256) {
+          wrongPixels.push(`${rel}: sha256 ${sha}, published ${row.sha256}`);
+          continue;
+        }
         const map = await readRaster(resolve(REPO_ROOT, rel));
         const mask = maskFromLuminance(map);
         for (const [px, py] of MOVE_POSITIONS) {
           // 2 × CELL = 32px, against the 4 × CELL = 64px the test above rejects at 25 of 25.
           const v = run(map, moveBlock(map, px, py, 2 * CELL, CELL, 20, 900), mask);
+          measured.push({ map: rel, x: px, y: py, accepted: v.accepted });
           (v.accepted ? acceptedAt : rejectedAt).push(`${rel.split('/').pop()}@(${px},${py})`);
+          const key = `${rel}@(${px},${py})`;
+          const wasPublished = verdictOf.get(key);
+          if (wasPublished !== v.accepted) {
+            disagreed.push(`${key}: measured ${v.accepted ? 'ACCEPTED' : 'rejected'}, published ${wasPublished ? 'ACCEPTED' : 'rejected'}`);
+          }
         }
       }
-      const total = acceptedAt.length + rejectedAt.length;
-      expect(total, 'the sweep must cover every (map, position) pair').toBe(REAL_MAPS.length * MOVE_POSITIONS.length);
 
-      // The residual is real: the gate does NOT catch every 32px displacement.
+      // Printed BEFORE the assertions, so a red still hands the reader the table it measured —
+      // republishing needs the numbers, and a failure that swallows them costs a second 180s run.
+      console.log(
+        `\noverlay_diff 32px residual — published ${RESIDUAL.aggregate.accepted} of ` +
+          `${RESIDUAL.aggregate.of}; re-measured ${measured.length} pair(s) over ` +
+          `${REAL_MAPS.length} of ${PUBLISHED_MAPS.length} corpus map(s)` +
+          (REAL_MAPS.length === PUBLISHED_MAPS.length
+            ? ' — THE WHOLE CORPUS.\n'
+            : '.\n  NOT re-measured (deliberately untracked, see the published record):\n' +
+              ABSENT_MAPS.map((p) => `    ${p}`).join('\n') +
+              '\n  Those pairs are asserted against the published table, never skipped.\n') +
+          '  measured table (paste into tools/artverify/published-measurements.json to republish):\n' +
+          measured
+            .map((m) => `    { "map": ${JSON.stringify(m.map)}, "x": ${m.x}, "y": ${m.y}, "accepted": ${m.accepted} },`)
+            .join('\n') +
+          '\n',
+      );
+
       expect(
-        acceptedAt.length,
-        `32px displacements accepted at: ${acceptedAt.join(', ') || 'none'}`,
-      ).toBeGreaterThan(0);
-      // …and it is not a total failure either: at most pairs a 32px move IS caught.
-      expect(rejectedAt.length, `32px displacements rejected at: ${rejectedAt.join(', ')}`).toBeGreaterThan(0);
+        wrongPixels,
+        `a corpus map on disk is not the image the published verdicts were measured over:\n  ` +
+          `${wrongPixels.join('\n  ')}\nThe verdicts below are about specific bytes. Re-measure the ` +
+          'whole corpus and republish rather than assuming the new file behaves like the old one.',
+      ).toEqual([]);
 
-      // PINNED. Change this only together with the header of tools/overlay-diff/diff.ts.
       expect(
-        { accepted: acceptedAt.length, of: total },
-        `the residual moved — accepted at ${acceptedAt.join(', ')}`,
-      ).toEqual({ accepted: 8, of: 25 });
+        measured.length,
+        `the sweep measured ${measured.length} pairs; the ${REAL_MAPS.length} map(s) present × ` +
+          `${MOVE_POSITIONS.length} positions is ${REAL_MAPS.length * MOVE_POSITIONS.length}. A loop ` +
+          'that ran over fewer pairs than this tree can reach leaves the difference asserting nothing.',
+      ).toBe(REAL_MAPS.length * MOVE_POSITIONS.length);
 
-      // And the half that matters most: whatever the count, the 64px case above must stay at 0
-      // accepted. A retune that "fixes" 32px by loosening nothing is fine; one that tightens 32px
-      // by loosening 64px is the failure this pair of tests is arranged to catch.
-      expect(acceptedAt.length).toBeLessThan(total);
+      // ⛔ THE HALF THAT CATCHES THE NUMBERS DRIFTING FROM THE ART. Every pair this tree can reach
+      // must reproduce its published verdict exactly. This is the assertion that reds if the gate
+      // is retuned, if a fixture changes, or if the published table was edited to make something
+      // green — and it reds on the machine that has the corpus, which is where the repair is.
+      expect(
+        disagreed,
+        `${disagreed.length} of the ${measured.length} re-measured pairs disagree with ` +
+          `tools/artverify/published-measurements.json:\n  ${disagreed.join('\n  ')}\n` +
+          'Either the gate moved or the published table is stale. Re-measure the FULL corpus (all ' +
+          `${PUBLISHED_MAPS.length} maps — a partial re-publication is a table half of which was ` +
+          "measured under different conditions), republish, and update diff.ts's header with the new " +
+          'figure. Do not edit the published verdicts to match a partial sweep.',
+      ).toEqual([]);
+
+      // PINNED, and only assertable where the whole corpus is. On a partial tree the same claim is
+      // made from the published table by "the published verdict table is complete and its aggregate
+      // is its own count" above, which runs everywhere.
+      if (REAL_MAPS.length === PUBLISHED_MAPS.length) {
+        const total = acceptedAt.length + rejectedAt.length;
+        expect(total, 'the sweep must cover every (map, position) pair').toBe(
+          PUBLISHED_MAPS.length * MOVE_POSITIONS.length,
+        );
+        expect(
+          acceptedAt.length,
+          `32px displacements accepted at: ${acceptedAt.join(', ') || 'none'}`,
+        ).toBeGreaterThan(0);
+        expect(rejectedAt.length, `32px displacements rejected at: ${rejectedAt.join(', ')}`).toBeGreaterThan(0);
+        // Change this only together with the header of tools/overlay-diff/diff.ts.
+        expect(
+          { accepted: acceptedAt.length, of: total },
+          `the residual moved — accepted at ${acceptedAt.join(', ')}`,
+        ).toEqual({ accepted: RESIDUAL.aggregate.accepted, of: RESIDUAL.aggregate.of });
+        // And the half that matters most: whatever the count, the 64px case above must stay at 0
+        // accepted. A retune that "fixes" 32px by loosening nothing is fine; one that tightens 32px
+        // by loosening 64px is the failure this pair of tests is arranged to catch.
+        expect(acceptedAt.length).toBeLessThan(total);
+      }
     },
     180_000,
   );
