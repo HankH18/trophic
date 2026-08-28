@@ -44,8 +44,15 @@
 # · BOTH MOUTHS MOVED TO MEET THEIR NEIGHBOURS: bottom col 22 = r3's top mouth, top col 31 =
 #   r4's haul road. Both seams used to snap about twenty columns sideways. r4's track is authored
 #   as running almost straight, so this map's top mouth moved rather than r4's bottom one.
-# · NO ENCOUNTER TERRAIN AT ALL, and no tree. "No grass anywhere over the whole picture" is the
-#   clause of the subject line that must never be cut; nothing grows on the ash.
+# · ENCOUNTER TERRAIN IS ASH, NOT GRASS. The subject line's "no grass anywhere over the whole
+#   picture" is authored and binding on the MATERIAL: nothing vegetal grows on the ash, and no
+#   tree stands on it. The 180 `,` cells here are encounter terrain by legend KIND only — warm
+#   ash, vent margin and fissure edge — and the tile painted for them on this node must be ash,
+#   never grass or heather. They exist because data/nodes/cindershelf.json declares six
+#   populations (ashvole, cragmar, pyrelisk, stonewing, carricrow, kilnback) and a node with no
+#   encounter terrain makes all six unmeetable once the encounter mask is derived from this file.
+#   ⚠ THE TWO AUTHORED SOURCES CONFLICT AND THE OWNER HAS NOT YET RULED. Recorded, not resolved.
+#   Do not remove these cells, and do not paint them green, without his answer.
 #
 # ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
 #   .  floor  open-ground         plain walkable ground; the default fill

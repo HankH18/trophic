@@ -57,6 +57,11 @@
 #   sanctum-antler-ring at native (512,512) = cell (32,32), and propAnchorToleranceNativePx admits
 #   no other cell. Nothing is DRAWN there — the ring's stones stand at radius 8 and the anchor is
 #   the monument's interaction point, in the middle of the grazed lawn.
+#   The mechanical consequence, kept in the seeder's own words because tests/unit/mapgen.test.ts
+#   requires this coincidence to be recorded in the header and never left silent: the spawn cell
+#   (32,32) — native (512,512) — is also an authored prop position, so the prop-anchor character
+#   keeps it and no spawn-anchor is written. The cell is walkable, which is all chooseSpawnTile
+#   requires. Do not "tidy" this sentence away when re-authoring the header; it is asserted.
 #
 # ── legend (tools/mapgen/legend.ts) ──────────────────────────────────────────
 #   .  floor  open-ground         plain walkable ground; the default fill
